@@ -701,9 +701,12 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// request missing either is offered no slot at all, so it cannot upgrade and
 /// is answered as the ordinary request it is.
 ///
-/// § 5's `200 text/event-stream` is still a later slice's: until the door
-/// writes one, an event stream's isolate runs with `Output::Capture` and its
-/// bytes reach its own buffer rather than a body.
+/// § 5's `200 text/event-stream` is written here and never by the program that
+/// asked for one: the request's own answer is replaced by [`event_stream`],
+/// whose body is the half [`nvs_host::Isolate::over_event_stream`] hands the
+/// connection's isolate, exactly as the `101` replaces an upgrading request's.
+/// The isolate still runs with `Output::Capture`, what it echoes being no part
+/// of that body.
 ///
 /// **Every request is offered a third cell, and that one is answered before its
 /// request has ended.** `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
@@ -1094,13 +1097,13 @@ where
         // Started from `ctx`, which is this **connection's** context and not
         // the request's: that is the whole of "a root isolate, not a child of
         // the request tree", spelled as the parent it is given rather than as
-        // a rule to remember. `Output::Capture` because a connection's bytes
-        // are frames it sends and never this response's body — the request
-        // below already wrote that. § 5's stream is the one hand-over that
-        // *will* want a body, and it is the half that is not landed: until the
-        // `200 text/event-stream` it writes into exists, an event stream's
-        // isolate echoes into its own buffer. § 1's does the same and always
-        // will, its bytes being frames on a socket this response is over.
+        // a rule to remember. `Output::Capture` in both doors, because what a
+        // connection *echoes* is no part of a response either way: § 1's bytes
+        // are frames on a socket this response is over, and § 5's events reach
+        // the wire through the writing half the isolate is handed
+        // (`nvs_host::Isolate::over_event_stream`) rather than through a sink,
+        // so a stray `echo` between two events cannot land inside the framing a
+        // client is parsing.
         //
         // Both cells are read here and § 5's contradiction is decided here,
         // which is what `nvs_runtime::SseSlot::fill` means by "decided where
@@ -1146,8 +1149,24 @@ where
         };
         if let Some(upgrade) = opened {
             let (program, args) = upgrade.into_parts();
-            match Isolate::new(program, args, Output::Capture).start(&mut ctx.borrow_mut()) {
-                Ok(running) => *connection_isolate.borrow_mut() = Some(running),
+            // The body before the isolate that writes it, because the two halves
+            // are one call: the writing half goes into the isolate and the
+            // reading half is what this connection answers with, so neither can
+            // be handed anywhere before both exist.
+            let (events, body) = Answer::stream(&bounds);
+            match Isolate::new(program, args, Output::Capture)
+                .over_event_stream(events)
+                .start(&mut ctx.borrow_mut())
+            {
+                // The head goes out here and the events after it, so this
+                // **replaces** whatever the request wrote for itself, for the
+                // reason § 1's `101` does: this connection has one response
+                // left and the peer is owed the stream it asked for rather than
+                // a page it stopped reading for.
+                Ok(running) => {
+                    answered = event_stream(body);
+                    *connection_isolate.borrow_mut() = Some(running);
+                }
                 // The *argument* had no meaning on the other side. Not
                 // reachable through either `upgrade` member, whose own copy
                 // already accepted this graph once (`nvs_stdlib::socket`'s
@@ -1464,6 +1483,42 @@ fn switching(accept: &str) -> Response<Answer> {
     headers.insert(header::UPGRADE, HeaderValue::from_static("websocket"));
     headers.insert(header::CONNECTION, HeaderValue::from_static("Upgrade"));
     headers.insert(header::SEC_WEBSOCKET_ACCEPT, accept);
+    response
+}
+
+/// `rule:concurrency/two-doors-one-isolate`'s `200 text/event-stream`, over the
+/// body a connection isolate writes its events into.
+///
+/// [`switching`] one door over, and the same replacement: a request that opened
+/// an event stream is answered with this instead of with what it wrote for
+/// itself. What differs is that there is a body — § 1's hand-over takes the
+/// socket and this one takes nothing but the response the request already had.
+///
+/// **The status is `200` because the protocol says so**, which is why nothing
+/// here reads what the request declared: `Core\Sse::stream` refuses a program
+/// that set one, and door one's program is a different isolate that never saw
+/// this response at all. The media type and the field lines beside it are
+/// [`nvs_runtime::sse`]'s, read from there by both doors so that one event
+/// stream cannot arrive with a head the other would not have sent.
+///
+/// A name or a value this crate could not spell is skipped rather than
+/// answered, which is [`overrides`]' own shape and unreachable here: these are
+/// constants, and a constant that could not be a header would fail the case
+/// below before it reached a peer.
+fn event_stream(body: Answer) -> Response<Answer> {
+    let mut response = Response::new(body);
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static(nvs_runtime::sse::MEDIA_TYPE),
+    );
+    for (name, value) in nvs_runtime::sse::DECLARED_HEADERS {
+        let (Ok(name), Ok(value)) = (HeaderName::try_from(name), HeaderValue::from_str(value))
+        else {
+            continue;
+        };
+        headers.insert(name, value);
+    }
     response
 }
 
@@ -2466,21 +2521,56 @@ mod tests {
                 } else {
                     NO_FRAMING
                 };
-                // Read here, with this request's carrier still alive and its
-                // arena at its peak — the number the connection's own reading
-                // is compared against.
-                said.borrow_mut()
-                    .push(format!("request {}", nvs_runtime::budget::live_bytes()));
                 let mine = if filled {
                     door.answered(&path, framing)
                 } else {
                     format!("{path} no cell")
                 };
+                // Read here, with this request's carrier still alive and its
+                // arena at its peak — the number the connection's own reading
+                // is compared against — and what this request answered with
+                // beside it. That line is reported rather than read off the
+                // wire because § 5's door replaces it there: the peer gets the
+                // event stream, and the one place a case can still see what the
+                // request said for itself is here.
+                said.borrow_mut().push(format!(
+                    "request {} {mine}",
+                    nvs_runtime::budget::live_bytes()
+                ));
                 child.write_output(mine.as_bytes()).expect("a buffer");
                 Value::null()
             });
             Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
         })
+    }
+
+    /// Two mebibytes of query on an upgrading request's carrier — far more than
+    /// anything either isolate holds for its own reasons, which is what makes
+    /// the two readings [`balance`] compares tell one answer from the other.
+    const CARRIED: usize = 2 * 1024 * 1024;
+
+    /// What a connection isolate holds that the request's own reading did not:
+    /// its context, its output buffer, and for § 1 the 128 KiB input buffer
+    /// `tungstenite` allocates per socket ([`crate::socket`]'s docs § *What it
+    /// spends*). A quarter of [`CARRIED`], so the allowance cannot hide the
+    /// failure the cases using it are there for.
+    const CONNECTIONS_OWN: isize = 512 * 1024;
+
+    /// A connection isolate that reports how much of this thread is still live
+    /// under it, which is the reading the request's own is compared against.
+    fn say_the_balance(_conn: &mut Ctx) -> String {
+        nvs_runtime::budget::live_bytes().to_string()
+    }
+
+    /// The number one of `said`'s lines opens with — the first word, since the
+    /// request reports what it answered with after its reading and the
+    /// connection reports nothing else at all.
+    fn balance(line: &str, whose: &str) -> isize {
+        line.strip_prefix(whose)
+            .and_then(|rest| rest.split_whitespace().next())
+            .unwrap_or_else(|| panic!("{whose} never reported a balance: {line}"))
+            .parse()
+            .unwrap_or_else(|_| panic!("{whose} reported no number: {line}"))
     }
 
     /// RFC 6455's opening handshake, written down once: the two field lines
@@ -2585,11 +2675,16 @@ mod tests {
             }
         }
 
-        /// What [`upgrade_once`] reads until, built from [`Self::answered`] so
-        /// the two cannot drift apart. § 5's carries the framing, because that
-        /// an event stream opened without one is the case's whole claim; § 1's
-        /// does not, because every case of that door was framed one.
-        fn needle(self, path: &str) -> String {
+        /// What [`upgrade_once`] reads until — for each door, the last bytes
+        /// its response puts on the wire, so that a case asserts over the whole
+        /// of what its peer was sent rather than over a prefix of it.
+        ///
+        /// **No door's needle is the line the request wrote for itself**, and
+        /// that is one claim rather than three coincidences: a request that
+        /// opened either connection is answered with what the *door* writes,
+        /// so a case reading its own line back would be reading the one thing
+        /// that must not be there.
+        fn needle(self) -> String {
             match self {
                 // The handshake, because a request that upgraded does **not**
                 // send the line it wrote for itself: the `101` is this
@@ -2597,7 +2692,12 @@ mod tests {
                 // go nowhere. Reading to the accept key rather than to the
                 // status line is what makes the wait cover the whole head.
                 Self::Socket => ACCEPT.to_owned(),
-                Self::Sse => self.answered(path, NO_FRAMING),
+                // The terminating chunk of the event stream's body, written
+                // when the connection isolate ends and the writing half goes
+                // with it — so what a case holds is the head and every event
+                // the isolate sent. It cannot match inside the head: that would
+                // need a field line that is a single `0`, and a head has none.
+                Self::Sse => "\r\n0\r\n\r\n".to_owned(),
                 // The refused case reads the *status*, because the answer this
                 // request wrote for itself is the one thing it must not get.
                 Self::Both => "500 Internal Server Error".to_owned(),
@@ -2629,7 +2729,7 @@ mod tests {
                 .write_all(door.opening(path).as_bytes())
                 .expect("the write failed");
             let mut seen = String::new();
-            read_until(&mut socket, &door.needle(path), &mut seen);
+            read_until(&mut socket, &door.needle(), &mut seen);
             seen
         });
 
@@ -2723,13 +2823,9 @@ mod tests {
     /// in the order they ran: the request's, with its carrier at its peak, and
     /// the connection's, with the request over. The gap between them has to be
     /// the query the request carried, less what the connection holds for its
-    /// own reasons — its context, its output buffer and the 128 KiB input
-    /// buffer `tungstenite` allocates per socket, which
-    /// [`crate::socket`]'s docs § *What it spends* is the home of. The
-    /// allowance below is a quarter of the query, so it cannot hide the failure
-    /// it is here for: a connection that inherited, or that merely outlived,
-    /// the request's context reads within kilobytes of the *first* number
-    /// rather than two mebibytes below it.
+    /// own reasons, which is [`CONNECTIONS_OWN`]. A connection that inherited,
+    /// or that merely outlived, the request's context reads within kilobytes of
+    /// the *first* number rather than [`CARRIED`] below it.
     ///
     /// What the reading does not include is the handler's own copy of the
     /// query, which this fixture holds for the length of the run and the
@@ -2743,23 +2839,6 @@ mod tests {
     /// [`nvs_host::Finished`] is now the home of why only a root files one.
     #[test]
     fn the_upgrading_requests_arena_is_released_while_the_connection_is_open() {
-        /// Two mebibytes of query on the request's carrier — far more than
-        /// anything either isolate holds for its own reasons.
-        const CARRIED: usize = 2 * 1024 * 1024;
-
-        fn say_the_balance(_conn: &mut Ctx) -> String {
-            nvs_runtime::budget::live_bytes().to_string()
-        }
-
-        /// The number one of `said`'s lines reports, which is the whole of what
-        /// either isolate had to say.
-        fn balance(line: &str, whose: &str) -> isize {
-            line.strip_prefix(whose)
-                .unwrap_or_else(|| panic!("{whose} never reported a balance: {line}"))
-                .parse()
-                .unwrap_or_else(|_| panic!("{whose} reported no number: {line}"))
-        }
-
         let said = Rc::new(RefCell::new(Vec::new()));
         let handler_said = Rc::clone(&said);
         let seen = upgrade_once(
@@ -2785,11 +2864,6 @@ mod tests {
             2,
             "one of the two isolates did not run: {said:?}"
         );
-        /// The connection isolate's own context and output buffer, plus the
-        /// codec's input buffer — all live at its reading and none of it at the
-        /// request's.
-        const CONNECTIONS_OWN: isize = 512 * 1024;
-
         let peak = balance(&said[0], "request ");
         let open = balance(&said[1], "connection ");
         assert!(
@@ -3345,9 +3419,10 @@ mod tests {
     /// offered the cell only where an upgrade *was* framed would open the same
     /// isolate and still fail here, because no upgrade was.
     ///
-    /// Where the isolate's bytes go is deliberately not asserted: § 5 sends
-    /// them as the body of a `200 text/event-stream` this door does not write
-    /// yet, and the response half is its own slice.
+    /// Where the isolate's bytes go is deliberately not asserted here: that the
+    /// body they arrive as is this response's is
+    /// [`what_the_connection_isolate_sends_reaches_the_peer_as_this_responses_body`]'s
+    /// claim, and this case is about the isolate the door opens.
     #[test]
     fn sse_is_a_connection_isolate_with_no_receive() {
         fn say_what_it_can_see(conn: &mut Ctx) -> String {
@@ -3372,9 +3447,9 @@ mod tests {
             Door::Sse,
         );
         assert!(
-            seen.contains("200 OK") && seen.contains(&Door::Sse.needle("/live")),
-            "an ordinary request was offered no event stream cell, or did not \
-             end with an ordinary answer of its own: {seen}"
+            !seen.contains(&Door::Sse.answered("/live", NO_FRAMING)),
+            "the request's own answer was sent in place of the event stream's \
+             response: {seen}"
         );
 
         let said = said.borrow();
@@ -3384,9 +3459,167 @@ mod tests {
             "one of the two isolates did not run: {said:?}"
         );
         assert!(
-            said[0].starts_with("request ") && said[1] == "connection no request",
+            said[0].ends_with(&Door::Sse.answered("/live", NO_FRAMING)),
+            "an ordinary request was offered no event stream cell, or § 1's \
+             slot was offered to it as well: {said:?}"
+        );
+        assert_eq!(
+            said[1], "connection no request",
             "the event stream did not open a root isolate after the request \
              ended: {said:?}"
+        );
+    }
+
+    /// Goal prose stage 4: **an event stream is answered `200
+    /// text/event-stream`**, written by this door and not by the program that
+    /// asked for one.
+    ///
+    /// The head is asserted line by line because not one of them is optional:
+    /// the status the protocol fixes, the media type without which a client is
+    /// not reading events at all, and
+    /// [`nvs_runtime::sse::DECLARED_HEADERS`] — one instruction to a cache and
+    /// one to a proxy, without which the stream arrives late or not at all.
+    /// `hyper` writes a field name lower-cased, so the reading is taken that
+    /// way.
+    #[test]
+    fn an_event_stream_is_answered_two_hundred_with_the_event_stream_media_type() {
+        fn say_it_opened(_conn: &mut Ctx) -> String {
+            "opened".to_owned()
+        }
+
+        let seen = upgrade_once(
+            move || {
+                upgrade_leaving(
+                    Door::Sse,
+                    String::new(),
+                    Rc::new(RefCell::new(Vec::new())),
+                    say_it_opened,
+                )
+            },
+            "/live",
+            Door::Sse,
+        );
+        let head = seen.to_ascii_lowercase();
+
+        assert!(
+            seen.starts_with("HTTP/1.1 200 OK"),
+            "an event stream was answered something other than the status the \
+             protocol fixes for it: {seen}"
+        );
+        assert!(
+            head.contains("content-type: text/event-stream"),
+            "the response a client is to read events from did not say they \
+             were events: {seen}"
+        );
+        assert!(
+            head.contains("cache-control: no-cache, no-transform")
+                && head.contains("x-accel-buffering: no"),
+            "the head went out without what makes the stream arrive: {seen}"
+        );
+    }
+
+    /// `rule:concurrency/two-doors-one-isolate`'s hand-over at the end it
+    /// exists for: **what the connection isolate sends is this response's
+    /// body**.
+    ///
+    /// Two readings, because [`nvs_host::Isolate::over_event_stream`] is one
+    /// hand-over carrying both. The isolate holds a writing half at all, which
+    /// is what `Core\Sse->send` reaches for and what puts its bytes on this
+    /// wire; and its context is marked as writing an event stream, which is the
+    /// only thing `Core\Sse::current` can answer inside a door that was handed
+    /// no peer. Neither could have arrived by inheritance — the isolate is a
+    /// root with no request in front of it, which the case beside this one is
+    /// the reading of.
+    #[test]
+    fn what_the_connection_isolate_sends_reaches_the_peer_as_this_responses_body() {
+        fn send_one_event(conn: &mut Ctx) -> String {
+            let marked = conn.has_event_stream();
+            let framed = nvs_runtime::sse::Event::carrying(b"through the body")
+                .frame()
+                .expect("a payload with nothing in it to refuse");
+            conn.body_stream()
+                .expect("an event stream's isolate was handed no body")
+                .send(framed)
+                .expect("the first chunk goes into an empty cell");
+            format!("sent, marked {marked}")
+        }
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let seen = upgrade_once(
+            move || upgrade_leaving(Door::Sse, String::new(), handler_said, send_one_event),
+            "/live",
+            Door::Sse,
+        );
+
+        let body = seen
+            .split_once("\r\n\r\n")
+            .expect("the response carried no head")
+            .1;
+        assert!(
+            body.contains("data: through the body"),
+            "what the connection isolate sent was not the body of the response \
+             the request was answered with: {seen}"
+        );
+        let said = said.borrow();
+        assert_eq!(
+            said.len(),
+            2,
+            "one of the two isolates did not run: {said:?}"
+        );
+        assert_eq!(
+            said[1], "connection sent, marked true",
+            "the event stream's isolate was handed a body it was not told the \
+             meaning of: {said:?}"
+        );
+    }
+
+    /// [`the_upgrading_requests_arena_is_released_while_the_connection_is_open`]
+    /// for § 5's door, where the ordering is tighter and the claim is the same:
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s "the request that
+    /// upgraded it ends" holds for an isolate started **inside** the request's
+    /// own future, a slice after that request was joined rather than after
+    /// `hyper` stopped framing.
+    ///
+    /// This door is the one where the ordering could plausibly have gone the
+    /// other way — an event stream waits for no socket, so nothing but the rule
+    /// stops the isolate being started while the request that asked for it is
+    /// still live. The two mebibytes on that request's carrier are what says it
+    /// was not.
+    #[test]
+    fn the_upgrading_requests_arena_is_released_before_the_streams_isolate_starts() {
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let seen = upgrade_once(
+            move || {
+                upgrade_leaving(
+                    Door::Sse,
+                    format!("q={}", "x".repeat(CARRIED)),
+                    handler_said,
+                    say_the_balance,
+                )
+            },
+            "/live",
+            Door::Sse,
+        );
+
+        assert!(
+            seen.starts_with("HTTP/1.1 200 OK"),
+            "the request that opened the stream did not reach its own end: {seen}"
+        );
+        let said = said.borrow();
+        assert_eq!(
+            said.len(),
+            2,
+            "one of the two isolates did not run: {said:?}"
+        );
+        let peak = balance(&said[0], "request ");
+        let open = balance(&said[1], "connection ");
+        assert!(
+            peak - open >= CARRIED.cast_signed() - CONNECTIONS_OWN,
+            "the upgrading request's arena was still held while the event \
+             stream's isolate ran: {peak} bytes live under the request, {open} \
+             under the connection, and the query alone is {CARRIED}"
         );
     }
 

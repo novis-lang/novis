@@ -4362,6 +4362,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `ctx.pending_class()` is the `catch` name, `ctx.pending()` is the sentence, and `ctx.take_pending()`
   clears it so a later assertion on the same context is not reading the first refusal.
   [until: reviewed 2026-12-11]
+- **A case reading a program's own output off the wire asserts nothing once a door replaces that
+  response, and it still goes green.** A connection door writes the response itself, so the line the
+  request wrote is nowhere on the wire and a `contains` over what is left can still hold. When a
+  slice makes a door write the response, move the request's claims onto the fixture's own reporting
+  and re-check what each `read_until` needle now matches. [until: reviewed 2026-10-11]
 
 ## Splitting a file that got too big
 

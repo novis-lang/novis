@@ -2,50 +2,56 @@
 
 ## State
 
-**Goal `event-streams` — stage 4's stdlib half is landed.** `Core\Sse::current()` answers the event
-stream a program is already writing and `Core\Sse->retry()` puts the reconnection time on the wire as
-a block of its own; the classification each `send` parameter carries is pinned in `nvs-types`, so
-that stage-4 check is green.
+**Goal `event-streams` — door one is wired end to end except its far side.** A request that fills
+the SSE cell is answered `200 text/event-stream` in place of whatever it wrote for itself
+(`crates/nvs-server/src/serve.rs:@event_stream`), and the connection isolate is handed that
+response's writing half and marked as writing an event stream
+(`nvs_host::Isolate::over_event_stream`). `Core\Sse::current()` therefore answers inside door one,
+and what the isolate sends reaches the peer as this response's body. The stage-4 `nvs-server` check
+is green.
 
-**The question `current()` asks is now a fact the context records** —
-`crates/nvs-runtime/src/ctx/output.rs:543`'s `mark_event_stream` / `has_event_stream`. It is neither
-of the two obvious ones: an event stream is handed no peer, so the sibling class's question answers
-`false` inside the very isolate this must answer for, and an ordinary streaming response holds a
-writing half, so *is a body open* answers `true` for a program this must refuse.
+**The head an event stream answers with has one home**, `nvs_runtime::sse::MEDIA_TYPE` and
+`DECLARED_HEADERS`: door two declares the list on its context and door one writes the same names
+into a header map, so the two doors cannot answer with different heads.
 
-**Door one's far side is still unwired.** `Core\Sse->receive()` and `Core\Sse\Message` are
-unregistered, and `serve.rs` still answers a request that filled the SSE cell with the handler's own
-response — so the stage-4 `nvs-server` check and two of the four names in the `nvs-stdlib` one are
-open work rather than regressions.
+**`Output::Capture` stays right for both doors.** A connection's `echo` is no part of either
+response — § 1's bytes are frames on the socket, and § 5's events go through the writing half, so a
+stray `echo` cannot land inside the framing a client is parsing.
 
-**Record `docs/decisions/0176.md` is still open** with the stage 0 correction, and owes the framing's
-crate as well.
+**Door one's far side is what is left of stage 4.** `Core\Sse->receive()` and `Core\Sse\Message` are
+unregistered, so a connection isolate can write events and cannot yet wait for one; three of the
+four names in the stage-4 `nvs-stdlib` check are open work rather than regressions
+(`current_outside_an_event_stream_is_refused_by_name` is landed).
+
+**Record `docs/decisions/0176.md` is still open** with the stage 0 correction, and owes the
+framing's crate as well.
 
 ## Next group
 
-**Stage 4: door one's wiring, the response the connection answers with** — one file set:
-`crates/nvs-server/src/serve.rs`, `crates/nvs-host/src/isolate.rs` and
-`crates/nvs-runtime/src/ctx/output.rs`.
+**Stage 4: door one's far side, the wait that is over topics** — one file set:
+`crates/nvs-stdlib/src/sse.rs`, `crates/nvs-stdlib/src/socket.rs` and
+`crates/nvs-stdlib/src/topic.rs`.
 
-- [ ] **The connection isolate is handed a body and marked as writing an event stream** — the
-      `over_socket` sibling at `crates/nvs-host/src/isolate.rs:331`, reached from
-      `crates/nvs-host/src/isolate.rs:278`'s cell, calling `set_body_stream` and
-      `crates/nvs-runtime/src/ctx/output.rs:543`'s `mark_event_stream` at the point the socket is
-      written at today. Until this lands `Core\Sse::current()` refuses inside door one, which is the
-      one thing this member cannot answer for itself. `rule:concurrency/a-connection-is-a-root-isolate`.
-- [ ] **`serve.rs` answers `200 text/event-stream` in place of the handler's own response** — the
-      arm at `crates/nvs-server/src/serve.rs:1125`, where the cell is already taken and the isolate
-      already started, modelled on the head-early path at `crates/nvs-server/src/serve.rs:1026`.
-      `rule:concurrency/two-doors-one-isolate`, and goal prose stage 4 item 18.
-- [ ] **The three `nvs-server` tests the stage names**, beside the stage-3 ones at
-      `crates/nvs-server/src/serve.rs:3865`: the media type and status, the isolate's bytes reaching
-      the peer as this response's body, and the upgrading request's arena released before the
-      stream's isolate starts.
+- [ ] **`Core\Sse\Message` is the class the wait answers with** — the five edits at
+      `crates/nvs-stdlib/src/sse.rs:125`'s roster, modelled on `Core\Socket\Message` at
+      `crates/nvs-stdlib/src/socket.rs:437` and its four member bodies at
+      `crates/nvs-stdlib/src/socket.rs:1090`. Only the delivery members carry over: an event stream
+      is handed no peer, so there is no text or binary frame behind one and `topic()`/`value()` are
+      the whole of it. `rule:concurrency/a-connection-is-a-loop`.
+- [ ] **`Core\Sse->receive()` waits over topics and not over a peer** — the sibling body at
+      `crates/nvs-stdlib/src/socket.rs:984`, with the peer half removed and the cross-core drain at
+      `crates/nvs-stdlib/src/topic.rs:540` kept, refused by name in a streaming response per the
+      goal's § *Standing decisions*. Tests
+      `a_published_value_reaches_a_subscribed_event_stream_as_a_message` and
+      `receive_in_a_streaming_response_is_refused_by_name`.
+- [ ] **An overflowing subscriber queue answers `null` and closes that stream** —
+      `rule:concurrency/connection-bounds-are-finite`'s defined close, at the queue walk
+      `crates/nvs-stdlib/src/topic.rs:540` reads, as
+      `an_overflowing_subscriber_queue_answers_null_and_closes_that_stream`.
 
 ## Backlog
 
-- `Core\Sse->receive()` and `Core\Sse\Message`, topics only — goal prose stage 4 item 16.
-- The two topic tests in the stage-4 `nvs-stdlib` check — a published value reaching a subscribed
-  stream, and an overflowing queue closing it.
-- Stage 5's bounds over an event stream — `crates/nvs-server/src/bounds.rs`, goal prose stage 5.
-- `docs/decisions/0176.md` still owes the stage 0 correction and the framing's crate.
+- `docs/decisions/0176.md` — the stage 0 correction and the framing's crate, both still owed.
+- Stage 5's diagnostics, phase-gated — not started; the goal's stage 5 prose is the list.
+- A keepalive on an idle event stream: `nvs_runtime::sse::KEEPALIVE` has no writer yet, and its own
+  doc says the connection is the half that must write it.
