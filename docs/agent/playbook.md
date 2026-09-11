@@ -1742,12 +1742,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   whole of `loop-goal.toml` for the name the tree already has before renaming anything, and where
   both names are claimed, the claim the two differ on is what the second test asserts.
   [until: reviewed 2026-10-11]
-- **A check naming a test *file* can be green in every test that file holds and still be the work.**
-  `spec_registry_coverage` has no `#[test]` of that name, and the bullet above would have it renamed
-  to the file's real tests — which are ratchets walking the spec *into* the registry, so they pass
-  vacuously over a class the spec never names. Grep the goal's subject under `docs/spec/` before
-  renaming such a check: one about spec rows stays red until the rows exist.
-  [until: exists docs/spec/01-core-library.md:Sse]
+- **A `cargo-named` check naming a test *target* can never match anything.**
+  `tests = ["spec_registry_coverage"]` read "did not run" while all ten tests in that file passed:
+  `crate_tests` runs each test executable directly, so the `Running tests/<target>.rs` line cargo
+  would have printed is nowhere in the output the check greps. When the name is a *file* under
+  `tests/`, re-point it at the `fn` names inside it, in both toml copies.
+  [until: gone tools/loop.py:def crate_tests]
 
 ## Running things
 
