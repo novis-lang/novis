@@ -1748,6 +1748,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   would have printed is nowhere in the output the check greps. When the name is a *file* under
   `tests/`, re-point it at the `fn` names inside it, in both toml copies.
   [until: gone tools/loop.py:def crate_tests]
+- **An anchor inherited from a handoff or a goal file drifts, and the line it lands on still reads
+  like the right one.** This goal opened with `crates/nvs-host/src/isolate.rs:665` for a drain gate
+  and `crates/nvs-codegen/src/emit.rs:3415` for a `THROWN` test; both had moved about 150 lines onto
+  plausible neighbours — a cancellation branch and a switch terminator — so reading one confirms a
+  claim it does not make. Re-derive an inherited anchor by symbol
+  (`python tools/peek.py 'file.rs:re:<symbol>'`) before citing it or editing beside it, and write the
+  number back into the handoff. [until: reviewed 2026-09-11]
 
 ## Running things
 
