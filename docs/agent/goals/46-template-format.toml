@@ -1,0 +1,168 @@
+# Goal 46 -- format-on-save formats the markup too, from where the Novis code is
+# The acceptance test, as data.
+#
+# `46-template-format.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # None of this goal's own. The pass is proven from Rust for the server's half and by the headless
+  # suite for the client's, with the HTML formatter injected.
+]
+
+[context]
+
+modules = [
+  # `for_source` (:96) is the lex stage 2 runs over a given text, `wire` (:123) the answer's one shape,
+  # and the module doc's § Anything at all about formatting is stage 0's second sentence.
+  "crates/nvs-lsp/src/regions.rs",
+  # The `nvs/regions` arm (:474) whose params grow a `text`, and `template_regions` (:1380).
+  "crates/nvs-lsp/src/server.rs",
+  # `virtual` (:103) and the rest of the pure half stage 4 extends; imports no `vscode`.
+  "editors/vscode/src/template.ts",
+  # `install` (:101), the request and the virtual document's scheme; its header is stage 0's first
+  # sentence.
+  "editors/vscode/src/regions.ts",
+  # Activation, where `format.install` goes beside `regions.install` (:101).
+  "editors/vscode/src/extension.ts",
+  # `binary()` (:15) -- the resolved `nvs` stage 3 starts `fmt --stdin` with.
+  "editors/vscode/src/binary.ts",
+]
+
+# The three every stage works inside: the rule this goal ships, the `?>` layout it reads the base
+# from, and what a thin client may and may not hold.
+rules = [
+  "ide/a-template-region-gets-services-but-no-second-formatter",
+  "tooling/fmt-novis-constructs",
+  "ide/one-server-two-thin-clients",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M10:verify"]
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `46-template-format.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 regions of a text"` labels, which may group several prose
+# stages under one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The request set the param joins, and how an answer is frozen.
+rules = ["ide/the-request-set-is-closed", "ide/an-lsp-answer-is-frozen-as-an-lspt-case"]
+adrs = ["0173 § 4"]
+
+[context.stage.3]
+rules = ["tooling/fmt-check-writes-nothing"]
+adrs = ["0173 § 1"]
+
+[context.stage.4]
+# The chunk, the base and the hole, and why every case runs against a stub.
+rules = ["ide/headless-gates-the-loop-the-host-run-gates-the-milestone"]
+adrs = ["0173 § 2", "0173 § 3"]
+
+[context.stage.5]
+rules = ["ide/contributions-are-frozen-and-only-ever-added"]
+adrs = ["0173 § 5"]
+
+[context.stage.6]
+# The rename and the flip.
+shapes = ["A rule fragment"]
+
+# The pass runs in the editor process and allocates nothing in the runtime; the server's half is one
+# lex over a string it drops with the answer. No cycle shape, so nothing is added to the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor is goal `fmt`'s whole list, which carries goal `finish-response`'s served-path and queue
+# checks. The daemons are theirs; nothing below needs one.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- `nvs/regions` answers for a text it is given. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 regions of a text"
+name = "a regions request carrying text answers for that text, and one without answers for the buffer"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "a_regions_request_carrying_text_answers_for_that_text_and_not_the_buffer",
+  "a_regions_request_without_text_answers_for_the_open_document",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stages 3 and 4 -- the Novis half and the markup half, in the headless suite with the HTML formatter
+# injected. The titles are matched in order, so the suite declares its cases in this order. Goal prose
+# stages 3 and 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the format pass"
+name = "a chunk starts from its close tag's line, nests from there, and never touches a hole"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:headless"]
+want = [
+  "the template format",
+  "leaves the buffer unchanged when nvs fmt refuses",
+  "formats only the Novis half when nvs.template.format is false",
+  "starts a chunk after a close tag at that line's indentation",
+  "indents a chunk inside a loop body one level deeper than the loop",
+  "puts the open tag that ends a chunk at the chunk's base",
+  "never edits a byte of a hole",
+  "leaves a chunk as written when formatting it would reach a hole",
+  "changes no byte outside a region",
+  "0 failing",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the rulebook. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 the rulebook"
+name = "the rule is renamed for what it now says, and shipped"
+argv = ["python", "tools/rules.py", "--show", "ide/a-template-region-gets-the-editors-services-and-formatter"]
+want = ["shipped"]

@@ -1,0 +1,251 @@
+# Goal 45 -- nvs fmt rewrites a file into its one canonical layout
+# The acceptance test, as data.
+#
+# `45-fmt.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # None of this goal's own. A formatter's output is text, not a program run, so every shape is proven
+  # from Rust and by `nvs fmt --check` over the frozen `tests/fmt/formatted/` tree.
+]
+
+[context]
+
+modules = [
+  # `parse` (:883) is the lossless entry point the printer reads, and `Parsed` is what it answers: the
+  # statements, the trivia side channel and the index. `parse_file` (:905) is the strict half, never read.
+  "crates/nvs-syntax/src/parser/mod.rs",
+  # Every token kind the printer writes back, `InlineHtml` and the open and close tags among them.
+  "crates/nvs-syntax/src/token.rs",
+  # Where a comment's kind and the trivia items are produced -- the bytes the identity printer must
+  # write back unchanged.
+  "crates/nvs-syntax/src/lexer.rs",
+  # The tree whose nesting is a block's depth, and the visitor over it.
+  "crates/nvs-syntax/src/ast.rs",
+  "crates/nvs-syntax/src/walk.rs",
+  # `Command` (:193) -- `Fmt` goes beside `Ast` (:195).
+  "crates/nvs-cli/src/main.rs",
+  # A subcommand that already reads the lossless tree (:66), which is the shape `fmt`'s takes.
+  "crates/nvs-cli/src/ast.rs",
+]
+
+# The three every stage works inside: what the formatter is, what it may not do to a line break, and
+# the one tree it reads.
+rules = [
+  "tooling/fmt-is-one-canonical-style",
+  "tooling/fmt-never-reflows",
+  "ide/one-grammar-one-tree",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M10:verify"]
+
+playbook = [
+  # This goal's own file set and tools.
+  'Tooling > A moved module takes',
+  'Tooling > Making a type `pub`',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `45-fmt.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the identity printer"` labels, which may group several prose
+# stages under one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The crate's name and its one job, and the property the identity printer is the first half of.
+rules = ["ide/one-server-two-thin-clients", "tooling/fmt-is-idempotent"]
+
+[context.stage.3]
+rules = ["tooling/fmt-base-style-is-per"]
+
+[context.stage.4]
+rules = [
+  "tooling/fmt-quotes",
+  "tooling/fmt-trailing-commas",
+  "tooling/fmt-sorts-the-use-block",
+  "tooling/fmt-normalizes-only-reserved-spellings",
+  "tooling/fmt-never-inserts-visibility",
+  "tooling/fmt-never-reorders-members",
+]
+
+[context.stage.5]
+# Every construct PER never saw, the `?>` rule among them, and the literal whose body is left alone.
+rules = ["tooling/fmt-novis-constructs", "core-classes/html-literal"]
+adrs = ["0173 § 3"]
+
+[context.stage.6]
+rules = ["tooling/fmt-check-writes-nothing", "tooling/fmt-is-never-a-diagnostic"]
+
+[context.stage.7]
+# The rules flip to shipped and their `guardedBy` fills.
+rules = ["tooling/fmt-is-idempotent"]
+shapes = ["A rule fragment"]
+
+# `nvs fmt` is a command-line tool with no runtime values: nothing it allocates is refcounted, so there
+# is no cycle shape to add to the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor is goal `markup-literal`'s whole list, which carries goal `finish-response`'s served-path
+# and queue checks. The daemons are theirs; nothing below needs one.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the identity printer. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the identity printer"
+name = "printing the lossless tree back changes no byte of any corpus file, and a broken file is refused"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "the_identity_printer_reproduces_every_corpus_file",
+  "a_file_with_a_syntax_error_is_refused_and_left_unchanged",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stages 3 and 4 -- the base style and the token rules. Goal prose stages 3 and 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the base style"
+name = "PER's indentation, braces and modifier order, and an author's line break kept"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "indentation_is_four_spaces_per_block_depth",
+  "a_declaration_brace_is_allman_and_a_control_brace_is_k_and_r",
+  "modifiers_are_written_in_the_canonical_order",
+  "an_authors_line_break_inside_an_expression_is_kept",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the token rules"
+name = "quotes, trailing commas, the use block and reserved spellings, and the two things never done"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "a_plain_string_is_rewritten_to_single_quotes",
+  "a_heredoc_body_and_a_comment_are_never_touched",
+  "a_multi_line_list_gains_a_trailing_comma_and_a_one_line_list_has_none",
+  "consecutive_use_declarations_are_sorted_by_full_path",
+  "a_mis_cased_open_tag_and_duration_unit_are_lower_cased",
+  "no_visibility_keyword_is_ever_inserted",
+  "class_members_keep_their_declaration_order",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- Novis's own constructs, and the two modes. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the two modes"
+name = "a close tag on its own line sits at its block's depth, and markup is byte-identical"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "a_close_tag_that_begins_its_line_sits_at_the_depth_of_its_block",
+  "a_close_tag_is_never_moved_onto_or_off_a_line",
+  "an_inline_html_region_is_byte_identical_after_formatting",
+  "a_markup_literal_body_is_byte_identical_after_formatting",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the two modes"
+name = "every construct PER never saw has its one layout"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "a_qualifier_sits_one_space_before_its_type",
+  "a_fn_closure_body_brace_stays_on_its_signature_line",
+  "a_match_arm_list_written_across_lines_is_one_arm_per_line",
+  "an_object_literal_on_one_line_has_one_space_inside_each_brace",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the command. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the command"
+name = "in place, --check, --diff and --stdin, and no compiler command formats anything"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "fmt_rewrites_each_named_file_in_place",
+  "fmt_check_writes_nothing_and_exits_non_zero_naming_each_file",
+  "fmt_diff_prints_the_diff_and_writes_nothing",
+  "fmt_stdin_writes_the_formatted_file_to_stdout",
+  "fmt_stdin_writes_nothing_to_stdout_for_a_file_with_a_syntax_error",
+  "nvs_check_never_reports_an_unformatted_file",
+]
+
+# Every expected file is a fixed point: `--check` over the frozen tree exits 0.
+[[check]]
+kind = "command"
+stage = "6 the command"
+name = "the frozen formatted tree is already formatted"
+argv = ["{nvs}", "fmt", "--check", "tests/fmt/formatted"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the corpus, and the rulebook. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the corpus"
+name = "the whole corpus is a fixed point, keeps every comment, and parses to the same tree"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "formatting_the_whole_corpus_twice_changes_nothing_the_second_time",
+  "every_formatted_corpus_file_parses_to_the_same_tree_as_its_input",
+  "a_comment_in_every_position_the_grammar_allows_survives_where_it_started",
+]
+
+[[check]]
+kind = "command"
+stage = "7 the corpus"
+name = "the formatter's rules are shipped"
+argv = ["python", "tools/rules.py", "--show", "tooling/fmt-is-one-canonical-style"]
+want = ["shipped"]
