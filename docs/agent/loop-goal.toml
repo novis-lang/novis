@@ -99,6 +99,15 @@ modules = [
   "crates/nvs-runtime/src/ctx/mod.rs",
   # The poll's slow path. Its CPU arm and its memory arm are both written and both unreachable.
   "crates/nvs-runtime/src/ctx/safepoint.rs",
+  # Where every `Ctx` field is first given its value, `deadline`'s shared word included: the shape
+  # stage 2's handle is built to.
+  "crates/nvs-runtime/src/ctx/wiring.rs",
+  # `Ctx::child` and `Ctx::isolate` -- the two places a request tree grows, and so the two that
+  # stage 2's one-word-per-tree rule is enforced in.
+  "crates/nvs-runtime/src/ctx/isolate.rs",
+  # Where `SafepointFlags::CPU_LIMIT` is lowered and raised around the tier-1 handler, which is the
+  # writer stages 2 and 3 move off `&mut self`.
+  "crates/nvs-runtime/src/ctx/hooks.rs",
   # The counters, and the module doc that already records the memory half as a known gap.
   "crates/nvs-runtime/src/budget.rs",
   # `refresh_limits` -- the one place a ceiling is computed, and so the one place stage 4 arms.
