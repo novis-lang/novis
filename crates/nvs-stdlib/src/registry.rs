@@ -5030,7 +5030,11 @@ mod tests {
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         /// A class whose state is its context's, so it has members and no
         /// slots — the doc above owns what qualifies one.
-        const CONTEXTUAL: &[&str] = &[crate::socket::NAME, crate::response::STREAM_NAME];
+        const CONTEXTUAL: &[&str] = &[
+            crate::socket::NAME,
+            crate::sse::NAME,
+            crate::response::STREAM_NAME,
+        ];
 
         const HANDLES: &[&str] = &[
             r"Core\Regex\Pattern",

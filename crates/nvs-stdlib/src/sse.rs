@@ -44,48 +44,148 @@
 //! — refused where the response is written, which is the only place both
 //! answers are in hand.
 //!
+//! # Door two, and the two members that are the whole of it
+//!
+//! [`nvs_core_sse_stream`] answers *this* request with an event stream that
+//! ends when the request does — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
+//! 's streaming response with `text/event-stream` over it and
+//! [`nvs_runtime::sse`]'s framing behind it. It opens the body cell
+//! `Core\Response::stream` opens, so a response has one body whichever member
+//! wrote it, and it answers the same `Core\Sse` handle door one's `current()`
+//! will: a helper taking one works from either side, which is the reason
+//! `rule:concurrency/two-doors-one-isolate` is one type and not two.
+//!
+//! Two headers go out with the head, and neither is a choice. `Cache-Control:
+//! no-cache, no-transform` is the protocol's. `X-Accel-Buffering: no` is an
+//! instruction *to* a proxy rather than a proxy feature implemented here:
+//! production is a proxied origin by definition
+//! (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`), nginx buffers
+//! a proxied response with nothing configured, and that one default breaks an
+//! event stream completely.
+//!
+//! **A status declared on a path that opens an event stream is refused**, where
+//! `Core\Response::stream` takes any status the program set. An event stream is
+//! `200` by protocol, so a program that set a status and then opened one said
+//! two things about one response, and the refusal is what stands in place of
+//! picking a winner — the arrangement the both-cells-filled response already
+//! has.
+//!
+//! [`nvs_core_sse_send`] is the one way onto the wire and is the same member in
+//! both doors. A `string` payload goes out as it was written and anything else
+//! is JSON-encoded by the encoder `Core\Json::encode` is, so `$data` accepts a
+//! `tainted` value on the argument `Core\Response::json` already makes: the
+//! framing belongs to the framer, and [`nvs_runtime::sse`] normalizes a payload
+//! before it splits it, so nothing a program supplies can land outside a `data:`
+//! line. `$event` and `$id` are the other side of that predicate — a client
+//! dispatches on the name — so they are
+//! `rule:security/unclassified-parameter-refuses-tainted` sinks, and the three
+//! ways an event could not arrive are [`nvs_runtime::sse::Refused`]'s and are
+//! thrown here unchanged.
+//!
 //! # What is not here yet
 //!
-//! The stream itself. `Core\Sse::current()` and the `send` § 5 gives the
-//! isolate are unregistered, and so is the `200 text/event-stream` the door
+//! Door one's far side. `Core\Sse::current()` and `Core\Sse->receive()` are
+//! unregistered, and so is the `200 text/event-stream` [`nvs_core_sse_upgrade`]
 //! would have to answer with in place of the handler's own response — an event
 //! stream prepared today opens a root isolate with nothing wired to a body.
 //! The method entry form throws for [`crate::socket`]'s reason, unchanged: a
 //! `callable` carries no parameter names and `rule:security/isolate-shares-nothing` binds `args:` by name.
 
-use nvs_runtime::{Fault, ThrownClass, Upgrade, Value, copy_graph};
+use nvs_runtime::sse::Event;
+use nvs_runtime::{Fault, Tag, ThrownClass, Upgrade, Value, copy_graph};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 use crate::socket::{entry_program, release_crossed, retained};
 
-/// `Core\Sse`'s registry rows — `rule:concurrency/two-doors-one-isolate`'s `upgrade`, and so far nothing
-/// else. See [`crate::registry::CLASSES`].
+/// `Core\Sse`'s fully-qualified name, written once, so the class's own row, the
+/// [`CoreTy::Instance`] its two doors answer with and every message quoting it
+/// cannot drift apart.
+pub(crate) const NAME: &str = r"Core\Sse";
+
+/// What an event stream declares its body to be, and the only thing it may
+/// declare: a client reading anything else is not reading events.
+const MEDIA_TYPE: &str = "text/event-stream";
+
+/// `Core\Sse`'s registry rows — `rule:concurrency/two-doors-one-isolate`'s two
+/// doors, and the one member that writes onto whichever of them is open. See
+/// [`crate::registry::CLASSES`].
+///
+/// **It is a namespace class and an instance class at once**, exactly as
+/// [`crate::socket::CLASS`] is and for the same reason: `upgrade` and `stream`
+/// are called on the class from the request, and `send` is called on the handle
+/// either of them leaves behind. The instance carries no slots, because an
+/// event stream's whole state is the body it writes into and that lives on
+/// [`nvs_runtime::Ctx`] — so the handle is a handle, and two of them are not
+/// identical and have nothing to tell apart.
 pub(crate) const CLASS: CoreClass = CoreClass {
-    name: r"Core\Sse",
-    methods: &[CoreMethod {
-        name: "upgrade",
-        names: &["entry", "args"],
-        // The same two marks the sibling row carries, and for the same reasons:
-        // [`CoreTy::Entry`] is `rule:concurrency/an-upgrade-is-spawn-shaped`'s operand rule — a path or a static
-        // method written `Feed::run(...)`, never a `callable` in a variable —
-        // and `args` takes no expected type because `rule:classes/graph-copy`'s walk decides
-        // what may cross at run time. `crate::socket`'s row is where those two
-        // are argued; § 5 gives this member "the identical clause", so a
-        // difference between the two signatures would be one this ADR does not
-        // license.
-        params: &[CoreTy::Entry, CoreTy::Mixed],
-        defaults: &[Const::Null],
+    name: NAME,
+    methods: &[
+        CoreMethod {
+            name: "upgrade",
+            names: &["entry", "args"],
+            // The same two marks the sibling row carries, and for the same
+            // reasons: [`CoreTy::Entry`] is `rule:concurrency/an-upgrade-is-spawn-shaped`'s operand rule — a path or a static
+            // method written `Feed::run(...)`, never a `callable` in a variable
+            // — and `args` takes no expected type because `rule:classes/graph-copy`'s walk decides
+            // what may cross at run time. `crate::socket`'s row is where those
+            // two are argued; § 5 gives this member "the identical clause", so a
+            // difference between the two signatures would be one this ADR does
+            // not license.
+            params: &[CoreTy::Entry, CoreTy::Mixed],
+            defaults: &[Const::Null],
+            return_ty: CoreTy::Void,
+            symbol: UPGRADE_SYMBOL,
+            doc: Some(&UPGRADE_DOC),
+        },
+        CoreMethod {
+            name: "stream",
+            names: &[],
+            // No parameters at all, where the sibling door takes two and
+            // `Core\Response::stream` takes its media type: everything this one
+            // could be told is already decided. The entry is this request's own
+            // handler, the media type is the protocol's, and the status is the
+            // thing the module doc says is refused rather than chosen.
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: STREAM_SYMBOL,
+            doc: Some(&STREAM_DOC),
+        },
+    ],
+    instance: &[CoreMethod {
+        name: "send",
+        names: &["data", "event", "id"],
+        // Three marks, and the split between them is the goal's § *Standing
+        // decisions* rather than a reading taken here. `$data` is
+        // [`CoreTy::Mixed`] and so carries no classification to refuse with,
+        // which is what admits a `tainted` payload — sound because
+        // [`nvs_runtime::sse`] normalizes before it splits, so a payload cannot
+        // reach any line but a `data:` one. `$event` and `$id` are
+        // [`Qual::Sink`]s on `rule:security/sink-predicate`'s own test: a client
+        // dispatches on the name and echoes the id back in `Last-Event-ID`, so
+        // an attacker-chosen one is an instruction and not a value.
+        params: &[
+            CoreTy::Mixed,
+            CoreTy::Nullable(&CoreTy::Text(Qual::Sink)),
+            CoreTy::Nullable(&CoreTy::Text(Qual::Sink)),
+        ],
+        defaults: &[Const::Null, Const::Null],
         return_ty: CoreTy::Void,
-        symbol: UPGRADE_SYMBOL,
-        doc: Some(&UPGRADE_DOC),
+        symbol: SEND_SYMBOL,
+        doc: Some(&SEND_DOC),
     }],
-    instance: &[],
     slots: &[],
     constants: &[],
 };
 
 /// The symbol [`CLASS`]'s `upgrade` row is reached through.
 const UPGRADE_SYMBOL: &str = "nvs_core_sse_upgrade";
+
+/// The symbol [`CLASS`]'s `stream` row is reached through.
+const STREAM_SYMBOL: &str = "nvs_core_sse_stream";
+
+/// The symbol [`CLASS`]'s `send` row is reached through.
+const SEND_SYMBOL: &str = "nvs_core_sse_send";
 
 /// `Core\Sse::upgrade`'s reference card — `rule:core-api/reference-card`.
 const UPGRADE_DOC: MethodDoc = MethodDoc {
@@ -129,11 +229,69 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Sse::stream`'s reference card — `rule:core-api/reference-card`.
+const STREAM_DOC: MethodDoc = MethodDoc {
+    short: "Answers this request with an event stream that ends when the request does — the head \
+            goes out as soon as this is called, and every event written on the handle reaches the \
+            client as it is written.",
+    params: &[],
+    ret: "The handle to write events on, which is the same `Core\\Sse` a connection-scoped stream \
+          holds — so a helper taking one works from either door. A browser's `EventSource` \
+          reconnects when this stream ends, because the request it belongs to has ended; the \
+          readers this door is for are `fetch` and a progress UI that closes itself.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "A status was set on this request before the stream was opened — an event stream is \
+               `200` by protocol; or this response already has a body being written over time, a \
+               response having one body.",
+    }],
+};
+
+/// `Core\Sse->send`'s reference card — `rule:core-api/reference-card`.
+const SEND_DOC: MethodDoc = MethodDoc {
+    short: "Writes one event to the client: the payload, and the optional name it dispatches on \
+            and id it echoes back when it reconnects.",
+    params: &[
+        ParamDoc {
+            name: "data",
+            desc: "What the client's data buffer receives. A `string` goes out as it was written \
+                   and anything else is JSON-encoded by the encoder `Core\\Json::encode` is. A \
+                   `tainted` value is accepted: the payload is normalized and split into `data:` \
+                   lines here, so it cannot reach any other field.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "event",
+            desc: "The name the client dispatches this event on, or `null` for the default \
+                   `message`. A sink — an attacker-chosen name is an instruction to the reader — \
+                   so a `tainted` value is refused where it is written.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "id",
+            desc: "The id the client echoes back in `Last-Event-ID` when it reconnects, or `null` \
+                   for an event that sets none. A sink for the same reason, and there is no replay \
+                   buffer behind it: resumption is the application's own event log, read off the \
+                   header by the handler.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing, once the event is framed and handed to the body being written.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "An `$event` or `$id` carrying a line break or a NUL, either of which would end the \
+               event early and change what the client acts on; or an empty `$data`, which a client \
+               provably does not dispatch.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::registry::CLASSES`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         UPGRADE_SYMBOL => (nvs_core_sse_upgrade as *const ()).cast(),
+        STREAM_SYMBOL => (nvs_core_sse_stream as *const ()).cast(),
+        SEND_SYMBOL => (nvs_core_sse_send as *const ()).cast(),
         _ => return None,
     })
 }
@@ -191,6 +349,156 @@ nvs_runtime::nvs_helper! {
         Ok(Value::null())
     }
 }
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Sse::stream(): Core\Sse` — door two, the stream that ends with its
+    /// request.
+    ///
+    /// `Core\Response::stream`'s three effects with one refusal in front of them
+    /// and two headers beside them, all four of which the module doc argues: the
+    /// status is refused rather than carried, `Cache-Control` and
+    /// `X-Accel-Buffering` are declared before the head is taken, the media type
+    /// is the protocol's rather than a parameter, and the writing half of
+    /// `nvs_runtime::stream` goes onto this context for [`nvs_core_sse_send`] to
+    /// find.
+    ///
+    /// **Off a connection there is no cell, and then this member is inert**, on
+    /// its sibling's reading: a CLI program, a `#[Test]` method and a `.nvst`
+    /// case each open a stream that writes to their own output, so a case can
+    /// assert the exact bytes of an event stream without being a request.
+    fn nvs_core_sse_stream(ctx, _args: [0]) {
+        if let Some(code) = ctx.take_status() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "Core\\Sse::stream(): this request set the status `{code}` and an event \
+                     stream is `200` by protocol, so the two cannot both be answered"
+                ),
+            ));
+        }
+        // Declared rather than appended, and before the head is taken: these two
+        // are what make the stream arrive at all, so a program that set either
+        // to something else set it for a response it no longer has.
+        ctx.declare_header(CACHE_CONTROL_HEADER, "no-cache, no-transform");
+        ctx.declare_header(ACCEL_BUFFERING_HEADER, "no");
+        // Cloned rather than borrowed, for `upgrade`'s reason: the cell is a
+        // shared handle by construction, so a clone is one refcount and no
+        // borrow of the carrier held across the write below.
+        let cell = ctx
+            .inbound()
+            .and_then(nvs_runtime::Inbound::response_stream_slot)
+            .cloned();
+        if let Some(cell) = cell {
+            // The declarations go with the head, because the head is on the wire
+            // from here. The status is `None` and not `ctx.take_status()`: the
+            // refusal above is what a program gets for having set one.
+            let headers = ctx.take_headers();
+            let emit = cell.open(MEDIA_TYPE, None, headers).ok_or_else(|| {
+                // No case can reach this: a `.nvst` case runs a script no
+                // connection is framing a response for, so it is offered no cell
+                // and never gets here.
+                // `an_event_stream_is_refused_where_a_response_body_is_already_being_written`
+                // is the `#[test]` that asserts it instead.
+                Fault::thrown_as(
+                    ThrownClass::Logic,
+                    "Core\\Sse::stream(): this request has already opened a response body \
+                     stream, and a response has one body",
+                )
+            })?;
+            ctx.set_body_stream(emit);
+        }
+        ctx.declare_content_type(MEDIA_TYPE);
+        Ok(crate::instance::build(&CLASS, []))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Sse->send(mixed $data, ?string $event = null, ?string $id = null): void`
+    /// — the one way onto the wire, in both doors.
+    ///
+    /// The member holds no policy of its own. What a payload may be is the
+    /// module doc's, the framing and all three refusals are
+    /// [`nvs_runtime::sse`]'s, and where the bytes go is whichever half of the
+    /// context is holding a body — the cell a streaming response opened, or this
+    /// program's own output where nothing opened one.
+    ///
+    /// The event is framed before anything is written, which is `json`'s order
+    /// rather than `text`'s: an event that cannot be framed throws with no bytes
+    /// on the wire, so a refusal is a refusal and not a half-written event a
+    /// client would have to resynchronize after.
+    fn nvs_core_sse_send(ctx, args: [4]) {
+        crate::instance::receiver(args[0], &CLASS, "send")?;
+        let encoded;
+        let data = match args[1].as_str_bytes() {
+            Some(written) => written,
+            None => {
+                // The encoder `Core\Json::encode` is, reached through the same
+                // [`crate::json::Encodable`]: one serializer is what makes the
+                // module doc's claim about a `tainted` payload true, since a
+                // second one could frame a string differently.
+                encoded = serde_json::to_string(&crate::json::Encodable::document(args[1]))
+                    .map_err(|why| {
+                        Fault::thrown_as(
+                            ThrownClass::Logic,
+                            format!("Core\\Sse::send(): the payload cannot be encoded: {why}"),
+                        )
+                    })?;
+                encoded.as_bytes()
+            }
+        };
+        let frame = Event {
+            data,
+            event: optional_field(&args[2], "event")?,
+            id: optional_field(&args[3], "id")?,
+            retry: None,
+        }
+        .frame()
+        .map_err(|refused| {
+            Fault::thrown_as(ThrownClass::Logic, format!("Core\\Sse::send(): {refused}"))
+        })?;
+        if let Some(emit) = ctx.body_stream() {
+            // No case can reach this: a stream that can close is one a
+            // connection is draining, and a `.nvst` case is offered no cell.
+            // `an_event_whose_reader_has_gone_is_refused_rather_than_parked` is
+            // the `#[test]` that asserts it instead.
+            return emit
+                .send(frame)
+                .map(|()| Value::null())
+                .map_err(|closed| Fault::thrown(format!("Core\\Sse::send(): {closed}")));
+        }
+        // Unreachable from source, on `Core\Response::text`'s reasoning:
+        // `OutputSink::Buffer` and `Sink` never fail, which
+        // `Ctx::write_output`'s own `# Errors` states, and nothing in the
+        // language closes a descriptor the host handed the process.
+        ctx.write_output(&frame)
+            .map_err(|error| Fault::fatal(format!("Core\\Sse::send could not write: {error}")))?;
+        Ok(Value::null())
+    }
+}
+
+/// One optional field of an event as the bytes it was written as, or [`None`]
+/// where the call site said nothing.
+fn optional_field<'a>(value: &'a Value, field: &str) -> Result<Option<&'a [u8]>, Fault> {
+    if matches!(value.tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    value.as_str_bytes().map(Some).ok_or_else(|| {
+        // Unreachable from source: the row's parameter is a
+        // `CoreTy::Nullable(CoreTy::Text)`, so `E0401` refuses anything that is
+        // neither a `string` nor `null` before this runs — and refuses a
+        // `tainted` one besides, both of these being sinks.
+        Fault::fatal(format!(
+            "Core\\Sse::send expected a `string` or `null` for `{field}`, got tag {}",
+            value.tag_byte()
+        ))
+    })
+}
+
+/// The two headers an event stream declares for itself, named once — the module
+/// doc is where each is argued.
+const CACHE_CONTROL_HEADER: &str = "Cache-Control";
+/// See [`CACHE_CONTROL_HEADER`].
+const ACCEL_BUFFERING_HEADER: &str = "X-Accel-Buffering";
 
 #[cfg(test)]
 mod tests {
@@ -326,5 +634,134 @@ mod tests {
             Some(16),
             "the second call displaced the first stream's program"
         );
+    }
+
+    /// A context carrying the body cell a connection offers, bounded generously
+    /// enough that no case below can meet the send timeout — `crate::response`'s
+    /// own fixture, one door over, and every claim here is about the seam rather
+    /// than about the clock.
+    fn framing(slot: &nvs_runtime::stream::BodySlot) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        let mut inbound = Inbound::new("GET", "/events", "");
+        inbound.offer_response_stream(slot.clone());
+        ctx.set_inbound(inbound);
+        ctx
+    }
+
+    /// Drops a reference this module built and the borrowing member did not
+    /// take, exactly as `crate::response`'s tests own theirs.
+    fn dropped(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the reference it built, and a `Core` member \
+                      borrows its arguments rather than consuming them"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// Door two opening the cell: the head the connection is handed declares
+    /// `text/event-stream` and carries the two headers without which the stream
+    /// does not arrive, and the event the program sent reaches the connection's
+    /// half rather than the request's own output.
+    ///
+    /// One claim and not three, because a member that declared the media type
+    /// and wrote its events somewhere else would pass any of them alone.
+    #[test]
+    fn an_event_stream_declares_its_head_and_its_events_reach_the_connections_half() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut ctx = framing(&slot);
+
+        let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+            .expect("an offered cell takes the stream");
+        let data = Value::str(NvsStr::new(b"ready"));
+        nvs_runtime::call(
+            super::nvs_core_sse_send,
+            &mut ctx,
+            &[handle, data, Value::null(), Value::null()],
+        )
+        .expect("the first event goes into an empty cell without parking");
+
+        let mut head = slot
+            .take(std::task::Waker::noop())
+            .expect("the member filled the cell");
+        assert_eq!(&*head.content_type, "text/event-stream");
+        let names: Vec<&str> = head.headers.iter().map(|header| &*header.name).collect();
+        assert!(
+            names.contains(&"Cache-Control") && names.contains(&"X-Accel-Buffering"),
+            "the head went out without the headers an event stream needs: {names:?}"
+        );
+        let nvs_runtime::stream::Drained::Chunk(framed) =
+            head.drain.next_chunk(std::task::Waker::noop())
+        else {
+            panic!("the event the program sent never reached the connection");
+        };
+        assert_eq!(framed, b"data: ready\n\n");
+        assert_eq!(
+            ctx.take_buffered_output().unwrap_or_default(),
+            b"",
+            "a framed event went to the request's own output as well"
+        );
+
+        dropped(data);
+        dropped(handle);
+    }
+
+    /// The cell's refusal reaching a program: a response has one body, so an
+    /// event stream over a response already writing one is refused and the
+    /// first body is what the connection still frames. Unreachable from a
+    /// `.nvst` case — the cell it needs is offered to no script.
+    #[test]
+    fn an_event_stream_is_refused_where_a_response_body_is_already_being_written() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut ctx = framing(&slot);
+
+        // The cell opened directly, which is what `Core\Response::stream` does
+        // with it: what this asserts is the refusal reaching a program, and
+        // reaching through the sibling member to fill the cell would make it a
+        // claim about that member as well.
+        let _writing = slot
+            .open("text/csv", None, Vec::new())
+            .expect("an empty cell opens");
+        nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+            .expect_err("one response opens at most one body stream");
+
+        // Intact rather than displaced, which is the half a refusal that
+        // overwrote would still pass without.
+        let head = slot
+            .take(std::task::Waker::noop())
+            .expect("the first open stands");
+        assert_eq!(&*head.content_type, "text/csv");
+    }
+
+    /// An event whose reader has gone is refused rather than parked — the
+    /// connection dropping its half closes the stream at once, so a program
+    /// learns it on the next event instead of at the send timeout.
+    ///
+    /// Unreachable from a `.nvst` case for the reason above: a stream that can
+    /// close is one a connection is draining.
+    #[test]
+    fn an_event_whose_reader_has_gone_is_refused_rather_than_parked() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut ctx = framing(&slot);
+
+        let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+            .expect("an offered cell takes the stream");
+        drop(
+            slot.take(std::task::Waker::noop())
+                .expect("the member filled the cell"),
+        );
+
+        let data = Value::str(NvsStr::new(b"too late"));
+        nvs_runtime::call(
+            super::nvs_core_sse_send,
+            &mut ctx,
+            &[handle, data, Value::null(), Value::null()],
+        )
+        .expect_err("a send whose reader has gone is told so rather than parked");
+
+        dropped(data);
+        dropped(handle);
     }
 }
