@@ -2120,6 +2120,7 @@ version = "0.0.1"
 dependencies = [
  "core_affinity",
  "corosensei",
+ "libc",
  "mio",
  "nvs-config",
  "nvs-render",
@@ -2128,6 +2129,7 @@ dependencies = [
  "rustls",
  "toml",
  "webpki-roots",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
