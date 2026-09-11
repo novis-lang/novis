@@ -2,51 +2,65 @@
 
 ## State
 
-**Goal `config-is-written` — stages 0 and 1 have landed.** `python tools/directives.py --check` is
-green at **212 leaf keys**, so the gate's third step passes and `verify.py` reaches `build` again.
-Stage 2 — the generated, commented-out default file — is untouched.
+**Goal `config-is-written` — stage 0 is green and stage 1 has landed.** `python
+tools/directives.py --check` passes at **212 leaf keys** and `--explain storage.<name>.root` exits 0,
+so both of stage 0's checks pass. `verify.py` is 10 of 10 green.
 
-**The artifact cache's directory has one spelling.** `opcache.file_cache_dir` survives and carries
-the `System`/`Boot` row `cache.dir` held, as a row longer than `[opcache]`'s so `lookup` finds it
-first; `[cache]` is `Core\Cache`'s `local` and `shared` tiers and holds no third key. Writing
-`[cache] dir` is `E0601` — **not `E0604`**, which is the duplicate-key code; the goal prose and the
-goal's § *Standing decisions* both say `E0604` and both are wrong about the code, not about the
-migration. `docs/decisions/0175.md` is the record, § 4 the migration note.
+**Stage 2's gate exists and the file it gates does not.** `--check-template` catches four things: a
+roster key the file omits, a key `tree.rs` does not parse, a key spelled twice, and an `[unread:]`
+key with no `# NOT IMPLEMENTED` line naming its owner. A setting is `#key = value` with **no space
+after the `#`** — that is what separates it from the prose above it, and a live key is a problem.
+It takes an optional path, so a draft is gated where it is written. Today it exits 1 with
+`crates/nvs-config/src/default.toml is not written yet`, which is an open item, not a regression.
 
-**Five keys are declared unread rather than wired**, each with the rule that closes it as its
-`owner:` — `debug.mode`, `metrics.listen`, `metrics.endpoint`, `trace.endpoint`,
-`server.socket_mode`. `debug.mode` is the one whose subsystem already exists: the probes are
-compiled in and `DebugFlags` arms them, but no directive row governs the key and nothing reads it,
-so wiring it is a real slice and not the marking stage's work.
+**The default file cannot be rendered from what the tree already says.** `--json` now carries each
+key's `tree.rs` doc comment and its block's, so the generator reads one call instead of `tree.rs`'s
+1075 lines — but those comments are maintainer prose: they carry the changeability class and a rule
+id and **never the default value**. `crates/nvs-config/src/directive.rs:65`'s row is `key`, `class`,
+`apply` and holds no default either, and `docs/reference/tools/20-config.md` covers `[limits]`,
+`[mode]`, `[capabilities]`, `[[app]]` and `[[include]]` in operator prose and no other block. So
+stage 2 is prose written by hand and held honest by the gate, not a render.
+
+**One decision sits inside stage 2 and the goal already frames it** (`loop-goal.md` § *Stage 2*
+point 2): a `Default:` line is true only once an unset key falls back to that value, and an unset
+`limits.cpu_time` is no ceiling at all today. Land the fallback first or print what is true — the
+safe option is to print what is true, because a comment claiming a ceiling that does not exist is
+`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` read backwards.
+
+**Five keys stay declared unread**, each with the rule that closes it — `debug.mode`,
+`metrics.listen`, `metrics.endpoint`, `trace.endpoint`, `server.socket_mode`. Each needs its
+`# NOT IMPLEMENTED` note in the default file, and `--check-template` fails on any that lacks one.
 
 ## Next group
 
-**Stage 2: the default file, gated by the tool that already holds the roster — one file set:**
-`tools/directives.py`, `crates/nvs-config/src/default.toml` (new), `crates/nvs-config/src/lib.rs`,
-`crates/nvs-config/tests/`.
+**Stage 2: the default file, against the gate that already holds the roster — one file set:**
+`crates/nvs-config/src/default.toml` (new), `crates/nvs-config/src/lib.rs`, `tools/verify.py`,
+`crates/nvs-config/tests/directives.rs`.
 
-- [ ] **`tools/directives.py --check-template` — write the gate before the file it gates**, the way
-      stage 0 wrote the roster before deciding anything: every leaf key appears exactly once, no key
-      the tree does not parse appears at all, and every `[unread:]` key sits under a
-      `# NOT IMPLEMENTED` line naming its owner. It reuses the walk at `tools/directives.py:449` and
-      the trailer pattern at `tools/directives.py:102`, and it is `loop-goal.toml`'s first stage-2
-      check. `rule:config/no-configuration-file-is-a-complete-configuration` is why the file may be
-      inert: the shipped defaults are already a complete configuration.
-- [ ] **Generate `crates/nvs-config/src/default.toml`, every key commented out**, `include_str!`'d
-      and reached as `nvs_config::default_file()` from `crates/nvs-config/src/lib.rs`. Shape and the
-      `cpu_time`/`wall_time` comments are goal prose § *Stage 2* 1–4; the roster and each key's
-      trailer come from `tools/directives.py:510`'s `--json`, and
-      `crates/nvs-config/src/tree.rs:376` is a marked key to render against.
-- [ ] **The three tests `loop-goal.toml` names**, beside the block sweep at
-      `crates/nvs-config/tests/tree.rs:69`: the file parses under `deny_unknown_fields`, it resolves
-      to the same snapshot as no file at all (`rule:config/no-configuration-file-is-a-complete-configuration`),
-      and every unimplemented key in it is marked as one.
+- [ ] **Write `crates/nvs-config/src/default.toml`, every key commented out.** The shape is exactly
+      what `tools/directives.py:624` enforces, and `python tools/directives.py --json` is the whole
+      input: 212 rows, each with its block, its `tree.rs` prose and its `[unread:]` owner. A map
+      block appears once as a named example — `[db.main]`, `[mail.default]`, `[storage.local]`.
+      Run `--check-template` against a draft under `.agent-tmp/` and let its missing-key list drive
+      the writing; the file may be inert because
+      `rule:config/no-configuration-file-is-a-complete-configuration` makes the shipped defaults a
+      complete configuration already.
+- [ ] **`include_str!` it as `nvs_config::default_file()`** beside the rest of the crate's surface at
+      `crates/nvs-config/src/lib.rs:96`, and add `directives.py --check-template` as a step beside
+      `directives` at `tools/verify.py:420` — in the same commit as the file, never before it, or
+      every session's verification goes red on an artefact that does not exist yet.
+- [ ] **The three tests `loop-goal.toml` stage 2 names**, beside the stage-1 block that ends at
+      `crates/nvs-config/tests/directives.rs:294`: `the_default_file_parses_with_deny_unknown_fields`,
+      `the_default_file_resolves_to_the_same_snapshot_as_no_file_at_all`, and
+      `every_unimplemented_key_in_the_default_file_is_marked_as_one`. The second is the one with a
+      trap in it: a live `[limits]` header over no live key still deserializes to `Some(Limits)`
+      where no file at all gives `None`, so comment the headers too if the snapshots differ.
 
 ## Backlog
 
-- Stage 3 — the five project commands that write the file, as a table not a flag; goal § *Standing decisions*.
-- `rule:testing/debug-mode-directive` is `shipped` while `[debug] mode` reaches no reader and no directive row; the status or the wiring is wrong, and either needs its own record.
-- Stage 2 § 2 — an unset `cpu_time` is no ceiling today, so the file's `Default:` lines are true only once that fallback lands.
-- The four keys the gate counts read but nothing acts on — `capabilities.debug.{trace,profile}`, `extension.{path,sha256}`; `docs/agent/carried-gaps.md` if stage 2 does not take them.
-- `[context] modules` in `docs/agent/loop-goal.toml` omits `tools/directives.py` and `tools/splice.py` — this session paid a read for the trailer grammar and a `--help` for the patch format.
-- `[context] rules` omits `config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`, which is the one home of `E0601` versus `E0604` and the fact the goal prose gets wrong.
+- The `limits.cpu_time` fallback — an unset key is no ceiling today (`loop-goal.md` § *Stage 2*).
+- Stage 3, a project command writes the file, and its four refusals (`loop-goal.md` § *Stage 3*).
+- Stage 4, the record and the rule fragment for what stages 2 and 3 decided (`loop-goal.md` § *Stage 4*).
+- `debug.mode` is the one unread key whose subsystem exists — wiring it is a real slice, not a marking.
+- `docs/decisions/0175.md` § 4 and `loop-goal.md` § *Standing decisions* both name `E0604` for a
+  retired `[cache] dir`; the code the tree emits is `E0601`.
