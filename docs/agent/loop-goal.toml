@@ -137,6 +137,9 @@ modules = [
   "crates/nvs-lsp/src/render.rs",
   # Running a tree of `.lspt` cases, and the summary line the loop reads.
   "crates/nvs-lsp/src/suite.rs",
+  # The parse tree as a walkable shape: one entry per node, its production's name and the nodes it
+  # contains — what `rule:core-classes/ast-is-inert`'s `Core\Ast::parse` hands a running program.
+  "crates/nvs-syntax/src/walk.rs",
 ]
 
 # The rules this goal implements, and the one its record amends.
