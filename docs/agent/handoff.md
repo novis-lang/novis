@@ -2,47 +2,53 @@
 
 ## State
 
-**Goal `resource-ceilings` — every stage is landed and the goal's own checks are green.** Stage 7
-closed this session: `docs/decisions/0174.md` is the record, the three rules its `changes.creates`
-names are in the rulebook and rendered, and `crates/nvs-runtime/src/string.rs:1089`'s block comment
-over the primitives no longer argues they cannot fail. `python tools/verify.py` is 9 of 9 green.
+**Goal `resource-ceilings`: stage 6's sweep now covers the two stores the goal never named.**
+`crates/nvs-stdlib/src/bus.rs` holds `budget::Detached` at both ends — the publish allocates the
+envelope inside one and the receiving core frees it inside another — which is sound because the
+detached balance is per thread and **signed** (`crates/nvs-runtime/src/budget.rs:225`).
+`crates/nvs-stdlib/src/topic.rs`'s per-core subscriber table brackets the name and the row it keys
+and leaves the `Weak` prune outside on purpose. Both module docs carry the decision, two new guards
+pin it, and `python tools/verify.py` is green.
 
-**The stage 1 floor is green again.** `python tools/rules.py --check` was red on
-`docs/agent/goals/47-webcrypto.toml`, whose two `want` strings spelled `rule:` tokens for rules that
-goal has yet to create. They name the bare id now; the playbook's newest Tooling bullet is the trap.
+**The driver's stage 3 check is a naming mismatch, not unlanded work, and that is why it repeats.**
+The sampler and both poll halves are on disk: `crates/nvs-host/src/cpuclock.rs:193` spins rather
+than sleeps and is the advances-with-work-not-with-waiting claim under another name, and
+`crates/nvs-host/src/watchdog.rs:1117` stops the request past its ceiling and leaves the one under
+it. The check's four drafted names are what has never run. This is the playbook's *a check can name
+a test the tree already declares under a different name*, and it is the next group.
 
-**One cross-request store this goal never named is unbracketed, and it is not the regex one.**
-`crates/nvs-stdlib/src/bus.rs:168` is a per-core mailbox queue held in a process-wide registry: a
-publish encodes an `Envelope` on the publishing core's balance and the receiving core frees it, which
-is stage 6's hole one core apart. `budget::Detached`'s balance is signed for exactly that case. The
-compiled-pattern cache stays unbracketed on purpose — `crates/nvs-stdlib/src/regex.rs`'s gap 4 is the
-finding in full, and it waits on M6's arena.
+**One store stays unbracketed on purpose**, and it is still the compiled-pattern cache —
+`crates/nvs-stdlib/src/regex.rs`'s gap 4 is the finding, waiting on M6's arena.
 
 ## Next group
 
-**Stage 6, reopened for the store the audit found** — one file set, `crates/nvs-stdlib/src/bus.rs`
-with `crates/nvs-runtime/src/budget.rs` beside it, and
-`rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` as the specification for both
-slices. The rule already says what is owed: the bracket is held by the store, around every path that
-allocates or frees what it holds.
+**Stage 3: the clock, whose checks name tests the tree took other names for** — one file set,
+`docs/agent/loop-goal.toml` with its copy `docs/agent/goals/40-resource-ceilings.toml`, reading
+`crates/nvs-host/src/{cpuclock,watchdog}.rs` without editing them.
+`rule:errors/on-limit` is what all four names are claims about.
 
-- [ ] **The bus queue takes the bracket at both ends** — `crates/nvs-stdlib/src/bus.rs:168` is the
-      queue and `crates/nvs-stdlib/src/bus.rs:147` the per-core mailbox. The publish side allocates
-      the `Envelope` and the receive side drops it, on two different cores, so the two ends take the
-      guard separately; `crates/nvs-runtime/src/budget.rs:225` is why a signed per-thread balance is
-      what makes that sound. `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`.
-- [ ] **A guard that says a publish is charged to neither request** — beside the ones stage 6 wrote
-      at `crates/nvs-runtime/tests/detached_accounting.rs:1`, which is the shape to copy: a publish
-      raises no ceiling on the publisher and a receive lowers none on the receiver.
-      `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`.
-- [ ] **Finish the sweep of the remaining process-lifetime stores** — `crates/nvs-stdlib/src/topic.rs:315`
-      holds `Weak`s and nothing unsubscribes, and `crates/nvs-stdlib/src/channel.rs:228` is bounded
-      inside one request tree; decide per store whether it retains bytes across requests and say so
-      in its module doc either way. `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`.
+- [ ] **Re-point the first check's names to the claims the tree landed** —
+      `docs/agent/loop-goal.toml:8028` and `docs/agent/goals/40-resource-ceilings.toml:8021` are the
+      two copies of the same list. `crates/nvs-host/src/cpuclock.rs:193` and
+      `crates/nvs-host/src/watchdog.rs:1117` are the tests that already assert three of the four
+      claims; rename the check rather than writing a second test of a claim already pinned.
+- [ ] **Settle the fourth name before re-pointing it** — `a_platform_without_a_thread_clock_reports_no_cpu_ceiling_at_boot`
+      asks for a report *at boot*, and `crates/nvs-host/src/cpuclock.rs:177` is only the fallback
+      that answers `None`; `crates/nvs-host/src/watchdog.rs:973` is a case reading that answer, not
+      a boot line. The goal's § *Standing decisions* is the specification — write the boot report or
+      re-point the name, not both.
+- [ ] **Check the stage's second list the same way, before touching it** —
+      `docs/agent/loop-goal.toml:8034` names three `nvs-runtime` tests for the two poll sites, and
+      whether each is drafted or landed is the same question asked of a different crate.
 
 ## Backlog
 
-- The compiled-pattern cache cannot be bracketed before the arena — `crates/nvs-stdlib/src/regex.rs` § *Known gaps* 4.
-- macOS enforces no CPU ceiling and says so at boot — `crates/nvs-host/src/cpuclock.rs`'s module doc.
-- 0174 has no `docs/decisions.toml` summary entry; that pass is user-fired, per `docs/agent/decisions-summary.md`.
-- The backtracking step budget is still a constant rather than a directive — `crates/nvs-stdlib/src/regex.rs` § *Known gaps* 2.
+- `crates/nvs-stdlib/src/instance.rs:243` and `:368` leak a `ClassTable` charged to whichever request
+  first constructs one — bounded and never freed, so nothing is credited, but the builder overpays.
+- `crates/nvs-stdlib/src/channel.rs:233`'s parked-waiter `Vec` grows on one request's balance and
+  never gives the buffer back — O(max concurrently parked), and the entries are the requests' own.
+- `crates/nvs-stdlib/src/identity_store.rs:59` and `crates/nvs-stdlib/src/cli.rs:2804` were read this
+  session and hold no cross-request heap; neither needs a bracket.
+- The indented `thread_local!`s in `command`, `fatal`, `reflect`, `router`, `script`, `session` and
+  `signal` are the unswept remainder of the store grep — most are inside a test module or a fn.
+- A goal switch overwrites this file; what must outlive one goes in `docs/agent/carried-gaps.md`.
