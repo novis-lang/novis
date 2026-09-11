@@ -73,8 +73,10 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [fmt](45-fmt.md) | M10, no ADR slot — [0039](../../decisions/0039.md) and [0173](../../decisions/0173.md) are already accepted | **`nvs-fmt`** (new), `nvs-syntax`, `nvs-cli` — the one formatter, printed off the lossless tree |
 | [template-format](46-template-format.md) | M10, no ADR slot — [0173](../../decisions/0173.md) is already accepted | `nvs-lsp`, `editors/vscode` — format-on-save formats the markup too, each chunk from the `?>` that opened it |
 | [webcrypto](47-webcrypto.md) | M8, one ADR slot — the interop tier beside XChaCha20-Poly1305, and `Core\Jwe` as the roster's sixth protocol | `nvs-stdlib` and the workspace manifest — AES-256-GCM, PBKDF2, HKDF and ECDH that a browser's WebCrypto reads, nothing shipped removed |
-| [gap-zero](48-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written goals, because a gap register is emptied after everything that adds to it has run |
-| [dossier](49-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| [http-client](48-http-client.md) | M8, one ADR slot — bodies, the dynamic verb, streamed replies, the pinned pool and the redirect credential rule | `nvs-stdlib`, `nvs-types`, `nvs-config` — the client an API is driven through, and a test that answers it from a table |
+| [process-cache](49-process-cache.md) | M8, one ADR slot — the process tier, a lifetime on every tier, and a secret cached only sealed | `nvs-stdlib`, `nvs-config`, `nvs-cli` — the first state the cores share, and where a token lives between requests |
+| [gap-zero](50-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written goals, because a gap register is emptied after everything that adds to it has run |
+| [dossier](51-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
 
 ## The chain contract

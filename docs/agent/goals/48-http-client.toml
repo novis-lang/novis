@@ -1,0 +1,341 @@
+# Goal 48 -- a program talks to a real API: bodies, headers, streams and pooled connections
+# The acceptance test, as data.
+#
+# `48-http-client.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No example of its own: a program that talks to a real API needs a network, and every case below
+  # answers its calls from `Core\Test`'s table instead.
+]
+
+[context]
+
+modules = [
+  # The door, the five rows, the one bag (:343-386) and the reply class. Stages 4, 5 and 6.
+  "crates/nvs-stdlib/src/http.rs",
+  # The exchange, framing (:543-548), the header guard (:336-375) and the hop. Stages 6, 7 and 8.
+  "crates/nvs-stdlib/src/http/transport.rs",
+  # `decompress_within` (:522-533), the one gzip bound. Stage 7.
+  "crates/nvs-stdlib/src/compress.rs",
+  # The encode walk `json:` applies the outbound exemption to, and `decodeAs`'s one walk. Stages 4, 5.
+  "crates/nvs-stdlib/src/json.rs",
+  # `Core\Http\Method`'s eight cases (:123-151). Stage 4.
+  "crates/nvs-stdlib/src/router.rs",
+  # `Core\Test`'s rows (:357-373), where the table joins them. Stage 3.
+  "crates/nvs-stdlib/src/test.rs",
+  # `jsonAs` (:305-313) and `bodyStream` (:314-320), the precedents stages 5 and 6 copy.
+  "crates/nvs-stdlib/src/request.rs",
+  # Where every row is registered, and the qualifier spellings (:302-377).
+  "crates/nvs-stdlib/src/registry.rs",
+  # `reject_keyless_retry` and the decode-site roster (:1517-1528). Stages 4 and 5.
+  "crates/nvs-types/src/expr/args.rs",
+  # `check_decode_sites` (:803-830), which `Response::jsonAs` joins. Stage 5.
+  "crates/nvs-types/src/derive.rs",
+  # The `[http.client]` rows the four new keys join. Stages 6 and 7.
+  "crates/nvs-config/src/directive.rs",
+  # The TLS session a pooled connection keeps. Stage 7.
+  "crates/nvs-host/src/tls.rs",
+]
+
+# Every stage works inside these three: the URL is a sink and the pin survives everything, no wait is
+# unbounded, and a hop is re-checked.
+rules = [
+  "security/outbound-url-is-a-sink",
+  "http-server/no-spelling-for-an-unbounded-wait",
+  "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M8:verify"]
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `48-http-client.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the record"` labels, which may group several prose stages under
+# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The record: the two records the client already stands on, how members are spelled, the row it moves,
+# and the two rules the four new `[http.client]` keys' classes and shipped values answer to.
+rules = [
+  "core-api/verb-lexicon",
+  "core-api/shape-rules",
+  "config/three-changeability-classes",
+  "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+]
+adrs = ["0074", "0058"]
+spec = ["01 §16"]
+shapes = ["A decision record", "A rule fragment", "Citing a document"]
+
+[context.stage.3]
+# The table answers in-process, the way `Core\Test::request` already does.
+rules = ["testing/in-process-request"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.4]
+# A secret may be sent, a body may carry what a user wrote, and a dynamic verb still owes its key.
+rules = [
+  "security/secret-sinks-refuse",
+  "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
+  "core-api/options-bag",
+]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.5]
+# A reply is input, and a decode into a shape is held to the codec rule.
+rules = ["security/tainted-sources", "security/derived-codec-qualifiers"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.6]
+# A body saved to disk is bounded the way every disk write is.
+rules = ["http-server/there-is-no-temp-file", "core-classes/io-write-stream"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.7]
+# The pool's precedent, and the deadline a stale connection must not stretch.
+rules = ["security/db-pool-reset-is-a-boundary", "http-server/one-deadline-covers-the-whole-call"]
+
+[context.stage.8]
+# What a trace carries, and what a header value may never reach.
+rules = ["security/secret-sinks-refuse", "observability/an-outbound-call-propagates-traceparent"]
+
+[context.stage.9]
+shapes = ["A rule fragment"]
+
+# Every buffer is a `Core` buffer charged through `nvs_runtime::budget`, and a pooled connection is a
+# host handle rather than a refcounted value. No cycle shape, so nothing is added to the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# None of this goal's own checks needs a daemon. The floor is goal `webcrypto`'s whole list, which
+# carries goal `finish-response`'s served-path and queue checks, and the daemons are theirs.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 9
+# flips the status.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "one body per outbound request is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-request-carries-one-body"]
+want = ["http-server/an-outbound-request-carries-one-body"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a streamed reply's bound is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime"]
+want = ["http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the pinned per-core pool is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"]
+want = ["http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a cross-origin redirect dropping credentials is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-cross-origin-redirect-drops-credentials"]
+want = ["http-server/a-cross-origin-redirect-drops-credentials"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an outbound call answered from a table is a rule"
+argv = ["python", "tools/rules.py", "--show", "testing/an-outbound-call-is-answered-from-a-table"]
+want = ["testing/an-outbound-call-is-answered-from-a-table"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the table. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the table"
+name = "a test answers outbound calls from a table, records what was sent, and never connects"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/test-answer-http-serves-an-outbound-call-from-a-table.nvst",
+  "tests/conformance/core/test-an-unanswered-outbound-call-throws-and-never-connects.nvst",
+  "tests/conformance/core/test-sent-http-records-each-outbound-request.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- bodies and verbs. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 bodies and verbs"
+name = "a request carries one body of four kinds, a secret where it is sent, and a verb chosen at run time"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-client-sends-a-json-a-form-a-raw-and-a-multipart-body.nvst",
+  "tests/conformance/core/http-client-a-secret-reaches-a-header-a-form-and-a-json-body.nvst",
+  "tests/conformance/core/http-client-patch-and-request-send-the-verb-they-name.nvst",
+  "tests/conformance/core/http-client-a-dynamic-body-on-get-or-keyless-post-retry-throws-before-sending.nvst",
+  "tests/conformance/reject/http-client-two-body-keys-are-refused.nvst",
+  "tests/conformance/reject/http-client-a-body-on-get-or-head-is-refused.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- reading a reply. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 reading a reply"
+name = "a reply's headers, bytes and typed JSON are read, and every one of them is tainted"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-response-reads-a-header-case-insensitively-and-every-repeat.nvst",
+  "tests/conformance/core/http-response-json-as-answers-a-tainted-shape.nvst",
+  "tests/conformance/core/http-response-bytes-answers-the-octets-that-arrived.nvst",
+  "tests/conformance/reject/http-response-json-as-into-an-unqualified-shape-is-refused.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- streaming. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 streaming"
+name = "a streamed reply is read once as events, lines, chunks or a bounded file"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-stream-reads-sse-events-across-every-line-ending.nvst",
+  "tests/conformance/core/http-stream-reads-lines-and-chunks-and-refuses-a-second-read.nvst",
+  "tests/conformance/core/http-stream-save-to-stops-at-its-bound.nvst",
+  "tests/conformance/reject/http-client-idle-on-a-buffered-member-is-refused.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 streaming"
+name = "a stream's body is bounded by silence and by a lifetime, and is never retried after its head"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "stream_idle_ends_a_silent_reply",
+  "stream_max_duration_ends_an_endless_reply",
+  "stream_is_retried_before_its_head_and_never_after",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the pool and gzip. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the pool and gzip"
+name = "a connection is reused only for its own pinned address and only after a framed reply, and gzip is bounded"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "pooled_connection_is_reused_for_one_pinned_address_and_never_across_two",
+  "pooled_connection_goes_back_only_after_a_fully_framed_reply",
+  "stale_pooled_connection_is_replaced_once_without_spending_an_attempt",
+  "pool_holds_no_more_than_its_idle_cap_and_closes_past_its_idle_timeout",
+  "gzip_reply_is_decoded_under_the_compress_bound_and_a_bomb_is_refused",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- credentials on a redirect. Goal prose stage 8.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "8 credentials"
+name = "a hop to another origin carries no credential, and no header value reaches a trace or a message"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "cross_origin_redirect_drops_authorization_cookie_and_every_secret_header",
+  "same_origin_redirect_keeps_the_callers_headers",
+  "no_trace_span_or_error_message_carries_a_header_value",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the rulebook. Goal prose stage 9.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "9 the rulebook"
+name = "one body per outbound request is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-request-carries-one-body"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "9 the rulebook"
+name = "a streamed reply's bound is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "9 the rulebook"
+name = "the pinned per-core pool is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "9 the rulebook"
+name = "a cross-origin redirect dropping credentials is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-cross-origin-redirect-drops-credentials"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "9 the rulebook"
+name = "an outbound call answered from a table is shipped"
+argv = ["python", "tools/rules.py", "--show", "testing/an-outbound-call-is-answered-from-a-table"]
+want = ["shipped"]

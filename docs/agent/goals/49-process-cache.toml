@@ -1,0 +1,280 @@
+# Goal 49 -- a value outlives a request in the serving process, and a secret does so only sealed
+# The acceptance test, as data.
+#
+# `49-process-cache.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No example of its own: what the tier proves is visible across two requests, which `Core\Test`'s
+  # in-process requests show and a single program run cannot.
+]
+
+[context]
+
+modules = [
+  # The members, the one store class every tier answers, the local tier and its cap. Every stage.
+  "crates/nvs-stdlib/src/cache.rs",
+  # The shared tier's client, which `ttl` and `forget` reach. Stage 4.
+  "crates/nvs-stdlib/src/cache/redis.rs",
+  # `seal_under` and `open_under` (:103-113), the one construction a sealed entry is. Stage 5.
+  "crates/nvs-stdlib/src/crypto.rs",
+  # The ring: newest first, 32 octets, and its three refusals (:1-50). Stage 5.
+  "crates/nvs-stdlib/src/keyring.rs",
+  # The domain byte (:46-54), the precedent for the cache door's own. Stage 5.
+  "crates/nvs-stdlib/src/signature.rs",
+  # The qualifier spellings (:312-377), which gain `secret string`. Stage 5.
+  "crates/nvs-stdlib/src/registry.rs",
+  # `[cache.local]` (:158-162), beside which `[cache.process]` is written. Stages 3 and 6.
+  "crates/nvs-config/src/directive.rs",
+  # Where the per-core workers start, and where the process map is made before them. Stage 3.
+  "crates/nvs-cli/src/serve.rs",
+]
+
+# Every stage works inside these three: cross-request state is a named store, a store's bytes are its
+# own balance, and a secret never crosses a boundary in the clear.
+rules = [
+  "concurrency/cross-request-state-is-explicit",
+  "concurrency/a-cross-request-stores-bytes-are-its-own-balance",
+  "security/secret-crosses-no-boundary",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M8:verify"]
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `49-process-cache.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the record"` labels, which may group several prose stages under
+# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The record, the six fragments it modifies, and the record the tiers were first decided in.
+rules = [
+  "core-api/two-cache-tiers",
+  "http-server/the-accept-fan-out-is-one-worker-per-core",
+  "concurrency/put-and-get-are-the-whole-boundary",
+  "concurrency/a-cached-value-is-copied-across-the-boundary",
+  "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
+]
+adrs = ["0059"]
+spec = ["01 §16"]
+shapes = ["A decision record", "A rule fragment", "Citing a document"]
+
+[context.stage.3]
+# The tier's cap, how a reload is scoped, and the local tier's accounting it copies.
+rules = [
+  "concurrency/cache-memory-is-charged-to-the-core",
+  "security/db-pool-reset-is-a-boundary",
+  "security/no-cross-request-state",
+]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.4]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.5]
+# A sealed entry is keyed by the ring's rules, and a revealed value is still what it was.
+rules = ["security/secret-qualifier", "security/protocol-roster"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.6]
+# The one wait `fill` owns has a bound like every other wait.
+rules = ["http-server/no-spelling-for-an-unbounded-wait"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.7]
+shapes = ["A rule fragment"]
+
+# The process map owns its bytes under the detached bracket and hands out copies, so no refcounted value
+# is shared between cores. No cycle shape, so nothing is added to the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Stage 4's shared-tier half needs Redis, which the floor already starts for goal `finish-response`'s
+# checks; this table being here is what makes the driver preflight it.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 7
+# flips the status.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the process tier is a rule"
+argv = ["python", "tools/rules.py", "--show", "concurrency/the-process-tier-is-one-store-per-process"]
+want = ["concurrency/the-process-tier-is-one-store-per-process"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a secret cached only sealed is a rule"
+argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-is-cached-only-sealed"]
+want = ["concurrency/a-secret-is-cached-only-sealed"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a secret fill running once per process is a rule"
+argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-fill-runs-once-per-process"]
+want = ["concurrency/a-secret-fill-runs-once-per-process"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the process tier. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the process tier"
+name = "an entry one request writes to the process tier another request reads, under a cap that evicts"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/cache-process-tier-is-read-by-a-later-request.nvst",
+  "tests/conformance/core/cache-process-tier-evicts-past-its-cap-and-never-fails-a-put.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the process tier"
+name = "one map every core reads, scoped per app and generation, on the detached balance"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "process_tier_is_one_map_every_core_reads",
+  "process_tier_keys_are_scoped_per_app_and_per_generation",
+  "process_tier_bytes_are_on_the_detached_balance",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- a lifetime and `forget`. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 lifetime and forget"
+name = "an entry is gone after its lifetime and after forget, on every tier"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/cache-put-with-a-ttl-is-absent-after-it-on-every-tier.nvst",
+  "tests/conformance/core/cache-forget-removes-an-entry-on-every-tier.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- a secret, sealed. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 sealed"
+name = "a secret round-trips only sealed, opens only under its ring, and put still refuses one"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/cache-a-secret-round-trips-sealed-on-every-tier.nvst",
+  "tests/conformance/core/cache-a-sealed-entry-under-another-ring-is-a-miss.nvst",
+  "tests/conformance/core/cache-get-answers-null-for-a-sealed-entry.nvst",
+  "tests/conformance/reject/cache-put-refuses-a-secret-and-names-put-secret.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 sealed"
+name = "a sealed entry is bound to its app, its name and its expiry"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "sealed_entry_moved_to_another_key_or_app_is_a_miss",
+  "sealed_entry_past_its_sealed_expiry_is_a_miss_whatever_the_store_says",
+  "every_sealed_entry_nonce_is_drawn_through_core_random",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- `fill`, once per process. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 fill"
+name = "a miss is filled once and every later caller reads what it stored"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/cache-get-secret-fill-supplies-a-miss-once.nvst",
+  "tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 fill"
+name = "one fill per process, a bounded wait, a failure never shared, and a refresh ahead of expiry"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "fill_runs_once_while_every_other_core_waits",
+  "a_failed_fill_is_not_shared_and_the_next_caller_fills",
+  "a_wait_past_its_bound_throws_timeout",
+  "an_entry_near_its_expiry_is_answered_while_one_caller_refreshes_it",
+  "a_request_ending_during_its_fill_releases_the_key",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the rulebook. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "7 the rulebook"
+name = "the process tier is shipped"
+argv = ["python", "tools/rules.py", "--show", "concurrency/the-process-tier-is-one-store-per-process"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "7 the rulebook"
+name = "a secret cached only sealed is shipped"
+argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-is-cached-only-sealed"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "7 the rulebook"
+name = "a secret fill running once per process is shipped"
+argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-fill-runs-once-per-process"]
+want = ["shipped"]

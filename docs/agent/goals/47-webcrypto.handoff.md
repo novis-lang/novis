@@ -62,4 +62,4 @@ are now 7 and 8.
   with `include_str!` and `serde_json`, and `examples/webcrypto.nvs` (new) opens one of its tokens.
   Never edit the set; `node tools/webcrypto-vectors.mjs` is the user's to run. Cheap.
 - Stage 8 — the flips. `docs/rules/` only.
-- When this goal's last check goes green the driver takes goal `gap-zero`.
+- When this goal's last check goes green the driver takes goal `http-client`.
