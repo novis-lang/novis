@@ -512,6 +512,66 @@ impl Drop for Peer {
     }
 }
 
+/// A request that answered its head while it was still writing its body: the
+/// isolate still running, and the place it holds while it runs.
+///
+/// Both of these are what an ordinary request keeps inside the service future's
+/// own frame. A streamed answer leaves that frame early — that is the whole of
+/// what "the head goes out when the member is called" costs — so the two are
+/// held on the connection instead, where [`joined_when_ended`] takes them once
+/// the body is over and the end of [`serve_connection`] abandons them for a
+/// peer that went away first.
+struct Streamed<'a> {
+    /// The isolate, joined once its body has ended and abandoned if this
+    /// connection dies first — [`Peer`]'s own drop is the second of those.
+    peer: Peer,
+    /// The connection's half of the request's *own* body, still being pumped:
+    /// answering a head early does not end the request, and a program that
+    /// streams its answer while it reads an upload is parked on this. Dropping
+    /// it here would fail that pull the moment the head went out.
+    supply: Option<Supply>,
+    /// `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s
+    /// tier C, held for as long as this request is still spending a core. A
+    /// place given back when the head went out would be a request running
+    /// outside the one ceiling that counts it, and a peer that reads slowly
+    /// would be how a server acquires unbounded concurrency.
+    _place: crate::admit::InFlight<'a>,
+}
+
+/// Joins a streaming request's isolate once the body it was writing has ended,
+/// and leaves it running until then.
+///
+/// **"The body has ended" is asked as [`nvs_host::Running::finished`]**, and the
+/// two are one question rather than two: the writing half lives on the
+/// request's own context and the isolate's finish path is where it is dropped
+/// (`nvs_runtime::Ctx::take_body_stream`), so a body ends exactly when the
+/// isolate writing it does. Asking the drain instead would be asking after a
+/// half this connection has already handed to `hyper`.
+///
+/// Joining any earlier is what this exists to prevent, and it is not a slow
+/// path but a deadlock: [`nvs_host::Running::join`] parks until the child has
+/// ended, the child cannot end until the chunks it is parked on have been
+/// taken, and the task that would take them is the one that just parked.
+fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
+    let ended = writing
+        .borrow()
+        .as_ref()
+        .is_some_and(|streamed| streamed.peer.finished());
+    if !ended {
+        return;
+    }
+    let Some(mut streamed) = writing.borrow_mut().take() else {
+        return;
+    };
+    if let Some(mut done) = streamed.peer.collect(ctx) {
+        // Nowhere to move the child's returned value to, and nothing left to
+        // say with what it wrote: the answer is already on the wire. [`answer`]
+        // makes the same discharge for the same reason, this crate forbidding
+        // the `unsafe` that a release takes.
+        done.discard_value();
+    }
+}
+
 /// Drives one accepted connection to completion on the calling coroutine.
 ///
 /// The whole of `rule:concurrency/one-future-per-connection`: one future, on this task's own stack, polled by
@@ -645,6 +705,15 @@ impl Drop for Peer {
 /// writes one, an event stream's isolate runs with `Output::Capture` and its
 /// bytes reach its own buffer rather than a body.
 ///
+/// **Every request is offered a third cell, and that one is answered before its
+/// request has ended.** `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+/// other spelling is a body written over time by the request's *own* isolate,
+/// so `nvs_runtime::stream::BodySlot` is filled by `Core\Response::stream`
+/// while the service future is still waiting, and the wait answers with the
+/// head instead of with a completion. What the peer then reads is written by an
+/// isolate this connection has not joined yet: [`joined_when_ended`] is where
+/// it is, once the body ends, and [`Streamed`] is what holds it until then.
+///
 /// **`draining` is carried through rather than read here.** No part of an HTTP
 /// request's life asks it — the probe's `503` is [`Reply::health`]'s, and this
 /// function is never the one holding a probe — but `rule:concurrency/connection-bounds-are-finite`'s shutdown
@@ -704,6 +773,21 @@ where
     // on this socket, so there is no second request to fill it.
     let pending_socket: RefCell<Option<nvs_runtime::Upgrade>> = RefCell::new(None);
     let pending_socket = &pending_socket;
+    // `rule:concurrency/connection-bounds-are-finite`'s table for this
+    // connection, read once here rather than per request or per hand-over:
+    // every response written over this socket writes through the same send
+    // bound, and the framing at the end of this function is held inside the
+    // same numbers. `crate::bounds`' own § *Known gap* is where it is recorded
+    // that no `[server]` key overrides one yet.
+    let bounds = crate::bounds::Connection::default();
+    let send_timeout = bounds.send;
+    // A request whose head has gone out and whose body is still being written.
+    // At most one, because `hyper`'s h1 dispatcher writes one response at a
+    // time: the next request on this connection is framed after the body of
+    // this one has ended, which is the same moment [`joined_when_ended`] takes
+    // what is here.
+    let writing: RefCell<Option<Streamed<'_>>> = RefCell::new(None);
+    let writing = &writing;
     let io = ConnectionIo::new(stream, waits);
     // Taken before the adapter is handed to `hyper`, because that is the last
     // moment anything on this side can reach it.
@@ -752,9 +836,12 @@ where
         // selected no mount, allocated no isolate, compiled nothing and run no
         // Novis code. A valve that allocated in order to refuse would not
         // protect what it exists to protect. The guard lives to the end of this
-        // closure, which is the whole of what "in flight" means here — the
-        // answer exists by then.
-        let Some(_in_flight) = serving.admission.admit() else {
+        // closure — or, for a response whose body is still being written when
+        // that closure ends, to the end of the isolate writing it ([`Streamed`]
+        // is what carries it there). That is the whole of what "in flight"
+        // means here: a request is in flight while it is still spending a core,
+        // however much of its answer is already on the wire.
+        let Some(place) = serving.admission.admit() else {
             phase.set(Phase::Write);
             let mut refused = crate::admit::over_capacity();
             serving.secure.fill(refused.headers_mut(), scheme);
@@ -833,6 +920,14 @@ where
         // A request that asks for no stream leaves it empty, which costs the one
         // allocation `nvs_runtime::SseSlot` documents.
         let streaming = nvs_runtime::SseSlot::new();
+        // The other stream, and the cell is made on the same terms for a
+        // sharper version of the same reason: a body written over time takes
+        // nothing of this connection at all, being the response this request
+        // already has, written in pieces. It carries the send bound above
+        // because that is the one number of this connection's a streamed body
+        // meets — a peer that stops reading is what it bounds, and nothing else
+        // in `crate::bounds` is a request's to be held inside.
+        let opening = stream::BodySlot::new(send_timeout);
         let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -873,6 +968,11 @@ where
                 // one, and a reply that answers no request is left alone by
                 // `Isolate::offering_sse` itself.
                 let isolate = isolate.offering_sse(streaming.clone());
+                // The third cell, offered with no question asked for the reason
+                // the second one is not asked about either: every request the
+                // server runs may answer in pieces, and one that does not
+                // leaves the cell empty.
+                let isolate = isolate.offering_response_stream(opening.clone());
                 // `rule:config/the-config-is-an-immutable-snapshot`'s one
                 // clone, taken at the request's start and not when this
                 // connection was accepted: a connection carries any number of
@@ -902,7 +1002,7 @@ where
                         // and `rule:concurrency/one-future-per-connection`'s loop re-polls whatever the task
                         // was resumed for. A waker stored here would be a
                         // second route to the same resume.
-                        std::future::poll_fn(|cx| {
+                        let opened = std::future::poll_fn(|cx| {
                             // The one thing this wait does besides ask: a
                             // request parked on a pull has published that it
                             // wants a chunk and woken this task, and `cx` is
@@ -913,8 +1013,21 @@ where
                             if let Some(supply) = supply.as_mut() {
                                 supply.pump(cx);
                             }
+                            // The head, asked **before** the end below and
+                            // never after it: a request that opened a stream
+                            // and then ended between two polls still answers
+                            // with the head it opened, where the other order
+                            // would answer it with an empty buffered body and
+                            // drop every byte it wrote. This poll's waker goes
+                            // into the cell for the case the wait exists for —
+                            // a program that opens a stream and then parks,
+                            // whose head nothing else would come back to look
+                            // for.
+                            if let Some(head) = opening.take(cx.waker()) {
+                                return Poll::Ready(Some(head));
+                            }
                             if peer.finished() {
-                                Poll::Ready(())
+                                Poll::Ready(None)
                             } else {
                                 parked = true;
                                 Poll::Pending
@@ -940,9 +1053,27 @@ where
                             })
                             .await;
                         }
-                        // Nothing left to wait for, so this join does not park.
-                        peer.collect(&mut ctx.borrow_mut())
-                            .map_or_else(failed, answer)
+                        match opened {
+                            // The head goes out with the request still running,
+                            // so nothing is joined here: the isolate and the
+                            // place it holds move onto the connection, and the
+                            // drive loop at the end of this function collects
+                            // them once the body they are writing has ended.
+                            Some(head) => {
+                                let head = streamed(head);
+                                *writing.borrow_mut() = Some(Streamed {
+                                    peer,
+                                    supply: supply.take(),
+                                    _place: place,
+                                });
+                                head
+                            }
+                            // Nothing left to wait for, so this join does not
+                            // park.
+                            None => peer
+                                .collect(&mut ctx.borrow_mut())
+                                .map_or_else(failed, answer),
+                        }
                     }
                     // The *argument* had no meaning on the other side, so no
                     // request was ever started. Everywhere else that is the
@@ -1054,7 +1185,27 @@ where
     // a bound would be saying it may move between cores.
     let mut connection = http1::Builder::new().serve_connection(io, service);
     let framed = block_on(std::future::poll_fn(|cx| {
-        Pin::new(&mut connection).poll(cx)
+        // A request that is still writing its answer may still be reading its
+        // own body, and the wait that used to pump it has already returned —
+        // so the pump moves here with the request. Ahead of the poll below for
+        // the reason it was ahead of the question before: a chunk this task
+        // already read reaches the program on this iteration rather than one
+        // later. The borrow ends before the poll, which runs the service.
+        if let Some(supply) = writing
+            .borrow_mut()
+            .as_mut()
+            .and_then(|streamed| streamed.supply.as_mut())
+        {
+            supply.pump(cx);
+        }
+        let polled = Pin::new(&mut connection).poll(cx);
+        // The streamed half of the join above, on every poll of this connection
+        // rather than at its end: a keep-alive connection frames its next
+        // request as soon as this body has ended, so a join deferred to the end
+        // of this function would leave one request's isolate uncollected across
+        // the whole of the next one's.
+        joined_when_ended(writing, &mut ctx.borrow_mut());
+        polled
     }))
     .unwrap_or(Ok(()));
     // `rule:concurrency/a-connection-is-a-root-isolate`'s hand-over, at the first moment both halves exist: the
@@ -1079,10 +1230,10 @@ where
         let peer = crate::socket::Framed::new(
             parts.io.into_stream(),
             parts.read_buf.into(),
-            // § 7's defaults, and they are the whole of the answer today:
-            // `crate::bounds`' own § *Known gap* is where it is recorded that
-            // no `[server]` key overrides one yet.
-            crate::bounds::Connection::default(),
+            // § 7's numbers, the same ones every response on this connection
+            // was written under: they are read at the top of this function,
+            // which is the one place they are read.
+            bounds,
             // § 7's third bullet: this server's drain, handed to the object
             // that acts on it. The close a shutdown sends is taken by the
             // connection's own loop, and [`crate::socket`]'s `receive` is
@@ -1192,26 +1343,58 @@ fn answer(mut done: Completion) -> Response<Answer> {
     response
         .headers_mut()
         .insert(header::CONTENT_TYPE, content_type);
-    // Last, and that ordering is the whole of what `setHeader` means: spec
-    // § 15 gives a program an override of a policy-owned header on one
-    // response, so what the program set is written after everything this
-    // server wrote for itself. `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins` is why the policy is not
-    // narrowing-only, and the reverse order would leave the member with no
-    // effect on exactly the headers it exists to change.
-    //
-    // A pair this crate cannot spell is dropped rather than answered with:
-    // `Core\Response::setHeader` refuses a name that is not a token and a value
-    // outside printable ASCII at the member, so nothing a program can write
-    // arrives here — this is [`UNSPELLABLE`]'s arrangement again, kept as a
-    // layer below rather than reduced to a comment about one.
-    //
-    // `insert` and `append` are the two halves of the row's own
-    // `DeclaredHeader::append`, and this is the layer that would otherwise
-    // collapse a repeated name: `insert` replaces every value already under it,
-    // which is what an override is and what a second `Set-Cookie` must not
-    // meet. Applying the rows in order is safe because `Ctx::declare_header`
-    // holds a replacing row ahead of every appending one for its name.
-    for declared in done.headers {
+    // [`overrides`] owns the ordering and what it costs.
+    overrides(&mut response, done.headers);
+    response
+}
+
+/// The head of a response whose body is still being written, and the reading
+/// half as that body.
+///
+/// [`answer`]'s other half, and what is *not* here is the difference: the
+/// request has not ended, so there is no completion to read a status, a content
+/// type or a header off. What the peer is told is what the request had declared
+/// when it opened the stream, which `nvs_runtime::stream::Opened` carries and
+/// owns the reasoning for. No fallback to [`ECHOED`] either — a stream declares
+/// its own type by construction, the member that opens one takes the type as
+/// its argument.
+fn streamed(head: stream::Opened) -> Response<Answer> {
+    let content_type =
+        HeaderValue::from_str(&head.content_type).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
+    let mut response = Response::new(Answer::Streaming(head.drain));
+    if let Some(code) = head.status {
+        *response.status_mut() = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);
+    }
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, content_type);
+    overrides(&mut response, head.headers);
+    response
+}
+
+/// Writes what the program declared onto the response this server built.
+///
+/// Last, and that ordering is the whole of what `setHeader` means: spec § 15
+/// gives a program an override of a policy-owned header on one response, so
+/// what the program set is written after everything this server wrote for
+/// itself. `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`
+/// is why the policy is not narrowing-only, and the reverse order would leave
+/// the member with no effect on exactly the headers it exists to change.
+///
+/// A pair this crate cannot spell is dropped rather than answered with:
+/// `Core\Response::setHeader` refuses a name that is not a token and a value
+/// outside printable ASCII at the member, so nothing a program can write
+/// arrives here — this is [`UNSPELLABLE`]'s arrangement again, kept as a layer
+/// below rather than reduced to a comment about one.
+///
+/// `insert` and `append` are the two halves of the row's own
+/// `DeclaredHeader::append`, and this is the layer that would otherwise
+/// collapse a repeated name: `insert` replaces every value already under it,
+/// which is what an override is and what a second `Set-Cookie` must not meet.
+/// Applying the rows in order is safe because `Ctx::declare_header` holds a
+/// replacing row ahead of every appending one for its name.
+fn overrides(response: &mut Response<Answer>, headers: Vec<nvs_runtime::DeclaredHeader>) {
+    for declared in headers {
         let name = HeaderName::try_from(&*declared.name);
         let value = HeaderValue::from_str(&declared.value);
         let (Ok(name), Ok(value)) = (name, value) else {
@@ -1223,7 +1406,6 @@ fn answer(mut done: Completion) -> Response<Answer> {
             response.headers_mut().insert(name, value);
         }
     }
-    response
 }
 
 /// `400`, carrying nothing — `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s one refusal, joining
@@ -3552,6 +3734,315 @@ mod tests {
         assert!(
             answer.ends_with("body=abcdefgh"),
             "the body did not reach the program in full and in order: {answer}"
+        );
+    }
+
+    /// The isolate the streaming cases answer with: a program that opens a
+    /// response body stream, writes a chunk, waits for the other half of its
+    /// **own** request body, and writes the last chunk before it ends.
+    ///
+    /// **The park in the middle is what makes the ordering a fact rather than a
+    /// race.** The second half of the request body is not on the wire until the
+    /// client has read the head, so a program that reaches its last chunk at
+    /// all was still running when that head went out — asserted with no sleep
+    /// and with nothing said about which task happened to run first.
+    ///
+    /// It opens the cell directly rather than through `Core\Response::stream`
+    /// for the reason every program in this module is a Rust closure: this
+    /// crate compiles nothing. `nvs_stdlib::response`'s own cases are the
+    /// member's half, and the `.nvst` corpus is the language's.
+    fn stream_across_a_park() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let mut inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                request.uri().query().unwrap_or(""),
+            );
+            let (head, incoming) = request.into_parts();
+            let supply = match crate::body::of(&head.headers, incoming) {
+                crate::body::Arrived::Streaming(supply, pull) => {
+                    inbound.set_body(pull);
+                    Some(supply)
+                }
+                crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+            };
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let cell = child
+                    .inbound()
+                    .and_then(nvs_runtime::Inbound::response_stream_slot)
+                    .cloned()
+                    .expect("a served request was offered no response-stream cell");
+                let emit = cell
+                    .open("text/csv", Some(201), Vec::new())
+                    .expect("the first stream on a request opens");
+                child.set_body_stream(emit);
+                child
+                    .body_stream()
+                    .expect("the writing half was just set")
+                    .send(b"opened;".to_vec())
+                    .expect("the first chunk goes into an empty cell");
+                {
+                    let inbound = child
+                        .inbound_mut()
+                        .expect("the isolate ran with no request in front of it");
+                    if let Some(body) = inbound.body() {
+                        while matches!(body.next_chunk(), Ok(Some(_))) {}
+                    }
+                }
+                child
+                    .body_stream()
+                    .expect("the writing half is still there")
+                    .send(b"closed".to_vec())
+                    .expect("the last chunk reaches a connection that is still reading");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+            )
+        })
+    }
+
+    /// The client half of [`stream_across_a_park`]: the request's body arrives
+    /// in two writes, and the second is sent only once the streamed head and
+    /// its first chunk have been read.
+    ///
+    /// `opened` is called in between, which is the one moment a case can ask
+    /// anything of a request whose answer has started and whose program has not
+    /// finished.
+    fn read_the_head_then_finish(
+        addr: std::net::SocketAddr,
+        opened: impl FnOnce() + Send + 'static,
+    ) -> std::thread::JoinHandle<String> {
+        std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"POST /export HTTP/1.1\r\nHost: localhost\r\nContent-Length: 8\r\n\
+                      Connection: close\r\n\r\nabcd",
+                )
+                .expect("the write failed");
+            let mut seen = Vec::new();
+            let mut buffer = [0_u8; 512];
+            while !String::from_utf8_lossy(&seen).contains("opened;") {
+                let read = socket
+                    .read(&mut buffer)
+                    .expect("the response could not be read");
+                assert!(
+                    read > 0,
+                    "the connection closed before the streamed head arrived: {}",
+                    String::from_utf8_lossy(&seen)
+                );
+                seen.extend_from_slice(&buffer[..read]);
+            }
+            opened();
+            socket.write_all(b"efgh").expect("the second write failed");
+            let mut rest = String::new();
+            socket
+                .read_to_string(&mut rest)
+                .expect("the rest of the response could not be read");
+            String::from_utf8_lossy(&seen).into_owned() + &rest
+        })
+    }
+
+    /// Goal prose stage 3 item 12, as the ordering it names: **a streaming
+    /// response returns the head as soon as the door is called**, with the
+    /// isolate that opened it still running.
+    ///
+    /// The assertion is causal rather than timed. The program's last chunk is
+    /// written after a pull that only the client's second write can satisfy,
+    /// and the client sends that write only after it has read the head — so a
+    /// response carrying both chunks is one whose head went out while the
+    /// isolate was still going. A door that waited for the completion, as every
+    /// other reply on this connection does, would deadlock here instead of
+    /// answering late, which is the sharp end of `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`.
+    ///
+    /// The head is asserted whole, because it is the half no completion can
+    /// carry any more: the status and the content type the request had declared
+    /// when it opened the stream, and the chunked framing that
+    /// [`Answer::size_hint`] leaves `hyper` to choose.
+    #[test]
+    fn a_streaming_response_answers_its_head_before_the_isolate_ends() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = read_the_head_then_finish(addr, || {});
+        let answer = served_by(listener, &stream_across_a_park(), client);
+        let head = answer.to_ascii_lowercase();
+
+        assert!(
+            answer.starts_with("HTTP/1.1 201 "),
+            "the head did not carry the status the request had declared: {answer}"
+        );
+        assert!(
+            head.contains("content-type: text/csv"),
+            "the head did not declare what the stream was opened at: {answer}"
+        );
+        assert!(
+            head.contains("transfer-encoding: chunked"),
+            "a body of no exact size was not chunked: {answer}"
+        );
+        assert!(
+            answer.contains("opened;") && answer.contains("closed"),
+            "the body did not carry both chunks: {answer}"
+        );
+    }
+
+    /// A stub isolate whose end the case decides, recording whether it was
+    /// joined or thrown away.
+    #[derive(Debug)]
+    struct Writing {
+        ended: Rc<Cell<bool>>,
+        joined: Rc<Cell<bool>>,
+    }
+
+    impl Running for Writing {
+        fn join(self: Box<Self>, _ctx: &mut Ctx) -> Completion {
+            self.joined.set(true);
+            Completion {
+                ok: true,
+                value: Value::null(),
+                output: Vec::new(),
+                content_type: None,
+                status: None,
+                headers: Vec::new(),
+                error: None,
+            }
+        }
+
+        fn finished(&self) -> bool {
+            self.ended.get()
+        }
+
+        fn abandon(self: Box<Self>) {}
+    }
+
+    /// Goal prose stage 3 item 12's other half: the isolate is joined when the
+    /// body ends, and not before.
+    ///
+    /// **Asserted at the one line that decides it** rather than over a socket,
+    /// because the failure it guards has no observable answer: joining early is
+    /// not a slow path but a deadlock — `nvs_host::Running::join` parks until
+    /// the child has ended, the child cannot end until the chunks it is parked
+    /// on have been taken, and the task that would take them is the one that
+    /// just parked. A case that reached for that over a connection would assert
+    /// nothing and hang.
+    ///
+    /// The place under the in-flight ceiling is asserted with it, because the
+    /// two are one act: what is held while the body is being written is the
+    /// isolate *and* its place, and what is given back is both.
+    #[test]
+    fn the_isolate_is_joined_when_the_body_ends_and_not_before() {
+        let ended = Rc::new(Cell::new(false));
+        let joined = Rc::new(Cell::new(false));
+        let admission = Admission::new(&Ceiling::of(&Capacity {
+            configured: 4,
+            per_request: None,
+            budget: None,
+        }));
+        let writing: RefCell<Option<Streamed<'_>>> = RefCell::new(Some(Streamed {
+            peer: Peer(Some(Box::new(Writing {
+                ended: Rc::clone(&ended),
+                joined: Rc::clone(&joined),
+            }))),
+            supply: None,
+            _place: admission.admit().expect("a free place under the ceiling"),
+        }));
+        let mut ctx = Ctx::buffered();
+
+        joined_when_ended(&writing, &mut ctx);
+        assert!(
+            !joined.get() && writing.borrow().is_some(),
+            "an isolate still writing its body was joined"
+        );
+        assert_eq!(
+            admission.in_flight(),
+            1,
+            "a request still writing its body gave its place back"
+        );
+
+        ended.set(true);
+        joined_when_ended(&writing, &mut ctx);
+        assert!(
+            joined.get(),
+            "the isolate was never joined once its body had ended"
+        );
+        assert!(
+            writing.borrow().is_none(),
+            "the joined isolate was left on the connection"
+        );
+        assert_eq!(
+            admission.in_flight(),
+            0,
+            "the place was not given back when the body ended"
+        );
+    }
+
+    /// Goal prose stage 3 item 13: **the request's own budget still bounds a
+    /// streaming response**, and none of `crate::bounds`' connection numbers do.
+    ///
+    /// `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s
+    /// tier C is the claim, and the hole it would otherwise have is specific: a
+    /// request that answers its head early leaves the service future early, so
+    /// a place given back there would stop counting a request that is still
+    /// spending a core. A peer that reads one byte a minute would then be a
+    /// route to unbounded concurrency, which is exactly the ceiling's job.
+    ///
+    /// Asked from the client thread at the one moment it is answerable — the
+    /// head read, the program still parked — and again on the main thread once
+    /// the loop has ended, because a place held forever fails the same rule
+    /// from the other side. What is *not* asserted is any of § 7's connection
+    /// bounds: a streaming request frames no connection and takes no
+    /// `crate::bounds::Slot`, the send timeout it writes under being the one
+    /// number of the connection's it meets at all.
+    #[test]
+    fn a_streaming_request_isolate_is_still_bounded_by_the_requests_own_ceiling() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let admission = Arc::new(Admission::new(&Ceiling::of(&Capacity {
+            configured: 10_000,
+            per_request: None,
+            budget: None,
+        })));
+        let held = Arc::new(AtomicUsize::new(usize::MAX));
+        let client = {
+            let counted = Arc::clone(&admission);
+            let observed = Arc::clone(&held);
+            read_the_head_then_finish(addr, move || {
+                observed.store(counted.in_flight(), Ordering::Relaxed);
+            })
+        };
+        let serving = Serving::new(
+            Arc::clone(&admission),
+            Arc::new(Secure::default()),
+            Arc::new(Trusted::none()),
+            Arc::new(Cors::default()),
+            Arc::default(),
+        );
+
+        let answer = served_under(listener, &stream_across_a_park(), client, serving);
+        assert!(
+            answer.contains("closed"),
+            "the streamed body never finished: {answer}"
+        );
+        assert_eq!(
+            held.load(Ordering::Relaxed),
+            1,
+            "a request whose head had gone out was no longer counted in flight"
+        );
+        assert_eq!(
+            admission.in_flight(),
+            0,
+            "the place a streamed answer held was never given back"
         );
     }
 

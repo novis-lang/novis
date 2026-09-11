@@ -6148,6 +6148,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `sendBytes` into two members for exactly this and says so in its row. Decide whether the member
   has to accept tainted data *before* spelling a union, and take that split if it does.
   [until: reviewed 2026-09-11]
+- **A service future that answers early takes the request's body pump down with it, and the request is
+  still reading.** `serve.rs`'s `Reply::Run` arm owns `Supply` and pumps it from the `poll_fn` it parks
+  in, so a head answered while the isolate runs ends that future and leaves a program parked on a pull
+  nothing will ever feed — a hang with no error anywhere, not a failed read. Anything that lets a
+  request answer before it ends has to move the supply onto the connection with it, which is what
+  `Streamed::supply` and the pump at the top of the drive loop are.
+  [until: reviewed 2026-09-11]
 
 ## Divergences and refusals already pinned
 
