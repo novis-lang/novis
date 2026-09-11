@@ -86,14 +86,6 @@
 //!    `tests/lsp/references/` freezes the empty answer at a class, an
 //!    interface, an enum, a method and a property.
 //!    — owner: unowned
-//! 5. **An occurrence's span is the expression holding the name rather than
-//!    the name.** A use is recorded at the span
-//!    [`Analysed::exprs`](crate::Analysed) carries, so `$u->greet()` is
-//!    reported from `$u` and `Counter::reset()` from the first column.
-//!    Find-references survives it, because a reader reads the line;
-//!    `documentHighlight` will not, because an editor draws the box the span
-//!    names.
-//!    — owner: unowned
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -743,6 +735,11 @@ fn supertypes_of(analysed: &Analysed, qname: &QName) -> Vec<String> {
 /// rather than to the one under a cursor". Nothing is
 /// re-resolved here: [`target_of`] is the same reading `definition` and `hover`
 /// answer a cursor with, so a reference list and a jump cannot disagree.
+///
+/// A use is recorded at the **name**, which [`named`] reads off the node rather
+/// than off the expression around it: a highlight box is drawn on exactly the
+/// span answered here, and `$u->greet()` highlighted from `$u` is a box around
+/// the wrong word.
 fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurrence> {
     let mut found = Vec::new();
 
@@ -756,7 +753,7 @@ fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurre
             };
             found.push(Occurrence {
                 symbol: symbol_of(&target),
-                site: site(path, node.span),
+                site: site(path, named(node)),
             });
         }
     }
@@ -775,6 +772,30 @@ fn symbol_of(target: &Target<'_>) -> String {
         Target::Method(call) => format!("{}::{}", call.class, call.method),
         Target::Property { class, name } => format!("{class}::${name}"),
     }
+}
+
+/// Where in `node` the name this use resolved to was written.
+///
+/// [`nvs_syntax::walk::Node::name`] is the production's own name, and that is
+/// the answer wherever the name written and the symbol resolved are the same
+/// one: a call resolves to its method, an access to its property, a `new` to
+/// its class. Two productions resolve to a name written on their **class**
+/// side instead — an enum case read, which `# Known gaps` 1 records against
+/// its enum, and an `instanceof` — and one to a name on its **callee** side,
+/// so each answers the child node that holds it.
+///
+/// A production that wrote no name at all — `new $class()`, `$u->{$name}` —
+/// answers the whole expression, which is the widest true thing there is to
+/// say about where it was written.
+fn named(node: &walk::Node) -> Span {
+    let written = match node.kind {
+        "ClassConstAccess" => node.children.first(),
+        "InstanceOf" => node.children.get(1),
+        "Call" => node.children.first(),
+        _ => None,
+    }
+    .unwrap_or(node);
+    written.name.unwrap_or(written.span)
 }
 
 /// A span of one file, as a site the index can keep.

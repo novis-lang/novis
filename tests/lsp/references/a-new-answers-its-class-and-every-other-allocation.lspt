@@ -1,5 +1,5 @@
 --TEST--
-a cursor on a `new` answers the class's declaration and every other site that allocates it, each use placed where the expression holding the name begins rather than at the name, `rule:ide/five-features-are-one-reference-index`
+a cursor on a `new` answers the class's declaration and every other site that allocates it, each use placed at the class name the `new` allocates rather than at the `new`, `rule:ide/five-features-are-one-reference-index`
 --FILE--
 <?nvs
 class User
@@ -13,5 +13,5 @@ var $v = new User();
 references
 --EXPECT--
 case.nvs:2:7
-case.nvs:7:10
-case.nvs:8:10
+case.nvs:7:14
+case.nvs:8:14

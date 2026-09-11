@@ -1,5 +1,5 @@
 --TEST--
-a cursor on a call answers the method's declaration and every other call of it, the declaration spelled at its name and each call at the receiver the expression starts with, `rule:ide/five-features-are-one-reference-index`
+a cursor on a call answers the method's declaration and every other call of it, the declaration and each call alike spelled at the method's own name rather than at the expression around it, `rule:ide/five-features-are-one-reference-index`
 --FILE--
 <?nvs
 class User
@@ -17,5 +17,5 @@ echo $u->greet();
 references
 --EXPECT--
 case.nvs:4:21
-case.nvs:11:6
-case.nvs:12:6
+case.nvs:11:10
+case.nvs:12:10

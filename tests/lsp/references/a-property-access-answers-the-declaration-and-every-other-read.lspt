@@ -13,4 +13,4 @@ echo $u->na<|>me;
 references
 --EXPECT--
 case.nvs:4:19
-case.nvs:8:6
+case.nvs:8:10

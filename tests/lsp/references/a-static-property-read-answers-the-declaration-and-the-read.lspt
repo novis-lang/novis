@@ -1,5 +1,5 @@
 --TEST--
-a static property read through `self::` answers the slot's declaration and the read itself, the receiver spelling not changing which symbol was resolved, `rule:ide/five-features-are-one-reference-index`
+a static property read through `self::` answers the slot's declaration and the read itself, each of them at the slot's own name with its `$`, and the receiver spelling not changing which symbol was resolved, `rule:ide/five-features-are-one-reference-index`
 --FILE--
 <?nvs
 class Counter
@@ -15,4 +15,4 @@ class Counter
 references
 --EXPECT--
 case.nvs:4:23
-case.nvs:8:16
+case.nvs:8:22

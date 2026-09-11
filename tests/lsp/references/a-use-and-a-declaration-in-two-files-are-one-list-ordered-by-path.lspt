@@ -15,5 +15,5 @@ class User
 --REQUEST--
 references
 --EXPECT--
-case.nvs:4:10
+case.nvs:4:14
 lib/user.nvs:2:7
