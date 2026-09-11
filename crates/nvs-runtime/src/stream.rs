@@ -294,6 +294,123 @@ impl Drop for Drain {
     }
 }
 
+/// What a request that opened a streaming body left for the connection still
+/// sending the response: the media type the head is to declare, and the half
+/// the bytes arrive on.
+///
+/// The two travel together because neither is a response on its own — a head
+/// with no body would be a length the connection cannot supply, and a drain
+/// with no media type would be a body the peer cannot read.
+#[derive(Debug)]
+pub struct Opened {
+    content_type: Box<str>,
+    drain: Drain,
+}
+
+impl Opened {
+    /// The media type the opening member declared, for the head.
+    #[must_use]
+    pub fn content_type(&self) -> &str {
+        &self.content_type
+    }
+
+    /// The consumer's half, taken by whoever is framing the response.
+    #[must_use]
+    pub fn into_drain(self) -> Drain {
+        self.drain
+    }
+}
+
+/// The place a **request-scoped** streaming body is left, shared between the
+/// request that opens it and the connection that frames it —
+/// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+/// first spelling.
+///
+/// A cell rather than a value on the carrier, for `nvs_runtime::UpgradeSlot`'s
+/// reason: the two sides are a task apart, and a connection that reached into
+/// the request's context for the drain would be reading a context the request
+/// owns and may already have dropped. What differs from the two upgrade cells
+/// is *when* the reader looks — a connection takes an upgrade after the
+/// request's future has ended, and takes this one while that future is still
+/// running, because answering the head is what lets the body arrive at all.
+///
+/// **The cell carries the send timeout**, so [`Self::open`] is the one place a
+/// request-scoped stream reaches [`open`]. The duration is the connection's own
+/// bound, put here by whoever offered the cell, for the reason the module doc
+/// gives: a cell that chose its own would be a second bound beside
+/// `rule:concurrency/connection-bounds-are-finite`'s table.
+///
+/// **What it spends:** one allocation per request a server offers one to,
+/// holding one word and an [`Option`] until a program asks for a stream.
+#[derive(Clone, Debug)]
+pub struct BodySlot {
+    send_timeout: Duration,
+    cell: Rc<RefCell<Opening>>,
+}
+
+/// [`BodySlot`]'s contents: whether the body was opened, and what is left for
+/// the connection until it takes it.
+///
+/// Two fields rather than one [`Option`], because the connection **takes** the
+/// head and a second `stream()` call after that take is still a second body.
+/// The flag is what the refusal reads, so the two questions — has a body been
+/// opened, and is one still waiting to be framed — do not collapse into each
+/// other.
+#[derive(Debug, Default)]
+struct Opening {
+    opened: bool,
+    head: Option<Opened>,
+}
+
+impl BodySlot {
+    /// An empty cell bounded by `send_timeout`, whose other half is a [`Clone`]
+    /// of it.
+    #[must_use]
+    pub fn new(send_timeout: Duration) -> Self {
+        Self {
+            send_timeout,
+            cell: Rc::new(RefCell::new(Opening::default())),
+        }
+    }
+
+    /// Opens the body at `content_type`, answering the writing half and leaving
+    /// the head for the connection.
+    ///
+    /// `None` where this request has already opened a body — a response has
+    /// one, and the second call is the one that is wrong. An [`Option`] rather
+    /// than a `Result` carrying a refusal, because there is exactly one reason
+    /// and nothing crossed to hand back: the caller still holds its own
+    /// argument, and the member that asked is where the sentence belongs.
+    #[must_use]
+    pub fn open(&self, content_type: &str) -> Option<Emit> {
+        let mut cell = self.cell.borrow_mut();
+        if cell.opened {
+            return None;
+        }
+        let (emit, drain) = open(self.send_timeout);
+        cell.opened = true;
+        cell.head = Some(Opened {
+            content_type: content_type.into(),
+            drain,
+        });
+        Some(emit)
+    }
+
+    /// Takes the head and the drain, leaving the cell open but empty — the
+    /// connection's half, and `None` until a program has asked for a stream.
+    #[must_use]
+    pub fn take(&self) -> Option<Opened> {
+        self.cell.borrow_mut().head.take()
+    }
+
+    /// Whether this request has opened a streaming body, whether or not the
+    /// connection has taken it yet.
+    #[must_use]
+    pub fn is_open(&self) -> bool {
+        self.cell.borrow().opened
+    }
+}
+
 /// The peer stopped reading and the stream met the connection's send bound —
 /// `rule:concurrency/connection-bounds-are-finite`'s defined close rather than
 /// a wait with no end. Public because the bound is reported as itself, and a

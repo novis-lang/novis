@@ -943,6 +943,25 @@ pub struct Ctx {
     /// **What it spends:** one word per request, and one short allocation per
     /// request that declares — never per write.
     content_type: Option<Box<str>>,
+    /// The writing half of a response body being written **over time**, for the
+    /// request that opened one — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+    /// streaming response, whose other half the connection is draining.
+    ///
+    /// Beside [`Self::content_type`] because it answers the same question the
+    /// field above does and the buffer below does: where this response's bytes
+    /// go. A request that opened a stream writes through this; every other
+    /// request writes through [`Self::write_output`], and the member that writes
+    /// a chunk reads this field to tell which it is.
+    ///
+    /// `None` on every context that never opened one, which is every request
+    /// that answered whole. Dropped with this context, and dropping it is what
+    /// ends the body — `crate::stream::Emit`'s own `Drop` owns why an isolate
+    /// that ended can never leave a response open.
+    ///
+    /// **What it spends:** one pointer per request, and — only for a request
+    /// that streams — the one chunk in flight, which is the writer's own
+    /// allocation on its way to the wire rather than a copy of it.
+    body_stream: Option<crate::stream::Emit>,
     /// What this request's response says it *is* — spec § 15's `setStatus`,
     /// or `None` where nothing set one and the answer is whatever the server's
     /// own default is.

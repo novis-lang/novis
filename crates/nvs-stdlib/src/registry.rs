@@ -1586,6 +1586,11 @@ pub const CLASSES: &[CoreClass] = &[
     // [`crate::response`]'s module doc owns what a written body is — the bytes
     // are `echo`'s output and the member adds the `Content-Type`.
     crate::response::CLASS,
+    // `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+    // request-scoped half, immediately after the class whose `stream` is the
+    // only thing that produces one. [`crate::response`] owns why the handle has
+    // no slots and why there is no member that closes it.
+    crate::response::STREAM,
     // Spec § 15's third half of one request: what arrived, what goes back, and
     // what is remembered between the two. `rule:core-api/session-roster`'s roster, of which
     // `start` is the member that talks to the store — [`crate::session`]'s own
@@ -5007,21 +5012,25 @@ mod tests {
     /// `Core\Db\Connection` when `query` landed on it, and `Core\Db\Rows` when
     /// its readers did.
     ///
-    /// The other exception is the mirror image, and there is exactly one: a
-    /// class with members and **no slots**, because its receiver's whole state
-    /// is the *context*'s rather than the object's. `Core\Socket` is it — ADR
-    /// 0083 § 1 gives a connection isolate one peer and § 3 makes `current()`
-    /// a handle onto it, so the socket and the topic queue are
-    /// `nvs_runtime::Ctx` fields that outlive every value a program makes from
-    /// them. A slot holding a copy of any of that would be a second owner of a
-    /// descriptor, which is the one thing [`crate::instance`]'s first decision
-    /// refuses. This list may only grow for that same reason — a class here
-    /// has to be able to say which context field is its state.
+    /// The other exception is the mirror image: a class with members and **no
+    /// slots**, because its receiver's whole state is the *context*'s rather
+    /// than the object's. `Core\Socket` is the first — ADR 0083 § 1 gives a
+    /// connection isolate one peer and § 3 makes `current()` a handle onto it,
+    /// so the socket and the topic queue are `nvs_runtime::Ctx` fields that
+    /// outlive every value a program makes from them. `Core\Response\Stream` is
+    /// the second, over the same crate's writing half of a streaming response
+    /// body: `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
+    /// gives a request one body, so the handle says a stream was opened and the
+    /// context owns it ([`crate::response`]). A slot holding a copy of any of
+    /// that would be a second owner of a descriptor, which is the one thing
+    /// [`crate::instance`]'s first decision refuses. This list may only grow for
+    /// that same reason — a class here has to be able to say which context field
+    /// is its state.
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         /// A class whose state is its context's, so it has members and no
-        /// slots — the doc above owns why there is exactly one.
-        const CONTEXTUAL: &[&str] = &[crate::socket::NAME];
+        /// slots — the doc above owns what qualifies one.
+        const CONTEXTUAL: &[&str] = &[crate::socket::NAME, crate::response::STREAM_NAME];
 
         const HANDLES: &[&str] = &[
             r"Core\Regex\Pattern",

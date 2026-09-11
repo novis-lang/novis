@@ -1,0 +1,54 @@
+--TEST--
+`Core\Response::stream` writes a body one chunk at a time, in the order the chunks were written -- `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:security/response-body-is-one-typed-member`
+--FILE--
+<?nvs
+// A body written over time is still one body. Off a connection there is no cell
+// to open, so the chunks reach this program's own output -- which is what makes
+// the claim assertable here at all, no `.nvst` case being a request a server is
+// answering. What is pinned is the *order*: a member that buffered its chunks
+// and flushed them at the end would still print plausibly against one chunk.
+var $sent = Core\Out::capture(fn (): void => {
+    var $rows = Core\Response::stream("text/csv");
+    $rows->write("id,name\n");
+    $rows->write("1,ada\n");
+    $rows->write("2,alan\n");
+});
+echo $sent;
+echo "--\n";
+
+// One parameter over two shapes, because a chunk of a response body is one
+// thing written two ways -- unlike a WebSocket frame, whose two payload kinds
+// are two things on the wire and so two members.
+var $either = Core\Out::capture(fn (): void => {
+    var $mixed = Core\Response::stream("application/octet-stream");
+    $mixed->write("text");
+    $mixed->write(" and bytes" as bytes);
+});
+echo $either, "\n";
+
+// An empty chunk is nothing to frame and is not an error: it reaches no wire
+// and the body goes on. A caller for which emptiness is a mistake refuses it in
+// its own member, where the diagnostic can say which argument was empty.
+var $skipped = Core\Out::capture(fn (): void => {
+    var $sparse = Core\Response::stream("text/plain; charset=utf-8");
+    $sparse->write("before");
+    $sparse->write("");
+    $sparse->write("after");
+});
+echo $skipped, "\n";
+
+// A media type with parameters is one string and not a shape: whatever the
+// program spelled is what is declared, exactly as `bytes`' own parameter is.
+var $parameterised = Core\Out::capture(fn (): void => {
+    var $csv = Core\Response::stream("text/csv; charset=utf-8; header=present");
+    $csv->write("ok");
+});
+echo $parameterised, "\n";
+--EXPECT--
+id,name
+1,ada
+2,alan
+--
+text and bytes
+beforeafter
+ok

@@ -494,6 +494,29 @@ impl Ctx {
         self.content_type.take()
     }
 
+    /// Records the writing half of a response body being written over time —
+    /// `Core\Response::stream`, once per request.
+    ///
+    /// The neighbours above are the model, with one difference: a declaration
+    /// says what the body *is* and this says where it *goes*, so a second call
+    /// would not be a later opinion but a second body. The refusal belongs to
+    /// the member, which reaches `crate::stream::BodySlot::open` first and never
+    /// gets here on a request that already has one.
+    pub fn set_body_stream(&mut self, emit: crate::stream::Emit) {
+        self.body_stream = Some(emit);
+    }
+
+    /// The writing half, for the member putting a chunk on it, and `None` for a
+    /// request answering with a whole body.
+    ///
+    /// That `None` is what makes a chunk written off a connection an ordinary
+    /// [`Self::write_output`] rather than a rule to remember: a CLI program, a
+    /// `#[Test]` method and a `.nvst` case each answer it, because none of them
+    /// was offered a cell to open a stream into.
+    pub fn body_stream(&mut self) -> Option<&mut crate::stream::Emit> {
+        self.body_stream.as_mut()
+    }
+
     /// Declares what this request's response *means* — spec § 15's status,
     /// set by `Core\Response::setStatus`.
     ///

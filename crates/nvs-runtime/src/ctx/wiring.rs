@@ -152,6 +152,7 @@ impl Ctx {
             scripted_answers: std::collections::VecDeque::new(),
             captures: Vec::new(),
             content_type: None,
+            body_stream: None,
             status: None,
             headers: Vec::new(),
             inbound: None,

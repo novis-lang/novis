@@ -426,6 +426,22 @@ pub struct Inbound {
     /// server runs rather than only on an upgradable one — one pointer, plus
     /// one small allocation the connection holds the other reference to.
     sse: Option<SseSlot>,
+    /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+    /// *first* spelling: the cell `Core\Response::stream` opens a body into, for
+    /// a request a connection is framing a response for.
+    ///
+    /// The third field here that is not a fact about what arrived, and the one
+    /// whose reader is alive at the same time as its writer — a connection takes
+    /// the two upgrades above after the request has ended and takes this one
+    /// while the request is still running.
+    ///
+    /// `None` for every carrier no connection built, which is what makes a
+    /// stream off a CLI program an ordinary buffered body rather than a refusal
+    /// (`nvs_stdlib::response`'s own gap 1).
+    ///
+    /// **What it spends:** one pointer per request, plus one small allocation
+    /// the connection holds the other reference to.
+    stream: Option<crate::stream::BodySlot>,
 }
 
 impl std::fmt::Debug for Inbound {
@@ -447,6 +463,7 @@ impl std::fmt::Debug for Inbound {
             .field("decoded", &self.decoded.is_some())
             .field("upgrade", &self.upgrade.is_some())
             .field("sse", &self.sse.is_some())
+            .field("stream", &self.stream.is_some())
             .finish()
     }
 }
@@ -588,6 +605,11 @@ impl Inbound {
             // a request is what offers one, and this is why `Core\Sse::upgrade`
             // refuses off everything else.
             sse: None,
+            // And no connection is framing a response for this carrier, which
+            // is what leaves a streaming body buffered whole off a CLI program
+            // instead of refused — the one of the three cells whose absence is
+            // a fallback rather than a throw.
+            stream: None,
         }
     }
     /// Records who the request came from, as `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk decided it.
@@ -968,6 +990,27 @@ impl Inbound {
     #[must_use]
     pub fn sse_slot(&self) -> Option<&SseSlot> {
         self.sse.as_ref()
+    }
+    /// Offers this request a **streaming response body**: the cell
+    /// `Core\Response::stream` opens, whose head the connection answers with
+    /// while the request is still running.
+    ///
+    /// Called for every request a connection is framing a response for, like
+    /// [`Self::offer_sse`] and unlike [`Self::offer_upgrade`] — a body written
+    /// over time needs nothing of the connection but the response the request
+    /// already has. The slot carries the connection's send bound, which is the
+    /// only place a request-scoped stream reads one.
+    pub fn offer_response_stream(&mut self, slot: crate::stream::BodySlot) {
+        self.stream = Some(slot);
+    }
+    /// The cell [`Self::offer_response_stream`] left, and `None` for a carrier
+    /// no connection built.
+    ///
+    /// A shared borrow, for [`Self::upgrade_slot`]'s reason: the cell is what
+    /// serialises the two halves, so opening a body through it takes `&self`.
+    #[must_use]
+    pub fn response_stream_slot(&self) -> Option<&crate::stream::BodySlot> {
+        self.stream.as_ref()
     }
 }
 

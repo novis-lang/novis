@@ -6,7 +6,10 @@
 //!
 //! Three of
 //! `rule:security/response-body-is-one-typed-member`
-//! 's five body members: `text`, `json` and `bytes`. The other two — `html`,
+//! 's five body members: `text`, `json` and `bytes`, plus `stream`, which that
+//! rule's table does not have a row for because a body written over time is
+//! `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+//! subject rather than that one's. The other two — `html`,
 //! whose parameter is a carrier this class cannot take until `Core\Html\Markup`
 //! is spellable in a registry row, and `sendFile`, whose path is § 1's sink
 //! over a file the server resolves — are known gaps of this module rather than
@@ -53,6 +56,29 @@
 //! `Ctx`, because a served request **is** an isolate (`rule:http-server/a-request-resolves-in-five-steps` step 5) and
 //! the accept loop never holds its context — the completion is the one thing
 //! that crosses.
+//!
+//! # A body written over time crosses earlier, and through a cell
+//!
+//! `stream` is the one body member whose bytes cannot go out on the completion,
+//! because the completion is what a request *ends* with and a streaming body has
+//! to reach the peer while the request is still running
+//! (`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`). So
+//! it uses the seam `nvs_runtime::stream` is: the member opens the cell the
+//! connection offered, leaves the media type and the reading half in it for the
+//! head, and puts the writing half on this request's context — where
+//! `Core\Response\Stream::write` finds it, one chunk at a time.
+//!
+//! The declaration is still made the way the three above make it, so nothing
+//! about the `Content-Type` is a second path. What is new is only *when* the
+//! head goes out, and that belongs to whoever is framing the response rather
+//! than to this class.
+//!
+//! **Off a connection it degrades to the members beside it.** A carrier nothing
+//! offered a cell to has no stream to open, so the chunks go to this request's
+//! output and come out in the order they were written — gap 1's reading of an
+//! inert declaration, applied to the bytes as well. That is what makes a
+//! streamed body assertable from a `.nvst` case, none of which is a request a
+//! server is answering.
 //!
 //! # A status crosses that same channel, and is not a body
 //!
@@ -267,6 +293,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_response_bytes",
             doc: Some(&BYTES_DOC),
         },
+        CoreMethod {
+            name: "stream",
+            names: &["contentType"],
+            // `bytes`' second mark, for `bytes`' reason and no other: this is
+            // the other member that cannot know the media type, so it is told
+            // one, and a media type is the one string here that becomes an
+            // *instruction* to the peer about how to read everything after it
+            // (`rule:security/sink-predicate`). What the chunks carry is
+            // [`STREAM`]'s question and is marked there.
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(STREAM_NAME),
+            symbol: STREAM_SYMBOL,
+            doc: Some(&STREAM_DOC),
+        },
         // § 4's body table ends above; § 15's other members follow it in that
         // section's own order, `setStatus` first. Two orders rather than one
         // because the two lists answer different questions — which shape a
@@ -389,6 +430,108 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     instance: &[],
     slots: &[],
     constants: &[],
+};
+
+/// `Core\Response\Stream`'s fully-qualified name, written once — [`STREAM`]
+/// declares it and the [`CoreTy::Instance`] naming it resolves against
+/// [`crate::registry::CLASSES`], so the two cannot drift apart.
+pub(crate) const STREAM_NAME: &str = r"Core\Response\Stream";
+
+/// The symbols the two rows above and below are reached through.
+const STREAM_SYMBOL: &str = "nvs_core_response_stream";
+/// See [`STREAM_SYMBOL`].
+const STREAM_WRITE_SYMBOL: &str = "nvs_core_response_stream_write";
+
+/// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+/// first spelling, as the handle a program writes through — what
+/// [`nvs_core_response_stream`] answers with.
+///
+/// **One member and no slots**, because its whole state is the *context*'s:
+/// `nvs_runtime::Ctx` holds the writing half of the body, so the handle is a
+/// token saying a stream was opened rather than an owner of one. A slot holding
+/// a copy of the writing half would be a second owner of the cell, which is the
+/// one thing [`crate::instance`]'s first decision refuses; `Core\Socket` is the
+/// same arrangement over a connection's peer, and
+/// `a_class_with_slots_has_instance_members_and_the_reverse` is where the two
+/// are listed.
+///
+/// **The body ends when the isolate does**, and that is the whole lifetime
+/// rule: there is no `close` member, because `nvs_runtime::stream::Emit`'s own
+/// `Drop` ends the body when the request's context goes, and a member that
+/// ended it early would be a second answer to when a response is over. A client
+/// reading one with `EventSource` reconnects at that point; that is a property
+/// of a request-scoped stream rather than a fault, and the reader for it is
+/// `fetch` or a progress UI that closes itself.
+pub(crate) const STREAM: CoreClass = CoreClass {
+    name: STREAM_NAME,
+    methods: &[],
+    instance: &[CoreMethod {
+        name: "write",
+        names: &["chunk"],
+        // A union rather than `Core\Socket`'s two members, because a chunk of a
+        // response body is one thing written two ways where a WebSocket frame's
+        // two payload kinds are two things on the wire. What it costs is the
+        // classification: [`CoreTy::classification`] answers `None` for a
+        // union, so this parameter refuses a `tainted` argument
+        // (`rule:security/unclassified-parameter-refuses-tainted`) where
+        // `Core\Response::text` accepts one. That is the fail-closed direction
+        // of the two, and it is the only mark a union leaves room for — the
+        // card below says so where a caller reads it.
+        params: &[CoreTy::Union(&[
+            CoreTy::Text(Qual::Neutral),
+            CoreTy::Blob(Qual::Neutral),
+        ])],
+        defaults: &[],
+        return_ty: CoreTy::Void,
+        symbol: STREAM_WRITE_SYMBOL,
+        doc: Some(&STREAM_WRITE_DOC),
+    }],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\Response::stream`'s reference card — `rule:core-api/reference-card`.
+const STREAM_DOC: MethodDoc = MethodDoc {
+    short: "Answers with a body written over time, declaring `$contentType` — the head goes out as \
+            soon as this is called and the body ends when the request does.",
+    params: &[ParamDoc {
+        name: "contentType",
+        desc: "The media type to declare. A sink, exactly as `bytes`' is: it becomes a header the \
+               peer obeys, so a `tainted` value is refused at compile time and one holding \
+               anything a header cannot carry is refused here.",
+        shape: &[],
+    }],
+    ret: "The handle to write chunks through. Mixing this with `echo` on one response is a compile \
+          error, and the body is complete when the request ends — a browser reading one with \
+          `EventSource` reconnects at that point, so a stream a client keeps open across page \
+          lifetimes is `Core\\Sse::upgrade` instead.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$contentType` is empty or holds a byte outside a header field value — a control \
+               character, a newline, or anything above ASCII. Or this request has already opened a \
+               body stream, a response having one body.",
+    }],
+};
+
+/// `Core\Response\Stream::write`'s reference card — `rule:core-api/reference-card`.
+const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
+    short: "Writes one chunk of the body, waiting while the client is still reading the last one — \
+            the whole of the backpressure, since nothing accumulates in between.",
+    params: &[ParamDoc {
+        name: "chunk",
+        desc: "The bytes to send, unchanged, as text or as `bytes`. An empty chunk reaches no \
+               wire and is not an error. A `tainted` value is refused at compile time: a \
+               parameter taking two shapes carries no classification, and refusing is the safe \
+               half of that.",
+        shape: &[],
+    }],
+    ret: "Nothing. The chunk has been handed to the connection by the time this returns.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The client stopped reading — it went away, or it did not take this chunk within \
+               the connection's send timeout, which closes the stream rather than waiting \
+               without end.",
+    }],
 };
 
 /// `Core\Response::json`'s reference card — `rule:core-api/reference-card`.
@@ -704,6 +847,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_response_json" => (nvs_core_response_json as *const ()).cast(),
         "nvs_core_response_text" => (nvs_core_response_text as *const ()).cast(),
         "nvs_core_response_bytes" => (nvs_core_response_bytes as *const ()).cast(),
+        STREAM_SYMBOL => (nvs_core_response_stream as *const ()).cast(),
+        STREAM_WRITE_SYMBOL => (nvs_core_response_stream_write as *const ()).cast(),
         "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
         "nvs_core_response_set_header" => (nvs_core_response_set_header as *const ()).cast(),
         "nvs_core_response_redirect" => (nvs_core_response_redirect as *const ()).cast(),
@@ -1408,6 +1553,139 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Response::stream(string $contentType): Core\Response\Stream` —
+    /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+    /// stream that ends with its response, as the member that opens one.
+    ///
+    /// Three effects where its neighbours have two: the media type is declared
+    /// on this request's context exactly as every other body member declares
+    /// one, the writing half of `nvs_runtime::stream` is put on that context for
+    /// [`nvs_core_response_stream_write`] to find, and the head — the media type
+    /// beside the reading half — is left in the cell the connection is watching.
+    ///
+    /// **Off a connection there is no cell, and then this member is inert**, on
+    /// the reading the module doc's gap 1 already gives a declaration made where
+    /// no response is being framed: a CLI program, a `#[Test]` method and a
+    /// `.nvst` case each open a stream that writes to their own output, and the
+    /// bytes come out in the order they were written. That is the same fallback
+    /// `text` and `bytes` have and not a second one — it is what lets a case
+    /// assert a streamed body's bytes at all, since no case is a request a
+    /// server is answering.
+    ///
+    /// A second stream on one request is refused, because a response has one
+    /// body and the connection has already been told what the first one is.
+    /// Where there is no cell there is nothing that refusal could be about, and
+    /// the later declaration simply wins — `Ctx::declare_content_type`'s own
+    /// rule for every body member written twice.
+    fn nvs_core_response_stream(ctx, args: [1]) {
+        // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
+        // `E0401` refuses anything that is not a `string` before this runs — and
+        // refuses a `tainted` one besides, that being § 1's sink.
+        let media_type = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Response::stream expected a `string` for the content type, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        if !spellable(media_type) {
+            // A literal stem before the first hole, which is
+            // `conformance_coverage`'s error-path gate matching a site.
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "Core\\Response::stream(): `{media_type}` is not a media type a \
+                     `Content-Type` header can carry — a field value is printable ASCII \
+                     and never empty"
+                ),
+            ));
+        }
+        // Cloned rather than borrowed, for `Core\Sse::upgrade`'s reason: the
+        // cell is a shared handle by construction, so a clone is one refcount
+        // and no borrow of the carrier held across the write below.
+        let cell = ctx
+            .inbound()
+            .and_then(nvs_runtime::Inbound::response_stream_slot)
+            .cloned();
+        if let Some(cell) = cell {
+            let emit = cell.open(media_type).ok_or_else(|| {
+                // No case can reach this: a `.nvst` case runs a script no
+                // connection is framing a response for, so it is offered no cell
+                // and never gets here.
+                // `a_second_stream_on_one_request_is_refused_and_the_first_still_stands`
+                // is the `#[test]` that asserts it instead.
+                Fault::thrown_as(
+                    nvs_runtime::ThrownClass::Logic,
+                    "Core\\Response::stream(): this request has already opened a response \
+                     body stream, and a response has one body",
+                )
+            })?;
+            ctx.set_body_stream(emit);
+        }
+        ctx.declare_content_type(media_type);
+        Ok(crate::instance::build(&STREAM, []))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Response\Stream::write(string|bytes $chunk): void` — one chunk of a
+    /// body being written over time.
+    ///
+    /// Where the chunk goes is the receiver's context rather than the receiver:
+    /// [`STREAM`]'s own docs own why the handle carries no state, and this body
+    /// is the whole of what that costs — one read of the context to tell a
+    /// streaming response from a buffered one.
+    ///
+    /// **The write parks while the connection still holds the last chunk**, so
+    /// a program that produces faster than the peer reads is slowed by the peer
+    /// and nothing accumulates in between (`nvs_runtime::stream`). A peer that
+    /// has stopped reading altogether meets the connection's send timeout, which
+    /// closes the stream and is reported here as itself:
+    /// `rule:concurrency/connection-bounds-are-finite`'s defined close rather
+    /// than a wait with no end.
+    fn nvs_core_response_stream_write(ctx, args: [2]) {
+        crate::instance::receiver(args[0], &STREAM, "write")?;
+        // Unreachable from source: the row's parameter is a union of exactly
+        // these two spellings, so `E0401` refuses every other one before this
+        // runs. The two readers are separate on purpose — `Value::as_bytes`
+        // answers `None` for text, so a member meaning either has to ask twice.
+        let chunk = args[1]
+            .as_str_bytes()
+            .or_else(|| args[1].as_bytes())
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Response\\Stream::write expected a `string` or `bytes`, got tag {}",
+                    args[1].tag_byte()
+                ))
+            })?;
+        if let Some(emit) = ctx.body_stream() {
+            // Owned, because the connection takes the chunk rather than reading
+            // it: the copy is the one allocation a streamed chunk costs, and it
+            // is what lets the writing task go on while the bytes are still on
+            // their way to the wire.
+            //
+            // No case can reach this: a stream that can close is one a
+            // connection is draining, and a `.nvst` case is offered no cell.
+            // `a_write_whose_reader_has_gone_is_refused_rather_than_parked` is
+            // the `#[test]` that asserts it instead.
+            return emit
+                .send(chunk.to_vec())
+                .map(|()| Value::null())
+                .map_err(|closed| {
+                    Fault::thrown(format!("Core\\Response\\Stream::write(): {closed}"))
+                });
+        }
+        // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
+        // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`
+        // states, and nothing in the language closes a descriptor the host
+        // handed the process.
+        ctx.write_output(chunk).map_err(|error| {
+            Fault::fatal(format!("Core\\Response\\Stream::write could not write: {error}"))
+        })?;
+        Ok(Value::null())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{JSON_MEDIA_TYPE, TEXT_MEDIA_TYPE};
@@ -1573,5 +1851,114 @@ mod tests {
 
         dropped(name);
         dropped(value);
+    }
+
+    /// A context carrying the cell a connection offers, bounded generously
+    /// enough that no case below can meet the send timeout — every claim here
+    /// is about the seam and never about the clock.
+    fn framing(slot: &nvs_runtime::stream::BodySlot) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        let mut inbound = nvs_runtime::Inbound::new("GET", "/export", "");
+        inbound.offer_response_stream(slot.clone());
+        ctx.set_inbound(inbound);
+        ctx
+    }
+
+    /// `Core\Response::stream` opening the cell: after the call the connection's
+    /// half holds the media type that was written, and a chunk the program
+    /// wrote arrives on the reading half rather than in the request's output.
+    ///
+    /// The two are one claim and not two, because a member that declared the
+    /// type and wrote the bytes somewhere else would pass either half alone:
+    /// this is the seam `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
+    /// describes, asserted from the end that frames the response.
+    #[test]
+    fn a_streamed_chunk_reaches_the_connections_half_and_not_the_requests_output() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut ctx = framing(&slot);
+
+        let media_type = Value::str(NvsStr::new(b"text/csv"));
+        let handle = call(super::nvs_core_response_stream, &mut ctx, &[media_type])
+            .expect("an offered cell takes the stream");
+        let chunk = Value::str(NvsStr::new(b"id,name\n"));
+        call(
+            super::nvs_core_response_stream_write,
+            &mut ctx,
+            &[handle, chunk],
+        )
+        .expect("the first chunk goes into an empty cell without parking");
+
+        let head = slot.take().expect("the member filled the cell");
+        assert_eq!(head.content_type(), "text/csv");
+        let nvs_runtime::stream::Drained::Chunk(framed) =
+            head.into_drain().next_chunk(std::task::Waker::noop())
+        else {
+            panic!("the chunk the program wrote never reached the connection");
+        };
+        assert_eq!(framed, b"id,name\n");
+        assert_eq!(
+            ctx.take_buffered_output().unwrap_or_default(),
+            b"",
+            "a streamed chunk went to the request's own output as well"
+        );
+
+        dropped(media_type);
+        dropped(chunk);
+        dropped(handle);
+    }
+
+    /// The cell's refusal reaching a program: a response has one body, so the
+    /// second `stream` is told so and the first one is what the connection
+    /// still frames. Unreachable from a `.nvst` case — a second stream needs a
+    /// first, and a first needs a cell nothing offers a script.
+    #[test]
+    fn a_second_stream_on_one_request_is_refused_and_the_first_still_stands() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut ctx = framing(&slot);
+
+        let first = Value::str(NvsStr::new(b"text/csv"));
+        let handle = call(super::nvs_core_response_stream, &mut ctx, &[first])
+            .expect("an offered cell takes the first stream");
+        let second = Value::str(NvsStr::new(b"application/json"));
+        call(super::nvs_core_response_stream, &mut ctx, &[second])
+            .expect_err("one response opens at most one body stream");
+
+        // Intact rather than displaced, which is the half a refusal that
+        // overwrote would still pass without.
+        let head = slot.take().expect("the first open stands");
+        assert_eq!(head.content_type(), "text/csv");
+
+        dropped(first);
+        dropped(second);
+        dropped(handle);
+    }
+
+    /// A write whose reader has gone is refused rather than parked — the
+    /// connection dropping its half closes the stream at once, so a program
+    /// learns it on the next chunk instead of at the send timeout.
+    ///
+    /// Unreachable from a `.nvst` case for the reason above: a stream that can
+    /// close is one a connection is draining.
+    #[test]
+    fn a_write_whose_reader_has_gone_is_refused_rather_than_parked() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut ctx = framing(&slot);
+
+        let media_type = Value::str(NvsStr::new(b"text/csv"));
+        let handle = call(super::nvs_core_response_stream, &mut ctx, &[media_type])
+            .expect("an offered cell takes the stream");
+        drop(slot.take().expect("the member filled the cell"));
+
+        let chunk = Value::str(NvsStr::new(b"too late"));
+        call(
+            super::nvs_core_response_stream_write,
+            &mut ctx,
+            &[handle, chunk],
+        )
+        .expect_err("a write with nothing left to read it is refused");
+
+        dropped(media_type);
+        dropped(chunk);
+        dropped(handle);
     }
 }

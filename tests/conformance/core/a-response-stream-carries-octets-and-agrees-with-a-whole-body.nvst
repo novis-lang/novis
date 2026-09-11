@@ -1,0 +1,38 @@
+--TEST--
+`Core\Response\Stream::write` sends octets no text-shaped chunk could carry, and a body written in chunks is byte-for-byte the body written whole -- `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:types/bytes`
+--FILE--
+<?nvs
+// The `bytes` arm of the one parameter, asked the question `text` cannot be
+// asked: a chunk holding a NUL and bytes that are not valid UTF-8 goes out
+// unchanged and unmeasured. It is read back through a capture and re-hexed,
+// because the bytes themselves are not something an exact expectation can
+// spell.
+var $sent = Core\Out::capture(fn (): void => {
+    var $image = Core\Response::stream("image/png");
+    $image->write(Core\Encoding::fromHex("89504e470d0a1a0a"));
+    $image->write(Core\Encoding::fromHex("00ff"));
+});
+echo Core\Encoding::toHex($sent as string as bytes), "\n";
+
+// Agreement, which is the claim a member answering plausibly on its own line
+// would still fail: the same body written whole and written in pieces is the
+// same bytes. The two members differ in *when* the bytes go out and in nothing
+// else, so a stream that dropped, reordered or padded a chunk fails here while
+// each half still reads correctly alone.
+var $whole = Core\Out::capture(fn (): void => {
+    Core\Response::text("id,name\n1,ada\n2,alan\n");
+});
+var $chunked = Core\Out::capture(fn (): void => {
+    var $rows = Core\Response::stream("text/plain; charset=utf-8");
+    $rows->write("id,name\n");
+    $rows->write("1,ada\n");
+    $rows->write("2,alan\n");
+});
+if (($whole as string) == ($chunked as string)) {
+    echo "agree\n";
+} else {
+    echo "differ\n";
+}
+--EXPECT--
+89504e470d0a1a0a00ff
+agree
