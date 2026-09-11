@@ -98,7 +98,8 @@ fn trusted() -> MemFlagsData {
     MemFlagsData::trusted()
 }
 
-/// Memory flags for reading [`nvs_runtime::Ctx`]'s hot words.
+/// Memory flags for reading [`nvs_runtime::Ctx`]'s hot words, and the safepoint
+/// word one of them is the address of.
 ///
 /// Deliberately *not* [`MemFlagsData::trusted`]: `trusted` asserts nothing about
 /// aliasing today, but the safepoint word is written from outside the running
@@ -162,6 +163,18 @@ pub(crate) fn emit_function(
     let args_p = b.block_params(abi_entry)[1];
     let out_p = b.block_params(abi_entry)[2];
 
+    // The safepoint word lives outside `Ctx` so a thread that does not own the
+    // request can write it, and the hot slot holds its address
+    // (`nvs_runtime::Ctx`'s field doc). That address is fixed for the life of
+    // the context, so it is bound here rather than re-loaded at every poll:
+    // this block dominates every block below it, so a loop back edge is left
+    // holding the one load of the word it always had.
+    let safepoint_offset = i32::try_from(SAFEPOINT_OFFSET)
+        .map_err(|_| internal("the safepoint handle sits past a 2 GiB offset"))?;
+    let safepoint_p = b
+        .ins()
+        .load(types::I64, ctx_word(), ctx_p, safepoint_offset);
+
     // One walk, used twice: which blocks exist at all, and the order they are
     // filled in — see [`reachable_in_reverse_postorder`] for both reasons.
     let order = reachable_in_reverse_postorder(f);
@@ -217,6 +230,7 @@ pub(crate) fn emit_function(
         ctx_p,
         args_p,
         out_p,
+        safepoint_p,
         landing_status: None,
         order,
         stack_check_pending: !is_leaf(f),
@@ -397,6 +411,9 @@ struct Emitter<'a, 'f> {
     ctx_p: Value,
     args_p: Value,
     out_p: Value,
+    /// The address of the safepoint word, loaded out of `ctx_p` once in the ABI
+    /// entry block — see [`Emitter::emit_safepoint`].
+    safepoint_p: Value,
     /// The status parameter of the landing block currently being emitted, or
     /// `None` for an ordinary block — see [`is_landing`].
     landing_status: Option<Value>,
@@ -1036,9 +1053,12 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// The safepoint poll: one load of [`nvs_runtime::Ctx`]'s safepoint word,
-    /// one predicted-not-taken branch, and an out-of-line call to
+    /// The safepoint poll: one load of the safepoint word, one
+    /// predicted-not-taken branch, and an out-of-line call to
     /// [`nvs_runtime::nvs_safepoint`] whose status is checked like any other.
+    /// The word is outside the context and its address is `safepoint_p`, bound
+    /// once in the ABI entry block, so the pointer hop costs a back edge
+    /// nothing.
     ///
     /// This is also where the call-stack check rides, at the **first**
     /// safepoint of a non-leaf function — which is the function-entry one,
@@ -1049,12 +1069,10 @@ impl Emitter<'_, '_> {
         if std::mem::take(&mut self.stack_check_pending) {
             self.emit_stack_check(cur)?;
         }
-        let offset = i32::try_from(SAFEPOINT_OFFSET)
-            .map_err(|_| internal("the safepoint word sits past a 2 GiB offset"))?;
         let flags = self
             .b
             .ins()
-            .load(types::I64, ctx_word(), self.ctx_p, offset);
+            .load(types::I64, ctx_word(), self.safepoint_p, 0);
 
         let slow = self.b.create_block();
         let cont = self.b.create_block();
