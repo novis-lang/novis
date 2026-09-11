@@ -125,6 +125,24 @@
           "headline": "A callable type spells out its parameters and its return type",
           "body": "`callable(User, string): string` is a type: parameters in parentheses, then a mandatory return type after the colon. Bare `callable` still accepts anything callable, so nothing already written breaks, but it keeps the slower dynamic call. A closure may take fewer parameters than the type names; the extra arguments are dropped. Assignment follows the usual function rule. A `fn` literal takes its parameter types from where it is written, so `Core\\Arr::map($users, fn($u) => $u->name)` knows `$u` is a `User` with no annotation, and the per-argument check on every call is gone.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0136.md"
+        },
+        {
+          "adr": "0150",
+          "headline": "`$x is T` asks whether a value holds a type, and always answers `bool`",
+          "body": "`$x is User` is true when the value currently holds a `User`, and inside the branch it guards the value is treated as one. It always compiles, even where the answer is knowable in advance, and it never throws. It closes the gap beside `as ?T`, which asks whether a value can become a type rather than whether it is one. The spelling follows PHP's own pattern-matching proposal for the type-test case; the pattern forms PHP has not settled on are left unclaimed, so a future PHP program will not mean something different here.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md"
+        },
+        {
+          "adr": "0157",
+          "headline": "A shape field can be optional, and that is a different thing from nullable",
+          "body": "`{name?: string}` says the key may be absent; `{name: ?string}` says it is present and may hold null. They accept different values and stay different types. Reading an optional field answers the declared type, and if the key is absent the read throws, which is exactly what reading a missing array key already does; `??` and `isset` are the ways to ask without throwing. A whole shape can be marked `tainted`, which marks every text-carrying field inside it, including nested ones. `tainted mixed` is not a type, because nothing could be checked through it.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0157.md"
+        },
+        {
+          "adr": "0159",
+          "headline": "A decoding member takes a class or an inline shape as its type argument",
+          "body": "`Core\\Json::decodeAs<User>`, `Core\\Db::queryAs<User>` and `Core\\Request::jsonAs<User>` build a typed value straight from text, and the type written in the angle brackets may be a class, an inline shape such as `{id: int, name: string}`, or an array of either. A shape works there because it declares its own fields on the spot, so nothing has to be looked up elsewhere. Which members offer the angle brackets is a table the compiler holds, so adding one is a row, not a language change.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0159.md"
         }
       ]
     },
@@ -240,6 +258,12 @@
           "headline": "PHP 8.6's deprecations are build errors here, not warnings",
           "body": "Most of PHP 8.6 asks nothing of Novis: `clamp` and a duration type already exist, and nearly every deprecation names something Novis never shipped. What remains is refused while building rather than warned about at run time: a `return` cannot leave a `finally` block, a constructor's `return` carries no value, `let` and `is` are reserved words, and a `readonly` property declares no default. Partial function application is not adopted, because `fn` already spells it. And a session id the store did not issue is always rejected, with no setting to turn that off.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0124.md"
+        },
+        {
+          "adr": "0169",
+          "headline": "HTML is written as a backtick literal whose holes are escaped",
+          "body": "`` html`<p>hello {$name}</p>` `` builds a `Core\\Html\\Markup` value. The parts you typed are trusted because you wrote them, and every `{$…}` hole is escaped before it is spliced in, which is the same rule the `<?= ?>` template tag already follows. Backticks delimit it because HTML is full of double quotes. `Core\\Html::join` composes a list of them. There is no way to turn computed text into markup through this literal, and the terminal output type gets no such literal at all.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0169.md"
         }
       ]
     },
@@ -476,6 +500,18 @@
           "headline": "A URL signs itself over the form it already compares by",
           "body": "`Core\\Signature::sign` and `verify` sign a map of values, and two doors sit on top where people look for them: `$uri->sign` and `$uri->verifySignature`, plus `Core\\Router`'s pair for a mount prefix. Most signed-URL bugs come from inventing a special form of the URL just for the signature; Novis invents none. A URL is signed over the normalization `compareTo` already defines, so signing and verifying cannot drift apart. A lifetime is always written, and `{until: null}` is the spelling for forever, because a permanent signed link is a permanent credential and should be typed on purpose.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0146.md"
+        },
+        {
+          "adr": "0166",
+          "headline": "Decompression runs under a size ceiling and a ratio, and neither turns off",
+          "body": "Inflating compressed input, whether a gzip body or a zip entry, is bounded by an absolute output size and by the ratio of output to input, together, because a small bomb beats one and a large honest file beats the other. `[limits] max_decompressed` and `[limits] max_decompression_ratio` are the operator's, default to 64 MiB and 1000 to 1, and a call may ask for less but never for more. `false`, which means no ceiling elsewhere, means the shipped default here. Crossing either bound throws; nothing is ever silently truncated.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0166.md"
+        },
+        {
+          "adr": "0174",
+          "headline": "A resource ceiling stops the request that broke it, where the resource goes",
+          "body": "A request that exceeds its memory or CPU budget is stopped by the runtime, not by a check the program happens to run. The allocator raises a flag the compiled code polls on every loop, which bounds a runaway loop; each value allocation asks before it allocates, which bounds a single huge operation a loop check would reach too late; and a watchdog samples each core's CPU clock. Bytes held by a store that outlives requests, such as a process-wide cache, are accounted to the process, so no request is charged or credited for them.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0174.md"
         }
       ]
     },
@@ -705,6 +741,72 @@
           "headline": "An options bag tells an omitted key from a written `null`, and `null` removes",
           "body": "An optional field of an options bag may be nullable, and leaving it out is not the same as writing `null`. `$uri->with({})` leaves every component alone; `$uri->with({fragment: null})` removes the fragment. Wherever a `Core` member accepts a written `null`, in a bag or as an ordinary argument, it means remove and never some second operation the member invented. Fields that are not nullable behave as before. `Core\\Uri` also has `queryParameter` and `withQueryParameter`, which edit one query parameter by name, something `with` cannot do because a parameter's name is chosen at run time.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md"
+        },
+        {
+          "adr": "0148",
+          "headline": "A request reads its memory as three numbers, and the peak is always recorded",
+          "body": "`Core\\Budget::memoryHeld`, `memoryPeak` and `memoryLimit` are the three numbers a request can ask about itself; the process's resident size stays on `Core\\Os`, where a fact about the machine belongs. The peak is recorded by the runtime as it happens, not on request, because Novis frees memory promptly: a script that spent most of its life near the ceiling would otherwise report a comfortable number at exit. Operators get the peak without any application code, in the exit report, in a metric, and as a warning when a configured high-water mark is crossed.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0148.md"
+        },
+        {
+          "adr": "0153",
+          "headline": "A job can be deleted by receipt or purged by tag, and both need a capability",
+          "body": "`Core\\Queue::delete` removes the one job named by its receipt, and `Core\\Queue::purge` removes a population chosen by state, by a tag written at push time, or by age, always under a limit that is finite even when nothing is written. Finished jobs are the default set. A job currently being worked can never be removed, and a dead job only when the call names that state, so no record of a failure disappears without a line of source saying so. Both members take the deny-by-default `queue.purge` capability; pushing, checking, cancelling and counting still take none.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0153.md"
+        },
+        {
+          "adr": "0154",
+          "headline": "`nvs serve` is one process for requests, schedules and jobs",
+          "body": "The served process runs the queue workers itself, started alongside the schedule ticker before it begins accepting connections, so `[queue] workers` in the configuration means what it says in production and no second process has to be deployed. Shutting down drains all three: in- flight requests finish, the ticker stops, and a worker stops when its current job is done. The worker count is per instance, not per core. A CLI run is unchanged.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0154.md"
+        },
+        {
+          "adr": "0156",
+          "headline": "A request body is read either into a buffer or as a stream, never both",
+          "body": "`body`, `post`, `json` and `jsonAs` buffer the request body under the configured size limit and answer from that buffer, so any of them may follow any other in any order. `bodyStream` and `files` hand the bytes to the program as they arrive and keep nothing, so each of those may only be the first thing to read the body. Reading `post()` after walking `files()` still works: the walk buffers the ordinary fields it passes, and `post()` reads that buffer like any other buffering reader.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0156.md"
+        },
+        {
+          "adr": "0160",
+          "headline": "A route capture typed at your own class converts in the handler, or is a 400",
+          "body": "The router narrows a path segment on the types it reads natively: `int`, `uint`, `decimal`, `Core\\Uuid` and a few more. A segment one of those refuses is not a match, and the walk continues toward a 404. A capture declared at any other class that parses from text matches on shape only; the class's own `parse` runs where the handler reads the value, so no user code runs on URLs that matched nothing. A segment the class then refuses throws over a route that did match, which is a 400, like a bad query value.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0160.md"
+        },
+        {
+          "adr": "0161",
+          "headline": "The server accepts on one worker per core, and the program is compiled once",
+          "body": "`nvs serve` binds every listener first, then starts one worker per core, each with its own scheduler and its own accept loop over every listener. No single core hands connections out to the others, so there is no accepting core to become the bottleneck. `[server] workers` sets the count and defaults to the machine's parallelism; there is no automatic spelling. The compiled program stays one copy shared read-only by every core, so it is compiled once per source change, not once per core.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0161.md"
+        },
+        {
+          "adr": "0162",
+          "headline": "One socket class over three transports; the grant follows the direction",
+          "body": "`Core\\Net` replaces PHP's three overlapping socket APIs with one class and five ways in. The capability an opening needs depends on what the program is doing, not on the transport: connecting out is `net.connect` and carries the outbound address policy, listening is `net.listen` and names endpoints, and a socket path at either end is `net.local`. UDP is datagrams and nothing more. Every socket is closed with the request that opened it. PHP's `stream_socket_pair` has no counterpart.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0162.md"
+        },
+        {
+          "adr": "0164",
+          "headline": "Encoding a self-containing value fails at the first repeat, naming the path",
+          "body": "`Core\\Json::encode` and its peers remember which objects they are currently inside, and the first object met a second time on the way down ends the encoding with an error naming the property chain that closed the loop, such as `user.team.owner`. A value that merely appears twice, in two places, is written twice. The encoder never invents a marker in the document to stand for the repeat, because the document is somebody else's contract. A separate depth limit still exists, but it is no longer how a cycle is detected.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0164.md"
+        },
+        {
+          "adr": "0165",
+          "headline": "A log record names the line that produced it, and the file log counts repeats",
+          "body": "Every log record carries the file and line it was written from, and an exception's location is filled in at construction rather than left blank. When the same record repeats in a short window, the file log target merges the run into one line with a count, because a disk is what a flood would hurt. The debug stream does not merge: its store groups at read time, so every occurrence is kept. A per-line rate limit was considered and not taken.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0165.md"
+        },
+        {
+          "adr": "0168",
+          "headline": "XML is a whole tree or a one-window stream, and a DOCTYPE is refused outright",
+          "body": "`Core\\Xml` offers a tree that loads the whole document and answers walks in any order, and a reader and writer that hold one element at a time. No operation is available through both, so a program picks the shape for how much of the document it needs at once and pays for that alone. There is no code that resolves an entity, so external entities are not a setting that could be left on, and a `<!DOCTYPE>` is refused whole, which ends the billion-laughs family before it starts. Nesting depth is the one numeric bound.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0168.md"
+        },
+        {
+          "adr": "0176",
+          "headline": "A response body can be written over time, one chunk in flight at a time",
+          "body": "A response is either a whole body with an exact length, as before, or a stream the handler writes to while the connection sends it. Only the stream is chunked. The writer hands over one chunk and waits until the connection has taken it before it may write the next, so a slow client cannot make the server buffer an unbounded body. The stream ends with its request; a stream that outlives the request is a separate door and is not this one.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0176.md"
         }
       ]
     },
@@ -874,6 +976,48 @@
           "headline": "The nvs help text is written for the person reading it, and names no PHP input",
           "body": "The argument parser prints a command's doc comment verbatim, so those comments are the program's output rather than notes about it — and they had been written as notes, citing internal rules and pointing at documents a user cannot open. Each citation moves into an ordinary comment a line below, where the project still finds it, and what a user sees now describes the flag. In the same pass, the commands that never read a file's extension stop advertising a .php input, and the one that does read it stops taking one.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0152.md"
+        },
+        {
+          "adr": "0155",
+          "headline": "The editor extension ships no compiler, and a missing one is a guided install",
+          "body": "The VS Code extension does not bundle `nvs`. It looks in the `nvs.path` setting, then on the `PATH`, then in a copy it manages itself, and when none is found it offers two commands rather than an error about environment variables: one downloads the release matching the extension's own version series and checks every byte against that release's published checksums, the other opens the release page so you can verify the bytes yourself. Nothing is fetched unless you run the command, and the managed copy never rewrites your settings.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0155.md"
+        },
+        {
+          "adr": "0163",
+          "headline": "The debug viewer is a separate service that reads files the application wrote",
+          "body": "An application writes debug records to a spool file it owns alone and opens no socket for them; a separate service ingests those files continuously and serves a viewer that only reads. The viewer renders the one thing no existing tool does, the live stream of correlated requests, and hands any artifact that already has a good viewer, such as a profile, to that viewer. Writing the records at all is the `[debug] store` setting, off by default, and it can only reduce what is kept.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0163.md"
+        },
+        {
+          "adr": "0167",
+          "headline": "A coding agent learns Novis by asking the compiler, not by reading the repo",
+          "body": "`nvs agent` prints a short primer, searches a one-line-per-member index of the standard library and shows a card for one member, all generated from the same registry the compiler carries. An agent reads the primer once and pays a few hundred tokens per lookup, instead of loading a reference far larger than its context. `nvs agent init` writes one pointer file per coding harness, and the pointer says where to ask and nothing about the language itself, because a stated fact is a copy that goes stale the day a member changes.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0167.md"
+        },
+        {
+          "adr": "0171",
+          "headline": "The language server keeps one workspace index, and hints appear in two idioms",
+          "body": "One index of every symbol in the workspace, keyed by the name the type checker resolved, answers workspace symbol search, references, rename, implementations and the call hierarchy. Eight more standard editor requests are supported on the same basis; go-to-declaration is refused because Novis has no declaration that is not the definition. Completion also offers names after a namespace separator and bare names in scope. Inlay hints are shown for exactly two idioms and nowhere else.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0171.md"
+        },
+        {
+          "adr": "0172",
+          "headline": "The editor reads the CLI's own documents; the Test Explorer is those shown",
+          "body": "Every machine-readable surface an editor needs is a document the command line already writes, and each is versioned once at its root. `nvs check --json` is at version 1. The test report is at version 2, where every test carries the file, line and column it is declared at, and `nvs test --list` writes the same document with no verdicts because nothing ran. The Test Explorer is built from those two: the list fills the tree, a filtered run fills in results, and the editor computes nothing the documents do not already say.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0172.md"
+        },
+        {
+          "adr": "0173",
+          "headline": "Format-on-save formats the HTML too, indented from the code that opened it",
+          "body": "Saving a `.nvs` file runs `nvs fmt` over the whole file, asks the compiler where the markup regions are, and then runs the editor's own HTML formatter over each region, starting at the indentation of the `?>` line that opened it. `nvs fmt` gains one rule to make that work: a `?>` that begins its line sits at the depth of the block it is in. Markup therefore indents from where the code is, so a file no longer jumps between the two. The pass is on by default and `nvs.template.format` turns it off.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0173.md"
+        },
+        {
+          "adr": "0175",
+          "headline": "The compile cache directory has one spelling; `[cache]` is the value cache",
+          "body": "`opcache.file_cache_dir` is where compiled programs are cached, and it is the only key that says so. `[cache] dir` used to parse and be read by nobody, so an operator who set it moved nothing and was told nothing; writing it now is an unknown-directive error naming the file and line. `[cache]` holds the settings of `Core\\Cache`'s local and shared tiers and nothing else. Changing the compile cache directory takes a restart; the rest of `[opcache]` is read at the next compile.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0175.md"
         }
       ]
     },
@@ -923,6 +1067,18 @@
           "headline": "A push runs the checks its diff can break; the nightly runs everything",
           "body": "Continuous integration has three lanes in one workflow. Every push runs the document checks, which cost seconds. Build, test, conformance and lint run on all three platforms whenever any code changes; the memory checker, dependency licensing and the reference check run only when a diff can affect them. Every night and at every release all of it runs, plus Miri, the fuzzers and the unsafe audit. No lane is ever narrowed by platform. The trade: a bug only Miri or a fuzzer sees is found within a day, not ten minutes.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md"
+        },
+        {
+          "adr": "0158",
+          "headline": "A rule about what the editor draws belongs to the editor chapter",
+          "body": "The rulebook's security chapter holds only rules that still hold with no editor running: what the compiler refuses, what a running program can reach. Rules about blurring a secret on screen, the editor's dependency allowlist or which server version a client accepts moved to the editor chapter, where they sit together as one section on security in the editor. No rule was weakened or changed; five rules changed address so that a reader of the ground rules can tell a compiler guarantee from an editor convenience.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0158.md"
+        },
+        {
+          "adr": "0170",
+          "headline": "On SQLite a queue claim is an immediate transaction, and that is the lock",
+          "body": "SQLite has a single writer, so inside an immediate transaction no other connection is writing and two workers cannot claim the same job; the row-locking clause the other databases use would do nothing there and is not written. The transaction is opened as immediate rather than deferred because a read followed by a write would otherwise try to upgrade a shared lock, which SQLite refuses without waiting. Nothing about this is visible from a program.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0170.md"
         }
       ]
     }
