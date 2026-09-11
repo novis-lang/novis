@@ -45,6 +45,18 @@
 //! `rule:ide/recovery-is-explicit`'s `Missing` made visible to a consumer that
 //! never sees a [`MemberName`].
 //!
+//! A name is not a field either, because a field is a word out of a closed set
+//! and a name is the source's. What the node carries instead is
+//! [`Node::name`] — **where** the production wrote its own name, when it wrote
+//! one. That span is what a consumer needs to draw a box around a name rather
+//! than around the expression holding it, and recording it here is what keeps
+//! `nvs_lsp` from matching [`crate::ast`] a second time to find it: those enums
+//! are `#[non_exhaustive]`, so a match in another crate needs a wildcard arm and
+//! a production landing later goes quietly nameless there, while this one is a
+//! build error in the file its author is already in. `Core\Ast` renders it
+//! nowhere: the JSON schema is frozen (`rule:ide/ast-json-schema-is-frozen`) and
+//! a consumer holding no file has nothing to do with an offset into one.
+//!
 //! **A literal's text is deliberately not one of them.** The span names it, so
 //! a consumer holding the file already has it; and a consumer that does not
 //! hold the file must not be handed a `secret` literal's bytes, which this
@@ -54,10 +66,10 @@
 //! arrives that has type-checked, and the placeholder arrives with it.
 //!
 //! **What it spends:** one [`Node`] per statement, expression and member —
-//! two words for the kind, a span, and two `Vec` headers, allocated per parse
-//! and dropped when the caller is done with it, plus one small allocation for
-//! each node that has a field at all. Nothing here is cached: a parse is a
-//! call, not a compilation unit.
+//! two words for the kind, a span, an optional second span for the name, and
+//! two `Vec` headers, allocated per parse and dropped when the caller is done
+//! with it, plus one small allocation for each node that has a field at all.
+//! Nothing here is cached: a parse is a call, not a compilation unit.
 //!
 //! # The second consumer
 //!
@@ -90,6 +102,21 @@ pub struct Node {
     /// The source range it covers — the AST node's own span, never a second
     /// measurement of one.
     pub span: Span,
+    /// Where this production wrote its own name, and [`None`] for one that
+    /// wrote none.
+    ///
+    /// A declaration's own name, the member after `->` or `::`, the class a
+    /// `new` allocates, the variable or constant a name reads. [`None`] is
+    /// therefore never "not recorded yet": it is a production with no name in
+    /// the source at all — `new $class()`, `$u->{$name}`, an operator, a
+    /// literal — and a consumer that wants a range regardless falls back to
+    /// [`span`](Self::span), which is the whole expression holding it.
+    ///
+    /// The name a parser *invented* is not one either
+    /// (`rule:ide/recovery-is-explicit`): `$u->` with the caret after the arrow
+    /// wrote no name, so this is [`None`] and the `member` field says
+    /// `"missing"`.
+    pub name: Option<Span>,
     /// The nodes this one contains, in source order.
     pub children: Vec<Node>,
     /// This production's own scalars, in a fixed order per production — the
@@ -168,6 +195,7 @@ pub fn of_source(name: &str, source: &str) -> Result<Node, String> {
             .map(|s| s.span)
             .reduce(Span::to)
             .unwrap_or_else(|| Span::at(file.id(), 0)),
+        name: None,
         children: of_stmts(&stmts),
         fields: Vec::new(),
     })
@@ -187,6 +215,7 @@ pub fn of_stmts(stmts: &[Stmt]) -> Vec<Node> {
 /// One statement, and the nodes under it.
 fn stmt(s: &Stmt) -> Node {
     let mut kids = Vec::new();
+    let mut name = None;
     let kind = match &s.kind {
         StmtKind::Expr(e) => {
             kids.push(expr(e));
@@ -279,7 +308,12 @@ fn stmt(s: &Stmt) -> Node {
             push_exprs(&mut kids, targets);
             "Unset"
         }
-        StmtKind::LocalDecl { value, .. } => {
+        StmtKind::LocalDecl {
+            name: declared,
+            value,
+            ..
+        } => {
+            name = Some(*declared);
             push_opt(&mut kids, value.as_ref());
             "LocalDecl"
         }
@@ -289,7 +323,10 @@ fn stmt(s: &Stmt) -> Node {
             "Destructure"
         }
         StmtKind::Global(_) => "Global",
-        StmtKind::Goto(_) => "Goto",
+        StmtKind::Goto(label) => {
+            name = Some(*label);
+            "Goto"
+        }
         StmtKind::StaticLocal { vars, .. } => {
             for var in vars {
                 push_opt(&mut kids, var.default.as_ref());
@@ -297,19 +334,23 @@ fn stmt(s: &Stmt) -> Node {
             "StaticLocal"
         }
         StmtKind::ClassDecl(decl) => {
+            name = Some(decl.name.span);
             kids.extend(decl.members.iter().map(member));
             "ClassDecl"
         }
         StmtKind::InterfaceDecl(decl) => {
+            name = Some(decl.name.span);
             kids.extend(decl.members.iter().map(member));
             "InterfaceDecl"
         }
         StmtKind::EnumDecl(decl) => {
+            name = Some(decl.name.span);
             kids.extend(decl.cases.iter().map(enum_case));
             kids.extend(decl.members.iter().map(member));
             "EnumDecl"
         }
         StmtKind::NamespaceDecl(decl) => {
+            name = decl.name.as_ref().map(|written| written.span);
             if let Some(body) = &decl.body {
                 push_block(&mut kids, body);
             }
@@ -317,8 +358,12 @@ fn stmt(s: &Stmt) -> Node {
         }
         StmtKind::UseDecl(_) => "UseDecl",
         StmtKind::AutoloadDecl(_) => "AutoloadDecl",
-        StmtKind::TypeAliasDecl(_) => "TypeAliasDecl",
+        StmtKind::TypeAliasDecl(decl) => {
+            name = Some(decl.name.span);
+            "TypeAliasDecl"
+        }
         StmtKind::TopLevelFunction(f) => {
+            name = Some(f.name);
             push_method(&mut kids, f);
             "Function"
         }
@@ -333,6 +378,7 @@ fn stmt(s: &Stmt) -> Node {
     Node {
         kind,
         span: s.span,
+        name,
         children: kids,
         fields: Vec::new(),
     }
@@ -342,6 +388,7 @@ fn stmt(s: &Stmt) -> Node {
 fn expr(e: &Expr) -> Node {
     let mut kids = Vec::new();
     let mut fields = Vec::new();
+    let mut name = None;
     let kind = match &e.kind {
         ExprKind::Null => "Null",
         ExprKind::Bool(value) => {
@@ -361,8 +408,14 @@ fn expr(e: &Expr) -> Node {
             }
             "Interpolated"
         }
-        ExprKind::Variable(_) => "Variable",
-        ExprKind::ConstFetch(_) => "ConstFetch",
+        ExprKind::Variable(written) => {
+            name = Some(*written);
+            "Variable"
+        }
+        ExprKind::ConstFetch(written) => {
+            name = Some(written.span);
+            "ConstFetch"
+        }
         ExprKind::SelfExpr => "SelfExpr",
         ExprKind::StaticExpr => "StaticExpr",
         ExprKind::ParentExpr => "ParentExpr",
@@ -444,6 +497,7 @@ fn expr(e: &Expr) -> Node {
         } => {
             fields.push(("nullsafe", Field::Flag(*nullsafe)));
             fields.push(("member", Field::Word(member_form(method))));
+            name = member_span(method);
             kids.push(expr(object));
             push_member_name(&mut kids, method);
             push_args(&mut kids, args);
@@ -456,6 +510,7 @@ fn expr(e: &Expr) -> Node {
             ..
         } => {
             fields.push(("member", Field::Word(member_form(method))));
+            name = member_span(method);
             kids.push(expr(class));
             push_member_name(&mut kids, method);
             push_args(&mut kids, args);
@@ -468,15 +523,18 @@ fn expr(e: &Expr) -> Node {
         } => {
             fields.push(("nullsafe", Field::Flag(*nullsafe)));
             fields.push(("member", Field::Word(member_form(property))));
+            name = member_span(property);
             kids.push(expr(object));
             push_member_name(&mut kids, property);
             "PropertyAccess"
         }
-        ExprKind::StaticPropertyAccess { class, .. } => {
+        ExprKind::StaticPropertyAccess { class, name: read } => {
+            name = Some(*read);
             kids.push(expr(class));
             "StaticPropertyAccess"
         }
-        ExprKind::ClassConstAccess { class, .. } => {
+        ExprKind::ClassConstAccess { class, name: read } => {
+            name = Some(*read);
             kids.push(expr(class));
             "ClassConstAccess"
         }
@@ -492,10 +550,8 @@ fn expr(e: &Expr) -> Node {
         ExprKind::New { target, args, .. } => {
             fields.push(("target", Field::Word(new_target(target))));
             match target {
-                NewTarget::Name(_)
-                | NewTarget::SelfTy
-                | NewTarget::StaticTy
-                | NewTarget::ParentTy => {}
+                NewTarget::Name(written) => name = Some(written.span),
+                NewTarget::SelfTy | NewTarget::StaticTy | NewTarget::ParentTy => {}
                 NewTarget::Expr(e) => kids.push(expr(e)),
                 NewTarget::AnonClass(decl) => push_anon_class(&mut kids, decl),
             }
@@ -586,6 +642,7 @@ fn expr(e: &Expr) -> Node {
     Node {
         kind,
         span: e.span,
+        name,
         children: kids,
         fields,
     }
@@ -690,8 +747,10 @@ fn new_target(target: &NewTarget) -> &'static str {
 /// One member of a class, interface or enum body.
 fn member(m: &ClassMember) -> Node {
     let mut kids = Vec::new();
+    let mut name = None;
     let kind = match &m.kind {
         ClassMemberKind::Property(p) => {
+            name = Some(p.name);
             push_opt(&mut kids, p.default.as_ref());
             for hook in p.hooks.iter().flatten() {
                 push_hook(&mut kids, hook);
@@ -699,10 +758,12 @@ fn member(m: &ClassMember) -> Node {
             "Property"
         }
         ClassMemberKind::Const(c) => {
+            name = Some(c.name);
             kids.push(expr(&c.value));
             "Const"
         }
         ClassMemberKind::Method(f) => {
+            name = Some(f.name);
             push_method(&mut kids, f);
             "Method"
         }
@@ -711,6 +772,7 @@ fn member(m: &ClassMember) -> Node {
     Node {
         kind,
         span: m.span,
+        name,
         children: kids,
         fields: Vec::new(),
     }
@@ -723,6 +785,7 @@ fn enum_case(c: &EnumCase) -> Node {
     Node {
         kind: "EnumCase",
         span: c.span,
+        name: Some(c.name.span),
         children: kids,
         fields: Vec::new(),
     }
@@ -756,6 +819,18 @@ fn push_args(kids: &mut Vec<Node>, args: &CallArgs) {
 /// not a node. A missing one is a position rather than a name, so it is not a
 /// node either: the access that carries it is what an offset lands in, which
 /// is [`crate::index`]'s own first consequence.
+/// Where a written member name is, and [`None`] for a computed or missing one.
+///
+/// [`Node::name`]'s own rule at one production: a name the source wrote is a
+/// span, a name an expression computes is a child node, and a name the parser
+/// invented is neither.
+fn member_span(name: &MemberName) -> Option<Span> {
+    match name {
+        MemberName::Ident(span) => Some(*span),
+        MemberName::Missing(_) | MemberName::Variable(_) | MemberName::Expr(_) => None,
+    }
+}
+
 fn push_member_name(kids: &mut Vec<Node>, name: &MemberName) {
     match name {
         MemberName::Ident(_) | MemberName::Missing(_) => {}
