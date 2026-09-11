@@ -1,12 +1,13 @@
-# Goal 38 -- The language server grows past its first closed list
+# Goal 39 -- The extension answers everything it contributes
 # The acceptance test, as data.
 #
-# `38-workspace-index.md` is the prose. One home each.
+# `39-editor-surfaces.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# Every check here is `cargo-named` or `nvs-suite`: this goal is one crate and one protocol, and
-# neither has a calling convention, so nothing needs a per-leg program run.
+# A `command` check is not a PROGRAM_KIND, so it runs ONCE between the legs rather than per leg.
+# That is right here for the same reason it was right for goals `editor` and `editor-install`: a TypeScript client has
+# no calling convention, and the WSL leg exists for the one thing that does.
 
 files = [
   # carried from the previous goal by tools/goal-switch.py; this goal names none of its own.
@@ -96,87 +97,60 @@ files = [
 [context]
 
 modules = [
-  # The four arms and the `Asked` enum stage 5 gives a fifth; `position` at :332 is what a cursor
-  # after `Core\` falls into today.
-  "crates/nvs-lsp/src/completion.rs",
-  # The one place the declaration is written. Stage 0's trigger characters at :174, and every
-  # capability stages 3-6 add.
-  "crates/nvs-lsp/src/capabilities.rs",
-  # The request router. One arm per method, and the shape each new request copies.
-  "crates/nvs-lsp/src/server.rs",
-  # `Analysed` -- `module`, `loaded`, `exprs`, `index`. Stage 2 widens the first from one graph to
-  # the tree, and stages 3-6 read the rest unchanged.
-  "crates/nvs-lsp/src/document.rs",
-  # The resolution stages 3 and 4 point at a type rather than a name.
-  "crates/nvs-lsp/src/definition.rs",
-  # The registry row stage 4's signature help renders and stage 5's namespace arm enumerates.
-  "crates/nvs-lsp/src/hover.rs",
-  # The `Core` class and member tables both of those read.
-  "crates/nvs-stdlib/src/registry.rs",
-  # The rows stage 5's PHP-name layer joins against.
-  "docs/spec/02-php-migration.md",
-  # The `.lspt` format, and at :57 the corpus example that froze the recovery case that works and
-  # never its mirror -- which is stage 0's whole story.
-  "crates/nvs-lsp/src/lib.rs",
-  # What a `.lspt` case COSTS, which stage 0 discovered the expensive way: the vocabulary is every
-  # construct some cursor landed on, so a case at a new one owes five cursor rows and a
-  # whole-document row. Read S *Decision* before adding a case whose cursor sits somewhere new.
-  "crates/nvs-lsp/src/coverage.rs",
-  # One workspace symbol index, built in one place.
-  "crates/nvs-lsp/src/index.rs",
-  # A position on the wire, and the byte offset under it.
-  "crates/nvs-lsp/src/position.rs",
-  # Which of an analysis's diagnostics an editor is shown, and what one looks like once it is on
-  # the wire.
-  "crates/nvs-lsp/src/diagnostics.rs",
-  # The `nvs.*` settings the client configured, and what they mean when it configured nothing.
-  "crates/nvs-lsp/src/settings.rs",
-  # Parsing one `.lspt` file into a `Case`.
-  "crates/nvs-lsp/src/case.rs",
-  # Rendering one answer as the text a `.lspt` case freezes.
-  "crates/nvs-lsp/src/render.rs",
-  # Running a tree of `.lspt` cases, and the summary line the loop reads.
-  "crates/nvs-lsp/src/suite.rs",
-  # The parse tree as a walkable shape: one entry per node, its production's name and the nodes it
-  # contains — what `rule:core-classes/ast-is-inert`'s `Core\Ast::parse` hands a running program.
-  "crates/nvs-syntax/src/walk.rs",
+  # The three unanswered ids at :62, and where stages 3-5 register their answers.
+  "editors/vscode/src/extension.ts",
+  # The frozen roster. Stage 3 adds `taskDefinitions` and `problemMatchers`; every id is added,
+  # never renamed.
+  "editors/vscode/package.json",
+  # How a new suite directory becomes a ledger line: discovery, and the `name:` it prints.
+  "editors/vscode/scripts/headless.mjs",
+  # The dependency allowlist -- the reason a Test Explorer parses JSON the CLI already emits
+  # rather than pulling a reporter library in.
+  "editors/vscode/test/contributions/contributions.test.ts",
+  # `json_document` at :1653 -- the schema stage 2 takes to version 2, and the two formats it
+  # must leave untouched.
+  "crates/nvs-cli/src/runner.rs",
+  # `Command::Check`'s flags, and the front end whose diagnostics stage 2 renders a second way.
+  "crates/nvs-cli/src/main.rs",
+  # The `Diagnostic` record `--json` writes: code, span, severity, help, suggestions.
+  "crates/nvs-diagnostics/src/lib.rs",
+  # `TokenKind::InlineHtml` at :356 -- the span stage 6's regions request projects.
+  "crates/nvs-syntax/src/lexer.rs",
+  # The chapter stage 6 extends, and its § *What it does not do* this goal shortens.
+  "docs/reference/tools/40-editor.md",
 ]
 
-# The rules this goal implements, and the one its record amends.
+# The rules this goal implements. Every one of them is already landed; none is amended here.
 rules = [
-  "ide/five-features-are-one-reference-index",
-  "ide/check-scope-defaults-to-open-documents",
-  "ide/completion-offers-only-what-the-compiler-derived",
-  "ide/every-feature-is-staged-behind-its-dependency",
-  "ide/the-request-set-is-closed",
-  "ide/three-of-four-item-shapes-insert-nothing",
-  "php-migration/every-php-builtin-is-a-completion-candidate",
-  "ide/an-lsp-answer-is-frozen-as-an-lspt-case",
-  "ide/a-full-reanalysis-stays-under-a-bound",
+  "ide/tasks-carry-a-problem-matcher",
   "ide/contributions-are-frozen-and-only-ever-added",
-  # Named because a standing decision turns on it: nvs.toml completion is out of scope precisely
-  # because this rule would have to be reopened to claim `.toml`.
-  "ide/the-extension-claims-nvs-only",
+  "ide/the-ast-panel-shells-out-to-the-cli",
+  "ide/ast-json-schema-is-frozen",
+  "ide/check-json-is-the-diagnostic-record-as-a-document",
+  "ide/the-extension-builds-no-ui-the-editor-already-has",
+  "ide/a-template-region-gets-services-but-no-second-formatter",
+  "tooling/fmt-is-never-a-diagnostic",
+  "ide/every-feature-is-staged-behind-its-dependency",
+  "errors/renderings",
+  # Stage 5 runs the case tree through the same explorer; this is what says the corpus is a roster
+  # rather than a declaration.
+  "ide/lspt-coverage-is-inferred",
 ]
 
-# 0099 is the record this goal's own amends: SS 3 is the M4B request set, its admission test, and
-# the inlay-hint deferral stage 6 reverses.
-adrs = ["0099 §3"]
+adrs = []
 
-shapes = ["An `.lspt` case", "A commit message", "A decision record", "A rule fragment"]
+shapes = ["A commit message", "A decision record", "A rule fragment"]
 
 milestones = ["M10"]
 
 playbook = [
   # This goal's own file set.
-  'Tooling > a reserved',
-  'Writing a test case > a rust test can',
-  'Writing a test case > a cursor',
-  'Writing a test case > a -p nvs-lsp',
-  "Writing a test case > a .lspt case's",
-  'Writing Novis itself > exprtypetable::declaredty answers',
-  'Running things > nvs-lsp gaining',
-  'Tooling > a cargo-named check counts',
+  "Tooling > editors/vscode/package.json's contributes",
+  'Tooling > tools/verify.py runs',
+  'Tooling > a textmate',
+  'Writing a test case > a -p nvs-cli test',
+  'Writing a test case > a test that asserts',
+  'Tooling > a cargo-named acceptance',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -195,19 +169,16 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `38-workspace-index.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `39-editor-surfaces.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The bound the index has to still hold once it is warm.
-rules = ["ide/a-full-reanalysis-stays-under-a-bound", "ide/the-server-is-synchronous"]
-
-[context.stage.3]
-rules = ["classes/interface-default-methods", "classes/delegation-by-field"]
+# `nvs ast --json`'s frozen schema is the shape both of stage 2's take.
+rules = ["ide/ast-json-schema-is-frozen"]
 
 [context.stage.6]
-# The deferral this stage reverses, in the record that wrote it.
-adrs = ["0099 §3"]
+# The one home for what a region gets and what it must never get.
+rules = ["ide/a-template-region-gets-services-but-no-second-formatter"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
@@ -221,6 +192,12 @@ compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 531 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -7701,18 +7678,15 @@ stage = "1 floor"
 name = "the extension heading owes no proof"
 argv = ["python", "tools/dossier.py", "--only", "tools:editor/the-vs-code-extension", "--gate"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- the live defect a fix exists for. The `\` trigger's own defect is the same shape and is
 # gated at stage 5 instead, because the arm that answers it is stage 5's and a catch-up failure returns
 # before every other check in the sweep (`tools/loop.py:2639`), so gating it here would report no other
 # stage until stage 5 landed. Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "0 the catch-up"
+stage = "1 floor"
 name = "the lspt corpus, including a receiver whose access ends at the cursor"
 args = ["lsp-test", "tests/lsp/"]
 
@@ -7722,7 +7696,7 @@ args = ["lsp-test", "tests/lsp/"]
 # freezes the rendering at the one shape that opens no column.
 [[check]]
 kind = "cargo-named"
-stage = "0 the catch-up"
+stage = "1 floor"
 name = "a receiver at the end of a construct still offers its class's members"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -7733,10 +7707,9 @@ tests = [
 # Stage 2 -- the keystone. One construction site, and the structural test that says so. The bound is
 # `rule:ide/a-full-reanalysis-stays-under-a-bound`'s, held with the index warm. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the index"
+stage = "1 floor"
 name = "one symbol index, built in one place, invalidated by what changed"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -7749,10 +7722,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the five readers, and the test that there are five. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the readers"
+stage = "1 floor"
 name = "five features read the one index and none walks on its own"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -7763,17 +7735,16 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "3 the readers"
+stage = "1 floor"
 name = "an lspt case per added request, at a cursor, frozen"
 args = ["lsp-test", "tests/lsp/", "--coverage"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the three that need no index, and the one deliberately not added. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the unindexed three"
+stage = "1 floor"
 name = "signature help and the two type navigations answer from what hover already reads"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -7788,10 +7759,9 @@ tests = [
 # `rule:ide/completion-offers-only-what-the-compiler-derived` names: every source must name a table
 # the compiler builds for another reason. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 the arms"
+stage = "1 floor"
 name = "every completion source names a table the compiler already builds"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -7808,7 +7778,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the arms"
+stage = "1 floor"
 name = "the php-name table is one build-time join and refuses a spelling that matches nothing"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -7820,10 +7790,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- inlay hints, bounded to the two shapes whose idiom has stopped moving. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 the hints"
+stage = "1 floor"
 name = "inlay hints read the recorded types and offer only the two settled shapes"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -7831,3 +7800,99 @@ tests = [
   "a_literal_argument_carries_its_parameter_name",
   "no_hint_is_produced_from_anything_the_type_phase_did_not_record",
 ]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- the contributed-and-unanswered set. This runs red the day it is written and is what
+# stops the next id being added and forgotten for a milestone. Goal prose stage 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "0 the catch-up"
+name = "every contributed command is registered, and every setting is read"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:headless"]
+want = ["grammar:", "contributions:", "protocol:", "0 failing"]
+
+# `contributions:` gains the two assertions: every id in `contributes.commands` is registered by
+# `activate`, and every key in `contributes.configuration` is read by the client or forwarded to the
+# server. `nvs.lsp.debounce` is the one that fails both today.
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the two CLI surfaces. Rust checks, because both are the CLI's own output
+# and neither needs an editor to be wrong. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the cli surfaces"
+name = "check --json is the diagnostic record, and the text renderer is unchanged"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "check_json_emits_one_record_per_diagnostic_the_text_renderer_prints",
+  "check_json_carries_the_code_span_severity_help_and_suggestions",
+  "the_default_rendering_is_still_text",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the cli surfaces"
+name = "the test report locates every test, and can list without running"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "every_json_test_record_carries_its_declaring_file_and_line",
+  "the_listing_mode_discovers_without_executing",
+  "the_schema_version_is_two_and_junit_and_human_are_byte_identical",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stages 3-6 -- the client. One headless suite, `editors/vscode/test/surfaces/`, which
+# `scripts/headless.mjs` discovers and prints as `surfaces:`. No editor: a Task's `problemMatcher` is
+# a regex over recorded output, and a region request is a protocol answer. Goal prose stages 3-6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the tasks"
+name = "vscode (headless, with the surfaces suite)"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:headless"]
+want = ["grammar:", "contributions:", "protocol:", "surfaces:", "0 failing"]
+
+# `surfaces:` covers the problemMatcher against a recorded `nvs check` rendering with a real
+# `error[E0301]` and its `-->` line; the AST panel's shell-out shape against a recorded
+# `nvs ast --json`; the Test Explorer's discovery and run over recorded stage 2 output, including a
+# failure becoming a test item's message; and the region client asking for `nvs/regions` and
+# forwarding nothing outside a returned span.
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 the regions"
+name = "the regions request is frozen as a case like every other answer"
+args = ["lsp-test", "tests/lsp/"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- and the formatter that must not appear. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the regions"
+name = "no formatting reaches a template region from either side"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "the_server_declares_no_formatting_provider",
+  "a_region_answer_carries_a_span_and_a_language_and_nothing_else",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# The reference chapter, which stops naming what this goal answered. Goal prose stages 3-6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 the regions"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
