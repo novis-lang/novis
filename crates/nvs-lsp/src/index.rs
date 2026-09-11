@@ -65,12 +65,6 @@
 //!    cannot name it is the one asymmetry here, and closing it is a change in
 //!    the checker's table rather than in this walk.
 //!    — owner: unowned
-//!
-//! 2. **Nothing records member visibility**, which unused-member dimming needs
-//!    to know a member is private. It is a property of the declaration's own
-//!    node and is added where the declaration walk reads the member, not by a
-//!    second walk.
-//!    — owner: workspace-index
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -78,11 +72,18 @@ use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{BytePos, SourceFile, Span, canonical_key};
 use nvs_hir::{Loaded, SymbolKind};
-use nvs_syntax::ast::{ClassMember, ClassMemberKind, Stmt, StmtKind};
+use nvs_syntax::ast::{ClassMember, ClassMemberKind, Modifier, Stmt, StmtKind};
 use nvs_syntax::walk;
 
 use crate::definition::{Target, declared_type, named_at, target_of, text_of};
 use crate::document::{Analysed, Documents, analyse_file};
+
+/// The three visibility levels a [`Declaration`] carries.
+///
+/// Re-exported rather than restated: `nvs_syntax` is where `private` is spelled
+/// once, and a second enum here would be a second answer to what a modifier
+/// means.
+pub use nvs_syntax::ast::Visibility;
 
 /// Which files the index is built over — the `nvs.check.scope` setting
 /// `rule:ide/check-scope-defaults-to-open-documents` freezes.
@@ -178,6 +179,16 @@ pub struct Declaration {
     /// Where the declared name itself was written — never the whole
     /// declaration, which is what an editor puts a caret on.
     pub site: Site,
+    /// The visibility it was written with — `Public` where none was written,
+    /// and for everything that is not a class member.
+    ///
+    /// Unused-member dimming is the only reader
+    /// (`rule:ide/five-features-are-one-reference-index`). A public member with
+    /// no occurrence in the index is a member *this workspace* does not use,
+    /// which is not the same claim and is not one an index of Novis files can
+    /// make; a private one with none is unreachable from anywhere by
+    /// construction, which is why the tag is only correct there.
+    pub visibility: Visibility,
 }
 
 /// One place a declared name was used, with what it resolved to.
@@ -288,6 +299,24 @@ impl SymbolIndex {
             self.files.remove(path);
         }
         stale
+    }
+
+    /// The private declarations in `path` that nothing anywhere in the index
+    /// refers to.
+    ///
+    /// Private is what makes the question answerable at all. "No occurrence in
+    /// the index" is unreachability for a member only its own file can name,
+    /// and says nothing whatever about a public one, which anything outside the
+    /// indexed tree may still be using. How much of the workspace *is* indexed
+    /// when this is asked is `rule:ide/check-scope-defaults-to-open-documents`'s
+    /// answer, and the caller is what holds the setting.
+    #[must_use]
+    pub fn unused_private(&self, path: &Path) -> Vec<&Declaration> {
+        self.declarations_in(path)
+            .iter()
+            .filter(|declared| declared.visibility == Visibility::Private)
+            .filter(|declared| self.occurrences(&declared.symbol).is_empty())
+            .collect()
     }
 
     /// Where `symbol` was declared, if the index holds a declaration for it.
@@ -493,6 +522,9 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
             symbol: class.clone(),
             kind: DeclKind::of_symbol(symbol.kind),
             site: site(path, symbol.decl_span),
+            // A type declaration carries no visibility modifier: it is reachable
+            // from every file that resolves its name.
+            visibility: Visibility::Public,
         });
         if let Some((stmt, file)) = declared_type(analysed, &symbol.qname) {
             members(stmt, file, &class, path, &mut found);
@@ -518,20 +550,60 @@ fn members(stmt: &Stmt, file: &SourceFile, class: &str, path: &Path, found: &mut
     };
 
     for member in declared {
-        let (name, kind) = match &member.kind {
-            ClassMemberKind::Property(property) => (property.name, DeclKind::Property),
-            ClassMemberKind::Const(constant) => (constant.name, DeclKind::Const),
-            ClassMemberKind::Method(method) => (method.name, DeclKind::Method),
+        let (name, kind, visibility) = match &member.kind {
+            ClassMemberKind::Property(property) => (
+                property.name,
+                DeclKind::Property,
+                visibility_of(&property.modifiers),
+            ),
+            ClassMemberKind::Const(constant) => (
+                constant.name,
+                DeclKind::Const,
+                visibility_of(&constant.modifiers),
+            ),
+            ClassMemberKind::Method(method) => (
+                method.name,
+                DeclKind::Method,
+                visibility_of(&method.modifiers),
+            ),
             // `ClassMemberKind` is `#[non_exhaustive]` and `Error` is
             // recovery: a member shape this crate has not heard of declares no
             // name it could answer a reference about.
             _ => continue,
         };
-        push_member(found, class, file, name, kind, path);
+        push_member(found, class, file, name, kind, visibility, path);
     }
     for case in cases {
-        push_member(found, class, file, case.name.span, DeclKind::EnumCase, path);
+        // An enum case takes no modifier list and is reachable wherever the
+        // enum's own name is.
+        push_member(
+            found,
+            class,
+            file,
+            case.name.span,
+            DeclKind::EnumCase,
+            Visibility::Public,
+            path,
+        );
     }
+}
+
+/// The visibility `modifiers` declares, which is `Public` when they declare
+/// none.
+///
+/// The plain modifiers only: `private(set)` restricts *writes* and leaves the
+/// member readable wherever its own visibility says, so a reference to it is
+/// still a reference and dimming it would be wrong.
+fn visibility_of(modifiers: &[Modifier]) -> Visibility {
+    modifiers
+        .iter()
+        .find_map(|modifier| match modifier {
+            Modifier::Public => Some(Visibility::Public),
+            Modifier::Protected => Some(Visibility::Protected),
+            Modifier::Private => Some(Visibility::Private),
+            _ => None,
+        })
+        .unwrap_or(Visibility::Public)
 }
 
 /// One member declaration, unless its name covers no source bytes.
@@ -541,6 +613,7 @@ fn push_member(
     file: &SourceFile,
     name: Span,
     kind: DeclKind,
+    visibility: Visibility,
     path: &Path,
 ) {
     let spelling = text_of(file, name);
@@ -551,6 +624,7 @@ fn push_member(
         symbol: format!("{class}::{spelling}"),
         kind,
         site: site(path, name),
+        visibility,
     });
 }
 

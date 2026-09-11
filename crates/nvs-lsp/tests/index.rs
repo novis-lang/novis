@@ -17,7 +17,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use lsp_types::PositionEncodingKind;
-use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, uri_of};
+use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, Visibility, uri_of};
 
 /// A scratch directory that cleans up after itself.
 struct TempDir {
@@ -65,6 +65,15 @@ const MAIN: &str = "<?nvs\nrequire 'lib.nvs';\nvar $c = new Counter();\necho $c-
 /// nothing — the "and nothing else" half of two of the cases below.
 const LONE: &str = "<?nvs\nclass Lonely {\n    public function greet(): string {\n        \
                     return \"hi\";\n    }\n}\n";
+
+/// One class writing every modifier shape the visibility field has to tell
+/// apart, including the two that are written as nothing and the one that
+/// restricts writes rather than reads.
+const MODIFIED: &str = "<?nvs\nclass Modified {\n    public int $open = 0;\n    \
+                        private int $shut = 0;\n    protected int $kin = 0;\n    \
+                        int $bare = 0;\n    public private(set) int $written = 0;\n    \
+                        private const HIDDEN = 1;\n    \
+                        private function tell(): int {\n        return $this->shut;\n    }\n}\n";
 
 /// The file name at the end of a path, for an assertion a reader can read.
 fn name_of(path: &Path) -> String {
@@ -258,6 +267,47 @@ fn the_index_holds_every_declaration_and_every_resolved_use() {
         "the call resolved to the method, once: {called:?}"
     );
     assert_eq!(name_of(&called[0].site.path), "main.nvs");
+}
+
+/// A declaration records the visibility it was written with, and `public` when
+/// nothing was written.
+///
+/// Unused-member dimming is the whole reason this is here
+/// (`rule:ide/five-features-are-one-reference-index`): "no occurrence anywhere
+/// in the index" means unreachable for a private member and means nothing at
+/// all for a public one, so a field that defaulted the wrong way would dim a
+/// library's entire public surface.
+#[test]
+fn a_declaration_records_the_visibility_it_was_written_with() {
+    let dir = TempDir::new("visibility");
+    dir.write("lib.nvs", MODIFIED);
+
+    let mut documents = Documents::new();
+    dir.open(&mut documents, "lib.nvs", MODIFIED);
+    let index = SymbolIndex::build(&documents, CheckScope::Open, None);
+
+    let seen = |symbol: &str| {
+        index
+            .declaration(symbol)
+            .unwrap_or_else(|| panic!("{symbol} is declared"))
+            .visibility
+    };
+
+    assert_eq!(seen("Modified::$open"), Visibility::Public);
+    assert_eq!(seen("Modified::$shut"), Visibility::Private);
+    assert_eq!(seen("Modified::$kin"), Visibility::Protected);
+    assert_eq!(seen("Modified::HIDDEN"), Visibility::Private);
+    assert_eq!(seen("Modified::tell"), Visibility::Private);
+
+    // Two defaults, and they are the same default: a member written with no
+    // modifier at all is public, and so is the class itself, which carries no
+    // modifier list to read.
+    assert_eq!(seen("Modified::$bare"), Visibility::Public);
+    assert_eq!(seen("Modified"), Visibility::Public);
+
+    // `private(set)` restricts writes and leaves the member readable, so it is
+    // not a private member and dimming it would hide a name in use.
+    assert_eq!(seen("Modified::$written"), Visibility::Public);
 }
 
 /// A change drops the file and the files whose analysis read it, and leaves
