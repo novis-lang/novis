@@ -1660,6 +1660,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   closed with its Test Explorer never written. Read an all-green ledger against the goal prose's
   stages and the `stage =` strings in `loop-goal.toml` — a stage with no check is the hole — and name
   cases in `want` the way `cargo-named` names tests. [until: reviewed 2026-09-11]
+- **A setting added to `editors/vscode/package.json` turns a Rust test red, not a TypeScript one.**
+  `crates/nvs-lsp/tests/extension_reference.rs` reads the manifest against the settings table in
+  `docs/reference/tools/40-editor.md` and asserts the two name the same keys with the same defaults,
+  so a contribution that lands in the manifest and the headless suite alone fails the whole cargo
+  gate on a change that touched no Rust. Add the table row in the same slice and then run `python
+  tools/reference.py`, because that chapter is one of `docs/novis.md`'s sources and `--check` over it
+  is an acceptance check of its own. [until: gone crates/nvs-lsp/tests/extension_reference.rs]
 
 ## Running things
 

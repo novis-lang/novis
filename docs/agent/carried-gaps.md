@@ -659,6 +659,15 @@ where taking it is the work and the code that follows it is not.
   table question, and the table is on the compile path while the hint is not, so the cost lands on
   `AGENTS.md`'s priority 3 to buy something at priority 4. `crates/nvs-lsp/src/hints.rs` gap 1.
   [until: reviewed 2026-09-11]
+- **Emmet and HTML validation do not reach a template region**, where completion, hover, the colour
+  picker and tag renaming do. Forwarding runs a *provider* over a virtual document, and neither of
+  those two is one: Emmet expands from the language of the document the cursor is in, and validation
+  is published by the HTML service for the documents it owns.
+  `rule:ide/a-template-region-gets-services-but-no-second-formatter` names both, so what has to be
+  decided is whether `emmet.includeLanguages` mapping `nvs` to `html` — which turns abbreviation
+  expansion on in the Novis half of the file too — is the trade, or whether the client grows a
+  second, real document the service can own. `editors/vscode/src/regions.ts` § *What forwarding does
+  not reach*. [until: reviewed 2026-09-11]
 
 ## What is *not* on either list
 
