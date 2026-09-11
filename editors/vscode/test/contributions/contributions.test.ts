@@ -87,6 +87,7 @@ const SETTINGS = [
   "nvs.lsp.trace.server",
   "nvs.check.scope",
   "nvs.codeLens.enable",
+  "nvs.template.services",
   "nvs.secrets.redact",
   "nvs.taint.mark",
   "nvs.completion.phpNames",
@@ -369,6 +370,7 @@ describe("the frozen identifiers", () => {
     assert.equal(properties["nvs.check.scope"].default, "open");
     assert.deepEqual(properties["nvs.check.scope"].enum, ["open", "workspace"]);
     assert.equal(properties["nvs.codeLens.enable"].default, true);
+    assert.equal(properties["nvs.template.services"].default, true);
     assert.equal(properties["nvs.secrets.redact"].default, true);
     assert.equal(properties["nvs.taint.mark"].default, "off");
     assert.deepEqual(properties["nvs.taint.mark"].enum, ["off", "declaration", "sink"]);

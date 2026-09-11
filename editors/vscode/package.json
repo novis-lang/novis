@@ -130,6 +130,11 @@
           "default": true,
           "description": "Show reference, implementor and override counts above a declaration."
         },
+        "nvs.template.services": {
+          "type": "boolean",
+          "default": true,
+          "description": "Answer inside an inline-HTML region with the editor's own HTML, CSS and JavaScript services. Formatting is never among them: nvs fmt formats the whole file."
+        },
         "nvs.secrets.redact": {
           "type": "boolean",
           "default": true,
