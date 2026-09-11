@@ -16,8 +16,8 @@
 //! the one workspace symbol index — and out of what the client configured, and
 //! writes nothing back to any of them. The
 //! index is [`serve`]'s because the store it is built from is, and it is
-//! refreshed where an edit is applied rather than where one is answered, which
-//! is what keeps every one of its five features a reader
+//! refreshed in this loop rather than in an arm, which is what keeps every one
+//! of its five features a reader
 //! (`rule:ide/five-features-are-one-reference-index`).
 //! A request carries no version — the client is asking about whatever it last
 //! sent — so `rule:ide/the-server-is-synchronous`'s version check has nothing
@@ -32,10 +32,17 @@
 //! rather than this module's, and what goes into one is
 //! [`crate::diagnostics::for_document`]'s and, at workspace scope,
 //! [`crate::diagnostics::dimming`]'s.
+//!
+//! **An edit's share of that work waits out `nvs.lsp.debounce`**, and the next
+//! keystroke in the same buffer replaces it, so a line being typed is analysed
+//! once rather than once per character. [`reanalyse`] is the work and [`serve`]'s
+//! loop is what holds it back; a request arriving in the window runs it first,
+//! because an answer is about the buffer as it stands.
 
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
@@ -143,11 +150,12 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // open, and it is the place that reads the channel.
     let mut documents = Documents::new();
     // What the client configured, read once because `initialize` is the one
-    // message that carries it ([`crate::settings`]). Both settings decide what
-    // this server builds rather than what an answer says, so they are read
-    // here and not at a request: `scope` and the root are the tree the index
-    // below is constructed over, and `code_lens` is whether a lens is offered
-    // at all.
+    // message that carries it ([`crate::settings`]). Each of these decides what
+    // this server builds, or when it builds it, rather than what an answer says,
+    // so they are read here and not at a request: `scope` and the root are the
+    // tree the index below is constructed over, `code_lens` is whether a lens is
+    // offered at all, and `debounce` is how long an edit waits before it is
+    // analysed.
     let settings = Settings::from_initialize(&params);
 
     // The one index `rule:ide/five-features-are-one-reference-index` names,
@@ -158,35 +166,104 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // already holds every `.nvs` file under the root the client named.
     let mut index = SymbolIndex::build(&documents, settings.scope, settings.root.as_deref());
 
-    for message in &connection.receiver {
+    // The edit whose analysis `nvs.lsp.debounce` is holding back, and the
+    // moment it runs if nothing gets there first. `None` is a server at rest,
+    // which is what it is between one burst of typing and the next.
+    let mut waiting: Option<(Changed, Instant)> = None;
+
+    loop {
+        // What is left of that window, and `None` for a server at rest, which
+        // waits on the channel with no deadline at all.
+        let left = waiting
+            .as_ref()
+            .map(|(_, ready)| ready.saturating_duration_since(Instant::now()));
+        let message = match left {
+            Some(left) => match connection.receiver.recv_timeout(left) {
+                Ok(message) => message,
+                Err(error) if error.is_timeout() => {
+                    // The window elapsed with nothing behind it, so the
+                    // keystroke it was waiting out was the last one.
+                    if let Some((pending, _)) = waiting.take() {
+                        reanalyse(
+                            connection,
+                            &mut documents,
+                            &mut index,
+                            settings.scope,
+                            encoding,
+                            &pending,
+                        )?;
+                    }
+                    continue;
+                }
+                // The reader thread is gone, which is the end this loop reached
+                // before it ever waited for anything.
+                Err(_) => return Ok(()),
+            },
+            None => match connection.receiver.recv() {
+                Ok(message) => message,
+                Err(_) => return Ok(()),
+            },
+        };
+
         match message {
             Message::Request(request) => {
                 // `shutdown` is answered and then waited on: the client sends
                 // `exit` next, and `handle_shutdown` consumes it. Returning
-                // here is what ends the loop.
+                // here is what ends the loop — and a deferred analysis is
+                // dropped with it, because a client that is leaving has no use
+                // for a squiggle.
                 if connection.handle_shutdown(&request)? {
                     return Ok(());
+                }
+                // An answer is about the buffer as it stands, so a request cuts
+                // the window short rather than being answered off an index the
+                // keystroke in it has already made stale. What the debounce
+                // buys is the analysis a later keystroke makes pointless, never
+                // an answer that is behind the screen.
+                if let Some((pending, _)) = waiting.take() {
+                    reanalyse(
+                        connection,
+                        &mut documents,
+                        &mut index,
+                        settings.scope,
+                        encoding,
+                        &pending,
+                    )?;
                 }
                 let answered = answer(&documents, &index, &settings, encoding, request);
                 connection.sender.send(answered.into())?;
             }
             Message::Notification(notification) => {
-                if let Some(changed) = apply(&mut documents, notification) {
-                    // Refreshed for every edit and not just for the documents
-                    // `publish` re-analyses: a file nobody has open is still a
-                    // file a reference list has to be right about, which is
-                    // where the index stops being the document server
-                    // `rule:ide/an-open-document-is-its-own-entry-point`
-                    // describes. Before the publish because that one takes the
-                    // store mutably, and on this thread nothing reads the index
-                    // in between.
-                    if let Some(path) = &changed.path {
-                        index.refresh(&documents, path);
-                    }
-                    publish(
+                let Some(changed) = apply(&mut documents, notification) else {
+                    continue;
+                };
+                // A keystroke in the buffer whose analysis is already waiting
+                // replaces it, and that analysis never runs — the whole of what
+                // `nvs.lsp.debounce` buys. Anything else flushes it first, so
+                // diagnostics still arrive in the order the edits did.
+                if let Some((pending, _)) = waiting.take()
+                    && !(changed.edited && pending.path == changed.path)
+                {
+                    reanalyse(
                         connection,
                         &mut documents,
-                        &index,
+                        &mut index,
+                        settings.scope,
+                        encoding,
+                        &pending,
+                    )?;
+                }
+                // Only an edit waits. An open or a close is one deliberate
+                // action whose diagnostics the developer is already looking at
+                // the file for, and a zero debounce is the setting turned off
+                // rather than a window of no length.
+                if changed.edited && !settings.debounce.is_zero() {
+                    waiting = Some((changed, Instant::now() + settings.debounce));
+                } else {
+                    reanalyse(
+                        connection,
+                        &mut documents,
+                        &mut index,
                         settings.scope,
                         encoding,
                         &changed,
@@ -198,8 +275,34 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
             Message::Response(_) => {}
         }
     }
+}
 
-    Ok(())
+/// Analyses what `changed` made stale and publishes for every open document on
+/// that list, which is the work one document-sync notification owes and the work
+/// `nvs.lsp.debounce` defers.
+///
+/// The index is refreshed for every edit and not just for the documents
+/// [`publish`] re-analyses: a file nobody has open is still a file a reference
+/// list has to be right about, which is where the index stops being the document
+/// server `rule:ide/an-open-document-is-its-own-entry-point` describes. Before
+/// the publish because that one takes the store mutably, and on this thread
+/// nothing reads the index in between.
+///
+/// # Errors
+///
+/// As [`publish`].
+fn reanalyse(
+    connection: &Connection,
+    documents: &mut Documents,
+    index: &mut SymbolIndex,
+    scope: CheckScope,
+    encoding: PositionEncoding,
+    changed: &Changed,
+) -> Result<(), ServerError> {
+    if let Some(path) = &changed.path {
+        index.refresh(documents, path);
+    }
+    publish(connection, documents, index, scope, encoding, changed)
 }
 
 /// The response to one request.
@@ -1265,6 +1368,13 @@ struct Changed {
     path: Option<PathBuf>,
     /// The document that is no longer open, when this was a `didClose`.
     closed: Option<Uri>,
+    /// Whether this was an edit to an open buffer — a keystroke — rather than a
+    /// document opening or closing.
+    ///
+    /// Only an edit is held back by `nvs.lsp.debounce`, and only an edit is
+    /// replaced by the next one: two keystrokes in one buffer are one analysis,
+    /// where a close arriving behind an edit is two things that both happened.
+    edited: bool,
 }
 
 /// Applies a document-sync notification to the store, and says what it changed.
@@ -1285,7 +1395,11 @@ fn apply(documents: &mut Documents, notification: Notification) -> Option<Change
             let opened = params.text_document;
             let path = path_of(&opened.uri);
             documents.open(opened.uri, opened.version, opened.text);
-            Some(Changed { path, closed: None })
+            Some(Changed {
+                path,
+                closed: None,
+                edited: false,
+            })
         }
         DidChangeTextDocument::METHOD => {
             let params = serde_json::from_value::<DidChangeTextDocumentParams>(params).ok()?;
@@ -1305,6 +1419,7 @@ fn apply(documents: &mut Documents, notification: Notification) -> Option<Change
                 Some(Changed {
                     path: path_of(&document.uri),
                     closed: None,
+                    edited: true,
                 })
             } else {
                 None
@@ -1318,6 +1433,7 @@ fn apply(documents: &mut Documents, notification: Notification) -> Option<Change
                 Some(Changed {
                     path,
                     closed: Some(uri),
+                    edited: false,
                 })
             } else {
                 None

@@ -238,6 +238,17 @@ fn workspace_scope(dir: &TempDir) -> InitializeParams {
     }
 }
 
+/// `nvs.lsp.debounce` as a window nothing in a test reaches the end of, so what
+/// runs a waiting analysis is the message behind it and never a clock.
+fn never_elapses() -> InitializeParams {
+    InitializeParams {
+        initialization_options: Some(serde_json::json!({
+            "lsp": { "debounce": 600_000 },
+        })),
+        ..InitializeParams::default()
+    }
+}
+
 /// Whether any of `codes` is one a phase that reads the tree reported —
 /// resolution's, and the type check's across all three bands it occupies.
 fn reads_the_tree(codes: &[String]) -> bool {
@@ -439,5 +450,50 @@ fn a_closed_document_is_published_for_one_last_time_with_nothing_in_it() {
         // one was not analysed again.
         open(client, &dir.uri("other.nvs"), 1, CLEAN);
         assert_eq!(published(client).uri, dir.uri("other.nvs"));
+    });
+}
+
+/// Two keystrokes in one buffer are one analysis, and the one that runs is the
+/// second's.
+///
+/// `nvs.lsp.debounce` with a window no part of this case waits out, so the timing
+/// is the message order and not a clock: the second `didChange` replaces the
+/// first, and opening another document is what runs what is left. Were the first
+/// edit analysed as well, the publish after the edits would name version 2 and
+/// the one after that would still be `main.nvs`.
+#[test]
+fn a_keystroke_in_the_debounce_window_replaces_the_one_waiting() {
+    let dir = TempDir::new("debounce");
+    let broken = "<?nvs\nvar $broken = ;\n";
+    dir.write("main.nvs", CLEAN);
+    dir.write("other.nvs", CLEAN);
+
+    served_with(never_elapses(), |client| {
+        // An open is not a keystroke, so it is published for at once.
+        open(client, &dir.uri("main.nvs"), 1, CLEAN);
+        assert_eq!(published(client).version, Some(1));
+
+        change(client, &dir.uri("main.nvs"), 2, broken);
+        change(client, &dir.uri("main.nvs"), 3, CLEAN);
+        open(client, &dir.uri("other.nvs"), 1, CLEAN);
+
+        let flushed = published(client);
+        assert_eq!(flushed.uri, dir.uri("main.nvs"));
+        assert_eq!(
+            flushed.version,
+            Some(3),
+            "the analysis that ran is the one the last keystroke asked for"
+        );
+        assert!(
+            flushed.diagnostics.is_empty(),
+            "the superseded keystroke's own diagnostics reached the client: {:?}",
+            codes(&flushed)
+        );
+        assert_eq!(
+            published(client).uri,
+            dir.uri("other.nvs"),
+            "version 2 was analysed too, so a second publish about main.nvs came \
+             before the document opened last"
+        );
     });
 }
