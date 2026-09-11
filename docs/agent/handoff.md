@@ -2,43 +2,46 @@
 
 ## State
 
-**Goal `workspace-index`, stage 6 is landed.** `inlayHint` is `.lspt` vocabulary: `Request::InlayHint`
-is in the roster, `Response::Hints` renders `L:C kind label`, `suite`'s `answer` has the arm, and
-`tests/lsp/hints/` freezes the two shapes with five cases. The corpus is at 258 passing and
-`every_request_answers_every_construct` is green.
+**Goal `workspace-index` is landed whole, including its one ADR.** [0171](../decisions/0171.md)
+covers stage 2's index shape, stage 4's request admissions against [0099](../decisions/0099.md) § 3's
+test, stage 5's completion arms and stage 6's reversal of that record's inlay-hint deferral; its
+`changes.modifies` names `ide/the-request-set-is-closed`, whose fragment now carries M10's eight
+requests beside M4B's nine and says which four of the eight have `.lspt` vocabulary.
 
-**The driver's stage-1 floor check is green again.** `crates/nvs-lsp/src/hints.rs`'s known gap ended on
-a paragraph rather than on its owner tag, which `owners.py` reads as an untagged gap; the paragraph now
-sits above `# Known gaps`, where the playbook bullet on that message says to put it.
+**The stage-1 floor check was red at this session's start, not green.** The previous repair moved
+`crates/nvs-lsp/src/hints.rs`'s gap tag onto the item's last line, which made it readable as
+`unowned` — and an `unowned` tag owes a reason bullet naming that path. `docs/agent/carried-gaps.md`
+§ *Unowned* now carries it, and `python tools/owners.py --check --reasons` resolves every tagged gap.
+With that closed, `python tools/loop.py --goal-only` prints *GOAL REACHED: every acceptance check
+passes*, so this session's status line claims the goal rather than a slice.
 
-**What the goal still owes is its one ADR**, and nothing else. `docs/agent/loop-goal.md` § *Standing
-decisions* names what it covers; the number 0171 was free at this commit and is worth re-deriving.
-
-**One fact the record's stage-4 paragraph needs and no file states plainly:** `Request::ALL`
-(`crates/nvs-lsp/src/case.rs:92`) carries M10's four *case* additions — `codeLens`, `references`,
-`documentHighlight`, `inlayHint` — while `signatureHelp`, `typeDefinition`, `implementation` and
-`typeHierarchy` are answered on the wire only (`crates/nvs-lsp/src/server.rs:49`, `:278`) and have no
-`.lspt` vocabulary. The rule amendment has to say which list it is naming.
+**Two things this session left standing on purpose.** `ide/the-request-set-is-closed` is still
+`status: designed` though the server answers every request it names (`docs/rules/ide.json:183`) —
+moving it to `shipped` publishes it into `docs/novis.md` and is a claim about the whole M4B client,
+not about this crate. And `docs/plan/m4b.md:52` and `:155` still say "nine standard requests",
+which is M4B's own history and correct where it stands.
 
 ## Next group
 
-**Stage 6: the goal's one ADR** — one file set: `docs/decisions/0171.md` (new), `docs/rules/ide.json`,
-`docs/rules/ide/the-request-set-is-closed.md`.
+**No stage: the goal's own stages are closed** — one file set:
+`crates/nvs-lsp/src/render.rs`, `crates/nvs-lsp/src/case.rs`, `crates/nvs-lsp/tests/coverage.rs`.
 
-- [ ] **The record and the rule it amends, in one commit.** Write `docs/decisions/0171.md` to
-      `docs/agent/conventions.md` § *A decision record*'s shape — re-derive the number from
-      `docs/decisions/` first — covering stage 2's index shape, stage 4's request admissions against
-      [ADR 0099](../decisions/0099.md) § 3's test, stage 5's namespace and bare-name arms, and stage
-      6's reversal of that record's inlay-hint deferral. Its `changes.modifies` names
-      `ide/the-request-set-is-closed`; the entry at `docs/rules/ide.json:181` gains `"0171"` in
-      `because`, and the fragment `docs/rules/ide/the-request-set-is-closed.md:1` gains M10's
-      additions beside M4B's nine — its closing paragraph currently says inlay hints "stay" at M10,
-      which is the sentence this goal made false. Then `python tools/rules.py --render`, which
-      `session.py --wrap` runs as a gate anyway.
+- [ ] **A rendering for the four wire-only requests, so each becomes a `.lspt` case.**
+      `signatureHelp`, `typeDefinition`, `implementation` and `typeHierarchy` are answered at
+      `crates/nvs-lsp/src/server.rs:278`, `:260`, `:266` and `:337` but carry no canonical spelling,
+      which is why `crates/nvs-lsp/src/case.rs:98`'s `Request::ALL` does not name them
+      (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`: a case may not invent one). Add each
+      shape to `crates/nvs-lsp/src/render.rs:1`'s renderer first — [0171](../decisions/0171.md) § 2
+      is the reasoning, and it says giving one a rendering changes nothing about the answer.
+- [ ] **Then the roster row and the cases.** Each request added to
+      `crates/nvs-lsp/src/case.rs:98` becomes a row `crates/nvs-lsp/tests/coverage.rs:57`'s
+      `every_request_answers_every_construct` requires at every construct, so the cases under
+      `tests/lsp/` land in the same slice as the roster entry or the gate goes red.
 
 ## Backlog
 
-- `crates/nvs-lsp/src/hints.rs:58`'s known gap is `unowned`: widening past `ExprInfo::Call` is a
-  table question, and no goal holds it — `docs/agent/carried-gaps.md` if this goal retires first.
-- The `Int` construct is reached by `inlayHint` in the Rust test and by no `.lspt` case, per the
-  playbook bullet this session added.
+- `crates/nvs-lsp/src/hints.rs` gap 1 — parameter hints only for `ExprInfo::Call`; unowned with its
+  reason in `docs/agent/carried-gaps.md` § *Unowned*.
+- `ide/the-request-set-is-closed` and its neighbours are `status: designed` with shipping code
+  behind them — `docs/rules/ide.json`, a sweep and not a slice.
+- `python tools/decisions.py --work` is the user-fired summary chore — `docs/agent/decisions-summary.md`.

@@ -1642,6 +1642,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   half in the module the generated table lands in, and the refusal in a `-p <crate>` test, which
   under `tools/verify.py`'s stop-at-the-first-failure is the build that does not finish.
   [until: reviewed 2026-09-11]
+- **Moving a gap's owner tag onto the item's last line trades one `owners.py` failure for the next
+  one.** The repair two bullets up makes the tag *readable*, and what it then reads is `unowned`,
+  which `--reasons` refuses until `carried-gaps.md` § *Unowned* carries a bullet naming that
+  module's path — so a session that fixed the paragraph placement and stopped leaves the same floor
+  check red for a different reason. Re-run `python tools/owners.py --check --reasons` after the
+  repair, never the bare `--check`, and distrust a handoff that calls the floor green without
+  quoting the tool. [until: reviewed 2026-09-11]
 
 ## Running things
 

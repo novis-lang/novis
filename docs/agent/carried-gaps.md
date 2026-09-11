@@ -65,7 +65,8 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Sixty-four entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **One bullet each, and `python
+tools/owners.py --unowned` is the roster derived from the modules themselves.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -650,6 +651,14 @@ where taking it is the work and the code that follows it is not.
   the cost of deciding it is not the walk: `definition` and `hover` answer a cursor on `Suit::Hearts`
   by jumping to the enum today, and a table that named the case would move both of those answers.
   `crates/nvs-lsp/src/index.rs` gap 1. [until: reviewed 2026-09-11]
+- **A parameter hint is drawn only for the call variant that carries parameter names**, because
+  `nvs_types::ResolvedCall::param_names` is reached through `ExprInfo::Call` and a `new`, a call
+  through a `callable` signature and an erased call on a `mixed` receiver each record a different
+  variant — one of which has no names to give at any price. What has to be decided is whether the
+  *type* phase records more for every program so the editor can draw two more hints: widening is a
+  table question, and the table is on the compile path while the hint is not, so the cost lands on
+  `AGENTS.md`'s priority 3 to buy something at priority 4. `crates/nvs-lsp/src/hints.rs` gap 1.
+  [until: reviewed 2026-09-11]
 
 ## What is *not* on either list
 
