@@ -239,6 +239,11 @@ pub enum Roots {
     Defaults,
 }
 
+/// The file step 2 looks for in the working directory, and so the name anything writing one gives
+/// it: the lookup and the writer have to agree on the spelling or the file created is not the file
+/// found.
+pub const LOCAL_FILE: &str = "nvs.toml";
+
 /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in the order given, else `./nvs.toml`, else the shipped defaults.
 ///
 /// `flags` are resolved against `cwd` because a path given on the command line means what a shell
@@ -252,7 +257,7 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
     if !flags.is_empty() {
         return Roots::Files(flags.iter().map(|flag| absolute(cwd, flag)).collect());
     }
-    let local = cwd.join("nvs.toml");
+    let local = cwd.join(LOCAL_FILE);
     if files.exists(&local) {
         // Exactly this directory, never a walk upward: what makes reading the wrong file a
         // question about one path rather than about an ancestry.

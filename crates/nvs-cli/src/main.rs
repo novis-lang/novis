@@ -187,6 +187,39 @@ struct Cli {
     // step 1, and § 5 is the resolution against the working directory.
     #[arg(long, value_name = "PATH", global = true)]
     config: Vec<PathBuf>,
+
+    /// Do not write a `nvs.toml` when there is none to read.
+    ///
+    /// A project command that finds no configuration writes the shipped
+    /// default file into the working directory and reads that; this leaves
+    /// the directory as it was and runs on the same defaults uncommented.
+    /// `NOVIS_NO_INIT` in the environment says the same thing, for a build
+    /// step that is not in a position to add a flag.
+    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+    // step 3; see [`config::init_gate`].
+    #[arg(long, global = true)]
+    no_init: bool,
+}
+
+/// The project commands, which are the ones that write the shipped default file when they resolve
+/// no tree: the commands that read a configuration **in order to execute something**.
+///
+/// Everything else leaves the directory alone. An audit that creates the file it is auditing
+/// reports on its own output, and an `nvs lsp` that writes into every folder an editor opens is a
+/// defect rather than a convenience. This table is the whole of that decision, so a sixth command
+/// joins it here with a sentence rather than by threading a flag through an arm.
+///
+/// `nvs build` resolves no tree today and so reaches nothing to write; it is named because the
+/// answer for it is decided, not because it currently does anything.
+fn initializes(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Run { .. }
+            | Command::Serve { .. }
+            | Command::Test { .. }
+            | Command::Build { .. }
+            | Command::Check { .. }
+    )
 }
 
 #[derive(Subcommand)]
@@ -907,6 +940,11 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
 
+    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3's gate,
+    // decided once from [`initializes`] and handed down by the arms that resolve a tree.
+    let no_init = std::env::var_os(config::NO_INIT);
+    let init = config::init_gate(initializes(&command), cli.no_init, no_init.as_deref());
+
     match command {
         Command::Ast {
             file,
@@ -922,7 +960,7 @@ fn main() -> ExitCode {
             json,
             autoload_map,
             strict_docs,
-        } => run_check(&cli.config, &file, json, autoload_map, strict_docs),
+        } => run_check(&cli.config, &file, json, autoload_map, strict_docs, init),
         Command::Run {
             file,
             dump_ir,
@@ -938,9 +976,10 @@ fn main() -> ExitCode {
             request.as_deref(),
             &cli.config,
             arguments,
+            init,
         ),
         Command::Serve { file, listen, port } => {
-            serve::run(&file, listen.as_deref(), port, &cli.config)
+            serve::run(&file, listen.as_deref(), port, &cli.config, init)
         }
         Command::Test {
             paths,
@@ -950,7 +989,17 @@ fn main() -> ExitCode {
             format,
             update,
             list,
-        } => run_test(&paths, filter, php, jobs, format, update, list, &cli.config),
+        } => run_test(
+            &paths,
+            filter,
+            php,
+            jobs,
+            format,
+            update,
+            list,
+            &cli.config,
+            init,
+        ),
         Command::Build {
             file,
             openapi,
@@ -1141,7 +1190,7 @@ impl Checked {
 /// `Err` is the exit code to return: a read failure, or at least one error
 /// diagnostic. Warnings are rendered and do not stop anything.
 fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
-    front_end_granted(path, None, false, Sink::Text)
+    front_end_granted(path, None, false, Sink::Text, config::Init::Never)
 }
 
 /// [`front_end`] with the deployment's `[capabilities]` block in front of it —
@@ -1180,6 +1229,7 @@ fn front_end_granted(
     config: Option<&[std::path::PathBuf]>,
     strict_docs: bool,
     sink: Sink,
+    init: config::Init,
 ) -> Result<Checked, ExitCode> {
     let mut map = SourceMap::new();
     let id = match map.load(path) {
@@ -1194,7 +1244,7 @@ fn front_end_granted(
     // is still "could not read", and a broken `nvs.toml` is the configuration
     // error rather than the first thing the parser noticed.
     let grants = match config {
-        Some(config) => config::grants(config, path)?,
+        Some(config) => config::grants(config, path, init)?,
         None => None,
     };
 
@@ -1292,9 +1342,10 @@ fn run_check(
     json: bool,
     autoload_map: bool,
     strict_docs: bool,
+    init: config::Init,
 ) -> ExitCode {
     let sink = if json { Sink::Json } else { Sink::Text };
-    match front_end_granted(path, Some(config), strict_docs, sink) {
+    match front_end_granted(path, Some(config), strict_docs, sink, init) {
         Ok(checked) => {
             if autoload_map {
                 let base = match path.parent() {
@@ -1604,6 +1655,10 @@ fn inbound_of(text: &str) -> Result<nvs_runtime::Inbound, String> {
     Ok(spec.build())
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one parameter per `Command::Run` flag, plus the tree the run resolves; a struct here would be a second spelling of that variant"
+)]
 fn run_run(
     path: &std::path::Path,
     dump_ir: bool,
@@ -1612,6 +1667,7 @@ fn run_run(
     request: Option<&std::path::Path>,
     config: &[PathBuf],
     arguments: Vec<String>,
+    init: config::Init,
 ) -> ExitCode {
     let checked = match front_end(path) {
         Ok(checked) => checked,
@@ -1665,7 +1721,7 @@ fn run_run(
     } else {
         path.to_path_buf()
     };
-    let snapshot = match config::boot_snapshot(config, &config_entry, &mut config_sources) {
+    let snapshot = match config::boot_snapshot(config, &config_entry, &mut config_sources, init) {
         Ok(snapshot) => snapshot,
         Err(diagnostic) => {
             let mut diags = Diagnostics::new();
@@ -2085,6 +2141,7 @@ fn run_test(
     update: bool,
     list: bool,
     config: &[PathBuf],
+    init: config::Init,
 ) -> ExitCode {
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
     // by a flag: a program is a `.nvs` file and a conformance case is not, so
@@ -2102,7 +2159,7 @@ fn run_test(
         // address an artifact by an environment this run is not in. A tree that
         // does not resolve stops a test run exactly as it stops a `nvs run`.
         let mut config_sources = SourceMap::new();
-        let snapshot = match config::boot_snapshot(config, path, &mut config_sources) {
+        let snapshot = match config::boot_snapshot(config, path, &mut config_sources, init) {
             Ok(snapshot) => snapshot,
             Err(diagnostic) => {
                 let mut diags = Diagnostics::new();
@@ -2223,8 +2280,34 @@ fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, inbound_of};
-    use clap::CommandFactory as _;
+    use super::{Cli, inbound_of, initializes};
+    use clap::{CommandFactory as _, Parser as _};
+
+    /// The half of [`initializes`]'s table that writes nothing, read through the parser so the
+    /// case names the command line rather than a variant: `nvs config check` and `nvs config dump`
+    /// audit a tree, and an audit that creates the file it is auditing reports on its own output;
+    /// `nvs lsp` is started by an editor in every folder it opens, and one that wrote into each of
+    /// them is a defect rather than a convenience.
+    ///
+    /// The project commands are asserted beside them, because the decision this pins is the
+    /// **split** — a table that silently lost a row would pass a case that only checked one side.
+    #[test]
+    fn config_check_and_dump_and_lsp_never_write() {
+        let writes = |argv: &[&str]| {
+            let cli = Cli::try_parse_from(argv).expect("the fixture is a command line `nvs` takes");
+            initializes(&cli.command.expect("a subcommand was named"))
+        };
+
+        assert!(!writes(&["nvs", "config", "check"]));
+        assert!(!writes(&["nvs", "config", "dump"]));
+        assert!(!writes(&["nvs", "lsp"]));
+
+        assert!(writes(&["nvs", "run", "app.nvs"]));
+        assert!(writes(&["nvs", "serve", "app.nvs"]));
+        assert!(writes(&["nvs", "test", "app.nvs"]));
+        assert!(writes(&["nvs", "build", "--openapi", "app.nvs"]));
+        assert!(writes(&["nvs", "check", "app.nvs"]));
+    }
 
     /// One field line off the carrier, as text, so the assertions below read as
     /// the case's own lines.

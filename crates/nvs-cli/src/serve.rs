@@ -125,13 +125,14 @@ pub(crate) fn run(
     listen: Option<&str>,
     port: Option<u16>,
     config: &[PathBuf],
+    init: crate::config::Init,
 ) -> ExitCode {
     // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved exactly as `nvs run` resolves it and
     // for the same reason: a tree that does not resolve is a refusal to start.
     // The `[server]` block is `Boot`-class as a whole (`rule:http-server/the-server-block-is-boot-class`), so this
     // is the only time it is read.
     let mut sources = SourceMap::new();
-    let (snapshot, origins) = match crate::config::boot_origins(config, path, &mut sources) {
+    let (snapshot, origins) = match crate::config::boot_origins(config, path, &mut sources, init) {
         Ok(both) => both,
         Err(diagnostic) => return report(diagnostic, &sources),
     };

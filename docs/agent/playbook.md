@@ -1709,6 +1709,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   blank line or a block header and nowhere else, and `--check-template` never notices, because it
   reads that prose only for a key the tree declares unread. Leave a blank line after the last key a
   note covers. [until: gone crates/nvs-config/src/default.toml:NOT IMPLEMENTED]
+- **A project command writes `nvs.toml` into whatever directory it runs in, so an integration test
+  that runs the binary in a scratch directory gets a tree it did not write.** `nvs check` there used
+  to measure a program against nothing and now measures it against a deny-all file of its own
+  making, which is how `crates/nvs-cli/tests/check_grants.rs:88` turned red on a change that never
+  named it. A fixture meaning *no configuration* has to say so: pass `--no-init`, or set
+  `NOVIS_NO_INIT` on the child. [until: reviewed 2026-09-11]
 
 ## Running things
 

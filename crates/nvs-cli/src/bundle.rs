@@ -128,6 +128,11 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
         None,
         &[],
         std::env::args().skip(1).collect(),
+        // Step 3 writes for a **project command**, and a bundle is not one: there is no `nvs run`
+        // in front of this to have been typed in a project, and a shipped executable that left a
+        // `nvs.toml` in whatever directory a user happened to start it from would be writing into
+        // one nobody chose. It runs on the shipped defaults, as it did before that step existed.
+        crate::config::Init::Never,
     )
 }
 
