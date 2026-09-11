@@ -2,53 +2,54 @@
 
 ## State
 
-**Goal `config-is-written` — stage 2 is green.** `crates/nvs-config/src/default.toml` is on disk with
-every one of the tree's 212 leaf keys spelled once and commented out, `nvs_config::default_file()`
-hands it to a caller, and the three tests stage 2 names pass. `python tools/directives.py
---check-template` is green and is now step 4 of `verify.py`, so the file and the tree cannot drift
-outside the loop either.
+**Goal `config-is-written` — stage 2 is green, and stage 1's `nvs-config` half is now green too.**
+`crates/nvs-config/tests/directives.rs` carries the roster's two Rust assertions:
+`every_unread_key_names_what_is_missing_and_who_owns_it` holds each `[unread:]` trailer to a
+non-empty *why* and an owner that can be opened — a `rule:` id or a four-digit record number — and
+`no_key_with_a_reader_still_claims_to_be_unread` holds every key the default file marks
+`NOT IMPLEMENTED` to having no reader that spells it under `crates/*/src` or `benches/*/src`.
 
-**Stage 1 is what is still open, in two checks, and neither is a regression** — both name tests no
-crate has written yet. `nvs-cli` owes the artifact cache's one-spelling pair, and `nvs-config` owes
-the roster's two Rust assertions; the ledger line the driver repeats is the first of those.
+**The reader half is the narrower of the two claims its name allows, and its doc comment says so.**
+A reader is counted three ways (`tools/directives.py`'s module doc) and only the dotted key as a
+string literal is a spelling a scan can answer exactly: the field *name* is not the key, because
+`[metrics] listen` and `[debug] mode` share their names with `capabilities.net.listen`,
+`server.listen` and `[app] mode`. The census over all three spellings stays the tool's, which
+`verify.py` runs — and the half asserted in Rust is the one a field search cannot see.
 
-**The file states a default only where the tree states one.** A value beside a key is that key's
-*spelling*; a claim about the shipped default appears only in a sentence opening `Unset,`, and the
-preamble says so. The three places one was derivable: `crates/nvs-config/src/mode.rs:69`'s `DERIVED`
-table (`[log] format` is `json`, `[log] level` is `Info`, `[http.errors] detail` is `generic`, each
-the production value a reader must assume because the table is not applied at boot),
-`crates/nvs-runtime/src/ctx/limits.rs:376` (an unset `[limits]` key is **no cap at all**, which is
-why that block claims none), and `DEFAULT_MAX_SCRIPT_DEPTH = 64`.
+**The dotted key comes off the default file's own block headers**, so neither case walks the field
+graph: `settings_with_prose()` now returns the header with each setting, and the pair of cases that
+was already there holds that marked set equal to the tree's trailers.
 
-**`[db.pool]`'s four bounds are the one place the file names keys an operator should not write.** The
-tree parses them, so `--check-template` requires them spelled; `nvs_config::db::validate` refuses a
-table of bounds written unscoped. The prose above them says both things and points at
-`[db.<name>.pool]`.
+**Stage 1's remaining check is `nvs-cli`'s, and it is a test over landed behaviour rather than new
+code.** `opcache.file_cache_dir` is already the only spelling of the artifact cache directory
+(`crates/nvs-config/src/tree.rs:966`, `docs/decisions/0175.md`), `from_config` already reads it, and
+`[cache]` has no `dir` field at all — so what is missing is the pair of cases that pins both.
 
 ## Next group
 
-**Stage 1: the roster's two Rust assertions, which `directives.py` already makes and no `cargo test`
-does — one file set:** `crates/nvs-config/tests/directives.rs`, `crates/nvs-config/src/tree.rs`.
+**Stage 1: the artifact cache's one spelling, in `nvs-cli` — one file set:**
+`crates/nvs-cli/src/cache.rs`, with `crates/nvs-config/src/tree.rs` read only.
 
-- [ ] **`every_unread_key_names_what_is_missing_and_who_owns_it`.** `declared_unread()` at
-      `crates/nvs-config/tests/directives.rs:401` already parses every `[unread:]` trailer out of
-      `tree.rs`; what this adds is the assertion that each one names a non-empty *why* and an owner
-      that is a `rule:` id or a record number, the shape `tools/directives.py:515` refuses at.
-      Specified by `rule:config/three-changeability-classes`' roster half and the goal's stage 1.
-- [ ] **`no_key_with_a_reader_still_claims_to_be_unread`.** The half that needs a reader census, which
-      is a grep over the workspace (`tools/directives.py:515` is the same assertion in Python).
-      **Decide first** whether the Rust case walks `crates/**/*.rs` itself or asserts the narrower
-      thing it can see — the trailer set at `crates/nvs-config/src/tree.rs:379` against the keys the
-      crate's own modules read — and say which in the case's doc comment, because the narrower one is
-      a different claim from the check's name.
+- [ ] **`the_configured_cache_directory_is_read_from_the_key_the_tree_documents`.**
+      `crates/nvs-cli/src/cache.rs:1331`'s `from_config` builds the cache at the path
+      `opcache.file_cache_dir` names and `crates/nvs-cli/src/cache.rs:989`'s `dir()` hands it back,
+      so the case sets that key on a `Config` and asserts the path it gets. **`from_config` is
+      `pub(crate)`**, so this cannot be an integration test under `crates/nvs-cli/tests/` — it is a
+      `#[cfg(test)]` unit test in `cache.rs`, which the check's `cargo test -p nvs-cli` runs either
+      way. Specified by `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` and the
+      goal's stage 1.
+- [ ] **`a_cache_directory_written_in_the_retired_spelling_is_reported_not_ignored`.** `dir` is not
+      a field of `crates/nvs-config/src/tree.rs:971`'s `Cache`, so `deny_unknown_fields` refuses
+      `[cache] dir` already; the case parses that file text through `nvs_config::file::parse` and
+      asserts the refusal *names* the key, rather than a boot taking it silently. `nvs-cli` depends
+      on `nvs-config`, so it can host this beside the case above.
 
 ## Backlog
 
-- Stage 1's other half: the artifact cache's one spelling, `crates/nvs-cli/src/cache.rs` and a
-  `[unread:]`-free reader for `opcache.file_cache_dir` — ADR 0175 is the decision, the goal's stage 1
-  is the list.
 - Stage 3, the write: six tests over `nvs-cli`, four of them refusals — `docs/agent/loop-goal.toml`
   stage `3 the write`.
 - `crates/nvs-config/src/default.toml` carries no `[db]`/`[mail]`/`[storage]` block name but one
   example each (`main`, `default`, `local`); if a doc wants the canonical example names, that is
   `docs/reference/tools/20-config.md`'s to state.
+- The field-access and bare-name reader spellings have one home, `tools/directives.py`; a Rust case
+  that re-derives either answers about whichever same-named field it found.
