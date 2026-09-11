@@ -3187,13 +3187,15 @@ pub mod code {
     /// parameter spelling is one mistake and deleting the names is one fix.
     pub const E_CALLABLE_TYPE_NAMES_A_PARAMETER: Code = Code::new("E0800");
 
-    /// `echo` and a `Core\Response` body member writing one response body —
+    /// Two writers of one response body — `echo` and a typed body member, or
+    /// two different typed members —
     /// `rule:security/response-body-is-one-typed-member`
     /// 's sixth row.
     ///
-    /// The two disagree about the body's type and its `Content-Type`, and
+    /// They disagree about the body's type and its `Content-Type`, and
     /// letting the last one win is how a JSON endpoint acquires an HTML
-    /// prelude. Reported inside a `#[Route]` handler and nowhere else, because
+    /// prelude. One member called twice is one writer and is not this
+    /// diagnostic. Reported inside a `#[Route]` handler and nowhere else, because
     /// § 3 binds `echo` by context and a handler is the one body a request is
     /// statically certain to reach — `nvs_types::response`'s module doc owns
     /// that scope, the reach inside a handler, and the entry-script gap it

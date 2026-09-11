@@ -1,12 +1,14 @@
-//! `rule:security/response-body-is-one-typed-member`'s sixth row: `echo` and a `Core\Response` body member on one
-//! response is a compile error (`E0801`).
+//! `rule:security/response-body-is-one-typed-member`'s sixth row: two writers
+//! of one response body is a compile error (`E0801`), whether they are `echo`
+//! and a typed member or two different typed members.
 //!
 //! Asserted from both ends, because the rule is as much about what it leaves
 //! alone as about what it refuses: inside a `#[Route]` handler the mix is
 //! refused whichever order it is written in and wherever in the body it is
 //! written, and outside one — a CLI program, where a body member's declaration
-//! is inert — nothing here fires at all. `nvs_types::response`'s module doc
-//! owns that scope and the entry-script gap it leaves.
+//! is inert — nothing here fires at all. One member called twice is one writer
+//! and is accepted inside a handler too. `nvs_types::response`'s module doc
+//! owns that scope, that boundary, and the entry-script gap it leaves.
 
 mod common;
 
@@ -111,6 +113,99 @@ fn echo_beside_a_response_stream_is_a_diagnostic() {
     // CLI program alone: there is no response for two writers to disagree over.
     let diags = check_src(&plain_method(
         "    echo \"prelude\";\n    var $s = Core\\Response::stream(\"text/csv\");\n",
+    ));
+    assert!(!refused(&diags), "{diags:?}");
+}
+
+/// Door two's spelling of a body written over time, so `echo` beside it is the
+/// same compile error — and the roster spanning two classes is the only thing
+/// that makes it one (`rule:concurrency/two-doors-one-isolate`).
+///
+/// `Core\Sse::stream` is not in `nvs_stdlib::registry` yet, as `html` and
+/// `sendFile` are not: this rule reads the call's name, and an unresolved one
+/// is reported beside the refusal rather than instead of it, so the row holds
+/// before the member does. What the last two cases pin is the *other* door —
+/// `upgrade` hands an isolate over and the response it answers with is the
+/// server's, so it writes no body here and a handler that echoes beside it has
+/// written one.
+#[test]
+fn echo_beside_an_event_stream_is_a_diagnostic() {
+    let diags = check_src(&handler(
+        "    echo \"prelude\";\n    var $s = Core\\Sse::stream();\n",
+    ));
+    assert!(refused(&diags), "{diags:?}");
+
+    // The other order is the same mistake, as it is for every other row.
+    let diags = check_src(&handler(
+        "    var $s = Core\\Sse::stream();\n    echo \"epilogue\";\n",
+    ));
+    assert!(refused(&diags), "{diags:?}");
+
+    // The connection door is not a body writer.
+    let diags = check_src(&handler(
+        "    echo \"prelude\";\n    Core\\Sse::upgrade(\"streams/feed.nvs\");\n",
+    ));
+    assert!(!refused(&diags), "{diags:?}");
+
+    // And outside a handler nothing fires, for the reason every other row
+    // leaves a CLI program alone.
+    let diags = check_src(&plain_method(
+        "    echo \"prelude\";\n    var $s = Core\\Sse::stream();\n",
+    ));
+    assert!(!refused(&diags), "{diags:?}");
+}
+
+/// A body has one writer, so two *different* writers in one handler is the
+/// refusal `echo` beside one is, reached through the same roster.
+///
+/// The load-bearing half is the boundary underneath it: one member called
+/// twice is one writer and is accepted, because the disagreement this rule is
+/// about is over the `Content-Type` and a member declaring its own type again
+/// has said nothing new. `nvs_types::response`'s module doc owns that line.
+#[test]
+fn two_body_writers_on_one_response_is_a_diagnostic() {
+    // Two of § 4's table, disagreeing about the body's type exactly as `echo`
+    // and one of them do.
+    let diags = check_src(&handler(
+        "    Core\\Response::text(\"t\");\n    Core\\Response::json(1);\n",
+    ));
+    assert!(refused(&diags), "{diags:?}");
+
+    // The two doors onto a body written over time are two writers of one body,
+    // which is the pair the roster was widened for — and the one a `500` used
+    // to be the only answer to.
+    let diags = check_src(&handler(
+        "    var $s = Core\\Response::stream(\"text/csv\");\n    \
+         var $e = Core\\Sse::stream();\n",
+    ));
+    assert!(refused(&diags), "{diags:?}");
+
+    // One member twice is one writer. `a_handler_that_writes_its_body_one_way_is_accepted`
+    // asserts the whole of that half; what is here is the pair this test would
+    // otherwise have refused by counting calls instead of comparing writers.
+    let diags = check_src(&handler(
+        "    Core\\Response::text(\"a\");\n    Core\\Response::text(\"b\");\n",
+    ));
+    assert!(!refused(&diags), "{diags:?}");
+
+    // One report per body, as for `echo`: a handler with three writers has
+    // made one mistake, and a diagnostic per writer describes it no better.
+    let diags = check_src(&handler(
+        "    Core\\Response::text(\"a\");\n    Core\\Response::json(1);\n    \
+         Core\\Response::bytes(\"b\" as bytes, \"application/octet-stream\");\n",
+    ));
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_ECHO_BESIDE_A_BODY_MEMBER))
+            .count(),
+        1,
+        "{diags:?}"
+    );
+
+    // And outside a handler nothing fires.
+    let diags = check_src(&plain_method(
+        "    Core\\Response::text(\"t\");\n    Core\\Response::json(1);\n",
     ));
     assert!(!refused(&diags), "{diags:?}");
 }

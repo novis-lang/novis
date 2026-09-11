@@ -45,10 +45,20 @@
 //! is a body-local rule, deliberately, for [`crate::links`]'s opposite reason —
 //! a rule that needs the call graph cannot be answered where it is written.
 //!
-//! **Two typed members in one handler are not refused here.** They disagree
-//! about the `Content-Type` exactly as `echo` and one of them do, but § 4's row
-//! names `echo` and a typed writer, and the ADR is the specification; a second
-//! rule belongs to whichever ADR states it.
+//! **Two typed members in one handler are refused here too, and one member
+//! called twice is not.** What the rule says is that a body has one writer, so
+//! the disagreement needs two *different* writers to exist: `text` then `json`
+//! declares the body's type twice over, while `text` then `text` declares one
+//! thing twice and is a handler writing its whole body one way. The corpus
+//! depends on that second half — a body member written in a loop is an
+//! ordinary program — so the roster is compared by the writer's name and never
+//! by the call site.
+//!
+//! **The roster spans two classes.** A body written over time has a spelling
+//! on each of `rule:concurrency/two-doors-one-isolate`'s doors, and
+//! `Core\Response::stream` and `Core\Sse::stream` open the same cell and
+//! declare a content type each — so `echo` beside either is the same
+//! disagreement, and the two of them together are two writers of one body.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
@@ -56,25 +66,38 @@ use nvs_syntax::ast::MethodMember;
 
 use crate::{Ctx, Env};
 
-/// Every `Core\Response` member that writes the body, by the name a call
-/// spells.
+/// Every member that writes the body, as the `Core` class it is spelled on and
+/// the name a call spells.
 ///
 /// `rule:security/response-body-is-one-typed-member`'s table first, in its own
 /// order. `html` and `sendFile` are not in `nvs_stdlib::registry` yet — the
 /// first waits on `Core\Html\Markup` being spellable as a registry parameter
 /// and the second on a mount root to resolve a path against — and they are
-/// listed anyway: a name that does not resolve is `E0405` before it reaches
-/// here, so an unregistered row costs nothing, and leaving it out would make
-/// landing the member a two-file change with the second file easy to miss.
+/// listed anyway: an unregistered name is reported as `E0405` *beside* this
+/// refusal rather than instead of it, so a row here costs nothing while its
+/// member is being landed, and leaving it out would make landing one a
+/// two-file change with the second file easy to miss.
 ///
-/// `stream` is last and is not one of that table's rows: a body written over
-/// time is `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
-/// subject. It belongs here all the same, and for this rule's own reason — it
-/// writes the body and declares a content type, so `echo` beside it is the
-/// same disagreement about what the response carries, reached through the
-/// machinery already here rather than through a second rule that would have to
-/// agree with this one.
-const BODY_MEMBERS: [&str; 6] = ["html", "json", "text", "bytes", "sendFile", "stream"];
+/// The two `stream` rows are not that table's: a body written over time is
+/// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+/// subject, and it has one spelling on each of
+/// `rule:concurrency/two-doors-one-isolate`'s doors. Both belong here for this
+/// rule's own reason — each writes the body and declares a content type, so
+/// `echo` beside either is the same disagreement about what the response
+/// carries, reached through the machinery already here rather than through a
+/// second rule that would have to agree with this one. The class is carried
+/// beside the name because of them: every other row is a `Core\Response`
+/// member, and a name list could not tell `Core\Sse::stream` from an
+/// unrelated `stream` on some other `Core` class.
+const BODY_MEMBERS: [(&str, &str); 7] = [
+    ("Response", "html"),
+    ("Response", "json"),
+    ("Response", "text"),
+    ("Response", "bytes"),
+    ("Response", "sendFile"),
+    ("Response", "stream"),
+    ("Sse", "stream"),
+];
 
 /// What has written the body of the body being checked, so far.
 ///
@@ -89,7 +112,9 @@ pub(crate) struct BodyWriters {
     armed: bool,
     /// The first `echo` statement in it.
     echo: Option<Span>,
-    /// The first `Core\Response` body member call in it, and which member.
+    /// The first body-writing member call in it, and the label naming it —
+    /// the label rather than the bare name, because two writers are told apart
+    /// by which member they are and the roster spans two classes.
     member: Option<(Span, String)>,
     /// Whether the conflict has already been reported for this body. One report
     /// per body: a handler that echoes in a loop and declares a body once has
@@ -123,7 +148,7 @@ pub(crate) fn note_echo(span: Span, env: &mut Env<'_>) {
         return;
     }
     if let Some((member_span, member)) = env.body_writers.member.clone() {
-        report(span, "`echo`", member_span, &member_label(&member), env);
+        report(span, "`echo`", member_span, &member, env);
         return;
     }
     env.body_writers.echo.get_or_insert(span);
@@ -136,29 +161,40 @@ pub(crate) fn note_echo(span: Span, env: &mut Env<'_>) {
 /// is one comparison and keeping it here is what makes `rule:security/response-body-is-one-typed-member`'s roster
 /// readable in one place.
 pub(crate) fn note_body_member(qname: &QName, member: &str, span: Span, env: &mut Env<'_>) {
-    if !env.body_writers.armed || env.body_writers.reported || !is_body_member(qname, member) {
+    if !env.body_writers.armed || env.body_writers.reported {
         return;
     }
+    let Some(label) = body_member_label(qname, member) else {
+        return;
+    };
     if let Some(echo) = env.body_writers.echo {
-        report(span, &member_label(member), echo, "`echo`", env);
+        report(span, &label, echo, "`echo`", env);
         return;
     }
-    env.body_writers
-        .member
-        .get_or_insert((span, member.to_owned()));
+    if let Some((first, first_label)) = env.body_writers.member.clone() {
+        // Two *different* writers of one body, which the module doc separates
+        // from one writer called twice: the same member declaring the same
+        // content type again has said nothing new, and a handler writing its
+        // body in a loop is an ordinary program.
+        if first_label != label {
+            report(span, &label, first, &first_label, env);
+        }
+        return;
+    }
+    env.body_writers.member = Some((span, label));
 }
 
-/// Whether `qname::member` is one of § 4's body members.
-fn is_body_member(qname: &QName, member: &str) -> bool {
-    qname.is_core()
-        && qname.segments().len() == 2
-        && qname.short_name() == "Response"
-        && BODY_MEMBERS.contains(&member)
-}
-
-/// `Core\Response::json`, quoted for a message.
-fn member_label(member: &str) -> String {
-    format!("`Core\\Response::{member}`")
+/// `` `Core\Response::json` ``, quoted for a message — `None` where
+/// `qname::member` is not one of [`BODY_MEMBERS`].
+fn body_member_label(qname: &QName, member: &str) -> Option<String> {
+    if !qname.is_core() || qname.segments().len() != 2 {
+        return None;
+    }
+    let class = qname.short_name();
+    BODY_MEMBERS
+        .iter()
+        .any(|(owner, name)| *owner == class && *name == member)
+        .then(|| format!("`Core\\{class}::{member}`"))
 }
 
 /// The refusal, pointing at the writer that made the body ambiguous and at the
