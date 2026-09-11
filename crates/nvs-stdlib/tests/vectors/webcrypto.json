@@ -10,7 +10,10 @@
     "jws.keySets: Jwt\\KeySet::read(jwks) with rsaScheme naming the scheme of an RSA key that carries no alg admits exactly kids (null is a key with no kid), or refuses the whole set.",
     "jws.vectors: Jwt::verifyIssued against keySets[keySet ?? 0] at now ?? defaults.now, with defaults.issuer, defaults.audience, defaults.leeway and options, answers payload's claims.",
     "jws.signs: Jwt::sign(claims, lifetime, keys[key], options) at clock answers token byte for byte when deterministic, and otherwise its header and payload segments byte for byte and a signature that verifies.",
-    "jws.refusals are judged like jws.vectors. \"policy\" and \"authenticity\" are the one RuntimeError; \"time\" is the expiry error, which is only reached under a signature that held; \"claims\" is refused after the signature holds."
+    "jws.refusals are judged like jws.vectors. \"policy\" and \"authenticity\" are the one RuntimeError; \"time\" is the expiry error, which is only reached under a signature that held; \"claims\" is refused after the signature holds.",
+    "A jws.signs entry carrying structured rather than claims is Jwt::sign under a key pair over that value as Core\\Json::encode writes it, with iat and exp appended.",
+    "signatures.vectors: Crypto::verify accepts signature over message under jws.keys[key], and Crypto::sign reproduces it byte for byte when deterministic. ES256 is the 64-octet r || s, never DER.",
+    "signatures.refusals: each refused by Crypto::verify under jws.keys[key] with the one RuntimeError."
   ],
   "aesGcm": {
     "vectors": [
@@ -824,6 +827,38 @@
         "deterministic": false,
         "header": "{\"alg\":\"ES256\",\"jwk\":{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"aKp-tdd1uKsy5Ts6KwBtxCY41NWgbZtQxJN4Hipl8-A\",\"y\":\"NssnPqQQU0pujJRq6ep-EDGGhvruumhQsW_bJXL_Dok\"},\"typ\":\"dpop+jwt\"}",
         "token": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6ImFLcC10ZGQxdUtzeTVUczZLd0J0eENZNDFOV2diWnRReEpONEhpcGw4LUEiLCJ5IjoiTnNzblBxUVFVMHB1akpScTZlcC1FREdHaHZydXVtaFFzV19iSlhMX0RvayJ9LCJ0eXAiOiJkcG9wK2p3dCJ9.eyJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9pc3N1ZXIuZXhhbXBsZS90b2tlbiIsImp0aSI6IjNiMWRhOTFmZGI4YjYzMTUwNWVmNGViMDNhY2I3NTYwIiwiYXRoIjoiRlBsY00tMVVYaWl2T1lvenBVcnA3ZDExN0puS3pQRjRZWHVYTm5mWm1kVSIsImlhdCI6MTc2NzIyNTYwMCwiZXhwIjoxNzY3MjI1NjYwfQ.GcYpUv2f3Z5CjAhXSkP7L61irAEaARWL-VEje7SeDqjWGKFEf7y1K0fa_PjhJe91NWjZS2tw8w46MmuO3MDNJg"
+      },
+      {
+        "name": "a signed request object carrying authorization_details, under RS256",
+        "key": "rsa-1",
+        "options": {
+          "kid": "rsa-1",
+          "typ": "oauth-authz-req+jwt"
+        },
+        "structured": {
+          "iss": "client-1",
+          "aud": "https://issuer.example",
+          "response_type": "code",
+          "client_id": "client-1",
+          "redirect_uri": "https://client.example/callback",
+          "scope": "openid payments",
+          "state": "3b835b0eca9ddd132279dbed919a3924",
+          "authorization_details": [
+            {
+              "type": "payment_initiation",
+              "instructedAmount": {
+                "currency": "EUR",
+                "amount": "123.50"
+              },
+              "creditorName": "Merchant A"
+            }
+          ]
+        },
+        "clock": 1767225600,
+        "lifetime": 300,
+        "deterministic": true,
+        "header": "{\"alg\":\"RS256\",\"kid\":\"rsa-1\",\"typ\":\"oauth-authz-req+jwt\"}",
+        "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoib2F1dGgtYXV0aHotcmVxK2p3dCJ9.eyJpc3MiOiJjbGllbnQtMSIsImF1ZCI6Imh0dHBzOi8vaXNzdWVyLmV4YW1wbGUiLCJyZXNwb25zZV90eXBlIjoiY29kZSIsImNsaWVudF9pZCI6ImNsaWVudC0xIiwicmVkaXJlY3RfdXJpIjoiaHR0cHM6Ly9jbGllbnQuZXhhbXBsZS9jYWxsYmFjayIsInNjb3BlIjoib3BlbmlkIHBheW1lbnRzIiwic3RhdGUiOiIzYjgzNWIwZWNhOWRkZDEzMjI3OWRiZWQ5MTlhMzkyNCIsImF1dGhvcml6YXRpb25fZGV0YWlscyI6W3sidHlwZSI6InBheW1lbnRfaW5pdGlhdGlvbiIsImluc3RydWN0ZWRBbW91bnQiOnsiY3VycmVuY3kiOiJFVVIiLCJhbW91bnQiOiIxMjMuNTAifSwiY3JlZGl0b3JOYW1lIjoiTWVyY2hhbnQgQSJ9XSwiaWF0IjoxNzY3MjI1NjAwLCJleHAiOjE3NjcyMjU5MDB9.UDVD2cNqbddWu86_wXUpZACJM3d9V-3SrloAXO3rM0ezLebOigeUmpvmfRWvoMzR4iPeZcYmMpgH4R7sg6nmyYokWURBmENKVMmL-S7t2cqQSg7Zsw6S05ywWYScwqzkEYeTb83o3q2IojV6k6qvAyQp4ozEUH86opPIyzOWJnnzRy_BEv4-2ZtMjZCn2I-f2hUBg5XEkjZRhQgmjuCou7Q-7OCz3N9IPuTEbw9JT717WZ313uZjFK3Z7AefG74HkxFO130aHSi3Qlnvb_q8Iy5Xs0VigYGQItD_OtwvmfA8pgqg12AEtlcu4_P9O1PIb-mnHUgfdpks37xVO3uiJQ"
       }
     ],
     "refusals": [
@@ -1012,6 +1047,145 @@
           "maxAge": 300
         },
         "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL2lzc3Vlci5leGFtcGxlIiwic3ViIjoiMjQ4Mjg5NzYxMDAxIiwiYXVkIjoiY2xpZW50LTEiLCJleHAiOjE3NjcyMjkyMDAsImlhdCI6MTc2NzIyNTYwMCwiYXV0aF90aW1lIjoxNzY3MjI1MjAwfQ.c4J9r-xu-hmERNKl_m4QIdVQ_gRfZW5VuZREQ_zkCGg1R2QToKVB-76lkMCD335dLIg_LdI1MJyPIU1DW7zMXe2PCKYukUlAvQ3zWVRbYS8aH_FXqa0KWzfJNhV42biuNs1elbsY4cN8Mj_ebArywC46UT62rXfesV6pwhIMMVQUHFevt0khsDQBOD2TUFQIydsLtlDIf9vNAhIZFzj5dEd3jm57x6M2OOT-TEoxEcBuwd2G8U0mVvKOmY0S4KCv84Btn48CUmyIy9fNEaODweCNfrM6AMPubeZKLqVJOsIbu_i2n4XmaVzKSpMSIdjMO7SrVn9lPksRrtPaFyhlsA"
+      }
+    ]
+  },
+  "signatures": {
+    "vectors": [
+      {
+        "name": "RS256 over the empty message",
+        "key": "rsa-1",
+        "message": "",
+        "signature": "ad0ff24ce44f0e49de51c3d274e413226570aa2184ecbe9da8295b260de7602a0b357fa936e99ae7c2633e26b4134090c478c608029ac8e71955f293ed047de2532304793d5deb35af56a9c4f8fa87ba0208d94d2ef352a913c4ec03707e12f959a01017a648b0527df90d5e43231036d91cf5ecb1bbbffa8b328bafb381a5709a27f34fca729aaa12792b7c7a67758dbf223450d835e321331a5dcad918a5f32cd2c5c19a65a9b7e087f0a6969784d9fa994aef5479937e2fb26f7a2439cba0b758b204bceaae448d827a8947fa7638cffb0dd905e725dcc194fd5867fa42499cf48dc0ffb2355e284ced84d46d25ecdb92ec48bb800e13c6c8dcbe66a978d9",
+        "deterministic": true
+      },
+      {
+        "name": "RS256 over a short text",
+        "key": "rsa-1",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": "5003374f9f765fb680926a6533e4b6753656d862d2dd777cf983c7f4ffb6f12d542f2cb5f7b2beeb7e5afd3d63bd76b90f2626490e84a8eda2611db7b67c91a87713425fa90d33f06b2abed6a1c8e134331fed6879c5f5e6634291169364b9d84f688824dde115c36d1ebe751ba899429201d0120d04ff755a66cf6aba170054915ea59dc63faa63e16ae01b2f59b69b1a89b8997676f2ef834e1726c6ca3979c3eb7f56a31bd91f1850f607a290ed5bffae625e0ddb87f5819cb7f42c75e4a1b9d647dbd5637e21a505e6e346501a9ecb227d4bb7db70bb6fd80ca7bbac81716fa31b783d6f68adbbe3f3ee9f73f63e41ae2b8dffc39e26d5393549b8827f6b",
+        "deterministic": true
+      },
+      {
+        "name": "RS256 over a thousand octets",
+        "key": "rsa-1",
+        "message": "ef8bf9dd35337cae25746df139014bc8a1c5300f51215004f286939ff707c581157c2c38c9d6962939b71b2810167f4dd58f213e009809b63b2ad2e0c63f1df97f510ee8f2497d137255701ff98a292228cfd45b0b83ac398e78a437b68a3f3b1deca4ef4c9d294569ad716be402dc7359a384072db82f8589e1436117a5ce07d15cd0a70a811836ecfc26be84234c93f65fba7d5adcf486e7c5d51ada47590662668ae91504ca5832c92aa65cac69ce8fc8d23edc85f9b10676ad1c2d7db570f85af028b87b164906117d570fa2af7904fe39f35c145b1d56e8102ef8731b476016572db6c60174531fa5076e469865b0248beef6e156ae86a5aa2665951468299c7b4e30a15789b531f01ad81866fce21186edcc6f95e9a154c48c29882dd18fb2df07d78b23bc20cf4123a601101914e6bd9a6a37fd776a957ded14c7867e40675cb37b73c41ebc5586ecd62f08c897f9d21ee773eeef640e5119056056097135ea899b4c61c429125efea68bc4e4d50124916015423b681b1c60c837ec07920767067e7a220c2b444c5b9eff69f1776307be91b6b117b676d847c379192891cda541f0236338dea875fffde2b017f80f51218a832e174f3393fcacc3b3e125f21db7125aa26115eb4959ced2b040a13912127b16d4d392bfa21c27da902a200a7b8b1aa9c6d90c325da4851958aa3f0b50dbf892f73d58ae6e82cbbbfa77f8ea315356f0e71e9523f3cf0d64041c380c65e47d7cca2f7ba15a9d8e44cf407855f91b09335271a98c6761807b66a0a1f5ba1d60e97df7435deb05bd949d0ba691ec6302132127070afd4b947c1625f4ff8590a40ff90d1ceb8a2a63fd0f0fd2738efb26266792c0c5396c68f8a947ce9788234ac07a51060fcc037c33c3aa13d94adfbed641275205c9036a3c62c5ecb3774136340a74081f149f77e123f10bd0f5f275a4ddcf11aae299e18583ec8f5902184c4abefe939732bb80063cb843d052d343a2d3a4803ab79cf015ec51baefd9d824ae39c87108747b4ce29373ed6d059f10a362e90ad0d7d23a66be63cb4fe72ab42ab5b0b2c925c9e78a6e4e033cfce24870c3bce0884f1d9dcf0741329a06fd168fbb4b61b7182899bacc97eb1f44d3b7cae0d0164e4857a289bc38f84ccc783df63c58a179822ca74e3cb60a78b2c75f93f9699906fdce9a4dc858d1bfc7b34becc3d542d4e8e59b86adfc2ebe5485acc2ea5a49477a1d2f534b0571688df6be673bf1dd446820b924bada4a3187f449218c0dbba928a9a9642b614c6c586051792f90e210873d1fda5f122b0edb26b75979e621835c287c8a6ec69bdf739392b2d625e19f05de26dfd9ecab8563823c21ba0a9f9a8bc0250594eeb7650888265330dd1f8b7d08b4513b5f91689cc9dc1ccf91",
+        "signature": "14fdf477c5071899954a2bd510ce452bfd29f7b6c0829a67ae738a5a014199096f1b4221cbec22793eda1cd2b92b8bb6ae99c43c79a9ad98c7203fa6c468dc74aae740e7b06b9e284f5e814c314d320a05bed7aadd5903424025e10d125cc900d308e047bcc8719752343c970260be122fdc32849189457d3343cbdcb2c324f11e9cf72393dd8cecf1c4c169471a82a559d956a7a817d389022511080ad40b77ed7fd973bc78913f1b06197114ca44a41874730e53c1f4e0826fd740244c0e83e0237d95d0e0bc4d90635ab89054577577e023ed726d5beac4c30764a92f34ac765b8e79cef9d45365b49612fcfd3240a3b4f2a8741090e9393f3e8d77dc32ed",
+        "deterministic": true
+      },
+      {
+        "name": "PS256 over the empty message",
+        "key": "rsa-2",
+        "message": "",
+        "signature": "958e62081b7c9f2c25c7c10d24c4783860cd84c9a1b5ab9bd74102fb3d4581bc5ef903456167d35fe90c50e784a6096343bb2c8260fd99fea07b670db4690c00d9b0b4fd05d9b85e3b2389dec87320f7ce63dc4749660ff55e90fddedf88be16501feb2673fff08377b263b8cbf2fbb136e469d7b873e68db8edda7fae8d753997b01a6fd53f1102c6babc19933c5ac6b58e83c56429cea4d7249455ad92be8efd93a43392683be8454d5211c06e874cebf1ebddc6f5eb89cde1fd57d38c089f8a27325d3fb80b6ec6716682f92e8eacd13cd3df30b0cef0ee0321e86938486a52a62540b95d28aa50a45e009d250df9f7559e7b835d78ac5894f0df6297ef62",
+        "deterministic": false
+      },
+      {
+        "name": "PS256 over a short text",
+        "key": "rsa-2",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": "2b5d3417b054d8557b6d2e1f12cd6ff0b00b2c22748b2a02fdd2f0693e96ac2fc602b8934011a3bc4dc0a0fb6686b09a4afbf46556059395272c8f25f828cbb136c099eb709084bb53a1cd7fe60ccea7b60a108acc4f1a7dc5321a5ec954931748297367e065cfa40c1684e6bc5df4875d11e866e7f1a0b0a19dcbbb608b83dd2b37e06822df0317dfd34802329d8fe35496569640e3dcb44972ceead7a6431749cca8fdd4c262d400fb79acfa9f7d61f09205ad94391d4d6090f2508bbb5c27846f269488774532b3bdc1489fdbf08535e4da77c1a92c8502afa7969c9d915fc4ba57966f058ced834bfa1c17f6d2a092208e21c253b58faed90dd7c67c9bd2",
+        "deterministic": false
+      },
+      {
+        "name": "PS256 over a thousand octets",
+        "key": "rsa-2",
+        "message": "ef8bf9dd35337cae25746df139014bc8a1c5300f51215004f286939ff707c581157c2c38c9d6962939b71b2810167f4dd58f213e009809b63b2ad2e0c63f1df97f510ee8f2497d137255701ff98a292228cfd45b0b83ac398e78a437b68a3f3b1deca4ef4c9d294569ad716be402dc7359a384072db82f8589e1436117a5ce07d15cd0a70a811836ecfc26be84234c93f65fba7d5adcf486e7c5d51ada47590662668ae91504ca5832c92aa65cac69ce8fc8d23edc85f9b10676ad1c2d7db570f85af028b87b164906117d570fa2af7904fe39f35c145b1d56e8102ef8731b476016572db6c60174531fa5076e469865b0248beef6e156ae86a5aa2665951468299c7b4e30a15789b531f01ad81866fce21186edcc6f95e9a154c48c29882dd18fb2df07d78b23bc20cf4123a601101914e6bd9a6a37fd776a957ded14c7867e40675cb37b73c41ebc5586ecd62f08c897f9d21ee773eeef640e5119056056097135ea899b4c61c429125efea68bc4e4d50124916015423b681b1c60c837ec07920767067e7a220c2b444c5b9eff69f1776307be91b6b117b676d847c379192891cda541f0236338dea875fffde2b017f80f51218a832e174f3393fcacc3b3e125f21db7125aa26115eb4959ced2b040a13912127b16d4d392bfa21c27da902a200a7b8b1aa9c6d90c325da4851958aa3f0b50dbf892f73d58ae6e82cbbbfa77f8ea315356f0e71e9523f3cf0d64041c380c65e47d7cca2f7ba15a9d8e44cf407855f91b09335271a98c6761807b66a0a1f5ba1d60e97df7435deb05bd949d0ba691ec6302132127070afd4b947c1625f4ff8590a40ff90d1ceb8a2a63fd0f0fd2738efb26266792c0c5396c68f8a947ce9788234ac07a51060fcc037c33c3aa13d94adfbed641275205c9036a3c62c5ecb3774136340a74081f149f77e123f10bd0f5f275a4ddcf11aae299e18583ec8f5902184c4abefe939732bb80063cb843d052d343a2d3a4803ab79cf015ec51baefd9d824ae39c87108747b4ce29373ed6d059f10a362e90ad0d7d23a66be63cb4fe72ab42ab5b0b2c925c9e78a6e4e033cfce24870c3bce0884f1d9dcf0741329a06fd168fbb4b61b7182899bacc97eb1f44d3b7cae0d0164e4857a289bc38f84ccc783df63c58a179822ca74e3cb60a78b2c75f93f9699906fdce9a4dc858d1bfc7b34becc3d542d4e8e59b86adfc2ebe5485acc2ea5a49477a1d2f534b0571688df6be673bf1dd446820b924bada4a3187f449218c0dbba928a9a9642b614c6c586051792f90e210873d1fda5f122b0edb26b75979e621835c287c8a6ec69bdf739392b2d625e19f05de26dfd9ecab8563823c21ba0a9f9a8bc0250594eeb7650888265330dd1f8b7d08b4513b5f91689cc9dc1ccf91",
+        "signature": "86f8bb76d75e01eacd01c09676b3b5093d9aff4daf813d13e0ce9f9ddd80503095e24ab977339838d2c446123dfe22a160daaf8bd7f216254f05e8ef6cd2a640fd0aa551ba3b36f3062e4073f6f84f4693c9b7638b8d4b6983b38edd11085e704f6c27db1ef6e24ee58b3f26e2ba7980b0140bf25419ec9b0c10d5957ee46c487e82f498d9d8ae44ad802e2533216122e9511488b216602242683d2f44531625ca5456377690c70e592866893389b8f5155c15acceb8e5d444bcce203e7490426326b2b69d04a1ad5b79461d2cd69b2dee289a7f54a92e1eabc8377e9fe2a90ab982de8dff4da94e60181674650046c0478964079df840d42ea32024bb7ba9ea",
+        "deterministic": false
+      },
+      {
+        "name": "ES256 over the empty message",
+        "key": "ec-1",
+        "message": "",
+        "signature": "26d9010753714f95b21fe1cefbff2ca758b8beb57f06433fca3b29dbd51aca510d7754caf93a37efa2e9520abdc9f15fcafd95e46c1a45a8f01da38521bee599",
+        "deterministic": false
+      },
+      {
+        "name": "ES256 over a short text",
+        "key": "ec-1",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": "b065d364c1f41b7e7b580d1bcc0061b297884c13cbba68ab33724f218eeabb7fab89f4df12c4eb750aeb96a9afc6cee60569b4d1292948d7e1203d74b66ae98b",
+        "deterministic": false
+      },
+      {
+        "name": "ES256 over a thousand octets",
+        "key": "ec-1",
+        "message": "ef8bf9dd35337cae25746df139014bc8a1c5300f51215004f286939ff707c581157c2c38c9d6962939b71b2810167f4dd58f213e009809b63b2ad2e0c63f1df97f510ee8f2497d137255701ff98a292228cfd45b0b83ac398e78a437b68a3f3b1deca4ef4c9d294569ad716be402dc7359a384072db82f8589e1436117a5ce07d15cd0a70a811836ecfc26be84234c93f65fba7d5adcf486e7c5d51ada47590662668ae91504ca5832c92aa65cac69ce8fc8d23edc85f9b10676ad1c2d7db570f85af028b87b164906117d570fa2af7904fe39f35c145b1d56e8102ef8731b476016572db6c60174531fa5076e469865b0248beef6e156ae86a5aa2665951468299c7b4e30a15789b531f01ad81866fce21186edcc6f95e9a154c48c29882dd18fb2df07d78b23bc20cf4123a601101914e6bd9a6a37fd776a957ded14c7867e40675cb37b73c41ebc5586ecd62f08c897f9d21ee773eeef640e5119056056097135ea899b4c61c429125efea68bc4e4d50124916015423b681b1c60c837ec07920767067e7a220c2b444c5b9eff69f1776307be91b6b117b676d847c379192891cda541f0236338dea875fffde2b017f80f51218a832e174f3393fcacc3b3e125f21db7125aa26115eb4959ced2b040a13912127b16d4d392bfa21c27da902a200a7b8b1aa9c6d90c325da4851958aa3f0b50dbf892f73d58ae6e82cbbbfa77f8ea315356f0e71e9523f3cf0d64041c380c65e47d7cca2f7ba15a9d8e44cf407855f91b09335271a98c6761807b66a0a1f5ba1d60e97df7435deb05bd949d0ba691ec6302132127070afd4b947c1625f4ff8590a40ff90d1ceb8a2a63fd0f0fd2738efb26266792c0c5396c68f8a947ce9788234ac07a51060fcc037c33c3aa13d94adfbed641275205c9036a3c62c5ecb3774136340a74081f149f77e123f10bd0f5f275a4ddcf11aae299e18583ec8f5902184c4abefe939732bb80063cb843d052d343a2d3a4803ab79cf015ec51baefd9d824ae39c87108747b4ce29373ed6d059f10a362e90ad0d7d23a66be63cb4fe72ab42ab5b0b2c925c9e78a6e4e033cfce24870c3bce0884f1d9dcf0741329a06fd168fbb4b61b7182899bacc97eb1f44d3b7cae0d0164e4857a289bc38f84ccc783df63c58a179822ca74e3cb60a78b2c75f93f9699906fdce9a4dc858d1bfc7b34becc3d542d4e8e59b86adfc2ebe5485acc2ea5a49477a1d2f534b0571688df6be673bf1dd446820b924bada4a3187f449218c0dbba928a9a9642b614c6c586051792f90e210873d1fda5f122b0edb26b75979e621835c287c8a6ec69bdf739392b2d625e19f05de26dfd9ecab8563823c21ba0a9f9a8bc0250594eeb7650888265330dd1f8b7d08b4513b5f91689cc9dc1ccf91",
+        "signature": "2041ed3518544b4b567eda07242c3e4a8e1bf8f7cdfc1858cbc9973b88acc3526e3c1857d02138fe33dd6af6e8d61d1d7c34bf502f9839e707cbba796bcbd229",
+        "deterministic": false
+      },
+      {
+        "name": "EdDSA over the empty message",
+        "key": "ed-1",
+        "message": "",
+        "signature": "bde264866b94fbf1dd8fb74f9dc226f624dbd0aadeb25ed85bd04172b9d6905656bcd16648ba893d933a843215af1a4aa70445cd5b0ccbbf9f9478008049f40b",
+        "deterministic": true
+      },
+      {
+        "name": "EdDSA over a short text",
+        "key": "ed-1",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": "27a38debdc5fd557f8f617709b7dbf3f2fb07ed5203daa3386739b7a14600b9dd0d241f9419748a0e218857f104740f980ffb4e731d55b88660725461b677301",
+        "deterministic": true
+      },
+      {
+        "name": "EdDSA over a thousand octets",
+        "key": "ed-1",
+        "message": "ef8bf9dd35337cae25746df139014bc8a1c5300f51215004f286939ff707c581157c2c38c9d6962939b71b2810167f4dd58f213e009809b63b2ad2e0c63f1df97f510ee8f2497d137255701ff98a292228cfd45b0b83ac398e78a437b68a3f3b1deca4ef4c9d294569ad716be402dc7359a384072db82f8589e1436117a5ce07d15cd0a70a811836ecfc26be84234c93f65fba7d5adcf486e7c5d51ada47590662668ae91504ca5832c92aa65cac69ce8fc8d23edc85f9b10676ad1c2d7db570f85af028b87b164906117d570fa2af7904fe39f35c145b1d56e8102ef8731b476016572db6c60174531fa5076e469865b0248beef6e156ae86a5aa2665951468299c7b4e30a15789b531f01ad81866fce21186edcc6f95e9a154c48c29882dd18fb2df07d78b23bc20cf4123a601101914e6bd9a6a37fd776a957ded14c7867e40675cb37b73c41ebc5586ecd62f08c897f9d21ee773eeef640e5119056056097135ea899b4c61c429125efea68bc4e4d50124916015423b681b1c60c837ec07920767067e7a220c2b444c5b9eff69f1776307be91b6b117b676d847c379192891cda541f0236338dea875fffde2b017f80f51218a832e174f3393fcacc3b3e125f21db7125aa26115eb4959ced2b040a13912127b16d4d392bfa21c27da902a200a7b8b1aa9c6d90c325da4851958aa3f0b50dbf892f73d58ae6e82cbbbfa77f8ea315356f0e71e9523f3cf0d64041c380c65e47d7cca2f7ba15a9d8e44cf407855f91b09335271a98c6761807b66a0a1f5ba1d60e97df7435deb05bd949d0ba691ec6302132127070afd4b947c1625f4ff8590a40ff90d1ceb8a2a63fd0f0fd2738efb26266792c0c5396c68f8a947ce9788234ac07a51060fcc037c33c3aa13d94adfbed641275205c9036a3c62c5ecb3774136340a74081f149f77e123f10bd0f5f275a4ddcf11aae299e18583ec8f5902184c4abefe939732bb80063cb843d052d343a2d3a4803ab79cf015ec51baefd9d824ae39c87108747b4ce29373ed6d059f10a362e90ad0d7d23a66be63cb4fe72ab42ab5b0b2c925c9e78a6e4e033cfce24870c3bce0884f1d9dcf0741329a06fd168fbb4b61b7182899bacc97eb1f44d3b7cae0d0164e4857a289bc38f84ccc783df63c58a179822ca74e3cb60a78b2c75f93f9699906fdce9a4dc858d1bfc7b34becc3d542d4e8e59b86adfc2ebe5485acc2ea5a49477a1d2f534b0571688df6be673bf1dd446820b924bada4a3187f449218c0dbba928a9a9642b614c6c586051792f90e210873d1fda5f122b0edb26b75979e621835c287c8a6ec69bdf739392b2d625e19f05de26dfd9ecab8563823c21ba0a9f9a8bc0250594eeb7650888265330dd1f8b7d08b4513b5f91689cc9dc1ccf91",
+        "signature": "32f11f7e8616c23b6f366fe0e51fbce15d5f39989a4f83e3b8b38a59f07abcb1f6e520bdc02c132b05fddeb46c2104e88db19f8b0be5eebaa9efd8672bb2d000",
+        "deterministic": true
+      },
+      {
+        "name": "a Standard Webhooks v1a signature",
+        "key": "ed-1",
+        "message": "6d73675f324b575042674c6c416678647078324149353470504a38356634572e313736373232353630302e7b2274797065223a22696e766f6963652e70616964222c2264617461223a7b226964223a22696e5f31227d7d",
+        "signature": "9406b4eaa2656b5c3c2d9b38d11ab89c5a676832493e4e16941790c6e14005387c415b41c58af0799a55e562f66ea4f3a6324341e3b4a8f63ea75c0823fd5d0a",
+        "deterministic": true
+      }
+    ],
+    "refusals": [
+      {
+        "name": "an RS256 signature with its last octet flipped",
+        "key": "rsa-1",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": "5003374f9f765fb680926a6533e4b6753656d862d2dd777cf983c7f4ffb6f12d542f2cb5f7b2beeb7e5afd3d63bd76b90f2626490e84a8eda2611db7b67c91a87713425fa90d33f06b2abed6a1c8e134331fed6879c5f5e6634291169364b9d84f688824dde115c36d1ebe751ba899429201d0120d04ff755a66cf6aba170054915ea59dc63faa63e16ae01b2f59b69b1a89b8997676f2ef834e1726c6ca3979c3eb7f56a31bd91f1850f607a290ed5bffae625e0ddb87f5819cb7f42c75e4a1b9d647dbd5637e21a505e6e346501a9ecb227d4bb7db70bb6fd80ca7bbac81716fa31b783d6f68adbbe3f3ee9f73f63e41ae2b8dffc39e26d5393549b8827f6a"
+      },
+      {
+        "name": "another RSA key's signature over the same message",
+        "key": "rsa-1",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": "529a44abc2de088e2ebeeb67e23417a72cf946bf9aef78d4016ec7c60fc13c5e37d1774145feb83c77ba842a9553b0ee858ab0b1ac502741917419c9b586286c9071b5ce1a357c6287de91fa7327363c0602ccc029360aaefb07a96914f09f825c803a437345c82b0be436d65a0a04c33f5efa7b219cb5b8a1bceba1c5e8da861cd799d98c421656562c985aff22f718786a24c3d0c5909effcf5ca622979f0df6e9293a61dea49f1faeba6b88754265ce0ed283777c6f73d4a3bb86f89fce70e585d7365d804b30662503b179df15185dccca84ac73c3c96096fb3d44536549b5d3fa1f6dfb0ae42485458b82e2d7037f51a1055ce261efe15d549822d292dc"
+      },
+      {
+        "name": "the message edited after signing",
+        "key": "ed-1",
+        "message": "61206d65737361676520612070656572207369676e6544",
+        "signature": "27a38debdc5fd557f8f617709b7dbf3f2fb07ed5203daa3386739b7a14600b9dd0d241f9419748a0e218857f104740f980ffb4e731d55b88660725461b677301"
+      },
+      {
+        "name": "an ES256 signature in DER form",
+        "key": "ec-1",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": "3046022100b065d364c1f41b7e7b580d1bcc0061b297884c13cbba68ab33724f218eeabb7f022100ab89f4df12c4eb750aeb96a9afc6cee60569b4d1292948d7e1203d74b66ae98b"
+      },
+      {
+        "name": "an ES256 signature one octet short",
+        "key": "ec-1",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": "b065d364c1f41b7e7b580d1bcc0061b297884c13cbba68ab33724f218eeabb7fab89f4df12c4eb750aeb96a9afc6cee60569b4d1292948d7e1203d74b66ae9"
+      },
+      {
+        "name": "an empty signature",
+        "key": "ed-1",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": ""
+      },
+      {
+        "name": "a PKCS#1 v1.5 signature under the key bound to PSS",
+        "key": "rsa-2",
+        "message": "61206d65737361676520612070656572207369676e6564",
+        "signature": "8d698bc57330370241b849ecf3c9e4fcca066e0eec765ced0cd9f0c68d171e2e8ebbe2ccb0c04cfe78663a4c7a65344c254f9cab4a1e8963aa25a1d759da2f77661c9059f77c683a30858651921a0c09bcf0e41643e6017831a98d05da4e2bf281dfd6b8db869c6c62c23e458c4955d05a96c1ffd9b293cfc4e5ab300c869994fd71bcfcd53bed5e6b3a7122591ad616bafacbbb0162265e811b4da2104ed07575fe695040710140a1369dd2a5df4521d28eed3a9ae06f36e8c7817137cc1387b0366e7a51563ea49ea5a8d10d1c894da86219e17ae3623903db8d9719cce8bb59cc205f3ae6076ce829176dc7c66a43a585827f2c91b2a92089f558d6e5565b"
       }
     ]
   }

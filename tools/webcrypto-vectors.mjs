@@ -623,6 +623,8 @@ async function verifies(key, token) {
 // rerun. One input can carry several tokens -- a refusal reuses a vector's input under a mangled
 // signature -- so `jws` takes the first of them that verifies under the key it is signing with.
 const PREVIOUS = new Map();
+// The same, for a raw signature: by the key that made it and the message it is over.
+const RAW_PREVIOUS = new Map();
 try {
   const onDisk = JSON.parse(readFileSync(OUT, 'utf8'));
   for (const section of ['vectors', 'signs', 'refusals']) {
@@ -631,6 +633,12 @@ try {
       if (parts.length !== 3) continue;
       const input = `${parts[0]}.${parts[1]}`;
       PREVIOUS.set(input, [...(PREVIOUS.get(input) ?? []), token]);
+    }
+  }
+  for (const section of ['vectors', 'refusals']) {
+    for (const { key, message, signature } of onDisk.signatures?.[section] ?? []) {
+      const at = `${key}:${message}`;
+      RAW_PREVIOUS.set(at, [...(RAW_PREVIOUS.get(at) ?? []), signature]);
     }
   }
 } catch {
@@ -645,7 +653,10 @@ async function jws(key, header, payload) {
     }
   }
   const signature = new Uint8Array(await subtle.sign(SIGNING[key.alg].params, key.priv, utf8.encode(input)));
-  return `${input}.${b64u(signature)}`;
+  const token = `${input}.${b64u(signature)}`;
+  // Remembered for the rest of this run, for `rawSign`'s reason.
+  PREVIOUS.set(input, [token, ...(PREVIOUS.get(input) ?? [])]);
+  return token;
 }
 
 // JWS wants ECDSA's raw r || s; this is the DER form an X.509 toolkit writes instead.
@@ -725,6 +736,29 @@ async function referee(token, admitted, keys, o) {
   if (o.nonce !== undefined && c.nonce !== o.nonce) return 'claims';
   if (o.maxAge !== undefined && (typeof c.auth_time !== 'number' || o.now > c.auth_time + o.maxAge + o.leeway)) return 'claims';
   return 'ok';
+}
+
+// `Crypto::sign`'s and `Crypto::verify`'s primitive: the scheme is the key's, the message is raw bytes.
+async function rawVerifies(key, message, signature) {
+  try {
+    return await subtle.verify(SIGNING[key.alg].params, key.pub, signature, message);
+  } catch {
+    return false;
+  }
+}
+
+async function rawSign(key, message) {
+  if (!SIGNING[key.alg].deterministic) {
+    for (const old of RAW_PREVIOUS.get(`${key.kid}:${hex(message)}`) ?? []) {
+      if (await rawVerifies(key, message, unhex(old))) return unhex(old);
+    }
+  }
+  const signature = new Uint8Array(await subtle.sign(SIGNING[key.alg].params, key.priv, message));
+  // Remembered for the rest of this run too, so asking twice for one signature answers the same bytes
+  // on the first run as on every later one.
+  const at = `${key.kid}:${hex(message)}`;
+  RAW_PREVIOUS.set(at, [hex(signature), ...(RAW_PREVIOUS.get(at) ?? [])]);
+  return signature;
 }
 
 async function jwsVectors(pairs) {
@@ -819,6 +853,27 @@ async function jwsVectors(pairs) {
   await signed('a DPoP proof under ES256, its public key embedded', keys['ec-1'], { typ: 'dpop+jwt', embedKey: true },
     [['htm', 'POST'], ['htu', 'https://issuer.example/token'], ['jti', hex(await fixed('dpop jti', 16))], ['ath', ath]], 60);
 
+  // Structured claims, which `Jwt::sign` writes only under a key pair: the value as `Core\Json::encode`
+  // writes it -- fields in declared order, no whitespace, no escaped slash -- with iat and exp appended.
+  async function signedStructured(name, key, options, claims, lifetime) {
+    const h = { alg: key.alg, typ: options.typ ?? 'JWT' };
+    if (options.kid) h.kid = options.kid;
+    const payload = `${JSON.stringify(claims).slice(0, -1)},"iat":${IAT},"exp":${IAT + lifetime}}`;
+    const token = await jws(key, h, payload);
+    assert(await verifies(key, token), `jws structured sign verifies: ${name}`);
+    signs.push({ name, key: key.kid, options, structured: claims, clock: IAT, lifetime, deterministic: SIGNING[key.alg].deterministic, header: canon(h), token });
+  }
+  await signedStructured('a signed request object carrying authorization_details, under RS256', keys['rsa-1'], { kid: 'rsa-1', typ: 'oauth-authz-req+jwt' }, {
+    iss: 'client-1',
+    aud: 'https://issuer.example',
+    response_type: 'code',
+    client_id: 'client-1',
+    redirect_uri: 'https://client.example/callback',
+    scope: 'openid payments',
+    state: hex(await fixed('request object state', 16)),
+    authorization_details: [{ type: 'payment_initiation', instructedAmount: { currency: 'EUR', amount: '123.50' }, creditorName: 'Merchant A' }],
+  }, 300);
+
   const refusals = [];
   async function refused(name, kind, token, extra = {}) {
     const r = { name, kind, ...extra, token };
@@ -876,8 +931,47 @@ async function jwsVectors(pairs) {
   await refused('a typ other than the one asked for', 'claims', await sign(keys['rsa-1'], rsa1, idToken(), 'typ'), { options: { typ: 'at+jwt' } });
   await refused('auth_time older than maxAge and the leeway', 'claims', await sign(keys['rsa-1'], rsa1, idToken({ auth_time: IAT - 400 }), 'max age'), { options: { maxAge: 300 } });
 
+  // Raw signatures over the same keys: what `Crypto::sign` answers and `Crypto::verify` checks.
+  const signatureVectors = [];
+  const messages = [
+    ['the empty message', EMPTY],
+    ['a short text', utf8.encode('a message a peer signed')],
+    ['a thousand octets', await fixed('raw message 1000', 1000)],
+  ];
+  for (const kid of ['rsa-1', 'rsa-2', 'ec-1', 'ed-1']) {
+    const key = keys[kid];
+    for (const [what, message] of messages) {
+      const signature = await rawSign(key, message);
+      assert(await rawVerifies(key, message, signature), `raw signature verifies: ${kid}, ${what}`);
+      signatureVectors.push({ name: `${key.alg} over ${what}`, key: kid, message: hex(message), signature: hex(signature), deterministic: SIGNING[key.alg].deterministic });
+    }
+  }
+  // Standard Webhooks' `v1a`: Ed25519 over `id.timestamp.body`, which a receiver checks with `verify`.
+  const webhook = utf8.encode(`msg_2KWPBgLlAfxdpx2AI54pPJ85f4W.${IAT}.{"type":"invoice.paid","data":{"id":"in_1"}}`);
+  const webhookSignature = await rawSign(keys['ed-1'], webhook);
+  assert(await rawVerifies(keys['ed-1'], webhook, webhookSignature), 'the webhook signature verifies');
+  signatureVectors.push({ name: 'a Standard Webhooks v1a signature', key: 'ed-1', message: hex(webhook), signature: hex(webhookSignature), deterministic: true });
+
+  const signatureRefusals = [];
+  async function rawRefused(name, key, message, signature) {
+    assert(!(await rawVerifies(key, message, signature)), `raw refusal does not verify: ${name}`);
+    signatureRefusals.push({ name, key: key.kid, message: hex(message), signature: hex(signature) });
+  }
+  const text = utf8.encode('a message a peer signed');
+  const rs = await rawSign(keys['rsa-1'], text);
+  const flipped = rs.slice();
+  flipped[flipped.length - 1] ^= 0x01;
+  const esRaw = await rawSign(keys['ec-1'], text);
+  await rawRefused('an RS256 signature with its last octet flipped', keys['rsa-1'], text, flipped);
+  await rawRefused('another RSA key\'s signature over the same message', keys['rsa-1'], text, await rawSign(other, text));
+  await rawRefused('the message edited after signing', keys['ed-1'], utf8.encode('a message a peer signeD'), await rawSign(keys['ed-1'], text));
+  await rawRefused('an ES256 signature in DER form', keys['ec-1'], text, der(esRaw));
+  await rawRefused('an ES256 signature one octet short', keys['ec-1'], text, esRaw.slice(0, 63));
+  await rawRefused('an empty signature', keys['ed-1'], text, EMPTY);
+  await rawRefused('a PKCS#1 v1.5 signature under the key bound to PSS', keys['rsa-2'], text, await rawSign(rsa2AsRs256, text));
+
   const record = Object.fromEntries(Object.entries({ ...keys, 'rsa-weak': weak }).map(([kid, k]) => [kid, k.record]));
-  return { defaults, keys: record, keySets, vectors, signs, refusals };
+  return { defaults, keys: record, keySets, vectors, signs, refusals, raw: { vectors: signatureVectors, refusals: signatureRefusals } };
 }
 
 async function build() {
@@ -886,6 +980,7 @@ async function build() {
     'P-256': [await keyPair('P-256', await fixed('p256 a', 32)), await keyPair('P-256', await fixed('p256 b', 32))],
     X25519: [await keyPair('X25519', await fixed('x25519 a', 32)), await keyPair('X25519', await fixed('x25519 b', 32))],
   };
+  const { raw, ...jws } = await jwsVectors(pairs);
   const set = {
     about: [
       'Written by tools/webcrypto-vectors.mjs from Node\'s crypto.subtle, the W3C Web Cryptography API a browser exposes; regenerate it only by running that script.',
@@ -899,6 +994,9 @@ async function build() {
       'jws.vectors: Jwt::verifyIssued against keySets[keySet ?? 0] at now ?? defaults.now, with defaults.issuer, defaults.audience, defaults.leeway and options, answers payload\'s claims.',
       'jws.signs: Jwt::sign(claims, lifetime, keys[key], options) at clock answers token byte for byte when deterministic, and otherwise its header and payload segments byte for byte and a signature that verifies.',
       'jws.refusals are judged like jws.vectors. "policy" and "authenticity" are the one RuntimeError; "time" is the expiry error, which is only reached under a signature that held; "claims" is refused after the signature holds.',
+      'A jws.signs entry carrying structured rather than claims is Jwt::sign under a key pair over that value as Core\\Json::encode writes it, with iat and exp appended.',
+      'signatures.vectors: Crypto::verify accepts signature over message under jws.keys[key], and Crypto::sign reproduces it byte for byte when deterministic. ES256 is the 64-octet r || s, never DER.',
+      'signatures.refusals: each refused by Crypto::verify under jws.keys[key] with the one RuntimeError.',
     ],
     aesGcm: await aesGcmVectors(),
     pbkdf2: await pbkdf2Vectors(),
@@ -906,7 +1004,8 @@ async function build() {
     ecdh: await ecdhVectors(pairs),
     aesKw: await aesKwVectors(),
     jwe: await jweVectors(pairs),
-    jws: await jwsVectors(pairs),
+    jws,
+    signatures: raw,
   };
   return `${JSON.stringify(set, null, 2)}\n`;
 }
