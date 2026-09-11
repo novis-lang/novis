@@ -1608,7 +1608,14 @@ nvs_runtime::nvs_helper! {
             .and_then(nvs_runtime::Inbound::response_stream_slot)
             .cloned();
         if let Some(cell) = cell {
-            let emit = cell.open(media_type).ok_or_else(|| {
+            // The declarations go with the head, because the head is on the
+            // wire from here: a status or a header set before this call reaches
+            // the peer, and one set after it reaches nothing at all. Taken
+            // rather than read, so the completion this request files carries
+            // none of them and the connection does not apply a header twice.
+            let status = ctx.take_status();
+            let headers = ctx.take_headers();
+            let emit = cell.open(media_type, status, headers).ok_or_else(|| {
                 // No case can reach this: a `.nvst` case runs a script no
                 // connection is framing a response for, so it is offered no cell
                 // and never gets here.
@@ -1888,10 +1895,12 @@ mod tests {
         )
         .expect("the first chunk goes into an empty cell without parking");
 
-        let head = slot.take().expect("the member filled the cell");
-        assert_eq!(head.content_type(), "text/csv");
+        let mut head = slot
+            .take(std::task::Waker::noop())
+            .expect("the member filled the cell");
+        assert_eq!(&*head.content_type, "text/csv");
         let nvs_runtime::stream::Drained::Chunk(framed) =
-            head.into_drain().next_chunk(std::task::Waker::noop())
+            head.drain.next_chunk(std::task::Waker::noop())
         else {
             panic!("the chunk the program wrote never reached the connection");
         };
@@ -1925,8 +1934,10 @@ mod tests {
 
         // Intact rather than displaced, which is the half a refusal that
         // overwrote would still pass without.
-        let head = slot.take().expect("the first open stands");
-        assert_eq!(head.content_type(), "text/csv");
+        let head = slot
+            .take(std::task::Waker::noop())
+            .expect("the first open stands");
+        assert_eq!(&*head.content_type, "text/csv");
 
         dropped(first);
         dropped(second);
@@ -1947,7 +1958,10 @@ mod tests {
         let media_type = Value::str(NvsStr::new(b"text/csv"));
         let handle = call(super::nvs_core_response_stream, &mut ctx, &[media_type])
             .expect("an offered cell takes the stream");
-        drop(slot.take().expect("the member filled the cell"));
+        drop(
+            slot.take(std::task::Waker::noop())
+                .expect("the member filled the cell"),
+        );
 
         let chunk = Value::str(NvsStr::new(b"too late"));
         call(

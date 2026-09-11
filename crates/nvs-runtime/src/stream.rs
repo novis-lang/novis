@@ -70,6 +70,7 @@ use std::rc::Rc;
 use std::task::Waker;
 use std::time::{Duration, Instant};
 
+use crate::DeclaredHeader;
 use crate::host::{self, Woken};
 
 /// Opens a response body's two halves over one cell.
@@ -295,30 +296,35 @@ impl Drop for Drain {
 }
 
 /// What a request that opened a streaming body left for the connection still
-/// sending the response: the media type the head is to declare, and the half
-/// the bytes arrive on.
+/// sending the response: the head to write, and the half the bytes arrive on.
 ///
-/// The two travel together because neither is a response on its own — a head
-/// with no body would be a length the connection cannot supply, and a drain
-/// with no media type would be a body the peer cannot read.
+/// **The head is everything the response declares**, because it goes out when
+/// the opening member is called and nothing said afterwards can reach it: the
+/// media type that member named, beside the status and the headers the request
+/// had declared by then. A declaration made once the stream is open is one made
+/// about a head already on the wire, which is the line `Core\Response::stream`
+/// draws and the cost of answering early.
+///
+/// The head and the drain travel together because neither is a response on its
+/// own — a head with no body would be a length the connection cannot supply,
+/// and a drain with no media type would be a body the peer cannot read.
+///
+/// Fields rather than accessors: every one of them is the connection's to move
+/// out, and this is the same hand-over between two tasks that
+/// [`crate::host::Completion`] is already shaped as.
 #[derive(Debug)]
 pub struct Opened {
-    content_type: Box<str>,
-    drain: Drain,
-}
-
-impl Opened {
-    /// The media type the opening member declared, for the head.
-    #[must_use]
-    pub fn content_type(&self) -> &str {
-        &self.content_type
-    }
-
+    /// The media type the opening member declared.
+    pub content_type: Box<str>,
+    /// What the request had declared this response *means* — spec § 15's
+    /// status — and `None` where it had declared nothing by the time it opened
+    /// the stream.
+    pub status: Option<u16>,
+    /// What else the request had declared the response carries, in the order it
+    /// declared them, and applied the way [`DeclaredHeader::append`] says.
+    pub headers: Vec<DeclaredHeader>,
     /// The consumer's half, taken by whoever is framing the response.
-    #[must_use]
-    pub fn into_drain(self) -> Drain {
-        self.drain
-    }
+    pub drain: Drain,
 }
 
 /// The place a **request-scoped** streaming body is left, shared between the
@@ -348,8 +354,8 @@ pub struct BodySlot {
     cell: Rc<RefCell<Opening>>,
 }
 
-/// [`BodySlot`]'s contents: whether the body was opened, and what is left for
-/// the connection until it takes it.
+/// [`BodySlot`]'s contents: whether the body was opened, what is left for the
+/// connection until it takes it, and the poll that is waiting for it.
 ///
 /// Two fields rather than one [`Option`], because the connection **takes** the
 /// head and a second `stream()` call after that take is still a second body.
@@ -360,6 +366,12 @@ pub struct BodySlot {
 struct Opening {
     opened: bool,
     head: Option<Opened>,
+    /// The connection's poll that found no head yet, to wake when one lands —
+    /// [`Wire::reader`]'s shape one level up, and needed for the same reason:
+    /// a program that opens a stream and then parks has published a head that
+    /// nothing else would come back to look for, and the head is what the
+    /// whole body waits behind.
+    watcher: Option<Waker>,
 }
 
 impl BodySlot {
@@ -376,13 +388,24 @@ impl BodySlot {
     /// Opens the body at `content_type`, answering the writing half and leaving
     /// the head for the connection.
     ///
+    /// `status` and `headers` are what the request has declared so far, which
+    /// is what the head carries: [`Opened`] owns why a later declaration
+    /// reaches nothing. They are taken rather than read, so the completion this
+    /// request eventually files carries none of them and no answer applies them
+    /// twice.
+    ///
     /// `None` where this request has already opened a body — a response has
     /// one, and the second call is the one that is wrong. An [`Option`] rather
     /// than a `Result` carrying a refusal, because there is exactly one reason
     /// and nothing crossed to hand back: the caller still holds its own
     /// argument, and the member that asked is where the sentence belongs.
     #[must_use]
-    pub fn open(&self, content_type: &str) -> Option<Emit> {
+    pub fn open(
+        &self,
+        content_type: &str,
+        status: Option<u16>,
+        headers: Vec<DeclaredHeader>,
+    ) -> Option<Emit> {
         let mut cell = self.cell.borrow_mut();
         if cell.opened {
             return None;
@@ -391,16 +414,33 @@ impl BodySlot {
         cell.opened = true;
         cell.head = Some(Opened {
             content_type: content_type.into(),
+            status,
+            headers,
             drain,
         });
+        if let Some(watcher) = cell.watcher.take() {
+            watcher.wake();
+        }
         Some(emit)
     }
 
     /// Takes the head and the drain, leaving the cell open but empty — the
     /// connection's half, and `None` until a program has asked for a stream.
+    ///
+    /// `waker` is the asking poll's own, registered only where the answer is
+    /// `None`: what a caller that got a head does next is frame it, and what a
+    /// caller that got nothing needs is to be told when there is something.
+    /// [`Drain::next_chunk`] is the same contract one layer down, and the two
+    /// together are the whole of how a streamed response reaches the wire
+    /// without either end polling on a loop.
     #[must_use]
-    pub fn take(&self) -> Option<Opened> {
-        self.cell.borrow_mut().head.take()
+    pub fn take(&self, waker: &Waker) -> Option<Opened> {
+        let mut cell = self.cell.borrow_mut();
+        if let Some(head) = cell.head.take() {
+            return Some(head);
+        }
+        cell.watcher = Some(waker.clone());
+        None
     }
 
     /// Whether this request has opened a streaming body, whether or not the

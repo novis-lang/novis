@@ -506,6 +506,20 @@ impl Ctx {
         self.body_stream = Some(emit);
     }
 
+    /// Takes the writing half away, which **ends the body it was written on** —
+    /// the finish path's fourth call, beside [`Self::take_headers`].
+    ///
+    /// This is where "a request-scoped stream ends with its request" is a fact
+    /// rather than a hope, and it is a take at the end of the program rather
+    /// than a wait on this context's own teardown: what ends the stream is the
+    /// last [`crate::stream::Emit`] going away, so a body left to the arena
+    /// would hold the peer's connection open until an isolate nobody had joined
+    /// yet was reclaimed — and nobody joins it until the body ends.
+    #[must_use]
+    pub fn take_body_stream(&mut self) -> Option<crate::stream::Emit> {
+        self.body_stream.take()
+    }
+
     /// The writing half, for the member putting a chunk on it, and `None` for a
     /// request answering with a whole body.
     ///

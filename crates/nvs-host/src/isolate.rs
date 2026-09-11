@@ -282,6 +282,30 @@ impl Isolate {
         self
     }
 
+    /// Offers `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
+    /// 's request-scoped cell to the request this isolate answers, so that
+    /// `Core\Response::stream` inside it has somewhere to leave the head the
+    /// connection is to write.
+    ///
+    /// Offered to **every** request a server answers, exactly as
+    /// [`Self::offering_sse`]'s is and for a sharper version of the same
+    /// reason: this stream takes nothing of the connection at all. It is the
+    /// response the request already has, written in pieces instead of at once,
+    /// and the connection reads this cell while the request's own future is
+    /// still running rather than after it has ended.
+    ///
+    /// **Still a no-op for an isolate answering no request**, and that is what
+    /// makes the member inert off a connection rather than broken: a CLI
+    /// program, a `spawn script` child and a `#[Test]` method each open a
+    /// stream that writes to their own output, there being no response to frame.
+    #[must_use]
+    pub fn offering_response_stream(mut self, cell: nvs_runtime::stream::BodySlot) -> Self {
+        if let Some(inbound) = self.inbound.as_mut() {
+            inbound.offer_response_stream(cell);
+        }
+        self
+    }
+
     /// Moves `rule:concurrency/a-connection-is-a-root-isolate`
     /// 's socket into the isolate this builds.
     ///
@@ -876,6 +900,14 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // Spec § 15's headers, taken on the same paths again and for the same
     // reason. A list rather than a word, and empty for the child that set none.
     let headers = isolate_ctx.take_headers();
+    // `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+    // request-scoped body, ended here because this is where its request ends:
+    // dropping the writing half is what tells the connection the body is over,
+    // and a program that streamed one has already written every byte of it by
+    // the time this line runs. Beside the three takes above because it is the
+    // same act — what is left on the context once the program has stopped
+    // running belongs to nobody.
+    drop(isolate_ctx.take_body_stream());
 
     if let Some(thrown) = thrown {
         // `rule:security/isolate-shares-nothing`'s second row: the class name and the message as copied data.
