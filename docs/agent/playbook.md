@@ -1654,6 +1654,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   not do that names the very string the assertion refuses. Strip the comments before matching, the
   way `editors/vscode/test/surfaces/ast.test.ts` does, or keep the prose off that spelling.
   [until: gone editors/vscode/test/surfaces/tasks.test.ts:child_process]
+- **A goal's whole check list can read green with two of its stages unbuilt, because a `command`
+  check's `want` names the suite's *label* and not a case in it.** `[…, "surfaces:", "0 failing"]` is
+  satisfied by whichever cases that directory already holds, so goal `editor-surfaces` would have
+  closed with its Test Explorer never written. Read an all-green ledger against the goal prose's
+  stages and the `stage =` strings in `loop-goal.toml` — a stage with no check is the hole — and name
+  cases in `want` the way `cargo-named` names tests. [until: reviewed 2026-09-11]
 
 ## Running things
 
