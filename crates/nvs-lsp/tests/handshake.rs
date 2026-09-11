@@ -113,11 +113,10 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
     // field that serializes under a different name than the one the
     // specification gives is a capability nothing ever uses.
     //
-    // The absences are the load-bearing half. `rename`, `workspaceSymbol` and
-    // inlay hints each look one line away from being free and are not: the
-    // first two need an edit and a query the symbol index does not hold, and
-    // the third is its own settings question. ADR 0099 § 3 is where the test a
-    // request outside M4B's nine has to pass is written down, and this
+    // The absences are the load-bearing half. `rename` and `workspaceSymbol`
+    // each look one line away from being free and are not: both need an edit
+    // and a query the symbol index does not hold. ADR 0099 § 3 is where the
+    // test a request outside M4B's nine has to pass is written down, and this
     // assertion is what makes failing it visible.
     let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
     let keys: BTreeSet<&str> = declared
@@ -161,6 +160,10 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         // `nvs_lsp::declared_capabilities` is what puts it in the object, which
         // is why this test reads the object and not the struct.
         "typeHierarchyProvider",
+        // The one request ADR 0099 § 3 deferred by name and this goal reverses,
+        // bounded to the two idioms `nvs_lsp::hints` answers: everything else
+        // that record held back is still held back.
+        "inlayHintProvider",
         // Not a request. It is the answer to "in what units are the positions
         // in every one of the above", and LSP 3.17 puts it here.
         "positionEncoding",

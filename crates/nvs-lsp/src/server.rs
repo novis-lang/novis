@@ -45,9 +45,9 @@ use lsp_types::notification::{
 use lsp_types::request::{
     CodeActionRequest, CodeLensRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
     DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, GotoImplementation,
-    GotoTypeDefinition, HoverRequest, References, Request as _, SelectionRangeRequest,
-    SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare, TypeHierarchySubtypes,
-    TypeHierarchySupertypes,
+    GotoTypeDefinition, HoverRequest, InlayHintRequest, References, Request as _,
+    SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare,
+    TypeHierarchySubtypes, TypeHierarchySupertypes,
 };
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams,
@@ -55,11 +55,12 @@ use lsp_types::{
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentHighlight,
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
     DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
-    GotoDefinitionParams, GotoDefinitionResponse, HoverParams, InitializeParams, Location,
-    PublishDiagnosticsParams, Range, ReferenceParams, SelectionRange, SelectionRangeParams,
-    SemanticTokens, SemanticTokensParams, SemanticTokensResult, SignatureHelp, SignatureHelpParams,
-    SymbolKind, TextDocumentIdentifier, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
-    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
+    GotoDefinitionParams, GotoDefinitionResponse, HoverParams, InitializeParams, InlayHint,
+    InlayHintParams, Location, Position, PublishDiagnosticsParams, Range, ReferenceParams,
+    SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
+    SemanticTokensResult, SignatureHelp, SignatureHelpParams, SymbolKind, TextDocumentIdentifier,
+    TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
+    TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
@@ -70,6 +71,7 @@ use crate::definition;
 use crate::diagnostics::{Phases, dimming, for_document};
 use crate::document::{Analysed, Documents, analyse, path_of, uri_of};
 use crate::folding;
+use crate::hints;
 use crate::hover;
 use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_at};
 use crate::links;
@@ -284,6 +286,10 @@ fn answer(
                 id,
                 completion(documents, index, settings, encoding, &params),
             ),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        InlayHintRequest::METHOD => match serde_json::from_value::<InlayHintParams>(params) {
+            Ok(params) => Response::new_ok(id, inlay_hints(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
         SelectionRangeRequest::METHOD => {
@@ -1115,6 +1121,38 @@ fn selection_range(
 ///
 /// No tooltip. LSP shows one in place of the target, and the target is the file
 /// path, which is the more useful of the two things there is to say.
+/// The hints inside the range the client asked about.
+///
+/// **The document is walked whole and the answer narrowed here**, which is
+/// where [`crate::hints`] leaves it: the walk reads one analysis, and an editor
+/// asks this request again for every range it scrolls onto, so a walk bounded
+/// by the range would repeat most of itself per frame to save a filter.
+///
+/// The bounds are inclusive at both ends. A hint sits *between* two characters
+/// rather than on one, so a hint at the first position of the visible range is
+/// one the reader can see, and so is a hint at its last.
+fn inlay_hints(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &InlayHintParams,
+) -> Vec<InlayHint> {
+    let Some(analysed) = analyse(documents, &params.text_document.uri) else {
+        return Vec::new();
+    };
+    hints::for_document(&analysed, encoding)
+        .into_iter()
+        .filter(|hint| {
+            at_or_after(hint.position, params.range.start)
+                && at_or_after(params.range.end, hint.position)
+        })
+        .collect()
+}
+
+/// Whether `position` is at or after `limit`, in the order a document reads.
+fn at_or_after(position: Position, limit: Position) -> bool {
+    (position.line, position.character) >= (limit.line, limit.character)
+}
+
 fn document_link(
     documents: &Documents,
     encoding: PositionEncoding,

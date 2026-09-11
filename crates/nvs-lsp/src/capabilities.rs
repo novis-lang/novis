@@ -147,9 +147,9 @@ pub fn negotiate_encoding(client: &ClientCapabilities) -> PositionEncodingKind {
 ///
 /// Every `Some` here is one entry of `rule:ide/the-request-set-is-closed`'s
 /// list or of `rule:ide/five-features-are-one-reference-index`'s, and every
-/// other provider field is `None` on purpose: `rename`, `workspaceSymbol` and
-/// inlay hints each still need something no store this server holds can answer
-/// from, and declaring one before then is a promise answered with an error.
+/// other provider field is `None` on purpose: `rename` and `workspaceSymbol`
+/// each still need something no store this server holds can answer from, and
+/// declaring one before then is a promise answered with an error.
 #[must_use]
 pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities {
     ServerCapabilities {
@@ -242,6 +242,11 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
                 full: Some(SemanticTokensFullOptions::Bool(true)),
             },
         )),
+        // No resolve provider: `crate::hints` answers a label and a position
+        // and has nothing further to compute on demand, so declaring one would
+        // promise a second round trip that only ever returns what the first
+        // already carried.
+        inlay_hint_provider: Some(OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
 }
