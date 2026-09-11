@@ -91,6 +91,33 @@
 //! operation holds those bytes until its next poll.
 //! — owner: resource-ceilings
 //!
+//! # Whose bytes they are
+//!
+//! A per-*thread* balance reads as a per-*request* one only while every byte on
+//! the thread belongs to the request running there, and a cross-request store
+//! is where that stops being true: a `Core\Cache` entry outlives the request
+//! that wrote it and is freed by whichever request evicts it. Left on
+//! [`live_bytes`], that is a ceiling a program widens at will — fill the store
+//! in one request, free it in the next, and the second request's balance falls
+//! below the baseline its ceiling was armed against, buying headroom the
+//! operator never granted.
+//!
+//! [`Detached`] is the bracket that answers it. An allocation or a release made
+//! while one is held moves [`detached_bytes`] instead, so the bytes stay
+//! counted against the process and leave the running request's reading exactly
+//! where they found it. What bounds them is the store's own limit, because they
+//! are not the request's to cap.
+//!
+//! **What a bracket owes is symmetry**, and that is the one part the shape
+//! cannot enforce: a block allocated inside one and freed outside it lowers a
+//! balance its allocation never raised, which is this same hole pointing the
+//! other way. So the bracket belongs to the store, around every path that
+//! allocates or frees what it holds, rather than to a call site that happens to
+//! be storing. Charging a free to whoever allocated the block instead needs
+//! per-request provenance, which is what the request arena in `docs/plan/m6.md`
+//! gives; until then, a store that is not bracketed is one whose frees are the
+//! freeing request's.
+//!
 //! # What it spends
 //!
 //! Per `rule:programs/memory-priority`'s *say what
@@ -115,6 +142,10 @@
 //! load and an add, paid only by an allocator that asks it, and each
 //! [`Ctx`](crate::Ctx) carries the bit it displaced beside the threshold it
 //! displaced.
+//!
+//! The accounting boundary is two more cells of that set and one predictable
+//! branch per allocation, taken by the store that opened a bracket and by
+//! nothing else.
 
 #[cfg(not(test))]
 use std::alloc::{GlobalAlloc, Layout};
@@ -180,6 +211,18 @@ thread_local! {
     /// Whether this thread is inside `rule:errors/on-limit`'s reserve, where
     /// [`affords`] answers without asking the balance — see [`Reporting`].
     static REPORTING: Cell<bool> = const { Cell::new(false) };
+    /// Whether this thread is inside a [`Detached`] bracket, where an
+    /// allocation is the process's rather than the running request's.
+    static DETACHING: Cell<bool> = const { Cell::new(false) };
+    /// The balance a [`Detached`] bracket moves in place of [`LIVE`]: how many
+    /// bytes this thread has allocated on the process's behalf and not yet
+    /// given back.
+    ///
+    /// Signed for [`LIVE`]'s reason, and more plainly so — a store filled by a
+    /// request on one core and emptied by a request on another is the ordinary
+    /// case for cross-request state rather than the exception it is for a
+    /// request's own values.
+    static DETACHED: Cell<isize> = const { Cell::new(0) };
 }
 
 /// `rule:errors/on-limit`'s reserve, open for as long as this value lives: the
@@ -211,6 +254,40 @@ impl Reporting {
 impl Drop for Reporting {
     fn drop(&mut self) {
         REPORTING.with(|open| open.set(self.0));
+    }
+}
+
+/// The accounting boundary of a cross-request store, open for as long as this
+/// value lives: an allocation or a release made while one is held moves
+/// [`detached_bytes`] and leaves [`live_bytes`] — and with it every request's
+/// reading and every armed ceiling — where it found it.
+///
+/// The module doc's *whose bytes they are* says which bytes these are and why a
+/// request must not be charged or credited for them. What a bracket owes is
+/// symmetry, so it is held by the **store**, around every path that allocates
+/// or frees what it holds, and never by a call site that happens to be storing.
+/// `Drop` closes it on an unwind as well as on a return, which is why this is a
+/// guard rather than a pair of calls.
+///
+/// Nesting is safe: each guard puts back what it found rather than closing the
+/// bracket outright. [`allocations`] and [`allocated_bytes`] keep moving inside
+/// one, because an allocation made on the process's behalf is still an
+/// allocation this thread made, and a guard asserting that a member allocates
+/// nothing has to fail on it.
+#[derive(Debug)]
+pub struct Detached(bool);
+
+impl Detached {
+    /// Opens the bracket, and answers the guard that closes it again.
+    #[must_use]
+    pub fn begin() -> Self {
+        Self(DETACHING.with(|open| open.replace(true)))
+    }
+}
+
+impl Drop for Detached {
+    fn drop(&mut self) {
+        DETACHING.with(|open| open.set(self.0));
     }
 }
 
@@ -353,6 +430,19 @@ pub fn live_bytes() -> isize {
     LIVE.with(Cell::get)
 }
 
+/// How many bytes this thread has allocated inside a [`Detached`] bracket and
+/// not yet given back inside one.
+///
+/// The process's share of what the thread holds, which [`live_bytes`] and every
+/// per-request reading derived from it exclude on purpose. It is a figure to
+/// attribute bytes with rather than a ceiling to enforce: what bounds a store's
+/// entries is the store's own limit, the local cache tier's `max_size` for
+/// `Core\Cache`.
+#[must_use]
+pub fn detached_bytes() -> isize {
+    DETACHED.with(Cell::get)
+}
+
 /// The highest [`live_bytes`] has reached since the innermost live
 /// [`Ctx`](crate::Ctx) rebased the mark.
 ///
@@ -464,14 +554,15 @@ pub fn armed_ceiling() -> isize {
 /// site is a guard the next call site forgets.
 ///
 /// An uncapped request answers on the sentinel without reading the balance at
-/// all, and so does a thread inside [`Reporting`]'s reserve.
+/// all, and so do a thread inside [`Reporting`]'s reserve and one inside a
+/// [`Detached`] bracket, whose bytes are not the request's to be refused.
 #[must_use]
 pub fn affords(bytes: usize) -> bool {
     let ceiling = CEILING.with(Cell::get);
     if ceiling == 0 {
         return true;
     }
-    if REPORTING.with(Cell::get) {
+    if REPORTING.with(Cell::get) || DETACHING.with(Cell::get) {
         return true;
     }
     // Saturating in the direction that refuses: an ask too large to count in
@@ -485,6 +576,18 @@ pub fn affords(bytes: usize) -> bool {
     false
 }
 
+/// The counters that say an allocation was made, whoever ends up holding the
+/// bytes.
+///
+/// Out of line from [`add`] because both of its balances move them: which
+/// balance a delta lands on is a question of attribution, and whether the
+/// thread allocated is not.
+fn record(bytes: isize) {
+    REQUESTS.with(|count| count.set(count.get().wrapping_add(1)));
+    let grew = usize::try_from(bytes).unwrap_or(0);
+    TOTAL.with(|total| total.set(total.get().wrapping_add(grew)));
+}
+
 /// Charges `bytes` to this thread's counters — negative for a release.
 ///
 /// `pub(crate)`, and called from [`Accounting`] below and from
@@ -495,7 +598,18 @@ pub fn affords(bytes: usize) -> bool {
 /// reads. A release moves the balance and nothing else: bytes given back
 /// cannot raise a high-water mark, and the branch is the one the monotonic
 /// counters already needed.
+///
+/// Inside a [`Detached`] bracket the delta lands on the process's balance
+/// instead, and every question this asks of the request — its mark, its
+/// ceiling — is one the bytes are not the request's to answer.
 pub(crate) fn add(bytes: isize) {
+    if DETACHING.with(Cell::get) {
+        DETACHED.with(|held| held.set(held.get().wrapping_add(bytes)));
+        if bytes > 0 {
+            record(bytes);
+        }
+        return;
+    }
     let live = LIVE.with(|live| {
         let now = live.get().wrapping_add(bytes);
         live.set(now);
@@ -507,9 +621,7 @@ pub(crate) fn add(bytes: isize) {
                 peak.set(live);
             }
         });
-        REQUESTS.with(|count| count.set(count.get().wrapping_add(1)));
-        let grew = usize::try_from(bytes).unwrap_or(0);
-        TOTAL.with(|total| total.set(total.get().wrapping_add(grew)));
+        record(bytes);
         // `rule:errors/on-limit`'s memory ceiling, asked here because this is
         // the one place a growing allocation passes: a loop growing a string
         // through the ctx-less primitives reaches no other question until it
