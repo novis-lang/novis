@@ -1,0 +1,14 @@
+--TEST--
+a namespace declaration names the file's own scope rather than a symbol the index holds, so the cursor in one answers nothing, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+namespac<|>e App;
+
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+references
+--EXPECT--
+none

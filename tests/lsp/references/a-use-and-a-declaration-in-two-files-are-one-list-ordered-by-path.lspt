@@ -1,0 +1,19 @@
+--TEST--
+a use in the open file and the declaration in a required one come back as one list, each path spelled the way the case wrote it and the list ordered by that spelling, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+
+var $u = new Us<|>er();
+echo $u->name;
+--FILE lib/user.nvs--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:10
+lib/user.nvs:2:7

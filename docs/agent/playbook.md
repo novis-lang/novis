@@ -4167,6 +4167,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   why it is absent, so landing one leaves that comment arguing against the tree. Edit the expected
   set and the comment together with the capability.
   [until: gone crates/nvs-lsp/tests/handshake.rs:initialize_declares_exactly_the_capabilities]
+- **A `references` expectation cannot be read off the document.** A cursor on a declaration's own
+  name resolves to no symbol, so a class, a method or a property answers `none`, and an occurrence
+  is recorded at the span of the expression around the name, so `$u->greet()` comes back from `$u`.
+  Run `nvs lsp-test <dir>` and read the `--- answered` block before freezing a column — both are
+  `crates/nvs-lsp/src/index.rs`'s `# Known gaps` 4 and 5.
+  [until: gone crates/nvs-lsp/src/index.rs:A cursor on a declaration's own name resolves to no symbol]
 
 ## Splitting a file that got too big
 

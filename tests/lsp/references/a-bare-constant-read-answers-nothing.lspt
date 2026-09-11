@@ -1,0 +1,10 @@
+--TEST--
+a bare constant read is refused by the language, so there is no resolved name under the cursor for the index to be asked about, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+const LIMIT = 10;
+echo LI<|>MIT;
+--REQUEST--
+references
+--EXPECT--
+none

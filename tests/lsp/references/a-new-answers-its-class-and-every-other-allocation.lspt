@@ -1,0 +1,17 @@
+--TEST--
+a cursor on a `new` answers the class's declaration and every other site that allocates it, each use placed where the expression holding the name begins rather than at the name, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new Us<|>er();
+var $v = new User();
+--REQUEST--
+references
+--EXPECT--
+case.nvs:2:7
+case.nvs:7:10
+case.nvs:8:10

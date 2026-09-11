@@ -1,0 +1,17 @@
+--TEST--
+a static call answers its method's declaration and every call of it, a static member being one index entry like any other and each call placed at the class name the expression opens with, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Counter
+{
+    public static function reset(): void {}
+}
+
+Counter::re<|>set();
+Counter::reset();
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:28
+case.nvs:7:1
+case.nvs:8:1

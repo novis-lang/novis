@@ -1,0 +1,21 @@
+--TEST--
+a cursor on a call answers the method's declaration and every other call of it, the declaration spelled at its name and each call at the receiver the expression starts with, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+
+var $u = new User();
+echo $u->gre<|>et();
+echo $u->greet();
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:21
+case.nvs:11:6
+case.nvs:12:6

@@ -78,6 +78,22 @@
 //!    the resolved graph rather than this side, which is why a type hierarchy
 //!    is right where the count above the same name is not.
 //!    — owner: unowned
+//! 4. **A cursor on a declaration's own name resolves to no symbol**, so
+//!    `textDocument/references` answers empty exactly where a reader is most
+//!    likely to ask it. [`symbol_at`] reads a name off a recorded expression
+//!    and a declaration is not one — the same seam that makes `definition`
+//!    answer `none` at a declaration, which is right there and wrong here.
+//!    `tests/lsp/references/` freezes the empty answer at a class, an
+//!    interface, an enum, a method and a property.
+//!    — owner: unowned
+//! 5. **An occurrence's span is the expression holding the name rather than
+//!    the name.** A use is recorded at the span
+//!    [`Analysed::exprs`](crate::Analysed) carries, so `$u->greet()` is
+//!    reported from `$u` and `Counter::reset()` from the first column.
+//!    Find-references survives it, because a reader reads the line;
+//!    `documentHighlight` will not, because an editor draws the box the span
+//!    names.
+//!    — owner: unowned
 
 use std::collections::BTreeMap;
 use std::fs;

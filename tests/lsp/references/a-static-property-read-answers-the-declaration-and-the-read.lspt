@@ -1,0 +1,18 @@
+--TEST--
+a static property read through `self::` answers the slot's declaration and the read itself, the receiver spelling not changing which symbol was resolved, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Counter
+{
+    public static int $count = 0;
+
+    public function total(): int
+    {
+        return self::$co<|>unt;
+    }
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:23
+case.nvs:8:16

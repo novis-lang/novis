@@ -1,0 +1,16 @@
+--TEST--
+a cursor on a property access answers the declaration and the read itself, the declaring class having been resolved off the receiver's type, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $u->na<|>me;
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:19
+case.nvs:8:6
