@@ -1,0 +1,768 @@
+# Novis reads this file as `./nvs.toml`. Every key the runtime parses is in it, commented out, so
+# that what a host can be told to do is something an operator reads rather than something they have
+# to go and find. A file in which nothing is uncommented is exactly a host with no file at all:
+# capabilities grant nothing, `[mode] default` is `production`, and every other key is whatever the
+# code that enforces it ships (`rule:config/no-configuration-file-is-a-complete-configuration`).
+#
+# Every key stays commented out, and that is deliberate. A file of live values pins today's numbers
+# into a deployment for as long as it keeps the file, so a default this project later tightens for a
+# security reason would never reach it. Uncommenting a line is how an operator takes ownership of
+# that value and of every later change to its shipped default.
+#
+# A value shown here is the key's spelling, not a promise about the shipped default. Where the
+# default is a fact this tree states, the comment above the key says so in a sentence opening
+# `Unset,`. Where there is no such sentence, the value beside the key is an example: uncommenting it
+# changes what the host does. Read the comment before you uncomment the line.
+#
+# A key whose comment opens with `NOT IMPLEMENTED` is parsed and accepted and then does nothing. The
+# note names the rule that closes it, and it is there so that this is learned before the key is
+# written rather than after. `python tools/directives.py --check-template` keeps the file and the
+# parser in step: a key the parser gained and this file omits, a key spelled twice, and an
+# unimplemented key with no note are each a failure.
+#
+# This file and the directory holding it must be owned by the account the runtime runs as, or by
+# root, and be writable by nobody else, or the boot refuses it — whoever can write it can grant
+# themselves every capability (`rule:config/ownership-is-the-trust-boundary`).
+
+
+# ----------------------------------------------------------------------------------------------
+# [mode] — which end of the permissiveness scale a request starts at, and how far code may move it.
+# ----------------------------------------------------------------------------------------------
+
+#[mode]
+# `production` or `development`. Unset, `production`, which is also the mode a host with no file at
+# all starts in. The mode selects the default of five other directives, and each of the three that
+# are keys in this file names its production value where it appears below.
+#default = "production"
+# The most permissive mode any code may select. Unset, the mode the server started in, which is what
+# makes a production host unreachable from code with nothing written here.
+#ceiling = "development"
+
+
+# ----------------------------------------------------------------------------------------------
+# [limits] — what a request starts with, and the ceiling it may raise itself to
+# (`rule:config/three-changeability-classes`).
+# ----------------------------------------------------------------------------------------------
+
+#[limits]
+# `Runtime` — the four a request may set wider or narrower at runtime, up to the matching
+# `[limits.hard]` ceiling. Unset, there is no cap of that kind at all: the runtime reads a missing
+# value as no ceiling, so the numbers below are spellings rather than the shipped bounds, and a
+# deployment that wants one writes it. A duration or a size takes a suffix or a bare number of
+# seconds or bytes, so `"30s"` and `30` are the same wait.
+#memory = "512M"                    # the heap a request starts with
+#cpu_time = "30s"                   # CPU time
+#wall_time = "60s"                  # wall time
+#max_output = "32M"                 # bytes written to the response
+# `Runtime`, and named to a request like the four above — but no scheduler or budget reads it yet,
+# so writing it bounds nothing today (`rule:security/isolate-budget-is-the-trees` is what it is for).
+#max_tasks = 16                     # concurrent tasks
+# `System` — the slice carved out of `memory` and `cpu_time` at request start and left for the
+# tier-1 fatal handler, which is the one thing that may still allocate once the rest of the ceiling
+# is gone (`rule:errors/on-limit`). A request may not set either one, and neither has a
+# `[limits.hard]` ceiling, because there is no request-set value for a ceiling to bound.
+#fatal_reserve_memory = "2M"        # bytes kept back for the handler
+#fatal_reserve_time = "250ms"       # CPU time kept back for it
+# `System` — how deep a chain of `spawn script` may nest before the next one is refused. Unset, 64.
+# `false` removes the ceiling, which is the one value that lets a recursion end as an exhausted heap
+# rather than as a depth.
+#max_script_depth = 64
+# `System` — the two halves of the decompression bound (`rule:core-classes/decompression-bound`): the
+# most any one `Core\Compress` or `Core\Zip` call may produce, and the most output per octet of
+# input. A bomb is small on the wire, so the byte ceiling alone is one a small request still reaches.
+# `false` does not remove either — an unbounded value reads as the bound `nvs_stdlib::compress`
+# ships, so no configuration spells an unbounded decompression.
+#max_decompressed = "256M"
+#max_decompression_ratio = 100
+
+#[limits.hard]
+# The ceiling a request may not raise itself past, for the four `Runtime` keys that have one. `false`
+# removes the ceiling for that key. A request that asks for more gets `false` back from
+# `Core\Config::set` and keeps the value it had.
+#memory = "1G"
+#cpu_time = "120s"
+#wall_time = "300s"
+#max_tasks = 64
+#max_output = "128M"
+
+
+# ----------------------------------------------------------------------------------------------
+# [capabilities] — deny-by-default grants. A block absent grants nothing, and that is the whole
+# of what an unconfigured host may do.
+# ----------------------------------------------------------------------------------------------
+
+#[capabilities.script]
+# The roots a `spawn script` target may live under. Being able to read a file is not permission to
+# run it, so this does not follow from `fs.read` (`rule:security/script-spawn-capability`).
+#spawn = ["scripts/"]
+
+#[capabilities.fs]
+# The roots readable and the roots writable, each a path prefix.
+#read = ["public/", "storage/"]
+#write = ["storage/"]
+
+#[capabilities.net]
+# The hosts an outbound connection may reach.
+#connect = ["api.example.com:443"]
+# The addresses inside `rule:security/net-address-policy`'s denied ranges this deployment reaches
+# anyway — written as IP literals and never as hostnames, because the policy is asked of a resolved
+# address and a name can resolve anywhere. It widens nothing on its own: an address named here is
+# still reachable only under a host `connect` grants, and `true` is not a spelling it has.
+#internal = ["10.0.0.5"]
+# The endpoints a program may bind, as `address:port` literals matched exactly
+# (`rule:security/net-listen-is-a-separate-grant-from-net-connect`). `true` is every endpoint this
+# process may bind, and an entry that does not parse as an endpoint matches nothing.
+#listen = ["127.0.0.1:9000"]
+# The socket paths a program may connect to or bind, as absolute paths or directory prefixes. It
+# follows from `connect` no more than `connect` follows from it: reaching the network and opening a
+# socket on this machine are different powers.
+#local = ["/run/novis/"]
+
+#[capabilities.process]
+# Whether a subprocess may be started — `true`, or the list of programs it may be.
+#exec = ["/usr/bin/convert"]
+
+#[capabilities.debug]
+# Where a trace and where a profile may be written (`rule:testing/debug-probes`).
+#trace = ["storage/trace/"]
+#profile = ["storage/profile/"]
+
+#[capabilities.db]
+# Which `[db.<name>]` blocks a program may open, and which it may issue DDL to. A block named here
+# was written by an operator, so it is pre-approved against the denied address ranges. Opening a
+# connection is not permission to change what is behind it, so `schema` does not follow from
+# `connect` (`rule:core-classes/schema-apply-capability`).
+#connect = ["main"]
+#schema = ["main"]
+# Which hosts a program-supplied `Db\Settings` may reach. These stay subject to the address policy,
+# which is why they are named as hosts and the two keys above are named as blocks.
+#open = ["db.example.com:5432"]
+
+#[capabilities.mail]
+# Which `[mail.<name>]` blocks a program may send through, by name and never by host.
+#send = ["default"]
+
+#[capabilities.cache]
+# Whether this program may reach the coherent tier — whichever store `[cache.shared] url` names.
+# There is nothing to scope: a deployment has one shared store.
+#shared = true
+
+#[capabilities.queue]
+# The queues whose rows a program may remove — `Core\Queue`'s `delete` and `purge`, the only two
+# members taking a grant at all (`rule:concurrency/queue-deletion-is-explicit-and-bounded`). Matched
+# exactly, so two queues differing only in case are two queues. A deployment that never removes a row
+# writes nothing here: enqueuing needs no grant.
+#purge = ["emails"]
+
+
+# ----------------------------------------------------------------------------------------------
+# [log] — the escalation ladder's configured rungs (`rule:errors/handler-script`) and what the
+# record itself looks like (`rule:errors/log-level`).
+# ----------------------------------------------------------------------------------------------
+
+#[log]
+# Tier 3: a `.nvs` invoked as a `spawn script` isolate with one `ErrorReport` argument, plus the
+# memory and time reserved for it. The reserve is sized once per core, so that the tier reporting an
+# out-of-memory is not itself out of memory.
+#handler = "scripts/on-error.nvs"
+#handler_reserve_memory = "4M"
+#handler_reserve_time = "500ms"
+# Tier 4, the floor that is always there: `stderr`, `file:<path>` or `syslog`.
+#target = "stderr"
+# Which rendering the target emits — `rule:errors/renderings`' set minus the HTML one, which belongs
+# to a response and never to a destination. Unset, the production default, `json`.
+#format = "json"
+# The minimum level written. Unset, the production default, `Info`. The mode picks this: a
+# `development` host logs from `Debug` instead.
+#level = "Info"
+
+
+# ----------------------------------------------------------------------------------------------
+# [io] — the one directory `Core\IO::temporaryDir` creates under
+# (`rule:core-classes/temporary-dir-sweep`).
+# ----------------------------------------------------------------------------------------------
+
+#[io]
+# Unset, a `novis` subdirectory of the platform temporary directory, which is what an unconfigured
+# deployment gets. An operator writes this to put temporaries on a particular filesystem — a larger
+# disk, or a tmpfs. `Boot`-class: the orphan sweep runs at `nvs serve` boot over the root it was
+# started with, so moving it under a running server would leave the old one holding entries nothing
+# sweeps.
+#temp_root = "/var/tmp/novis"
+
+
+# ----------------------------------------------------------------------------------------------
+# [debug] — the probe set and the temporary-file switch.
+# ----------------------------------------------------------------------------------------------
+
+#[debug]
+# NOT IMPLEMENTED — writing this turns nothing on. The probes are compiled into every unit and the
+# runtime's `DebugFlags` arms them, but nothing arms a bit from this file and the directive registry
+# carries no row for the key, so a value written here starts no coverage run and narrows nothing.
+# `rule:testing/debug-mode-directive` is what closes it.
+# `[]` is off; otherwise any subset of `coverage`, `branch`, `trace`, `profile`. `RuntimeTighten`, so
+# a request may narrow this and can never turn a bit on.
+#mode = ["coverage"]
+
+# `true` and the end-of-script sweep logs each path it would have deleted instead of deleting it, so
+# that absent cleanup is deliberate and visible rather than a silent leak. `System` and reloadable,
+# which is what lets an operator flip it on around one problematic request and off again; there is
+# deliberately no in-language setter, because a program that could exempt its own files from cleanup
+# is a program that can be made to hoard them.
+#keep_temporary = false
+
+
+# ----------------------------------------------------------------------------------------------
+# [http.*] — the four blocks that make `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
+# true with nothing written: headers on, CORS closed, cookies locked down, no unbounded wait.
+# ----------------------------------------------------------------------------------------------
+
+#[http.errors]
+# What a request that never got a frame shows: `generic` or `full`. Unset, the production default,
+# `generic`; a `development` host shows `full`. `Runtime`-class, so a request may pick the other.
+#detail = "generic"
+
+#[http.headers]
+# The secure header set, applied with no configuration present
+# (`rule:http-server/secure-headers-with-nothing-written`). What is written here replaces the shipped
+# value for that one header and leaves the rest alone.
+#content_type_options = true        # `X-Content-Type-Options: nosniff`
+#frame_ancestors = "none"           # `none`, `self`, or a list of origins
+#referrer_policy = "no-referrer"    # the `Referrer-Policy` value
+#hsts = "180d"                      # `Strict-Transport-Security` max-age; `false` disables it
+#hsts_subdomains = true             # whether that header carries `includeSubDomains`
+# Emitting nothing is what an empty value means for these two, and for the policy that is the
+# difference between no header and a header that allows everything.
+#content_security_policy = "default-src 'self'"
+#permissions_policy = "geolocation=(), camera=()"
+
+#[http.cors]
+# Closed until origins are named (`rule:http-server/cors-is-closed-until-origins-are-named`): with no
+# `origins`, no cross-origin request is answered, whatever the other keys say. `["*"]` is permitted
+# only with `credentials = false`.
+#origins = ["https://app.example.com"]
+#methods = ["GET", "POST"]          # what a preflight may allow
+#headers = ["content-type"]         # the request headers a preflight may allow
+#expose = ["x-request-id"]          # the response headers exposed to script
+#credentials = false                # whether credentials are allowed
+#max_age = "10m"                    # how long a preflight may be cached
+
+#[http.cookies]
+# What every `Core\Response::addCookie` inherits
+# (`rule:http-server/cookies-are-secure-httponly-and-lax`). `same_site = "None"` with
+# `secure = false` is refused where the pair is read, because it is a cookie sent cross-site in the
+# clear.
+#secure = true
+#http_only = true
+#same_site = "Lax"                  # `Lax`, `Strict` or `None`
+#path = "/"                         # the default path
+
+#[http.client]
+# No outbound call may wait forever (`rule:http-server/no-spelling-for-an-unbounded-wait`), and
+# neither key has a spelling that removes the bound. `deadline` covers every attempt and every
+# redirect hop together.
+#connect_timeout = "5s"
+#deadline = "30s"
+# Redirects are off unless a number is written here, and each hop is re-pinned against the address
+# policy (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`).
+#max_redirects = 0
+
+
+# ----------------------------------------------------------------------------------------------
+# [server] — `Boot`-class as a whole block: a change here needs a restart, not a reload
+# (`rule:http-server/the-server-block-is-boot-class`).
+# ----------------------------------------------------------------------------------------------
+
+#[server]
+# The root every mount path must resolve inside, and what this instance accepts on. `listen` is one
+# flat array of `host:port`, or an absolute path meaning a Unix socket; Unix sockets are Unix-only
+# and Windows listens on TCP loopback.
+#root = "/srv/app"
+#listen = ["127.0.0.1:8080"]
+# NOT IMPLEMENTED — nothing in this workspace binds a Unix socket yet, so there is no socket for a
+# mode to apply to. What the mode decides is which accounts may connect and so forge a forwarded
+# header, which is `rule:config/ownership-is-the-trust-boundary`'s question asked of a socket rather
+# than of a file. `rule:http-server/a-unix-socket-listener` is what closes it.
+# Unix-socket entries only.
+#socket_mode = "0660"
+
+# How a request finds its entry file: `entry` or `path`. The development default is `path`
+# (`rule:config/a-startup-default-is-never-flipped`).
+#dispatch = "entry"
+# Static file serving; the development default is on. Spelled `static`, which is a Rust keyword but
+# not a TOML one.
+#static = false
+# Fail-closed: with nothing here, no forwarding header is believed, and a proxy's `X-Forwarded-For`
+# is read as the untrusted text it is.
+#trusted_proxies = ["10.0.0.1"]
+# Off when empty — a path answered without entering the application at all.
+#health_path = "/healthz"
+# The in-flight ceiling, and how many cores accept over this machine's own available parallelism
+# (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
+#max_in_flight = 1024
+#workers = 4
+# The four connection waits, each idle rather than total, and each finite with nothing configured.
+# A bare number is seconds, so `"10s"` and `10` are the same wait.
+#header_timeout = "10s"             # the header read wait
+#body_idle_timeout = "30s"          # the body idle wait
+#write_idle_timeout = "30s"         # the write idle wait
+#keepalive_timeout = "60s"          # the keep-alive idle wait
+
+#[[server.mount]]
+# One mount — `rule:http-server/a-request-resolves-in-five-steps`. A mount matches on `prefix`, on
+# `host`, or on both; `scan` is a glob under `[server] root` where `*` captures one path segment and
+# `{1}` refers back to it. There is no `mode` key here: a mount routes and an `[[app]]` block sets
+# policy (`rule:config/a-mount-routes-and-an-app-block-sets-policy`), so an application's mode is one
+# answer wherever its entry file is reached from.
+#scan = "apps/*/public/index.nvs"
+#prefix = "/{1}"
+#host = "{1}.example.com"
+#entry = "apps/shop/public/index.nvs"    # one literal file, overriding a `scan` at this key
+#origin = "https://shop.example.com"     # what `Core\Router::urlAbsolute` prepends here
+
+
+# ----------------------------------------------------------------------------------------------
+# [session] — where a `Core\Session` record lives, what it rides under, and how long an untouched
+# one survives (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`).
+# The block being absent is not a default backend: `Core\Session::start()` throws naming this block,
+# which is the safe answer for a store nobody chose.
+# ----------------------------------------------------------------------------------------------
+
+#[session]
+# `shared` or `db`. The local cache tier is deliberately unspellable and writing it is `E0626`: a
+# tier that is one core's own memory cannot hold what must be coherent across cores.
+#backend = "shared"
+# How long an untouched record survives, written onto the entry so the store expires it. Unset, the
+# two hours `nvs_stdlib::session` ships, which is that module's to state because it is the one thing
+# that writes the expiry.
+#ttl = "2h"
+# The cookie name the identifier rides under. Unset, `nvs_stdlib::session`'s default. The cookie's
+# attributes are not here — `[http.cookies]` already fixes them for every cookie this server writes,
+# and a second spelling would be a way to weaken them.
+#cookie = "nvsid"
+
+
+# ----------------------------------------------------------------------------------------------
+# [db] — every named connection, and the one pooling switch that can be written unscoped
+# (`rule:core-classes/db-connection-is-named`).
+# ----------------------------------------------------------------------------------------------
+
+#[db]
+# `pool = false` with no block in front of it turns pooling off everywhere, including for a
+# connection a program described for itself through `Core\Db::open` — which names no block, so no
+# per-block key could ever reach it (`rule:security/db-pool-reset-is-a-boundary`).
+#pool = false
+
+#[db.pool]
+# These four are refused written unscoped: bounds with no block are a default set for a pool whose
+# key is a credential hash, and could not be sized against any one server. They are listed because
+# the parser reads them, and they are spelled properly one block down, under `[db.<name>.pool]`.
+#max = 8
+#idle = 2
+#lifetime = "30m"
+#acquire = "5s"
+
+# A connection is named, and the name is what a program and a `capabilities.db` grant refer to.
+# `main` here is an example: any name may be used, and `[db.<name>]` is the shape.
+#[db.main]
+# Which driver this block selects, and where it connects. SQLite takes a `path`, resolved against
+# the directory of the file it is written in, and has no host, port, user or password.
+#driver = "postgres"
+#path = "storage/app.sqlite"
+#host = "db.example.com"
+#port = 5432
+#user = "app"
+#database = "app"
+# The password inline, or the file whose whole content is the password minus one trailing newline
+# (`rule:config/a-secret-is-a-file-whose-content-is-the-value`). Exactly one of the two may be set,
+# and `password_file` is the one an audited deployment wants: it stays set after the value is read,
+# so `nvs config dump` can say where the secret came from without printing it.
+#password = "s3cret"
+#password_file = "/run/secrets/db-main"
+# The PEM file of trust anchors this server's certificate is verified against, resolved against the
+# directory of the file it is written in. Written, it replaces the compiled-in Mozilla set for this
+# block rather than adding to it — a server behind a private CA is exactly the case where a public CA
+# vouching for it is the attack. It is trust-checked at boot on `password_file`'s footing: whoever
+# can write it chooses which server this connection may be talking to.
+#tls_ca_file = "/etc/ssl/private-ca.pem"
+# How many server-side prepared statements one connection keeps alive. Unset, the driver's own
+# default, because the size that suits a request is a property of the protocol and not of this file.
+# A written `0` is not a broken cache: it is the unnamed statement every time.
+#statement_cache = 64
+# How long a statement on this connection may take before it is also written to `Core\Log`
+# (`rule:observability/a-slow-query-is-logged-past-a-threshold`). Unset, off — a slow-query log every
+# deployment gets without asking would be output nobody asked for. A written `0` logs every
+# statement, which is the honest reading of "slower than nothing".
+#slow_query = "200ms"
+# The zone this database's zone-less `DATETIME` and `TIMESTAMP` columns are written in. Unset, UTC.
+# An offset and never a zone name, because it is sent to the server as a numeric offset and a named
+# zone needs server-side tables that usually are not populated.
+#time_zone = "+02:00"
+# `false` turns pooling off for this block alone; a table of bounds is the other shape, below.
+#pool = false
+
+#[db.main.pool]
+# The bounds on this block's pool. `max` is per core, so a deployment's ceiling on the server is
+# cores times `max` — the number to size `max_connections` against. Unset, the set
+# `nvs_config::db::PoolBounds` ships, which is where they live because it is what parses them.
+#max = 8                            # connections one core may hold
+#idle = 2                           # how many of those stay open with nothing to do; `0` keeps none
+#lifetime = "30m"                   # how long a connection may live before it is retired regardless
+#acquire = "5s"                     # how long an acquire waits before it throws; `0` never waits
+
+
+# ----------------------------------------------------------------------------------------------
+# [mail.<name>] — an operator-named SMTP endpoint. The name is the key and a `capabilities.mail`
+# grant names it, so nothing a program writes can reach past this block.
+# ----------------------------------------------------------------------------------------------
+
+#[mail.default]
+# The relay, and the sender every message carries. There is no call-site override for `from`: domain
+# alignment is a fact about the deployment. Unset, `port` is 25 and `timeout` is 30s.
+#host = "smtp.example.com"
+#port = 587
+#from = "noreply@example.com"
+#timeout = "30s"
+# `user` and `password` are the pair that asks for TLS: a block naming them is sent through
+# `STARTTLS` and refused where the endpoint cannot carry one, and a block naming neither stays in the
+# clear. Half a credential is refused. `password_file` is `[db.<name>]`'s, under the same rule and
+# with the same audit property.
+#user = "app"
+#password = "s3cret"
+#password_file = "/run/secrets/mail-default"
+
+
+# ----------------------------------------------------------------------------------------------
+# [storage.<name>] — an object-storage disk. The grant over it is the `fs.read` and `fs.write` an
+# operator already writes about `root`: a second grant over one door is the shape where a deployment
+# is tightened in one of them and stays open through the other.
+# ----------------------------------------------------------------------------------------------
+
+#[storage.local]
+# The directory the disk's objects are files in. Every object is one entry directly under it, because
+# a key is one segment and never a path.
+#root = "storage/files"
+
+
+# ----------------------------------------------------------------------------------------------
+# [cache.*] — the two tiers `Core\Cache` hands back. This is not the artifact cache, which is
+# `[opcache]` and has no key here.
+# ----------------------------------------------------------------------------------------------
+
+#[cache.local]
+# What this core's entries may hold together — a size, or `false` for no ceiling at all. Unset, the
+# cap `nvs_stdlib::cache` ships, which is that module's to state because it is the one thing that
+# enforces it. Exceeding it forgets entries rather than failing a write, so it is never a reason a
+# `put` throws. `System`-class: the footprint is charged to the core and not to any one request.
+#max_size = "32M"
+
+#[cache.shared]
+# Where the coherent tier lives: `redis://host[:port]`, or `unix:/path/to.sock` for a store on this
+# machine. Absent, there is no shared tier and `Core\Cache::shared()` throws saying so, rather than
+# answering a store that would behave like the local one. Authentication, a database index and TLS
+# are refused rather than configured — `nvs_stdlib::cache` owns why.
+#url = "redis://127.0.0.1:6379"
+# The bound on the handshake and on each command. Unset, the shipped five seconds.
+#timeout = "5s"
+
+
+# ----------------------------------------------------------------------------------------------
+# [queue] — the durable job queue, which is a table in a database an operator names
+# (`rule:core-classes/queue-storage-is-a-table`). Every key is `System`: the queue is armed at boot
+# and a request may not move it, because work a request could redirect is work it could redirect into
+# a database it was never granted. The block's own absence is the off switch — nothing is enqueued
+# and nothing runs.
+# ----------------------------------------------------------------------------------------------
+
+#[queue]
+# The `[db.<name>]` block whose connection holds the jobs and dead-letter tables. Required, and best
+# the application's own: that is what makes an enqueue commit with the write that caused it.
+#connection = "main"
+# Workers this instance runs. `0` makes it enqueue-only, which is a supported deployment and not a
+# disabled queue.
+#workers = 4
+# Attempts a job gets before it is moved to the dead-letter table. Finite with nothing configured,
+# and there is no spelling for unbounded: nothing is retried forever and nothing is discarded
+# silently.
+#max_attempts = 5
+# How long a claimed job stays invisible to other workers before it may be claimed again. A duration,
+# so `"5m"` and `300` read the same.
+#visibility = "5m"
+
+
+# ----------------------------------------------------------------------------------------------
+# [deferred] — what bounds after-response work
+# (`rule:concurrency/deferred-is-bounded-by-two-directives`).
+# ----------------------------------------------------------------------------------------------
+
+#[deferred]
+# `System` — request trees per core kept alive for deferred work. Past the cap, `afterResponse`
+# throws rather than queueing, so the pressure is visible in the request that caused it.
+#max_concurrent = 32
+# `Runtime` — the deadline a call inherits when it names none.
+#deadline = "30s"
+
+
+# ----------------------------------------------------------------------------------------------
+# [[schedule]] — cron work as a configuration block, every key `System`
+# (`rule:config/scheduled-work-is-a-config-block`). Its `limits` and `grants` are the same keys as
+# `[limits.hard]` and `[capabilities.*]`, written per entry.
+# ----------------------------------------------------------------------------------------------
+
+#[[schedule]]
+# `name` is required and unique — it is the log and metric label, and a duplicate is a boot error
+# naming both lines. `script` is resolved against the `script.spawn` roots and prefix-checked, so a
+# path outside them is a boot error and not a first-fire one.
+#name = "nightly-report"
+#cron = "0 3 * * *"                 # five-field cron, and nothing more
+#script = "scripts/report.nvs"
+# `scope` is required and has no default: `fleet` runs the entry once across the deployment, `host`
+# once on each. `timezone` is UTC unless written. `overlap` is `skip` unless written — what happens
+# when a fire arrives while the previous one is still running.
+#scope = "fleet"
+#timezone = "UTC"
+#overlap = "skip"                   # `skip`, `queue` or `kill`
+
+#[schedule.limits]
+# This entry's ceilings, which are `[limits.hard]`'s keys with no ceiling nested under them. `false`
+# removes one.
+#memory = "1G"
+#cpu_time = "300s"
+#wall_time = "600s"
+#max_tasks = 16
+#max_output = "64M"
+
+#[schedule.grants.script]
+# This entry's grants, key for key the same as `[capabilities.*]` above and read the same way: what
+# is not named is not granted. Each block's comment there is the one that explains the key.
+#spawn = ["scripts/"]
+
+#[schedule.grants.fs]
+# The roots readable and writable while this entry runs.
+#read = ["storage/"]
+#write = ["storage/reports/"]
+
+#[schedule.grants.net]
+# Where this entry may reach, bind, or step outside the denied ranges to.
+#connect = ["api.example.com:443"]
+#internal = ["10.0.0.5"]
+#listen = ["127.0.0.1:9100"]
+#local = ["/run/novis/"]
+
+#[schedule.grants.process]
+# Whether this entry may start a subprocess, and which.
+#exec = ["/usr/bin/convert"]
+
+#[schedule.grants.debug]
+# Where this entry's trace and profile may be written.
+#trace = ["storage/trace/"]
+#profile = ["storage/profile/"]
+
+#[schedule.grants.db]
+# Which blocks this entry may open and issue DDL to, and which hosts it may reach with settings of
+# its own.
+#connect = ["main"]
+#schema = ["main"]
+#open = ["db.example.com:5432"]
+
+#[schedule.grants.mail]
+# Which `[mail.<name>]` blocks this entry may send through.
+#send = ["default"]
+
+#[schedule.grants.cache]
+# Whether this entry may reach the coherent tier.
+#shared = true
+
+#[schedule.grants.queue]
+# The queues whose rows this entry may remove — the retention entry is the one place this grant
+# usually belongs.
+#purge = ["emails"]
+
+
+# ----------------------------------------------------------------------------------------------
+# [metrics] and [trace] — `System` blocks (`rule:observability/metrics-and-trace-blocks-are-system`).
+# ----------------------------------------------------------------------------------------------
+
+#[metrics]
+# `false`, `prometheus` or `otlp`, and the bound on how many series one core accumulates between
+# scrapes. Past the bound a new series is refused rather than allowed to grow the registry without
+# end (`rule:observability/past-max-series-a-new-series-is-refused`).
+#exporter = false
+#max_series = 10000
+# NOT IMPLEMENTED — no exporter is built, so nothing binds `listen` and nothing pushes to
+# `endpoint`. The per-core registry an exporter would serve is real and is kept whole without one;
+# the `opentelemetry-otlp` dependency that would push is not in the workspace.
+# `rule:observability/the-exporters-are-crates` is what closes both.
+#listen = "127.0.0.1:9090"          # the Prometheus scrape endpoint
+#endpoint = "http://127.0.0.1:4317" # the OTLP collector URL
+
+#[trace]
+# `false` or `otlp`, head-based sampling from 0.0 to 1.0, and whether `traceparent` is sent on
+# outbound `Core\Http\Client` calls. An inbound sampled trace is always continued regardless of the
+# sample rate.
+#exporter = false
+#sample = 0.01
+#propagate = true
+# NOT IMPLEMENTED — no exporter is built, so no span leaves the process. The wiring from the
+# runtime's event kinds to spans is ours and the transport is not, which is what
+# `rule:observability/the-exporters-are-crates` closes.
+#endpoint = "http://127.0.0.1:4317"
+
+
+# ----------------------------------------------------------------------------------------------
+# [control] — the one local control socket (`rule:config/one-local-control-socket`).
+# ----------------------------------------------------------------------------------------------
+
+#[control]
+# A path, `\\.\pipe\nvs-control` on Windows, or `false` to disable. There is no TCP listener, no token
+# and no auth middleware: the socket's owner and mode are the authentication.
+#socket = "/run/novis/control.sock"
+
+
+# ----------------------------------------------------------------------------------------------
+# [opcache] — when a source file is re-checked, and the on-disk artifact cache
+# (`rule:config/opcache-revalidation-is-system-class`). Every key is `System`.
+# ----------------------------------------------------------------------------------------------
+
+#[opcache]
+# When a source file is re-`stat`ed, and the rate cap that bounds what those `stat`s cost. `never` is
+# the production answer, and it is what makes a warm start read no source at all.
+#validate = "never"
+#revalidate_freq = "2s"
+# Whether the on-disk artifact cache is used at all, and where it lives. `file_cache_dir` is the only
+# spelling of that directory — `[cache]` above is `Core\Cache`'s two tiers and holds none — and it is
+# the one key in this block that applies at boot rather than at reload, because moving it re-creates
+# the runtime's mapping of every cached unit. Unset, the per-build location `nvs-cli`'s cache module
+# derives inside the account already running the compile; whatever it is, it must be owned by that
+# account and writable by nobody else.
+#file_cache = true
+#file_cache_dir = "/var/cache/novis"
+# The cache's ceiling in bytes, and the probability pair that decides how often a sweep runs — the
+# shape PHP's session GC uses, read the same way: a sweep on `file_cache_gc_probability` runs in
+# `file_cache_gc_divisor`.
+#file_cache_max_size = "1G"
+#file_cache_gc_probability = 1
+#file_cache_gc_divisor = 100
+
+
+# ----------------------------------------------------------------------------------------------
+# [[app]] — one application, identified by its entry file path
+# (`rule:config/an-application-is-its-entry-file-path`). Everything below is the same key set as
+# above, scoped to this application: what it may do, what it starts with, and where its errors go.
+# ----------------------------------------------------------------------------------------------
+
+#[[app]]
+# `root` or `entry`, never both and never neither. `root` matches every entry file beneath a
+# directory on path-component boundaries; `entry` is one file exactly, which is the most specific
+# form of the same test.
+#root = "apps/shop"
+#entry = "apps/shop/public/index.nvs"
+# The mode this application starts in, under `[mode] ceiling` like any other, and what
+# `Core\Router::urlAbsolute` prepends for it.
+#mode = "production"
+#origin = "https://shop.example.com"
+
+#[app.limits]
+# `[limits]`' keys for this application alone, read exactly as they are read there — including that
+# an unset one is no cap rather than a shipped number.
+#memory = "512M"
+#cpu_time = "30s"
+#wall_time = "60s"
+#max_output = "32M"
+#max_tasks = 16
+#fatal_reserve_memory = "2M"
+#fatal_reserve_time = "250ms"
+#max_script_depth = 64
+#max_decompressed = "256M"
+#max_decompression_ratio = 100
+
+#[app.limits.hard]
+# This application's ceilings; `false` removes one.
+#memory = "1G"
+#cpu_time = "120s"
+#wall_time = "300s"
+#max_tasks = 64
+#max_output = "128M"
+
+#[app.capabilities.script]
+# This application's grants, key for key `[capabilities.*]`'s and read the same way: what is not
+# named is not granted, and the block's comment up there is the one that explains the key.
+#spawn = ["apps/shop/scripts/"]
+
+#[app.capabilities.fs]
+# The roots this application may read and write.
+#read = ["apps/shop/public/", "storage/shop/"]
+#write = ["storage/shop/"]
+
+#[app.capabilities.net]
+# Where this application may reach, bind, or step outside the denied ranges to.
+#connect = ["api.example.com:443"]
+#internal = ["10.0.0.5"]
+#listen = ["127.0.0.1:9000"]
+#local = ["/run/novis/"]
+
+#[app.capabilities.process]
+# Whether this application may start a subprocess, and which.
+#exec = ["/usr/bin/convert"]
+
+#[app.capabilities.debug]
+# Where this application's trace and profile may be written.
+#trace = ["storage/shop/trace/"]
+#profile = ["storage/shop/profile/"]
+
+#[app.capabilities.db]
+# Which blocks this application may open and issue DDL to, and which hosts it may reach with settings
+# of its own.
+#connect = ["main"]
+#schema = ["main"]
+#open = ["db.example.com:5432"]
+
+#[app.capabilities.mail]
+# Which `[mail.<name>]` blocks this application may send through.
+#send = ["default"]
+
+#[app.capabilities.cache]
+# Whether this application may reach the coherent tier.
+#shared = true
+
+#[app.capabilities.queue]
+# The queues whose rows this application may remove.
+#purge = ["emails"]
+
+#[app.log]
+# `[log]`'s keys for this application alone: the tier-3 handler and its reserve, and what the record
+# written for it looks like.
+#handler = "apps/shop/scripts/on-error.nvs"
+#handler_reserve_memory = "4M"
+#handler_reserve_time = "500ms"
+#target = "stderr"
+#format = "json"
+#level = "Info"
+
+
+# ----------------------------------------------------------------------------------------------
+# [[include]] — what this file pulls in (`rule:config/include-takes-a-path-or-a-dir`). An entry takes
+# a path or a directory, never both, and the ownership check that guards this file guards each one.
+# A key set in two files resolves to the later one, with both origins reported by `nvs config dump`.
+# ----------------------------------------------------------------------------------------------
+
+#[[include]]
+# One file, relative to the directory of the file this entry is written in.
+#path = "conf/limits.toml"
+# Every `*.toml` directly inside a directory, ascending by filename and not recursing. Not a glob.
+#dir = "conf.d"
+# Absence is fine; unreadable, unowned or unparseable is not. With it, the ownership check moves to
+# the directory that would have held the file.
+#optional = true
+
+
+# ----------------------------------------------------------------------------------------------
+# [[extension]] — a native extension, loaded only where root said so
+# (`rule:packaging/extension-loading-is-root-controlled`).
+# ----------------------------------------------------------------------------------------------
+
+#[[extension]]
+# The `.nvsx` to load, and the pin re-verified on every `nvs ctl reload` — a mismatch refuses the
+# whole swap rather than loading the file that changed.
+#path = "/usr/lib/novis/image.nvsx"
+#sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
