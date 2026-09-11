@@ -2,70 +2,61 @@
 
 ## State
 
-**Goal `resource-ceilings` — stage 5's string half is landed, and all three stage 0 cases are green**
-(`target/debug/nvs.exe test tests/conformance/error/`: 46 passed, 0 failed). The array half is
-untouched: `nvs_array_set`, `nvs_array_set_index`, `nvs_array_append` and `nvs_array_spread` still
-allocate and are stopped only at the next poll.
+**Goal `resource-ceilings` — stage 5 is landed on both halves.** The string half was the session
+before this one; the array half is now in: `nvs_array_set`, `nvs_array_set_index`, `nvs_array_append`
+and `nvs_array_spread` all ask the ceiling in front of the allocation. All three of stage 5's named
+array cases are green (`cargo test -p nvs-runtime --test refusal`: 9 passed), and so is the stage 1
+floor that had been failing — `crates/nvs-cli/src/serve.rs`'s known gap now names `— owner: M6`,
+which is the milestone whose acceptance list already carries the config snapshot a served request
+reads.
 
-**`NvsStr::alloc_or_refusal` (`crates/nvs-runtime/src/string.rs:501`) is what replaced
-`alloc_uninit`.** It sorts `try_alloc_uninit`'s `None` into two: one the running request was refused,
-which the caller answers with a degenerate value, and one no ceiling explains, which still aborts
-through `handle_alloc_error` because that is `NvsStr::new`'s known gap and no program can drive it.
-That split is the decision this stage turned on — a blanket "never abort" would answer a wrong value
-with nothing having marked the request over.
+**`NvsArray::affords_write` (`crates/nvs-runtime/src/array.rs:875`) is the pre-check**, and it prices
+one write rather than the whole array: `Table::growth_cost` is what the entry storage's amortized
+doubling asks for and `0` while it has room, `Table::separation_cost` is what a copy-on-write copy
+asks for, and a shared handle is charged the copy *and* one growth of it because `Table::separate`
+reserves the live entries exactly. The ask is made whatever it costs, zero included — a balance
+already past the ceiling is a request that is over.
 
-**The degenerate returns.** `EMPTY_IMMORTAL` (`crates/nvs-runtime/src/string.rs:263`) is a static
-`StrHeader` at `IMMORTAL_REFCOUNT`, so releasing it frees nothing however many times it happens;
-`NvsStr::build` answers it without running its writer, and `nvs_str_concat_n` answers it directly.
-`nvs_str_append` answers `target` unchanged, which is the one value balancing its one-reference-in,
-one-out protocol. `StrWriter::grow` answers `false` and `push` then writes no more, so a refused
-growth truncates rather than overflowing the payload.
+**The refusal has two shapes, one per signature.** A ctx-less write answers its array unchanged and
+releases the key and value it was handed (`nvs_array_set`'s key is the reference a leak would hide
+in). A write that already carries a status answers `crate::FATAL` through
+`crate::abi::report_refusal` (`crates/nvs-runtime/src/abi.rs:512`), which is `run_helper`'s own two
+lines — the tier-1 handler, then the breach as a fault no `catch` sees — reached from a helper with
+no `Fault` to hand back. `nvs_array_spread` asks per entry, so a large subject is bounded entry by
+entry and stops partway with what it had already copied.
 
-**The pre-check is `crate::budget::affords`, asked in the two places a string allocation is made** —
-`try_alloc_uninit` for a fresh one, against the whole layout, and `StrWriter::grow` for one in hand,
-against the difference between the two layouts.
-
-**`crate::budget::Reporting` is the reserve's third half, and it is new.** A widened ceiling and a
-taken verdict were not enough: the pre-check refuses against the *balance*, which a request reaching
-tier 1 is already past, so the report came out as an array of empty strings. The guard suspends the
-pre-check for the length of the escalation — `Ctx::run_limit_handler` and `nvs_host::ladder`'s tier 3
-— and what bounds the slice instead is the counting ceiling plus the zero-retry rule. Stage 5's array
-half will need the same guard for any report path it touches.
-
-**`run_helper` now reports a breach over a member's own fault** (`crates/nvs-runtime/src/abi.rs:470`).
-A refused `NvsStr::try_build` reaches `nvs-stdlib` as "no room" and is worded there as a throw; left
-alone, a resource limit would have become a `catch` a program carries on from, against
-`rule:errors/escalation-ladder`. Asked on the `Ok(Err(..))` arm only, because that is the one exit
-with no result `Value` to release.
-
-The goal's own record is still unopened. `0174` was the next free number at this commit; re-derive it.
+Stages 6 and 7 are untouched, and the goal's own record is still unopened — `0174` was the next free
+number at this commit; re-derive it.
 
 ## Next group
 
-**Stage 5: the array half** — one file set, `crates/nvs-runtime/src/array.rs` with
-`crates/nvs-runtime/tests/refusal.rs` for the cases. `rule:errors/on-limit` is what the refusal owes,
-and the goal's § *Standing decisions* settles the shape: a refusal is a complete no-op **including not
-separating a shared array**, and `nvs_array_new`'s per-thread singleton needs nothing.
+**Stage 6: the detached-accounting bracket** — one file set, `crates/nvs-runtime/src/budget.rs` with
+`crates/nvs-runtime/tests/` for the cases, then `crates/nvs-stdlib/src/cache.rs` for the first store
+that takes it. `rule:programs/memory-priority`'s *bounded, attributable* is what it owes, and the
+goal's § *Standing decisions* settles the scope: bracket the known stores, do not solve provenance,
+and record in the goal's record that the general property waits for M6's arena.
 
-- [ ] **`nvs_array_set` and `nvs_array_set_index` refuse by answering their array unchanged**
-      — `crates/nvs-runtime/src/array.rs:1515` and `crates/nvs-runtime/src/array.rs:1552` are the two
-      ctx-less writes. The pre-check goes in front of both the growth and the *separation*: a refusal
-      that separated but did not write, or wrote into the shared original, is the one way this reaches
-      `nvs_array_value_at`'s `.expect` on a live cursor. Test names the check wants:
-      `an_array_set_past_the_ceiling_neither_writes_nor_separates` and
-      `a_refused_write_leaves_a_live_foreach_cursor_on_its_own_snapshot`.
-- [ ] **`nvs_array_append` and `nvs_array_spread` refuse through the status they already carry**
-      — `crates/nvs-runtime/src/array.rs:1600` and `crates/nvs-runtime/src/array.rs:1666` are
-      `(ctx, ..) -> i32` today, so neither needs a degenerate value and neither call site changes.
-      Test name: `an_array_append_past_the_ceiling_refuses_through_the_status_it_already_has`.
-- [ ] **The three cases, beside the four this session wrote** —
-      `crates/nvs-runtime/tests/refusal.rs:194`. The cursor one is what says the degenerate return is
-      sound rather than merely cheap, so write it against a `foreach` walking a snapshot, not against
-      the counters.
+- [ ] **The bracket itself, in `crates/nvs-runtime/src/budget.rs:201`** — a guard type shaped like
+      `Reporting` beside it (`crates/nvs-runtime/src/budget.rs:498` is the `add` it has to divert):
+      allocations and frees inside it move the process counters and not the running request's
+      measured usage, and `Drop` restores, so the obligation arrives with the shape rather than
+      being one to remember. Test names the check wants:
+      `a_detached_bracket_moves_the_process_counter_and_not_the_request_reading`,
+      `a_bracket_restores_on_unwind_as_well_as_on_return` and
+      `a_request_that_frees_inherited_memory_gains_no_ceiling`.
+- [ ] **`Core\Cache::local`'s store takes it** — `crates/nvs-stdlib/src/cache.rs:477` is the
+      `thread_local` map and `crates/nvs-stdlib/src/cache.rs:582` the second one beside it; the
+      entries must still count against `[cache.local] max_size`
+      (`crates/nvs-stdlib/src/cache.rs:501`), which is a different ceiling from the request's. Test
+      names: `a_cache_write_is_charged_to_the_process_and_not_to_the_request`,
+      `an_eviction_from_a_later_request_lowers_no_ceiling` and
+      `a_cache_entry_still_counts_against_the_local_tier_max_size`.
 
 ## Backlog
 
-- Stage 6, the accounting boundary and the bracketed cross-request stores — `crates/nvs-stdlib/src/cache.rs`.
-- Stage 7's record and the rule fragments its `changes:` block names, `Reporting` among them — `docs/agent/loop-goal.md` § *Standing decisions*.
-- `NvsStr::try_build`'s `None` can now carry a recorded breach; `crates/nvs-stdlib/src/str.rs:1764` still words it as a throw and is overridden in `run_helper` rather than at the source.
-- `[context]` gap: the pack prints the goal's § *Standing decisions* but not its § *Stage N* item list, which is where the stage's numbered items live — the field selecting goal-prose sections should name the current stage's section too.
+- Stage 7's record and rules — the refusal and its degenerate return, the accounting boundary, the
+  expansion rule; the goal's § *Standing decisions* is the brief, `docs/agent/conventions.md` the shape.
+- Any other process-lifetime store a session finds unbracketed: bracket it and say so, per the goal's
+  standing decision on stage 6.
+- `NvsArray::set`/`set_index` (the Rust API the `Core` producers use) stay infallible on purpose —
+  `run_helper` asks ahead of a member's body, and `try_reserve` is the fallible seam a producer takes.

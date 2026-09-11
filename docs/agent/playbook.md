@@ -4286,13 +4286,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst` — and
   leave a pure-CPU spin unbounded, since only the first takes the host with it.
   [until: reviewed 2026-09-11]
-- **A `live_bytes` balance taken across a thread's *first* `Ctx` reads a one-time cost as a leak.**
-  `Ctx::new` fills in per-thread state that outlives the context it was made for, so a reading taken
-  before the first one on a thread and compared after it is short by that fixed amount — the same
-  shape as `nvs_array_new`'s singleton, with a different owner. Make and drop a `Ctx` before
-  `let before = budget::live_bytes()`, as
-  `crates/nvs-runtime/tests/refusal.rs`'s `a_refused_operation_balances_every_reference_it_was_handed`
-  does. [until: gone crates/nvs-runtime/src/ctx/mod.rs:pub fn new]
+- **A balance assertion across a primitive that *reports* a refusal reads the report as a leak.**
+  `abi::report_refusal` runs `Ctx::memory_breach`, which `format!`s the message the `FATAL` carries,
+  so `nvs_array_append`'s refusal moves `budget::live_bytes` by a couple of hundred bytes while
+  `nvs_array_set`'s moves it by nothing. Assert "allocated nothing" on the primitives that answer a
+  degenerate value, and assert the status plus the unchanged operand on the ones that answer a
+  status. [until: gone crates/nvs-runtime/src/ctx/limits.rs:pub fn memory_breach]
 
 ## Splitting a file that got too big
 
