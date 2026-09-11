@@ -44,6 +44,51 @@ impl<'a> Lowering<'a> {
             },
         );
     }
+    /// `Core\Script::finish()` — the one `Core` row that is *raised* rather
+    /// than called, and the whole of what makes the fourth ending an ending
+    /// every `finally` observes.
+    ///
+    /// The value raised is a fresh instance of `nvs_types::CORE_SCRIPT_FINISH_CLASS`:
+    /// a second, parentless root of the exception tree, which declares no
+    /// property and no constructor and which nothing extends. That buys both
+    /// halves at once against [`super::TryFrame`] as it already stands — the
+    /// throw path is the path a `finally` body lives on, so every enclosing
+    /// region's finally-and-re-raise block runs, while the `catch` dispatch's
+    /// self-or-ancestor walk is false for every arm in the tree and hands the
+    /// same reference onward. `rule:errors/propagation`.
+    ///
+    /// No retain: the instance is built here and has exactly one owner, which
+    /// [`Terminator::Throw`] takes — [`Self::lower_throw`]'s own operand rule,
+    /// on the side of it that is a fresh `new`.
+    ///
+    /// What follows is dead by construction and still lowered, for the reason
+    /// [`super::Lowering::lower_exit`] gives: a `never`-typed expression owes
+    /// its caller a value, so the sealed block is followed by a fresh one and
+    /// the value handed back is a constant nothing reads.
+    pub(crate) fn lower_finish(&mut self, env: &mut Env, cur: &mut BlockId) -> (ValueId, Ty) {
+        let (marker, _) = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::New {
+                class: nvs_types::CORE_SCRIPT_FINISH_CLASS.to_owned(),
+                ctor: None,
+                args: Vec::new(),
+            },
+            env,
+        );
+        let source = self.throw_source(*cur);
+        let landing = self.landing_block(env);
+        self.seal(
+            *cur,
+            Terminator::Throw {
+                value: marker,
+                source,
+                landing,
+            },
+        );
+        *cur = self.new_block();
+        self.emit(*cur, Ty::Int, InstKind::ConstInt(0))
+    }
     /// The carrier a `throw` in `cur` hands `nvs_runtime::nvs_raise`, which
     /// fills the raised object's `location` from it.
     ///

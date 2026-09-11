@@ -3496,6 +3496,15 @@ impl<'a> Lowering<'a> {
         // which is the whole reason `nvs_types` seeds a signature
         // table rather than special-casing `Core` at each call site.
         if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
+            // `Core\Script::finish()` carries a row so the checker can resolve
+            // and type it, and is the one row no site ever calls: its symbol is
+            // the label the raise is recognised by, and `Self::lower_finish`
+            // seals the block with the throw that ends the script instead.
+            // `nvs_stdlib::script`'s own symbol doc is the home of why the
+            // helper behind that address exists at all.
+            if symbol == nvs_types::CORE_SCRIPT_FINISH {
+                return self.lower_finish(env, cur);
+            }
             let sig = ArgSig::of_helper(call);
             let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
