@@ -17820,11 +17820,13 @@ Leaves `$topic`, so nothing published to it reaches this connection again.
 <a id="core-core-sse"></a>
 ### `Core\Sse`
 
-Keywords: upgrade
+Keywords: upgrade, stream, send
 
 | Member | Signature |
 |---|---|
 | [`Core\Sse::upgrade`](#core-core-sse-upgrade) | `upgrade(string $entry, mixed $args = null): void` |
+| [`Core\Sse::stream`](#core-core-sse-stream) | `stream(): Core\Sse` |
+| [`Core\Sse->send`](#core-core-sse-send) | `send(mixed $data, ?string $event = null, ?string $id = null): void` |
 
 <a id="core-core-sse-upgrade"></a>
 #### `Core\Sse::upgrade`
@@ -17843,6 +17845,38 @@ Answers this request with an event stream running `$entry` as a root isolate —
 **Returns** `void` — Nothing. Calling it opens the stream — this is not a response value a handler hands back, because nothing interprets a handler's return.
 
 **Throws** `RuntimeError` — A request no server is answering, which is every command-line program and every `spawn script` child; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through; and, for a static method entry, an `$args` map that omits a parameter the method declares or names one it does not.
+
+<a id="core-core-sse-stream"></a>
+#### `Core\Sse::stream`
+
+```nvs skip
+Core\Sse::stream(): Core\Sse
+```
+
+Answers this request with an event stream that ends when the request does — the head goes out as soon as this is called, and every event written on the handle reaches the client as it is written.
+
+**Returns** `Core\Sse` — The handle to write events on, which is the same `Core\Sse` a connection-scoped stream holds — so a helper taking one works from either door. A browser's `EventSource` reconnects when this stream ends, because the request it belongs to has ended; the readers this door is for are `fetch` and a progress UI that closes itself.
+
+**Throws** `LogicError` — A status was set on this request before the stream was opened — an event stream is `200` by protocol; or this response already has a body being written over time, a response having one body.
+
+<a id="core-core-sse-send"></a>
+#### `Core\Sse->send`
+
+```nvs skip
+$sse->send(mixed $data, ?string $event = null, ?string $id = null): void
+```
+
+Writes one event to the client: the payload, and the optional name it dispatches on and id it echoes back when it reconnects.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `mixed` | What the client's data buffer receives. A `string` goes out as it was written and anything else is JSON-encoded by the encoder `Core\Json::encode` is. A `tainted` value is accepted: the payload is normalized and split into `data:` lines here, so it cannot reach any other field. |
+| `$event` | `?string` (default `null`) | The name the client dispatches this event on, or `null` for the default `message`. A sink — an attacker-chosen name is an instruction to the reader — so a `tainted` value is refused where it is written. |
+| `$id` | `?string` (default `null`) | The id the client echoes back in `Last-Event-ID` when it reconnects, or `null` for an event that sets none. A sink for the same reason, and there is no replay buffer behind it: resumption is the application's own event log, read off the header by the handler. |
+
+**Returns** `void` — Nothing, once the event is framed and handed to the body being written.
+
+**Throws** `LogicError` — An `$event` or `$id` carrying a line break or a NUL, either of which would end the event early and change what the client acts on; or an empty `$data`, which a client provably does not dispatch.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`

@@ -1722,6 +1722,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Land the class's first instance member in the slice that first answers one — the conformance floor
   wants it too, a handle with no members having no three questions to be asked.
   [until: reviewed 2026-09-11]
+- **A `loop-goal.toml` check's `-p <crate>` goes stale the session a module moves between crates,
+  and the failure then reads exactly like unwritten work.** Stage 2's event framing moved from
+  `nvs-server` to `nvs-runtime` so `nvs-stdlib` could name it without closing a cycle, and its three
+  checks went on naming `-p nvs-server` — which reports all nine tests as "did not run" while every
+  one of them passes one crate over. When a `cargo-named` check reports its *whole* list missing,
+  grep the test names across `crates/` before writing anything: a name that resolves somewhere else
+  is a check to re-point, never a test to write again. [until: reviewed 2026-10-11]
 
 ## Running things
 
