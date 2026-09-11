@@ -85,6 +85,7 @@ use nvs_runtime::{
 };
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
+use crate::watchdog::Registration;
 
 pub use nvs_runtime::script::Program;
 
@@ -111,6 +112,11 @@ pub struct Isolate {
     /// arm dwarfing the other.
     inbound: Option<Box<Inbound>>,
     peer: Option<Box<dyn PeerSocket>>,
+    /// Where this isolate publishes itself while it runs, so that a thread
+    /// which is not this core can charge it against `rule:errors/on-limit`'s
+    /// CPU ceiling — [`Isolate::watched_by`], and `None` for every isolate
+    /// nobody handed a registration to.
+    watch: Option<Rc<Registration>>,
 }
 
 /// Whose budget an isolate spends: `rule:security/isolate-shares-nothing`'s answer, and `rule:errors/handler-script`'s one
@@ -153,7 +159,36 @@ impl Isolate {
             entry: Entry::Path,
             inbound: None,
             peer: None,
+            watch: None,
         }
+    }
+
+    /// Publishes this isolate to `watch` for as long as it runs, so the
+    /// watchdog can charge it against its CPU ceiling and stop it at one.
+    ///
+    /// A builder for [`Self::running_a_method_of_the_parents_unit`]'s reason:
+    /// an isolate a server takes up on a watched core is the caller that has a
+    /// registration to hand over, and every other one in this tree — a `spawn
+    /// script` child, a test's program, the engine's own handler — would
+    /// otherwise pass a `None` to say it has none.
+    ///
+    /// **What is published is the tree, and the registration crosses rather
+    /// than the publication because the tree is not in hand here.** It is the
+    /// context [`Self::start`] is called on: that context's safepoint handle is
+    /// the root's, its `Ctx::cpu_limit` is the ceiling the whole tree divides
+    /// (`rule:security/isolate-budget-is-the-trees`), and a caller that
+    /// published at this line would be publishing whatever context it built the
+    /// isolate from. A tree under no cap publishes nothing —
+    /// [`Registration::publish`] clears the slot instead of filling it.
+    ///
+    /// The publication is cleared when this isolate's body ends, however it
+    /// ends. One slot per registered thread is the whole of what a registration
+    /// holds, so a thread running several isolates at once publishes the one it
+    /// took up last and clears the slot at the first of them to finish.
+    #[must_use]
+    pub fn watched_by(mut self, watch: Rc<Registration>) -> Self {
+        self.watch = Some(watch);
+        self
     }
 
     /// Says the program is a `static` method of the *parent's* unit rather than
@@ -332,6 +367,7 @@ impl Isolate {
             entry,
             inbound,
             peer,
+            watch,
         } = self;
         // `rule:errors/on-limit`'s ceiling on the tree, ahead of everything else in this
         // body: `Ctx::script_depth_breach` owns why the question belongs to the
@@ -380,6 +416,22 @@ impl Isolate {
         // child's own stack and this context is borrowed by then
         // (`Ctx::class_table`).
         let receiving = ctx.class_table();
+        // `rule:errors/on-limit`'s CPU ceiling reaches a request that allocates
+        // nothing, writes nothing and calls nothing only if a thread that is not
+        // this one is charging it, and what such a thread charges is the
+        // **tree's** handle and the tree's ceiling. Both are read off this
+        // context rather than off the child below, and they have to be:
+        // `Ctx::isolate` carries no ceiling across, precisely so that the budget
+        // stays the root's, and the word it does carry across is the same word
+        // this one hands out. Published before the child is built, so a runaway
+        // is published ahead of the code that runs away.
+        //
+        // [`Unpublished`] is what clears it, and the two are deliberately not
+        // symmetrical: the publication is one store made here, and the guard
+        // that undoes it goes wherever the body it belongs to ends.
+        if let Some(watch) = &watch {
+            watch.publish(ctx.safepoint_view(), ctx.cpu_limit());
+        }
 
         // The isolate's own root. Buffered under both options; § 4's fresh
         // statics base is `Ctx::isolate`'s whole reason for existing.
@@ -422,7 +474,6 @@ impl Isolate {
         if let Some(peer) = peer {
             isolate_ctx.set_peer(peer);
         }
-
         Ok(match Wake::current() {
             Some(wake) => start_as_task(
                 isolate_ctx,
@@ -431,6 +482,7 @@ impl Isolate {
                 Rc::new(wake),
                 output,
                 receiving,
+                watch,
             ),
             // No task beneath the call, which takes a host installed by
             // something other than a running scheduler — `run_group`'s own
@@ -439,11 +491,30 @@ impl Isolate {
             // at the await: with no scheduler there is no concurrency to defer
             // it for. Nothing about the boundary weakens — it is the context,
             // not the stack.
-            None => Box::new(Collected {
-                completion: Some(run_here(isolate_ctx, program, crossed, receiving)),
-                output,
-            }),
+            None => {
+                let _unpublished = watch.map(Unpublished);
+                Box::new(Collected {
+                    completion: Some(run_here(isolate_ctx, program, crossed, receiving)),
+                    output,
+                })
+            }
         })
+    }
+}
+
+/// Clears a thread's publication when the isolate it was made for ends.
+///
+/// A guard rather than a line at the end of the body, for [`Ended`]'s reason:
+/// an isolate torn down by a forced unwind reaches no line, and a slot left
+/// filled would charge whatever the thread does next to a tree that has
+/// finished. It carries no identity, so it clears the thread's slot whether or
+/// not the publication still names this isolate — [`Registration::clear`] owns
+/// what that costs.
+struct Unpublished(Rc<Registration>);
+
+impl Drop for Unpublished {
+    fn drop(&mut self) {
+        self.0.clear();
     }
 }
 
@@ -607,6 +678,7 @@ fn start_as_task(
     wake: Rc<Wake>,
     output: Output,
     receiving: Option<ErrorClass>,
+    watch: Option<Rc<Registration>>,
 ) -> Box<dyn Running> {
     let slot: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
     let done = Rc::new(Cell::new(false));
@@ -616,10 +688,16 @@ fn start_as_task(
         done: Rc::clone(&done),
         wake,
     };
+    let unpublished = watch.map(Unpublished);
     let spawned = spawn_child(isolate_ctx, TaskRoot::Request, move |child| {
         // Moved in so the guard is dropped with the body — including when the
         // body is torn down half-way through by a forced unwind.
         let ended = ended;
+        // Moved in for the same reason, and held past `ended` below: the answer
+        // is filed there, while `rule:concurrency/after-response-outlives-the-connection`'s
+        // work runs on this stack afterwards and is this request's CPU as much
+        // as its body was.
+        let _unpublished = unpublished;
         let answer = program(child, args);
         let completion = finish(child, answer, receiving.as_ref());
         // `rule:concurrency/a-connection-is-a-root-isolate`: a connection isolate's end **is** the connection's end,
@@ -995,6 +1073,53 @@ mod tests {
         unsafe {
             Value::object(NvsObj::new(table.desc(id)))
         }
+    }
+
+    /// `rule:errors/on-limit`'s CPU ceiling is charged by a thread that is not
+    /// the one running the request, so an isolate a server takes up publishes
+    /// itself for exactly as long as its body runs: the tree it joined and the
+    /// ceiling that tree divides, cleared at the end however the body ends.
+    #[test]
+    fn a_watched_isolate_publishes_its_tree_while_it_runs_and_clears_at_the_end() {
+        let mut ctx = parent();
+        ctx.set_cpu_limit(60_000_000_000);
+        let dog = Rc::new(crate::Watchdog::new());
+        // The half of the watched set that answers a *request*: this test's
+        // thread is no core, and `register_requests` owns why such an entry
+        // takes no deadline view.
+        let registered = Rc::new(dog.register_requests());
+
+        // Read from inside the body, because that is the only moment the
+        // assertion is about: a publication that arrived after the program ran
+        // would stop nothing.
+        let seen: Rc<Cell<usize>> = Rc::new(Cell::new(usize::MAX));
+        let recorded = Rc::clone(&seen);
+        let reading = Rc::clone(&dog);
+        let program: Program = Box::new(move |_ctx, _args| {
+            recorded.set(reading.running().len());
+            Value::null()
+        });
+        let done = run(
+            Isolate::new(program, Value::null(), Output::Capture)
+                .watched_by(Rc::clone(&registered)),
+            &mut ctx,
+        )
+        .expect("the argument crossed");
+        assert!(done.ok, "the child failed");
+
+        // A platform with no per-thread clock enforces no CPU ceiling, so the
+        // publication there is the clearing one — `crate::cpuclock`'s docs own
+        // that answer, and this case asserts the wiring either way.
+        let expected = usize::from(crate::ThreadClock::current().is_some());
+        assert_eq!(
+            seen.get(),
+            expected,
+            "the running isolate was not the one published"
+        );
+        assert!(
+            dog.running().is_empty(),
+            "a finished isolate was still offered as the request to stop"
+        );
     }
 
     /// `rule:statements/an-isolate-has-its-own-statics`, which is `rule:security/isolate-shares-nothing`'s "globals, class statics and
