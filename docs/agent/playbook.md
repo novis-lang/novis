@@ -4153,6 +4153,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   finds the export list — neither is a site where anything is built. Count the **private** entry type
   the site fills in (`Indexed {`), which no other module can name, and exempt `lib.rs` explicitly, which
   is what `crates/nvs-lsp/tests/index.rs` does. [until: gone crates/nvs-lsp/src/index.rs:struct Indexed]
+- **Adding one LSP request fails a closed-list test in a file no goal's file set names.**
+  `crates/nvs-lsp/tests/handshake.rs`'s `initialize_declares_exactly_the_capabilities_this_goal_ships`
+  asserts the *exact* serialized capability key set, so one new provider field fails it with
+  `Extra: [...]` from a suite the slice never opened. Its comment also names each absent request and
+  why it is absent, so landing one leaves that comment arguing against the tree. Edit the expected
+  set and the comment together with the capability.
+  [until: gone crates/nvs-lsp/tests/handshake.rs:initialize_declares_exactly_the_capabilities]
 
 ## Splitting a file that got too big
 
