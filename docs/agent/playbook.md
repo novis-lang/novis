@@ -3119,14 +3119,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   inside it; straight-line growth reaches nothing until `run_helper` asks ahead of a member's body.
   Put the loop or the member call where you want the breach reported, and expect nothing printed
   after the crossing. [until: gone crates/nvs-runtime/src/budget.rs:fn publish]
-- **A fixture whose loop *doubles* what it holds cannot run `Core\Fatal::onLimit`'s handler, and the
-  tell is an empty stdout beside a `FATAL` naming about twice the ceiling.** The handler is entered
-  with the reserve added back, and that slice is at most a quarter of `[limits] memory`
-  (`Ctx::reserve_within`), while a doubling crosses by about the whole of what it held — so the
-  handler's first helper call breaches again and `rule:errors/on-limit`'s zero-retry rule abandons
-  it. Size the ballast to cross by less than `fatal_reserve_memory`, as
-  `tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` does, or expect the `FATAL` alone.
-  [until: gone crates/nvs-runtime/src/string.rs:fn alloc_uninit]
 - **A `reject` case pins the *first* diagnostic, and the recovery type behind it writes a second
   one.** `check_read` answers `mixed` after reporting, so a `static` method declared `: int` whose
   body reads `$this->size` also reports `E0403 declares int but returns mixed`, and `%A` does not
@@ -4294,6 +4286,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst` — and
   leave a pure-CPU spin unbounded, since only the first takes the host with it.
   [until: reviewed 2026-09-11]
+- **A `live_bytes` balance taken across a thread's *first* `Ctx` reads a one-time cost as a leak.**
+  `Ctx::new` fills in per-thread state that outlives the context it was made for, so a reading taken
+  before the first one on a thread and compared after it is short by that fixed amount — the same
+  shape as `nvs_array_new`'s singleton, with a different owner. Make and drop a `Ctx` before
+  `let before = budget::live_bytes()`, as
+  `crates/nvs-runtime/tests/refusal.rs`'s `a_refused_operation_balances_every_reference_it_was_handed`
+  does. [until: gone crates/nvs-runtime/src/ctx/mod.rs:pub fn new]
 
 ## Splitting a file that got too big
 
@@ -6073,14 +6072,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   raising it should stop every other context in the tree; if not it is a field on `Ctx`, the way
   `cancelled` is, and not a bit in `SafepointFlags`.
   [until: gone crates/nvs-runtime/src/ctx/mod.rs:safepoint_word]
-- **A budget pre-check written into `NvsStr::try_alloc_uninit` aborts the process, because
-  `alloc_uninit` beside it turns that `None` into `handle_alloc_error`.**
-  `crates/nvs-runtime/src/string.rs:486` is the infallible wrapper `NvsStr::build`,
-  `nvs_str_concat_n` and `nvs_str_append` all allocate through, so a refusal reaching it takes the
-  worker and every in-flight request with it — the one outcome a per-request ceiling exists to
-  avoid. Delete the wrapper and give each caller its degenerate return in the same slice as the
-  pre-check, never in an earlier one.
-  [until: gone crates/nvs-runtime/src/string.rs:fn alloc_uninit]
+- **The pre-check refuses the runtime's own report too, and it fails as an empty string.** A request
+  reaching `rule:errors/on-limit`'s tier 1 is past its balance, so every `NvsStr::new` on the
+  reporting path answers the immortal empty and the handler gets a record whose keys are `""`. Hold
+  `nvs_runtime::budget::Reporting` across the whole escalation, as `Ctx::run_limit_handler` and
+  `nvs_host::ladder` do. [until: gone crates/nvs-runtime/src/budget.rs:pub struct Reporting]
 
 ## Divergences and refusals already pinned
 
