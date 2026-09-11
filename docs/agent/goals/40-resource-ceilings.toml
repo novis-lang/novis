@@ -8040,11 +8040,12 @@ kind = "cargo-named"
 stage = "3 the clock"
 name = "both poll sites act on the flag the sampler raises"
 args = ["test", "-p", "nvs-runtime"]
-# The first two landed under the tree's own names: `nvs_safepoint` is the back
-# edge compiled code polls, and `bounded_loop` is the poll a member makes. The
-# third is the one still to write — `Ctx::run_limit_handler` lowers the flag for
-# the length of the handler and raises it again after, and nothing asserts that
-# a handler overrunning its widened ceiling is stopped rather than entered again.
+# All three are `nvs-runtime`'s own unit tests, under the tree's names:
+# `nvs_safepoint` is the back edge compiled code polls, `bounded_loop` is the
+# poll a member makes, and `Ctx::run_limit_handler` lowers the flag and widens
+# the ceiling for the length of the handler — so a handler that spends the
+# widened slice too is stopped at its own back edge rather than entered a
+# second time.
 tests = [
   "a_limit_or_cancel_safepoint_is_fatal_and_uncatchable",
   "a_fired_poll_names_the_ceiling_that_stopped_the_walk",
