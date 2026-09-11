@@ -488,16 +488,21 @@
     {
       "id": "concurrency/a-stream-that-outlives-its-request-is-a-connection",
       "title": "A stream that ends with its response is a streaming response; one that outlives it is a connection isolate",
-      "status": "designed",
+      "status": "shipped",
       "because": [
-        "0083"
+        "0083",
+        "0176",
+        "0177"
       ],
       "divergesFromPhp": "the choice is made by lifetime rather than by protocol, and there is no `flush`-in-a-loop shape that keeps a request alive",
       "seeAlso": [
         "concurrency/two-doors-one-isolate",
         "concurrency/a-connection-is-a-root-isolate"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-runtime/src/stream.rs",
+        "crates/nvs-server/src/serve.rs"
+      ]
     },
     {
       "id": "concurrency/two-doors-one-isolate",
@@ -524,12 +529,14 @@
         "0083",
         "0074",
         "0075",
-        "0004"
+        "0004",
+        "0177"
       ],
       "divergesFromPhp": "there is no unbounded wait to configure your way into: an idle, a lifetime and a send timeout all apply before any configuration is written",
       "seeAlso": [
         "concurrency/a-connection-is-a-root-isolate",
         "concurrency/a-drain-closes-a-connection-cleanly",
+        "concurrency/two-doors-one-isolate",
         "core-classes/ratelimit-two-members"
       ],
       "guardedBy": [

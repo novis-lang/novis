@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*12 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -644,7 +644,7 @@ through an upgrade's arguments or published to a topic.
 
 <a id="concurrency-a-stream-that-outlives-its-request-is-a-connection"></a>
 
-## A stream that ends with its response is a streaming response; one that outlives it is a connection isolate  *(designed — not yet in the compiler)*
+## A stream that ends with its response is a streaming response; one that outlives it is a connection isolate
 
 `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
 
@@ -656,13 +656,22 @@ large export, a chunked file. It stays in the request isolate and is bounded by 
 
 A stream that outlives its request is a *connection isolate*: notifications, a live dashboard,
 anything a client keeps open across page lifetimes. `Core\Sse::upgrade` opens one, and it is the same
-isolate a WebSocket gets — a root, its own arena, its own budget, `send` and no `receive`.
+isolate a WebSocket gets — a root, its own arena, its own budget, and `send`.
+
+**What an event stream has no `receive` for is a peer, not a wait.** Its client cannot send on the
+stream, so there is no second source of frames; topics still arrive, and `receive()` on a
+connection-scoped event stream waits on its subscriptions alone. On the request-scoped door it throws
+instead, there being no isolate for a wait to park in.
+
+Both spellings are built. `Core\Response::stream` and `Core\Sse::stream` write a body that ends with
+the response, from inside the request isolate; `Core\Sse::upgrade` opens the connection. Neither
+existed when this line was first drawn, and the line itself is what did not change when they landed.
 
 Choosing by protocol instead of by lifetime is the mistake the line exists to prevent. Server-sent
 events over a request that ends is a streaming response and not a connection; a WebSocket is never
 anything but a connection.
 
-<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md).</sub>
+<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0176](../decisions/0176.md), [0177](../decisions/0177.md).</sub>
 
 <a id="concurrency-two-doors-one-isolate"></a>
 
@@ -706,6 +715,28 @@ Each bound ends in a **defined close** rather than a reset, and the connection's
 `receive()` answers `null` and the peer is told which bound it met. A connection that exceeds its
 memory, CPU or lifetime budget is reported as that and never as an out-of-memory.
 
+**Both doors are bounded, and not by the same bounds.** An event stream has no codec and no peer
+speaking, so what holds it is a lifetime, a drain period and one event's size — plus two numbers no
+operator writes, and one field it must leave alone:
+
+- **The keep-alive is derived rather than configured.** What would close a quiet event stream is the
+  wait a connection writes responses under, so the interval that keeps one open is read off that same
+  wait — half of it, floored at a second wherever the wait leaves room for one — and is therefore a
+  number nobody configures twice. A beat equal to the wait is a race and not a bound: the stream
+  writes its keep-alive at the instant it is already being closed for not having written one.
+- **The reconnection hint is drawn per stream**, spread by up to a third either side of the number
+  the server holds. A constant tells every client of a drained instance to come back at the same
+  moment, so the instance replacing it takes the whole fleet in one arrival. The spread is narrow
+  rather than full jitter from zero: this is the single gap before a client returns, not a backoff
+  against a contended resource, and a client drawn near zero reconnects into the restart it was told
+  to wait out.
+- **The idle timeout is unarmed on this door, and that is the bound's design.** It closes a
+  connection whose *peer* stopped speaking, and an event stream's peer never speaks — the hand-over
+  took nothing from it ([`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate)) and there is no frame it could
+  send — so arming it would close every healthy stream at the first quiet window. An absent bound is
+  the one thing a list of bounds cannot show by listing, so it is stated here rather than left to be
+  noticed as a gap.
+
 Connections *per tenant* is deliberately not a bound of the server's. The upgrade is an ordinary HTTP
 request, so a per-tenant ceiling is the rate limit the route already declares
 ([`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)); a second ceiling here would be a second policy over one
@@ -714,7 +745,7 @@ request.
 An application that wants a longer-lived connection sends anything at all — a ping is a frame, and
 the loop never sees one.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0075](../decisions/0075.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0075](../decisions/0075.md), [0004](../decisions/0004.md), [0177](../decisions/0177.md).</sub>
 
 <a id="concurrency-a-connection-keeps-its-compiled-unit"></a>
 
