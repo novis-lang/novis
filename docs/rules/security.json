@@ -1004,7 +1004,8 @@
       "because": [
         "0088",
         "0024",
-        "0074"
+        "0074",
+        "0177"
       ],
       "seeAlso": [
         "security/sink-predicate",

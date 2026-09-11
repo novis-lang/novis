@@ -1212,10 +1212,24 @@ a separate axis and this member makes no claim about it.
 
 `rule:security/response-body-is-one-typed-member`
 
-A response body is written by one of five typed members, each owning a body shape and setting its own
+A response body is written by one of seven typed members, each owning a body shape and setting its own
 content type. The HTML member takes the carrier and so has nothing to refuse; the JSON and text
 members are contagious; the bytes member is contagious in its body and a sink in its content type; the
 file member's path is a sink.
+
+**Two of the seven write their body over time rather than at once, and classification follows the
+shape and not the timing.** The streaming member declares a media type it is told, so that argument
+is the bytes member's sink for the bytes member's reason — it becomes an instruction the peer obeys
+about how to read everything after it — while each chunk is a union of text and bytes, which carries
+no classification at all and therefore refuses a tainted argument outright. That is the fail-closed
+direction of the two: the text member accepts a tainted body and a chunk does not.
+
+The event-stream member takes no media type — the protocol's is the only one it could have — and its
+`send` splits three ways. The payload is contagious, for the JSON member's reason: framing belongs to
+us and to the serializer, and normalization happens before the payload is split across `data:` lines,
+so it cannot reach any other line. The event name and the id are **sinks**: a client dispatches on
+the name and echoes the id back in its next request's `Last-Event-ID`, so an attacker-chosen one is
+the cross-tenant hazard a tainted topic name is.
 
 The JSON member accepts a tainted value freely, because the framing belongs to the serializer and
 never to concatenation — a tainted string becomes a JSON string value and cannot escape it. The text
@@ -1227,7 +1241,7 @@ change to two rules.
 type and its content type, and silently letting the last one win is how a JSON endpoint acquires an
 HTML prelude.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md), [0177](../decisions/0177.md).</sub>
 
 <a id="security-db-pool-reset-is-a-boundary"></a>
 
