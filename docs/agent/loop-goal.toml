@@ -168,8 +168,8 @@ shapes = ["A commit message", "A decision record", "A rule fragment"]
 milestones = ["M10"]
 
 playbook = [
-  # This goal's own file set.
-  "Tooling > editors/vscode/package.json's contributes",
+  # This goal's own file set. `verify.py runs` is the one that leads with
+  # `editors/vscode/package.json`, so there is no second selector for it.
   'Tooling > tools/verify.py runs',
   'Tooling > a textmate',
   'Writing a test case > a -p nvs-cli test',
@@ -7891,6 +7891,27 @@ want = ["grammar:", "contributions:", "protocol:", "surfaces:", "0 failing"]
 # failure becoming a test item's message; and the region client asking for `nvs/regions` and
 # forwarding nothing outside a returned span.
 
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the Test Explorer, which is the half of that list the label above does not yet hold: a
+# `surfaces:` group green on stages 3 and 4 alone satisfied every check this goal had while two of its
+# stages were unbuilt. These two name the cases instead, so the gate is red until they exist. The
+# files are `editors/vscode/test/surfaces/tests.test.ts` and `regions.test.ts`. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 the test explorer"
+name = "the explorer populates from the listing, runs through the json report, and holds the case corpus too"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:headless"]
+want = [
+  "the test explorer",
+  "populates the tree from the listing before anything runs",
+  "runs one case and reads its verdict and failure back",
+  "holds the .nvst corpus as a second suite in the same controller",
+  "0 failing",
+]
+
 [[check]]
 kind = "nvs-suite"
 stage = "6 the regions"
@@ -7909,6 +7930,23 @@ args = ["test", "-p", "nvs-lsp"]
 tests = [
   "the_server_declares_no_formatting_provider",
   "a_region_answer_carries_a_span_and_a_language_and_nothing_else",
+]
+
+# Both of those are the server's side. The client's is the forwarding itself, and `surfaces:` is where
+# it is asserted -- behind `nvs.template.services`, which is a contributed setting and so is answered
+# or it is a failing test.
+
+[[check]]
+kind = "command"
+stage = "6 the regions"
+name = "the region client forwards inside a span, and is off when the setting is"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:headless"]
+want = [
+  "the template regions",
+  "forwards inside a region and nothing outside one",
+  "forwards nothing at all when nvs.template.services is false",
+  "0 failing",
 ]
 
 # ---------------------------------------------------------------------------------------------------
