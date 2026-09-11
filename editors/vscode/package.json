@@ -198,6 +198,67 @@
         "title": "Hide Secrets",
         "category": "Novis"
       }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "nvs",
+        "required": [
+          "command",
+          "file"
+        ],
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "run",
+              "test"
+            ],
+            "enumDescriptions": [
+              "Check the file, then compile and run it.",
+              "Run the file's #[Test] methods, or the .nvst cases under it."
+            ],
+            "description": "The nvs subcommand this task is."
+          },
+          "file": {
+            "type": "string",
+            "description": "The file or directory the subcommand is given. Both of them take one."
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Further arguments, appended after the file."
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "nvs",
+        "label": "Novis diagnostics",
+        "owner": "nvs",
+        "source": "nvs",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "severity": "error",
+        "pattern": [
+          {
+            "regexp": "^(error|warning|note|help|internal compiler error)\\[([EW]\\d{4})\\]: (.*)$",
+            "severity": 1,
+            "code": 2,
+            "message": 3
+          },
+          {
+            "regexp": "^\\s*--> (.*):(\\d+):(\\d+)$",
+            "file": 1,
+            "line": 2,
+            "column": 3
+          }
+        ]
+      }
     ]
   },
   "scripts": {
