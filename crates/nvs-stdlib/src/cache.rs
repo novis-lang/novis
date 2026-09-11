@@ -130,7 +130,7 @@ use std::time::Duration;
 
 use nvs_config::capability::{Cap, Scope};
 use nvs_config::{Quantity, Setting, Unit};
-use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value, budget};
 use nvs_syntax::duration;
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
@@ -411,8 +411,11 @@ struct Local {
 impl Local {
     /// Writes `payload` under `key`, forgetting whatever it has to.
     ///
-    /// `cap` is `None` for the `false` an operator writes for no ceiling.
-    fn put(&mut self, key: &[u8], payload: Vec<u8>, cap: Option<usize>) {
+    /// `cap` is `None` for the `false` an operator writes for no ceiling. The
+    /// bytes are copied into an allocation of the store's own rather than taken
+    /// from the caller's `Vec`, so that everything this tier holds was
+    /// allocated where [`store_put`]'s bracket will free it again.
+    fn put(&mut self, key: &[u8], payload: &[u8], cap: Option<usize>) {
         let incoming = charged(key.len(), payload.len());
 
         if cap.is_some_and(|cap| incoming > cap) {
@@ -449,7 +452,7 @@ impl Local {
             }
         };
         self.held += incoming;
-        self.entries.insert(key, payload.into_boxed_slice());
+        self.entries.insert(key, Box::from(payload));
     }
 
     /// Forgets the entry whose key was written longest ago, and answers whether
@@ -521,8 +524,31 @@ pub(crate) fn local_cap(ctx: &Ctx) -> Option<usize> {
 /// parameter here rather than read inside: both callers read it from the same
 /// [`local_cap`], and a store that read it for itself would be reachable from a
 /// test with no configuration at all.
+///
+/// **What the store allocates is detached from the request that wrote it.** The
+/// copy [`Local::put`] keeps, the map and queue that name it, and the frees an
+/// eviction makes are all inside `nvs_runtime::budget::Detached`, so they move
+/// the process's balance and not the reading any request is measured by —
+/// `rule:concurrency/cache-memory-is-charged-to-the-core`'s *not attributable to
+/// a request* as arithmetic rather than as a sentence. Without it, the request
+/// that evicts an entry is credited for bytes an earlier request allocated,
+/// which is a ceiling any program widens at will: fill the tier under one
+/// request and evict it under the next.
+///
+/// `payload` is the caller's own temporary, allocated under the request and
+/// released here outside the bracket, under the same request. That symmetry is
+/// what a bracket owes — a block allocated on one balance and freed on the other
+/// corrupts both — and it is why the entry is copied rather than this `Vec`
+/// being kept. What that spends is one copy of the payload per local write, on a
+/// path that has already encoded the value it is storing.
 pub(crate) fn store_put(key: &[u8], payload: Vec<u8>, cap: Option<usize>) {
-    ENTRIES.with_borrow_mut(|local| local.put(key, payload, cap));
+    {
+        let _bracket = budget::Detached::begin();
+        ENTRIES.with_borrow_mut(|local| local.put(key, &payload, cap));
+    }
+    // Where it was allocated: the caller's `Vec` is the request's, and what the
+    // tier holds is the copy made above.
+    drop(payload);
 }
 
 /// This core's payload for `key`, or `None` — which is an ordinary answer and
@@ -986,7 +1012,7 @@ mod tests {
 
     use super::{
         CLASS, Ctx, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, MAX_SIZE,
-        SHARED_DOC, Value, endpoint, local_cap, open_configured, store_get, store_put,
+        SHARED_DOC, Value, charged, endpoint, local_cap, open_configured, store_get, store_put,
     };
 
     /// The member a store's door names in a refusal, and what a case here is
@@ -1196,18 +1222,19 @@ mod tests {
     /// is why [`local_cap`] is read per write rather than once per core. The
     /// cap then bounds what the core actually holds and not merely the
     /// bookkeeping beside it: a sweep writing thirty-two times the cap leaves
-    /// this thread's allocator balance up by about the cap, so the entries
+    /// the process's balance up by about the cap, so the entries
     /// `forget_oldest` dropped gave their bytes back. The eviction cases above
     /// assert what a `put` forgets; this one asserts that forgetting it was a
     /// deallocation.
     ///
     /// And the charge lands on the core rather than on a request:
-    /// `nvs_runtime::budget::live_bytes` is *this thread's* balance —
-    /// `Ctx::memory_used` is the per-request reading, and that module doc says
-    /// how the two relate — so a second core writing the same key raises its own
-    /// by the same amount. That is § 3's O(cores × working set) measured rather
-    /// than restated, and it is the price `rule:security/no-cross-request-state`'s isolation is bought
-    /// with.
+    /// `nvs_runtime::budget::detached_bytes` is the process's share of *this
+    /// thread's* balance, which is where [`store_put`]'s bracket puts an entry
+    /// and what no request's ceiling is armed against — so a second core writing
+    /// the same key raises its own by the same amount, and neither core's
+    /// requests are measured by either. That is § 3's O(cores × working set)
+    /// measured rather than restated, and it is the price
+    /// `rule:security/no-cross-request-state`'s isolation is bought with.
     #[test]
     fn the_local_tiers_memory_is_charged_to_the_core_and_capped() {
         /// Small enough that the sweep below writes many times over it.
@@ -1235,7 +1262,7 @@ mod tests {
         );
 
         // Thirty-two times the cap, written under it.
-        let before = budget::live_bytes();
+        let before = budget::detached_bytes();
         let mut over = 0;
         for step in 0..WRITES {
             store_put(
@@ -1250,7 +1277,7 @@ mod tests {
             "{over} of {WRITES} writes left the tier over its cap"
         );
 
-        let held = budget::live_bytes() - before;
+        let held = budget::detached_bytes() - before;
         assert!(
             held < (4 * CAP).cast_signed(),
             "the core holds {held} bytes after writing {}, so the cap bounds the \
@@ -1260,25 +1287,156 @@ mod tests {
 
         // Charged to *this* thread, which is what § 3 means by charged to the
         // core: the balance rises with the entry and stays risen with it.
-        let alone = budget::live_bytes();
+        let alone = budget::detached_bytes();
         store_put(b"charged-per-core", vec![b'x'; LARGE], None);
         assert!(
-            budget::live_bytes() - alone >= LARGE.cast_signed(),
+            budget::detached_bytes() - alone >= LARGE.cast_signed(),
             "the entry's bytes are live on the core that wrote it"
         );
 
         // And a second core pays for its own copy of the same key rather than
         // sharing this one's — § 3's multiplication, as a measurement.
         let elsewhere = std::thread::spawn(|| {
-            let fresh = budget::live_bytes();
+            let fresh = budget::detached_bytes();
             store_put(b"charged-per-core", vec![b'y'; LARGE], None);
-            budget::live_bytes() - fresh
+            budget::detached_bytes() - fresh
         })
         .join()
         .expect("the second core's thread runs to completion");
         assert!(
             elsewhere >= LARGE.cast_signed(),
             "eight cores hold eight copies, and each one is charged for its own"
+        );
+    }
+
+    /// The entry's bytes are the process's, and the request that happened to
+    /// make the write is measured as though it had not made it.
+    ///
+    /// `rule:concurrency/cache-memory-is-charged-to-the-core`'s *not
+    /// attributable to a request*, asked of the accounting rather than of the
+    /// cap: the balance every ceiling is armed against, and the reading a limit
+    /// handler reports, both end where they started. The payload is built
+    /// *after* those readings are taken and released by the store, so a bracket
+    /// that kept the caller's `Vec` instead of copying it would leave the
+    /// balance short by an entry and fail here.
+    #[test]
+    fn a_cache_write_is_charged_to_the_process_and_not_to_the_request() {
+        /// The charge one entry has to show through the noise.
+        const ENTRY: usize = 256 * 1024;
+
+        let ctx = Ctx::buffered();
+        let used = ctx.memory_used();
+        let live = budget::live_bytes();
+        let held = budget::detached_bytes();
+
+        store_put(b"charged-to-the-process", vec![b'p'; ENTRY], None);
+
+        assert!(
+            budget::detached_bytes() - held >= ENTRY.cast_signed(),
+            "the entry reached no balance at all, so nothing holds its bytes to the process"
+        );
+        assert_eq!(
+            budget::live_bytes(),
+            live,
+            "the entry was charged to the balance this request's ceiling is armed against"
+        );
+        assert_eq!(
+            ctx.memory_used(),
+            used,
+            "a cache write raised the reading this request's own limit handler reports"
+        );
+    }
+
+    /// The attack the cap does not stop on its own: an entry one request wrote
+    /// is freed by whichever later request's write evicts it, and a release
+    /// credited to *that* request is a ceiling any program widens at will.
+    ///
+    /// What the case asserts is the **gap** between the armed threshold and the
+    /// balance, because the threshold is absolute — `budget::armed_ceiling` is
+    /// a balance and not a size — so headroom is the only number a widening
+    /// moves. The eviction is asserted as well, since a write that forgot
+    /// nothing would pass the headroom half without ever freeing anything.
+    #[test]
+    fn an_eviction_from_a_later_request_lowers_no_ceiling() {
+        /// One entry's payload.
+        const ENTRY: usize = 128 * 1024;
+        /// Room in the tier for one of them and no more.
+        const KEY: &[u8] = b"inherited-from-an-earlier-request";
+
+        let room = Some(charged(KEY.len(), ENTRY));
+        store_put(KEY, vec![b'i'; ENTRY], room);
+
+        // The request that comes next, under a ceiling of its own.
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[limits]\nmemory = \"8M\"\n"));
+        let ceiling = budget::armed_ceiling();
+        assert_ne!(
+            ceiling, 0,
+            "the request armed no ceiling, so there is no headroom here to widen"
+        );
+        let headroom = ceiling - budget::live_bytes();
+
+        store_put(b"written-by-this-request", vec![b'w'; ENTRY], room);
+        assert_eq!(
+            store_get(KEY),
+            None,
+            "the write forgot nothing, so no release happened to be credited"
+        );
+
+        assert_eq!(
+            budget::armed_ceiling(),
+            ceiling,
+            "an eviction moved the threshold the request is measured against"
+        );
+        assert_eq!(
+            budget::armed_ceiling() - budget::live_bytes(),
+            headroom,
+            "evicting what an earlier request stored bought this request headroom"
+        );
+    }
+
+    /// The bytes moved off the request's balance; the tier's own ceiling still
+    /// measures them.
+    ///
+    /// This is the half the bracket could quietly break, because what the cap
+    /// compares is [`Local::held`] — maintained from the lengths the store was
+    /// handed, never from an allocator counter — and a write that escaped it
+    /// would now be bytes the process holds and *nothing* bounds, where before
+    /// they were at least inside some request's ceiling. Both ends: the charge
+    /// arrives with the entry, and a sweep many times the cap never leaves the
+    /// tier over it.
+    #[test]
+    fn a_cache_entry_still_counts_against_the_local_tier_max_size() {
+        /// One entry's payload, small enough that the sweep writes many.
+        const ENTRY: usize = 4 * 1024;
+        /// The ceiling those writes are made under.
+        const CAP: usize = 64 * 1024;
+        /// How many of them, so that 32 × `CAP` is written in all.
+        const WRITES: usize = 512;
+        /// The one entry the charge is read off.
+        const KEY: &[u8] = b"counted-against-the-cap";
+
+        store_put(KEY, vec![b'c'; ENTRY], Some(CAP));
+        ENTRIES.with_borrow(|local| {
+            assert_eq!(
+                local.held,
+                charged(KEY.len(), ENTRY),
+                "the entry arrived without its charge, so the cap is measuring something else"
+            );
+        });
+
+        let mut over = 0;
+        for step in 0..WRITES {
+            store_put(
+                format!("swept-{step:04}").as_bytes(),
+                vec![b's'; ENTRY],
+                Some(CAP),
+            );
+            over += usize::from(ENTRIES.with_borrow(|local| local.held) > CAP);
+        }
+        assert_eq!(
+            over, 0,
+            "{over} of {WRITES} writes left the tier over its cap"
         );
     }
 
