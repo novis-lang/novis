@@ -32,7 +32,9 @@ import {
   ServerOptions,
 } from "vscode-languageclient/node";
 
+import { binary } from "./binary";
 import * as redactions from "./redactions";
+import * as tasks from "./tasks";
 import { refusal } from "./version";
 
 // The subcommand that is the server, and the whole of the command line. `nvs lsp` speaks the
@@ -70,6 +72,10 @@ export async function activate(context: ExtensionContext): Promise<void> {
     channel,
     status,
     commands.registerCommand("nvs.restartServer", () => restart(context)),
+    // Two entry points onto one execution path: each starts the Task `tasks.ts` builds, rather
+    // than spawning a process of its own beside it (`rule:ide/tasks-carry-a-problem-matcher`).
+    commands.registerCommand("nvs.run", () => tasks.execute("run")),
+    commands.registerCommand("nvs.test", () => tasks.execute("test")),
     // The two halves of a reveal. They are registered here rather than in `redactions.ts` so the
     // command roster the manifest freezes has one place it is answered from.
     commands.registerCommand("nvs.revealSecret", (where?: Parameters<typeof redactions.reveal>[0]) =>
@@ -82,6 +88,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }),
   );
   redactions.install(context);
+  // The provider is what makes a hand-written `"type": "nvs"` entry in a `tasks.json` resolve;
+  // `contributes.taskDefinitions` alone only describes the shape of one.
+  tasks.install(context);
   await start(context);
 }
 
@@ -102,9 +111,8 @@ async function start(context: ExtensionContext): Promise<void> {
     return;
   }
 
-  // An empty `nvs.path` is a lookup on `PATH`: the command is the bare name, and the platform's
-  // own resolution finds it or does not.
-  const command = settings.get<string>("path", "").trim() || "nvs";
+  // Which binary this is, is `binary.ts`'s to answer — the Tasks spawn the same one.
+  const command = binary();
   const executable: Executable = { command, args: SUBCOMMAND };
   const server: ServerOptions = { run: executable, debug: executable };
   // What the server is configured with. `crates/nvs-lsp/src/settings.rs` reads the `nvs` section out
