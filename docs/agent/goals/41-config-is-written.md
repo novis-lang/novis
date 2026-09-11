@@ -125,6 +125,42 @@ no trailer.
    can be and no shorter. Verbose where a wrong value is a security question (`[capabilities]`,
    `[limits.hard]`, `[mode] ceiling`); one line where it is not. `docs/agent/doc-style.md` governs the
    prose.
+
+   **`cpu_time` and `wall_time` are the two keys an operator asks about first**, and their comments
+   answer the questions before they are asked: waiting costs no CPU time, the budget is the request
+   tree's, the check runs about twice a second, `cpu_time` equal to `wall_time` never fires, PHP's
+   `max_execution_time` is `cpu_time` on Linux, and a heavy report raises its own limit instead of
+   the default being raised for everyone. The meaning is `docs/reference/tools/20-config.md` §
+   *`[limits]` and `[limits.hard]`*; the comment is its short form:
+
+   ```toml
+   [limits]
+   # cpu_time — processor time one request may spend computing: its thread's own
+   # user + kernel time, shared by every isolate and task the request spawns.
+   # Waiting on a database, a socket or a sleep costs none of it, so this stops a
+   # runaway loop without touching a slow query. Checked every ~0.5s, so a request
+   # may overrun by up to that much. Keep it below wall_time: a request cannot
+   # compute longer than it runs, so an equal value never fires.
+   # PHP: what max_execution_time measures on Linux. Default: 5s.
+   #cpu_time = "5s"
+
+   # wall_time — how long one request may run, start to finish, waiting included:
+   # how long a client can be kept waiting.
+   # PHP: PHP-FPM's request_terminate_timeout. Default: 30s.
+   #wall_time = "30s"
+
+   [limits.hard]
+   # The most a request may raise itself to with Core\Config::set. A report that
+   # needs 40s of CPU raises its own cpu_time; don't raise the default for everyone.
+   #cpu_time = "60s"
+   #wall_time = "300s"
+   ```
+
+   **The `Default:` lines are true only once an unset key falls back to them.** Today an unset
+   `cpu_time` is no limit at all (`crates/nvs-runtime/tests/configured_limits.rs`'s
+   `an_unstated_uncapped_or_malformed_cpu_time_is_no_ceiling`), which
+   `rule:config/no-configuration-file-is-a-complete-configuration` says it must not be. This stage
+   either lands that fallback first or prints what is actually true.
 3. **An unread key prints its trailer**, under a `# NOT IMPLEMENTED` line naming the missing piece and
    its owner. An operator reading the file learns that writing the key does nothing *before* they
    write it, which is the whole point of emitting it rather than hiding it.

@@ -22429,8 +22429,8 @@ ceiling.
 | Key | Unit | Meaning |
 |---|---|---|
 | `memory` | size | the heap a request may hold |
-| `cpu_time` | duration | CPU time |
-| `wall_time` | duration | elapsed time |
+| `cpu_time` | duration | processor time spent computing, shared by every isolate and task the request spawns; waiting on a database, a socket or a sleep costs none of it |
+| `wall_time` | duration | elapsed time from start to finish, waiting included |
 | `max_tasks` | count | concurrent tasks |
 | `max_output` | size | bytes written to the response |
 | `fatal_reserve_memory` | size | the slice of `memory` kept back for the limit handler (`Core\Fatal::onLimit`); not raisable, no ceiling |
@@ -22463,7 +22463,18 @@ echo "never printed", "\n";
 before the cap
 ```
 
-In this build **`nvs run` enforces `memory` only**. `cpu_time`, `wall_time`, `max_tasks` and
+**`cpu_time` and `wall_time` answer different questions.** `wall_time` bounds how long a client
+waits; `cpu_time` bounds how much of the machine one request burns, so a runaway loop is stopped
+while a request parked on a slow query is not. A request cannot compute for longer than it runs, so
+`cpu_time` only ever fires when it is set below `wall_time` — set equal, it never does. PHP's one
+`max_execution_time` counts CPU time on Linux and elapsed time on Windows: the first is `cpu_time`
+here, and PHP-FPM's `request_terminate_timeout` is `wall_time`. A request that needs more — a large
+report — raises its own limit with `Core\Config::set("cpu_time", "40s")`, up to `[limits.hard]`,
+rather than the starting value being raised for every request. The CPU clock is sampled about twice
+a second, so a request may overrun `cpu_time` by up to that much; on a platform with no per-thread
+CPU clock (macOS) `cpu_time` is not enforced at all, and an unset `cpu_time` is no limit.
+
+In this build **`nvs run` enforces `memory` and `cpu_time`**. `wall_time`, `max_tasks` and
 `max_output` are accepted, readable and settable, and a program that exceeds them under `nvs run`
 is not stopped.
 

@@ -141,9 +141,11 @@ in that goal. An item's owner is the row it sits in.
       `commands.rs`'s `check_command_shape`, worded from what the declaration did as the `#[Test]` and
       `#[Fixture]` shape refusals are. A method writing no return type at all is left to the diagnostic
       that already refuses that, rather than told it returns the `mixed` it never wrote.
-- [ ] **U7** Under `nvs run` only `[limits] memory` is enforced: `wall_time = "1s"` with an infinite
-      loop ran past 60 s, `cpu_time = "1s"` completed a 7 s loop, `max_output = "10"` let 28 bytes
-      through. `Core\Fatal::onLimit`'s card lists all of them. *refp/cpu, refp/wall, refp/out*
+- [ ] **U7** Under `nvs run` `[limits] wall_time` and `max_output` are not enforced: `wall_time = "1s"`
+      with an infinite loop ran past 60 s, `max_output = "10"` let 28 bytes through.
+      `Core\Fatal::onLimit`'s card lists both. `cpu_time` is enforced, pinned by
+      `tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst`.
+      *refp/wall, refp/out*
 - [ ] **U8** A memory-limit breach in a **child isolate** is not observed: `[limits] memory = "8M"`
       with a child holding 64 MiB answered `ok = true`. *refp/childmem*
 - [ ] **U9** `nvs config check`/`nvs run` do not validate quantities or ceilings: `memory = "12
