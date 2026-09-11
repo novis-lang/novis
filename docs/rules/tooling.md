@@ -142,6 +142,16 @@ to point at.
 | a CLI program — a `#[Command]` method or a script's main task | stdout | `Cli\Text`, substituting ([`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink)) |
 | a `spawn script` isolate | its own output buffer, or the parent's stream under `output: 'inherit'` | the parent's carrier ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)) |
 | a scheduled script, a job worker, a `#[Test]` method | that run's captured output | `Cli\Text` |
+| a connection isolate, from either `upgrade` door | that connection's captured output | `Cli\Text` |
+
+**A connection isolate takes the default sink because it is not a request.** The request that
+upgraded it ended ([`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate)), so nothing attaches the HTML
+sink to the root that replaced it, and a socket connection and an event-stream connection are one row
+rather than two — the door decides what the program may do, never where its `echo` lands
+([`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate)). A request that answers with a *streamed* body is the
+opposite case and stays on row one: it is still an HTTP request, so the HTML sink is still attached,
+and `echo` beside the member writing that body does not compile
+([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
 
 **The terminal sink is the default; the HTML sink is attached by an HTTP request and by nothing
 else.** That is the fail-closed direction, for the terminal sink's own reason: its substitution is
@@ -158,7 +168,7 @@ HTML, so no call site names a format. It also gives `Core\Out::capture` its answ
 than an `echo` the HTML sink would escape into corruption
 ([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
 
 <a id="tooling-terminal-output-is-a-sink"></a>
 
