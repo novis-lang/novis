@@ -65,6 +65,19 @@
 //!    cannot name it is the one asymmetry here, and closing it is a change in
 //!    the checker's table rather than in this walk.
 //!    — owner: unowned
+//! 2. **Reading a class constant is no occurrence of it.**
+//!    [`crate::definition::Target`] names a type, a method and a property and
+//!    has no constant among them, so `self::GREETING` resolves to nothing this
+//!    walk can record and the declaration counts no uses however many sites
+//!    read it. The missing variant is that module's to add.
+//!    — owner: unowned
+//! 3. **A name in an `extends` or `implements` clause is no occurrence
+//!    either.** A use is read off [`Analysed::exprs`](crate::Analysed) and a
+//!    clause is not an expression, so an interface every class in the
+//!    workspace implements still counts none. [`SymbolIndex::subtypes`] reads
+//!    the resolved graph rather than this side, which is why a type hierarchy
+//!    is right where the count above the same name is not.
+//!    — owner: unowned
 
 use std::collections::BTreeMap;
 use std::fs;
