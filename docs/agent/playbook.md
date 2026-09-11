@@ -1627,6 +1627,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   instead (`"crates/nvs-lsp/src/completion.rs:re:^fn "`), and put `--context N` ahead of every
   positional target, because a flag written between two of them is an argparse error rather than a
   flag applying to the rest. [until: reviewed 2026-09-11]
+- **`nvs-lsp`'s one-construction-site guard fires on a module that merely *names* `SymbolIndex`, the
+  `use` line included.** `tests/index.rs`'s `the_crate_has_exactly_one_symbol_index_construction_site`
+  closed that name to `index.rs`, `lib.rs` and `server.rs`, so the first feature module to read the
+  index — completion — failed a test whose message is about *building* one. Widen it by asserting
+  that a module outside those three names the type only behind a `&` and in an import, which is what
+  the test's own comment already claims, rather than by adding the module to the list.
+  [until: gone crates/nvs-lsp/tests/index.rs:names SymbolIndex other than behind]
 
 ## Running things
 

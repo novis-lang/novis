@@ -2,65 +2,59 @@
 
 ## State
 
-**Goal `workspace-index`, stage 4 is complete: the three requests that need no new reading are
-answered, and the fourth is refused on the record.** `textDocument/signatureHelp` is
-`nvs_lsp::hover::help_at`, which walks outward to the call the cursor is inside and renders its row
-through the same `signature` that writes a `Core` member's hover line — so
-`Core\Str::length(string $s): uint` and `Adder::add(int $a, int $b): int` are one renderer's output
-and a parameter list has no second spelling. `textDocument/typeDefinition` is
-`nvs_lsp::definition::type_at`, following the type the checker recorded rather than the name the
-cursor is on; `textDocument/implementation` is the index's `subtypes` query answered as a jump list.
-`textDocument/declaration` is declared nowhere and named nowhere, and
-`declaration_is_not_answered_because_it_would_answer_identically` holds both halves.
+**Goal `workspace-index`, stage 5's completion arms are landed: the namespace arm, the bare-name arm
+and the enumeration that gates them.** A cursor after a separator is `nvs_lsp::completion`'s
+`Asked::Namespace`, offered the registry's classes and enums and the workspace index's declarations
+under that prefix and no keyword; a bare name at a statement position is offered the `use`
+declarations in force and every type the index holds, each labelled with the shortest spelling that
+resolves at that cursor, beside the words the position already offered rather than instead of them.
+`every_completion_source_names_a_compiler_table` and
+`no_completion_source_reads_a_directory_layout_or_the_network` read the module's own source and hold
+`rule:ide/completion-offers-only-what-the-compiler-derived` the way that rule asks to be held.
 
-**The stage's file set was one file short.** `crates/nvs-lsp/src/definition.rs` is not in what the
-last handoff named, and the type navigation cannot live anywhere else: `Target` and `site` are
-`pub(crate)`, so a walk from a `TypeId` to a declaration has to be written beside them.
+**`completion` is the first module outside `server.rs` to read the one index**, through
+`SymbolIndex::files` and `SymbolIndex::declarations_in` — queries `textDocument/codeLens` already
+makes, so `rule:ide/five-features-are-one-reference-index`'s five *queries* are unchanged and its
+count of readers now understates by one. That is a fact the goal's ADR owes a paragraph, not a rule
+change; nothing is blocked on it.
 
-Nothing is blocked. The goal's one ADR is still unopened, and stage 4's admissions against
-[ADR 0099](../decisions/0099.md) § 3's test are now part of what it owes, beside stage 2's index
-shape and stages 5 and 6 — it is written once all four have landed, because a record is frozen on
-acceptance and cannot be amended into. Its `changes:` block still owes
-`rule:ide/the-request-set-is-closed` the amendment naming M10's additions beside M4B's nine:
-`documentHighlight`, and now `signatureHelp`, `typeDefinition` and `implementation`.
+Stage 5's other check is untouched: the PHP-name layer is the next group. The goal's one ADR is
+still unopened and now owes stage 5's two arms beside stage 2's index shape and stage 4's request
+admissions, with the same `changes:` amendment to `rule:ide/the-request-set-is-closed`.
 
 ## Next group
 
-**Stage 5: the completion arms, and the enumeration that gates them** —
-`crates/nvs-lsp/src/completion.rs`'s `asked`/`position` split is where both new arms go, so the two
-of them and their guard are one reading. One file set: `crates/nvs-lsp/src/completion.rs`,
-`crates/nvs-lsp/src/capabilities.rs`, `crates/nvs-lsp/src/index.rs`, `crates/nvs-lsp/tests/`.
+**Stage 5 (continued): the PHP-name layer, which is one build-time join and the four item shapes it
+decides** — all three slices read the same three inputs, so the join and what it refuses are one
+reading. One file set: `crates/nvs-stdlib/` (a `build.rs` that does not exist yet),
+`tools/data/php-builtins.txt`, `docs/spec/02-php-migration.md`, `crates/nvs-lsp/src/completion.rs`.
 
-- [ ] **The namespace arm.** A cursor after a namespace separator offers the registry's classes and
-      the index's declarations under that prefix and **no keywords**, dispatched in
-      `crates/nvs-lsp/src/completion.rs:198`'s `at` before `crates/nvs-lsp/src/completion.rs:361`'s
-      `position` catch-all, reading the prefix off `crates/nvs-lsp/src/completion.rs:466`'s
-      `namespace_at`. `\` is already a declared trigger character at
-      `crates/nvs-lsp/src/capabilities.rs:209`, so until this arm exists a cursor after `Core\` is
-      answered the position list — which is the other half of what this closes.
-      `a_namespace_segment_offers_the_registry_and_the_index_and_no_keywords` and
-      `every_trigger_character_reaches_an_arm_that_is_not_the_position_list`.
-      `rule:ide/completion-offers-only-what-the-compiler-derived`.
-- [ ] **The bare-name arm.** An identifier at a top-level position offers the imports in force —
-      `crates/nvs-lsp/src/completion.rs:499`'s `imports_of` is that map already — and every
-      declaration `crates/nvs-lsp/src/index.rs:401`'s `declaration` side holds, beside the keywords
-      the position already offers rather than instead of them.
-      `a_bare_name_offers_the_imports_in_force_and_the_declarations_in_the_index`.
-      `rule:ide/completion-offers-only-what-the-compiler-derived`.
-- [ ] **The enumeration guard.** A test over `crates/nvs-lsp/src/completion.rs`'s own source that
-      names every source a completion item's value comes from and fails one that is not a table the
-      compiler builds for another reason — a directory walk, an annotation dialect, a network call —
-      in the shape `crates/nvs-lsp/tests/index.rs:209`'s reader enumeration uses.
-      `every_completion_source_names_a_compiler_table` and
-      `no_completion_source_reads_a_directory_layout_or_the_network`.
-      `rule:ide/completion-offers-only-what-the-compiler-derived`.
+- [ ] **The build-time join.** One generated table in `nvs-stdlib` joining the oracle inventory at
+      `tools/check-migration.py:42`'s `tools/data/php-builtins.txt`, the migration rows whose four
+      outcomes are `docs/spec/02-php-migration.md:23`, and the registry lookup at
+      `crates/nvs-stdlib/src/registry.rs:2554`'s `class` — failing the build on a destination
+      spelling that matches no registry member. The crate has **no `build.rs` today**, which is the
+      first thing this slice writes. `every_php_builtin_in_the_oracle_inventory_is_a_candidate` and
+      `a_destination_spelling_that_matches_no_registry_member_fails_the_build`.
+      `rule:php-migration/every-php-builtin-is-a-completion-candidate`.
+- [ ] **The four shapes, three of which insert nothing.** Asserted over the generated table's own
+      rows rather than over a rendered item, which is why the check files it under `-p nvs-stdlib`:
+      the table is what says whether a row has an insertable destination, and "inserts nothing" is
+      the absence of one and not an empty string. The destination is registered exactly when
+      `crates/nvs-stdlib/src/registry.rs:2554`'s `class` answers, which is the one shape of the four
+      that inserts. `three_of_the_four_item_shapes_insert_nothing`.
+      `rule:ide/three-of-four-item-shapes-insert-nothing`.
+- [ ] **The arm and its setting.** The candidates offered beside the bare names at
+      `crates/nvs-lsp/src/completion.rs:607`'s `in_reach`, gated on `nvs.completion.phpNames`
+      (`all`/`resolved`/`off`, default `all`) added to `crates/nvs-lsp/src/settings.rs:44`'s
+      `Settings` and to the extension's frozen roster.
+      `rule:ide/contributions-are-frozen-and-only-ever-added`.
 
 ## Backlog
 
-- Stage 5's second check is `-p nvs-stdlib`: the PHP-name table as one build-time join —
-  `rule:php-migration/every-php-builtin-is-a-completion-candidate`.
-- Stage 6 is inlay hints, bounded to the two settled shapes — `docs/agent/loop-goal.toml:7824`.
-- The goal's one ADR, after stage 6: stages 2/4/5/6 in one record, amending
-  `rule:ide/the-request-set-is-closed` — `docs/agent/loop-goal.md` § *Standing decisions*.
-- An inherited member is still not offered by completion, and visibility is still not applied —
-  `crates/nvs-lsp/src/completion.rs`'s `# Known gaps`.
+- Stage 6, inlay hints, reverses [ADR 0099](../decisions/0099.md) § 3's deferral — `loop-goal.md` § *Stage 6*.
+- The goal's one ADR is unopened and owes four stages' reasoning — `loop-goal.md` § *Standing decisions*.
+- Completion is a sixth *reader* of the one index and makes no sixth query — that ADR's paragraph.
+- A cursor in a type annotation or a parameter list reaches no arm — `completion.rs` § *Known gaps*.
+- A namespace's declarations are only the ones the index holds, so the default scope narrows them — same.
+- `registry`'s six global interfaces are reachable by no arm: they have no namespace to be under — same.
