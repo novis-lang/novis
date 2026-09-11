@@ -3,55 +3,60 @@
 ## State
 
 **Goal `resource-ceilings` — every resource ceiling stops the request that breaks it. Stages 0 and 2
-are landed, and stage 3 is landed for the CLI run path: `nvs run` publishes the one request it is, and
-`tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst` passes.** The
-two cases still red under stage 0's check are the memory pair, which is stages 4 and 5. Goal
-`editor-surfaces`'s acceptance list is still this goal's floor and is untouched.
+are landed, stage 3 is landed for the CLI run path, and the served path is now wired end to end.** An
+isolate publishes the tree it joins for as long as its body runs and clears it however the body ends
+(`crates/nvs-host/src/isolate.rs:189`), and `nvs serve` hands its core's registration to every isolate
+the handler builds (`crates/nvs-cli/src/serve.rs:706`). The two cases still red under stage 0's check
+are the memory pair, which is stages 4 and 5. Goal `editor-surfaces`'s acceptance list is still this
+goal's floor and is untouched.
 
-Which run paths get a watchdog is settled. `nvs test` runs a `.nvst` case by spawning the `nvs` binary
-(`crates/nvs-test/src/run.rs:344`), so the surface every conformance ceiling case reaches is `nvs run`
-and not the server. `nvs run` now builds a `Watchdog` of its own immediately before `run_until_idle`
-(`crates/nvs-cli/src/main.rs:1993`) and drops it when the scheduler is idle — built only where
-`RunningRequest::new` answers `Some`, so a run under no `[limits] cpu_time`, and a platform with no
-per-thread clock, start no thread and wake for nothing.
+**That wiring stops nothing yet, and the reason is outside this goal's stage list: a served request
+carries no configuration at all.** The connection's root context is a bare `Ctx::new`
+(`crates/nvs-server/src/serve.rs:1343`), `Ctx::isolate` copies the parent's `config`
+(`crates/nvs-runtime/src/ctx/isolate.rs:363`), and the cached ceilings are refreshed only by
+`Ctx::set_config` (`crates/nvs-runtime/src/ctx/wiring.rs:301`) — which nothing on the served path
+calls. So `Ctx::cpu_limit()` is `0` there, every `[limits]` key reads as absent, and
+`nvs_runtime::capability::granted` (`crates/nvs-runtime/src/capability.rs:95`) denies every capability
+an entry asks for. Read from the code at those four anchors and **not** observed against a running
+server. `rule:config/the-config-is-an-immutable-snapshot` is the rule it does not meet, and closing it
+is what makes every ceiling on this path live — not the publication.
 
-A watched entry is a server core or it is not: `Watched::core`
-(`crates/nvs-host/src/watchdog.rs:260`) holds the CPU and the deadline table together, and
-`Watchdog::register_requests` (`crates/nvs-host/src/watchdog.rs:404`) takes neither. Such an entry is
-sampled against its ceiling on the same walk and reported as a wedged core never — the stderr that
-record would land on is the program's own, and there is no fleet to shed its share onto.
-
-**Nothing on the served path publishes yet**, so a runaway inside `nvs serve` is still bounded only by
-its deadline. That is the next group. Two known gaps, each written where it bites: a publication carries
-the ceiling that stood before `Ctx::run_limit_handler` widened it by `fatal_reserve_time`
-(`crates/nvs-runtime/src/ctx/limits.rs:359`), so a tier-1 handler is bounded by the next sweep rather
-than by its reserve; and `nvs test`'s in-process suite path (`crates/nvs-cli/src/runner.rs:465`) runs
-user code under no sampler at all.
+What a publication is charged against is settled. `Registration` holds the clock of the thread that
+registered (`crates/nvs-host/src/watchdog.rs:500`), taken inside `register`, so no caller can hand it
+another thread's; `Registration::publish` (`crates/nvs-host/src/watchdog.rs:540`) is the door, and a
+tree under no cap clears the slot rather than filling it. What is published is the **tree's** handle
+and the tree's ceiling, both read off the context `Isolate::start` was called on, because
+`Ctx::isolate` carries no ceiling across on purpose.
 
 ## Next group
 
-**Stage 3: the served publisher — a core publishes each request it takes up** — one file set,
-`crates/nvs-cli/src/serve.rs` with `crates/nvs-host/src/watchdog.rs` for the type it publishes.
-`rule:errors/on-limit` is the ceiling both serve.
+**Stage 3: a served request reads the tree the instance booted on** — one file set,
+`crates/nvs-server/src/serve.rs` with `crates/nvs-cli/src/serve.rs` for what is handed across to it.
+`rule:config/the-config-is-an-immutable-snapshot` is what the group owes: "a request clones the `Arc`
+when it starts and reads from that clone for its whole life".
 
-- [ ] **Hold the `Registration` and the core's own `ThreadClock` where a served request's `Ctx` is
-      reachable** — `crates/nvs-cli/src/serve.rs:793` makes the registration and drops it straight into
-      a `_watched` binding the accept loop cannot reach, while `crates/nvs-cli/src/serve.rs:902` is
-      where a request becomes an `Isolate` with a tree of its own. The clock is taken once per core and
-      never per request: `RunningRequest::new` (`crates/nvs-host/src/watchdog.rs:205`) must be handed
-      the clock of the thread it is published from.
-- [ ] **Publish on take-up and clear on completion** — `crates/nvs-cli/src/serve.rs:902`, the same
-      shape `crates/nvs-cli/src/main.rs:1993` now has for a run: publish the tree root's
-      `Ctx::safepoint_view` with `Ctx::cpu_limit`, and `publish_safepoint(None)` when the isolate is
-      done, so a core between requests is charged for nothing.
-- [ ] **Say what a served core costs** in `crates/nvs-cli/src/serve.rs:70`'s module doc, per
-      `rule:programs/memory-priority`'s *say what you spend*: one clock read per core per interval,
-      and one publication per request taken up.
+- [ ] **Carry the boot snapshot across the seam** — `crates/nvs-cli/src/serve.rs:452`'s `Core` already
+      holds the `Arc<nvs_config::Snapshot>` every core reads, and `crates/nvs-server/src/serve.rs:1269`
+      is the door it has to cross. That crate may name the type
+      (`crates/nvs-server/Cargo.toml:26`); `nvs-host` deliberately may not
+      (`crates/nvs-host/Cargo.toml:52`), so the builder on `crates/nvs-host/src/isolate.rs:147` is the
+      wrong home for it.
+- [ ] **Set it per request rather than per connection** — `crates/nvs-server/src/serve.rs:815` is the
+      line that has both the connection's context and the isolate about to run on it, and a keep-alive
+      connection serving a second request after a reload is why the store cannot go at
+      `crates/nvs-server/src/serve.rs:1343` instead (`rule:config/an-edit-reaches-the-next-request-without-a-restart`).
+- [ ] **Pin it** — `crates/nvs-cli/src/serve.rs:1575`'s `requests_on` already drives real requests
+      through a real core; a case there asserting that a served request runs under the `[limits]` the
+      tree states is what turns the paragraph above from a reading into a guard.
 
 ## Backlog
 
-- The tier-1 handler's reserve is not republished to the sampler — `crates/nvs-runtime/src/ctx/limits.rs:359`.
-- `nvs test`'s in-process suite path runs user code with no sampler — `crates/nvs-cli/src/runner.rs:465`.
-- Stage 4: a loop that calls nothing is stopped by the memory ceiling — goal `resource-ceilings`.
-- Stage 5: one operation past the ceiling is refused before it allocates — goal `resource-ceilings`.
-- This goal's one record is still unwritten; `docs/decisions/` is at 0173 — goal `resource-ceilings`.
+- A publication is one slot per registered thread, so a core interleaving requests charges the one it
+  took up last and clears at the first to finish — `crates/nvs-host/src/watchdog.rs:95`'s module doc
+  owns the over-charge; what it does not yet answer is a request that yields and *then* runs away.
+- A publication carries the ceiling that stood before `Ctx::run_limit_handler` widened it by
+  `fatal_reserve_time` — `crates/nvs-runtime/src/ctx/limits.rs:359`.
+- `nvs test`'s in-process suite path runs user code under no sampler at all —
+  `crates/nvs-cli/src/runner.rs:465`.
+- Stage 4 and stage 5 are the memory pair stage 0's check is still red on —
+  `docs/agent/loop-goal.toml:7974`.

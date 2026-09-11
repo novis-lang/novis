@@ -6058,6 +6058,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   raising it should stop every other context in the tree; if not it is a field on `Ctx`, the way
   `cancelled` is, and not a bit in `SafepointFlags`.
   [until: gone crates/nvs-runtime/src/ctx/mod.rs:safepoint_word]
+- **A served request's context carries no configuration, so every `[limits]` ceiling on that path
+  reads as `0` and every capability is denied.** The connection's root context is a bare `Ctx::new`
+  (`crates/nvs-server/src/serve.rs:1343`), `Ctx::isolate` copies the parent's `config` rather than
+  re-reading one, and the cached ceilings are refreshed only by `Ctx::set_config` — so a ceiling wired
+  onto `nvs serve` compiles, runs, publishes and stops nothing. Read `Ctx::cpu_limit()` at the point
+  you are publishing from before concluding the publication is what is wrong.
+  [until: exists crates/nvs-server/src/serve.rs:set_config]
 
 ## Divergences and refusals already pinned
 

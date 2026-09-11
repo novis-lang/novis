@@ -68,9 +68,25 @@
 //! loop holds per connection in flight. Nothing accumulates per request answered.
 //! One more thread for the process, not one per core, and one watched entry per
 //! *running* core: [`nvs_host::Watchdog`], which every worker registers itself
-//! with once it holds a reactor and deregisters from when it ends. It reads the
-//! deadline each accept loop already publishes, so a core writes nothing for it
-//! on any path.
+//! with once it holds a reactor and deregisters from when it ends. A stall
+//! report costs a core nothing at all — it is read off the deadline each accept
+//! loop already publishes. `rule:errors/on-limit`'s CPU ceiling costs it two
+//! stores per request, one when a request's isolate starts and one when it ends
+//! ([`nvs_host::Isolate::watched_by`]), and one word of the watched entry to
+//! hold them in; nothing is written at a safepoint, and nothing accumulates per
+//! request answered.
+//!
+//! # Known gap: a served request carries no configuration, so it has no ceiling
+//!
+//! The publication above is the whole mechanism and it stops nothing yet,
+//! because what it publishes is the tree's ceiling and a served request's tree
+//! has none: a connection's context is built by `nvs_server`'s accept loop and
+//! is never handed the snapshot this command booted on, so `Ctx::cpu_limit` is
+//! `0`, every `[limits]` key reads as absent and `nvs_runtime::capability`
+//! denies every capability an entry asks for. `rule:config/the-config-is-an-immutable-snapshot`
+//! is the rule that is not met — "a request clones the `Arc` when it starts and
+//! reads from that clone for its whole life" — and closing it is what makes
+//! every ceiling on this path live, not the publication.
 //!
 
 use std::cell::Cell;
@@ -505,10 +521,47 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // reads the same one through `Core\Server::isDraining()`, which has no
     // handle to have been given (`nvs_runtime::drain`).
     let draining = nvs_server::Draining::process();
+    // The reactor is what a parked coroutine is woken by, and every connection
+    // parks. It is installed ahead of the handler rather than beside the accept
+    // loops that park on it because this is the line a `DeadlineView` comes
+    // from, and the registration made from one is what the handler publishes a
+    // request through. Nothing has started by here: every task below is spawned
+    // onto a scheduler that first turns at `run_until_idle`, so the order in
+    // this function decides what is in scope and never what is running.
+    let reactor = match nvs_host::Reactor::new() {
+        Ok(reactor) => reactor,
+        Err(error) => {
+            eprintln!("error: could not start the reactor: {error}");
+            return false;
+        }
+    };
+    let installed = nvs_host::reactor::install(reactor);
+    // `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s registration,
+    // made here because this is the line that produces the `DeadlineView` and
+    // this is the thread whose turning it describes. On that half the watchdog
+    // reads the view and this core writes nothing further for it, on any path:
+    // what it watches is the deadline table every accept loop below already
+    // keeps.
+    //
+    // An `Rc` because it is also the module's other half — the publisher a
+    // served request is charged against `rule:errors/on-limit`'s CPU ceiling
+    // through — and the handler hands a clone of it to every isolate it builds.
+    // The clock those publications are charged from is taken inside `register`,
+    // on this thread, which is the thread every one of them runs on.
+    //
+    // The handle deregisters on drop, so the watched set is the cores that are
+    // running rather than the cores that were started — a finished core's
+    // frozen deadline would otherwise read as a wedged one forever.
+    let watched = watched
+        .zip(nvs_host::reactor::with_current(|reactor| {
+            reactor.deadline_view()
+        }))
+        .map(|((cpu, watchdog), view)| Rc::new(watchdog.register(cpu, view)));
     let handler = Rc::new({
         let compiler = Arc::clone(&compiler);
         let table = Rc::clone(&table);
         let draining = draining.clone();
+        let watched = watched.clone();
         move |request: Request<Incoming>, origin: Origin| {
             // Ahead of the table, because a verb `Core\Http\Method` does not
             // carry names no application on this server rather than none at
@@ -640,10 +693,20 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                     Some(supply)
                 }
             };
-            Reply::Run(
-                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
-                supply,
-            )
+            let isolate = Isolate::new(program, Value::null(), Output::Capture).answering(inbound);
+            // `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s
+            // other half, on the one type that can carry it to a context that
+            // does not exist yet: what the request is charged through is its own
+            // tree's safepoint handle and its own ceiling, and `Isolate::start`
+            // is where both are first in hand. A core the boot could not name a
+            // CPU for registers nothing and hands nothing over, which is the
+            // same host on which nothing is pinned and a stall has no core to be
+            // reported against.
+            let isolate = match &watched {
+                Some(watched) => isolate.watched_by(Rc::clone(watched)),
+                None => isolate,
+            };
+            Reply::Run(isolate, supply)
         }
     });
 
@@ -766,31 +829,6 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         });
     }
 
-    // The reactor is what a parked coroutine is woken by, and every connection
-    // parks; the resolver is installed for the whole run so that a served
-    // program's own `spawn script` reaches the same compiler and the same cache
-    // this handler does.
-    let reactor = match nvs_host::Reactor::new() {
-        Ok(reactor) => reactor,
-        Err(error) => {
-            eprintln!("error: could not start the reactor: {error}");
-            return false;
-        }
-    };
-    let installed = nvs_host::reactor::install(reactor);
-    // `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s registration,
-    // made here because this is the line that produces the `DeadlineView` and
-    // this is the thread whose turning it describes. The watchdog reads that
-    // view and this core writes nothing further for it, on any path: what it
-    // watches is the deadline table every accept loop below already keeps.
-    // The handle deregisters on drop, so the watched set is the cores that are
-    // running rather than the cores that were started — a finished core's
-    // frozen deadline would otherwise read as a wedged one forever.
-    let _watched = watched
-        .zip(nvs_host::reactor::with_current(|reactor| {
-            reactor.deadline_view()
-        }))
-        .map(|((cpu, watchdog), view)| watchdog.register(cpu, view));
     // **`run_until_idle` is not this loop by itself, and a server is the first
     // caller for which that matters.** It returns as soon as one blocking poll
     // wakes nothing — which is what a connection's own socket reports once the
