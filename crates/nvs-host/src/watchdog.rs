@@ -1165,6 +1165,52 @@ mod tests {
         );
     }
 
+    /// The distinction the ceiling exists for, from the other side: a request
+    /// waiting on the world spends wall time and none of what is sampled, so a
+    /// wait several times its own ceiling is left alone where a spin that
+    /// length is stopped — `rule:errors/on-limit`, and `crate::cpuclock`'s
+    /// *CPU time, never wall clock*.
+    #[test]
+    fn a_core_parked_on_io_past_the_same_wall_time_is_not_flagged() {
+        let (tx, _rx) = mpsc::channel();
+        // A margin nothing reaches: a core parked on a socket answers its
+        // deadlines, and a stall report would only add a second reason for the
+        // sink to fire.
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let timers = Timers::default();
+        let registered = dog.register(a_cpu(), timers.view());
+        let request = ctx();
+
+        // Fifty milliseconds, passed several times over by the wait below in
+        // wall time and not at all in CPU time. A sleep rather than a socket:
+        // what the clock sees of either is the same nothing, and a socket would
+        // put a reactor between this case and the reading under test.
+        let ceiling = Duration::from_millis(50);
+        let Some(parked) = RunningRequest::new(
+            request.safepoint_view(),
+            ThreadClock::current(),
+            u64::try_from(ceiling.as_nanos()).expect("fifty milliseconds does not fit a u64"),
+        ) else {
+            // The platform's own answer: no per-thread clock, so no CPU
+            // ceiling — `crate::cpuclock`'s docs own it.
+            return;
+        };
+        registered.publish_safepoint(Some(parked));
+        std::thread::sleep(ceiling * 4);
+
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            !request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a request that only waited was stopped as a runaway"
+        );
+        assert!(
+            !request.deadline_expired(),
+            "a request that only waited was left the poll a long member makes"
+        );
+    }
+
     /// CPU time rather than wall time: a sleep accumulates none of what the
     /// ceiling measures, so a case that needs a charge spins for it.
     fn burn_a_hundred_milliseconds() {
