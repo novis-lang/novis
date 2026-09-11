@@ -132,6 +132,10 @@ def union_list(new_text, field, extra):
     is why a missing field is `None` here and a refusal in the caller rather than a quiet
     pass-through.
 
+    `extra` is deduplicated against itself as well as against the destination. Each switch reads
+    the previous goal's list back as its `extra`, so a duplicate carried once is otherwise carried
+    by every switch after it and never dropped.
+
     Written as a text edit rather than a re-serialization on purpose: re-emitting the whole TOML
     from `tomllib`'s parse would throw away every comment in the file, and this repository's TOML is
     more comment than data.
@@ -144,7 +148,7 @@ def union_list(new_text, field, extra):
     if not m:
         return None
     body = m.group(1)
-    missing = [e for e in extra if f'"{e}"' not in body]
+    missing = list(dict.fromkeys(e for e in extra if f'"{e}"' not in body))
     if not missing:
         return new_text
     if multi:

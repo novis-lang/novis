@@ -47,7 +47,6 @@ files = [
   "examples/crypto.nvs",
   "examples/http.nvs",
   "examples/cache.nvs",
-  "examples/cache-shared-socket.nvs",
   "examples/logging.nvs",
   "examples/reflect.nvs",
   "examples/onexit.nvs",
