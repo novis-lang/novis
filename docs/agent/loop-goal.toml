@@ -135,6 +135,10 @@ modules = [
   "editors/vscode/src/binary.ts",
   # TODO: why a session opens this.
   "editors/vscode/src/tasks.ts",
+  # TODO: why a session opens this.
+  "editors/vscode/src/ast.ts",
+  # TODO: why a session opens this.
+  "editors/vscode/src/nodes.ts",
 ]
 
 # The rules this goal implements. Every one of them is already landed; none is amended here.
