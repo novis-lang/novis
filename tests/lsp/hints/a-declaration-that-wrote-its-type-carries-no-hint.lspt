@@ -1,0 +1,10 @@
+--TEST--
+A declaration that wrote its type out is left alone: the word is already on the line, and a hint beside it would be the editor saying twice what the source says once, `rule:ide/every-feature-is-staged-behind-its-dependency`
+--FILE--
+<?nvs
+int $written = 1;
+string $greeting = "hi";
+--REQUEST--
+inlayHint
+--EXPECT--
+none

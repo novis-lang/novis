@@ -1,0 +1,11 @@
+--TEST--
+A `var` declaration is the one spelling that hides the type it inferred, so it is the one that gets it back — after the name, where the annotation it did not write would have gone, `rule:types/var-inference` and `rule:ide/every-feature-is-staged-behind-its-dependency`
+--FILE--
+<?nvs
+var $count = 41;
+var $greeting = "hi";
+--REQUEST--
+inlayHint
+--EXPECT--
+2:11 type : int
+3:14 type : string
