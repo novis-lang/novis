@@ -476,6 +476,40 @@ pub(crate) fn reject_unthrowable(ty: TypeId, span: Span, env: &mut Env<'_>) {
     );
 }
 
+/// A `catch` clause or arm naming the class `Core\Script::finish()` raises —
+/// `nvs_diagnostics::code::E_CATCH_ARM_NAMES_THE_FINISH_MARKER`.
+///
+/// Asked of the arm's *written* type rather than of the guarded expression,
+/// because the marker never reaches a value position a program can name: it is
+/// a root of its own (`nvs_hir::errors::TREE`'s own docs), so the only place a
+/// program can mention it at all is the one spelling refused here.
+///
+/// One class and not a union, because
+/// `nvs_diagnostics::code::E_CATCH_UNION_TYPE_UNSUPPORTED` has already refused
+/// every clause naming more than one by the time this is asked — so a union
+/// reaching here would be a hole in that refusal rather than a shape this one
+/// has to read.
+pub(crate) fn reject_finish_marker_arm(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    if class_qname_of(ty, env.interner) != Some(QName::parse(nvs_hir::errors::FINISH_MARKER)) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CATCH_ARM_NAMES_THE_FINISH_MARKER,
+            format!(
+                "`{}` is not a class a `catch` can name",
+                nvs_hir::errors::FINISH_MARKER
+            ),
+        )
+        .with_primary(span, "named here")
+        .with_help(
+            "`Core\\Script::finish()` ends the request rather than failing it, and no `catch` \
+             admits the value it unwinds on: put the work in a `finally`, which the unwind runs, \
+             or register a `Core\\Script::onExit` hook, which the ending fires",
+        ),
+    );
+}
+
 /// The class or enum a resolved type names, if it names one at all — the
 /// receiver-type question every member-access/call arm below needs answered
 /// before it can look anything up in a [`crate::signatures::SignatureTable`].

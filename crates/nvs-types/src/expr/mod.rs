@@ -84,7 +84,10 @@ pub(crate) use self::{
     assign::{check_return, is_assignable, report_mismatch},
     iteration::{check_foreach_inout, check_foreach_key, check_foreach_value, foreach_source},
     literals::{check_array_key_type, check_object_literal, int_literal_digits},
-    members::{can_hold_an_object, check_unset_target, is_this_receiver, resolve_class_expr},
+    members::{
+        can_hold_an_object, check_unset_target, is_this_receiver, reject_finish_marker_arm,
+        resolve_class_expr,
+    },
     operators::{reject_carrier_as_text, reject_disjoint_equality, require_stringable},
     quals::{reject_secret_attribute_constant, reject_secret_output},
 };
@@ -858,6 +861,7 @@ pub(crate) fn infer(
             let mut joins: Vec<FxHashSet<String>> = vec![live.clone()];
             for arm in arms {
                 let ty = lower_type(&arm.ty, ctx, env);
+                reject_finish_marker_arm(ty, arm.ty.span, env);
                 let mut arm_live = before.clone();
                 let mut binding = None;
                 let mut fresh = None;

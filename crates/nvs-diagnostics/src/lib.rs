@@ -3368,6 +3368,24 @@ pub mod code {
     /// and a code means one thing.
     pub const E_TYPE_TEST_AGAINST_A_QUALIFIER: Code = Code::new("E0813");
 
+    /// A `catch` clause or arm naming `Core\Script\Finished`, the class
+    /// `Core\Script::finish()` raises.
+    ///
+    /// The marker is a root of its own rather than a `Throwable`
+    /// (`nvs_hir::errors::TREE`'s own docs are the mechanism), so an arm naming
+    /// it already matches nothing at run time: the refusal is what keeps that
+    /// from reading as a compiler bug. A site writing one has understood the
+    /// ending backwards — a finish is not a failure a request recovers from,
+    /// and the code that must run on the way out belongs in a `finally`, which
+    /// the unwind runs, or in a `Core\Script::onExit` hook, which the ending
+    /// fires.
+    ///
+    /// Separate from [`E_THROW_OPERAND_NOT_THROWABLE`], which refuses the
+    /// *other* end of the same mistake and needs no case of its own: the marker
+    /// descends from `Throwable` not at all, so `throw` already reports it as
+    /// an operand outside the tree.
+    pub const E_CATCH_ARM_NAMES_THE_FINISH_MARKER: Code = Code::new("E0814");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

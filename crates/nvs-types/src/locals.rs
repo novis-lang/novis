@@ -106,8 +106,8 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{
     can_hold_an_object, check_array_key_type, check_condition, check_expr, check_expr_stmt,
-    check_return, check_unset_target, int_literal_digits, is_assignable, reject_secret_output,
-    report_mismatch, require_stringable,
+    check_return, check_unset_target, int_literal_digits, is_assignable, reject_finish_marker_arm,
+    reject_secret_output, report_mismatch, require_stringable,
 };
 use crate::expr_table::ExprInfo;
 use crate::lower::{lower_optional_type, lower_type};
@@ -1286,8 +1286,12 @@ pub(crate) fn check_stmt(
             for catch in catches {
                 let mut catch_live = live.clone();
                 let mut bound = None;
+                // Lowered whether or not the clause binds, because what the
+                // refusal below reads is the class the clause *names* and a
+                // clause that binds nothing names one just as loudly.
+                let ty = lower_type(&catch.ty, ctx, env);
+                reject_finish_marker_arm(ty, catch.ty.span, env);
                 if let Some(var) = catch.var {
-                    let ty = lower_type(&catch.ty, ctx, env);
                     let name = strip_sigil(span_text(env.src, var)).to_owned();
                     declare_binding(scope, &name, ty, var, false, env);
                     catch_live.insert(name.clone());
