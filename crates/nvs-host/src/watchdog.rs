@@ -429,6 +429,12 @@ impl Watchdog {
         Registration {
             shared: Arc::clone(&self.shared),
             id,
+            // On the registering thread's own stack, which is the one thing
+            // this call can be sure of: `register` is called from the core it
+            // watches, so the clock this handle charges every publication
+            // against is that core's. The field doc owns why it is not taken
+            // per request.
+            clock: ThreadClock::current(),
         }
     }
 
@@ -483,6 +489,15 @@ impl Drop for Watchdog {
 pub struct Registration {
     shared: Arc<Shared>,
     id: u64,
+    /// The clock of the thread that registered, which is the thread every
+    /// request published through this handle runs on. Taken once here rather
+    /// than once per publication because [`ThreadClock::current`] measures its
+    /// caller and nothing else: a clock taken where a request is *built* would
+    /// measure whichever thread built it, and one taken per request would pay a
+    /// platform call for an answer that cannot have changed. `None` on a
+    /// platform with no per-thread clock a stranger may read, which
+    /// [`RunningRequest::new`] turns into a request that is sampled not at all.
+    clock: Option<ThreadClock>,
 }
 
 impl Registration {
@@ -506,6 +521,37 @@ impl Registration {
         if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
             watched.running = running;
         }
+    }
+
+    /// Publishes the request this thread is now running, charged from this
+    /// registration's own clock.
+    ///
+    /// The same store [`Self::publish_safepoint`] makes, for the caller that
+    /// holds the request rather than a [`RunningRequest`]: `view` is the tree
+    /// root's handle, `limit_nanos` is `Ctx::cpu_limit`, and the baseline comes
+    /// from the clock taken where this handle was made. A request under no cap
+    /// clears the slot rather than filling it, which is
+    /// [`RunningRequest::new`]'s `None` and what a thread taking up an unsampled
+    /// request has to do.
+    ///
+    /// Called from the thread that registered, like every other writer here:
+    /// the ceiling is charged against *that* thread's clock, so publishing a
+    /// request running anywhere else would charge it to a stranger.
+    pub fn publish(&self, view: SafepointView, limit_nanos: u64) {
+        self.publish_safepoint(RunningRequest::new(view, self.clock, limit_nanos));
+    }
+
+    /// Clears whatever this thread was running, leaving it registered and
+    /// sampled against no ceiling until it publishes again.
+    ///
+    /// What a thread owes when a request it published ends: the entry outlives
+    /// the request, so a slot left filled would go on charging a finished tree
+    /// for whatever the thread does next. Clearing it can only ever *stop*
+    /// sampling, never start it, so a caller that clears one request's
+    /// publication where another's still stands loses coverage and raises no
+    /// flag.
+    pub fn clear(&self) {
+        self.publish_safepoint(None);
     }
 }
 
@@ -907,6 +953,65 @@ mod tests {
         assert!(
             dog.running().is_empty(),
             "a core that finished its request kept offering the handle to it"
+        );
+    }
+
+    /// A publication is charged against the clock of the thread that
+    /// *registered*, which is the one thing a handle can be sure of about the
+    /// requests published through it: [`Registration::publish`] asks its caller
+    /// for no clock, so no caller can hand it one belonging to another thread.
+    #[test]
+    fn a_registration_publishes_against_the_clock_it_was_made_with() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let timers = Timers::default();
+        let registered = dog.register(a_cpu(), timers.view());
+
+        let request = ctx();
+        registered.publish(request.safepoint_view(), a_minute());
+        let published = dog.running();
+        if ThreadClock::current().is_none() {
+            // No per-thread clock here, so this core enforces no ceiling and
+            // publishes nothing — `crate::cpuclock`'s docs own that answer.
+            assert!(published.is_empty(), "a core with no clock published one");
+            return;
+        }
+        assert_eq!(published.len(), 1, "the published request was not readable");
+        assert_eq!(published[0].1.limit(), Duration::from_nanos(a_minute()));
+        // The baseline is this thread's own reading, taken at the registration
+        // and not at some zero: a clock read from the watchdog's thread would
+        // charge this request whatever *that* thread had burned since it
+        // started.
+        assert!(
+            published[0]
+                .1
+                .burned()
+                .is_some_and(|burned| burned < Duration::from_secs(1)),
+            "the baseline was not taken on the thread that registered"
+        );
+
+        registered.clear();
+        assert!(
+            dog.running().is_empty(),
+            "a cleared registration still offered a request to stop"
+        );
+    }
+
+    /// `rule:errors/on-limit`'s spelling for a request under no cap is a
+    /// ceiling of `0`, and publishing one **clears** the slot rather than
+    /// filling it: a thread that takes up an unsampled request must stop
+    /// offering the one it was running before.
+    #[test]
+    fn publishing_a_request_under_no_cap_clears_what_was_published() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+
+        registered.publish(ctx().safepoint_view(), a_minute());
+        registered.publish(ctx().safepoint_view(), 0);
+        assert!(
+            dog.running().is_empty(),
+            "an uncapped request left the one before it published"
         );
     }
 
