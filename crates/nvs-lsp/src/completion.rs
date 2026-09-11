@@ -5,9 +5,10 @@
 //! receiver whose class the analysis resolved, the static members and
 //! constants reached through a class name, the cases of an enum written after
 //! `Type::` — a user-declared class and a `Core` one alike — and what a bare
-//! position offers, which is the keywords that may be written there and the
-//! variables in scope, and is the same walk asked at a node that is no access
-//! at all.
+//! position offers, which is the keywords that may be written there, the
+//! variables in scope, the types a bare name reaches and the PHP built-ins a
+//! half-written one matches, and is the same walk asked at a node that is no
+//! access at all.
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -121,6 +122,29 @@
 //! at M4B for one reason, and it is ADR 0099 § 3's: at M4B it would have been
 //! a workspace symbol search with no index under it.
 //!
+//! # What a half-written name reaches in PHP's inventory
+//!
+//! A statement position also offers the **PHP built-ins** whose spelling starts
+//! with the name being written, from
+//! `rule:php-migration/every-php-builtin-is-a-completion-candidate`'s two
+//! audited documents joined at build time into
+//! `nvs_stdlib::php_names::CANDIDATES`. A name with no migration row is an item
+//! that says *undecided*, which reads as an audited language that owes an
+//! answer where a name that never appears reads as one that cannot do the job.
+//!
+//! **What may be typed on the developer's behalf is narrower than what is
+//! offered**, and the two are not the same question:
+//! `nvs_stdlib::php_names::Item::insertion` answers only for a destination the
+//! registry holds, and three of its four shapes insert nothing at all
+//! (`rule:ide/three-of-four-item-shapes-insert-nothing`). The PHP spelling
+//! itself never reaches a file — it is a label and a filter, and
+//! [`php_item`]'s `insert_text` is what keeps it one.
+//!
+//! **The inventory answers a name and not a cursor.** [`PHP_PREFIX`] characters
+//! are written first, because a whole language's built-ins arriving beside the
+//! keyword list on every keystroke is a list about the alphabet rather than
+//! about this program.
+//!
 //! # What a namespace separator offers
 //!
 //! A name with a separator in it is read from the root
@@ -194,9 +218,10 @@
 
 use std::collections::BTreeMap;
 
-use lsp_types::{CompletionItem, CompletionItemKind};
+use lsp_types::{CompletionItem, CompletionItemKind, Documentation, MarkupContent, MarkupKind};
 use nvs_diagnostics::{BytePos, SourceFile, Span};
 use nvs_hir::QName;
+use nvs_stdlib::php_names::{self, Candidate, Item, Kind};
 use nvs_stdlib::registry::{self, CoreClass, CoreConst, CoreEnum, CoreMethod};
 use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember, StmtKind,
@@ -208,6 +233,7 @@ use rustc_hash::FxHashMap;
 use crate::definition::{declared_type, text_of};
 use crate::document::Analysed;
 use crate::index::{DeclKind, SymbolIndex};
+use crate::settings::PhpNames;
 
 /// Every access shape a member is written inside, as `nvs_syntax::walk` spells
 /// them, with the half of the class each one reaches.
@@ -239,12 +265,17 @@ enum Reach {
 /// the receiver half of one rather than the member half — which are one answer
 /// for a client, since LSP has no shape for "ask me again somewhere else".
 #[must_use]
-pub fn at(analysed: &Analysed, symbols: &SymbolIndex, offset: BytePos) -> Vec<CompletionItem> {
+pub fn at(
+    analysed: &Analysed,
+    symbols: &SymbolIndex,
+    offset: BytePos,
+    php: PhpNames,
+) -> Vec<CompletionItem> {
     let path = analysed.index.at(offset);
     let mut items = match asked(analysed, &path, offset) {
         Asked::Member(class, reach) => members_of(analysed, &class, reach),
         Asked::Namespace(prefix) => under(symbols, &prefix),
-        Asked::Position => position(analysed, symbols, &path, offset),
+        Asked::Position => position(analysed, symbols, &path, offset, php),
         Asked::Nothing => return Vec::new(),
     };
     items.sort_by(|left, right| left.label.cmp(&right.label));
@@ -538,6 +569,7 @@ fn position(
     symbols: &SymbolIndex,
     path: &NodePath,
     offset: BytePos,
+    php: PhpNames,
 ) -> Vec<CompletionItem> {
     match path.innermost().map(|node| node.kind) {
         Some("ClassDecl" | "InterfaceDecl") => words(MEMBER_WORDS),
@@ -547,6 +579,7 @@ fn position(
             let mut items = words(STATEMENT_WORDS);
             items.extend(in_scope(analysed, offset));
             items.extend(in_reach(analysed, symbols, offset));
+            items.extend(php_builtins(analysed, offset, php));
             items
         }
     }
@@ -652,6 +685,144 @@ fn written_as(symbol: &str, here: &[String], short: &FxHashMap<String, String>) 
         return segments[here.len()].clone();
     }
     symbol.to_owned()
+}
+
+/// How many characters of a name are written before the PHP inventory answers.
+///
+/// The inventory is every built-in the differential oracle's own PHP build
+/// lists, and a one- or two-character prefix reaches hundreds of them — a list
+/// that arrives on every keystroke and buries the words, the variables and the
+/// types this program is actually made of. Three characters is where the answer
+/// is about the name being written rather than about the alphabet, and a
+/// developer reaching for a PHP built-in is by definition writing one. No name
+/// is dropped from the inventory by this: every one of them is still a
+/// candidate, which is what
+/// `rule:php-migration/every-php-builtin-is-a-completion-candidate` requires,
+/// and the prefix is only how much of it has to be written first.
+const PHP_PREFIX: usize = 3;
+
+/// Every PHP built-in whose spelling starts with the name being written at
+/// `offset`, as the item shape the migration table's row for it takes.
+///
+/// The table is `nvs_stdlib::php_names::CANDIDATES`, joined at build time out
+/// of the oracle inventory and `docs/spec/02-php-migration.md` and sorted by
+/// PHP spelling, so what is read here is one contiguous run of it. Two audited
+/// documents and the `Core` registry, and no fourth source — the name comes
+/// from a table this repository maintains, exactly as
+/// `rule:ide/completion-offers-only-what-the-compiler-derived` admits it.
+///
+/// `nvs.completion.phpNames` is read here and not at the call site because what
+/// it selects is a *shape*: `Resolved` keeps the items that insert and drops the
+/// three that do not, which is the lever
+/// `rule:php-migration/an-item-inserts-only-a-registered-member` names for a
+/// developer who wants only the names that go somewhere.
+fn php_builtins(analysed: &Analysed, offset: BytePos, php: PhpNames) -> Vec<CompletionItem> {
+    let typed = typed_name(analysed, offset);
+    if php == PhpNames::Off || typed.len() < PHP_PREFIX || typed.contains('\\') {
+        return Vec::new();
+    }
+    let mut found = Vec::new();
+    for candidate in php_names::starting_with(typed) {
+        for shape in candidate.items() {
+            // `Resolved` is the developer who wants only the names that go
+            // somewhere: the other three shapes are the audit, and an audit is
+            // not what everyone opened the editor for.
+            if php == PhpNames::Resolved && shape.insertion().is_none() {
+                continue;
+            }
+            found.push(php_item(candidate, shape, typed));
+        }
+    }
+    found
+}
+
+/// The name being written at `offset` — the run of name characters ending
+/// there — and the empty string where the cursor is in no name or in something
+/// that is not code.
+///
+/// Read off the source for [`namespace_written`]'s reason: a half-written name
+/// is a node in some shapes and two in others, and the run of characters before
+/// the cursor is the same thing in all of them. The tree is still what says the
+/// cursor is in code at all, which is [`NOT_CODE`] — a PHP built-in offered
+/// inside a string literal would be a name completed where no name is being
+/// written.
+fn typed_name(analysed: &Analysed, offset: BytePos) -> &str {
+    let Some(before) = offset.checked_sub(1) else {
+        return "";
+    };
+    let Some(node) = analysed.index.at(before).innermost() else {
+        return "";
+    };
+    if NOT_CODE.contains(&node.kind) {
+        return "";
+    }
+    let Some(upto) = analysed
+        .map
+        .file(analysed.entry)
+        .text()
+        .get(..offset as usize)
+    else {
+        return "";
+    };
+    let start = upto
+        .char_indices()
+        .rev()
+        .take_while(|(_, ch)| is_name(*ch))
+        .last()
+        .map_or(upto.len(), |(at, _)| at);
+    &upto[start..]
+}
+
+/// One PHP built-in, as the shape its row and the registry gave it.
+///
+/// **`insert_text` is the whole of what this may put in a buffer**, and it is
+/// `php_names::Item::insertion` where there is one. The three shapes that
+/// insert nothing carry the characters the developer has already typed instead:
+/// a client replaces the word being completed with this field, so leaving it
+/// unset would type the *label* — the PHP spelling — into the file, which is
+/// the second name `rule:statements/nothing-gets-a-second-name` removes and the
+/// unresolvable call `rule:php-migration/an-item-inserts-only-a-registered-member`
+/// refuses. Accepting one of them therefore leaves the buffer as it was.
+///
+/// The row's own cell is the documentation, verbatim as the migration table
+/// writes it, because that is where a `dropped` row's reason and its rewrite
+/// are and neither fits a detail column. The detail says which of the four
+/// shapes this is in one line, and only the first of them names a signature —
+/// the registry's, which is the same row [`core_member`] spells a `Core` member
+/// from.
+fn php_item(candidate: &Candidate, shape: php_names::Item, typed: &str) -> CompletionItem {
+    let detail = match shape {
+        Item::Inserts(destination) => match destination.method() {
+            Some(method) => format!("{}{}", destination.spelling(), core_signature(method)),
+            None => destination.spelling(),
+        },
+        Item::NotRegistered(Some(destination)) => {
+            format!("{} (not in Core yet)", destination.spelling())
+        }
+        Item::NotRegistered(None) => "no Core member to insert".to_owned(),
+        Item::Dropped => "dropped from Novis".to_owned(),
+        Item::Undecided => "undecided".to_owned(),
+    };
+    let kind = match (shape, candidate.kind) {
+        (Item::Inserts(_), Kind::Function) => CompletionItemKind::FUNCTION,
+        (Item::Inserts(_), Kind::Type) => CompletionItemKind::CLASS,
+        // Three shapes insert nothing, and a symbol icon beside one would say
+        // the language has a name it does not have.
+        _ => CompletionItemKind::TEXT,
+    };
+    CompletionItem {
+        label: candidate.php.to_owned(),
+        kind: Some(kind),
+        detail: Some(detail),
+        documentation: (!candidate.cell.is_empty()).then(|| {
+            Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: candidate.cell.to_owned(),
+            })
+        }),
+        insert_text: Some(shape.insertion().unwrap_or_else(|| typed.to_owned())),
+        ..CompletionItem::default()
+    }
 }
 
 /// The class the value at `span` holds.
@@ -914,6 +1085,20 @@ fn signature(file: &SourceFile, method: &MethodMember) -> String {
 
 /// One `Core` instance member, spelled from its registry row.
 fn core_member(method: &CoreMethod) -> CompletionItem {
+    item(
+        method.name.to_owned(),
+        CompletionItemKind::METHOD,
+        core_signature(method),
+    )
+}
+
+/// A `Core` member's parameter list and return type, from its registry row.
+///
+/// Two readers: the member lists above, where the member's own name is the
+/// label, and [`php_item`], where the label is a PHP built-in and this is what
+/// says where it went. One spelling for both, so the two lists never disagree
+/// about a signature the registry states once.
+fn core_signature(method: &CoreMethod) -> String {
     let mut params: Vec<String> = method
         .positional()
         .iter()
@@ -932,11 +1117,7 @@ fn core_member(method: &CoreMethod) -> CompletionItem {
     if let Some(options) = method.options() {
         params.push(registry::CoreTy::Options(options).spelled());
     }
-    item(
-        method.name.to_owned(),
-        CompletionItemKind::METHOD,
-        format!("({}): {}", params.join(", "), method.return_ty.spelled()),
-    )
+    format!("({}): {}", params.join(", "), method.return_ty.spelled())
 }
 
 /// Every member of a `Core` class that `reach` reaches, spelled from its

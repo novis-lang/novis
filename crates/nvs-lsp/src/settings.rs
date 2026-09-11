@@ -5,10 +5,11 @@
 //! `initializationOptions`, and is read here into one value [`crate::serve`]
 //! holds beside its stores. There is no `workspace/configuration` round trip
 //! and no `didChangeConfiguration` arm: either would make a setting something
-//! that changes under a reader mid-session, and both settings here decide what
-//! the server *built* — the tree the symbol index was constructed over, and
-//! whether a lens is offered at all. A client that changes one restarts the
-//! server, which is what the roster's `nvs.restartServer` is for.
+//! that changes under a reader mid-session, and two of these decide what the
+//! server *built* — the tree the symbol index was constructed over, and whether
+//! a lens is offered at all — which is not a thing the next request can simply
+//! be answered differently for. A client that changes one restarts the server,
+//! which is what the roster's `nvs.restartServer` is for.
 //!
 //! **The shape on the wire is the `nvs` section as the client already holds
 //! it.** VS Code's `workspace.getConfiguration("nvs")` is a nested object, so
@@ -36,8 +37,8 @@ use crate::index::CheckScope;
 
 /// What one `initialize` configured.
 ///
-/// The workspace root is in here with the two settings because it arrives in
-/// the same message and answers the same question they do — which files this
+/// The workspace root is in here with the settings because it arrives in the
+/// same message and answers the same question they do — which files this
 /// server is about — and because `CheckScope::Workspace` without a root is the
 /// open documents, so the pair is only meaningful read together.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,6 +52,9 @@ pub struct Settings {
     /// a request per visible declaration — a large file is where it costs most
     /// and is wanted least.
     pub code_lens: bool,
+    /// `nvs.completion.phpNames`: which of the PHP inventory's names a
+    /// half-written one is offered beside.
+    pub php_names: PhpNames,
     /// The workspace directory a [`CheckScope::Workspace`] pass walks, from
     /// the first folder the client named.
     ///
@@ -61,6 +65,31 @@ pub struct Settings {
     pub root: Option<PathBuf>,
 }
 
+/// How much of the PHP inventory a completion offers.
+///
+/// `rule:php-migration/every-php-builtin-is-a-completion-candidate` makes every
+/// built-in a candidate and
+/// `rule:ide/three-of-four-item-shapes-insert-nothing` makes three of the four
+/// item shapes insert nothing, so the whole layer is worth exactly what the
+/// migration table's coverage is worth to the person reading it. That judgement
+/// is theirs and not this server's, which is why it is three values rather than
+/// a boolean: a developer converting a PHP codebase wants the undecided and
+/// dropped names — they are the audit — and one writing new Novis wants only
+/// the names that go somewhere, or none at all.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PhpNames {
+    /// Every candidate the inventory lists, whatever its row says. The default,
+    /// because a name that does not appear reads as a language that cannot do
+    /// the job where one that says *undecided* reads as a language with a
+    /// schedule.
+    #[default]
+    All,
+    /// Only the items that insert — a destination the `Core` registry holds.
+    Resolved,
+    /// No PHP name at all.
+    Off,
+}
+
 impl Default for Settings {
     /// The roster's own defaults, which are what a client that configured
     /// nothing gets.
@@ -68,6 +97,7 @@ impl Default for Settings {
         Self {
             scope: CheckScope::Open,
             code_lens: true,
+            php_names: PhpNames::All,
             root: None,
         }
     }
@@ -88,6 +118,10 @@ impl Settings {
             code_lens: at(options, &["codeLens", "enable"])
                 .and_then(Value::as_bool)
                 .unwrap_or(defaults.code_lens),
+            php_names: at(options, &["completion", "phpNames"])
+                .and_then(Value::as_str)
+                .and_then(php_names_named)
+                .unwrap_or(defaults.php_names),
             root: root_of(params),
         }
     }
@@ -112,6 +146,17 @@ fn scope_named(setting: &str) -> Option<CheckScope> {
     match setting {
         "open" => Some(CheckScope::Open),
         "workspace" => Some(CheckScope::Workspace),
+        _ => None,
+    }
+}
+
+/// The value `setting` spells, or `None` for a spelling that is not one of the
+/// three [`PhpNames`] names.
+fn php_names_named(setting: &str) -> Option<PhpNames> {
+    match setting {
+        "all" => Some(PhpNames::All),
+        "resolved" => Some(PhpNames::Resolved),
+        "off" => Some(PhpNames::Off),
         _ => None,
     }
 }

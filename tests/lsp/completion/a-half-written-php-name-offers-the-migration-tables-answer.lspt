@@ -1,0 +1,13 @@
+--TEST--
+a PHP built-in is a candidate from the inventory and what its item says is the migration table's row for it, so a destination the registry holds inserts a member and a dropped name appears and inserts nothing, `rule:php-migration/every-php-builtin-is-a-completion-candidate`, `rule:ide/three-of-four-item-shapes-insert-nothing`
+--FILE--
+<?nvs
+var $total = 1;
+strip<|>
+--REQUEST--
+completion prefix=strip
+--EXPECT--
+strip_tags text      dropped from Novis
+stripcslashes text      dropped from Novis
+stripos function  Core\Str::indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint
+stripslashes text      dropped from Novis

@@ -131,4 +131,4 @@ pub use index::{
 pub use position::{encoding_of, offset_at, position_at, range_at, range_of};
 pub use render::{Action, Link, Place, Redaction, Response};
 pub use server::{ServerError, run, serve};
-pub use settings::Settings;
+pub use settings::{PhpNames, Settings};

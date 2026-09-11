@@ -280,7 +280,10 @@ fn answer(
             }
         }
         Completion::METHOD => match serde_json::from_value::<CompletionParams>(params) {
-            Ok(params) => Response::new_ok(id, completion(documents, index, encoding, &params)),
+            Ok(params) => Response::new_ok(
+                id,
+                completion(documents, index, settings, encoding, &params),
+            ),
             Err(error) => unreadable(id, &method, &error),
         },
         SelectionRangeRequest::METHOD => {
@@ -872,7 +875,7 @@ pub(crate) fn items_of_case(
 ) -> Vec<CompletionItem> {
     let settings = case_settings(root);
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
-    completion::at(analysed, &index, offset)
+    completion::at(analysed, &index, offset, settings.php_names)
 }
 
 /// [`references`] for one `.lspt` case, over an index built for that case
@@ -943,6 +946,7 @@ fn reference_count(count: usize) -> String {
 fn completion(
     documents: &Documents,
     index: &SymbolIndex,
+    settings: &Settings,
     encoding: PositionEncoding,
     params: &CompletionParams,
 ) -> CompletionResponse {
@@ -952,7 +956,7 @@ fn completion(
         return CompletionResponse::Array(Vec::new());
     };
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
-    CompletionResponse::Array(completion::at(&analysed, index, offset))
+    CompletionResponse::Array(completion::at(&analysed, index, offset, settings.php_names))
 }
 
 /// `textDocument/hover` — what the name under the cursor documents.
