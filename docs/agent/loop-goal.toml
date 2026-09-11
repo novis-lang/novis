@@ -8547,7 +8547,15 @@ kind = "cargo-named"
 stage = "6 the record"
 name = "the spec rows this goal adds are registered under the names the spec writes"
 args = ["test", "-p", "nvs-stdlib"]
-tests = ["spec_registry_coverage"]
+# Test FUNCTIONS, never the target file: `cargo-named` looks the name up in the run's output, and
+# the driver runs each test executable directly rather than through cargo, so a target's name is
+# never printed at all and `spec_registry_coverage` could only ever read "did not run". These two
+# are the walks that read this goal's rows -- § 16's class table for `Core\Sse` and
+# `Core\Sse\Message`, § 15's bullet for `Core\Response::stream`.
+tests = [
+  "every_part_two_spec_class_is_registered",
+  "every_part_two_spec_member_is_registered",
+]
 
 [[check]]
 kind = "command"
