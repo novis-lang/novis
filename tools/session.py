@@ -154,6 +154,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import plan as planmod  # noqa: E402  -- the status block's one home; never reimplemented here
 import orient  # noqa: E402  -- its ANCHOR_RE is what the next pack expands, so it is what we gate on
 import playbook as playbookmod  # noqa: E402  -- bullet parsing has one home and it is not here
+import goals as goalsmod  # noqa: E402  -- which goal is live has one home and it is not here
 
 #: `check-links.py` cannot be imported by name -- a hyphen is not an identifier -- and renaming it
 #: would change a command that CI, `verify.py`'s docstring and the playbook all already spell. So
@@ -1292,9 +1293,11 @@ def record_pack() -> None:
     This is a **report, not a gate**, and the distinction is the whole design. `doc-style.md`
     § *Length targets* records what the gate version cost: a session at the end of its tail,
     context at its peak, shaving prose to clear a tripwire. So this refuses nothing and changes
-    no exit code. It writes one line to `.loop/pack-size.jsonl` and, when the session grew the
-    pack past `PACK_NOTE_AT`, prints one line naming the growth -- addressed to whoever writes
-    the next goal, which is the only moment the manifest can be narrowed cheaply.
+    no exit code. It writes one line to `.loop/pack-size.jsonl` -- the size, the head and the live
+    goal's slug, since a pack that steps across a chain switch was authored rather than accumulated
+    -- and, when the session grew the pack past `PACK_NOTE_AT` inside one goal, prints one line
+    naming the growth, addressed to whoever writes the next goal, which is the only moment the
+    manifest can be narrowed cheaply.
 
     `python tools/loop-stats.py` turns the log into a slope. A failure here is silent on purpose:
     a missing `orient.py`, an unparseable goal or an unwritable `.loop` must never be the reason
@@ -1316,24 +1319,29 @@ def record_pack() -> None:
     except (OSError, subprocess.SubprocessError):
         return
 
-    previous = None
+    previous, previous_goal = None, None
     try:
         if PACK_LOG.exists():
             for line in PACK_LOG.read_text(encoding="utf-8").splitlines():
                 if line.strip():
-                    previous = json.loads(line).get("bytes")
+                    entry = json.loads(line)
+                    previous, previous_goal = entry.get("bytes"), entry.get("goal")
     except (OSError, ValueError):
         previous = None
 
+    goal = ""
     try:
+        goal = goalsmod.live_slug()
         RUNDIR.mkdir(parents=True, exist_ok=True)
         head = _checked(["git", "rev-parse", "--short", "HEAD"]).stdout.strip()
         with PACK_LOG.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"bytes": size, "head": head}) + "\n")
+            fh.write(json.dumps({"bytes": size, "head": head, "goal": goal}) + "\n")
     except (OSError, subprocess.SubprocessError):
         pass
 
-    if previous is None:
+    # A pack measured under another goal was built from another manifest, so the difference is
+    # the chain switch's, not this session's.
+    if previous is None or (previous_goal and goal and previous_goal != goal):
         return
     grew = size - previous
     if grew < PACK_NOTE_AT:

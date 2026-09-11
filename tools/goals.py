@@ -189,6 +189,16 @@ def live():
     return num if isinstance(num, int) and num > 0 else 0
 
 
+def live_slug():
+    """The slug of the goal the run has installed, or `""` when nothing is.
+
+    What a measurement taken mid-run records beside itself, so a reader can tell a chain switch
+    from growth inside one goal: a new goal installs its own `[context]` manifest, and a pack that
+    doubles across the switch was authored, not accumulated."""
+    goal = find(load(), live())
+    return goal.slug if goal else ""
+
+
 def write_live(num):
     STATE.parent.mkdir(parents=True, exist_ok=True)
     STATE.write_text(json.dumps({"goal": num}, indent=2) + "\n", encoding="utf-8", newline="\n")

@@ -4229,8 +4229,13 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
     # regression: `loop-stats.py` skips any session whose `pack_bytes` is falsy, and a session
     # opening on a whole replayed conversation with no pack at all is a point that would tilt
     # the fit by itself.
+    #
+    # The live goal's slug rides along because a chain switch installs a new manifest: the pack
+    # can double across one without any session having written a byte of it, and `loop-stats.py`
+    # fits its drift slope inside a goal for exactly that reason.
     if not resume:
-        CONSOLE.raw(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8"))}) + "\n")
+        CONSOLE.raw(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8")),
+                                "goal": goalsmod.live_slug()}) + "\n")
     effort = f", --effort {opts.effort}" if opts.effort else ""
     rejoin = f", --resume {resume}" if resume else ""
     step(f"launching {exe} (--model {opts.model}{effort}, "
@@ -5584,9 +5589,15 @@ def gather_signals(state):
     ev = {}
 
     grown = pack_bytes() - int(state.get("pack_bytes") or 0)
+    # A pack that grew across a chain switch is the new goal's manifest, which only whoever writes
+    # the goal may narrow. Firing on it buys a pass whose one possible finding is that it is not a
+    # leak, so the boundary is named in the evidence and the signal stays shut.
+    was, goal = state.get("pack_goal") or "", goalsmod.live_slug()
+    crossed = bool(was and goal and was != goal)
     ev["pack"] = (f"pack now {pack_bytes():,} B, {grown:+,} B since the last pass "
-                  f"({state.get('pack_bytes') or 'never taken'})")
-    if state.get("pack_bytes") and grown >= PACK_GROWTH:
+                  f"({state.get('pack_bytes') or 'never taken'})"
+                  + (f", across a chain switch: `{was}` -> `{goal}`" if crossed else ""))
+    if state.get("pack_bytes") and grown >= PACK_GROWTH and not crossed:
         fired.append(f"{PACK_SIGNAL} {grown:,} B since the last pass")
 
     TICKER.set(detail="orient.py --audit")
@@ -5812,6 +5823,7 @@ def run_pass(opts, fired, ev, since, baseline):
         "last_pass": run,
         "last_pass_head": git("rev-parse", "HEAD"),
         "pack_bytes": pack_bytes(),
+        "pack_goal": goalsmod.live_slug(),
         "verdict": verdict,
         "signals": fired,
     })
@@ -5942,7 +5954,8 @@ def checkpoint(opts, since):
         # A clean look still spends the clock: the next one is a full cadence away, and the pack
         # it will compare against is this one, not the one the last *pass* left.
         write_json(OPTSTATE, {**state, "since": 0 if due else since,
-                              "pack_bytes": pack_bytes() if due else state.get("pack_bytes")})
+                              "pack_bytes": pack_bytes() if due else state.get("pack_bytes"),
+                              "pack_goal": goalsmod.live_slug() if due else state.get("pack_goal")})
         return 0 if due else since
     if not (due or early):
         say(f"{len(fired)} signal(s), but only {since} of {opts.optimize_every} sessions in -- "
