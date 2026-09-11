@@ -114,6 +114,11 @@ modules = [
   "crates/nvs-cli/src/main.rs",
   # The `Diagnostic` record `--json` writes: code, span, severity, help, suggestions.
   "crates/nvs-diagnostics/src/lib.rs",
+  # `ast::run` at :54 -- the frozen `--json` renderer stage 2's `check --json` is modelled on.
+  "crates/nvs-cli/src/ast.rs",
+  # `Settings::from_initialize` -- the server's reader for the `nvs` section the client forwards in
+  # `initializationOptions`, which is what answers a contributed setting the client never reads.
+  "crates/nvs-lsp/src/settings.rs",
   # `TokenKind::InlineHtml` at :356 -- the span stage 6's regions request projects.
   "crates/nvs-syntax/src/lexer.rs",
   # The chapter stage 6 extends, and its § *What it does not do* this goal shortens.
@@ -135,6 +140,9 @@ rules = [
   # Stage 5 runs the case tree through the same explorer; this is what says the corpus is a roster
   # rather than a declaration.
   "ide/lspt-coverage-is-inferred",
+  # `nvs.check.scope`'s two values, its default and why the expensive one is off -- the setting
+  # stage 0 adds to the manifest for the server that has read it since goal `workspace-index`.
+  "ide/check-scope-defaults-to-open-documents",
 ]
 
 adrs = []
