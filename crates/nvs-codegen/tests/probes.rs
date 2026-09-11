@@ -7,6 +7,92 @@ mod common;
 
 use common::*;
 
+/// A script whose body is one loop, so its Cranelift IR holds a function-entry
+/// poll and a back-edge poll and nothing else that reads the context.
+const A_LOOP: &str = "<?nvs\nint $i = 0;\nwhile ($i < 3) {\n    $i = $i + 1;\n}\necho $i;\n";
+
+/// One function's Cranelift IR out of the text `nvs_codegen::clif` renders,
+/// which heads each function with `; <name>`.
+fn section<'a>(text: &'a str, name: &str) -> &'a str {
+    let head = format!("; {name}\n");
+    let start = text
+        .find(&head)
+        .unwrap_or_else(|| panic!("the unit defines no `{name}`:\n{text}"))
+        + head.len();
+    let body = &text[start..];
+    match body.find("\n; ") {
+        Some(end) => &body[..end],
+        None => body,
+    }
+}
+
+/// Every line of `clif` that loads at offset zero of the ABI's first parameter
+/// — `Ctx`'s hot slot, which holds the address of the safepoint word
+/// (`nvs_runtime::SAFEPOINT_OFFSET`). Every other inline read of the context is
+/// at a non-zero offset, so this names the handle load and nothing else.
+fn handle_loads(clif: &str) -> Vec<&str> {
+    clif.lines()
+        .map(str::trim)
+        .filter(|line| line.contains("load") && (line.ends_with("v0") || line.ends_with("v0+0")))
+        .collect()
+}
+
+/// The instruction lines of `clif`'s ABI entry block, which is its first.
+fn entry_block(clif: &str) -> Vec<&str> {
+    clif.lines()
+        .map(str::trim)
+        .skip_while(|line| !line.starts_with("block0("))
+        .skip(1)
+        .take_while(|line| !line.starts_with("block"))
+        .collect()
+}
+
+#[test]
+fn the_safepoint_handle_is_loaded_in_the_abi_entry_block() {
+    // The word a poll reads lives outside `Ctx` so that a thread which does not
+    // own the request can write it, and the hot slot holds its address — so the
+    // poll is a pointer hop. This is what makes the hop cost one per *call*
+    // rather than one per poll: the entry block dominates every block below it,
+    // so the address is bound there and nothing below reloads it. Every
+    // function, not just this script's own: `nvs_ir::lower` gives each one an
+    // entry poll, so a handle loaded anywhere else would be one loaded twice.
+    let text = nvs_codegen::clif(&lower(A_LOOP)).expect("the unit compiled");
+    for clif in text.split("\n; ") {
+        let loads = handle_loads(clif);
+        assert_eq!(loads.len(), 1, "the handle is not loaded once:\n{clif}");
+        assert!(
+            entry_block(clif).contains(&loads[0]),
+            "the handle is loaded outside the ABI entry block:\n{clif}"
+        );
+    }
+}
+
+#[test]
+fn a_loop_back_edge_polls_with_one_load() {
+    // What the entry block's binding buys, asserted where it is spent: a poll
+    // on a back edge reads the word through the value bound at entry, so going
+    // round the loop costs the load of the word, the test and the branch — and
+    // not a second load to find the word first.
+    let text = nvs_codegen::clif(&lower(A_LOOP)).expect("the unit compiled");
+    let clif = section(&text, "<script>");
+    let loads = handle_loads(clif);
+    assert_eq!(loads.len(), 1, "the handle is not loaded once:\n{clif}");
+
+    let (handle, _) = loads[0]
+        .split_once(" = ")
+        .expect("a load names the value it defines");
+    let polls = clif
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.contains("load") && line.ends_with(handle))
+        .count();
+    assert!(
+        polls >= 2,
+        "this script has a function-entry poll and a back-edge poll, and both \
+         read the word through the entry block's value; found {polls}:\n{clif}"
+    );
+}
+
 #[test]
 fn a_pending_safepoint_stops_the_script_before_it_writes_anything() {
     // The poll `nvs-codegen` emits at function entry, doing its job: a request

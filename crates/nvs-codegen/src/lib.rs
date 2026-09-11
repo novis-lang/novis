@@ -796,6 +796,29 @@ pub fn disassemble(program: &Program) -> Result<String, CodegenError> {
     Ok(disasm)
 }
 
+/// Compiles every function in `program` and returns the **Cranelift IR** this
+/// crate emitted for it as text, one section per function, *instead* of a
+/// callable [`Unit`].
+///
+/// [`disassemble`]'s sibling one level up, and the one a test asserting on the
+/// *shape* of the emitted code wants: where a load sits is a fact about what
+/// was emitted, while which instruction it became is a fact about the machine
+/// that ran the test. Taken before the backend compiles the function, so what
+/// it prints is what this crate wrote rather than what Cranelift made of it.
+/// Nothing is executed.
+///
+/// # Errors
+///
+/// The same cases [`compile`] reports, for the same reasons.
+pub fn clif(program: &Program) -> Result<String, CodegenError> {
+    let mut unit = UnitBuilder::new(None)?;
+    unit.clif = Some(String::new());
+    unit.compile_all(program)?;
+    let clif = unit.clif.take().unwrap_or_default();
+    unit.finish()?;
+    Ok(clif)
+}
+
 /// Every class descriptor a unit declares, built from the lowered IR and from
 /// nothing else — `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
 /// 's answer to where a warm cache hit's descriptors come from.
@@ -1051,6 +1074,10 @@ struct UnitBuilder<M> {
     /// generated code. `None` is the ordinary compile, which asks Cranelift
     /// for no disassembly at all and so pays nothing for this field.
     disasm: Option<String>,
+    /// Set only by [`clif`]: the accumulated Cranelift IR of every function, as
+    /// this crate emitted it. `None` is the ordinary compile, which renders
+    /// nothing and so pays nothing for this field.
+    clif: Option<String>,
 }
 
 /// Every class the compiled unit declares, in the two forms emitted code
@@ -1713,6 +1740,7 @@ impl<M: Module> UnitBuilder<M> {
             literals: 0,
             entries: Vec::new(),
             disasm,
+            clif: None,
         }
     }
 
@@ -1810,6 +1838,7 @@ impl<M: Module> UnitBuilder<M> {
             return Err(error);
         }
 
+        self.collect_clif(&function.name);
         self.module
             .define_function(id, &mut self.ctx)
             .map_err(|source| CodegenError::Cranelift {
@@ -1820,6 +1849,21 @@ impl<M: Module> UnitBuilder<M> {
         self.module.clear_context(&mut self.ctx);
         self.entries.push((function.name.clone(), id));
         Ok(())
+    }
+
+    /// Appends the just-emitted function's Cranelift IR, if one was asked for.
+    ///
+    /// Called before `define_function`, which is what turns that IR into
+    /// machine code: what this renders is the shape the emitter wrote.
+    fn collect_clif(&mut self, name: &str) {
+        let Some(buffer) = self.clif.as_mut() else {
+            return;
+        };
+        buffer.push_str("; ");
+        buffer.push_str(name);
+        buffer.push('\n');
+        buffer.push_str(&self.ctx.func.to_string());
+        buffer.push('\n');
     }
 
     /// Appends the just-compiled function's disassembly, if one was asked for.
