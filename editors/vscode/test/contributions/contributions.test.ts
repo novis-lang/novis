@@ -5,6 +5,13 @@
 // freezes the roster and this file is where it is frozen. The lists below are exhaustive on
 // purpose — a later milestone adds a name to them, and nothing ever renames one.
 //
+// A roster is a promise, so this file also asserts that each promise is kept: every contributed
+// command reaches a `registerCommand` call, and every contributed setting reaches a reader — the
+// client's own, or the server's out of the section the client forwards. Neither is visible from the
+// manifest, and a user meets the gap as *command not found* in the palette or as a settings entry
+// that changes nothing. An identifier is never removed to make one of these pass
+// (`rule:ide/contributions-are-frozen-and-only-ever-added`): it is answered.
+//
 // The other three claims break a user's editor quietly rather than loudly, which is why they are
 // tests: the extension claims `.nvs` and never `.php`
 // (`rule:ide/the-extension-claims-nvs-only`), its runtime dependencies are on an allowlist so a
@@ -13,7 +20,7 @@
 // (`rule:ide/novis-ships-names-not-colours`).
 
 import * as assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(__dirname, "..", "..", "..");
@@ -78,6 +85,8 @@ const SETTINGS = [
   "nvs.lsp.enable",
   "nvs.lsp.debounce",
   "nvs.lsp.trace.server",
+  "nvs.check.scope",
+  "nvs.codeLens.enable",
   "nvs.secrets.redact",
   "nvs.taint.mark",
   "nvs.completion.phpNames",
@@ -95,6 +104,64 @@ const COMMANDS = [
 // `rule:ide/dependencies-are-allowlisted` is over runtime dependencies: a test library ships to
 // nobody, a language implementation arriving here ships to everyone.
 const ALLOWED_DEPENDENCIES = ["vscode-languageclient"];
+
+// The client's own TypeScript, as one text. Nothing here can run `activate` — the headless tier has
+// no `vscode` module to import (`scripts/headless.mjs`) — so what the two answering tests below
+// assert is the code that answers an identifier rather than the effect of running it. Every file
+// under `src/` counts and not `extension.ts` alone: a command a module registers on `activate`'s
+// behalf is still answered, and what must not appear twice is the roster, not the call.
+const CLIENT = readdirSync(join(ROOT, "src"))
+  .filter((file) => file.endsWith(".ts"))
+  .map((file) => readFileSync(join(ROOT, "src", file), "utf8"))
+  .join("\n");
+
+// The other side of the wire, which is the other place a setting is read.
+// `Settings::from_initialize` walks the `nvs` section by key path, so `nvs.completion.phpNames` is
+// read at `&["completion", "phpNames"]` there and by nothing in this package. Whitespace is
+// collapsed because the assertion is about the path, not about where rustfmt wrapped it.
+const SERVER = readFileSync(
+  join(ROOT, "..", "..", "crates", "nvs-lsp", "src", "settings.rs"),
+  "utf8",
+).replace(/\s+/g, " ");
+
+/** Whether the client registers `id`, which is the whole of what answers a palette entry. */
+function registered(id: string): boolean {
+  return new RegExp(`registerCommand\\(\\s*"${escaped(id)}"`).test(CLIENT);
+}
+
+/**
+ * Whether the client itself reads `key` — by its whole name, or by the tail
+ * `workspace.getConfiguration("nvs")` takes.
+ *
+ * `nvs.lsp.trace.server` is read by `vscode-languageclient` and not by any line of this package:
+ * it takes `<id>.trace.server` from the id the `LanguageClient` was constructed with, so that id is
+ * the evidence, and renaming it is what would make the setting inert.
+ */
+function read(key: string): boolean {
+  const tail = key.slice("nvs.".length);
+  const traced = /new LanguageClient\(\s*"([^"]+)"/.exec(CLIENT)?.[1];
+  return CLIENT.includes(`"${key}"`)
+    || new RegExp(`\\.get(<[^>]*>)?\\(\\s*"${escaped(tail)}"`).test(CLIENT)
+    || key === `${traced}.trace.server`;
+}
+
+/**
+ * Whether the server reads `key` out of a section this client forwards.
+ *
+ * Both halves are required, because either alone is inert: a key the server reads that no client
+ * sends leaves the default in force, and a section forwarded to a server that reads nothing out of
+ * it changes nothing either. The client sends the section as it holds it, nested, which is why the
+ * key path here is the setting's name with `nvs` taken off the front.
+ */
+function forwarded(key: string): boolean {
+  const path = key.split(".").slice(1).map((part) => `"${part}"`).join(", ");
+  return CLIENT.includes("initializationOptions") && SERVER.includes(`&[${path}]`);
+}
+
+/** `name` as a regular expression that matches it literally, its dots included. */
+function escaped(name: string): string {
+  return name.split(".").join("\\.");
+}
 
 describe("the extension's identity", () => {
   it("is novis-lang.nvs, a workspace extension", () => {
@@ -267,6 +334,25 @@ describe("the frozen identifiers", () => {
                      [...COMMANDS].sort());
   });
 
+  it("registers every command it contributes", () => {
+    // The roster test above passes whether or not a single command does anything, and this is the
+    // one that does not: an id nothing registers is *command not found* from the palette. The list
+    // is collected rather than asserted one at a time so the failure names every unanswered id at
+    // once, which is the list of work rather than the first item of it.
+    const unanswered = COMMANDS.filter((id) => !registered(id));
+    assert.deepEqual(unanswered, [],
+                     `${unanswered.join(", ")}: contributed, and no registerCommand answers it`);
+  });
+
+  it("reads or forwards every setting it contributes", () => {
+    // A contributed setting that nothing reads is a control in the settings UI that moves nothing,
+    // which is the same broken promise as an unregistered command and is quieter. Two consumers
+    // count because a value's reader is not always in this package: the client reads one by name,
+    // and `nvs-lsp` reads one out of the `initializationOptions` section the client forwards.
+    const unread = SETTINGS.filter((key) => !read(key) && !forwarded(key));
+    assert.deepEqual(unread, [], `${unread.join(", ")}: contributed, and nothing reads it`);
+  });
+
   it("gives every command a title under one category", () => {
     for (const command of manifest.contributes.commands) {
       assert.ok(command.title, `${command.command} has no title`);
@@ -280,6 +366,9 @@ describe("the frozen identifiers", () => {
     assert.equal(properties["nvs.lsp.enable"].default, true);
     assert.equal(properties["nvs.lsp.debounce"].default, 150);
     assert.equal(properties["nvs.lsp.trace.server"].default, "off");
+    assert.equal(properties["nvs.check.scope"].default, "open");
+    assert.deepEqual(properties["nvs.check.scope"].enum, ["open", "workspace"]);
+    assert.equal(properties["nvs.codeLens.enable"].default, true);
     assert.equal(properties["nvs.secrets.redact"].default, true);
     assert.equal(properties["nvs.taint.mark"].default, "off");
     assert.deepEqual(properties["nvs.taint.mark"].enum, ["off", "declaration", "sink"]);

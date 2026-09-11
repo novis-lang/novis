@@ -248,13 +248,23 @@ as nothing.
 | `nvs.path` | `""` | absolute path to the `nvs` binary. Empty means look it up on `PATH` |
 | `nvs.lsp.enable` | `true` | whether to run the server at all. Off leaves the TextMate colour and nothing else |
 | `nvs.lsp.trace.server` | `"off"` | log the frames exchanged with the server into the Novis output channel — `off`, `messages`, or `verbose` for the frame bodies too |
+| `nvs.check.scope` | `"open"` | which files diagnostics are published for — `open` for the open documents and what they require or autoload, `workspace` for every file the index holds, which is also the only scope an unreferenced private member is dimmed at |
+| `nvs.codeLens.enable` | `true` | whether a declaration carries its reference, implementor and override counts as a lens |
 | `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
 | `nvs.completion.phpNames` | `"all"` | which PHP built-ins are offered beside a half-written name — `all`, `resolved` for only the ones whose `Core` member exists, or `off`. Whatever the value, an item inserts a member only where the registry holds it |
 | `nvs.lsp.debounce` | `150` | milliseconds a keystroke is to wait before analysis starts. Contributed and not yet read — see below |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
-already running. The rest are read where they are used and take effect on the next redraw.
+already running.
+
+The rest divide by who reads them. `nvs.secrets.redact` and `nvs.taint.mark` are the client's own and
+take effect on the next redraw, and `nvs.lsp.trace.server` is read by the LSP client library off the
+id the server is started under. `nvs.check.scope`, `nvs.codeLens.enable` and
+`nvs.completion.phpNames` are the server's: the client hands it the whole `nvs` section once, in
+`initialize`, so a change to one of those reaches it when it next starts — **Novis: Restart Language
+Server**. There is no `didChangeConfiguration` exchange, because two of them decide what the server
+*built* rather than how it answers the next request.
 
 ## The commands it contributes
 

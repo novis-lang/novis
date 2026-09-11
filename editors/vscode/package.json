@@ -112,6 +112,24 @@
           "default": "off",
           "description": "Trace the messages exchanged with the Novis language server."
         },
+        "nvs.check.scope": {
+          "type": "string",
+          "enum": [
+            "open",
+            "workspace"
+          ],
+          "enumDescriptions": [
+            "Open documents and the files they require or autoload.",
+            "Every file the workspace index holds."
+          ],
+          "default": "open",
+          "description": "Which files diagnostics are published for. Workspace scope also dims unreferenced private members, which is only correct at that scope."
+        },
+        "nvs.codeLens.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show reference, implementor and override counts above a declaration."
+        },
         "nvs.secrets.redact": {
           "type": "boolean",
           "default": true,
