@@ -244,6 +244,15 @@ pub struct TestCase {
     /// The method's own name, exactly as declared. `rule:testing/test-attribute`: nothing
     /// about a test is inferred from this spelling.
     pub method: String,
+    /// Where the method's name is written — the span every refusal about this
+    /// row already points at, kept on the row rather than in a side table.
+    ///
+    /// The checker holds it anyway, and a consumer below this crate cannot
+    /// recover it: a class label and a method name say nothing about which file
+    /// the two were declared in. A report that locates a test, and an editor
+    /// that opens one, both resolve it through the `SourceMap` their caller
+    /// holds, which is the only thing that turns a byte offset into a line.
+    pub span: Span,
     /// The options written on the attribute, folded, in source order. An
     /// option the author left out is absent rather than defaulted — what a
     /// missing `retries` means is the runner's question and not this table's.
@@ -330,7 +339,6 @@ struct RawRow {
 /// pass could make alone.
 pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let mut cases: Vec<TestCase> = Vec::new();
-    let mut case_spans: Vec<Span> = Vec::new();
     let mut case_rows: Vec<Vec<RawRow>> = Vec::new();
     let mut fixtures: Vec<Fixture> = Vec::new();
     let mut fixture_spans: Vec<Span> = Vec::new();
@@ -416,17 +424,16 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         let options = fold_options(&attr.fields.clone(), env);
         cases.push(TestCase {
             method,
+            span: m.name,
             options,
             params: Vec::new(),
             rows: Vec::new(),
         });
-        case_spans.push(m.name);
         case_rows.push(rows);
     }
     resolve_injections(
         class,
         &mut cases,
-        &case_spans,
         &case_rows,
         &mut fixtures,
         &fixture_spans,
@@ -463,7 +470,6 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
 fn resolve_injections(
     class: &QName,
     cases: &mut [TestCase],
-    case_spans: &[Span],
     case_rows: &[Vec<RawRow>],
     fixtures: &mut [Fixture],
     fixture_spans: &[Span],
@@ -496,13 +502,19 @@ fn resolve_injections(
             .collect();
     }
     reject_fixture_cycles(class, fixtures, fixture_spans, env);
-    for (index, span) in case_spans.iter().enumerate() {
-        let method = cases[index].method.clone();
+    for (index, case) in cases.iter_mut().enumerate() {
         let rows = case_rows.get(index).map_or(&[][..], Vec::as_slice);
-        let (params, rows) =
-            resolve_parameters(class, &method, "#[Test]", *span, &roster, rows, env);
-        cases[index].params = params;
-        cases[index].rows = rows;
+        let (params, rows) = resolve_parameters(
+            class,
+            &case.method,
+            "#[Test]",
+            case.span,
+            &roster,
+            rows,
+            env,
+        );
+        case.params = params;
+        case.rows = rows;
     }
 }
 
