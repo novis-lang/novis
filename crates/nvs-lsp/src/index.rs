@@ -58,16 +58,19 @@
 //!
 //! # Known gaps
 //!
-//! An enum case occurrence is recorded against its **enum**, not against the
-//! case, because that is what the checker resolved it to
-//! (`nvs_types::ExprInfo::EnumCase`) and `definition` answers the same way. A
-//! declaration side that records the case and an occurrence side that cannot
-//! name it is the one asymmetry here, and closing it is a change in the
-//! checker's table rather than in this walk.
+//! 1. **An enum case occurrence is recorded against its enum**, not against
+//!    the case, because that is what the checker resolved it to
+//!    (`nvs_types::ExprInfo::EnumCase`) and `definition` answers the same way.
+//!    A declaration side that records the case and an occurrence side that
+//!    cannot name it is the one asymmetry here, and closing it is a change in
+//!    the checker's table rather than in this walk.
+//!    — owner: unowned
 //!
-//! Nothing records *visibility*, which unused-member dimming needs to know a
-//! member is private. It is a property of the declaration's own node and is
-//! added where the declaration walk reads the member, not by a second walk.
+//! 2. **Nothing records member visibility**, which unused-member dimming needs
+//!    to know a member is private. It is a property of the declaration's own
+//!    node and is added where the declaration walk reads the member, not by a
+//!    second walk.
+//!    — owner: workspace-index
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -78,7 +81,7 @@ use nvs_hir::{Loaded, SymbolKind};
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, Stmt, StmtKind};
 use nvs_syntax::walk;
 
-use crate::definition::{Target, declared_type, target_of, text_of};
+use crate::definition::{Target, declared_type, named_at, target_of, text_of};
 use crate::document::{Analysed, Documents, analyse_file};
 
 /// Which files the index is built over — the `nvs.check.scope` setting
@@ -383,6 +386,21 @@ impl SymbolIndex {
             self.files.insert(key, indexed);
         }
     }
+}
+
+/// The symbol the cursor at `offset` names, or `None` for a cursor on nothing
+/// this index could hold one for.
+///
+/// The read side's entry point: a reader has a position and the index is keyed
+/// by name, so this is the one step between them. It is
+/// [`crate::definition::named_at`] — the same reading `definition` and `hover`
+/// answer a cursor with — spelled by `symbol_of` below, which is what stops a
+/// cursor that jumps to a declaration and a cursor that lists references
+/// disagreeing about which name they are about.
+#[must_use]
+pub fn symbol_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
+    let (target, _) = named_at(analysed, offset)?;
+    Some(symbol_of(&target))
 }
 
 /// The version recorded for a file no client has open.
