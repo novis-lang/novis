@@ -796,4 +796,124 @@ mod tests {
             "and the context's teardown, which is every ending at once, is what sweeps it"
         );
     }
+
+    thread_local! {
+        /// How many times [`overruns_its_slice`] has been entered. A second
+        /// entry is the retry [`Ctx::run_limit_handler`] takes the slot out to
+        /// make impossible, and a count is the only thing that can see one.
+        static ENTRIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        /// Whether [`SafepointFlags::CPU_LIMIT`] was still raised when the
+        /// handler was entered. `true` is a slice zero nanoseconds wide however
+        /// wide the ceiling beside it was made, and it is also the reading of a
+        /// handler that never ran.
+        static FLAG_ON_ENTRY: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+        /// The CPU ceiling in force inside the handler — the widened one, which
+        /// is the half of the slice a flag edit on its own does not buy.
+        static SEEN_CEILING: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+        /// What the handler's own poll answered once the flag was raised on it
+        /// again. `None` is a poll that was never made.
+        static OVERRUN_STATUS: std::cell::Cell<Option<i32>> = const { std::cell::Cell::new(None) };
+    }
+
+    /// A limit handler that spends its whole widened slice: it reads what it
+    /// was entered with, raises the CPU flag on itself the way the watchdog
+    /// does when the thread's clock passes the widened ceiling, and then reaches
+    /// a back edge.
+    ///
+    /// The status it answers is the poll's, because a handler stopped by a
+    /// `FATAL` is one that returns it — there is nothing else it may do.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and each parameter live, \
+                  every one of them retained for this callee to release, and \
+                  the address of a live `Value` for the result — plus the \
+                  context pointer compiled code is called with, live for this \
+                  call by the ABI it arrives under"
+    )]
+    unsafe extern "C" fn overruns_its_slice(
+        ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        // The receiver and the one report parameter, given back exactly as
+        // [`looks_for_the_directory`] gives them back.
+        for slot in 0..2 {
+            // SAFETY: `call_closure` passed two live values and retained each.
+            unsafe { (*args.add(slot)).release() };
+        }
+        ENTRIES.with(|entries| entries.set(entries.get() + 1));
+        {
+            // SAFETY: the caller passed a context valid for this call.
+            let ctx = unsafe { &mut *ctx };
+            FLAG_ON_ENTRY
+                .with(|flag| flag.set(ctx.safepoint_flags().contains(SafepointFlags::CPU_LIMIT)));
+            SEEN_CEILING.with(|ceiling| ceiling.set(ctx.cpu_limit()));
+            ctx.request_safepoint(SafepointFlags::CPU_LIMIT);
+        }
+        // SAFETY: the same context, and the borrow above ends here.
+        let status = unsafe { crate::nvs_safepoint(ctx) };
+        OVERRUN_STATUS.with(|seen| seen.set(Some(status)));
+        // SAFETY: the caller passed the address of a live `Value` to answer
+        // into, and a handler carrying a `FATAL` out answers nothing.
+        unsafe { *out = Value::null() };
+        status
+    }
+
+    /// `rule:errors/on-limit`'s zero-retry rule, asked of the handler that
+    /// nothing else can stop: a request stopped by the CPU-time flag runs its
+    /// handler with that flag lowered and its ceiling widened, and a handler
+    /// that spends the widened ceiling too is stopped rather than started
+    /// again.
+    ///
+    /// Four readings are the test, because the failure each one names passes an
+    /// assertion over the others. A flag still raised on entry is a slice zero
+    /// nanoseconds wide, whatever the ceiling beside it says; a ceiling that is
+    /// still the ordinary one is a slice nothing consults. An entry count of
+    /// two is the handler restarted by its own breach. And a poll inside the
+    /// handler answering `OK` is a handler that overran and was let carry on.
+    #[test]
+    fn the_limit_handler_runs_once_and_is_not_re_entered_when_it_overruns() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_cpu_limit(1_000);
+        ctx.set_fatal_reserve_time(9_000);
+        ctx.set_limit_handler(hook_of(overruns_its_slice));
+        ctx.request_safepoint(SafepointFlags::CPU_LIMIT);
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        let status = unsafe { crate::nvs_safepoint(&raw mut ctx) };
+
+        assert_eq!(
+            status,
+            crate::FATAL,
+            "the request is stopped, and as a `FATAL`"
+        );
+        assert_eq!(
+            ENTRIES.with(std::cell::Cell::get),
+            1,
+            "the slot is taken on the way in, so a handler breaching again finds nothing to enter"
+        );
+        assert!(
+            !FLAG_ON_ENTRY.with(std::cell::Cell::get),
+            "a handler entered under the flag that stopped the request is stopped at its own first \
+             back edge, which is a slice zero nanoseconds wide"
+        );
+        assert_eq!(
+            SEEN_CEILING.with(std::cell::Cell::get),
+            10_000,
+            "the reserve is added to the ceiling for the length of the call"
+        );
+        assert_eq!(
+            OVERRUN_STATUS.with(std::cell::Cell::get),
+            Some(crate::FATAL),
+            "and a handler that spends the widened ceiling meets the flag a second time"
+        );
+        assert!(
+            !ctx.has_limit_handler(),
+            "the registration is spent, not borrowed"
+        );
+        assert!(
+            ctx.safepoint_flags().contains(SafepointFlags::CPU_LIMIT),
+            "what was lowered for the call is raised again after it"
+        );
+    }
 }
