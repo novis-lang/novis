@@ -15,12 +15,16 @@
 //! [`Program`] handed in and the [`Output`] asked for, not the boundary.
 //!
 //! `rule:concurrency/a-connection-is-a-root-isolate`'s
-//! WebSocket connection is another caller and needs nothing added here
-//! either: it is [`Isolate::start`] from the *connection's* context, with a
-//! [`Program`] the upgrading request prepared and handed over before it ended,
-//! so the connection is that request's sibling rather than a child of its tree.
+//! connection is another caller and needs no boundary of its own: it is
+//! [`Isolate::start`] from the *connection's* context, with a [`Program`] the
+//! upgrading request prepared and handed over before it ended, so the
+//! connection is that request's sibling rather than a child of its tree.
 //! `nvs-stdlib`'s `socket` module owns that decision and why the preparation
-//! cannot happen on this side.
+//! cannot happen on this side. What each of
+//! `rule:concurrency/two-doors-one-isolate`'s doors adds here is one builder
+//! for the thing it was handed — [`Isolate::over_socket`] a peer,
+//! [`Isolate::over_event_stream`] a body — and nothing else differs between
+//! them.
 //!
 //! # The program arrives as a closure, not as a path
 //!
@@ -112,6 +116,10 @@ pub struct Isolate {
     /// arm dwarfing the other.
     inbound: Option<Box<Inbound>>,
     peer: Option<Box<dyn PeerSocket>>,
+    /// The writing half of the response this isolate's events are the body of —
+    /// [`Isolate::over_event_stream`], and `None` for every isolate that is not
+    /// a connection answering one.
+    event_stream: Option<nvs_runtime::stream::Emit>,
     /// Where this isolate publishes itself while it runs, so that a thread
     /// which is not this core can charge it against `rule:errors/on-limit`'s
     /// CPU ceiling — [`Isolate::watched_by`], and `None` for every isolate
@@ -159,6 +167,7 @@ impl Isolate {
             entry: Entry::Path,
             inbound: None,
             peer: None,
+            event_stream: None,
             watch: None,
         }
     }
@@ -333,6 +342,29 @@ impl Isolate {
         self
     }
 
+    /// Moves the body of a `200 text/event-stream` into the isolate that writes
+    /// it — `rule:concurrency/two-doors-one-isolate`'s other hand-over, on the
+    /// same terms as [`Self::over_socket`].
+    ///
+    /// It is the same direction and the same moment: the connection has already
+    /// built the half the bytes go through, and hands it to the isolate that is
+    /// about to own it. What differs is what was handed over, and that is the
+    /// whole of what separates the two doors — an event stream takes no socket,
+    /// so this isolate has a body and no peer where § 1's has a peer and no
+    /// body.
+    ///
+    /// **It marks as well as hands over**, because the two are one fact about
+    /// this isolate rather than two: [`Ctx::mark_event_stream`] is what
+    /// `Core\Sse::current` reads, and a context holding a writing half it was
+    /// not told the meaning of is one where that member would answer for an
+    /// ordinary streamed body too. `nvs_stdlib::sse`'s `current` is the home of
+    /// why the question is neither the peer nor an open body.
+    #[must_use]
+    pub fn over_event_stream(mut self, events: nvs_runtime::stream::Emit) -> Self {
+        self.event_stream = Some(events);
+        self
+    }
+
     /// Charges it to `rule:errors/handler-script`'s engine-owned reserve instead of to the tree
     /// that spawned it.
     ///
@@ -391,6 +423,7 @@ impl Isolate {
             entry,
             inbound,
             peer,
+            event_stream,
             watch,
         } = self;
         // `rule:errors/on-limit`'s ceiling on the tree, ahead of everything else in this
@@ -497,6 +530,16 @@ impl Isolate {
         // owns why nothing but a connection's own isolate has one.
         if let Some(peer) = peer {
             isolate_ctx.set_peer(peer);
+        }
+        // `rule:concurrency/two-doors-one-isolate`'s other hand-over, beside it
+        // and at the same point for the same reason: an event stream's isolate
+        // *is* the body of the response its connection is still writing, so the
+        // half the bytes go through is there before the program's first
+        // statement. Both marks together, [`Isolate::over_event_stream`] owning
+        // why they are one fact.
+        if let Some(events) = event_stream {
+            isolate_ctx.set_body_stream(events);
+            isolate_ctx.mark_event_stream();
         }
         Ok(match Wake::current() {
             Some(wake) => start_as_task(
