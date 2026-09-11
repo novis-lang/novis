@@ -35,6 +35,17 @@
 //! has stopped reading closes its producer at that deadline; a consumer that is
 //! *gone* closes it at once, without waiting for one.
 //!
+//! The other number [`Emit`] carries is that table's **message bound**, and it
+//! is here for the same reason read the other way: one chunk in flight bounds
+//! what a stream holds only once a chunk itself has a size. The number is
+//! `nvs_server::bounds`' `Connection::message` rather than its `frame` — a
+//! frame is the WebSocket codec's unit and this door has none, so what crosses
+//! here whole is a message, which on an event stream is one event. A chunk over
+//! it is refused before it reaches the cell ([`CHUNK_TOO_LARGE`]), and the
+//! stream stays open: nothing arrived from a peer and nothing was half-written,
+//! so this is a program handing over more than the connection may hold and the
+//! member that asked throws, exactly as the framing's own refusals do.
+//!
 //! An [`Rc`] rather than an `Arc`, for
 //! [`nvs_server::body`](/crates/nvs-server/src/body.rs)'s own reason: both
 //! halves live on one core by construction — the isolate is a task of the
@@ -76,14 +87,16 @@ use crate::host::{self, Woken};
 /// Opens a response body's two halves over one cell.
 ///
 /// `send_timeout` is how long one [`Emit::send`] may wait for the connection to
-/// take the chunk before the stream is closed under it. It is the connection's
-/// own bound, passed in for the module doc's reason.
+/// take the chunk before the stream is closed under it, and `largest_chunk` is
+/// the most one write may hand over. Both are the connection's own bounds,
+/// passed in for the module doc's reason.
 #[must_use]
-pub fn open(send_timeout: Duration) -> (Emit, Drain) {
+pub fn open(send_timeout: Duration, largest_chunk: usize) -> (Emit, Drain) {
     let wire = Rc::new(RefCell::new(Wire::default()));
     let emit = Emit {
         wire: Rc::clone(&wire),
         send_timeout,
+        largest_chunk,
         spent: false,
     };
     (emit, Drain { wire })
@@ -129,6 +142,10 @@ pub struct Emit {
     wire: Rc<RefCell<Wire>>,
     /// The connection's send bound, applied to one [`Emit::send`] at a time.
     send_timeout: Duration,
+    /// The connection's message bound, applied to the chunk one
+    /// [`Emit::send`] hands over. The cell holds one chunk, so this is the
+    /// whole of what a stream may have in flight.
+    largest_chunk: usize,
     /// Whether this half is finished — ended, or closed under it. A spent half
     /// refuses every later write rather than answering a different reason each
     /// time.
@@ -144,20 +161,30 @@ impl Emit {
     /// mistake — an event with no data — refuses it in its own member, where
     /// the diagnostic can say which argument was empty.
     ///
+    /// A chunk over the connection's message bound is refused and this half
+    /// stays open, for the module doc's reason: the bytes never reached the
+    /// cell, so there is nothing half-written to resynchronize after and
+    /// nothing this stream's other events did wrong.
+    ///
     /// # Errors
     ///
-    /// [`SEND_TIMED_OUT`] where the connection did not take the chunk within
-    /// the send timeout, which closes the stream: a peer that has stopped
-    /// reading is a bound met, not a wait to extend. [`CLOSED`] where the
-    /// consumer is already gone. [`CANCELLED`] where the task was torn down
-    /// while it waited, and [`NO_TASK`] where there is no task to park at all,
-    /// since blocking the core instead would stop every other request on it.
+    /// [`CHUNK_TOO_LARGE`] where the chunk is over the message bound, which is
+    /// the one refusal here that leaves the stream writable. [`SEND_TIMED_OUT`]
+    /// where the connection did not take the chunk within the send timeout,
+    /// which closes the stream: a peer that has stopped reading is a bound met,
+    /// not a wait to extend. [`CLOSED`] where the consumer is already gone.
+    /// [`CANCELLED`] where the task was torn down while it waited, and
+    /// [`NO_TASK`] where there is no task to park at all, since blocking the
+    /// core instead would stop every other request on it.
     pub fn send(&mut self, chunk: Vec<u8>) -> Result<(), Box<str>> {
         if self.spent {
             return Err(CLOSED.into());
         }
         if chunk.is_empty() {
             return Ok(());
+        }
+        if chunk.len() > self.largest_chunk {
+            return Err(over_the_message_bound(chunk.len(), self.largest_chunk));
         }
         let deadline = Instant::now().checked_add(self.send_timeout);
         loop {
@@ -340,17 +367,18 @@ pub struct Opened {
 /// request's future has ended, and takes this one while that future is still
 /// running, because answering the head is what lets the body arrive at all.
 ///
-/// **The cell carries the send timeout**, so [`Self::open`] is the one place a
-/// request-scoped stream reaches [`open`]. The duration is the connection's own
-/// bound, put here by whoever offered the cell, for the reason the module doc
-/// gives: a cell that chose its own would be a second bound beside
+/// **The cell carries the connection's bounds**, so [`Self::open`] is the one
+/// place a request-scoped stream reaches [`open`]. They are put here by whoever
+/// offered the cell, for the reason the module doc gives: a cell that chose its
+/// own would be a second bound beside
 /// `rule:concurrency/connection-bounds-are-finite`'s table.
 ///
 /// **What it spends:** one allocation per request a server offers one to,
-/// holding one word and an [`Option`] until a program asks for a stream.
+/// holding two words and an [`Option`] until a program asks for a stream.
 #[derive(Clone, Debug)]
 pub struct BodySlot {
     send_timeout: Duration,
+    largest_chunk: usize,
     cell: Rc<RefCell<Opening>>,
 }
 
@@ -375,12 +403,13 @@ struct Opening {
 }
 
 impl BodySlot {
-    /// An empty cell bounded by `send_timeout`, whose other half is a [`Clone`]
-    /// of it.
+    /// An empty cell held inside the connection's send and message bounds,
+    /// whose other half is a [`Clone`] of it.
     #[must_use]
-    pub fn new(send_timeout: Duration) -> Self {
+    pub fn new(send_timeout: Duration, largest_chunk: usize) -> Self {
         Self {
             send_timeout,
+            largest_chunk,
             cell: Rc::new(RefCell::new(Opening::default())),
         }
     }
@@ -410,7 +439,7 @@ impl BodySlot {
         if cell.opened {
             return None;
         }
-        let (emit, drain) = open(self.send_timeout);
+        let (emit, drain) = open(self.send_timeout, self.largest_chunk);
         cell.opened = true;
         cell.head = Some(Opened {
             content_type: content_type.into(),
@@ -471,6 +500,21 @@ const NO_TASK: &str = "a response body cannot be streamed from outside the task 
 /// `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s teardown
 /// reached it, or the peer went away.
 const CANCELLED: &str = "the response ended before its body finished being written";
+
+/// One write handed over more than
+/// `rule:concurrency/connection-bounds-are-finite`'s message bound allows —
+/// on an event stream, one event larger than the connection may hold.
+///
+/// Public and a prefix rather than the whole sentence, because the two numbers
+/// are what a program needs to see and a caller matching on the bound it met
+/// should not have to parse them back out.
+pub const CHUNK_TOO_LARGE: &str =
+    "this response body chunk is larger than the connection's message bound";
+
+/// [`CHUNK_TOO_LARGE`], carrying what was written and what may be.
+fn over_the_message_bound(wrote: usize, bound: usize) -> Box<str> {
+    format!("{CHUNK_TOO_LARGE}: {wrote} bytes against a bound of {bound}").into()
+}
 
 #[cfg(test)]
 mod tests {
@@ -556,9 +600,14 @@ mod tests {
         }
     }
 
+    /// A message bound far above anything these cases write, so what they
+    /// assert is the wake pair and the send timeout rather than the size of a
+    /// chunk. `nvs_server::bounds`' own cases are where the bound is the claim.
+    const ROOMY: usize = 1 << 20;
+
     #[test]
     fn a_chunk_written_is_the_chunk_the_consumer_takes() {
-        let (mut emit, mut drain) = open(Duration::from_secs(5));
+        let (mut emit, mut drain) = open(Duration::from_secs(5), ROOMY);
         assert!(
             matches!(drain.next_chunk(Waker::noop()), Drained::Pending),
             "nothing has been written yet"
@@ -578,7 +627,7 @@ mod tests {
 
     #[test]
     fn a_second_write_parks_until_the_first_chunk_has_been_taken() {
-        let (mut emit, drain) = open(Duration::from_secs(5));
+        let (mut emit, drain) = open(Duration::from_secs(5), ROOMY);
         let host = Consumer::holding(Some(drain));
         let _installed = install(host);
 
@@ -601,7 +650,7 @@ mod tests {
 
     #[test]
     fn a_dropped_consumer_ends_the_producer_rather_than_parking_it_forever() {
-        let (mut emit, drain) = open(Duration::from_secs(30));
+        let (mut emit, drain) = open(Duration::from_secs(30), ROOMY);
         let host = Consumer::holding(None);
         let _installed = install(host);
         drop(drain);
@@ -618,7 +667,7 @@ mod tests {
     fn a_reader_that_takes_nothing_closes_the_stream_at_the_send_timeout() {
         // The consumer holds no drain, so the chunk in flight is never taken
         // and the wait for it ends only at the deadline.
-        let (mut emit, _drain) = open(Duration::from_millis(5));
+        let (mut emit, _drain) = open(Duration::from_millis(5), ROOMY);
         let host = Consumer::holding(None);
         let _installed = install(host);
 

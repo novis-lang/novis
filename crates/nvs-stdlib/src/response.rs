@@ -1860,6 +1860,13 @@ mod tests {
         dropped(value);
     }
 
+    /// The cell a connection offers, at both of its bounds: a send timeout no
+    /// case below can reach, and room for every chunk one of them writes.
+    /// `nvs_server::bounds` is where either number is the claim.
+    fn offered_cell() -> nvs_runtime::stream::BodySlot {
+        nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30), 1 << 20)
+    }
+
     /// A context carrying the cell a connection offers, bounded generously
     /// enough that no case below can meet the send timeout — every claim here
     /// is about the seam and never about the clock.
@@ -1881,7 +1888,7 @@ mod tests {
     /// describes, asserted from the end that frames the response.
     #[test]
     fn a_streamed_chunk_reaches_the_connections_half_and_not_the_requests_output() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut ctx = framing(&slot);
 
         let media_type = Value::str(NvsStr::new(b"text/csv"));
@@ -1922,7 +1929,7 @@ mod tests {
     /// first, and a first needs a cell nothing offers a script.
     #[test]
     fn a_second_stream_on_one_request_is_refused_and_the_first_still_stands() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut ctx = framing(&slot);
 
         let first = Value::str(NvsStr::new(b"text/csv"));
@@ -1952,7 +1959,7 @@ mod tests {
     /// close is one a connection is draining.
     #[test]
     fn a_write_whose_reader_has_gone_is_refused_rather_than_parked() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut ctx = framing(&slot);
 
         let media_type = Value::str(NvsStr::new(b"text/csv"));

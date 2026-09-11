@@ -1046,6 +1046,13 @@ mod tests {
         );
     }
 
+    /// The cell a connection offers, at both of its bounds: a send timeout no
+    /// case below can reach, and room for every event one of them writes.
+    /// `nvs_server::bounds` is where either number is the claim.
+    fn offered_cell() -> nvs_runtime::stream::BodySlot {
+        nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30), 1 << 20)
+    }
+
     /// A context carrying the body cell a connection offers, bounded generously
     /// enough that no case below can meet the send timeout — `crate::response`'s
     /// own fixture, one door over, and every claim here is about the seam rather
@@ -1080,7 +1087,7 @@ mod tests {
     /// and wrote its events somewhere else would pass any of them alone.
     #[test]
     fn an_event_stream_declares_its_head_and_its_events_reach_the_connections_half() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut ctx = framing(&slot);
 
         let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
@@ -1124,7 +1131,7 @@ mod tests {
     /// `.nvst` case — the cell it needs is offered to no script.
     #[test]
     fn an_event_stream_is_refused_where_a_response_body_is_already_being_written() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut ctx = framing(&slot);
 
         // The cell opened directly, which is what `Core\Response::stream` does
@@ -1153,7 +1160,7 @@ mod tests {
     /// streaming a body of its own, and a case reaches neither cell.
     #[test]
     fn current_outside_an_event_stream_is_refused_by_name() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut ctx = framing(&slot);
 
         let status = nvs_runtime::call(super::nvs_core_sse_current, &mut ctx, &[])
@@ -1217,7 +1224,7 @@ mod tests {
     /// and a stream that subscribed is an entry in it like any connection.
     #[test]
     fn a_published_value_reaches_a_subscribed_event_stream_as_a_message() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut stream = upgraded(&slot);
         let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
             .expect("an event stream's isolate answers `current()`");
@@ -1268,7 +1275,7 @@ mod tests {
     /// the connection's half rather than on the context that performed it.
     #[test]
     fn an_overflowing_subscriber_queue_answers_null_and_closes_that_stream() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut stream = upgraded(&slot);
         let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
             .expect("an event stream's isolate answers `current()`");
@@ -1317,7 +1324,7 @@ mod tests {
     /// door mark that gets this far.
     #[test]
     fn a_wait_with_no_scheduler_under_it_is_a_fatal_rather_than_a_stalled_core() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut stream = upgraded(&slot);
         let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
             .expect("an event stream's isolate answers `current()`");
@@ -1343,7 +1350,7 @@ mod tests {
     /// the door that does not wait.
     #[test]
     fn receive_in_a_streaming_response_is_refused_by_name() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut ctx = framing(&slot);
         let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
             .expect("an offered cell takes the stream");
@@ -1381,7 +1388,7 @@ mod tests {
     /// close is one a connection is draining.
     #[test]
     fn an_event_whose_reader_has_gone_is_refused_rather_than_parked() {
-        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let slot = offered_cell();
         let mut ctx = framing(&slot);
 
         let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
