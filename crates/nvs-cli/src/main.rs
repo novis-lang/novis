@@ -10,6 +10,10 @@
 //!   `--autoload-map` prints the resolved `autoload` map in place of the
 //!   success line, which is
 //!   `rule:programs/autoload`'s last sentence; the shape is `nvs_hir::autoload`'s module doc.
+//!   `--json` prints those same diagnostics as
+//!   `rule:ide/check-json-is-the-diagnostic-record-as-a-document`'s document
+//!   instead of rendering them for a terminal, for CI and for the agents that
+//!   drive this compiler; see [`check`].
 //! * `nvs run` (M3) — all of the above, then compile and execute. Its dump
 //!   flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.
@@ -120,6 +124,7 @@ mod api_diff;
 mod ast;
 mod bundle;
 mod cache;
+mod check;
 mod config;
 mod doc;
 mod info;
@@ -206,6 +211,13 @@ enum Command {
     Check {
         /// The file to check.
         file: PathBuf,
+        /// Print the diagnostics as the frozen JSON document rather than
+        /// rendering them for a terminal.
+        // Refused beside `--autoload-map` rather than one of them winning:
+        // both write to standard output, and a document with a map printed
+        // after it is not a document.
+        #[arg(long, conflicts_with = "autoload_map")]
+        json: bool,
         /// Print the resolved `autoload` map instead of `no errors`,
         /// including what a `discover` glob skipped and what was shadowed.
         #[arg(long)]
@@ -894,9 +906,10 @@ fn main() -> ExitCode {
         } => ast::run(&file, json, strict),
         Command::Check {
             file,
+            json,
             autoload_map,
             strict_docs,
-        } => run_check(&cli.config, &file, autoload_map, strict_docs),
+        } => run_check(&cli.config, &file, json, autoload_map, strict_docs),
         Command::Run {
             file,
             dump_ir,
@@ -1114,7 +1127,7 @@ impl Checked {
 /// `Err` is the exit code to return: a read failure, or at least one error
 /// diagnostic. Warnings are rendered and do not stop anything.
 fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
-    front_end_granted(path, None, false)
+    front_end_granted(path, None, false, Sink::Text)
 }
 
 /// [`front_end`] with the deployment's `[capabilities]` block in front of it —
@@ -1144,10 +1157,15 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 /// not resolve fails the check as the configuration error it is rather than as
 /// whatever the program's own diagnostics happen to be. That answers
 /// `nvs_types::intrinsics`' gap 6: checking has a configuration in front of it.
+/// `sink` is which rendering the diagnostics leave by, and it is a parameter
+/// here rather than a choice at each [`emit_diagnostics`] call because a run
+/// has one: the two calls below are the two ways out of this function, and
+/// exactly one of them happens.
 fn front_end_granted(
     path: &std::path::Path,
     config: Option<&[std::path::PathBuf]>,
     strict_docs: bool,
+    sink: Sink,
 ) -> Result<Checked, ExitCode> {
     let mut map = SourceMap::new();
     let id = match map.load(path) {
@@ -1206,12 +1224,12 @@ fn front_end_granted(
         );
 
         if diags.has_errors() {
-            render_diagnostics(&mut diags, &map);
+            emit_diagnostics(&mut diags, &map, sink);
             return Err(ExitCode::FAILURE);
         }
         (enums, nvs_types::build_class_layouts(&files, &module.graph))
     };
-    render_diagnostics(&mut diags, &map);
+    emit_diagnostics(&mut diags, &map, sink);
 
     Ok(Checked {
         map,
@@ -1247,13 +1265,22 @@ fn front_end_granted(
 /// walk that already resolves a doc comment's tags
 /// (`nvs_hir::members::check_documented`), so it reaches every file the program
 /// loaded rather than the entry point alone.
+///
+/// `--json` swaps the rendering and nothing else — the same records, in the
+/// same order, on standard output as [`check`]'s document, and the success
+/// line dropped because an empty `diagnostics` array already says what "no
+/// errors" says. What does *not* produce a document is a failure to read the
+/// entry file or to resolve the configuration: neither is a diagnostic, both
+/// say so on standard error, and `nvs ast --json` answers them the same way.
 fn run_check(
     config: &[std::path::PathBuf],
     path: &std::path::Path,
+    json: bool,
     autoload_map: bool,
     strict_docs: bool,
 ) -> ExitCode {
-    match front_end_granted(path, Some(config), strict_docs) {
+    let sink = if json { Sink::Json } else { Sink::Text };
+    match front_end_granted(path, Some(config), strict_docs, sink) {
         Ok(checked) => {
             if autoload_map {
                 let base = match path.parent() {
@@ -1261,7 +1288,7 @@ fn run_check(
                     _ => std::path::Path::new("."),
                 };
                 print!("{}", checked.autoload.render(base));
-            } else {
+            } else if !json {
                 println!("no errors");
             }
             ExitCode::SUCCESS
@@ -2091,6 +2118,34 @@ fn run_test(
 fn is_program(path: &std::path::Path) -> bool {
     path.extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("nvs"))
+}
+
+/// Where a front end's diagnostics go, and in which rendering.
+///
+/// The command chooses one for the whole run, which is why no call site names
+/// a rendering: two of them in one run would put a document and a rendered
+/// snippet on the same standard output.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Sink {
+    /// The terminal rendering, on standard error. Every command's default.
+    Text,
+    /// `nvs check --json`'s document, on standard output.
+    Json,
+}
+
+/// Renders `diags` into the sink in force.
+///
+/// The text half prints nothing when there is nothing to say; the JSON half
+/// always prints a document, because a consumer parsing standard output would
+/// read an empty one as a crash.
+fn emit_diagnostics(diags: &mut Diagnostics, map: &SourceMap, sink: Sink) {
+    match sink {
+        Sink::Text => render_diagnostics(diags, map),
+        Sink::Json => {
+            diags.sort_by_position();
+            println!("{}", check::document(diags.iter(), map));
+        }
+    }
 }
 
 fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {
