@@ -631,13 +631,25 @@ mod tests {
         );
         for (name, _) in nvs_hir::errors::TREE {
             let layout = table.get(name).unwrap_or_else(|| panic!("{name}"));
-            // The root's own row *is* `PROPERTIES`; every other row adds to it.
-            let mut want: Vec<&str> = nvs_hir::errors::PROPERTIES.to_vec();
+            // The exception root's own row *is* `PROPERTIES` and every row
+            // under it adds to those. The finish marker is the row under
+            // nothing, so it carries no slot at all — not even `backtrace`,
+            // which is the property a `catch` would have read off it.
+            let marker = *name == nvs_hir::errors::FINISH_MARKER;
+            let mut want: Vec<&str> = if marker {
+                Vec::new()
+            } else {
+                nvs_hir::errors::PROPERTIES.to_vec()
+            };
             if *name != nvs_hir::errors::ROOT {
                 want.extend(nvs_hir::errors::own_properties(name));
             }
             assert_eq!(layout.fields, want, "{name}");
-            assert_eq!(layout.slot_of("backtrace"), Some(2), "{name}");
+            assert_eq!(
+                layout.slot_of("backtrace"),
+                if marker { None } else { Some(2) },
+                "{name}"
+            );
         }
         assert_eq!(
             table

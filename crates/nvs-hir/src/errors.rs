@@ -22,9 +22,13 @@
 //! classes extend directly, so a second root-shaped name would be a second
 //! way to spell the same thing (`rule:core-api/shape-rules`
 //! R20). A program naming either gets an ordinary undeclared-class
-//! diagnostic.
+//! diagnostic. [`FINISH_MARKER`] is not that second name: no row extends it
+//! and no `catch` arm matches it, and [`TREE`] says what it is for.
 
-/// Every exception class, root first, as `(name, parent)`.
+/// Every class the compiler declares with no source declaration to collect it
+/// from, as `(name, parent)`: spec § 10's exception tree from [`ROOT`] down,
+/// and after it [`FINISH_MARKER`], which is a root of its own and not an
+/// exception at all.
 ///
 /// Ordered parent-before-child so a consumer building a flattened supertype
 /// set can walk it in one pass.
@@ -75,6 +79,19 @@
 /// deliberately still answers only for the single-segment rows: what makes
 /// these trusted-to-exist is `QName::is_core`, the reserved `Core` namespace
 /// (`rule:core-api/reserved-namespace`), which every site pairs with that predicate already.
+///
+/// # [`FINISH_MARKER`] is a root of its own
+///
+/// A request that ends through `Core\Script::finish()` still unwinds every
+/// `finally` between the call and the request root, and the throw path is the
+/// only unwind that runs them (`rule:errors/propagation`). So the value that
+/// travels out is an ordinary raised object, and what keeps it out of every
+/// `catch` is where it sits rather than a case anywhere: a class with no
+/// parent conforms to nothing but itself — `nvs_runtime::object`'s
+/// `ClassDesc::conforms_to_name` is self-or-ancestor by name — so an arm
+/// naming anything under [`ROOT`] is false against it, `InstanceOf` included.
+/// It declares no properties and no constructor: there is nothing on it to
+/// read and no spelling that builds one.
 pub const TREE: &[(&str, Option<&str>)] = &[
     ("Throwable", None),
     ("LogicError", Some("Throwable")),
@@ -88,11 +105,20 @@ pub const TREE: &[(&str, Option<&str>)] = &[
     ("Core\\Cli\\NotInteractive", Some("RuntimeError")),
     ("Core\\Db\\DbError", Some("RuntimeError")),
     ("Core\\Db\\RolledBack", Some("RuntimeError")),
+    (FINISH_MARKER, None),
 ];
 
-/// The root every other entry in [`TREE`] descends from, and the one name a
-/// `catch` clause can use to mean "anything at all".
+/// The root of spec § 10's exception tree: every [`TREE`] entry but
+/// [`FINISH_MARKER`] descends from it, and it is the one name a `catch` clause
+/// can use to mean "anything at all".
 pub const ROOT: &str = "Throwable";
+
+/// [`TREE`]'s other root: the class `Core\Script::finish()` raises so that the
+/// unwind out of a finished request runs every `finally` on its way to the
+/// request root, and which no `catch` arm admits because it descends from
+/// [`ROOT`] not at all. [`TREE`]'s own docs are why that is the whole
+/// mechanism.
+pub const FINISH_MARKER: &str = "Core\\Script\\Finished";
 
 /// `Throwable`'s own instance properties, in slot order.
 ///
@@ -274,13 +300,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_entry_but_the_root_has_a_parent_that_is_itself_an_entry() {
+    fn every_entry_but_a_root_has_a_parent_that_is_itself_an_entry() {
         for (name, parent) in TREE {
             match parent {
-                None => assert_eq!(*name, ROOT),
+                None => assert!(*name == ROOT || *name == FINISH_MARKER, "{name}"),
                 Some(parent) => assert!(is_exception_class(parent), "{parent} is not in the tree"),
             }
         }
+    }
+
+    /// The whole of what keeps a finished request out of every `catch`: the
+    /// marker is in the table, so a `catch` resolves the name and the runtime
+    /// finds the descriptor, and it is above nothing, so the self-or-ancestor
+    /// walk every arm goes through is false against it.
+    #[test]
+    fn the_finish_marker_is_a_root_of_its_own_and_is_above_and_below_nothing() {
+        assert!(is_exception_class(FINISH_MARKER));
+        assert_eq!(conforms_to(FINISH_MARKER), Some(Vec::new()));
+        assert!(own_properties(FINISH_MARKER).is_empty());
+        assert!(!declares_constructor(FINISH_MARKER));
+        assert!(
+            TREE.iter()
+                .all(|(_, parent)| *parent != Some(FINISH_MARKER))
+        );
     }
 
     #[test]

@@ -157,9 +157,11 @@ pub const REASON_SLOT: usize = SLOT_COUNT;
 /// `nvs_stdlib::registry::CoreTy`'s reason: a misspelled class name would be
 /// a silent *runtime* miss — the `catch` clause that was meant to handle it
 /// simply would not match — rather than a compile error. The roster is
-/// `nvs_hir::errors::TREE` minus its root, since a helper that means "anything
-/// at all" means [`Self::Runtime`] — spec § 10's tree, plus the classes the
-/// rules add to it ([`Self::TestFailure`] among them).
+/// `nvs_hir::errors::TREE`'s exception rows below `Throwable`, since a helper
+/// that means "anything at all" means [`Self::Runtime`] — spec § 10's tree,
+/// plus the classes the rules add to it ([`Self::TestFailure`] among them).
+/// That table's other root, the finish marker, is not a failure and is raised
+/// by no helper, so it has no entry here.
 ///
 /// `nvs-runtime` depends on nothing (see [`crate`]'s own docs), so the names
 /// below restate `nvs_hir::errors::TREE`'s; `nvs-codegen`'s
