@@ -4240,6 +4240,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   already reaches — a second `string` argument does it — and leave the shape that opens a column to
   the crate's own Rust test.
   [until: gone crates/nvs-lsp/tests/coverage.rs:every_request_answers_every_construct]
+- **A regex stripping `/* … */` out of a TypeScript source eats a glob with it: `"**/*.nvs"` opens a
+  block comment two characters in, and the next `*/` is inside the next glob.** An assertion over the
+  stripped `editors/vscode/src/tests.ts` reported a client that never looks for a `.nvst` file,
+  because `const CASES` had been deleted with the line above it. Drop comment *lines* instead —
+  `!/^\s*(\/\/|\/\*|\*)/` over the split source — which is exact where every block comment is a doc
+  comment on its own lines, and blind to what a string holds. [until: reviewed 2026-09-11]
 
 ## Splitting a file that got too big
 
