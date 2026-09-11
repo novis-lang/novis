@@ -1,0 +1,40 @@
+--TEST--
+A loop that allocates nothing, writes nothing and calls nothing is still stopped by `[limits] cpu_time`, as the `FATAL` the tier-1 handler is told names `cpu_time` — `rule:errors/on-limit`, M6's *Verify*
+--FILE--
+<?nvs
+// The cheapest attack there is: no allocation, no output, no member call, so
+// every seam that notices a request has gone too far today is a seam this
+// program never reaches. What stops it has to be the ceiling itself.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    // `rule:errors/on-limit`'s `LimitReport`, whose `limit` key carries the
+    // directive's own spelling — so the one thing a handler can do that reading
+    // the message cannot is tell this breach from a memory one.
+    echo "onLimit ", $report['limit'], "\n";
+});
+echo "start\n";
+
+// The condition is a comparison rather than `true` so that nothing downstream
+// may prove the loop never exits and treat what follows it as unreachable: the
+// body is what this case is about, and it has to be compiled as written. An
+// `int` step reaching the bound is 9,223,372,036,854,775,807 iterations away,
+// which is not a way out of this loop on any machine.
+int $spins = 0;
+while ($spins >= 0) {
+    $spins = $spins + 1;
+}
+
+// The first member call in the program after the loop, and it must not run: a
+// request stopped at its ceiling is over where the ceiling was crossed, which
+// is inside the body above.
+echo "spun ", $spins, " times\n";
+--FILE nvs.toml--
+# 200 ms of CPU, of which `fatal_reserve_time`'s default 50 ms is the handler's
+# slice — so ordinary execution gets 150 ms and the loop above crosses it in
+# well under the case timeout.
+[limits]
+cpu_time = "200ms"
+--EXPECT--
+start
+onLimit cpu_time
+--EXPECT-ERROR--
+FATAL: the request exceeded its CPU-time limit

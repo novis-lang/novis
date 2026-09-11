@@ -1,0 +1,42 @@
+--TEST--
+A loop that grows a string through a primitive and calls nothing is stopped by `[limits] memory` inside the loop rather than at the first member call after it, so nothing the program would have printed prints — `rule:errors/on-limit`, M6's *Verify*
+--FILE--
+<?nvs
+// `$a .= $a;` reaches no member, so nothing between two doublings asks whether
+// the request is still inside its ceiling. The whole case is that the doubling
+// itself is stopped: unbounded, it ends in the allocator with nothing left to
+// report the breach with, and every other request on the worker ends with it.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "onLimit ", $report['limit'], "\n";
+});
+
+// Nothing is echoed before the loop on purpose. `--EXPECT--` is exact, so the
+// handler's line being the whole of stdout is this case's assertion that the
+// request was stopped where it grew — a program that printed first would pass
+// this case whether the loop was stopped or the `echo` below it was.
+string $a = "novis";
+int $doublings = 0;
+// Twenty-four doublings of five bytes is 83,886,080, five times the ceiling —
+// so the bound is past the point the request must already have been stopped at
+// and is unreachable in a run this case passes. It is written rather than
+// `true` because an unbounded doubling is an attack on the machine running the
+// suite as much as on the request: this one is red until the ceiling stops it,
+// and a red case must fail rather than take the host's memory with it.
+while ($doublings < 24) {
+    $a .= $a;
+    $doublings = $doublings + 1;
+}
+
+// The member call `docs/agent/playbook.md`'s trap is about — where a runtime
+// that only asks at a helper boundary reports the breach. It must not print,
+// and neither must the length it would have carried.
+echo "grew ", $doublings, " times to ", Core\Str::length($a), "\n";
+--FILE nvs.toml--
+# The ceiling the doubling above crosses, and nothing else: `fatal_reserve_memory`
+# keeps its default so the message names the slice the handler runs inside.
+[limits]
+memory = "16M"
+--EXPECT--
+onLimit memory
+--EXPECTF-ERROR--
+FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler

@@ -1,0 +1,37 @@
+--TEST--
+An operation asking for more than the request's whole budget is refused in front of the allocation rather than after it, so the peak `Core\Budget` reports never held the ask — `rule:errors/on-limit`, `rule:observability/a-memory-peak-is-recorded-not-asked-for`, M6's *Verify*
+--FILE--
+<?nvs
+// Noticing at the next poll is noticing after the bytes are held. One ask of
+// 256 MiB against a 16 MiB ceiling is the shape that makes the difference
+// observable: the request is over either way, and only one of the two ever
+// held sixteen times what it was allowed.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "onLimit ", $report['limit'], "\n";
+    // The handler runs on `rule:errors/on-limit`'s reserved slice, and this is
+    // the one reading that says which of the two happened. The mark is recorded
+    // as the allocator moves it, so a spike already given back still shows —
+    // which is why a peak below the ask is evidence the ask was never served
+    // rather than evidence it was served and released.
+    if (Core\Budget::memoryPeak() < 268435456) {
+        echo "the ask was never held\n";
+    } else {
+        echo "the ask was held and then reported\n";
+    }
+});
+
+// 268,435,456 bytes in one operation, against the 16,777,216 the ceiling
+// states. No loop and no second allocation: whatever stops this has to stop it
+// at the ask.
+string $whole = Core\Str::repeat("a", 268435456);
+echo "held=", Core\Str::length($whole), "\n";
+--FILE nvs.toml--
+# The ceiling the single ask above is written to exceed by sixteen times, so no
+# arithmetic about the reserve changes whether it fits.
+[limits]
+memory = "16M"
+--EXPECT--
+onLimit memory
+the ask was never held
+--EXPECTF-ERROR--
+FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler
