@@ -73,15 +73,22 @@
 //! a crossing given back before the poll arrives is lowered there rather than
 //! reported.
 //!
-//! **Known gap.** One allocation larger than the whole remaining budget is
-//! still *made* before it is noticed: the compare above happens after
-//! `Backing` has handed back the block, so a request that asks for its ceiling
-//! twice over in a single operation holds those bytes until its next poll.
-//! Bounding one operation rather than a loop means refusing in front of the
-//! allocation, where the size is known and the caller is ours, and that is a
-//! different seam — the value allocators in [`crate::string`] and
-//! [`crate::array`], never this one, whose null reaches `handle_alloc_error`
-//! and aborts the process.
+//! **Bounding one operation rather than a loop means refusing in front of the
+//! allocation**, where the size is known and the caller is ours. [`affords`] is
+//! that question, and a `false` from it is the refusal itself: the bytes are
+//! never asked for, so the request goes on holding *less* than its ceiling and
+//! no counter here can say what happened. The verdict is therefore kept beside
+//! the counters rather than derived from them, and
+//! [`Ctx::over_memory_limit`](crate::Ctx::over_memory_limit) is where the poll
+//! reads it. The seam that asks is the value allocators in [`crate::string`]
+//! and [`crate::array`], never this module's own `GlobalAlloc`, whose null
+//! reaches `handle_alloc_error` and aborts the process.
+//!
+//! **Known gap.** An allocator that does not ask [`affords`] still *makes* one
+//! allocation larger than the whole remaining budget before anything notices
+//! it: the compare in [`add`] happens after `Backing` has handed back the
+//! block, so a request that asks for its ceiling twice over in a single
+//! operation holds those bytes until its next poll.
 //! — owner: resource-ceilings
 //!
 //! # What it spends
@@ -99,12 +106,15 @@
 //! is bought deliberately: AGENTS.md's priority ordering puts request
 //! isolation above latency, and a cap nothing counts against is not a cap.
 //!
-//! The ceiling above it is two more cells of the same set — the threshold and
-//! the address a crossing publishes into — and on the allocation path one
-//! thread-local load and one compare per *growing* allocation. A request under
-//! no ceiling arms `0` and stops at that compare, which is why the sentinel is
-//! zero rather than a maximum: the uncapped case is the one that must stay
-//! shortest.
+//! The ceiling above it is three more cells of the same set — the threshold,
+//! the address a crossing publishes into, and the bit a refusal is remembered
+//! in — and on the allocation path one thread-local load and one compare per
+//! *growing* allocation. A request under no ceiling arms `0` and stops at that
+//! compare, which is why the sentinel is zero rather than a maximum: the
+//! uncapped case is the one that must stay shortest. [`affords`] is one more
+//! load and an add, paid only by an allocator that asks it, and each
+//! [`Ctx`](crate::Ctx) carries the bit it displaced beside the threshold it
+//! displaced.
 
 #[cfg(not(test))]
 use std::alloc::{GlobalAlloc, Layout};
@@ -159,6 +169,14 @@ thread_local! {
     /// beside the threshold: the ordinary path loads [`CEILING`] alone.
     static POLLED: Cell<*const std::sync::atomic::AtomicU64> =
         const { Cell::new(std::ptr::null()) };
+    /// Whether an allocation this thread's running request asked for was
+    /// refused — [`refuse`]'s verdict, which no counter can be read for.
+    ///
+    /// Per thread because the allocators that hit a refusal hold no
+    /// [`Ctx`](crate::Ctx) to record it on, and confined to one request because
+    /// the context that is refused displaces this cell exactly as it displaces
+    /// [`CEILING`].
+    static REFUSED: Cell<bool> = const { Cell::new(false) };
 }
 
 /// A ceiling and the word a crossing of it publishes into — what [`arm`] sets
@@ -244,6 +262,51 @@ fn publish() {
         crate::SafepointFlags::MEMORY_LIMIT.bits(),
         std::sync::atomic::Ordering::Relaxed,
     );
+}
+
+/// Records that an allocation was refused, and asks for the poll that reports
+/// it.
+///
+/// Both halves are needed and neither is the other. The flag alone is what
+/// brings compiled code to a poll at all, and the poll asks the counters —
+/// which, after a refusal, say the request is comfortably inside its ceiling,
+/// because the bytes it asked for were never handed over. So the verdict is
+/// remembered here, where
+/// [`Ctx::over_memory_limit`](crate::Ctx::over_memory_limit) reads it.
+///
+/// Private, so that a refusal cannot be recorded without the arithmetic in
+/// [`affords`] that justifies it.
+fn refuse() {
+    REFUSED.with(|refused| refused.set(true));
+    publish();
+}
+
+/// Whether the running request has been refused an allocation.
+///
+/// Sticky: the request that is refused is over, and nothing it does afterwards
+/// brings it back under a ceiling it never held the bytes against.
+/// [`take_refusal`] is the only way back, and its two callers are the context
+/// that ends and the handler that is lent a slice to report with.
+pub(crate) fn refused() -> bool {
+    REFUSED.with(Cell::get)
+}
+
+/// Hands the refusal back and clears it.
+///
+/// [`displace`]'s arrangement for the verdict that travels with the threshold:
+/// [`Ctx::new`](crate::Ctx::new) takes what the thread was carrying so a
+/// request starts under no refusal of anyone else's, and
+/// [`Ctx::run_limit_handler`](crate::Ctx) takes it for the length of the call
+/// so `rule:errors/on-limit`'s handler can allocate the report it exists to
+/// write.
+#[must_use]
+pub(crate) fn take_refusal() -> bool {
+    REFUSED.with(|cell| cell.replace(false))
+}
+
+/// Puts back what [`take_refusal`] handed out.
+pub(crate) fn restore_refusal(refused: bool) {
+    REFUSED.with(|cell| cell.set(refused));
 }
 
 /// How many bytes this thread has allocated and not yet freed.
@@ -347,6 +410,41 @@ pub(crate) fn wrote(bytes: usize) {
 #[must_use]
 pub fn armed_ceiling() -> isize {
     CEILING.with(Cell::get)
+}
+
+/// Whether the running request can still afford `bytes` — and the refusal
+/// itself where it cannot.
+///
+/// **A `false` answer has already recorded the breach.** What the caller owes
+/// is to allocate nothing and hand back a value that cost nothing: the request
+/// is over, its next poll will say so, and between here and there it may build
+/// wrong values and compare them but can write no output and reach no `Core`
+/// member, because every one of those passes [`crate::run_helper`]'s question
+/// first.
+///
+/// Asked *in front of* the allocation, which is the only position from which
+/// one operation is bounded rather than a loop of them — [`add`] compares after
+/// `Backing` has already handed the block over. It lives here rather than at
+/// the call site for [`crate::affordable`]'s reason: a guard written per call
+/// site is a guard the next call site forgets.
+///
+/// An uncapped request answers on the sentinel without reading the balance at
+/// all.
+#[must_use]
+pub fn affords(bytes: usize) -> bool {
+    let ceiling = CEILING.with(Cell::get);
+    if ceiling == 0 {
+        return true;
+    }
+    // Saturating in the direction that refuses: an ask too large to count in
+    // the balance's own type is one no request can afford, so it must not wrap
+    // into a number that fits.
+    let ask = isize::try_from(bytes).unwrap_or(isize::MAX);
+    if LIVE.with(Cell::get).saturating_add(ask) <= ceiling {
+        return true;
+    }
+    refuse();
+    false
 }
 
 /// Charges `bytes` to this thread's counters — negative for a release.

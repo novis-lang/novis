@@ -498,6 +498,23 @@ impl Ctx {
             // should say so rather than name a slice still being held for it.
             self.fatal_reserve = 0;
         }
+        // The ceiling above is a number two readers share, and the allocator is
+        // the one that would otherwise be left holding the old one: it refuses
+        // against the armed threshold rather than against this field, so a
+        // handler lent the reserve here and refused every allocation there is a
+        // tier that says nothing. [`Self::arm_memory_ceiling`] is the mirror,
+        // and it is put back with the ceiling at the foot of this call.
+        self.arm_memory_ceiling();
+        // The verdict half of the same slice, and the reason a wider ceiling is
+        // not enough on its own. A request stopped by a *refusal* holds fewer
+        // bytes than its ceiling — the ones it asked for were never handed over
+        // — so what stops it is a flag rather than a reading, and a handler
+        // entered still carrying it would be stopped by it at the first `Core`
+        // member it reached, which is [`crate::run_helper`]'s question. Taken
+        // for the length of the call exactly as the CPU flag below is, and put
+        // back for the same reason the reserve is: what the ladder records next
+        // is the breach ordinary execution reached.
+        let refused = crate::budget::take_refusal();
         // The CPU half, and the reason it is a *flag* edit as well as a ceiling
         // edit. A handler entered under [`SafepointFlags::CPU_LIMIT`] would be
         // stopped again by the very flag it was entered under, at its own first
@@ -537,6 +554,8 @@ impl Ctx {
         let answer = crate::call_closure(self, handler, &[report]);
         self.memory_limit = ordinary;
         self.fatal_reserve = reserve;
+        self.arm_memory_ceiling();
+        crate::budget::restore_refusal(refused);
         self.cpu_limit = cpu_ordinary;
         self.fatal_reserve_time = cpu_reserve;
         if stopped_for_cpu {

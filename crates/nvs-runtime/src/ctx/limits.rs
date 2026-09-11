@@ -68,26 +68,29 @@ impl Ctx {
     /// so a growing allocation is measured against it where it happens rather
     /// than at the next poll.
     ///
-    /// **The two writers that resolve a ceiling call this** — [`Self::set_config`]
-    /// through [`Self::refresh_limits`], and [`Self::set_memory_limit`] — because
-    /// what it arms is a mirror of [`Self::memory_limit`] and a stale mirror
-    /// would hold a request to a ceiling it no longer has. The address armed
+    /// **The writers that resolve a ceiling call this** — [`Self::set_config`]
+    /// through [`Self::refresh_limits`], [`Self::set_memory_limit`], and
+    /// [`Self::run_limit_handler`] at both ends of the reserve it lends the
+    /// handler — because what it arms is a mirror of [`Self::memory_limit`] and
+    /// a stale mirror would hold a request to a ceiling it no longer has. The
+    /// handler's end of it is the one that cannot be skipped: the threshold is
+    /// what [`crate::budget::affords`] refuses against, so a handler given the
+    /// reserve in the ceiling alone would be refused the very allocations
+    /// `rule:errors/on-limit` reserved it bytes to make. The address armed
     /// beside the number is this context's safepoint word, which is the request
     /// *tree*'s — so a crossing stops whichever context in the tree is running,
     /// the same division `rule:security/isolate-shares-nothing` gives the budget
     /// itself.
     ///
-    /// A ceiling written any other way — [`Self::handler_isolate`]'s reserve,
-    /// the widening [`Self::run_limit_handler`] does for the length of a
-    /// handler — leaves the threshold where it was, and that direction is the
-    /// safe one: the allocator's flag only ever asks for a poll, and the poll
-    /// reads [`Self::memory_limit`] itself. An unarmed request is bounded by
-    /// exactly what bounded it before this existed.
+    /// [`Self::handler_isolate`] writes its reserve as a ceiling and arms
+    /// nothing, which is the direction that fails open: its handler is bounded
+    /// by the counter its own polls read, exactly as every request was before
+    /// this existed.
     ///
     /// A request under no ceiling arms nothing at all: [`crate::budget`]'s
     /// sentinel is `0`, and short-circuiting on it is what keeps the uncapped
     /// case to one compare per allocation.
-    fn arm_memory_ceiling(&mut self) {
+    pub(super) fn arm_memory_ceiling(&mut self) {
         crate::budget::arm(if self.memory_limit == 0 {
             crate::budget::Armed::NONE
         } else {
@@ -117,14 +120,25 @@ impl Ctx {
         self.fatal_reserve = bytes;
     }
 
-    /// Whether this request has allocated past its ceiling.
+    /// Whether this request has allocated past its ceiling, or been refused an
+    /// allocation that would have taken it there.
     ///
-    /// Two loads and a compare, and the second load is the thread-local
-    /// [`crate::budget::live_bytes`] reads. An uncapped request answers `false`
-    /// on the first compare without reading the counter at all.
+    /// **Two questions, because a refusal is a breach no counter can see.** The
+    /// bytes were never handed over, so a request stopped in front of one holds
+    /// *less* than its ceiling and reads as comfortably inside it;
+    /// [`crate::budget::affords`] records the verdict where it happens and this
+    /// is where it is read, so both polls that share this reader —
+    /// [`crate::nvs_safepoint`] between two statements and
+    /// [`crate::run_helper`] ahead of every `Core` member — report the refusal
+    /// as the breach it is.
+    ///
+    /// Both sit behind the ceiling's own compare, which is what keeps an
+    /// uncapped request to one: it can be refused nothing, because
+    /// [`crate::budget`] arms it no threshold to be refused against.
     #[must_use]
     pub fn over_memory_limit(&self) -> bool {
-        self.memory_limit != 0 && self.memory_used() > self.memory_limit
+        self.memory_limit != 0
+            && (crate::budget::refused() || self.memory_used() > self.memory_limit)
     }
 
     /// How many bytes this request has written to its response, in the sense

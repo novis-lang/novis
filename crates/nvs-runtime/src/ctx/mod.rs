@@ -390,6 +390,16 @@ pub struct Ctx {
     /// this field discharges. Cold, and beside its twin for that field's own
     /// reason.
     memory_ceiling_saved: crate::budget::Armed,
+    /// Whether the thread was already carrying a refused allocation when this
+    /// context took the arming, handed back as it drops.
+    ///
+    /// [`Self::memory_ceiling_saved`]'s arrangement applied to the verdict that
+    /// travels with the threshold. A refusal is recorded per thread because the
+    /// allocators that hit one hold no `Ctx` to record it on, and this field is
+    /// what confines it to the request it belongs to: a request born on a
+    /// worker whose last request was refused starts clear, and an isolate gives
+    /// its parent's answer back rather than the one it was stopped by.
+    memory_refused_saved: bool,
     /// The thread's output-byte count when this context was made — the zero
     /// point [`Self::output_used`] measures this request's own writing from.
     /// [`Self::memory_base`]'s twin in every respect, the reason it sits below
@@ -1217,6 +1227,11 @@ impl Drop for Ctx {
         // publish into the moment it drops. `Ctx::memory_ceiling_saved` is the
         // field and `crate::budget::arm` the obligation.
         crate::budget::arm(self.memory_ceiling_saved);
+        // And the verdict that travels with it, for the same reason in the
+        // other direction: a refusal this request was stopped by is not one the
+        // thread's next request inherits. `Ctx::memory_refused_saved` is the
+        // field.
+        crate::budget::restore_refusal(self.memory_refused_saved);
         self.release_statics();
         // An isolate's argument is one of its roots and is released with them
         // — `Ctx::set_isolate_argument` owns why it is held here at all.

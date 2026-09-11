@@ -112,6 +112,10 @@ impl Ctx {
             // drops, so the enclosing request is measured against its own
             // ceiling again rather than against a child's.
             memory_ceiling_saved: crate::budget::displace(crate::budget::Armed::NONE),
+            // The verdict beside the threshold, taken the same way: a context
+            // begins under no refusal whatever the thread was carrying, and
+            // hands back what it took as it drops.
+            memory_refused_saved: crate::budget::take_refusal(),
             output_base: crate::budget::written_bytes(),
             memory_limit: 0,
             output_limit: 0,
