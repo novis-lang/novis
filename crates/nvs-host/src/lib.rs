@@ -93,14 +93,21 @@
 //! [`watchdog`] is `rule:http-server/a-wedged-core-is-detected-by-its-deadline`: one thread for the process, reading the
 //! earliest deadline each core publishes through [`timer::DeadlineView`] and
 //! reporting a core that has been behind its own clock by a margin. It reads
-//! state the deadline mechanism keeps anyway, so no worker writes anything for
-//! it — that module's doc is why, and why detection is the whole of what it
-//! does.
+//! state the deadline mechanism keeps anyway, so nothing on a request path is
+//! written for it — that module's doc is why, and why detection is the whole of
+//! what it does.
+//!
+//! [`cpuclock`] is the half of a CPU ceiling that belongs to the operating
+//! system: a handle a core takes on its own thread's clock, which a thread that
+//! is not that core may read. CPU time and never wall clock, for the reason
+//! that module's doc gives, and `None` on a platform that offers no such clock
+//! rather than a wall-clock one wearing its name.
 
 pub mod affinity;
 pub mod block_on;
 pub mod blocking;
 pub mod channel;
+pub mod cpuclock;
 pub mod group;
 pub mod isolate;
 pub mod ladder;
@@ -116,6 +123,7 @@ pub use affinity::{CpuId, cpus, pin_current_thread};
 pub use block_on::block_on;
 pub use blocking::BlockingPool;
 pub use channel::{Receiver, RecvError, SendError, Sender, TryRecvError, TrySendError, channel};
+pub use cpuclock::ThreadClock;
 pub use group::SchedulerHost;
 pub use isolate::{Completion, Failure, Isolate, Output, Program, Running};
 pub use net::{Accepted, Accepting, NvsAcceptor, NvsListener, NvsStream, NvsTcp, NvsUdp};

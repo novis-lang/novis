@@ -32,6 +32,18 @@ mio.workspace = true
 rustls.workspace = true
 webpki-roots.workspace = true
 
+# `src/cpuclock.rs`: a thread's own CPU time, which `[limits] cpu_time` is
+# measured against and which `std` spells on neither platform.
+# `pthread_getcpuclockid` names the clock and `clock_gettime` reads it; Windows
+# reopens the thread by id and asks `GetThreadTimes`. Nothing a request chose
+# reaches either — the arguments are the caller's own thread and a stack
+# out-parameter — and the answer is a duration.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
 [dev-dependencies]
 # The certificate a handshake test needs: `src/tls.rs`'s cases and `net.rs`'s
 # `a_rustls_session_streams_over_it_unmodified` each stand up a real peer, and
