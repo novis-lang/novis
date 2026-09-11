@@ -32,6 +32,7 @@ import {
   ServerOptions,
 } from "vscode-languageclient/node";
 
+import * as ast from "./ast";
 import { binary } from "./binary";
 import * as redactions from "./redactions";
 import * as tasks from "./tasks";
@@ -76,6 +77,10 @@ export async function activate(context: ExtensionContext): Promise<void> {
     // than spawning a process of its own beside it (`rule:ide/tasks-carry-a-problem-matcher`).
     commands.registerCommand("nvs.run", () => tasks.execute("run")),
     commands.registerCommand("nvs.test", () => tasks.execute("test")),
+    // The third way this extension reaches the binary, and the only one that reads what comes
+    // back: `ast.ts` shells out to `nvs ast --json` and hands the document to the editor's own
+    // tree view (`rule:ide/the-ast-panel-shells-out-to-the-cli`).
+    commands.registerCommand("nvs.showAst", () => ast.show()),
     // The two halves of a reveal. They are registered here rather than in `redactions.ts` so the
     // command roster the manifest freezes has one place it is answered from.
     commands.registerCommand("nvs.revealSecret", (where?: Parameters<typeof redactions.reveal>[0]) =>
@@ -91,6 +96,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
   // The provider is what makes a hand-written `"type": "nvs"` entry in a `tasks.json` resolve;
   // `contributes.taskDefinitions` alone only describes the shape of one.
   tasks.install(context);
+  // The view exists from activation rather than from the first `nvs.showAst`, because a tree view
+  // is created once and the editor decides when to draw it; what the command does is fill it.
+  ast.install(context);
   await start(context);
 }
 

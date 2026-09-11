@@ -199,6 +199,21 @@
         "category": "Novis"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "nvs.ast",
+          "name": "Novis AST",
+          "visibility": "collapsed"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "nvs.ast",
+        "contents": "The parse tree of the Novis file in front of you, as the compiler's own parser recovered it.\n[Show AST](command:nvs.showAst)"
+      }
+    ],
     "taskDefinitions": [
       {
         "type": "nvs",
