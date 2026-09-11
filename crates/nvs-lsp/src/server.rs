@@ -532,18 +532,44 @@ fn document_highlight(
     // second file is loaded here where [`locations`] has to load one per hit.
     let file = analysed.map.file(analysed.entry);
     let offset = offset_at(file, position, encoding);
-    let symbol = symbol_at(&analysed, offset)?;
     let here = path_of(uri)?;
 
     Some(
-        index
-            .occurrences_in(&here)
+        uses_in(index, &analysed, &here, offset)?
             .iter()
-            .filter(|occurrence| occurrence.symbol == symbol)
-            .map(|occurrence| DocumentHighlight {
-                range: range_of(file, occurrence.site.start, occurrence.site.end, encoding),
+            .map(|site| DocumentHighlight {
+                range: range_of(file, site.start, site.end, encoding),
                 kind: Some(DocumentHighlightKind::TEXT),
             })
+            .collect(),
+    )
+}
+
+/// The sites in `here` that are uses of the name at `offset`.
+///
+/// [`uses_of`]'s narrowing, written once for the wire half and the `.lspt`
+/// runner ([`highlights_of_case`]) the way that function is written once for
+/// [`references`] and [`references_of_case`]. Sites rather than an answer,
+/// because the two halves spell one differently: the wire needs a range in the
+/// open document and a case needs a place it can name a file in.
+///
+/// The declaration is not among them. `occurrences_in` is uses only, and an
+/// editor asking this is asking what else on screen is this same name rather
+/// than where it came from — which is [`references`]' question, and the one
+/// request whose parameters carry a flag for it.
+fn uses_in<'index>(
+    index: &'index SymbolIndex,
+    analysed: &Analysed,
+    here: &Path,
+    offset: BytePos,
+) -> Option<Vec<&'index Site>> {
+    let symbol = symbol_at(analysed, offset)?;
+    Some(
+        index
+            .occurrences_in(here)
+            .iter()
+            .filter(|occurrence| occurrence.symbol == symbol)
+            .map(|occurrence| &occurrence.site)
             .collect(),
     )
 }
@@ -828,6 +854,29 @@ pub(crate) fn references_of_case(
     let settings = case_settings(root);
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
     uses_of(documents, &index, analysed, offset, true, encoding)
+}
+
+/// [`document_highlight`] for one `.lspt` case, over an index built for that
+/// case alone and for [`lenses_of_case`]'s reason.
+///
+/// [`Location`]s rather than the [`DocumentHighlight`]s the wire carries, so
+/// the runner turns a hit into a place exactly as it does for
+/// [`references_of_case`] and a highlight case freezes the same spelling a
+/// reference case does. Every one of them is in `entry` by construction, which
+/// is what the case is pinning: the kind each hit carries is `Text` and the
+/// same for all of them, so there is nothing else a rendering could say.
+pub(crate) fn highlights_of_case(
+    documents: &Documents,
+    analysed: &Analysed,
+    root: &Path,
+    entry: &Path,
+    offset: BytePos,
+    encoding: PositionEncoding,
+) -> Option<Vec<Location>> {
+    let settings = case_settings(root);
+    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    let sites = uses_in(&index, analysed, entry, offset)?;
+    Some(locations(documents, &sites, encoding))
 }
 
 /// What a lens says above a declaration `count` things refer to.

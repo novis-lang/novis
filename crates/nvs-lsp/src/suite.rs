@@ -273,6 +273,9 @@ pub(crate) fn answer(case: &Case) -> Result<Answered, String> {
         Request::CodeAction => code_action(&analysed, at(case)),
         Request::CodeLens => code_lens(&documents, &files, &entry),
         Request::References => references(&analysed, &documents, &files, at(case)),
+        Request::DocumentHighlight => {
+            document_highlight(&analysed, &documents, &files, &entry, at(case))
+        }
         Request::Redactions => redactions(&analysed),
     };
     let covered = coverage::of(&analysed, cursor(case), &response, COLUMNS);
@@ -581,6 +584,43 @@ fn references(
     let found = crate::server::references_of_case(documents, analysed, &files.dir, offset, COLUMNS)
         .unwrap_or_default();
     Response::References(
+        found
+            .iter()
+            .filter_map(|at| {
+                Some(Place {
+                    path: files.spelling(&path_of(&at.uri)?),
+                    position: at.range.start,
+                })
+            })
+            .collect(),
+    )
+}
+
+/// `textDocument/documentHighlight` — every use of the name under the case's
+/// cursor that was written in the case's own `--FILE--`.
+///
+/// [`references`]' spelling over [`references`]' query narrowed to one file, so
+/// a highlight case and a reference case at the same cursor differ only by what
+/// this one drops: a use in an aux file, and the declaration.
+///
+/// A case's entry document is always a path, being a section this runner wrote
+/// itself, so the `None` arm is unreachable and answers an empty list rather
+/// than an error nothing could produce.
+fn document_highlight(
+    analysed: &Analysed,
+    documents: &Documents,
+    files: &Materialised,
+    entry: &Uri,
+    offset: BytePos,
+) -> Response {
+    let found = path_of(entry)
+        .and_then(|here| {
+            crate::server::highlights_of_case(
+                documents, analysed, &files.dir, &here, offset, COLUMNS,
+            )
+        })
+        .unwrap_or_default();
+    Response::DocumentHighlight(
         found
             .iter()
             .filter_map(|at| {
