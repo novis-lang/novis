@@ -4214,6 +4214,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   When a test needs a request name that will never be answered, pick a real LSP method no rule has an
   opinion on — `moniker` is what that test uses now — rather than the one name a rule guarantees will
   never be ours. [until: gone crates/nvs-lsp/tests/index.rs:fn call_hierarchy_is_not_answered]
+- **A parameter-name hint is drawn *inside* the literal it annotates, so a `.lspt` case freezing one
+  opens a new column in the coverage matrix.** A case answering `times:` over `greet("world", 2)`
+  credited `inlayHint` with `Int`, which no cursor request had a case at, so the coverage gate came
+  back asking for seven cases nobody meant to owe. Freeze the rendering at a construct the corpus
+  already reaches — a second `string` argument does it — and leave the shape that opens a column to
+  the crate's own Rust test.
+  [until: gone crates/nvs-lsp/tests/coverage.rs:every_request_answers_every_construct]
 
 ## Splitting a file that got too big
 
