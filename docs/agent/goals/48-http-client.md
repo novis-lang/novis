@@ -118,7 +118,7 @@ raw body's type:
 |---|---|
 | `json?: mixed` | `application/json`, encoded once per call |
 | `form?: array<string, string>` | `application/x-www-form-urlencoded` |
-| `body?: string\|bytes` with `contentType?: string` | the octets as given |
+| `body?: string\|bytes\|Core\Http\Part` with `contentType?: string` | the octets as given; a `Part::file` is streamed from disk under `fs.read` with `Content-Length` from its size, so a large upload — an S3 presigned `PUT`, a resumable upload — is never held whole |
 | `multipart?: array<string, string\|Core\Http\Part>` | `multipart/form-data`; `Http\Part::file($path, {filename?, contentType?})` streams from disk under `fs.read`, `Http\Part::bytes($data, $filename, {contentType?})` sends what it holds |
 
 - **At most one body key, checked while compiling** — beside `reject_keyless_retry` in
@@ -294,8 +294,8 @@ Flip stage 2's ten rules to `shipped`, with `guardedBy` filled from this goal's 
   unbounded is a defect (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
   `[http.client.tls]` is new — `roots`, `min_version` and `keylog`, all `System` — and so are six grants:
   `tls.anchors`, `tls.pin`, `tls.any_name`, `tls.insecure`, `net.connect_to` and `net.downgrade`.
-- **What it spends**: per call, a request body built once and charged to the request, a multipart file
-  part streamed at one chunk, and a buffered reply under `REPLY_CEILING` or a streamed one at one chunk
+- **What it spends**: per call, a request body built once and charged to the request, a file part —
+  a multipart one or the whole `body` — streamed at one chunk, and a buffered reply under `REPLY_CEILING` or a streamed one at one chunk
   plus the SSE line cap. Per core, at most `pool_idle` idle connections — a socket and a TLS session each
   — held between requests and charged to the core, which is `rule:security/db-pool-reset-is-a-boundary`'s
   shape: O(cores × pool_idle), never O(requests served). Per call that names a stage 10 option, one

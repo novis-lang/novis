@@ -285,11 +285,22 @@ name = "a request carries one body of four kinds, a secret where it is sent, and
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/core/http-client-sends-a-json-a-form-a-raw-and-a-multipart-body.nvst",
+  "tests/conformance/core/http-client-streams-a-file-as-the-whole-body.nvst",
   "tests/conformance/core/http-client-a-secret-reaches-a-header-a-form-and-a-json-body.nvst",
   "tests/conformance/core/http-client-patch-and-request-send-the-verb-they-name.nvst",
   "tests/conformance/core/http-client-a-dynamic-body-on-get-or-keyless-post-retry-throws-before-sending.nvst",
   "tests/conformance/reject/http-client-two-body-keys-are-refused.nvst",
   "tests/conformance/reject/http-client-a-body-on-get-or-head-is-refused.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 bodies and verbs"
+name = "a file body is streamed at one chunk whatever its size, and re-read on a retry"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_file_body_is_streamed_at_one_chunk_whatever_its_size",
+  "a_file_body_is_re_read_on_every_attempt",
 ]
 
 # ---------------------------------------------------------------------------------------------------
