@@ -137,6 +137,8 @@ modules = [
   # `nvs serve`: one worker per core, every socket `[server] listen` names, and every request
   # running one entry file as `rule:security/isolate-shares-nothing`'s isolate.
   "crates/nvs-cli/src/serve.rs",
+  # The fixtures more than one module's `mod tests` needs, in the platform's own spelling.
+  "crates/nvs-cli/src/testing.rs",
 ]
 
 # The rules every stage of this goal works inside.
