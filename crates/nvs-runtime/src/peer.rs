@@ -193,7 +193,7 @@ pub fn slow_subscribers_closed() -> u64 {
 /// [`Drop`], for the reason `Delivery` has none: releasing a value needs the
 /// context that allocated it. `Ctx`'s own `Drop` is where what no `receive()`
 /// reached is given back.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Inbox {
     /// Arrival order, drained from the front. A [`RefCell`] rather than a
     /// `&mut` because the two owners reach it at unrelated moments, and never
@@ -203,6 +203,36 @@ pub struct Inbox {
     /// Whether this subscriber has already missed a value — the module doc's
     /// bound, and why the flag is sticky rather than derived from the length.
     overflowed: std::cell::Cell<bool>,
+    /// The wake owed to the one task parked on this queue, or [`None`] where
+    /// nothing is waiting — which is every connection that is running, and
+    /// every context that is not a connection's.
+    ///
+    /// It is here rather than on the waiting member's own stack because the
+    /// queue is the state the wait is over, and this is the only thing a
+    /// publisher already holds a handle onto: § 4's subscriber table reaches a
+    /// subscriber through a [`Weak`](std::rc::Weak) onto *this*, so a wake
+    /// hung anywhere else would be one the fan-out could not find.
+    ///
+    /// One [`Waker`] and not a list: a queue belongs to one connection isolate
+    /// and a connection runs one wait at a time, so a second registration is
+    /// the same task asking again and replacing it is right.
+    ///
+    /// **What it spends:** one pointer pair per connection that has ever
+    /// subscribed or been published to, and nothing on a request.
+    waiting: std::cell::RefCell<Option<crate::host::Waker>>,
+}
+
+impl std::fmt::Debug for Inbox {
+    /// What a queue *is*, rather than what is in it: the [`Waker`] is a boxed
+    /// closure and has nothing to render, and a queued [`Delivery`] holds a
+    /// reference this type may not follow.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Inbox")
+            .field("queued", &self.queue.borrow().len())
+            .field("overflowed", &self.overflowed.get())
+            .field("parked", &self.waiting.borrow().is_some())
+            .finish()
+    }
 }
 
 impl Inbox {
@@ -212,16 +242,49 @@ impl Inbox {
     /// overflow: this type cannot release a value — [`Delivery`] says why — so
     /// the refused one goes back to the caller, which is the publisher and does
     /// have the context that allocated it.
+    ///
+    /// **Wakes a parked subscriber on the way out**, on both paths: one that
+    /// took the value has something to answer with, and one that overflowed has
+    /// a close to perform, so a queue that changed and left a task parked would
+    /// be `Core\Sse->receive`'s hang. The wake is fired after the borrow ends,
+    /// because it runs the waiting task's scheduler and not this queue.
     #[must_use = "a refused delivery still owns a reference the caller has to release"]
     pub fn push(&self, delivery: Delivery) -> Option<Delivery> {
         let mut queue = self.queue.borrow_mut();
         if queue.len() >= INBOX_CAP {
             drop(queue);
             self.note_overflow();
+            self.wake();
             return Some(delivery);
         }
         queue.push_back(delivery);
+        drop(queue);
+        self.wake();
         None
+    }
+
+    /// Registers the wake this queue owes the calling task, which is about to
+    /// park on it.
+    ///
+    /// Taken and registered **before** the task commits to waiting and after
+    /// the queue was last looked at, which is [`crate::host::Host::waker`]'s
+    /// own ordering rule: a handle registered after a publisher has run is a
+    /// wake nobody will fire. A registration that is never fired costs the one
+    /// pointer it holds and is replaced by the next wait.
+    pub fn wake_on(&self, waker: crate::host::Waker) {
+        *self.waiting.borrow_mut() = Some(waker);
+    }
+
+    /// Fires the wake a parked subscriber left here, if there is one.
+    ///
+    /// A [`crate::host::Waker`] is one-shot and a hint: the task re-checks this
+    /// queue when it runs, so firing one late, or firing one for a task that
+    /// has already been woken by something else, is not an error.
+    fn wake(&self) {
+        let parked = self.waiting.borrow_mut().take();
+        if let Some(wake) = parked {
+            wake();
+        }
     }
 
     /// Whether one more delivery would be taken.

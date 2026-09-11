@@ -98,7 +98,9 @@
 //! name.
 
 use nvs_runtime::sse::{DECLARED_HEADERS, Event, MEDIA_TYPE};
-use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Upgrade, Value, copy_graph};
+use nvs_runtime::{
+    Ctx, Delivery, EventStreamDoor, Fault, NvsStr, Tag, ThrownClass, Upgrade, Value, copy_graph,
+};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 use crate::socket::{entry_program, release_crossed, retained};
@@ -171,6 +173,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     ],
     instance: &[
         CoreMethod {
+            name: "receive",
+            names: &[],
+            // Nothing to take and nothing to choose, where the sibling's row of
+            // this name is the same: what a connection waits for is decided by
+            // what it subscribed to, and a wait that took a topic would be a
+            // second subscription written at the call site.
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(MESSAGE_NAME)),
+            symbol: RECEIVE_SYMBOL,
+            doc: Some(&RECEIVE_DOC),
+        },
+        CoreMethod {
             name: "send",
             names: &["data", "event", "id"],
             // Three marks, and the split between them is the goal's § *Standing
@@ -218,6 +233,9 @@ const STREAM_SYMBOL: &str = "nvs_core_sse_stream";
 
 /// The symbol [`CLASS`]'s `current` row is reached through.
 const CURRENT_SYMBOL: &str = "nvs_core_sse_current";
+
+/// The symbol [`CLASS`]'s `receive` row is reached through.
+const RECEIVE_SYMBOL: &str = "nvs_core_sse_receive";
 
 /// The symbol [`CLASS`]'s `send` row is reached through.
 const SEND_SYMBOL: &str = "nvs_core_sse_send";
@@ -299,6 +317,24 @@ const CURRENT_DOC: MethodDoc = MethodDoc {
                every `spawn script` child and every request answering with an ordinary body — \
                including one streaming that body, a response body written over time not being an \
                event stream.",
+    }],
+};
+
+/// `Core\Sse->receive`'s reference card — `rule:core-api/reference-card`.
+const RECEIVE_DOC: MethodDoc = MethodDoc {
+    short: "Waits for the next value published to a topic this stream subscribed to, and answers \
+            it as one message.",
+    params: &[],
+    ret: "The next message, or `null` once this stream is over — which is what ends the \
+          `while (var $msg = $sse->receive())` loop a stream's script is written as. A message \
+          carries the published value and the name of the topic it arrived on. `null` is also \
+          what a stream that fell too far behind its topics is answered: its queue overflowed, \
+          so this stream is closed rather than a publisher being made to wait for it.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is a streaming response rather than the isolate a stream outlives \
+               its request on — it ends with its own events, so nothing published could reach \
+               it, and there is no wait to be had.",
     }],
 };
 
@@ -453,6 +489,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         UPGRADE_SYMBOL => (nvs_core_sse_upgrade as *const ()).cast(),
         STREAM_SYMBOL => (nvs_core_sse_stream as *const ()).cast(),
         CURRENT_SYMBOL => (nvs_core_sse_current as *const ()).cast(),
+        RECEIVE_SYMBOL => (nvs_core_sse_receive as *const ()).cast(),
         SEND_SYMBOL => (nvs_core_sse_send as *const ()).cast(),
         RETRY_SYMBOL => (nvs_core_sse_retry as *const ()).cast(),
         MESSAGE_TOPIC_SYMBOL => (nvs_core_sse_message_topic as *const ()).cast(),
@@ -580,8 +617,12 @@ nvs_runtime::nvs_helper! {
         // After the refusal and outside the cell, on both counts deliberately: a
         // request that contradicted itself opened nothing, and a program off a
         // connection opened an event stream all the same — its events go to its
-        // own output, and the handle it reaches for is the same one.
-        ctx.mark_event_stream();
+        // own output, and the handle it reaches for is the same one. The door
+        // named here is the one this member *is*, and it lands only where no
+        // door is marked yet: a connection isolate was marked as one before its
+        // first statement, and opening a stream on its own output does not make
+        // it a response that ends.
+        ctx.mark_event_stream(EventStreamDoor::Response);
         Ok(crate::instance::build(&CLASS, []))
     }
 }
@@ -663,6 +704,113 @@ nvs_runtime::nvs_helper! {
             Fault::thrown_as(ThrownClass::Logic, format!("Core\\Sse::send(): {refused}"))
         })?;
         onto_the_wire(ctx, frame, "send")
+    }
+}
+
+/// How long the wait parks for before it looks at what the other cores
+/// published again.
+///
+/// A publish from **this** core wakes the wait where it stands —
+/// [`nvs_runtime::Inbox`]'s own wake, fired by the fan-out that filled the
+/// queue — so this bound is the cross-core half alone: a publish from another
+/// core lands in a queue this core drains ([`crate::topic`]'s
+/// `deliver_from_other_cores`) rather than in a push it is told about, and a
+/// stream with nothing happening on its own core would otherwise never look.
+///
+/// **What it spends:** one wakeup per idle stream per tick, and nothing on a
+/// stream whose topics are busy on its own core. It is the one number here that
+/// trades priority 3 against itself — a shorter tick buys cross-core latency
+/// with wakeups — and the trade goes away rather than being tuned the day the
+/// bus wakes the core it hands a value to.
+const CROSS_CORE_TICK: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// One [`MESSAGE`] built out of a value the bus delivered.
+///
+/// The topic is read before the value is taken, because taking it consumes the
+/// delivery — [`Delivery`] hands its one owned reference on rather than copying
+/// it, and the slot is where that reference comes to rest. Two slots and not the
+/// sibling's four: [`MESSAGE`]'s own doc owns why this door has one source.
+fn message_of_delivery(delivery: Delivery) -> Value {
+    let topic = Value::str(NvsStr::new(delivery.topic().as_bytes()));
+    let value = delivery.into_value();
+    crate::instance::build(&MESSAGE, [topic, value])
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Sse->receive(): ?Core\Sse\Message` — the wait on the door that
+    /// outlives its request, over topics and over nothing else.
+    ///
+    /// [`crate::socket`]'s wait with its first source taken away. An event
+    /// stream is handed no peer (`rule:concurrency/two-doors-one-isolate`), so
+    /// there is no frame to read and no second kind of message; what is left is
+    /// the queue `rule:core-classes/topic`'s bus fills, which is why this is the
+    /// sibling's loop minus the socket read. `rule:concurrency/a-connection-is-a-loop`'s
+    /// `while (var $msg = $sse->receive())` is the shape a stream is written as
+    /// either way.
+    ///
+    /// **A streaming response is refused rather than answered `null`.** Both
+    /// doors hold this handle and only one of them can wait: a request
+    /// answering with its own events ends with them, so a `null` there would
+    /// read as "the stream is over" and end a loop for a reason that was never
+    /// true.
+    ///
+    /// The park is where the core goes back to its neighbours, and it is
+    /// bounded — [`CROSS_CORE_TICK`] owns why a wait that is woken still has a
+    /// deadline. A wake is a hint, so the queue is looked at again on every
+    /// turn rather than the resume being taken for an answer.
+    fn nvs_core_sse_receive(ctx, args: [1]) {
+        crate::instance::receiver(args[0], &CLASS, "receive")?;
+        if !ctx.has_event_stream_connection() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                "`Core\\Sse::receive` needs a connection and this program is a streaming \
+                 response: a request answering with its own events ends when they do, so a \
+                 publisher has nothing to reach it on — only a script `Core\\Sse::upgrade` \
+                 opened can wait",
+            ));
+        }
+        loop {
+            crate::topic::deliver_from_other_cores(ctx);
+            // `rule:core-classes/topic`'s bound, taken by the subscriber
+            // itself: the publisher refused the value rather than waiting, and
+            // this is where that refusal becomes the close it means. The stream
+            // ends instead of carrying a close code — an event stream has no
+            // frame to put one in, so the body ending *is* what the client
+            // sees, and the next `EventSource` reconnect is an ordinary request
+            // the application answers as it likes.
+            if ctx.inbox_overflowed() {
+                if let Some(emit) = ctx.body_stream() {
+                    emit.finish();
+                }
+                return Ok(Value::null());
+            }
+            if let Some(delivery) = ctx.take_delivery() {
+                return Ok(message_of_delivery(delivery));
+            }
+            // In hand before the wait is committed to, which is
+            // `nvs_runtime::host::Host::waker`'s ordering rule. Nothing can
+            // publish between the look above and the park below — a publisher
+            // on this core runs only where this task yields, and this one does
+            // not yield until `park` — so the registration cannot be late.
+            let Some(waker) = nvs_runtime::host::with_current(|host| host.waker()).flatten() else {
+                // No case can reach this: a script is never handed the door mark
+                // a connection isolate carries, so a `.nvst` case is refused
+                // above and never reaches the wait.
+                // `a_wait_with_no_scheduler_under_it_is_a_fatal_rather_than_a_stalled_core`
+                // is the `#[test]` that asserts it instead.
+                return Err(Fault::fatal(
+                    "`Core\\Sse::receive` would wait and there is no scheduler on this thread \
+                     to wait on",
+                ));
+            };
+            ctx.inbox().wake_on(waker);
+            let until = std::time::Instant::now() + CROSS_CORE_TICK;
+            if let Some(nvs_runtime::host::Woken::Cancelled) =
+                nvs_runtime::host::with_current(|host| host.park(Some(until)))
+            {
+                return Err(ctx.cancel());
+            }
+        }
     }
 }
 
@@ -1039,6 +1187,190 @@ mod tests {
         nvs_runtime::call(super::nvs_core_sse_current, &mut ctx, &[])
             .expect_err("a response body stream is not an event stream");
         drop(ctx.take_pending());
+    }
+
+    /// A context shaped like the isolate `Core\Sse::upgrade` opens: the writing
+    /// half of the response its connection is already framing, and the door
+    /// marked as the one the stream outlives its request on.
+    ///
+    /// No cell and no peer, which is the whole of what door one is — the cell
+    /// belongs to the request that opened the stream, and that request has
+    /// ended by the time this isolate runs.
+    fn upgraded(slot: &nvs_runtime::stream::BodySlot) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_body_stream(
+            slot.open(super::MEDIA_TYPE, None, Vec::new())
+                .expect("an empty cell opens"),
+        );
+        ctx.mark_event_stream(nvs_runtime::EventStreamDoor::Connection);
+        ctx
+    }
+
+    /// The whole of door one's far side in one case: a stream subscribes, a
+    /// publisher on this core puts a value on that topic, and the wait answers
+    /// it as a message carrying the topic it arrived on and a copy of what was
+    /// published.
+    ///
+    /// It goes through `Core\Topic`'s own members rather than queueing on the
+    /// context directly, because what is claimed is that the *bus* reaches a
+    /// door it was written before: § 4's table holds a handle onto the queue,
+    /// and a stream that subscribed is an entry in it like any connection.
+    #[test]
+    fn a_published_value_reaches_a_subscribed_event_stream_as_a_message() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut stream = upgraded(&slot);
+        let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
+            .expect("an event stream's isolate answers `current()`");
+
+        let topic = Value::str(NvsStr::new(b"room:feed"));
+        nvs_runtime::call(
+            crate::topic::nvs_core_topic_subscribe,
+            &mut stream,
+            &[topic],
+        )
+        .expect("an event stream's isolate is a connection and may subscribe");
+
+        let mut publisher = Ctx::buffered();
+        let published = Value::str(NvsStr::new(b"the board changed"));
+        let reached = nvs_runtime::call(
+            crate::topic::nvs_core_topic_publish,
+            &mut publisher,
+            &[topic, published],
+        )
+        .expect("a publish answers how many it reached");
+        assert_eq!(
+            reached.as_uint(),
+            Some(1),
+            "the subscribed stream was not counted a subscriber"
+        );
+
+        let message = nvs_runtime::call(super::nvs_core_sse_receive, &mut stream, &[handle])
+            .expect("a queued delivery is answered without waiting for anything");
+        let name = nvs_runtime::call(super::nvs_core_sse_message_topic, &mut stream, &[message])
+            .expect("a message names its topic");
+        assert_eq!(name.as_text(), Some("room:feed"));
+        let carried = nvs_runtime::call(super::nvs_core_sse_message_value, &mut stream, &[message])
+            .expect("a message carries the value");
+        assert_eq!(carried.as_text(), Some("the board changed"));
+
+        for value in [topic, published, message, name, carried, handle] {
+            dropped(value);
+        }
+    }
+
+    /// `rule:core-classes/topic`'s bound as the subscriber performs it: a stream
+    /// that fell behind its topics is answered `null` and **its body ends**, so
+    /// the publisher fanning out was never made to wait for it.
+    ///
+    /// The close is the whole of the claim that is this door's own. A socket
+    /// carries a close code; an event stream has no frame to put one in, so the
+    /// response body ending is what the client sees, and the case asserts it on
+    /// the connection's half rather than on the context that performed it.
+    #[test]
+    fn an_overflowing_subscriber_queue_answers_null_and_closes_that_stream() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut stream = upgraded(&slot);
+        let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
+            .expect("an event stream's isolate answers `current()`");
+        let mut head = slot
+            .take(std::task::Waker::noop())
+            .expect("the isolate was handed the body of a response");
+
+        // One past the bound, which is what raises the overflow: the queue is
+        // full at `INBOX_CAP`, and the refused value comes back to the
+        // publisher rather than being dropped here.
+        for n in 0..=nvs_runtime::INBOX_CAP {
+            let queued = stream.deliver(nvs_runtime::Delivery::new(
+                "room:flood",
+                Value::int(i64::try_from(n).expect("a bound this small fits an `int`")),
+            ));
+            if let Some(refused) = queued {
+                dropped(refused.into_value());
+            }
+        }
+
+        let answered = nvs_runtime::call(super::nvs_core_sse_receive, &mut stream, &[handle])
+            .expect("an overflowed queue is answered rather than thrown on");
+        assert!(
+            answered.tag() == Some(nvs_runtime::Tag::Null),
+            "a stream that fell behind was handed a message instead of the end"
+        );
+        assert!(
+            matches!(
+                head.drain.next_chunk(std::task::Waker::noop()),
+                nvs_runtime::stream::Drained::Ended
+            ),
+            "the overflow answered `null` and left the response body open"
+        );
+
+        dropped(handle);
+    }
+
+    /// A wait with no scheduler under it is a fatal error rather than a core
+    /// standing still — `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+    /// read at the one place this member could have broken it.
+    ///
+    /// The member learns there is no task *before* it commits to waiting, which
+    /// is why `Host::waker` is a question of its own: with nothing to wake, a
+    /// park could only block the thread every other request on this core is
+    /// running on. Unreachable from a `.nvst` case, which is never handed the
+    /// door mark that gets this far.
+    #[test]
+    fn a_wait_with_no_scheduler_under_it_is_a_fatal_rather_than_a_stalled_core() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut stream = upgraded(&slot);
+        let handle = nvs_runtime::call(super::nvs_core_sse_current, &mut stream, &[])
+            .expect("an event stream's isolate answers `current()`");
+
+        let status = nvs_runtime::call(super::nvs_core_sse_receive, &mut stream, &[handle])
+            .expect_err("an empty queue with no scheduler beneath it has nowhere to wait");
+        assert_eq!(
+            status,
+            nvs_runtime::FATAL,
+            "a wait that cannot be entered was reported as something a `catch` sees"
+        );
+        drop(stream.take_pending());
+
+        dropped(handle);
+    }
+
+    /// The refusal door two gets, named after the member it called: a request
+    /// answering with its own events holds this handle and cannot wait on it.
+    ///
+    /// `null` would have been the silently wrong answer — a loop written
+    /// `while (var $msg = $sse->receive())` would end at once and read as a
+    /// stream that was over — so the refusal is what tells a program it opened
+    /// the door that does not wait.
+    #[test]
+    fn receive_in_a_streaming_response_is_refused_by_name() {
+        let slot = nvs_runtime::stream::BodySlot::new(std::time::Duration::from_secs(30));
+        let mut ctx = framing(&slot);
+        let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+            .expect("an offered cell takes the stream");
+
+        let status = nvs_runtime::call(super::nvs_core_sse_receive, &mut ctx, &[handle])
+            .expect_err("a streaming response has nothing to wait for");
+        assert_eq!(
+            status,
+            nvs_runtime::THROWN,
+            "a door that cannot wait is a throw a program catches, not a fatal"
+        );
+        assert_eq!(
+            ctx.pending_class().as_deref(),
+            Some("LogicError"),
+            "the refusal is not the class the signature promises"
+        );
+        let message = ctx
+            .pending()
+            .expect("a throw carries the message it was raised with")
+            .into_owned();
+        assert!(
+            message.contains(r"Core\Sse::receive"),
+            "the refusal does not name the member that was called: {message}"
+        );
+        drop(ctx.take_pending());
+
+        dropped(handle);
     }
 
     /// An event whose reader has gone is refused rather than parked — the

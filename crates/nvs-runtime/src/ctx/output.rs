@@ -130,6 +130,28 @@ pub(super) enum LogTarget {
     Named(OutputSink),
 }
 
+/// Which of `rule:concurrency/two-doors-one-isolate`'s two hand-overs opened
+/// the event stream a context is writing.
+///
+/// Not a boolean, for [`crate::Scheme`]'s reason and one of its own: the doors
+/// differ in what the program behind them may *do* and not only in how it got
+/// here, so a flag a call site had to remember the direction of is one that
+/// could quietly give a request a connection's powers. A context that opened
+/// neither door holds no value at all.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EventStreamDoor {
+    /// The request answers with the stream itself — `Core\Sse::stream`, whose
+    /// events end when the response does, and which is a streaming response
+    /// and not a connection
+    /// (`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`).
+    Response,
+    /// The stream outlives the request that opened it: `Core\Sse::upgrade`'s
+    /// isolate, handed the body of a `200 text/event-stream` the connection is
+    /// still writing. This is the door `Core\Topic` means by a connection,
+    /// beside the socket one [`Ctx::has_peer`] answers for.
+    Connection,
+}
+
 impl Ctx {
     /// Writes raw bytes to this request's output, unescaped.
     ///
@@ -531,20 +553,25 @@ impl Ctx {
         self.body_stream.as_mut()
     }
 
-    /// Records that what this context writes is an event stream —
-    /// `Core\Sse::stream` for the request that opened one for itself, and the
-    /// connection for one that outlives its request.
+    /// Records that what this context writes is an event stream, and which
+    /// door opened it — `Core\Sse::stream` for the request that opened one for
+    /// itself, and the hand-over for the connection that outlives its request.
     ///
     /// Not beside [`Self::set_body_stream`] in what it takes, because it is not
     /// the same kind of fact: that one is handed the half the bytes go through
     /// and this one is told what they *are*, which is why a program off a
     /// connection — writing its events to its own output — still marks.
-    /// Idempotent, and there is no undoing it.
-    pub fn mark_event_stream(&mut self) {
-        self.event_stream = true;
+    ///
+    /// **The first door holds**, and that is what makes the second call safe
+    /// rather than a downgrade: a connection isolate is marked before its
+    /// program's first statement, so a `Core\Sse::stream` inside one is a
+    /// program opening a stream on its own output and never a connection
+    /// turning into a response that ends. There is no undoing it either way.
+    pub fn mark_event_stream(&mut self, door: EventStreamDoor) {
+        self.event_stream.get_or_insert(door);
     }
 
-    /// Whether an event stream was opened on this context.
+    /// Whether an event stream was opened on this context, by either door.
     ///
     /// `false` everywhere else, and that is what makes `Core\Sse::current()` a
     /// refusal outside one rather than a rule to remember: a command-line
@@ -553,7 +580,22 @@ impl Ctx {
     /// written over time not being an event stream.
     #[must_use]
     pub fn has_event_stream(&self) -> bool {
-        self.event_stream
+        self.event_stream.is_some()
+    }
+
+    /// Whether this context is an event stream's **connection** — the isolate
+    /// the stream outlives its request on, and not the request that answers
+    /// with one.
+    ///
+    /// [`Self::has_peer`]'s question asked of the other door, and the two
+    /// together are what `Core\Topic` means by a connection: what a
+    /// subscription needs is not a socket but a wait that drains it, which is
+    /// exactly what a program outliving its request has. A request streaming
+    /// its own events answers `false` and is refused, its response being over
+    /// before anything could be published to it.
+    #[must_use]
+    pub fn has_event_stream_connection(&self) -> bool {
+        self.event_stream == Some(EventStreamDoor::Connection)
     }
 
     /// Declares what this request's response *means* — spec § 15's status,

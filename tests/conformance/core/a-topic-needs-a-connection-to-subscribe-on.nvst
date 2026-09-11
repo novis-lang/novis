@@ -2,9 +2,10 @@
 `Core\Topic::subscribe` and `unsubscribe` refuse a program that is not a connection, rather than recording a subscription nothing could ever drain — `rule:concurrency/a-connection-is-a-loop` and `rule:core-classes/topic`
 --FILE--
 <?nvs
-// § 4 makes a topic the only way two *connections* meet, and § 3 makes the one
-// wait that drains a delivery `Core\Socket::receive()` -- which only a script
-// an upgrade opened can call. A subscription made anywhere else would therefore
+// § 4 makes a topic the only way two *connections* meet, and the waits that
+// drain a delivery are the two a connection isolate has -- `Core\Socket` 's and
+// an event stream's -- which only a script an upgrade opened can call. A
+// subscription made anywhere else would therefore
 // be an entry in the bus's table with no reader behind it, and the value
 // published to it would be copied, queued and never seen. So the refusal is the
 // member's answer rather than a silent no-op: a command-line script that meant
@@ -26,5 +27,5 @@ try {
     echo $refused->message, "\n";
 }
 --EXPECT--
-`Core\Topic::subscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` opened runs inside a connection isolate
-`Core\Topic::unsubscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` opened runs inside a connection isolate
+`Core\Topic::subscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` or `Core\Sse::upgrade` opened runs inside a connection isolate
+`Core\Topic::unsubscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` or `Core\Sse::upgrade` opened runs inside a connection isolate

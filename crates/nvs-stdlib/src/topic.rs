@@ -15,12 +15,15 @@
 //! decides what crosses and what a subscriber is handed.
 //!
 //! What is **not** here is the wake, and this module is what makes it
-//! reachable: a delivery queued while its connection is already parked inside
-//! `receive()` is answered by the *next* `receive()` rather than waking the
-//! parked one. [`nvs_runtime::Ctx::deliver`]'s own known gap is where that is
-//! written down, and it is the only one § 4's bus has left. A delivery from
-//! another core inherits it exactly rather than adding a second one, because
-//! the drain runs at the same `receive()` the local queue is read at.
+//! reachable. The queue carries one — [`nvs_runtime::Inbox`]'s, fired by the
+//! fan-out that fills it — and an event stream's `receive()` registers against
+//! it, so a publish on this core reaches a stream that is already waiting. A
+//! connection parked inside `Core\Socket::receive` is parked on its *socket*
+//! and registers nothing here, so a delivery queued while it waits is answered
+//! by the next `receive()`; [`nvs_runtime::Ctx::deliver`]'s own known gap is
+//! where that is written down. A delivery from another core is behind one
+//! bound more on both doors, the drain running at the same `receive()` the
+//! local queue is read at.
 //!
 //! # Decision: the table is per core, and it holds a weak reference
 //!
@@ -373,19 +376,29 @@ fn topic_of(argument: &Value, member: &str) -> Result<String, Fault> {
 /// This connection's delivery queue, for the member that is about to put it in
 /// the table or take it out.
 ///
+/// **Either of `rule:concurrency/two-doors-one-isolate`'s doors**, the socket
+/// and the event stream, because what a subscription needs is not a peer but a
+/// wait to be drained on — and a connection isolate has one whichever hand-over
+/// opened it. The predicates are two because the facts are two: a peer is a
+/// descriptor this isolate owns, and an event stream's door is what it was told
+/// its body means.
+///
 /// # Errors
 ///
 /// A `LogicError` on a context that is not a connection's, in
 /// `crate::socket`'s wording for the same fact: a topic is how two
 /// *connections* meet, so a subscription made by anything else would be an
-/// entry in the table that no `receive()` could ever drain.
+/// entry in the table that no `receive()` could ever drain. A request streaming
+/// its own events is refused by that same reading — it answers now, and its
+/// response is over before a publish could reach it.
 fn connection_inbox(ctx: &mut Ctx, member: &str) -> Result<Rc<Inbox>, Fault> {
-    if !ctx.has_peer() {
+    if !ctx.has_peer() && !ctx.has_event_stream_connection() {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
                 "`Core\\Topic::{member}` needs a connection and this program is not one: only a \
-                 script `Core\\Socket::upgrade` opened runs inside a connection isolate"
+                 script `Core\\Socket::upgrade` or `Core\\Sse::upgrade` opened runs inside a \
+                 connection isolate"
             ),
         ));
     }
@@ -652,7 +665,8 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{
-        Closing, Ctx, INBOX_CAP, NvsFn, NvsStr, PeerError, PeerFrame, PeerSocket, Value, budget,
+        Closing, Ctx, EventStreamDoor, INBOX_CAP, NvsFn, NvsStr, PeerError, PeerFrame, PeerSocket,
+        Value, budget,
     };
 
     use super::{
@@ -703,6 +717,15 @@ mod tests {
     fn connected_to(peer: &Watched) -> Ctx {
         let mut ctx = Ctx::buffered();
         ctx.set_peer(Box::new(peer.clone()));
+        ctx
+    }
+
+    /// A context writing an event stream through `door` and handed no socket —
+    /// `rule:concurrency/two-doors-one-isolate`'s other hand-over, which takes
+    /// nothing, so the mark is the whole of what a case has to arrange.
+    fn over_events(door: EventStreamDoor) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.mark_event_stream(door);
         ctx
     }
 
@@ -1014,6 +1037,30 @@ mod tests {
         call(nvs_core_topic_subscribe, &mut ctx, "room:brief").expect("joined");
         call(nvs_core_topic_unsubscribe, &mut ctx, "room:brief").expect("and left");
         assert_eq!(subscriber_count("room:brief"), 0);
+    }
+
+    /// `rule:concurrency/two-doors-one-isolate`'s doors, asked the one question
+    /// `Core\Topic` asks of a context: the isolate an event stream outlives its
+    /// request on is a connection and joins, and a request answering with its
+    /// own events is not one and is refused.
+    ///
+    /// The refusal is why the door is recorded and not merely the fact that one
+    /// was opened: both contexts here are writing an event stream and neither
+    /// holds a socket, so a member reading `has_event_stream` would let a
+    /// response that is already ending into a table no wait of its own could
+    /// ever drain.
+    #[test]
+    fn an_event_stream_connection_subscribes_and_a_streaming_response_is_refused() {
+        let mut connection = over_events(EventStreamDoor::Connection);
+        call(nvs_core_topic_subscribe, &mut connection, "room:door-one").expect("joined");
+        assert_eq!(subscriber_count("room:door-one"), 1);
+
+        let mut response = over_events(EventStreamDoor::Response);
+        assert!(
+            call(nvs_core_topic_subscribe, &mut response, "room:door-one").is_err(),
+            "a streaming response is not a connection"
+        );
+        assert_eq!(subscriber_count("room:door-one"), 1);
     }
 
     /// `rule:core-classes/topic`'s priority-1 rule, on both halves at once: a subscriber

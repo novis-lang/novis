@@ -84,8 +84,8 @@ use std::rc::Rc;
 
 use nvs_runtime::graph::{GraphError, copy_graph, copy_graph_into};
 use nvs_runtime::{
-    Ctx, ErrorClass, Fault, Inbound, Limit, OutputSink, PeerSocket, SseSlot, TaskRoot, UpgradeSlot,
-    Value,
+    Ctx, ErrorClass, EventStreamDoor, Fault, Inbound, Limit, OutputSink, PeerSocket, SseSlot,
+    TaskRoot, UpgradeSlot, Value,
 };
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
@@ -359,6 +359,12 @@ impl Isolate {
     /// not told the meaning of is one where that member would answer for an
     /// ordinary streamed body too. `nvs_stdlib::sse`'s `current` is the home of
     /// why the question is neither the peer nor an open body.
+    ///
+    /// The door it marks is [`EventStreamDoor::Connection`], and that is what
+    /// admits this isolate to `Core\Topic`: the stream outlives the request
+    /// that opened it, so there is a wait here for a delivery to be drained on
+    /// — which is the whole of what a subscription needs and the whole of what
+    /// a streaming response lacks.
     #[must_use]
     pub fn over_event_stream(mut self, events: nvs_runtime::stream::Emit) -> Self {
         self.event_stream = Some(events);
@@ -535,11 +541,13 @@ impl Isolate {
         // and at the same point for the same reason: an event stream's isolate
         // *is* the body of the response its connection is still writing, so the
         // half the bytes go through is there before the program's first
-        // statement. Both marks together, [`Isolate::over_event_stream`] owning
-        // why they are one fact.
+        // statement — and so is the door, marked as the connection one because
+        // this stream outlives the request that opened it, which is what
+        // `Core\Topic` means by a connection. Both marks together,
+        // [`Isolate::over_event_stream`] owning why they are one fact.
         if let Some(events) = event_stream {
             isolate_ctx.set_body_stream(events);
-            isolate_ctx.mark_event_stream();
+            isolate_ctx.mark_event_stream(EventStreamDoor::Connection);
         }
         Ok(match Wake::current() {
             Some(wake) => start_as_task(

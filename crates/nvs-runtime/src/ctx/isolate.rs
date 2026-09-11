@@ -69,16 +69,20 @@ impl Ctx {
     ///
     /// # Known gap
     ///
-    /// A delivery queued while this isolate is already parked inside
+    /// A delivery queued while a **socket** connection is already parked inside
     /// [`crate::peer::PeerSocket::receive`] is answered by the *next*
-    /// `receive()` rather than waking the parked one, because the park is on
-    /// the socket alone. § 4's `publish` makes that **observable**: a
+    /// `receive()` rather than waking the parked one, because that park is on
+    /// the descriptor alone. § 4's `publish` makes that **observable**: a
     /// connection parked with nothing coming from its peer sits on a value
     /// another connection on the same core already published to a topic it
     /// joined. Closing it needs the park to be over both
     /// sources, which is a wake seam the framing layer has to take part in —
     /// `nvs_stdlib::socket`'s `receive()` and `nvs_server::socket`, not this
     /// method.
+    ///
+    /// The event-stream door is not in the gap: it has no descriptor to park
+    /// on, so its wait registers [`crate::peer::Inbox::wake_on`] and the
+    /// fan-out that fills this queue fires it.
     ///
     /// **Answers the delivery back when the queue is full** — § 4's bound, and
     /// [`crate::peer::Inbox::push`] owns why a refusal comes back to the caller

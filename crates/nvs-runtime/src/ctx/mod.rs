@@ -962,8 +962,9 @@ pub struct Ctx {
     /// that streams — the one chunk in flight, which is the writer's own
     /// allocation on its way to the wire rather than a copy of it.
     body_stream: Option<crate::stream::Emit>,
-    /// Whether what this context writes is an **event stream**, which is the one
-    /// thing `Core\Sse::current()` separates from every other program.
+    /// Which door opened the **event stream** this context writes, and `None`
+    /// for a program that opened neither — the one thing `Core\Sse::current()`
+    /// separates from every other program.
     ///
     /// Beside [`Self::body_stream`] because it says what that half *is* where
     /// the field above says where the bytes go, and neither that field nor the
@@ -971,14 +972,15 @@ pub struct Ctx {
     /// [`crate::stream::Emit`] too, and an event stream that outlives its
     /// request was handed no socket, `rule:concurrency/two-doors-one-isolate`'s
     /// hand-over taking nothing. That rule makes both doors answer one handle,
-    /// so what is recorded here is a door having been opened and never which
-    /// one it was.
+    /// and the door itself is held here because the two are not the same
+    /// program: one ends with its response and the other is a connection, so
+    /// `Core\Topic` admits the second beside a peer and refuses the first.
     ///
     /// Written by whoever opened the stream and never cleared: a stream that has
     /// ended is still the only thing this context was.
     ///
     /// **What it spends:** one byte per request, and never an allocation.
-    event_stream: bool,
+    event_stream: Option<EventStreamDoor>,
     /// What this request's response says it *is* — spec § 15's `setStatus`,
     /// or `None` where nothing set one and the answer is whatever the server's
     /// own default is.
