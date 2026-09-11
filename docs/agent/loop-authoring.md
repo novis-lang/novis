@@ -131,8 +131,8 @@ Three rules make it work:
   manifest cannot silently go stale the way a frozen context pack would. It can only go *wrong*, by naming
   something that no longer exists, and that prints as a loud warning.
 - **`modules` corrects itself between sessions.** `tools/context-sync.py`, run by the driver, appends any
-  `crates/*/src/` or `editors/*/src/` module the session's own commits touched that no pattern matched,
-  with the module's own `//!` first sentence as its comment. Widening is the only thing it can do, which is
+  `crates/*/src/` or `editors/*/src/` module the session's own commits touched that no pattern matched —
+  never a crate root or a test module — with the module's own `//!` first sentence as its comment. Widening is the only thing it can do, which is
   why it needs no supervision; past `MAX_ADDED` in one session, or `MAX_TOTAL` in the list, it refuses and
   prints instead, because a manifest that has to grow that far was written for different work. No other
   field sweeps: nothing on disk records that a session needed a rule section and did not get it.

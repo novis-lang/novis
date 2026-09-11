@@ -44,17 +44,20 @@ import brief  # noqa: E402  -- the module summaries, from the one place that rea
 ROOT = Path(__file__).resolve().parent.parent
 GOAL = ROOT / "docs" / "agent" / "loop-goal.toml"
 
-#: What `orient.py` can map, and therefore the only paths worth naming. Anything else -- a test, a
-#: fixture, a doc -- is deliberately not a module and is never added.
+#: What `orient.py` can map, and therefore the only paths worth naming. A fixture or a doc is not a
+#: module and is never added; a test module under `src/` matches, and `NEVER` takes it out.
 MAPPABLE = (
     ("crates/*/src/**/*.rs", "crates/*/src/*.rs"),
     ("editors/*/src/**/*.ts", "editors/*/src/*.ts", "editors/*/src/**/*.tsx"),
 )
 
-#: A crate's own root is where a `mod` line goes when a module is added, so it comes back changed
-#: from work that was not in it. Naming it by hand stays right when the crate root *is* the work --
-#: `nvs-diagnostics/src/lib.rs` is the code registry -- and that is a person's call, not a sweep's.
-NEVER = ("*/src/lib.rs",)
+#: Paths `MAPPABLE` matches that are never added. A crate's own root is where a `mod` line goes when
+#: a module is added, so it comes back changed from work that was not in it; naming it by hand stays
+#: right when the crate root *is* the work -- `nvs-diagnostics/src/lib.rs` is the code registry --
+#: and that is a person's call, not a sweep's. A test module is edited beside the code it tests,
+#: and that code is the entry a session needs. `fnmatch`'s `*` crosses `/`, so `*/tests/*` is a
+#: `tests` directory at any depth.
+NEVER = ("*/src/lib.rs", "*/tests/*", "*/tests.rs")
 
 #: How wide a comment line may be, `docs/agent/doc-style.md`'s width -- a module summary runs long
 #: and an entry nobody can read across is worse than the gap it closes.
