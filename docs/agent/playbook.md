@@ -1679,6 +1679,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   never reach it. Read the `[[check]]`'s own `args` before choosing the file set: `args = ["test", ...]`
   over a `.nvst` tree means the surface under test is `nvs run`, whatever the stage header says the stage
   is about. [until: reviewed 2026-09-11]
+- **`peek.py` refuses a target that comes after a flag, and says `unrecognized arguments` as
+  though the target were malformed.** `TARGET` is a `nargs='*'` positional, so
+  `peek.py a.rs:@sym --window 30 b.rs:120-160` leaves argparse a second run of positionals it
+  has nowhere to put, and the usage block it prints reads as a bad locator rather than a bad
+  order. Put every target first and every flag — `--window`, `--context`, `--in`, `--locate` —
+  last, and reach for the per-target `:3` context suffix when only one target wants it.
+  [until: reviewed 2026-09-11]
 
 ## Running things
 
@@ -6058,13 +6065,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   raising it should stop every other context in the tree; if not it is a field on `Ctx`, the way
   `cancelled` is, and not a bit in `SafepointFlags`.
   [until: gone crates/nvs-runtime/src/ctx/mod.rs:safepoint_word]
-- **A served request's context carries no configuration, so every `[limits]` ceiling on that path
-  reads as `0` and every capability is denied.** The connection's root context is a bare `Ctx::new`
-  (`crates/nvs-server/src/serve.rs:1343`), `Ctx::isolate` copies the parent's `config` rather than
-  re-reading one, and the cached ceilings are refreshed only by `Ctx::set_config` — so a ceiling wired
-  onto `nvs serve` compiles, runs, publishes and stops nothing. Read `Ctx::cpu_limit()` at the point
-  you are publishing from before concluding the publication is what is wrong.
-  [until: exists crates/nvs-server/src/serve.rs:set_config]
 
 ## Divergences and refusals already pinned
 
