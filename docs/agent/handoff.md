@@ -2,60 +2,51 @@
 
 ## State
 
-**Goal `finish-response` — stage 4's member now ends a request ordinarily on both hosts.**
-`crates/nvs-host/src/isolate.rs:905` asks `nvs_runtime::is_finish` off `Ctx::pending_class` before
-anything is taken, takes the marker into a binding of its own so every gate below still reads
-`thrown` to mean *this isolate failed*, and hands it to the exit-queue seam
-(`crates/nvs-host/src/isolate.rs:973`) so the report names `Finish`.
+**Goal `finish-response` — stage 2 is green.** Both its checks are pinned in
+`crates/nvs-host/tests/deferred.rs`: the exit queue runs before the request's after-response work,
+runs after the ladder's tier-2 handler has reported an uncaught throw, and runs once per request that
+registered — a second request on one connection drains nothing, which is the seam being the request's
+and not the host's.
 
-**The marker's name and `is_finish` moved to `nvs-runtime`** (`crates/nvs-runtime/src/throwable.rs`,
-beside the slot constants it is restated for the same reason as). `nvs-host` cannot name
-`nvs-stdlib` — that crate depends on `nvs-host` — and `nvs_stdlib::script` now re-exports both, so
-`nvs-cli` and `nvs_types`'s pinning test are unchanged.
+**The two endings that run no hook are guarded apart, because the host owns only one of them.** A
+cancellation is the host's: `finish`'s `if !cancelled` (`crates/nvs-host/src/isolate.rs:968`) means
+the seam is never reached, and the case's log carries the request's own entry so an isolate that never
+started cannot pass it. A `FATAL` is not: the host hands `Err(FATAL)` over and
+`nvs_stdlib::script::run_exit_hooks` returns from it with no report, so that case asserts the ending
+handed over. `Ctx::drain_exit_hooks` (`crates/nvs-runtime/src/ctx/wiring.rs:318`) is the home of why
+the host decides neither.
 
-**A pre-existing defect fell out of the control case and is fixed.** The deferred gate read
-`Completion::ok` alone, and an `exit` is not a failure, so an exited request was running its
-after-response work against `rule:concurrency/after-response-outlives-the-connection`. Both gates
-(`crates/nvs-host/src/isolate.rs:824` and `:890`) now read `Ctx::ending` beside the flag.
+**`raise_the_finish_marker` is now a wrapper** over `raise_an_instance_of(ctx, class)`
+(`crates/nvs-host/tests/deferred.rs:230`), so a case needing a plain `Throwable` raises one through
+the table the marker already needed rather than a second copy of it.
 
-**Refusing the member inside an exit hook landed** in `Ctx::abandon_exit_hook`
-(`crates/nvs-runtime/src/ctx/hooks.rs`), beside the `EXITED` arm and with its reasoning.
-
-Stage 4's `-p nvs-host` check is green (4 of 4). Its `-p nvs-stdlib` check is 2 of 3 —
-`finish_in_a_task_child_ends_that_child_and_not_the_request` is unwritten. Stage 2's own checks
-are still entirely unwritten, and they are the earliest red stage.
+**Stage 4 still owes the two artefacts below.** Which stage is earliest-red is the driver's
+acceptance check to say — stage 3's own checks were not looked at this session.
 
 ## Next group
 
-**Stage 2: the queue on the served path** — one file set: `crates/nvs-host/tests/deferred.rs`, whose
-helpers this session extended (`raise_the_finish_marker`, `records_the_ending`, `DRAINED`,
-`closure_of`) and which is where all five of stage 2's tests belong.
+**Stage 4: the member, closing** — the two artefacts stage 4's checks still name, each in its own
+file, both against behaviour that is already landed.
 
-- [ ] **Pin that a served request's exit hooks run, in the rule's order, on the host that serves it.**
-      Three tests — `a_served_requests_exit_hooks_run_before_its_after_response_work`,
-      `a_served_requests_exit_hooks_run_after_the_ladder_has_reported_a_throw`,
-      `a_served_request_that_registered_no_hook_pays_no_drain` — against the drain call at
-      `crates/nvs-host/src/isolate.rs:973`, which already runs before both callers' deferred work.
-      `records_the_ending` at `crates/nvs-host/tests/deferred.rs:162` is the seam stand-in; the
-      ordering half needs a static that both it and a deferred closure append to.
-      `rule:observability/three-endings-fire-the-exit-queue`.
-- [ ] **Pin the two endings that run no hook on the served path.**
-      `a_fatal_on_the_served_path_runs_no_exit_hook` and `a_cancelled_request_runs_no_exit_hook`,
-      against the `if !cancelled` guard at `crates/nvs-host/src/isolate.rs:968` — a cancellation is
-      refused there and a `FATAL` at the seam itself, so the two fail apart and the cases must too.
-      `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`.
-- [ ] **Write stage 4's last `-p nvs-stdlib` case**,
-      `finish_in_a_task_child_ends_that_child_and_not_the_request`, beside
-      `crates/nvs-stdlib/src/script.rs:1395`'s `finish_marker` helper. Different file set, so take it
-      only if the two above left room. What a finish inside a `Core\Task` child *means* is not
-      settled by any rule this pack printed — read `docs/agent/loop-goal.md`'s stage 4 prose before
-      writing it. `rule:observability/three-endings-fire-the-exit-queue`.
+- [ ] **Write `finish_in_a_task_child_ends_that_child_and_not_the_request`**, the last of stage 4's
+      `-p nvs-stdlib` check, beside its two siblings at `crates/nvs-stdlib/src/script.rs:1342`. The
+      claim is that `Core\Script::finish()` inside a `Core\Task` child ends *that child* ordinarily
+      and leaves the request running — the marker is a throw and reaches the child's own root, so
+      what to assert is the child's completion and the request still producing its answer after it.
+      `rule:observability/three-endings-fire-the-exit-queue` and
+      `rule:concurrency/after-response-outlives-the-connection`.
+- [ ] **Write `tests/conformance/reject/a-catch-arm-naming-the-finish-marker-is-refused.nvst`**, the
+      one case in stage 4's `nvs-suite` check with no file on disk
+      (`docs/agent/loop-goal.toml:8643`). Its runtime twin
+      `tests/conformance/core/finish-is-caught-by-no-catch-arm.nvst:1` is the shape to follow, and
+      the refusal it pins is the compile-time one stage 3 decided.
 
 ## Backlog
 
-- `rule:observability/a-hook-observes-and-never-steers` names only `exit` as refused inside a hook;
-  the finish refusal that landed needs its sentence — stage 5's rulebook work, `docs/rules/`.
-- `rule:concurrency/after-response-outlives-the-connection` says a finished request runs its deferred
-  work only by implication; stage 5 should say the fourth ending by name.
-- `Ctx::set_pending` releasing nothing it displaces is a sharp edge with one caller now depending on
-  the workaround — `crates/nvs-runtime/src/ctx/error.rs:209`, playbook bullet filed.
+- Stage 5 is untouched: the rulebook fragments, the spec rows and the sweep for documents that still
+  say three endings — `docs/agent/loop-goal.toml` stage 5 lists them.
+- `[context] modules` did not name `crates/nvs-runtime/src/ctx/safepoint.rs` (`Ctx::cancel`),
+  `crates/nvs-runtime/src/closure.rs` (the arity trim a stand-in closure relies on) or
+  `crates/nvs-host/src/ladder.rs`; each cost a peek, and the driver's sweep will not add them since
+  no commit here touches them.
+- Carried gaps and the goal's own record are `docs/agent/carried-gaps.md`'s and the goal's.
