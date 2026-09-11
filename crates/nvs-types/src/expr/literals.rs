@@ -478,6 +478,55 @@ pub(crate) fn infer_interpolated(
     qualified_scalar(false, tainted, secret, env.interner)
 }
 
+/// ``html`<span>{$name}</span>` `` — [`super::infer`]'s `ExprKind::Markup` arm.
+///
+/// The type is `Core\Html\Markup` whatever the body holds, because the node is
+/// what says so (`rule:core-classes/html-literal`): a hole-free literal is
+/// still a carrier, not the `string` a quoted literal of the same text would
+/// be.
+///
+/// A hole is escaped through `Core\Html::escape` and spliced, so the three
+/// questions asked of it are not an interpolation's three. A hole already
+/// holding a `Markup` is spliced raw — that is `Markup + Markup` written in
+/// interpolation syntax, so [`super::operators::reject_carrier_as_text`]'s
+/// refusal deliberately does *not* run here. A `tainted` hole is admitted and
+/// does not spread, because escaping neutralises injection structurally and
+/// the sink never distinguishes the two
+/// (`rule:core-classes/html-auto-escape`). A `secret` hole is refused where it
+/// is written, because escaping does nothing for confidentiality
+/// (`rule:security/secret-sinks-refuse`).
+pub(crate) fn infer_markup_literal(
+    parts: &[StringPart],
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    for part in parts {
+        match part {
+            StringPart::Expr(e) => {
+                let ty = check_expr(e, None, live, scope, ctx, env);
+                reject_secret_output(ty, e.span, "html`…`", env);
+                if !is_html_markup(ty, env) {
+                    require_stringable(ty, e.span, env);
+                }
+            }
+            // A segment's escapes are the double-quoted grammar's, which is
+            // what the lexer ran over it; the two the literal adds, `` \` ``
+            // and `\{`, cook to themselves and so need no row of their own.
+            StringPart::Text(span) => check_double_quoted_text_issues(*span, env),
+        }
+    }
+    env.interner
+        .class(QName::parse(crate::CORE_HTML_MARKUP_CLASS))
+}
+
+/// Whether `ty` is the HTML carrier itself, which a markup hole splices raw.
+fn is_html_markup(ty: TypeId, env: &Env<'_>) -> bool {
+    matches!(env.interner.get(ty), Ty::Class(qname, _)
+        if qname.to_string() == crate::CORE_HTML_MARKUP_CLASS)
+}
+
 /// `rule:types/decimal`'s mantissa bound: 96 bits, unsigned, with the sign carried
 /// beside it rather than in it.
 const MAX_DECIMAL_MANTISSA: u128 = (1u128 << 96) - 1;

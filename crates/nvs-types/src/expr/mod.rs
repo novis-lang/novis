@@ -256,6 +256,7 @@ pub(crate) fn infer(
             .class(QName::parse(nvs_stdlib::time::DURATION_NAME)),
         ExprKind::Str(span) => infer_str_literal(*span, expected, env),
         ExprKind::Interpolated(parts) => infer_interpolated(expr, parts, live, scope, ctx, env),
+        ExprKind::Markup(parts) => infer_markup_literal(parts, live, scope, ctx, env),
         ExprKind::Variable(span) => {
             let name = strip_sigil(span_text(env.src, *span)).to_owned();
             let ty = check_read(&name, expr.span, live, scope, env);
