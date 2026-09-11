@@ -90,6 +90,7 @@ use nvs_host::{
     spawn_child, suspend_current,
 };
 use nvs_runtime::host::Woken;
+use nvs_runtime::stream;
 use nvs_runtime::{Ctx, Drain, OutputSink, TaskRoot};
 
 use crate::ConnectionIo;
@@ -100,44 +101,74 @@ use crate::forwarded::{Arrival, Origin, Trusted};
 use crate::io::Phase;
 use crate::secure::{Scheme, Secure};
 
-/// A response body this server already holds in full, sent as one frame.
+/// A response body: one this server already holds in full, or one an isolate
+/// writes over time.
 ///
-/// A type of ours rather than `http-body-util`'s `Full`, and that is a
-/// dependency not taken rather than a wheel reinvented: what a Novis response
-/// carries is the output an isolate produced
-/// (`rule:tooling/echo-always-has-a-sink`
-/// 's table binds `echo` to the response body), which is a buffer the runtime
-/// hands over whole. A crate whose job is to adapt streams would be carried for
-/// the one case that never streams.
+/// A type of ours rather than `http-body-util`'s `Full` and its streaming
+/// siblings, and that is a dependency not taken rather than a wheel reinvented.
+/// Both shapes are decided before they reach here: a whole body is the output
+/// an isolate produced (`rule:tooling/echo-always-has-a-sink`
+/// 's table binds `echo` to the response body), a buffer the runtime hands over
+/// whole; a streamed one is [`nvs_runtime::stream::Drain`], whose wake pair and
+/// one-chunk-in-flight bound are that module's and not a generic stream's. What
+/// an adapter crate would want is a `futures` `Stream` to adapt *from*, which
+/// neither arm is.
 ///
-/// The exact [`Body::size_hint`] is what makes `hyper` send a `Content-Length`
-/// rather than chunk a body whose length is already known.
+/// The two arms differ on the wire in exactly one place, and it is
+/// [`Body::size_hint`]. A whole body reports its exact length, which is what
+/// makes `hyper` send a `Content-Length`; a stream reports no exact size, which
+/// is what makes `hyper` chunk it.
 #[derive(Debug)]
-pub struct Answer(Option<Bytes>);
+pub enum Answer {
+    /// The bytes are already here, and go out as one frame.
+    Whole(Option<Bytes>),
+    /// The bytes arrive while the response is being sent —
+    /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+    /// two spellings, which differ in whose isolate holds the writing half and
+    /// not in what this end does with it.
+    Streaming(stream::Drain),
+}
 
 impl Answer {
     /// The body a caller already has the bytes of.
     #[must_use]
     pub fn new(bytes: impl Into<Bytes>) -> Self {
-        Self(Some(bytes.into()))
+        Self::Whole(Some(bytes.into()))
     }
 
     /// No body at all — a `204`, a `304`, or the answer to a `HEAD`.
     #[must_use]
     pub fn empty() -> Self {
-        Self(None)
+        Self::Whole(None)
     }
 
-    /// The bytes this body carries, empty where it carries none.
+    /// A body an isolate writes over time, and the writing half to hand it.
     ///
-    /// A Novis response body is one buffer this crate already holds whole, so
-    /// reading it needs no poll and no `Context`. That is what makes
-    /// [`crate::statics`]'s cases assertions about *bytes* — the one range that
-    /// was asked for, and the empty body of a `304` — rather than about a status
-    /// and a header pair that happen to look right.
+    /// The send timeout comes from the connection's own bounds and is read
+    /// here, which is the only place it is read: a cell that chose its own
+    /// would be a second bound beside
+    /// `rule:concurrency/connection-bounds-are-finite`'s table, invisible to
+    /// the operator reading that one.
+    #[must_use]
+    pub fn stream(bounds: &crate::bounds::Connection) -> (stream::Emit, Self) {
+        let (emit, drain) = stream::open(bounds.send);
+        (emit, Self::Streaming(drain))
+    }
+
+    /// The bytes a whole body carries, empty where it carries none and empty
+    /// for a stream, whose bytes no caller here holds.
+    ///
+    /// A whole response body is one buffer this crate already has, so reading it
+    /// needs no poll and no `Context`. That is what makes [`crate::statics`]'s
+    /// cases assertions about *bytes* — the one range that was asked for, and
+    /// the empty body of a `304` — rather than about a status and a header pair
+    /// that happen to look right.
     #[must_use]
     pub fn bytes(&self) -> &[u8] {
-        self.0.as_deref().unwrap_or_default()
+        match self {
+            Self::Whole(bytes) => bytes.as_deref().unwrap_or_default(),
+            Self::Streaming(_) => &[],
+        }
     }
 }
 
@@ -145,24 +176,47 @@ impl Body for Answer {
     type Data = Bytes;
     type Error = Infallible;
 
-    /// The one frame, then the end of the stream.
+    /// A whole body's one frame, then the end of the stream — or, for a stream,
+    /// whatever chunk the writing isolate has put in the cell, and
+    /// [`Poll::Pending`] with this poll's waker left where the writer will fire
+    /// it.
     fn poll_frame(
         mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
-        Poll::Ready(self.0.take().map(|bytes| Ok(Frame::data(bytes))))
+        match &mut *self {
+            Self::Whole(bytes) => Poll::Ready(bytes.take().map(|bytes| Ok(Frame::data(bytes)))),
+            Self::Streaming(drain) => match drain.next_chunk(cx.waker()) {
+                stream::Drained::Chunk(chunk) => {
+                    Poll::Ready(Some(Ok(Frame::data(Bytes::from(chunk)))))
+                }
+                stream::Drained::Pending => Poll::Pending,
+                stream::Drained::Ended => Poll::Ready(None),
+            },
+        }
     }
 
     fn is_end_stream(&self) -> bool {
-        self.0.is_none()
+        match self {
+            Self::Whole(bytes) => bytes.is_none(),
+            // Whether a stream is over is the cell's answer and it is given by
+            // taking from it, so the honest answer before a poll is "no".
+            Self::Streaming(_) => false,
+        }
     }
 
     fn size_hint(&self) -> SizeHint {
-        let len = self.0.as_ref().map_or(0, Bytes::len);
-        // Widening on every target this builds for; the fallible spelling is
-        // here because the lint policy has no exception for a cast that happens
-        // to be safe.
-        SizeHint::with_exact(u64::try_from(len).unwrap_or(u64::MAX))
+        match self {
+            Self::Whole(bytes) => {
+                let len = bytes.as_ref().map_or(0, Bytes::len);
+                // Widening on every target this builds for; the fallible
+                // spelling is here because the lint policy has no exception for
+                // a cast that happens to be safe.
+                SizeHint::with_exact(u64::try_from(len).unwrap_or(u64::MAX))
+            }
+            // No exact size, which is what leaves `hyper` chunking it.
+            Self::Streaming(_) => SizeHint::default(),
+        }
     }
 }
 
@@ -7386,6 +7440,173 @@ mod tests {
             wait, LONGEST_WAIT,
             "one core's accepted connection ended another core's episode, so a shortage would be \
              retried at full speed on the core still inside it"
+        );
+    }
+
+    /// A bound listener and a client that asks for `path` once and reads until
+    /// the server closes, which `Connection: close` is what makes it do.
+    fn one_get(path: &str) -> (NvsListener, std::thread::JoinHandle<String>) {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let asked = format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(asked.as_bytes())
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+        (listener, client)
+    }
+
+    /// Answers one request with `body` and gives back what the client read.
+    ///
+    /// The body is built by the caller on **this** thread, because neither half
+    /// of a stream's cell is `Send` and the accept loop runs on this thread
+    /// too — the client is the only thread here, and it holds a socket.
+    fn answered_with(path: &str, body: Answer) -> String {
+        let (listener, client) = one_get(path);
+        let held = RefCell::new(Some(body));
+        let handler = Rc::new(move |_request: Request<Incoming>, _origin: Origin| {
+            Reply::Done(Response::new(
+                held.borrow_mut()
+                    .take()
+                    .expect("the case sends one request"),
+            ))
+        });
+        served_by(listener, &handler, client)
+    }
+
+    /// The whole arm, unchanged by the streaming one existing: an exact
+    /// [`Body::size_hint`] is what makes `hyper` frame a response with a
+    /// `Content-Length`.
+    #[test]
+    fn a_whole_body_reports_an_exact_size_and_is_sent_with_content_length() {
+        let body = Answer::new(Bytes::from_static(b"twelve bytes"));
+        assert_eq!(
+            body.size_hint().exact(),
+            Some(12),
+            "a body this server holds whole did not report the length it knows"
+        );
+
+        let answer = answered_with("/whole", body).to_ascii_lowercase();
+        assert!(
+            answer.contains("content-length: 12"),
+            "an answer whose length was known was not sent with one: {answer}"
+        );
+        assert!(
+            !answer.contains("transfer-encoding"),
+            "a body of known length was chunked: {answer}"
+        );
+        assert!(
+            answer.ends_with("twelve bytes"),
+            "the response did not carry the body: {answer}"
+        );
+    }
+
+    /// The streaming arm, against the same client: no exact size, so `hyper`
+    /// chunks it, and the chunk framing is the proof rather than the header
+    /// alone.
+    ///
+    /// The writer here finishes before the response is answered, which is a
+    /// stream with nothing to wait for — the parking half is
+    /// [`nvs_runtime::stream`]'s own to prove, and what this case is about is
+    /// the framing a body with no length gets.
+    #[test]
+    fn a_streaming_body_reports_no_exact_size_and_is_chunked() {
+        let (mut emit, body) = Answer::stream(&crate::bounds::Connection::default());
+        emit.send(b"over time".to_vec()).expect("the cell is empty");
+        drop(emit);
+        assert_eq!(
+            body.size_hint().exact(),
+            None,
+            "a body still being written reported a length nobody knows yet"
+        );
+
+        let answer = answered_with("/stream", body);
+        assert!(
+            answer
+                .to_ascii_lowercase()
+                .contains("transfer-encoding: chunked"),
+            "a body of unknown length was not chunked: {answer}"
+        );
+        assert!(
+            !answer.to_ascii_lowercase().contains("content-length"),
+            "a body of unknown length was sent with a length: {answer}"
+        );
+        assert!(
+            answer.ends_with("9\r\nover time\r\n0\r\n\r\n"),
+            "the chunk the writer sent was not framed as one: {answer}"
+        );
+    }
+
+    /// [`crate::statics`]'s cases are assertions about this method, so the arm
+    /// it reads has to stay the one it always read. A stream answers empty
+    /// rather than a chunk in flight: the bytes are the connection's to frame
+    /// once, and a reader here would take them out of the response.
+    #[test]
+    fn answer_bytes_still_answers_the_whole_variants_buffer() {
+        assert_eq!(
+            Answer::new(Bytes::from_static(b"held whole")).bytes(),
+            b"held whole"
+        );
+        assert!(
+            Answer::empty().bytes().is_empty(),
+            "a body with nothing in it answered bytes"
+        );
+
+        let (mut emit, streaming) = Answer::stream(&crate::bounds::Connection::default());
+        emit.send(b"in flight".to_vec()).expect("the cell is empty");
+        assert!(
+            streaming.bytes().is_empty(),
+            "a streaming body answered bytes only the connection may take"
+        );
+    }
+
+    /// `rule:concurrency/connection-bounds-are-finite`'s send bound, on the
+    /// body direction: a peer that has stopped reading is a bound met and a
+    /// defined close, not a writer parked for as long as the client cares to
+    /// leave it.
+    ///
+    /// The [`Answer`] here is the stalled reader — it holds the draining half
+    /// and nothing ever polls it — and the writer runs as a real task, so the
+    /// wait is the scheduler's own park against the deadline this connection's
+    /// bounds set.
+    #[test]
+    fn a_stalled_reader_closes_the_stream_at_the_send_timeout_and_reports_as_that() {
+        let bounds = crate::bounds::Connection {
+            send: Duration::from_millis(5),
+            ..crate::bounds::Connection::default()
+        };
+        let reported = Rc::new(RefCell::new(None));
+        let told = Rc::clone(&reported);
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let (mut emit, stalled) = Answer::stream(&bounds);
+            emit.send(b"first".to_vec()).expect("the cell is empty");
+            *told.borrow_mut() = Some(
+                emit.send(b"second".to_vec())
+                    .expect_err("nothing has taken the first chunk"),
+            );
+            drop(stalled);
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        assert_eq!(
+            reported.borrow().as_deref(),
+            Some(nvs_runtime::stream::SEND_TIMED_OUT),
+            "a write nothing was reading did not end as the bound it met"
         );
     }
 }
