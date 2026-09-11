@@ -1385,6 +1385,83 @@ mod tests {
         release(good);
     }
 
+    /// `Core\Script::finish()` inside a `Core\Task` child ends **that child's
+    /// frame**, and the request goes on to its own ending —
+    /// `rule:concurrency/after-response-outlives-the-connection`, whose
+    /// trigger is the request task's own frame returning and never a child's.
+    ///
+    /// Both halves are the test, and each passes the other's failure. The
+    /// marker is an ordinary throw, so it lands on the pending slot of the
+    /// context the raise ran against and reaches *that* frame's root; nothing
+    /// carries it across, so the request's queue is still undrained and the
+    /// report it eventually gets names the ending the request itself reached.
+    /// A child is sealed besides ([`mod@nvs_runtime::deferred`]'s *only the
+    /// request's own task may register*), and the two belong together: a child
+    /// able to end the request would be ending a response it may not write —
+    /// `rule:concurrency/deferred-work-cannot-write-the-response`.
+    #[test]
+    fn finish_in_a_task_child_ends_that_child_and_not_the_request() {
+        let mut ctx = Ctx::buffered();
+        let marker = finish_marker(&mut ctx);
+        let hook = register(&mut ctx, 1, records_first);
+
+        SEEN.with(|seen| seen.borrow_mut().clear());
+
+        #[expect(
+            unsafe_code,
+            reason = "the child is dropped inside this frame, so the parent \
+                      outlives it as `Ctx::child` requires"
+        )]
+        // The child a `Core\Task` body runs on.
+        let mut child = unsafe { ctx.child() };
+        assert_eq!(
+            // The seal is read before the queue is touched, so a null stands
+            // in for the closure a registration would have carried.
+            child.defer(Value::null(), 0),
+            Err(nvs_runtime::deferred::DeferError::Sealed),
+            "a child may not register after-response work, which is the work a \
+             finish brings the end of the request forward to"
+        );
+        assert_eq!(
+            child.exit_hook_count(),
+            0,
+            "and the exit queue is the request's: a child holds none of it"
+        );
+
+        // The raise the lowering of `Core\Script::finish()` emits, on the
+        // context the child's frame is running against.
+        child.raise(marker);
+        assert!(
+            child
+                .pending_class()
+                .is_some_and(|class| super::is_finish(&class)),
+            "the marker is what the child's own root receives, and the ending \
+             it reads there is the same one a request root reads"
+        );
+        drop(child);
+
+        assert!(
+            ctx.take_thrown().is_none(),
+            "the marker is the child's ending and never crosses into the \
+             request, which is what would make a finish anywhere in the tree \
+             the request's own"
+        );
+        assert!(
+            !ctx.exit_hooks_drained(),
+            "the queue is the request's, and a child ending spends none of its \
+             one drain"
+        );
+
+        super::run_exit_hooks(&mut ctx, Ok(()), None);
+        assert_eq!(
+            SEEN.with(|seen| (seen.borrow()[0].reason, seen.borrow()[0].status)),
+            (super::NORMAL, 0),
+            "the request reached its own ending afterwards, and that is the \
+             one the report names"
+        );
+        release(hook);
+    }
+
     /// The marker `Core\Script::finish()` raises, as the object that reaches a
     /// root — built here because no compiler is in front of these cases.
     ///
