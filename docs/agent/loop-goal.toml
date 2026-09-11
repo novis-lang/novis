@@ -127,6 +127,8 @@ modules = [
   "crates/nvs-syntax/src/lexer.rs",
   # The chapter stage 6 extends, and its § *What it does not do* this goal shortens.
   "docs/reference/tools/40-editor.md",
+  # `nvs check --json` — every diagnostic the text renderer prints, as one document.
+  "crates/nvs-cli/src/check.rs",
 ]
 
 # The rules this goal implements. Every one of them is already landed; none is amended here.
