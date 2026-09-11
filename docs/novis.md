@@ -4713,6 +4713,7 @@ class, not an interface: a user class extends it directly. The tree is fixed and
 | `Core\Cli\NotInteractive` | `RuntimeError` | — |
 | `Core\Db\DbError` | `RuntimeError` | `$kind`, `$sqlState`, `$driverCode`, `$constraint`, `$sql` |
 | `Core\Db\RolledBack` | `RuntimeError` | `$reason` |
+| `Core\Script\Finished` | — (the root) | — |
 
 - PHP's `Exception` and `Error` do not exist. `class E extends Exception`, `catch (Exception $e)`
   and `new Exception("…")` are each refused as an undeclared name; write `Throwable`,
