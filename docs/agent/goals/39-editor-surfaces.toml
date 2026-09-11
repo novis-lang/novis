@@ -153,7 +153,6 @@ milestones = ["M10"]
 
 playbook = [
   # This goal's own file set.
-  "Tooling > editors/vscode/package.json's contributes",
   'Tooling > tools/verify.py runs',
   'Tooling > a textmate',
   'Writing a test case > a -p nvs-cli test',
