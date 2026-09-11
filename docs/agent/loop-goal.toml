@@ -125,6 +125,14 @@ modules = [
   # `E_UNTERMINATED` is `E0002` (:69). Read this to confirm stage 2 needs no new code, not to allocate
   # one -- ADR 0169 § Diagnostics is why.
   "crates/nvs-diagnostics/src/lib.rs",
+  # The declaration checks that need only the AST: identifier casing
+  # (`rule:core-api/identifier-casing`, tightened by
+  # `rule:classes/no-leading-underscore-identifiers`) and the visibility
+  # `rule:core-api/written-visibility` requires at every member declaration.
+  "crates/nvs-syntax/src/casing.rs",
+  # The parse tree as a walkable shape: one entry per node, its production's name and the nodes it
+  # contains — what `rule:core-classes/ast-is-inert`'s `Core\Ast::parse` hands a running program.
+  "crates/nvs-syntax/src/walk.rs",
 ]
 
 # The two every stage works inside: the rule this goal ships, and the sink it is written against.
