@@ -275,6 +275,7 @@ pub(crate) fn answer(case: &Case) -> Result<Answered, String> {
         Request::DocumentHighlight => {
             document_highlight(&analysed, &documents, &files, &entry, at(case))
         }
+        Request::InlayHint => inlay_hints(&analysed),
         Request::Redactions => redactions(&analysed),
     };
     let covered = coverage::of(&analysed, cursor(case), &response, COLUMNS);
@@ -551,6 +552,17 @@ fn code_action(analysed: &Analysed, offset: BytePos) -> Response {
 /// [`crate::redactions::for_document`] call the server makes answers it.
 fn redactions(analysed: &Analysed) -> Response {
     Response::Redactions(crate::redactions::for_document(analysed, COLUMNS))
+}
+
+/// `textDocument/inlayHint` — what the type phase recorded at the two places
+/// the entry document left unwritten.
+///
+/// No cursor and no arguments, on [`folding_range`]'s terms, and the same
+/// [`crate::hints::for_document`] call the server makes. Every hint the
+/// document carries: the server filters that answer down to the range a client
+/// asked about, and a viewport is not a thing a case's sections can write.
+fn inlay_hints(analysed: &Analysed) -> Response {
+    Response::Hints(crate::hints::for_document(analysed, COLUMNS))
 }
 
 /// `textDocument/codeLens` — what the index counts above every declaration the

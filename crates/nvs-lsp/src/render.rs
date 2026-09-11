@@ -33,7 +33,7 @@ use std::fmt;
 
 use lsp_types::{
     CodeLens, CompletionItem, Diagnostic, DocumentSymbol, FoldingRange, Hover, HoverContents,
-    MarkedString, Position, Range, SelectionRange, SemanticToken,
+    InlayHint, InlayHintLabel, MarkedString, Position, Range, SelectionRange, SemanticToken,
 };
 
 use crate::case::Request;
@@ -179,6 +179,13 @@ pub enum Response {
     /// no end anywhere else here — it is the name's own length, which the
     /// document already shows.
     DocumentHighlight(Vec<Place>),
+    /// `textDocument/inlayHint`, as the walk produced it over the whole
+    /// document.
+    ///
+    /// Every hint the document carries and not the ones a client can see: the
+    /// range an editor asks about is narrowed in `crate::server`, and a case
+    /// writes a document and a question rather than a viewport.
+    Hints(Vec<InlayHint>),
     /// `nvs/redactions`.
     Redactions(Vec<Redaction>),
 }
@@ -201,6 +208,7 @@ impl Response {
             Self::CodeLens(_) => Request::CodeLens,
             Self::References(_) => Request::References,
             Self::DocumentHighlight(_) => Request::DocumentHighlight,
+            Self::Hints(_) => Request::InlayHint,
             Self::Redactions(_) => Request::Redactions,
         }
     }
@@ -226,6 +234,7 @@ impl Response {
             Self::CodeLens(items) => lines(sorted(items.iter().map(lens))),
             Self::References(items) => lines(sorted(items.iter().map(reference))),
             Self::DocumentHighlight(items) => lines(sorted(items.iter().map(reference))),
+            Self::Hints(items) => lines(sorted(items.iter().map(hint))),
             Self::Redactions(items) => lines(items.iter().map(redaction).collect()),
         }
     }
@@ -501,6 +510,24 @@ fn redaction(item: &Redaction) -> String {
     format!("{} {}", range(item.range), item.kind)
 }
 
+/// `L:C kind label`, keyed by where the hint is drawn.
+///
+/// The padding either side of a hint is not rendered: it is the gap an editor
+/// leaves between the hint and the code beside it, which is a drawing question
+/// the client answers. What a case freezes is where a hint sits, what it says
+/// and which kind it is, which is the whole of what this server decided.
+fn hint(item: &InlayHint) -> ((u32, u32), String) {
+    let kind = or_absent(item.kind.as_ref(), spelled);
+    let label = match &item.label {
+        InlayHintLabel::String(text) => text.clone(),
+        InlayHintLabel::LabelParts(parts) => parts.iter().map(|part| part.value.as_str()).collect(),
+    };
+    (
+        (item.position.line, item.position.character),
+        format!("{} {kind} {label}", position(item.position)),
+    )
+}
+
 /// `L:C title`, keyed by the bytes the lens is anchored to.
 ///
 /// Where those bytes start and not how far they run: they are the
@@ -562,8 +589,8 @@ impl AsStr for lsp_types::SemanticTokenModifier {
 #[cfg(test)]
 mod tests {
     use lsp_types::{
-        CompletionItemKind, DiagnosticSeverity, FoldingRangeKind, MarkupContent, MarkupKind,
-        NumberOrString, SemanticTokenType, SymbolKind,
+        CompletionItemKind, DiagnosticSeverity, FoldingRangeKind, InlayHintKind, MarkupContent,
+        MarkupKind, NumberOrString, SemanticTokenType, SymbolKind,
     };
 
     use super::*;
@@ -703,11 +730,29 @@ mod tests {
                     position: at(1, 6),
                 },
             ]),
+            Response::Hints(vec![
+                hinted(at(1, 10), ": int", InlayHintKind::TYPE),
+                hinted(at(2, 15), "count:", InlayHintKind::PARAMETER),
+            ]),
             Response::Redactions(vec![Redaction {
                 range: span(3, 18, 30),
                 kind: "secretLiteral".to_owned(),
             }]),
         ]
+    }
+
+    /// One hint, with every field a case cannot see left unset.
+    fn hinted(position: Position, label: &str, kind: InlayHintKind) -> InlayHint {
+        InlayHint {
+            position,
+            label: InlayHintLabel::String(label.to_owned()),
+            kind: Some(kind),
+            text_edits: None,
+            tooltip: None,
+            padding_left: None,
+            padding_right: Some(true),
+            data: None,
+        }
     }
 
     /// Every answer with nothing in it, one per request, in the same order.
@@ -726,6 +771,7 @@ mod tests {
             Response::CodeLens(Vec::new()),
             Response::References(Vec::new()),
             Response::DocumentHighlight(Vec::new()),
+            Response::Hints(Vec::new()),
             Response::Redactions(Vec::new()),
         ]
     }
@@ -857,6 +903,18 @@ mod tests {
             ])
             .render(),
             "case.nvs:2:7\ncase.nvs:7:14\n"
+        );
+
+        // A hint says where it is drawn, which kind it is and the text itself,
+        // and the padding an editor draws around it is not part of that — a
+        // case that could freeze a space would be freezing the client.
+        assert_eq!(
+            Response::Hints(vec![
+                hinted(at(3, 12), "left:", InlayHintKind::PARAMETER),
+                hinted(at(1, 10), ": int", InlayHintKind::TYPE),
+            ])
+            .render(),
+            "2:11 type : int\n4:13 parameter left:\n"
         );
 
         // Two actions at one cursor sort by where they edit, and a deletion is

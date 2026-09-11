@@ -48,9 +48,11 @@ const TAKES_A_PATH: &str = "FILE";
 ///
 /// The roster is `rule:ide/the-request-set-is-closed`'s, plus the requests
 /// `rule:ide/five-features-are-one-reference-index` answers off the workspace
-/// index, and it is closed here for the same reason it is closed there: a case
-/// that could name a request no runner implements is a case that passes by
-/// being skipped. Each is spelled as LSP's own method name with the
+/// index and the inlay hints
+/// `rule:ide/every-feature-is-staged-behind-its-dependency` stages behind the
+/// type phase, and it is closed here for the same reason it is closed there: a
+/// case that could name a request no runner implements is a case that passes
+/// by being skipped. Each is spelled as LSP's own method name with the
 /// `textDocument/` prefix dropped, and `nvs/redactions` — the one request of
 /// Novis's own — as `redactions`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +85,10 @@ pub enum Request {
     /// `textDocument/documentHighlight`, which is [`Self::References`]'s query
     /// narrowed to the file the cursor is in.
     DocumentHighlight,
+    /// `textDocument/inlayHint`, asked of the whole document: an editor asks it
+    /// over the region it can show, and the narrowing to that region is
+    /// `crate::server`'s rather than the answer's own shape.
+    InlayHint,
     /// `nvs/redactions`.
     Redactions,
 }
@@ -103,6 +109,7 @@ impl Request {
         Self::CodeLens,
         Self::References,
         Self::DocumentHighlight,
+        Self::InlayHint,
         Self::Redactions,
     ];
 
@@ -123,6 +130,7 @@ impl Request {
             Self::CodeLens => "codeLens",
             Self::References => "references",
             Self::DocumentHighlight => "documentHighlight",
+            Self::InlayHint => "inlayHint",
             Self::Redactions => "redactions",
         }
     }

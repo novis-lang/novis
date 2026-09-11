@@ -173,6 +173,7 @@ fn named(response: &Response) -> Vec<Position> {
         Response::DocumentLink(items) => items.iter().map(|item| item.range.start).collect(),
         Response::CodeAction(items) => items.iter().map(|item| item.range.start).collect(),
         Response::CodeLens(items) => items.iter().map(|item| item.range.start).collect(),
+        Response::Hints(items) => items.iter().map(|item| item.position).collect(),
         Response::Redactions(items) => items.iter().map(|item| item.range.start).collect(),
     }
 }
