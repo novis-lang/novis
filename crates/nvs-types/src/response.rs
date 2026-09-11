@@ -56,16 +56,25 @@ use nvs_syntax::ast::MethodMember;
 
 use crate::{Ctx, Env};
 
-/// `rule:security/response-body-is-one-typed-member`'s five body members, by the name a call spells.
+/// Every `Core\Response` member that writes the body, by the name a call
+/// spells.
 ///
-/// The table's rows, in its order. `html` and `sendFile` are not in
-/// `nvs_stdlib::registry` yet — the first waits on `Core\Html\Markup` being
-/// spellable as a registry parameter and the second on a mount root to resolve
-/// a path against — and they are listed anyway: a name that does not resolve is
-/// `E0405` before it reaches here, so an unregistered row costs nothing, and
-/// leaving it out would make landing the member a two-file change with the
-/// second file easy to miss.
-const BODY_MEMBERS: [&str; 5] = ["html", "json", "text", "bytes", "sendFile"];
+/// `rule:security/response-body-is-one-typed-member`'s table first, in its own
+/// order. `html` and `sendFile` are not in `nvs_stdlib::registry` yet — the
+/// first waits on `Core\Html\Markup` being spellable as a registry parameter
+/// and the second on a mount root to resolve a path against — and they are
+/// listed anyway: a name that does not resolve is `E0405` before it reaches
+/// here, so an unregistered row costs nothing, and leaving it out would make
+/// landing the member a two-file change with the second file easy to miss.
+///
+/// `stream` is last and is not one of that table's rows: a body written over
+/// time is `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
+/// subject. It belongs here all the same, and for this rule's own reason — it
+/// writes the body and declares a content type, so `echo` beside it is the
+/// same disagreement about what the response carries, reached through the
+/// machinery already here rather than through a second rule that would have to
+/// agree with this one.
+const BODY_MEMBERS: [&str; 6] = ["html", "json", "text", "bytes", "sendFile", "stream"];
 
 /// What has written the body of the body being checked, so far.
 ///

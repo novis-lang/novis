@@ -74,6 +74,47 @@ fn mixing_echo_with_a_typed_body_member_is_a_compile_error() {
     assert!(refused(&diags), "{diags:?}");
 }
 
+/// A body written **over time** is still one body, so `echo` beside the member
+/// that opens one is the same compile error — reached through the roster
+/// already here rather than through a second rule
+/// (`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`).
+///
+/// Asserted in both orders and through the handle as well as the opener,
+/// because the two are what a reader would expect to differ: the disagreement
+/// is about the body the *handler* writes, and a member reached on a value
+/// rather than on the class is the shape this rule had never met before.
+#[test]
+fn echo_beside_a_response_stream_is_a_diagnostic() {
+    // The opener alone is enough: it declares the content type, which is the
+    // half `echo` contradicts.
+    let diags = check_src(&handler(
+        "    echo \"prelude\";\n    var $s = Core\\Response::stream(\"text/csv\");\n",
+    ));
+    assert!(refused(&diags), "{diags:?}");
+
+    // The other order is the same mistake, as it is for every other row.
+    let diags = check_src(&handler(
+        "    var $s = Core\\Response::stream(\"text/csv\");\n    echo \"epilogue\";\n",
+    ));
+    assert!(refused(&diags), "{diags:?}");
+
+    // And a handler that writes chunks through the handle is refused for the
+    // opener it must have called to get one — the write is not a second writer
+    // to report, it is the same body arriving in pieces.
+    let diags = check_src(&handler(
+        "    echo \"prelude\";\n    \
+         var $s = Core\\Response::stream(\"text/csv\");\n    $s->write(\"row\");\n",
+    ));
+    assert!(refused(&diags), "{diags:?}");
+
+    // Outside a handler nothing fires, for the reason every other row leaves a
+    // CLI program alone: there is no response for two writers to disagree over.
+    let diags = check_src(&plain_method(
+        "    echo \"prelude\";\n    var $s = Core\\Response::stream(\"text/csv\");\n",
+    ));
+    assert!(!refused(&diags), "{diags:?}");
+}
+
 #[test]
 fn a_handler_that_writes_its_body_one_way_is_accepted() {
     // `echo` alone is § 4's last bullet — the inline-HTML page, which is the
