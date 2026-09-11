@@ -35,8 +35,15 @@ modules = [
   "crates/nvs-types/src/derive.rs",
   # The `[http.client]` rows the four new keys join. Stages 6 and 7.
   "crates/nvs-config/src/directive.rs",
-  # The TLS session a pooled connection keeps. Stage 7.
+  # The TLS session a pooled connection keeps (stage 7), the roots and key log (stage 9), and the policy
+  # value a relaxed call hands in (stage 10).
   "crates/nvs-host/src/tls.rs",
+  # `HttpClient` (:507) and `CapNet` (:300): `[http.client.tls]` and the six new grants. Stages 9-11.
+  "crates/nvs-config/src/tree.rs",
+  # The precedent a `roots` file is resolved and trust-checked by (:14-21). Stage 9.
+  "crates/nvs-config/src/db.rs",
+  # `pin_host` (:167), which the address and TLS grants are asked beside. Stages 10 and 11.
+  "crates/nvs-runtime/src/capability.rs",
 ]
 
 # Every stage works inside these three: the URL is a sink and the pin survives everything, no wait is
@@ -94,6 +101,8 @@ rules = [
   "core-api/shape-rules",
   "config/three-changeability-classes",
   "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+  "security/one-tls-client",
+  "security/capability-question-is-grant-and-scope",
 ]
 adrs = ["0074", "0058"]
 spec = ["01 §16"]
@@ -132,6 +141,28 @@ rules = ["security/db-pool-reset-is-a-boundary", "http-server/one-deadline-cover
 rules = ["security/secret-sinks-refuse", "observability/an-outbound-call-propagates-traceparent"]
 
 [context.stage.9]
+# The trust roots: a trust-checked file, a System key, and the mode a key log is refused in.
+rules = [
+  "security/one-tls-client",
+  "config/three-changeability-classes",
+  "config/ownership-is-the-trust-boundary",
+]
+
+[context.stage.10]
+# A relaxation is a grant with a scope, asked of the request's snapshot, over the one client.
+rules = ["security/one-tls-client", "security/capability-question-is-grant-and-scope"]
+shapes = ["A `Core` member"]
+
+[context.stage.11]
+# The address a call names is still judged, and a reply's certificate chain is input.
+rules = [
+  "security/net-address-policy",
+  "http-server/allow-url-pins-the-address",
+  "security/tainted-sources",
+]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.12]
 shapes = ["A rule fragment"]
 
 # Every buffer is a `Core` buffer charged through `nvs_runtime::budget`, and a pooled connection is a
@@ -192,6 +223,41 @@ stage = "2 the record"
 name = "an outbound call answered from a table is a rule"
 argv = ["python", "tools/rules.py", "--show", "testing/an-outbound-call-is-answered-from-a-table"]
 want = ["testing/an-outbound-call-is-answered-from-a-table"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the operator's client trust roots are a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/the-client-trust-roots-are-the-operators"]
+want = ["http-server/the-client-trust-roots-are-the-operators"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "relaxing TLS only under a host grant is a rule"
+argv = ["python", "tools/rules.py", "--show", "security/tls-trust-is-relaxed-only-under-a-host-grant"]
+want = ["security/tls-trust-is-relaxed-only-under-a-host-grant"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "naming an outbound address only under a grant is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-call-names-its-address-only-under-a-grant"]
+want = ["http-server/an-outbound-call-names-its-address-only-under-a-grant"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an https redirect never becoming plaintext is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-https-redirect-never-becomes-plaintext"]
+want = ["http-server/an-https-redirect-never-becomes-plaintext"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a reply reporting its TLS session is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-reply-reports-its-tls-session"]
+want = ["http-server/a-reply-reports-its-tls-session"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the table. Goal prose stage 3.
@@ -313,40 +379,179 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 9 -- the rulebook. Goal prose stage 9.
+# Stage 9 -- the trust roots. Goal prose stage 9.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the trust roots"
+name = "the operator's roots add to or replace the bundled set, the floor can rise, and a key log is written"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "roots_of_bundled_and_a_file_trust_the_files_ca",
+  "roots_of_one_file_refuse_a_chain_from_another_ca",
+  "min_version_1_3_refuses_an_origin_that_speaks_only_1_2",
+  "keylog_appends_each_sessions_secrets",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the trust roots"
+name = "a roots file is trust-checked at boot, and a key log is refused in production"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_group_writable_roots_file_is_refused_at_boot",
+  "keylog_is_refused_at_boot_in_production",
+  "keylog_is_accepted_in_development",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the trust roots"
+name = "an https call through the client completes against a loopback origin its roots trust"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "https_call_through_the_client_reaches_a_loopback_origin_under_a_roots_file",
+  "https_call_to_an_origin_no_root_vouches_for_throws_and_is_not_retried",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- relaxing trust from code. Goal prose stage 10.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "10 relaxing trust"
+name = "each relaxing policy does what curl's option does"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "anchors_policy_trusts_only_the_given_certificates",
+  "pin_policy_accepts_a_self_signed_peer_whose_key_matches",
+  "pin_policy_refuses_a_peer_whose_key_does_not_match",
+  "any_name_policy_still_refuses_an_untrusted_chain",
+  "insecure_policy_completes_against_an_untrusted_peer",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "10 relaxing trust"
+name = "a relaxing option needs its host in a grant, and a relaxed connection never serves a strict call"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_tls_option_without_its_host_grant_throws_before_connecting",
+  "a_tls_grant_for_another_host_relaxes_nothing",
+  "tls_min_version_below_the_floor_throws",
+  "a_relaxed_connection_never_serves_a_strict_call_from_the_pool",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "10 relaxing trust"
+name = "a relaxing grant names hosts and has no true spelling"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_tls_grant_of_true_is_refused",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 11 -- the address, the downgrade, and the report. Goal prose stage 11.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "11 address downgrade report"
+name = "a named address is still judged, a downgrade needs its grant and its option, and a reply reports its session"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "connect_to_connects_to_the_named_address_and_checks_the_urls_host",
+  "connect_to_an_address_the_policy_denies_throws_before_connecting",
+  "connect_to_beside_a_target_is_a_logic_error",
+  "https_to_http_redirect_is_refused_without_the_downgrade_grant",
+  "https_to_http_redirect_is_refused_under_the_grant_without_the_option",
+  "https_to_http_redirect_is_followed_under_the_grant_and_the_option",
+  "tls_info_reports_version_cipher_and_the_peer_chain",
+  "tls_info_is_unverified_after_a_pinned_or_relaxed_call",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "11 address downgrade report"
+name = "a reply the table answered reports no TLS session"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-response-tls-is-null-for-a-reply-the-table-answered.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 12 -- the rulebook. Goal prose stage 12.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "command"
-stage = "9 the rulebook"
+stage = "12 the rulebook"
 name = "one body per outbound request is shipped"
 argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-request-carries-one-body"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "9 the rulebook"
+stage = "12 the rulebook"
 name = "a streamed reply's bound is shipped"
 argv = ["python", "tools/rules.py", "--show", "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "9 the rulebook"
+stage = "12 the rulebook"
 name = "the pinned per-core pool is shipped"
 argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "9 the rulebook"
+stage = "12 the rulebook"
 name = "a cross-origin redirect dropping credentials is shipped"
 argv = ["python", "tools/rules.py", "--show", "http-server/a-cross-origin-redirect-drops-credentials"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "9 the rulebook"
+stage = "12 the rulebook"
 name = "an outbound call answered from a table is shipped"
 argv = ["python", "tools/rules.py", "--show", "testing/an-outbound-call-is-answered-from-a-table"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "12 the rulebook"
+name = "the operator's client trust roots are shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/the-client-trust-roots-are-the-operators"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "12 the rulebook"
+name = "relaxing TLS only under a host grant is shipped"
+argv = ["python", "tools/rules.py", "--show", "security/tls-trust-is-relaxed-only-under-a-host-grant"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "12 the rulebook"
+name = "naming an outbound address only under a grant is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-call-names-its-address-only-under-a-grant"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "12 the rulebook"
+name = "an https redirect never becoming plaintext is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-https-redirect-never-becomes-plaintext"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "12 the rulebook"
+name = "a reply reporting its TLS session is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-reply-reports-its-tls-session"]
 want = ["shipped"]
