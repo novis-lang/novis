@@ -237,6 +237,15 @@ impl Outcome {
 struct Case {
     class: String,
     method: String,
+    /// Where the method carrying `#[Test]` is declared, resolved while the run
+    /// still holds the source map.
+    ///
+    /// It is resolved here rather than rendered from a [`Span`](nvs_diagnostics::Span)
+    /// at the end, because `run_suite_in_a_task` **moves** the `Checked` into
+    /// the suite's own task: by the time a document is written the map that
+    /// turns a byte offset into a line is gone. `None` only for a span the map
+    /// does not hold, which a test the compiler collected cannot have.
+    declared: Option<Declared>,
     outcome: Outcome,
     elapsed: Duration,
     /// § 14's inline snapshots this test produced a different rendering for,
@@ -245,6 +254,36 @@ struct Case {
     /// runs. Always collected and never reported: what reads it is
     /// [`update_snapshots`], and only when the run was asked to.
     snapshots: Vec<nvs_runtime::SnapshotMismatch>,
+}
+
+/// Where one test is written: the file the `-->` header names, and a one-based
+/// line and column into it.
+///
+/// The same three fields `nvs check --json` carries for a diagnostic's span
+/// (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`), spelled the
+/// same way and counted the same way, so an editor that can open one location
+/// can open the other. What points at the test is the method's **name**, which
+/// is what every refusal about that test already points at.
+struct Declared {
+    file: String,
+    line: usize,
+    column: usize,
+}
+
+/// A `#[Test]` row's own span, as the location a report can print.
+///
+/// The column counts `char`s rather than bytes, which is
+/// `nvs_diagnostics::SourceFile::line_col`'s decision and the one the text
+/// renderer is already rendered from — two answers to "which column" is the
+/// one thing a second location renderer must not introduce.
+fn declared_at(span: nvs_diagnostics::Span, map: &nvs_diagnostics::SourceMap) -> Option<Declared> {
+    let file = map.get(span.file)?;
+    let (line, column) = file.line_col(span.start);
+    Some(Declared {
+        file: file.name().to_owned(),
+        line: line + 1,
+        column: column + 1,
+    })
 }
 
 /// Compiles `checked` and runs every `#[Test]` it declares that `filter`
@@ -261,7 +300,39 @@ pub(crate) fn run(
     format: Format,
     filter: Option<String>,
     update: bool,
+    list: bool,
 ) -> ExitCode {
+    // Answered before the compile below, rather than beside the run: what
+    // discovery reads is the checked program's own test table, so a listing
+    // costs no lowering and can say nothing about how a test would come out.
+    if list {
+        let listed = listing(&checked, filter.as_deref());
+        return match format {
+            Format::Human => {
+                for test in &listed {
+                    match &test.declared {
+                        Some(declared) => println!(
+                            "{}::{}  {}:{}",
+                            test.class, test.method, declared.file, declared.line
+                        ),
+                        None => println!("{}::{}", test.class, test.method),
+                    }
+                }
+                ExitCode::SUCCESS
+            }
+            Format::Json => {
+                print!("{}", listing_document(&listed));
+                ExitCode::SUCCESS
+            }
+            // Refused rather than ignored, for `--update`'s reason in `main`:
+            // every element JUnit has is about how a test *came out*, so a
+            // listing in that format would be a run nobody performed.
+            Format::Junit => {
+                eprintln!("error: `--list` has no JUnit document: JUnit reports a run's results");
+                ExitCode::FAILURE
+            }
+        };
+    }
     // `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` and `rule:config/opcache-file-cache-directives-are-system`: the suite's unit comes off disk when this
     // environment has an artifact for this program, and the key is the
     // program's, not the subcommand's — a `nvs run` and a `nvs test` of one
@@ -658,6 +729,7 @@ fn run_suite(
             cases.push(Case {
                 class: class.to_owned(),
                 method: label,
+                declared: declared_at(case.span, &checked.map),
                 outcome,
                 elapsed,
                 snapshots,
@@ -1650,8 +1722,17 @@ fn report(method: &str, outcome: &Outcome, elapsed: Duration) {
 /// shrunk property counterexample, per-data-row results and per-test coverage
 /// — is absent because nothing produces any of it yet; each arrives as a new
 /// key beside these, which is the whole of what the version number buys.
+///
+/// **Version 2 is where a record says where its test is written.** `file`,
+/// `line` and `column` are what a Test Explorer needs to place a test in a
+/// file, and nothing below the compiler can recover them: a class label and a
+/// method name say nothing about which file declared the two. The version went
+/// up rather than a second document being written beside this one, because
+/// this report is read by CI as well, and one schema with a number on it is
+/// what `rule:ide/ast-json-schema-is-frozen` already settled as the shape for
+/// exactly this.
 fn json_document(cases: &[Case], counts: Counts, total: Duration) -> String {
-    let mut out = String::from("{\n  \"schemaVersion\": 1,\n  \"summary\": {");
+    let mut out = String::from("{\n  \"schemaVersion\": 2,\n  \"summary\": {");
     out.push_str(&format!(
         "\"total\": {}, \"passed\": {}, \"failed\": {}, \"skipped\": {}, \"flaky\": {}, \"durationMs\": {:.3}}},\n  \"tests\": [",
         counts.total(),
@@ -1667,6 +1748,7 @@ fn json_document(cases: &[Case], counts: Counts, total: Duration) -> String {
         json_string(&case.class, &mut out);
         out.push_str(", \"method\": ");
         json_string(&case.method, &mut out);
+        location_keys(case.declared.as_ref(), &mut out);
         out.push_str(", \"verdict\": ");
         json_string(case.outcome.verdict(), &mut out);
         out.push_str(&format!(", \"durationMs\": {:.3}", millis(case.elapsed)));
@@ -1706,6 +1788,97 @@ fn json_document(cases: &[Case], counts: Counts, total: Duration) -> String {
         "\n  ]\n}\n"
     });
     out
+}
+
+/// One `#[Test]` call discovery found: what the report would name it, and
+/// where it is written.
+///
+/// It carries no verdict and no duration, because nothing ran — a record
+/// holding either would be a run this listing did not do.
+struct Listed {
+    class: String,
+    method: String,
+    declared: Option<Declared>,
+}
+
+/// Every `#[Test]` call the program declares that `filter` selects, located.
+///
+/// **Discovery is the front end's answer, not the runner's.** The table is a
+/// product of the compile that already happened, so nothing here lowers,
+/// installs or calls anything: a listing of a program whose tests fail, hang
+/// or `exit` is the same listing as a passing one's. One entry per *call*
+/// rather than per method, so a `#[TestWith]` row is listed under the label the
+/// report would give it and a consumer can match the two by `class` and
+/// `method`.
+fn listing(checked: &crate::Checked, filter: Option<&str>) -> Vec<Listed> {
+    let mut listed = Vec::new();
+    for class in checked.exprs.test_classes() {
+        for case in checked.exprs.tests(class).unwrap_or_default() {
+            for call in invocations(case) {
+                if selected(filter, class, &call.label) {
+                    listed.push(Listed {
+                        class: class.to_owned(),
+                        method: call.label,
+                        declared: declared_at(call.case.span, &checked.map),
+                    });
+                }
+            }
+        }
+    }
+    listed
+}
+
+/// The discovery document: the report's own version, and a `listed` array.
+///
+/// **`listed` rather than `tests`**, and no `summary` at all. A summary of
+/// zeros is a report of a run where nothing passed, which is not what happened,
+/// and a `tests` array whose records are missing their verdict would make every
+/// consumer of the run document branch on a key's absence to tell a listing
+/// from a run. The key that carries the data is what says which document this
+/// is. The version is the same number the run document carries, because these
+/// are two readings of one schema and `rule:ide/ast-json-schema-is-frozen` puts
+/// one version on one surface.
+fn listing_document(listed: &[Listed]) -> String {
+    let mut out = String::from("{\n  \"schemaVersion\": 2,\n  \"listed\": [");
+    for (at, test) in listed.iter().enumerate() {
+        out.push_str(if at == 0 { "\n    {" } else { ",\n    {" });
+        out.push_str("\"class\": ");
+        json_string(&test.class, &mut out);
+        out.push_str(", \"method\": ");
+        json_string(&test.method, &mut out);
+        location_keys(test.declared.as_ref(), &mut out);
+        out.push('}');
+    }
+    out.push_str(if listed.is_empty() {
+        "]\n}\n"
+    } else {
+        "\n  ]\n}\n"
+    });
+    out
+}
+
+/// The three keys that say where a test is written, or the three nulls that
+/// stand in for them.
+///
+/// They are written together and by one function, because the run document and
+/// the listing document both carry them and two spellings of one location is
+/// the thing a consumer cannot be asked to handle. `null` only where the map
+/// did not hold the span's file, which a test the compiler collected cannot
+/// have: a consumer reads three keys or three nulls, never a record silently
+/// missing the location. Data rows share a declaration, so every row of one
+/// method reports that method's own line.
+fn location_keys(declared: Option<&Declared>, out: &mut String) {
+    match declared {
+        Some(declared) => {
+            out.push_str(", \"file\": ");
+            json_string(&declared.file, out);
+            out.push_str(&format!(
+                ", \"line\": {}, \"column\": {}",
+                declared.line, declared.column
+            ));
+        }
+        None => out.push_str(", \"file\": null, \"line\": null, \"column\": null"),
+    }
 }
 
 /// § 22's JUnit XML: the shape every CI system already ingests, over the same
@@ -2036,7 +2209,7 @@ fn novis_literal(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Format, Outcome, compile, run_suite_in_a_task};
+    use super::{Format, Outcome, compile, json_document, junit_document, run_suite_in_a_task};
 
     /// A program under `tests/fixtures/runner/`, which `cargo test` does not
     /// run in — hence the manifest directory.
@@ -2114,6 +2287,171 @@ mod tests {
                 (case.method, case.outcome.verdict(), failures)
             })
             .collect()
+    }
+
+    /// One fixture's whole suite, collected rather than reported, for the tests
+    /// that are about what a *document* says.
+    fn ran(name: &str) -> super::Suite {
+        let path = fixture(name);
+        let checked = crate::front_end(&path).expect("the fixture is a program");
+        let unit = compile(&checked, None).expect("the fixture compiles");
+        let mut ctx = crate::script::granting_ctx();
+        unit.install_in(&mut ctx);
+        let (suite, _ctx) = run_suite_in_a_task(
+            &unit,
+            ctx,
+            checked,
+            &nvs_config::Config::default(),
+            Format::Json,
+            None,
+        )
+        .expect("the suite's own task runs");
+        suite
+    }
+
+    /// [`ran`] as § 22's JSON, parsed back.
+    ///
+    /// The document rather than the [`super::Suite`] it is built from, because
+    /// what a Test Explorer and a CI job read is this text: a field the run
+    /// resolved and the writer forgot to print is exactly the failure the test
+    /// below exists to catch.
+    fn json_report(name: &str) -> serde_json::Value {
+        let suite = ran(name);
+        let document = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO);
+        serde_json::from_str(&document).expect("the report is a JSON document")
+    }
+
+    #[test]
+    fn every_json_test_record_carries_its_declaring_file_and_line() {
+        let source = std::fs::read_to_string(fixture("statics-are-fresh.nvs"))
+            .expect("the fixture is on disk");
+        let report = json_report("statics-are-fresh.nvs");
+        assert_eq!(
+            report["schemaVersion"], 2,
+            "the located record is what version 2 adds"
+        );
+        let tests = report["tests"]
+            .as_array()
+            .expect("the report lists the tests it ran");
+        assert_eq!(tests.len(), 2, "the fixture declares two tests");
+        for case in tests {
+            let method = case["method"].as_str().expect("a record names its method");
+            let file = case["file"].as_str().expect("a record names its file");
+            assert!(
+                std::path::Path::new(file).ends_with("statics-are-fresh.nvs"),
+                "`{method}` is located in the file that declares it, not in `{file}`"
+            );
+            let line = usize::try_from(case["line"].as_u64().expect("a record carries a line"))
+                .expect("a line number fits a `usize`");
+            let declaration = source
+                .lines()
+                .nth(line - 1)
+                .expect("the line is one of the fixture's");
+            // The line is asserted against the fixture's own text rather than
+            // against a number written here, so moving a test inside the
+            // fixture does not fail a test about locating one.
+            assert!(
+                declaration.contains(method),
+                "line {line} is where `{method}` is declared, and it reads `{declaration}`"
+            );
+            assert!(
+                case["column"].as_u64().is_some_and(|column| column > 0),
+                "`{method}`'s column is one-based, like the `-->` header's"
+            );
+        }
+    }
+
+    /// Discovery answers from the checked program alone.
+    ///
+    /// **Nothing in this test compiles a unit**, which is the whole claim:
+    /// `compile` is what produces something callable, and a listing taken
+    /// without it cannot have run a test whatever the fixture's tests do. The
+    /// records are asserted against the same fixture the run document's test
+    /// uses, so a listing and a run name the same two tests.
+    #[test]
+    fn the_listing_mode_discovers_without_executing() {
+        let path = fixture("statics-are-fresh.nvs");
+        let checked = crate::front_end(&path).expect("the fixture is a program");
+        let listed = super::listing(&checked, None);
+        let names: Vec<&str> = listed.iter().map(|test| test.method.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "itWritesAStaticItsSiblingWillNotSee",
+                "itReadsBackTheDeclaredInitialValue"
+            ],
+            "every declared test is listed, in declaration order"
+        );
+        for test in &listed {
+            assert_eq!(test.class, "StaticsTest");
+            let declared = test.declared.as_ref().expect("a listed test is located");
+            assert!(
+                std::path::Path::new(&declared.file).ends_with("statics-are-fresh.nvs"),
+                "`{}` is located in the file that declares it, not in `{}`",
+                test.method,
+                declared.file
+            );
+        }
+        let document: serde_json::Value = serde_json::from_str(&super::listing_document(&listed))
+            .expect("the listing is a JSON document");
+        assert_eq!(document["schemaVersion"], 2);
+        assert_eq!(
+            document["listed"].as_array().map(Vec::len),
+            Some(2),
+            "the discovery document carries its records under `listed`"
+        );
+        assert!(
+            document["tests"].is_null() && document["summary"].is_null(),
+            "a listing is not a run: it has no `tests` array and no summary of zeros"
+        );
+        assert!(
+            document["listed"][0]["verdict"].is_null(),
+            "nothing ran, so no record carries a verdict"
+        );
+        // `--filter` means the same thing here as it does in a run, which is
+        // what lets an editor list and then run the same selection.
+        let one = super::listing(&checked, Some("StaticsTest::itReadsBack"));
+        assert_eq!(
+            one.len(),
+            1,
+            "a filter selects what it would select in a run"
+        );
+    }
+
+    /// The location is the JSON document's alone: the other two formats are
+    /// the bytes they were before it existed.
+    ///
+    /// § 22's JUnit XML is asserted here attribute by attribute, because "the
+    /// same bytes as before" is only checkable against the shape the writer
+    /// emits — a `file=` or `line=` attribute added to a `<testcase>` would be
+    /// a schema change nobody versioned, this format having no version to
+    /// raise. The plaintext report's bytes are pinned where it is rendered, by
+    /// `tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst`,
+    /// which this slice left untouched.
+    #[test]
+    fn the_schema_version_is_two_and_junit_and_human_are_byte_identical() {
+        let suite = ran("statics-are-fresh.nvs");
+        let json = json_document(&suite.cases, suite.counts, std::time::Duration::ZERO);
+        assert!(
+            json.contains("\"schemaVersion\": 2,"),
+            "the located record is version 2 of this document: {json}"
+        );
+        let junit = junit_document(&suite.cases, suite.counts, std::time::Duration::ZERO);
+        for case in &suite.cases {
+            assert!(
+                junit.contains(&format!(
+                    "<testcase name=\"{}\" classname=\"{}\" time=\"",
+                    case.method, case.class
+                )),
+                "a `<testcase>` carries the three attributes it always did, in order: {junit}"
+            );
+        }
+        for attribute in ["file=", "line=", "column="] {
+            assert!(
+                !junit.contains(attribute),
+                "`{attribute}` is the JSON document's, and JUnit has no version to raise: {junit}"
+            );
+        }
     }
 
     #[test]
@@ -2483,7 +2821,7 @@ mod tests {
         // Never otherwise: the shipped entry, with the flag off, over a suite
         // whose every snapshot fails.
         let checked = crate::front_end(&program).expect("the copy is a program");
-        let _ = super::run(checked, &uncached, Format::Json, None, false);
+        let _ = super::run(checked, &uncached, Format::Json, None, false, false);
         assert_eq!(
             std::fs::read_to_string(&program).expect("the copy is still there"),
             template,
@@ -2492,7 +2830,7 @@ mod tests {
 
         // When asked.
         let checked = crate::front_end(&program).expect("the copy is a program");
-        let _ = super::run(checked, &uncached, Format::Json, None, true);
+        let _ = super::run(checked, &uncached, Format::Json, None, true, false);
         let updated = std::fs::read_to_string(&program).expect("the copy is still there");
         assert_ne!(updated, template, "the update rewrote the source");
         assert!(
