@@ -41,12 +41,13 @@
 
 use std::collections::BTreeSet;
 
-use lsp_types::{DiagnosticSeverity, NumberOrString, Range};
+use lsp_types::{DiagnosticSeverity, DiagnosticTag, NumberOrString, Range};
 use nvs_diagnostics::{
     Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId,
 };
 
 use crate::document::Analysed;
+use crate::index::{CheckScope, Declaration};
 use crate::position::position_at;
 
 /// The bands whose error means this file's tree is broken, so what the phases
@@ -153,6 +154,58 @@ pub fn for_document(
         .collect()
 }
 
+/// The dimming an editor is sent for one document: one `Unnecessary` tag per
+/// private declaration in it that nothing in the index refers to.
+///
+/// **Silent under the default scope**, and that is the rule rather than a
+/// shortcut. `rule:ide/check-scope-defaults-to-open-documents` indexes the open
+/// documents and their graph by default, and a member unreferenced across that
+/// much of a workspace is not a member that is unreferenced — so where the
+/// index does not span the workspace the honest answer is nothing at all,
+/// rather than a guess a client renders in grey.
+///
+/// `unused` is the answer to *which* declarations, which is
+/// [`crate::SymbolIndex::unused_private`]'s, and this is the crossing to the
+/// wire — the same split [`for_document`] makes between the gate and
+/// [`to_wire`].
+///
+/// A tag carries no `code`. Every other diagnostic here is one the compiler
+/// produced and a reader can look up; this one is a reading of the index that
+/// no phase reports, so a code would name a check that does not exist.
+#[must_use]
+pub fn dimming(
+    unused: &[&Declaration],
+    scope: CheckScope,
+    analysed: &Analysed,
+    encoding: PositionEncoding,
+) -> Vec<lsp_types::Diagnostic> {
+    if scope != CheckScope::Workspace {
+        return Vec::new();
+    }
+    let file = analysed.map.file(analysed.entry);
+    unused
+        .iter()
+        .map(|declared| lsp_types::Diagnostic {
+            range: Range::new(
+                position_at(file, declared.site.start, encoding),
+                position_at(file, declared.site.end, encoding),
+            ),
+            // A hint, so an editor fades the name rather than listing it
+            // beside the errors: nothing here is wrong, and a private member
+            // written before its first caller is an ordinary minute of work.
+            severity: Some(DiagnosticSeverity::HINT),
+            tags: Some(vec![DiagnosticTag::UNNECESSARY]),
+            source: Some(SOURCE.to_owned()),
+            message: format!(
+                "{} `{}` is private and nothing in this workspace uses it",
+                declared.kind.describe(),
+                declared.symbol
+            ),
+            ..lsp_types::Diagnostic::default()
+        })
+        .collect()
+}
+
 /// What a diagnostic's `source` field says produced it.
 ///
 /// The compiler, not the server: an editor shows this beside the message to
@@ -189,13 +242,13 @@ const fn severity(severity: Severity) -> DiagnosticSeverity {
 /// being dropped. It is a compiler bug when one has no span at all, and an
 /// editor showing it on line 1 is how that gets reported.
 ///
-/// Three things are deliberately not carried yet, each waiting for the slice
-/// that has somewhere to put it: a secondary label wants
-/// `relatedInformation`, which needs the `Uri` of a file that is not
-/// necessarily this one; a [`nvs_diagnostics::Suggestion`] is a code action,
-/// which is `textDocument/codeAction`'s; and the `Unnecessary` tag belongs to
-/// the workspace index `rule:ide/five-features-are-one-reference-index`
-/// builds, because a symbol unused in one buffer is not unused.
+/// Two things are deliberately not carried yet, each waiting for the slice that
+/// has somewhere to put it: a secondary label wants `relatedInformation`, which
+/// needs the `Uri` of a file that is not necessarily this one, and a
+/// [`nvs_diagnostics::Suggestion`] is a code action, which is
+/// `textDocument/codeAction`'s. The `Unnecessary` tag is not one of them and is
+/// not set here either — no compiler diagnostic carries it, and [`dimming`] is
+/// where the index produces one instead.
 #[must_use]
 pub fn to_wire(
     diagnostic: &Diagnostic,

@@ -20,13 +20,22 @@ use lsp_types::notification::{
     PublishDiagnostics,
 };
 use lsp_types::{
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    InitializeParams, NumberOrString, PublishDiagnosticsParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentItem, Uri, VersionedTextDocumentIdentifier,
+    DiagnosticTag, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, InitializeParams, NumberOrString, PublishDiagnosticsParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem, Uri,
+    VersionedTextDocumentIdentifier, WorkspaceFolder,
 };
 
 /// A file that parses, resolves and type-checks with nothing to report.
 const CLEAN: &str = "<?nvs\nclass Typed {}\n";
+
+/// A class keeping one private property it uses and one it does not, so a run
+/// of this file says both what dimming reports and what it leaves alone.
+///
+/// `$kept` is on line 2 and `$used` on line 3, counting the way the wire does.
+const HOARD: &str = "<?nvs\nclass Hoard {\n    private int $kept = 0;\n    \
+                     private int $used = 0;\n    public function total(): int {\n        \
+                     return $this->used;\n    }\n}\n";
 
 /// A directory of this run's own, removed when the test that made it ends.
 ///
@@ -64,6 +73,12 @@ impl Drop for TempDir {
 /// `initialize`, then shuts it down and asserts it served without a protocol
 /// error.
 fn served(exchange: impl FnOnce(&Connection)) {
+    served_with(InitializeParams::default(), exchange);
+}
+
+/// The same, against a server handed `params` at the handshake — which is the
+/// one message a setting travels in (`nvs_lsp::settings`).
+fn served_with(params: InitializeParams, exchange: impl FnOnce(&Connection)) {
     let (server, client) = Connection::memory();
     let serving = std::thread::spawn(move || nvs_lsp::serve(&server));
 
@@ -72,7 +87,7 @@ fn served(exchange: impl FnOnce(&Connection)) {
         .send(Message::Request(Request::new(
             RequestId::from(1),
             "initialize".to_owned(),
-            InitializeParams::default(),
+            params,
         )))
         .expect("the server is still reading");
     match client.receiver.recv() {
@@ -189,6 +204,40 @@ fn codes(params: &PublishDiagnosticsParams) -> Vec<String> {
         .collect()
 }
 
+/// The messages of the diagnostics in one publish that a client will render as
+/// dimming, in the order it will render them.
+///
+/// Keyed on the tag and not on the severity: `Unnecessary` is what fades a
+/// name, and a hint carrying no tag is an ordinary hint.
+fn dimmed(params: &PublishDiagnosticsParams) -> Vec<String> {
+    params
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic
+                .tags
+                .as_ref()
+                .is_some_and(|tags| tags.contains(&DiagnosticTag::UNNECESSARY))
+        })
+        .map(|diagnostic| diagnostic.message.clone())
+        .collect()
+}
+
+/// That directory as the one workspace folder a client named, with
+/// `nvs.check.scope` set to walk it.
+fn workspace_scope(dir: &TempDir) -> InitializeParams {
+    InitializeParams {
+        workspace_folders: Some(vec![WorkspaceFolder {
+            uri: nvs_lsp::uri_of(&dir.path).expect("a temp path is UTF-8"),
+            name: "workspace".to_owned(),
+        }]),
+        initialization_options: Some(serde_json::json!({
+            "check": { "scope": "workspace" },
+        })),
+        ..InitializeParams::default()
+    }
+}
+
 /// Whether any of `codes` is one a phase that reads the tree reported —
 /// resolution's, and the type check's across all three bands it occupies.
 fn reads_the_tree(codes: &[String]) -> bool {
@@ -197,6 +246,65 @@ fn reads_the_tree(codes: &[String]) -> bool {
             .iter()
             .any(|band| code.starts_with(band))
     })
+}
+
+/// Unused-member dimming, which the default scope does not produce and
+/// workspace scope produces exactly once.
+///
+/// Two halves of one rule. `rule:ide/five-features-are-one-reference-index`'s
+/// fifth reader is only correct at workspace scope — a private member with no
+/// occurrence in an index that spans one buffer's graph is a member this server
+/// has not looked hard enough for — so
+/// `rule:ide/check-scope-defaults-to-open-documents` has it silent under the
+/// default rather than wrong. Silent is asserted as the absence of a tag, not
+/// as a different message.
+#[test]
+fn unused_member_dimming_is_silent_at_open_scope_and_correct_at_workspace_scope() {
+    let dir = TempDir::new("dimming");
+    dir.write("hoard.nvs", HOARD);
+    let uri = dir.uri("hoard.nvs");
+
+    served(|client| {
+        open(client, &uri, 1, HOARD);
+        assert!(
+            dimmed(&published(client)).is_empty(),
+            "the default scope indexes one graph, which is not enough to call \
+             anything unused"
+        );
+    });
+
+    served_with(workspace_scope(&dir), |client| {
+        open(client, &uri, 1, HOARD);
+        let params = published(client);
+
+        assert_eq!(
+            dimmed(&params),
+            vec![
+                "a property `Hoard::$kept` is private and nothing in this \
+                 workspace uses it"
+            ],
+            "`$used` is read by `total` and `total` is public, so exactly one \
+             declaration here is unreachable"
+        );
+
+        // On the name itself, which is what an editor fades: a whole-declaration
+        // range would grey out the type and the initializer with it.
+        let tagged = params
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.tags.is_some())
+            .expect("the dimming diagnostic");
+        assert_eq!(tagged.range.start.line, 2);
+        assert_eq!(
+            tagged.severity,
+            Some(lsp_types::DiagnosticSeverity::HINT),
+            "a hint, so it is faded rather than listed beside the errors"
+        );
+        assert!(
+            tagged.code.is_none(),
+            "no compiler phase reported this, so there is no code to look up"
+        );
+    });
 }
 
 /// The lifecycle of one document: opening it publishes for it, and fixing it
