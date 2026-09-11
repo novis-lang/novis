@@ -32,7 +32,7 @@
 
 use std::panic::{self, AssertUnwindSafe};
 
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, SafepointFlags};
 use crate::value::Value;
 
 /// Success. The result has been written through the `out` pointer.
@@ -306,9 +306,9 @@ pub const DEADLINE_POLL_BATCH: usize = 256;
 ///
 /// # Errors
 ///
-/// Whatever `body` returns, or a [`Fault::Fatal`] naming `member` when the
-/// deadline has passed. Fatal rather than thrown because a deadline is a
-/// cancellation, and
+/// Whatever `body` returns, or a [`Fault::Fatal`] naming `member` and the
+/// ceiling that stopped it when the deadline has passed. Fatal rather than
+/// thrown because a deadline is a cancellation, and
 /// `rule:concurrency/cancellation-runs-no-user-code`
 /// settles that cancellation is not a `Throwable` and runs no user code — the
 /// same standing [`FATAL`] already gives a resource limit, and the same one
@@ -323,7 +323,7 @@ where
         until_poll -= 1;
         if until_poll == 0 {
             if ctx.deadline_expired() {
-                return Err(deadline_passed(member));
+                return Err(deadline_passed(ctx, member));
             }
             until_poll = DEADLINE_POLL_BATCH;
         }
@@ -333,7 +333,19 @@ where
 }
 
 /// What a fired poll reports, in one place so every site says the same thing.
-fn deadline_passed(member: &str) -> Fault {
+///
+/// One word carries two ceilings into this poll: `[limits] wall_time` expires
+/// the deadline, and `rule:errors/on-limit`'s CPU ceiling expires it beside
+/// raising [`SafepointFlags::CPU_LIMIT`], because a member part-way through one
+/// long call reaches no other poll (`nvs_host::watchdog` is the raiser, and
+/// [`crate::SafepointView::expire_deadline`] owns that argument). So which
+/// ceiling stopped the walk is read from the flags — on a path where the
+/// request is already over, so a second relaxed load buys the right message for
+/// nothing.
+fn deadline_passed(ctx: &Ctx, member: &str) -> Fault {
+    if ctx.safepoint_flags().contains(SafepointFlags::CPU_LIMIT) {
+        return Fault::fatal(format!("{member}: the request exceeded its CPU-time limit"));
+    }
     Fault::fatal(format!("{member}: the request's deadline passed"))
 }
 
@@ -926,6 +938,37 @@ mod tests {
         let value = call(nvs_test_identity, &mut ctx, &[Value::int(5)]).unwrap();
         assert_eq!(value.as_int(), Some(5));
         assert_eq!(ctx.pending(), None);
+    }
+
+    /// One poll, two ceilings: a wall clock expires the deadline, and
+    /// `rule:errors/on-limit`'s CPU ceiling expires it beside raising its flag,
+    /// so what a fired poll reports is read from the flags rather than assumed.
+    #[test]
+    fn a_fired_poll_names_the_ceiling_that_stopped_the_walk() {
+        let entries = || 0..(DEADLINE_POLL_BATCH * 2);
+
+        let mut wall = Ctx::buffered();
+        wall.expire_deadline();
+        let stopped = bounded_loop(&mut wall, "Core\\Arr::map", entries(), |_, _| Ok(()));
+        let Err(Fault::Fatal(message)) = stopped else {
+            panic!("a walk under an expired deadline was not stopped");
+        };
+        assert!(
+            message.contains("Core\\Arr::map") && message.contains("deadline passed"),
+            "{message}"
+        );
+
+        let mut burned = Ctx::buffered();
+        burned.expire_deadline();
+        burned.request_safepoint(SafepointFlags::CPU_LIMIT);
+        let stopped = bounded_loop(&mut burned, "Core\\Arr::map", entries(), |_, _| Ok(()));
+        let Err(Fault::Fatal(message)) = stopped else {
+            panic!("a walk under a raised CPU ceiling was not stopped");
+        };
+        assert!(
+            message.contains("Core\\Arr::map") && message.contains("CPU-time limit"),
+            "{message}"
+        );
     }
 
     #[test]

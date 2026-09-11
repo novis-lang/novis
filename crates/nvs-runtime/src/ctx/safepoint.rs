@@ -134,8 +134,8 @@ impl Ctx {
             .fetch_and(!flags.bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
-    /// A handle on this request tree's safepoint word, for a thread that does
-    /// not own the request.
+    /// A handle on the two words this request tree can be stopped through, for
+    /// a thread that does not own the request.
     ///
     /// The word this hands out is the **tree root's**, because
     /// `rule:security/isolate-shares-nothing` gives a tree one ceiling to
@@ -147,9 +147,20 @@ impl Ctx {
     /// This is the shape `nvs-host`'s watchdog already reads a core's earliest
     /// deadline through, for the same reason: the reader is a stranger to the
     /// request, holds no reference into it, and may outlive it.
+    ///
+    /// It carries [`Ctx::deadline`] as well as the safepoint word, because the
+    /// two words are polled in different places and a stop has to reach both:
+    /// compiled code reads the flags between calls, and
+    /// `rule:http-server/time-is-bounded-inside-a-helper`'s
+    /// [`crate::bounded_loop`] reads the deadline from inside a single call
+    /// that is still running. Both are the tree's, so one handle is one clone
+    /// of each and never a second handle to be kept in step with this one.
     #[must_use]
     pub fn safepoint_view(&self) -> SafepointView {
-        SafepointView(std::sync::Arc::clone(&self.safepoint_word))
+        SafepointView {
+            word: std::sync::Arc::clone(&self.safepoint_word),
+            deadline: std::sync::Arc::clone(&self.deadline),
+        }
     }
 
     /// Whether this request has been cancelled — the flag [`Ctx::cancel`] sets.
@@ -204,8 +215,8 @@ impl Ctx {
     }
 }
 
-/// One request tree's safepoint word, in a form a thread that is not running
-/// the request may write.
+/// The two words one request tree can be stopped through, in a form a thread
+/// that is not running the request may write.
 ///
 /// Minted by [`Ctx::safepoint_view`], and `Send` where [`Ctx`] is not: it
 /// carries the word and nothing else — no reference to a context, a value, a
@@ -219,20 +230,44 @@ impl Ctx {
 /// run again. A holder that means to stop a *live* request therefore drops the
 /// view when that request ends, rather than relying on the store to be refused.
 #[derive(Clone, Debug)]
-pub struct SafepointView(std::sync::Arc<std::sync::atomic::AtomicU64>);
+pub struct SafepointView {
+    word: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    deadline: std::sync::Arc<std::sync::atomic::AtomicU64>,
+}
 
 impl SafepointView {
     /// Asks the next poll in the request tree to act — the same store
     /// [`Ctx::request_safepoint`] makes for the thread that owns the request.
     pub fn request(&self, flags: SafepointFlags) {
-        self.0
+        self.word
             .fetch_or(flags.bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The flags standing in the word, which is what the next poll reads.
     #[must_use]
     pub fn flags(&self) -> SafepointFlags {
-        SafepointFlags::from_bits_retain(self.0.load(std::sync::atomic::Ordering::Relaxed))
+        SafepointFlags::from_bits_retain(self.word.load(std::sync::atomic::Ordering::Relaxed))
+    }
+
+    /// Expires the request tree's deadline — the same store
+    /// [`Ctx::expire_deadline`] makes for the thread that owns the request, and
+    /// the poll [`crate::bounded_loop`] makes from inside a member whose
+    /// runtime scales with its input.
+    ///
+    /// A holder that raises [`SafepointFlags::CPU_LIMIT`] raises this beside
+    /// it, because a request part-way through one long call reaches no other
+    /// poll: the flag stops it at its next back edge, and this stops the call
+    /// it is already inside. Which of the two ceilings it was is the flags'
+    /// answer, and [`crate::bounded_loop`] reads it there.
+    pub fn expire_deadline(&self) {
+        self.deadline.store(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Whether that deadline stands as passed — [`Ctx::deadline_expired`]'s
+    /// read, from a thread that owns none of the request.
+    #[must_use]
+    pub fn deadline_expired(&self) -> bool {
+        self.deadline.load(std::sync::atomic::Ordering::Relaxed) != 0
     }
 }
 
@@ -280,14 +315,16 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         // flag needs — a ceiling nothing consults would have bought it nothing,
         // because the flag alone stops it again at its own first back edge.
         //
-        // What is missing is not the slice but the clock. Nothing samples the
-        // request thread's CPU time against that widened ceiling yet
-        // ([`Ctx::cpu_limit`]'s field doc owns why the sampling is the host's),
-        // so this flag is raised only by a caller that already decided the
-        // request is over, and nothing re-raises it when a handler overruns.
-        // Until a timer exists, a handler here runs to completion and the two
-        // lines below are what abandon the request; once one does, the overrun
-        // is stopped by § 1's zero-retry rule with no further edit here.
+        // The clock is `nvs_host::watchdog`'s: it samples every request a core
+        // has published against [`Ctx::cpu_limit`] once per interval and raises
+        // this flag through a [`SafepointView`] ([`Ctx::cpu_limit`]'s field doc
+        // owns why the sampling is the host's). Two things that sampler does
+        // not know, and neither is an edit here. No core publishes the request
+        // it is running yet, so in this tree the flag still arrives only from a
+        // caller that already decided the request is over. And the ceiling a
+        // publication carries is the one that stood before the handler below
+        // widened it, so a handler is bounded by the next sweep rather than by
+        // its reserve — what fixes that is what the publisher hands over.
         ctx.run_limit_handler(Limit::CpuTime);
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;
@@ -438,6 +475,35 @@ mod tests {
                 "{kind} polls a word of its own"
             );
         }
+    }
+
+    /// The second word a stranger stops a request through. A flag is polled
+    /// between calls; the deadline is polled from inside one call that is still
+    /// running, so a handle that carried only the first could not stop a
+    /// request already inside a long member.
+    #[test]
+    fn a_view_expires_the_deadline_of_the_whole_tree() {
+        let root = Ctx::buffered();
+        let born_clean = root.isolate(OutputSink::Buffer(Vec::new()));
+        let view = root.safepoint_view();
+        assert!(!view.deadline_expired());
+        assert!(!root.deadline_expired());
+
+        view.expire_deadline();
+        assert!(view.deadline_expired());
+        assert!(
+            root.deadline_expired(),
+            "the request the handle names kept running"
+        );
+        assert!(
+            born_clean.deadline_expired(),
+            "an isolate already under the tree kept running"
+        );
+        let born_stopped = root.isolate(OutputSink::Buffer(Vec::new()));
+        assert!(
+            born_stopped.deadline_expired(),
+            "an isolate built after the stop was born clean"
+        );
     }
 
     #[test]
