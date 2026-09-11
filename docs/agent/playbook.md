@@ -1686,6 +1686,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   order. Put every target first and every flag — `--window`, `--context`, `--in`, `--locate` —
   last, and reach for the per-target `:3` context suffix when only one target wants it.
   [until: reviewed 2026-09-11]
+- **A goal `.toml` check whose `want` string spells a `rule:` token fails `rules.py --check` for every
+  goal ahead of it.** `--citations` scans `docs/**/*.toml` for that token and cannot tell an assertion
+  about a rule the goal will create from a citation of one that already exists, so a check written to
+  gate a future rule breaks the rulebook from the day it is written until that goal lands. Put the bare
+  id in `want` — `python tools/rules.py --show <id>` prints the `rule:` token on its first line, so the
+  check matches the same output and still means what it did. [until: rule core-classes/crypto-interop-tier]
 
 ## Running things
 

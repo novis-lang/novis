@@ -2,49 +2,47 @@
 
 ## State
 
-**Goal `resource-ceilings` — stage 6 is landed, and only stage 7 is left.** `budget::Detached`
-(`crates/nvs-runtime/src/budget.rs:216`) is the accounting bracket: an allocation or a release made
-while one is held moves `budget::detached_bytes` and leaves `live_bytes`, every request's reading and
-every armed ceiling where it found them. `Core\Cache`'s local tier takes it at
-`crates/nvs-stdlib/src/cache.rs:@store_put`, which now copies the entry into an allocation of its own
-so that the store's bytes are allocated and freed on the same balance — the symmetry a bracket owes,
-and the playbook's newest bullet. Both stage 6 checks are green.
+**Goal `resource-ceilings` — every stage is landed and the goal's own checks are green.** Stage 7
+closed this session: `docs/decisions/0174.md` is the record, the three rules its `changes.creates`
+names are in the rulebook and rendered, and `crates/nvs-runtime/src/string.rs:1089`'s block comment
+over the primitives no longer argues they cannot fail. `python tools/verify.py` is 9 of 9 green.
 
-**The store this goal did not name is the compiled-pattern cache, and it must stay unbracketed** —
-`crates/nvs-stdlib/src/regex.rs`'s gap 4 is the finding in full: its entry is an `Rc` the compiling
-request holds too, so nothing can put the allocation and the release on one balance, and bracketing it
-anyway turns a credit bounded by `CACHE_CAPACITY` into an unbounded one. It waits on M6's arena, which
-is the standing decision's *does not solve provenance* reaching a second store.
+**The stage 1 floor is green again.** `python tools/rules.py --check` was red on
+`docs/agent/goals/47-webcrypto.toml`, whose two `want` strings spelled `rule:` tokens for rules that
+goal has yet to create. They name the bare id now; the playbook's newest Tooling bullet is the trap.
 
-**The stage 1 floor is red on a file no session of this goal wrote.** `python tools/rules.py --check`
-fails on `docs/agent/goals/47-webcrypto.toml:146` and `:153`, which cite the two rules that goal
-ships; the tree does not hold them yet, and nothing in this goal can write them.
+**One cross-request store this goal never named is unbracketed, and it is not the regex one.**
+`crates/nvs-stdlib/src/bus.rs:168` is a per-core mailbox queue held in a process-wide registry: a
+publish encodes an `Envelope` on the publishing core's balance and the receiving core frees it, which
+is stage 6's hole one core apart. `budget::Detached`'s balance is signed for exactly that case. The
+compiled-pattern cache stays unbracketed on purpose — `crates/nvs-stdlib/src/regex.rs`'s gap 4 is the
+finding in full, and it waits on M6's arena.
 
 ## Next group
 
-**Stage 7: the record and the rulebook** — one file set, `docs/decisions/` and `docs/rules/`, with
-`docs/agent/loop-goal.md` § *Standing decisions* as the specification for every claim in both. No
-code: the three conformance cases stage 7's suite check names are already on disk.
+**Stage 6, reopened for the store the audit found** — one file set, `crates/nvs-stdlib/src/bus.rs`
+with `crates/nvs-runtime/src/budget.rs` beside it, and
+`rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` as the specification for both
+slices. The rule already says what is owed: the bracket is held by the store, around every path that
+allocates or frees what it holds.
 
-- [ ] **The record, at `docs/decisions/0174.md`** — 0174 is the next free number at this commit
-      (`docs/decisions/0173.md:1` is the highest on disk, so re-derive before claiming it). Its shape
-      is `docs/agent/conventions.md` § *A decision record*, its load-bearing claim is the standing
-      decision's — a ctx-less primitive's degenerate return is sound because the request is already
-      dead — and it cites `rule:errors/on-limit` and `rule:programs/memory-priority` as the rules it
-      works inside. No existing record is amended.
-- [ ] **The fragments its `changes.creates` names, under `docs/rules/`** — the refusal and its
-      degenerate return, the accounting boundary, and the expansion rule, each a JSON entry plus a
-      `<topic>/<slug>.md`, then `python tools/rules.py --render`. What the accounting boundary states
-      is `crates/nvs-runtime/src/budget.rs:216`, and it sits beside
-      `docs/rules/concurrency/cache-memory-is-charged-to-the-core.md:1`, which says the same thing
-      about the tier alone and is what the bracket now enforces.
+- [ ] **The bus queue takes the bracket at both ends** — `crates/nvs-stdlib/src/bus.rs:168` is the
+      queue and `crates/nvs-stdlib/src/bus.rs:147` the per-core mailbox. The publish side allocates
+      the `Envelope` and the receive side drops it, on two different cores, so the two ends take the
+      guard separately; `crates/nvs-runtime/src/budget.rs:225` is why a signed per-thread balance is
+      what makes that sound. `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`.
+- [ ] **A guard that says a publish is charged to neither request** — beside the ones stage 6 wrote
+      at `crates/nvs-runtime/tests/detached_accounting.rs:1`, which is the shape to copy: a publish
+      raises no ceiling on the publisher and a receive lowers none on the receiver.
+      `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`.
+- [ ] **Finish the sweep of the remaining process-lifetime stores** — `crates/nvs-stdlib/src/topic.rs:315`
+      holds `Weak`s and nothing unsubscribes, and `crates/nvs-stdlib/src/channel.rs:228` is bounded
+      inside one request tree; decide per store whether it retains bytes across requests and say so
+      in its module doc either way. `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`.
 
 ## Backlog
 
-- The floor above: goal `webcrypto`'s two undesigned rules, at `docs/agent/loop-goal.toml:6497`.
-- `crates/nvs-stdlib/src/queue.rs` and `queue_sqlite.rs` were not examined for a store that outlives a
-  request — `docs/agent/loop-goal.md` § *Standing decisions* says a session that finds one brackets it.
-- One allocation larger than the whole remaining budget is still made before anything notices —
-  `crates/nvs-runtime/src/budget.rs`'s own `# Known gap`, owner `resource-ceilings`.
-- The stack ceiling is asserted rather than discovered until M6 sizes the request's stack —
-  `docs/agent/loop-goal.md` § *Standing decisions*, *out of scope*.
+- The compiled-pattern cache cannot be bracketed before the arena — `crates/nvs-stdlib/src/regex.rs` § *Known gaps* 4.
+- macOS enforces no CPU ceiling and says so at boot — `crates/nvs-host/src/cpuclock.rs`'s module doc.
+- 0174 has no `docs/decisions.toml` summary entry; that pass is user-fired, per `docs/agent/decisions-summary.md`.
+- The backtracking step budget is still a constant rather than a directive — `crates/nvs-stdlib/src/regex.rs` § *Known gaps* 2.
