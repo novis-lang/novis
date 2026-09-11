@@ -177,6 +177,41 @@ thread_local! {
     /// the context that is refused displaces this cell exactly as it displaces
     /// [`CEILING`].
     static REFUSED: Cell<bool> = const { Cell::new(false) };
+    /// Whether this thread is inside `rule:errors/on-limit`'s reserve, where
+    /// [`affords`] answers without asking the balance — see [`Reporting`].
+    static REPORTING: Cell<bool> = const { Cell::new(false) };
+}
+
+/// `rule:errors/on-limit`'s reserve, open for as long as this value lives: the
+/// pre-check in front of an allocation answers `true` while one is held.
+///
+/// The bytes a *report* costs are bytes the request has already been told it
+/// cannot afford — it is over its ceiling, which is the entire reason there is
+/// a report — so a pre-check applied to the runtime building one is a tier that
+/// says nothing, for the same reason a handler that cannot allocate is. What
+/// still bounds it is the counting ceiling: [`add`] compares the widened
+/// threshold behind every allocation, and the poll that follows stops a report
+/// that overran the slice it was lent.
+///
+/// It covers the runtime's **own** construction and never user code. A limit
+/// handler's body runs outside it, so a program lent the reserve is still
+/// refused a single allocation past the widened ceiling. Nesting is safe: each
+/// guard puts back what it found rather than closing the reserve outright.
+#[derive(Debug)]
+pub struct Reporting(bool);
+
+impl Reporting {
+    /// Opens the reserve, and answers the guard that closes it again.
+    #[must_use]
+    pub fn begin() -> Self {
+        Self(REPORTING.with(|open| open.replace(true)))
+    }
+}
+
+impl Drop for Reporting {
+    fn drop(&mut self) {
+        REPORTING.with(|open| open.set(self.0));
+    }
 }
 
 /// A ceiling and the word a crossing of it publishes into — what [`arm`] sets
@@ -429,11 +464,14 @@ pub fn armed_ceiling() -> isize {
 /// site is a guard the next call site forgets.
 ///
 /// An uncapped request answers on the sentinel without reading the balance at
-/// all.
+/// all, and so does a thread inside [`Reporting`]'s reserve.
 #[must_use]
 pub fn affords(bytes: usize) -> bool {
     let ceiling = CEILING.with(Cell::get);
     if ceiling == 0 {
+        return true;
+    }
+    if REPORTING.with(Cell::get) {
         return true;
     }
     // Saturating in the direction that refuses: an ask too large to count in

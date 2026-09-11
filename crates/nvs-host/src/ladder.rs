@@ -102,6 +102,13 @@ pub fn escalate(ctx: &mut Ctx, record: &Record) -> bool {
     let Ok(program) = nvs_runtime::script::resolve(ctx, &path) else {
         return false;
     };
+    // The record, the copy that crosses into the isolate and the script itself,
+    // all inside `rule:errors/on-limit`'s reserve. The request that got here is
+    // past its ceiling, so the pre-check in front of each of this array's
+    // strings would answer an empty one and the script would be handed a record
+    // naming nothing — tier 1's own report is lent the same thing for the same
+    // reason. See `nvs_runtime::budget::Reporting`.
+    let _reserve = nvs_runtime::budget::Reporting::begin();
     let args = nvs_runtime::floor::report_argument(record);
     RUNNING.with(|running| running.set(true));
     let guard = Guard;

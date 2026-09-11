@@ -515,6 +515,16 @@ impl Ctx {
         // back for the same reason the reserve is: what the ladder records next
         // is the breach ordinary execution reached.
         let refused = crate::budget::take_refusal();
+        // The third half of the same slice, and the one a widened ceiling and a
+        // taken verdict together still do not buy. The pre-check in front of an
+        // allocation refuses against the *balance*, which a request that
+        // reached here is already past — so without this the report below is an
+        // array of empty strings and the handler cannot allocate the one byte
+        // it needs to read it, which is the tier saying nothing by another
+        // route. What bounds the slice instead is the counting ceiling: the
+        // widened threshold is compared behind every allocation, and § 1's
+        // zero-retry rule is what a handler overrunning it meets.
+        let _reserve = crate::budget::Reporting::begin();
         // The CPU half, and the reason it is a *flag* edit as well as a ceiling
         // edit. A handler entered under [`SafepointFlags::CPU_LIMIT`] would be
         // stopped again by the very flag it was entered under, at its own first
@@ -544,7 +554,12 @@ impl Ctx {
         // Built here rather than by either caller, and *after* the reserve is
         // in force: it allocates, and a report the ladder could not afford to
         // build would be a tier that says nothing for the same reason a handler
-        // that cannot allocate is.
+        // that cannot allocate is. A widened ceiling is not enough on its own
+        // for the same reason the verdict above is not — the pre-check in front
+        // of every string this array holds refuses against the balance, which a
+        // request that reached here is already past. [`crate::budget::Reporting`]
+        // is what the *runtime's* allocations are lent; the handler's own body
+        // runs after it is closed and is measured like any other program.
         let mut report = crate::NvsArray::new();
         report.set(
             crate::NvsStr::new(b"limit"),
