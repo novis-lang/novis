@@ -24,9 +24,11 @@ the sweep refuses and says so, because a manifest that grows without a person lo
 unscoped pack the `[context]` block exists to replace.
 
 Writes nothing but the `modules = [...]` list, and only when the result still parses as TOML. Prints
-one line for the console; exit status is 0 whether or not anything was added, and non-zero only when
-the goal file could not be read. Nothing here commits -- `tools/loop.py` stages and commits what this
-writes, so a hand-run leaves the change in the working tree for you to look at.
+one line for the console; `--added <file>` also writes the added paths there, one per line, for
+`tools/loop.py` to build its commit message from. Exit status is 0 whether or not anything was
+added, and non-zero only when the goal file could not be read. Nothing here commits --
+`tools/loop.py` stages and commits what this writes, so a hand-run leaves the change in the
+working tree for you to look at.
 """
 
 import argparse
@@ -142,8 +144,9 @@ def block(text):
     return start, start + closed.start()
 
 
-def sweep(goal_path, since, dry_run=False):
-    """Add what the range touched and the manifest does not name. Returns the console line."""
+def sweep(goal_path, since, dry_run=False, wrote=None):
+    """Add what the range touched and the manifest does not name. Returns the console line, and
+    extends `wrote` with the paths it added to the file."""
     try:
         text = goal_path.read_text(encoding="utf-8")
         spec = tomllib.loads(text)
@@ -189,8 +192,9 @@ def sweep(goal_path, since, dry_run=False):
         return f"context: naming {', '.join(want)} would not parse, so nothing was written -- {e}"
     if not dry_run:
         goal_path.write_text(grown, encoding="utf-8")
-    return (f"context: `[context] modules` now names {', '.join(want)}, which this session edited "
-            f"and it did not name")
+        if wrote is not None:
+            wrote.extend(want)
+    return f"context: `[context] modules` now names {', '.join(want)}"
 
 
 def main():
@@ -199,12 +203,16 @@ def main():
     ap.add_argument("--since", required=True, help="the sha the session started at")
     ap.add_argument("--goal", type=Path, default=GOAL, help="the goal file to widen")
     ap.add_argument("--dry-run", action="store_true", help="say what it would add, write nothing")
+    ap.add_argument("--added", type=Path, help="write the paths it added here, one per line")
     opts = ap.parse_args()
     if not opts.since:
         return 0
-    line = sweep(opts.goal, opts.since, opts.dry_run)
+    wrote = []
+    line = sweep(opts.goal, opts.since, opts.dry_run, wrote)
     if line:
         print(line)
+    if opts.added and wrote:
+        opts.added.write_text("".join(f"{p}\n" for p in wrote), encoding="utf-8", newline="\n")
     return 0
 
 

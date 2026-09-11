@@ -3524,21 +3524,13 @@ class Chain:
             else:
                 say(f"  chain: goal `{prev.slug}` was not retired -- {r.first_err_line}", C.GRAY)
 
-        # The one line here that outlives the run. It names the goal and never its number: `git log`
-        # is read long after a later insert has moved every number, and a subject line saying
-        # `advances to 29 xml-tree` would by then name a different goal with no way to tell.
-        message = (
-            f"docs(loop): the chain advances to `{nxt.slug}`\n\n"
-            f"Written by tools/loop.py from {rel_to_root(GOALS_DIR)}. The previous goal's\n"
-            f"whole acceptance list is this one's floor, carried verbatim by goal-switch.py and\n"
-            f"relabelled -- see docs/agent/goals/README.md for why that is mechanical.\n"
-        )
-        if retired:
-            message += (
-                f"\nThe goal it left is retired in the same commit: every check of `{prev.slug}`\n"
-                f"is in the floor above, so the copy it kept is deleted and only its prose stays.\n"
-                f"chain.py --retire is what proved that before unlinking anything.\n"
-            )
+        # The one line here that outlives the run. It names the goals and never their numbers: `git
+        # log` is read long after a later insert has moved every number, and a subject line saying
+        # `advances to 29 xml-tree` would by then name a different goal with no way to tell. The
+        # subject is the whole message -- why a switch is mechanical is docs/agent/goals/README.md's.
+        came = f" from `{prev.slug}`" if prev is not None else ""
+        dropped = f", and `{prev.slug}` is retired" if retired else ""
+        message = f"docs(loop): the chain advances{came} to `{nxt.slug}`{dropped}\n"
         msg_file = ROOT / ".agent-tmp" / "chain-switch.txt"
         msg_file.parent.mkdir(parents=True, exist_ok=True)
         msg_file.write_text(message, encoding="utf-8", newline="\n")
@@ -4887,7 +4879,7 @@ def doc_comment_fingerprint():
     return digest.hexdigest()
 
 
-def context_sweep(base):
+def context_sweep(base, slug):
     """Let the goal's `[context] modules` learn what the session actually edited.
 
     `tools/context-sync.py` is the whole of it and holds the reasoning; this is where it runs,
@@ -4900,21 +4892,27 @@ def context_sweep(base):
     Widening the list cannot break a build or a check: at worst a session reads one map line it did
     not need, which is why this is allowed to run unattended at all.
 
+    The commit's subject names the goal and the added files, and its body is their paths: the
+    reasoning is `context-sync.py`'s module doc, and a copy of it in every commit is noise.
+
     Returns a one-line note for the console, or "" when nothing changed."""
     if not base:
         return ""
-    r = capture(sys.executable, [str(ROOT / "tools" / "context-sync.py"), "--since", base])
+    listing = RUNDIR / "context-added.txt"
+    listing.unlink(missing_ok=True)
+    r = capture(sys.executable, [str(ROOT / "tools" / "context-sync.py"), "--since", base,
+                                 "--added", str(listing)])
     note = (r.out or "").strip()
-    if r.code != 0 or not note:
-        return note or ""
-    if not git("status", "--porcelain", "--", str(GOAL_TOML)).strip():
-        return note  # it refused, and said why -- there is nothing to commit
-    body = (f"docs(loop): the goal's context manifest names what the session edited\n"
-            f"\n"
-            f"{note}\n"
-            f"\n"
-            f"Written by the driver between sessions, from the paths the session's own commits\n"
-            f"touched. `tools/context-sync.py` is the tool and its module doc is the reasoning.\n")
+    try:
+        added = listing.read_text(encoding="utf-8").split()
+    except OSError:
+        added = []
+    listing.unlink(missing_ok=True)
+    if r.code != 0 or not added:
+        return note  # it refused and said why, or found nothing -- there is nothing to commit
+    names = [path.rsplit("/", 1)[-1] for path in added]
+    files = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+    body = f"docs(loop): goal `{slug}` maps {files}\n\n" + "".join(f"{path}\n" for path in added)
     git("add", "--", str(GOAL_TOML))
     msg = RUNDIR / "context-msg.txt"
     try:
@@ -5249,7 +5247,7 @@ def drive(opts, goal, chain):
         ledger(f"       goal cost: {goal.summary()}")
         # Beside the acceptance check because it is the same kind of thing: a gate the driver runs
         # between sessions, over the tree the session left, reported through a file a pack reads.
-        widened = context_sweep(SLICES.base)
+        widened = context_sweep(SLICES.base, chain.current.slug)
         if widened:
             step(widened, C.CYAN)
             ledger(f"       {widened}")
