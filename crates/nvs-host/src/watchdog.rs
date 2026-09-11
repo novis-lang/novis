@@ -117,6 +117,16 @@
 //! watched. Without that, a finished core's frozen view would read as a wedged
 //! one forever — its deadline cannot move again — and the watched set would
 //! grow with workers *started* rather than with workers running.
+//!
+//! # Registering a thread that is no core
+//!
+//! A `nvs run` is one request on one thread: it has a ceiling to be stopped by
+//! and no CPU it is pinned to, no fleet to shed its share onto and no operator
+//! but the one reading the stderr the program itself writes.
+//! [`Watchdog::register_requests`] is that caller's door. It buys the half of
+//! this module that answers a *request* — publication, sampling, and the flags
+//! raised at the ceiling — and none of the half that answers a core, so such an
+//! entry takes no [`DeadlineView`] and is reported as wedged never.
 
 use std::io::Write;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
@@ -235,14 +245,19 @@ impl RunningRequest {
     }
 }
 
-/// One registered core, and what has already been said about it.
+/// One registered thread, and what has already been said about it.
 struct Watched {
     /// Identity for deregistration. A counter rather than the [`CpuId`],
     /// because a replacement worker for a wedged core is a second registration
     /// on the same CPU and must not deregister the first.
     id: u64,
-    cpu: CpuId,
-    view: DeadlineView,
+    /// The server core this entry is, as the pair that makes a stall report
+    /// possible: the CPU the worker is pinned to and the deadline table it
+    /// keeps. `None` for a thread that runs requests and is no core —
+    /// [`Watchdog::register_requests`]'s caller — which is sampled against its
+    /// ceilings exactly as a core is and is reported as wedged never, because
+    /// there is no deadline table to read and nothing to shed it onto.
+    core: Option<(CpuId, DeadlineView)>,
     /// The request tree this core is running and the baseline it is charged
     /// from, or `None` while it is running none that a ceiling reaches —
     /// [`Registration::publish_safepoint`] is the only writer, and this
@@ -370,13 +385,33 @@ impl Watchdog {
     /// unwatched rather than failing a worker's startup for it, which is the
     /// same trade [`crate::blocking`] makes for a pool thread.
     pub fn register(&self, cpu: CpuId, view: DeadlineView) -> Registration {
+        self.watch(Some((cpu, view)))
+    }
+
+    /// Watches a thread that runs requests and is no core, sampling whatever it
+    /// publishes against its ceiling until the returned handle is dropped.
+    ///
+    /// `nvs run` is the caller this exists for: one request on one thread, with
+    /// no CPU it is pinned to, no fleet to shed its share onto and an operator
+    /// reading the same stderr the program writes. It takes no [`DeadlineView`]
+    /// because it makes no stall report —
+    /// `rule:http-server/a-wedged-core-is-detected-by-its-deadline` answers a
+    /// worker that stopped turning, and the process that would be named by such
+    /// a report here is the one already printing the `FATAL` the ceiling
+    /// raised. What it does get is the half that answers a *request*:
+    /// [`Registration::publish_safepoint`], sampled on the same walk and
+    /// stopped at the same ceiling as any core's.
+    pub fn register_requests(&self) -> Registration {
+        self.watch(None)
+    }
+
+    fn watch(&self, core: Option<(CpuId, DeadlineView)>) -> Registration {
         let mut state = lock(&self.shared.state);
         let id = state.next_id;
         state.next_id += 1;
         state.watching.push(Watched {
             id,
-            cpu,
-            view,
+            core,
             // A core registers when it installs its reactor, which is before it
             // has a request to be running — so the request arrives later, by
             // publication, and never as a second argument here.
@@ -397,26 +432,32 @@ impl Watchdog {
         }
     }
 
-    /// How many cores are registered.
+    /// How many threads are registered.
     #[must_use]
     pub fn watching(&self) -> usize {
         lock(&self.shared.state).watching.len()
     }
 
-    /// Every registered core that has published a request, paired with what it
-    /// published — the handle that stops that request, and the baseline a
-    /// charge against its ceiling is measured from.
+    /// Every registered thread that has published a request, paired with what
+    /// it published — the handle that stops that request, and the baseline a
+    /// charge against its ceiling is measured from. The CPU is the one the
+    /// publisher is pinned to, and `None` where it is no core.
     ///
     /// The read side of [`Registration::publish_safepoint`]. Cloned out under
     /// the lock and handed back owned, so whatever decides to stop a request —
     /// a sampler, a test — does that with the watched set released and cannot
     /// wedge a core registering beside it.
     #[must_use]
-    pub fn running(&self) -> Vec<(CpuId, RunningRequest)> {
+    pub fn running(&self) -> Vec<(Option<CpuId>, RunningRequest)> {
         lock(&self.shared.state)
             .watching
             .iter()
-            .filter_map(|watched| Some((watched.cpu, watched.running.clone()?)))
+            .filter_map(|watched| {
+                Some((
+                    watched.core.as_ref().map(|&(cpu, _)| cpu),
+                    watched.running.clone()?,
+                ))
+            })
             .collect()
     }
 }
@@ -484,8 +525,8 @@ impl Drop for Registration {
 }
 
 impl Shared {
-    /// One pass over every registered core: it stops each published request
-    /// that has burned past its CPU ceiling, and answers with every core that
+    /// One pass over every registered thread: it stops each published request
+    /// that has burned past its CPU ceiling, and answers with every *core* that
     /// is past its deadline by the margin and has not already been reported for
     /// that deadline.
     ///
@@ -530,8 +571,14 @@ impl Shared {
                 running.view().request(SafepointFlags::CPU_LIMIT);
                 running.view().expire_deadline();
             }
-            let overdue = watched
-                .view
+            // The other half answers a *core*, so an entry that is none — a
+            // `nvs run`, which [`Watchdog::register_requests`] takes — is
+            // sampled above and reported here never.
+            let Some((cpu, view)) = &watched.core else {
+                continue;
+            };
+            let cpu = *cpu;
+            let overdue = view
                 .oldest()
                 .and_then(|deadline| Some((deadline, now.checked_duration_since(deadline)?)));
             let Some((deadline, overdue_by)) = overdue.filter(|&(_, by)| by >= margin) else {
@@ -546,7 +593,7 @@ impl Shared {
             }
             watched.reported = Some(deadline);
             stalls.push(Stall {
-                cpu: watched.cpu,
+                cpu,
                 deadline,
                 overdue_by,
             });
@@ -831,7 +878,7 @@ mod tests {
         registered.publish_safepoint(Some(running));
         let published = dog.running();
         assert_eq!(published.len(), 1, "the published handle was not readable");
-        assert_eq!(published[0].0, a_cpu());
+        assert_eq!(published[0].0, Some(a_cpu()));
 
         // Raised from this thread, which owns neither the request nor the `&mut
         // Ctx` — the whole reason the word is reachable through a handle.
@@ -860,6 +907,51 @@ mod tests {
         assert!(
             dog.running().is_empty(),
             "a core that finished its request kept offering the handle to it"
+        );
+    }
+
+    /// `nvs run`'s side of the watched set: it is stopped at its ceiling like
+    /// any core's request, and the report a core would get is one a run never
+    /// makes — the stderr such a record would land on is the program's own.
+    #[test]
+    fn a_run_that_is_no_core_is_sampled_and_reported_never() {
+        let (tx, rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+
+        let request = ctx();
+        // One nanosecond: the ceiling is passed by the time the publication
+        // returns, so this case asserts the walk rather than the clock.
+        let Some(running) =
+            RunningRequest::new(request.safepoint_view(), ThreadClock::current(), 1)
+        else {
+            // No per-thread clock here, so nothing is sampled at all —
+            // `a_published_handle_stops_the_whole_request_tree` owns why that
+            // is a return rather than a failure.
+            return;
+        };
+        registered.publish_safepoint(Some(running));
+        let published = dog.running();
+        assert_eq!(published.len(), 1, "the published request was not readable");
+        assert_eq!(
+            published[0].0, None,
+            "a run named a CPU it is not pinned to"
+        );
+
+        burn_a_hundred_milliseconds();
+        assert!(
+            dog.shared.sweep(Instant::now()).is_empty(),
+            "a thread that is no core was reported as a wedged one"
+        );
+        assert!(
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "a run past its ceiling was not stopped"
+        );
+        assert!(
+            rx.try_recv().is_err(),
+            "a run with no core still reached the stall sink"
         );
     }
 
