@@ -1,256 +1,254 @@
 ---
-milestone: M6
+milestone: M7
 ---
-# Loop goal 41 — The configuration is written down, and every key in it is read
+# Loop goal 42 — A response body written over time, and the two doors onto it
 
-Two facts about `nvs.toml` today, and each is what makes the other hard to see:
+`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` draws a line between two
+spellings — a stream that ends with its request is a *streaming response*, one that outlives it is a
+*connection isolate* — and **neither side of that line is built.** The server has one body type,
+`Answer` at `crates/nvs-server/src/serve.rs:116`, which is an `Option<Bytes>` with an exact
+`size_hint`: one frame, always `Content-Length`, never chunked. Nothing in this workspace can write a
+byte to a client after the head has gone out.
 
-**The configuration is implicit.** With no `--config` and no `./nvs.toml`, a run takes the shipped
-defaults — capabilities deny-all, `[mode] default = "production"`, every limit at its documented
-number — and there is nothing on disk saying so. An operator who wants to know what they are running
-under reads the rulebook, not their own deployment. `rule:config/no-configuration-file-is-a-complete-configuration`
-is right that this is a valid host; it is the *inspectability* that is missing, not the validity.
+So `Core\Sse::upgrade` is a door onto nothing. It is registered
+(`crates/nvs-stdlib/src/sse.rs:63`, wired at `crates/nvs-stdlib/src/registry.rs:1591`), every request
+carries its cell (`nvs_runtime::SseSlot`, `crates/nvs-runtime/src/ctx/inbound.rs:1571`, offered at
+`crates/nvs-server/src/serve.rs:811`), the both-cells-filled `500` is decided, and the isolate is
+started at `crates/nvs-server/src/serve.rs:938` — after the request is joined and its arena released,
+which is `rule:concurrency/a-connection-is-a-root-isolate`'s ordering. A program that calls it today
+opens a root isolate with nothing wired to a wire, which
+`crates/nvs-stdlib/src/sse.rs:47` § *What is not here yet* says in its own words.
 
-**And some of what the file can hold is read by nothing.** `crates/nvs-config/src/tree.rs` parses 174
-leaf keys under `deny_unknown_fields`, so every one of them is accepted, validated at boot, reported
-by `nvs config dump` — and a handful reach no reader at all. Writing `[server] socket_mode = "0660"`
-today is silence: the parser takes it, the audit prints it, and no listener is ever chmod'ed.
+**This goal builds the body, and then spends it twice.** One cell in `nvs-runtime`, one framing
+module in `nvs-server`, and the two doors the rule already names: `Core\Sse::stream` for a stream
+that ends with its request, `Core\Sse::current` for one that outlives it, and
+`Core\Response::stream` for the untyped case — a large export, a chunked file — that is the same
+machinery with no event framing over it.
 
-They are one goal because neither half is honest alone. A generated file that documents 174 keys is a
-promise about all 174, so it cannot be written until each one is either implemented or says it is not;
-and the audit has nowhere to publish its answer until the file exists.
-
-It sits after goal `resource-ceilings` because goal `resource-ceilings` is priority 1 — request isolation — and this is priority 4,
-simplicity of the surface. Goal `resource-ceilings`'s whole acceptance list is this goal's floor.
+**It is M7's**, the milestone goal `server` carried, and it is the last piece of ADR 0083 that never landed.
 
 ## Why here
 
-It closes the gap between what `nvs.toml` *parses* and what anything reads — 174 leaf keys under
-`deny_unknown_fields`, of which a hand-audit found nine that reach no reader at all — and it makes
-the tree inspectable by writing it down, so a deployment on the shipped defaults has a file saying
-so instead of a rulebook chapter. Its keystone is goal `gap-owners`'s applied a third time — a fact gains a
-tag beside the thing it is about, and a gate fails on an untagged one — so a key cannot land unread
-again.
+M7's last unlanded piece, and the one goal `server` left behind:
+`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` draws a line between a
+streaming response and a connection isolate, and **neither side of it is built**. `Answer` is an
+`Option<Bytes>` with an exact `size_hint`, so nothing in this workspace can write a byte to a client
+after the head has gone out — which makes `Core\Sse::upgrade`, registered and cell-carried and
+started in the right order since goal `server`, a door onto nothing. It is placed after goal `resource-ceilings` because a
+long-lived connection isolate is exactly the runaway shape that goal's ceilings exist to stop — an
+event stream whose budget is declared and unenforced is priority 1 spent to buy priority 3 — and
+after goal `config-is-written` because that is where the hand-written run ends. Nothing after it depends on it.
 
 ## What is wrong today, in one line each
 
-Read out of the tree rather than inferred. Stage 0's tool is what turns this hand-audit into a
-roster nobody has to keep.
+1. **There is no streaming body.** `Answer` holds `Option<Bytes>` and reports an exact size, so
+   `hyper` always sends `Content-Length` and never chunks. `crates/nvs-server/src/serve.rs:580` says
+   so from the SSE side: until the door writes a `200 text/event-stream`, an event stream's isolate
+   runs with `Output::Capture` and its bytes reach its own buffer.
+2. **An SSE isolate cannot wait.** ADR 0083 § 5 gives it "`send` and no `receive`" and § 4 states
+   there is deliberately no `Core\Topic::receive()`, so nothing in the surface can block on a
+   published value — which is the one thing an event stream exists to do.
+3. **`echo` in a connection isolate has no sink.** `rule:tooling/echo-always-has-a-sink` carries five
+   rows and asserts "a context with no attached sink does not exist". A connection isolate is a sixth
+   context and has none: `Output::Capture` into a buffer nothing reads.
+4. **ADR 0083 § 5 says a streaming response is something "M7 already builds".** It is not, and it
+   never was. The record is frozen rationale and is **not** edited; the new record this goal opens is
+   where that is corrected.
+5. **`Phase::Write` would kill every stream it allowed.** `crates/nvs-server/src/io.rs:123` bounds a
+   response write by `write_idle`, which defaults to 30s at `crates/nvs-config/src/server.rs:97` and
+   is operator-configurable. An event stream sits in that phase for hours.
 
-1. **`[cache] dir` is parsed, classified `System`/`Boot` in `crates/nvs-config/src/directive.rs`, and
-   read by nothing.** The artifact cache reads `opcache.file_cache_dir`
-   (`crates/nvs-cli/src/cache.rs:@from_config`); `Cache::dir`'s only mentions outside `tree.rs` are in
-   `crates/nvs-config/tests/`. Two spellings for one directory, one of them inert. Stage 1.
-2. **`[server] socket_mode` reaches no code in the workspace.** Its rule,
-   `rule:http-server/a-unix-socket-listener`, is *designed* rather than shipped, so this is a key
-   whose feature was never built. Stage 1 marks it.
-3. **`[metrics] listen`, `[metrics] endpoint` and `[trace] endpoint` name addresses nothing binds or
-   pushes to.** `crates/nvs-server/src/metrics.rs` says it in its own module doc — *Nothing scrapes or
-   pushes this* — and `rule:observability/the-exporters-are-crates` owns the missing half. The
-   registry those three would export is built and bounded; only the exporter is absent. Stage 1 marks
-   them.
-4. **`capabilities.debug.trace` and `debug.profile` are grantable and never asked.** `Cap::DebugTrace`
-   and `Cap::DebugProfile` exist in `crates/nvs-config/src/capability.rs` with names, rows and grant
-   lookups; `Core\Debug` registers `dump` and `render` and nothing else, so no door ever asks either
-   one. Their `[[app]]` and `[[schedule]]` mirrors are the same key. Stage 1 marks them.
-5. **`[[extension]] path` and `sha256` are folded into the artifact-cache key and never acted on.**
-   `nvs_config::cache::env_hash` reads both so a unit compiled under one extension set is not read
-   under another — correct, and the whole of what happens: nothing loads a binary and nothing verifies
-   a digest. M9 owns it. Stage 1 marks them.
+## Stage 0 — the floor, and the one correction owed
 
-**That list is what one hand-audit found, not the answer.** Stage 0 exists because a hand-audit is
-wrong the week after it is written.
+The previous goal's whole acceptance list, unchanged, plus the single doc fact that is false before
+anything here is written.
 
-## Stage 0 — the roster, mechanically
+1. **Say what ADR 0083 § 5 got wrong, in the record this goal opens** — that the streaming response
+   it treats as already built was never built, so § 5's line between the two spellings has been a
+   line between one unbuilt thing and another. The record is the home; **0083 is frozen and is not
+   touched**, and `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` states a
+   definition rather than a claim about the tree, so it is not wrong today either — it gains its
+   "both spellings exist" sentence in stage 6, when they do.
 
-`tools/directives.py`, on `tools/lints.py`'s shape: derive, do not copy.
+## Stage 1 — the cell, and the body that reads it
 
-1. **The roster comes from `crates/nvs-config/src/tree.rs`** — the one home for what parses. Walk
-   `Config`'s field graph to its leaves, carrying the dotted key. A map block (`[db.<name>]`,
-   `[mail.<name>]`, `[storage.<name>]`) contributes its keys under a `<name>` segment.
-2. **A reader is either spelling.** A field touched outside `tree.rs`, or the dotted key present as a
-   string literal — `Core\Storage`'s root is read as `config.get("storage.{disk}.root")` and a
-   field-access search alone calls it dead. Both halves are load-bearing; say so in the tool's own doc.
-3. **An unread key carries its reason in its own doc comment**, as a trailer on the model of a
-   playbook bullet's `[until:]`:
+The keystone. No Novis surface, no server route, provable in Rust alone — and everything after it
+sits on it.
 
-   ```rust
-   /// `[metrics] listen` — the address the Prometheus scrape is served at.
-   ///
-   /// [unread: no exporter is built, so nothing binds this; the registry it would
-   /// export is `crates/nvs-server/src/metrics.rs`. owner: rule:observability/the-exporters-are-crates]
-   pub listen: Option<String>,
-   ```
+2. **`nvs-runtime`: the response-body cell**, `crates/nvs-server/src/body.rs:16`'s shape reversed.
+   That module is the request body crossing between two tasks over one cell because `hyper`'s
+   `Incoming` is polled with the *connection's* `Context` and the isolate is a peer task; the
+   response direction has the same seam and the same answer. `Emit` on the isolate, `Drain` on the
+   connection, a wake pair between them and **one chunk in flight** — the producer parks until the
+   consumer has taken it, so backpressure is structural and nothing accumulates. An `Rc`, for
+   `body.rs`'s own reason: both halves live on one core by construction.
+3. **`Answer` becomes two-valued** at `crates/nvs-server/src/serve.rs:116` — the whole body it holds
+   today, exact `size_hint` and `Content-Length` unchanged, or a `Drain` whose size is unknown and
+   which `hyper` therefore chunks. `Answer::bytes` keeps answering the whole variant's bytes and
+   answers empty for a stream; `crates/nvs-server/src/statics.rs`'s cases are assertions about that
+   method and must not move.
+4. **The send timeout is armed on the `Emit` side**, from `bounds::Connection::send`, so a consumer
+   that stopped reading closes a producer rather than parking it forever. This is the one place the
+   cell knows a duration, and it is passed in rather than named here.
 
-   The field's doc comment is the home because the field is the key. Nothing is duplicated into a
-   manifest a second edit has to remember.
-4. **`--check` fails both ways.** A key with no reader and no `[unread:]` trailer is a key that landed
-   silently. A key with a trailer *and* a reader is a stale marker — which is the failure that matters
-   most, because it is the one that makes the generated file lie about a feature that now works.
-5. **It gates in `tools/verify.py`**, beside the `lints` and `reference` steps and for their reason:
-   it decides what the compile steps are allowed to mean.
+## Stage 2 — the framing, as a function over bytes
 
-## Stage 1 — implement or mark, and nothing in between
+Shares no file with stage 1's cell and needs no server to prove. `crates/nvs-server/src/sse.rs`, new,
+the mirror of `crates/nvs-server/src/socket.rs`'s `Framed`, and **the only place in the workspace that
+writes a `data:` line.**
 
-Run stage 0's tool, take its roster, and give every unread key one of two answers.
+5. **Normalize before splitting.** The client parser terminates a line on `\r\n`, on `\r` **and** on
+   `\n`, so a payload carrying a lone `\r` splits into two events on the far side. Every payload is
+   normalized to `\n` and then split, one `data:` line per line. A program cannot escape its own
+   event, and that is what makes the taint decision in § *Standing decisions* sound rather than
+   hopeful.
+6. **`event:`, `id:`, `retry:`, and the blank line.** `retry:` is ASCII digits, milliseconds, as the
+   wire spells it. The terminator is one blank line. No BOM is ever emitted.
+7. **The refusals are the framing's, not the member's** — an `$event` or `$id` carrying `\n`, `\r` or
+   NUL, and an empty `$data`. Each is a `LogicError`, each is named in the message, and the reasoning
+   for all three is in § *Standing decisions*.
+8. **The keepalive comment**, `:\n\n`, written by the connection side and never by the isolate. The
+   connection is the only half that knows the wire is idle — the isolate may be parked in `receive()`
+   — so this is a property of where it is written, not a preference.
 
-**Implement it** where the missing piece is wiring rather than a subsystem. `[cache] dir` is the clear
-one and it is not a missing feature at all — it is a second spelling. Decide which name survives and
-say so in the record: either `cache.dir` becomes the Novis spelling that `from_config` reads first
-with `opcache.file_cache_dir` kept as the PHP-shaped alias, or `cache.dir` leaves the tree and writing
-it becomes `E0604`. **Do not leave both parsed and one inert.** A key removed from a
-`deny_unknown_fields` struct turns a silently-accepted file into a refused one, so whichever way it
-goes it is a decision with a migration note, not a cleanup.
+## Stage 3 — door two: the stream that ends with its request
 
-**Mark it** where the missing piece is a subsystem: the exporters, the `Core\Debug` probe members, the
-extension loader, the Unix listener. The trailer names *what* is missing and *who owns it* — a rule id
-or a milestone — and that text is what stage 2 prints into the file, so write it for an operator
-rather than for a maintainer.
+Before the connection door on purpose. A request-scoped stream ends with its request, so **a `.nvst`
+case can assert its complete body bytes**, which makes stages 1 and 2 provable in-process instead of
+only from a raw-socket Rust test.
 
-Every claim in a trailer carries a `file:line` or the words *not checked*, per
-[grounding.md](grounding.md). A trailer that says "no exporter is built" and is wrong is worse than
-no trailer.
+9. **`Core\Response::stream(string $contentType): Core\Response\Stream`** and the class's one member,
+   `write(string|bytes $chunk): void`. The head goes out when `stream` is called; the body ends when
+   the isolate does.
+10. **`Core\Sse::stream(): Core\Sse`** — the same door with `text/event-stream` over it and the stage
+    2 framing behind it. It answers the same `Core\Sse` handle `current()` will, which is what lets a
+    helper taking one work from either side.
+11. **Both are body writers.** One row each in `crates/nvs-types/src/response.rs`, which
+    `crates/nvs-types/src/check.rs:665` installs — so `echo` plus a stream is a **compile** error
+    through `rule:security/response-body-is-one-typed-member`'s existing machinery and needs nothing
+    new.
+12. **`serve.rs` answers a head while the isolate is still running.** Today `Reply::Run` is awaited to
+    completion and `answer(Completion)` builds the response from what it echoed. A streaming response
+    returns the head as soon as the door is called and joins the isolate when the body ends. This is
+    the largest single change in the goal and the one that touches paths no other item does.
+13. **The request's budget still bounds it** — `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`
+    is unchanged by a body that arrives in pieces, and a streaming response is not a connection and
+    gets none of `bounds::Connection`'s numbers.
 
-## Stage 2 — the default file, generated and gated
+## Stage 4 — door one: the stream that outlives its request
 
-`crates/nvs-config/src/default.toml`, `include_str!`'d into the crate and reachable as
-`nvs_config::default_file()`.
+Everything here is over stages 1–3 and only the lifetime differs.
 
-1. **Every key is present and commented out.** The file's effective content is empty, so a deployment
-   that takes it still runs on the shipped defaults — and a default this project later tightens for a
-   security reason still reaches every host that ran the binary once. That direction is the priority
-   ordering's first item over its fourth, and it is the whole argument for the shape: a file of live
-   values would freeze today's numbers into every deployment that ever started.
-2. **Each key's comment states what it does and what the default is**, in that order, as short as it
-   can be and no shorter. Verbose where a wrong value is a security question (`[capabilities]`,
-   `[limits.hard]`, `[mode] ceiling`); one line where it is not. `docs/agent/doc-style.md` governs the
-   prose.
+14. **`Core\Sse::current(): Core\Sse`**, `crates/nvs-stdlib/src/socket.rs`'s `current` row one class
+    over, refusing with a `LogicError` in every program that is not an event stream.
+15. **`Core\Sse->send(mixed $data, ?string $event = null, ?string $id = null): void`** — the one way
+    onto the wire, in both doors.
+16. **`Core\Sse->receive(): ?Core\Sse\Message`** and the `Core\Sse\Message` class, `topic` and
+    `value`. Topics only: the subscriber queue, `Reactor::remote_wake` and
+    `rule:concurrency/a-connection-is-a-loop`'s overflow-closes-the-subscriber answer are reused from
+    the WebSocket path unchanged. `null` for a client that went away, for an overflowed queue and for
+    a drain, exactly as the socket's `receive` answers it.
+17. **`Core\Sse->retry(Core\Time\Duration $after): void`** — one `retry:` line, and the way a program
+    says "do not come back for an hour" ahead of a planned drain.
+18. **Wire the door at `crates/nvs-server/src/serve.rs:936`**, where the cell is already taken and the
+    isolate already started. What changes is `answered`: the `200 text/event-stream` replaces the
+    request's own response, and the connection isolate's `Emit` is the body.
 
-   **`cpu_time` and `wall_time` are the two keys an operator asks about first**, and their comments
-   answer the questions before they are asked: waiting costs no CPU time, the budget is the request
-   tree's, the check runs about twice a second, `cpu_time` equal to `wall_time` never fires, PHP's
-   `max_execution_time` is `cpu_time` on Linux, and a heavy report raises its own limit instead of
-   the default being raised for everyone. The meaning is `docs/reference/tools/20-config.md` §
-   *`[limits]` and `[limits.hard]`*; the comment is its short form:
+## Stage 5 — the bounds, and the trap under them
 
-   ```toml
-   [limits]
-   # cpu_time — processor time one request may spend computing: its thread's own
-   # user + kernel time, shared by every isolate and task the request spawns.
-   # Waiting on a database, a socket or a sleep costs none of it, so this stops a
-   # runaway loop without touching a slow query. Checked every ~0.5s, so a request
-   # may overrun by up to that much. Keep it below wall_time: a request cannot
-   # compute longer than it runs, so an equal value never fires.
-   # PHP: what max_execution_time measures on Linux. Default: 5s.
-   #cpu_time = "5s"
+Needs both doors to exist before any of it can be asserted. `crates/nvs-server/src/bounds.rs`, whose
+`Connection::default` is `rule:concurrency/connection-bounds-are-finite`'s whole answer and whose
+destructuring test is what makes a new field fail to compile without one.
 
-   # wall_time — how long one request may run, start to finish, waiting included:
-   # how long a client can be kept waiting.
-   # PHP: PHP-FPM's request_terminate_timeout. Default: 30s.
-   #wall_time = "30s"
+19. **`heartbeat` is derived, never configured**: `write_idle / 2`, floored at one second. A constant
+    works until an operator writes `write_idle_timeout = "5s"` and every stream dies at five seconds
+    with nothing in the log. One number, one home, correct under any tuning — and a test asserts the
+    relation holds across every value `crates/nvs-config/src/server.rs`'s parser accepts.
+20. **`idle` is not armed for an event stream.** It means "the peer said nothing", and an SSE client
+    says nothing *ever*; arming it closes every stream on schedule. `lifetime`, `send`, `drain` and
+    `max_open` are armed as they are for a socket. This is the one field the two doors read
+    differently and `bounds.rs`'s module doc is where that is said.
+21. **`message` is reused as the maximum event size.** One number for the largest thing a program
+    hands the wire, rather than a second one to keep in step with it.
+22. **`reconnect` is new, and jittered per stream** — the door emits `retry:` at open with a value
+    drawn from the base ±33%, so a drained fleet does not reconnect in lockstep. `rule:programs/memory-priority`'s
+    ordering puts this at priority 3, and it costs one field and one draw.
+23. **Drain and reload close by ending the body.** SSE has no close frame and needs none: a clean end
+    of the chunked body is the close, and the client's own reconnect is the recovery. An open stream
+    keeps the compiled unit it began with, as ADR 0083 § 7 already requires of a connection.
 
-   [limits.hard]
-   # The most a request may raise itself to with Core\Config::set. A report that
-   # needs 40s of CPU raises its own cpu_time; don't raise the default for everyone.
-   #cpu_time = "60s"
-   #wall_time = "300s"
-   ```
+## Stage 6 — the rulebook and the record
 
-   **The `Default:` lines are true only once an unset key falls back to them.** Today an unset
-   `cpu_time` is no limit at all (`crates/nvs-runtime/tests/configured_limits.rs`'s
-   `an_unstated_uncapped_or_malformed_cpu_time_is_no_ceiling`), which
-   `rule:config/no-configuration-file-is-a-complete-configuration` says it must not be. This stage
-   either lands that fallback first or prints what is actually true.
-3. **An unread key prints its trailer**, under a `# NOT IMPLEMENTED` line naming the missing piece and
-   its owner. An operator reading the file learns that writing the key does nothing *before* they
-   write it, which is the whole point of emitting it rather than hiding it.
-4. **A map block appears once, as a commented example** — `[db.main]`, `[mail.default]`,
-   `[storage.local]` — because there is no key roster for a name an operator has not chosen yet.
-5. **`tools/directives.py --check` gates the file against the tree**: every leaf key appears exactly
-   once, every `[unread:]` key carries its `# NOT IMPLEMENTED` note, and no key appears that the tree
-   does not parse. This is what stops the file drifting the way a hand-written sample always does.
+Prose, after the behaviour is green.
 
-## Stage 3 — a project command writes it
-
-The lookup does not change: `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-step 2 is still `./nvs.toml` in the working directory and still never a walk upward. What changes is
-that a project command reaching step 3 **writes step 2's file first**, then resolves normally — so the
-file it creates is the file it will next read, in the one directory the lookup already looks in.
-
-1. **Only project commands.** `run`, `serve`, `test`, `build`, `check` — the commands that resolve a
-   tree in order to execute something. `config check`, `config dump`, `info`, `meta`, `lsp`,
-   `lsp-test` and `service` never write: an audit that creates the file it is auditing reports on its
-   own output, and an LSP that writes into every folder an editor opens is a defect. The list is one
-   table in `crates/nvs-cli/src/main.rs` with that sentence above it, not a flag threaded through
-   every arm.
-2. **Any `--config` disables it entirely**, on step 1's own precedent: an operator who named files
-   never gets a surprise write in the working directory, even if every named file was missing.
-3. **`--no-init`, and `NOVIS_NO_INIT` in the environment**, because a container image built by running
-   the binary once should not bake a config file nobody wrote.
-4. **A directory the ownership check refuses is not written to.** `nvs_config::trust::check` on the
-   working directory first: creating a configuration file in a directory another local account can
-   write manufactures exactly the surface `rule:config/ownership-is-the-trust-boundary` exists to
-   close, and `nvs serve` would then read it at the next boot. Refusing to write is the fail-closed
-   direction and costs an operator one `nvs init`.
-5. **A failure to write is not an error anyone hears about**, on the artifact cache's discipline
-   (`crates/nvs-cli/src/cache.rs` § 4): a read-only working directory, a full disk or a race with a
-   concurrent `nvs` leaves the run taking the shipped defaults, which is what it did before this stage
-   existed. One `Info` record, never a diagnostic, and never a non-zero exit.
-6. **`nvs init` is the explicit door** — writes the same file, refuses rather than overwriting an
-   existing one, and is what every refusal above points the operator at.
-7. **The boot line changes.** `rule:config/no-configuration-file-is-a-complete-configuration`'s one
-   line said *running on the shipped defaults*; where this stage wrote the file it says so and names
-   the path, and where it declined it says which of the reasons above applied.
-
-## Stage 4 — the records and the rulebook
-
-1. **A decision record** — the next free number — carrying stage 2's commented-versus-live argument,
-   stage 3's command split and its four refusals, and stage 1's `cache.dir` decision with its
-   migration note.
-2. **`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` gains step 3's write.**
-   Its step 2 and its "never a walk upward" are unchanged and must stay unchanged — this goal adds
-   what happens *at* step 3, it does not add a lookup.
-3. **`rule:config/no-configuration-file-is-a-complete-configuration` stays true and gains one
-   sentence**: the shipped defaults remain a complete configuration, and are what a run uses whenever
-   the file could not be written.
-4. **One new fragment** for stage 0's gate — every key the tree parses is read, or says in its own
-   doc comment what is missing and who owns it — because that is a rule about this repository's
-   surface that outlives the goal.
-5. **`nvs.toml` at the repository root still carries ADR references** (`ADR 0103 § 1 step 2`,
-   `ADR 0118 § 2`) from before the docs migration re-pointed everything at `rule:` tokens. Stage 4 is
-   where they become rule ids, since this is the goal that touches that file's subject.
+24. **One new record and no other number** — the two doors, `receive()`'s amendment of § 5, the
+    framing refusals, the derived heartbeat, the jittered reconnect, the emitted proxy header, and
+    the `Last-Event-ID` position. The number is claimed by the file that lands.
+25. **`rule:tooling/echo-always-has-a-sink` gains its sixth row**: a connection isolate, and a request
+    whose body is a stream, both write to that run's captured output with the `Cli\Text` carrier.
+26. **`rule:security/response-body-is-one-typed-member`'s "five typed members" becomes seven**, with
+    the two new ones classified — the content type of `Core\Response::stream` is a sink under
+    `rule:security/sink-predicate`, and an event stream's `$data` is contagious where its `$event` and
+    `$id` are sinks.
+27. **`rule:concurrency/two-doors-one-isolate`** says the event stream's isolate waits on topics and
+    not on a peer; **`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`** says both
+    spellings now exist and names them; **`rule:concurrency/connection-bounds-are-finite`** carries the
+    derived heartbeat, the jittered reconnect and the unarmed `idle`.
+28. **The spec rows**, regenerated: five new members and two new classes.
 
 ## Standing decisions
 
-- **Every key in the generated file is commented out, and this is not a placeholder for live
-  values.** A file of live defaults pins today's numbers into every deployment that ever ran the
-  binary, so a default this project later tightens for a security reason reaches nobody — priority 1
-  losing to priority 4, which the ordering does not permit. The operator inspects the default by
-  reading it and overrides it by uncommenting. Closed; do not reopen it on the grounds that an
-  active file is more useful.
-- **Only project commands write, and the list is a table rather than a flag.** `run`, `serve`,
-  `test`, `build`, `check`. An audit that creates the file it audits reports on its own output, and
-  an `nvs lsp` that writes into every folder an editor opens is a defect, not a convenience. If a
-  sixth command wants the behaviour, it joins the table with a sentence.
-- **The lookup does not change.** Step 2 stays `./nvs.toml` in the working directory and stays
-  *never a walk upward*; step 1 stays a hard refusal for a named file that is missing. This goal
-  adds what happens at step 3 and adds no second implicit path — not beside the binary, not a
-  platform directory, not an ancestor. Two implicit lookups are worse than one, and that argument is
-  already in the rule.
-- **An unimplemented key is emitted and marked, never hidden and never removed from the parser.**
-  Hiding it leaves an operator who read the rulebook writing a key that is silently accepted;
-  removing it turns a file that parses today into `E0604` tomorrow, which is a migration this goal
-  is not buying except for `cache.dir`, where the whole point is that there are two spellings of one
-  thing.
-- **A failure to write is silent and the run continues.** The artifact cache's discipline
-  (`crates/nvs-cli/src/cache.rs` § 4), for its reason: a read-only working directory is a
-  configuration this repository supports, and a run that refused to start because it could not write
-  a file nobody asked for would be a regression against every deployment that works today.
-- **Refusing to write beats writing into a directory that fails the ownership check.** The
-  alternative — write it anyway and let `nvs serve` refuse it at the next boot — creates the file an
-  attacker wanted in the one directory where they can edit it. `nvs init` is the operator's answer
-  and it is one command.
-- **Stage 0's tool counts a dotted-key string literal as a reader.** Both spellings are load-bearing:
-  `Core\Storage` reads `config.get("storage.{disk}.root")` and eight live keys look dead to a search
-  for field access alone. A later session that finds the second half redundant and deletes it turns
-  this gate into a generator of false gaps.
+Settled with the user before the run. **None of these is re-opened by a session**; where one turns out
+to be wrong in implementation, the fallback is named here and the record from stage 6 is where the
+change is written down.
+
+- **`receive()` is topics-only, and § 5's "no receive" means "no peer".** An SSE client cannot send on
+  the stream, so there is no second source; the honest reading of § 5 is about the peer and not about
+  the wait. Without this an event stream can only poll, which is the thing SSE exists to avoid. *No
+  fallback: the goal is not worth running without it.*
+- **One `Core\Sse` type across both doors, with honest refusals.** `receive()` throws `LogicError` in
+  a streaming response. A narrower writer type for door two would remove the throw and break the
+  reason one type is worth having — a helper taking `Core\Sse` written once and used from both sides.
+  It is the shape `Core\Socket::current` already has outside a connection. *Fallback if the two
+  lifetimes force different state: split the type and say so in the record.*
+- **`send(mixed $data, …)`: a `string` goes out raw, anything else is JSON-encoded.** *Rejected:*
+  a `send`/`sendJson` split on `Core\Socket::send`/`sendBytes`'s precedent — more consistent with the
+  sibling class, but it doubles the surface for a distinction the caller never has to make, and
+  `send($order, event: "order")` is the line people write. Record the rejection in the new record.
+- **`$data` accepts `tainted`; `$event` and `$id` refuse it.** Framing belongs to us or to the
+  serializer and a payload cannot escape a `data:` line once stage 2 normalizes it — the argument
+  `Core\Response::json` already makes. `$event` and `$id` are `rule:security/unclassified-parameter-refuses-tainted`
+  sinks: a client dispatches on the event name, so an attacker-chosen one is a live cross-tenant
+  hazard, exactly as a tainted topic name is under ADR 0083 § 4.
+- **Three refusals, all `LogicError`.** An `$event` or `$id` carrying `\n`, `\r` or NUL — stripping
+  would silently change an event's name, and a NUL makes the client discard the id outright. An empty
+  `$data` — the client provably does not dispatch an event with an empty data buffer, so it is a send
+  that cannot arrive. And **`setStatus` on a path that opens an event stream**: an event stream is 200
+  by protocol, and refusing the contradiction is what the both-cells-filled `500` already does rather
+  than picking a winner. `Core\Response::stream` takes any status; the refusal is SSE's alone.
+- **No replay buffer.** Resumption is `Last-Event-ID`, read off the request by the handler and passed
+  through `args:` — the connection isolate shares nothing with its request and *cannot* read the
+  header, which is `rule:security/isolate-shares-nothing` working as intended. Replay needs the
+  application's own event log; a runtime ring buffer would be a bounded lie about durability. Door
+  two reads the header directly, being in the request isolate.
+- **`X-Accel-Buffering: no` is emitted**, beside `Cache-Control: no-cache, no-transform`. Production
+  is a proxied origin by definition (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`),
+  nginx buffers proxied responses by default, and that one default breaks SSE completely. This is an
+  instruction *to* a proxy and not a proxy feature implemented here, so that rule's closed list of
+  absences is untouched. Caddy, HAProxy and Envoy need nothing.
+- **A request-scoped event stream is reconnected by `EventSource`, and that is documented, not
+  fought.** When the request ends the browser reconnects; door two is for `fetch`-based readers and
+  for progress UIs that close themselves, and a handler that wants the client to stop answers a
+  non-200 on the next request. This is what keeps the two doors distinct rather than two spellings of
+  one job, and it belongs in both members' docs.
+- **`Core\Response::stream` is in this goal**, not split out. It is the same cell, the same head-early
+  path in `serve.rs` and the same compile-time body-writer row; landing it separately would open
+  stage 3's `serve.rs` work twice.
+- **What this spends**, per `rule:programs/memory-priority`'s ordering, and it is stated because a
+  member that spends must say so: one wake pair and one chunk in flight per open stream, plus the
+  framing buffer and the subscriber queue a connection already pays for — O(in-flight), never O(events
+  sent). Non-streaming responses are untouched: `Answer`'s whole variant keeps its exact `size_hint`
+  and its `Content-Length`. The real cost is priority 4, simplicity: `Answer` becomes two-valued and
+  every response path reads it, and `serve.rs` gains a path where the head is answered before the
+  isolate ends. Both are the mechanical consequence of the feature and `body.rs` already pays the same
+  price in the other direction.

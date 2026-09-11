@@ -1,14 +1,17 @@
-# Goal 41 -- The configuration is written down, and every key in it is read
+# Goal 42 -- A response body written over time, and the two doors onto it.
 # The acceptance test, as data.
 #
-# `41-config-is-written.md` is the prose. One home each.
+# `42-event-streams.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
   # goal-switch.py unions the previous goal's list into this one. This goal writes no
-  # `examples/*.nvs` fixture: what it produces is a generated file and a gate over it, and both are
-  # asserted from Rust and from Python rather than from a program's frozen output.
+  # `examples/*.nvs` fixture of its own, and the reason is the feature: an example runs under
+  # `nvs run`, where `echo`'s sink is the terminal and no request exists, so neither door can be
+  # opened from one. Door two is proven by `.nvst` cases instead -- a request-scoped stream ends
+  # with its request, so `--EXPECT--` can hold the whole framed body -- and door one from Rust,
+  # where a raw h1 client can read N events and close.
   # carried from the previous goal by tools/goal-switch.py
   "examples/queue.nvs",
   "examples/queue-sqlite.nvs",
@@ -94,87 +97,97 @@ files = [
 [context]
 
 modules = [
-  # The one home for what `nvs.toml` can hold. Every leaf field here is a key stage 0's roster
-  # derives and stage 2's file must print, and it is where stage 1 writes an `[unread:]` trailer.
-  "crates/nvs-config/src/tree.rs",
-  # `roots` -- step 1's `--config` list, step 2's `./nvs.toml` and step 3's fall-through, in twelve
-  # lines. Stage 3 adds the write at step 3 and changes neither of the first two.
-  "crates/nvs-config/src/resolve.rs",
-  # The changeability table, whose rows are prefixes rather than keys. `cache.dir` has a row here
-  # and no reader anywhere, which is stage 1's first item.
-  "crates/nvs-config/src/directive.rs",
-  # `trust::check` and `canonical` -- stage 3's refusal to create a configuration file in a
-  # directory another local account can write.
-  "crates/nvs-config/src/trust.rs",
-  # `Snapshot::get`'s flat dotted-key lookup: the *second* spelling of a reader, and the one a
-  # field-access search misses. `Core\Storage`'s root is read this way.
-  "crates/nvs-config/src/snapshot.rs",
-  # `LocalFiles`, `boot_snapshot` and `working_directory` -- where the CLI resolves a tree, and the
-  # module doc arguing why `nvs run` reads without the ownership check that `nvs serve` applies.
-  "crates/nvs-cli/src/config.rs",
-  # The subcommand enum. Stage 3's project-command table goes here, beside the arms it classifies.
-  "crates/nvs-cli/src/main.rs",
-  # `from_config` and `default_dir` -- the artifact cache reading `opcache.file_cache_dir` and never
-  # `cache.dir`, which is the evidence for stage 1's first item; and § 4's "a failure to write is
-  # not an error anyone hears about", which is the discipline stage 3 copies.
-  "crates/nvs-cli/src/cache.rs",
-  # `Cap`'s roster, its names and its grant lookups -- including `DebugTrace`/`DebugProfile`, which
-  # are grantable and never asked.
-  "crates/nvs-config/src/capability.rs",
-  # "Nothing scrapes or pushes this", in the module doc of the registry that would be exported.
-  # The evidence behind stage 1's marking of the three exporter addresses.
-  "crates/nvs-server/src/metrics.rs",
-  # Generate-then-check as this repository already does it: one home, mechanically enforced, with
-  # `--check` as the gate. Stage 0's tool is this shape and stage 2's file is its output.
-  "tools/lints.py",
-  # Where a gate is wired, and the argument for why the generated-file step precedes the compile
-  # steps rather than following them.
-  "tools/verify.py",
-  # `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s portable
-  # single-file executable: `nvs build --compile` on the way out, and the footer check every `nvs`
-  # process makes on the way in.
-  "crates/nvs-cli/src/bundle.rs",
-  # `nvs serve`: one worker per core, every socket `[server] listen` names, and every request
-  # running one entry file as `rule:security/isolate-shares-nothing`'s isolate.
-  "crates/nvs-cli/src/serve.rs",
-  # The fixtures more than one module's `mod tests` needs, in the platform's own spelling.
-  "crates/nvs-cli/src/testing.rs",
+  # `Answer` (:116) -- one buffer, exact `size_hint`, always `Content-Length`. Stage 1 item 3 makes
+  # it two-valued. Also the seam every door is wired at: the cell taken and the connection isolate
+  # started at :936-938, already after the request is joined, and :580's own note that the
+  # `200 text/event-stream` is "a later slice's".
+  "crates/nvs-server/src/serve.rs",
+  # The shape stage 1 mirrors: the request body crossing between two tasks over one cell, with the
+  # argument for why a wake pair and one chunk in flight rather than a queue. Read this before
+  # writing the response direction; it is the same seam and the same answer.
+  "crates/nvs-server/src/body.rs",
+  # `Connection` and its `default` -- every bound finite before anything is configured, and the
+  # destructuring test that makes a new field fail to compile without one. Stage 5's four items.
+  "crates/nvs-server/src/bounds.rs",
+  # `Framed`: what a connection's framing layer looks like in this crate, and where the idle,
+  # lifetime and send waits are armed. Stage 2's new module is its sibling, not its extension.
+  "crates/nvs-server/src/socket.rs",
+  # `Phase` (:116-129) -- `Phase::Write` is bounded by `write_idle`, and an event stream sits in it
+  # for hours. Stage 5 item 19's trap lives here.
+  "crates/nvs-server/src/io.rs",
+  # `SseSlot` (:1571), `UpgradeSlot`, `offer_sse` and `sse_slot` -- the cell that is already
+  # offered to every request, and the carrier the stream's `Emit` half is added to.
+  "crates/nvs-runtime/src/ctx/inbound.rs",
+  # `Output` -- `Capture` and `Inherit`, both of which buffer. The connection isolate's echo goes
+  # here today and reaches nothing, which is stage 6 item 25's subject.
+  "crates/nvs-runtime/src/host.rs",
+  # `Core\Sse`'s registry rows and its `# What is not here yet` (:47) -- the door as it stands, and
+  # the module every member in stages 3 and 4 is added to.
+  "crates/nvs-stdlib/src/sse.rs",
+  # The sibling surface stages 3 and 4 mirror row for row: `current`, `receive`, `send`, and the
+  # `MESSAGE` each wait answers with. Its module doc is the shared home for everything behind
+  # either door.
+  "crates/nvs-stdlib/src/socket.rs",
+  # `Core\Response`'s existing typed body members -- what `stream` is added beside, and the
+  # classification each row carries.
+  "crates/nvs-stdlib/src/response.rs",
+  # `CLASSES` and `CoreTy` -- where a new class is wired (`sse::CLASS` is already at :1591) and the
+  # parameter marks the new rows carry.
+  "crates/nvs-stdlib/src/registry.rs",
+  # `entering_body` -- the set that makes `echo` plus a typed writer a compile error. Stage 3 item
+  # 11 is one row each here and nothing else.
+  "crates/nvs-types/src/response.rs",
+  # Where that set is installed and put back (:665). Read only to confirm the row lands; the walk
+  # itself does not change.
+  "crates/nvs-types/src/check.rs",
+  # `write_idle`'s default (:97) and the parser that accepts an operator's own value. Stage 5 item
+  # 19 derives the heartbeat from this and asserts the relation across everything it accepts.
+  "crates/nvs-config/src/server.rs",
 ]
 
 # The rules every stage of this goal works inside.
 rules = [
-  # The lookup this goal adds a step-3 write to, and does not otherwise touch.
-  "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
-  # Why a host with no file is valid rather than broken -- still true after this goal, and the
-  # answer whenever stage 3 declines to write.
-  "config/no-configuration-file-is-a-complete-configuration",
-  # Ownership is the trust boundary: stage 3's fourth refusal, and why creating a file in a
-  # world-writable directory is the one thing this goal must not do.
-  "config/ownership-is-the-trust-boundary",
-  # Three changeability classes -- what a generated comment has to say about a key besides its
-  # default, and what `directive.rs`'s rows are for.
-  "config/three-changeability-classes",
-  # A default that is unsafe inbound or unbounded outbound is a defect: stage 2's argument for
-  # commenting every key rather than freezing today's numbers into every deployment.
-  "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+  # The line this goal builds both sides of, and the one that has named two unbuilt things.
+  "concurrency/a-stream-that-outlives-its-request-is-a-connection",
+  # Two cells, two hand-overs, one isolate -- the door that is already landed, and the rule stage 6
+  # amends to say what the event stream's isolate waits on.
+  "concurrency/two-doors-one-isolate",
+  # Why the connection isolate is a root and why the request is joined before it starts: the
+  # ordering `serve.rs:936` already implements and nothing here may reorder.
+  "concurrency/a-connection-is-a-root-isolate",
+  # Every bound finite with nothing configured -- stage 5's whole frame.
+  "concurrency/connection-bounds-are-finite",
+  # One body, one type, one content type, and `echo` beside a typed writer as a compile error.
+  # Stage 3 item 11 is this rule reused rather than a new check.
+  "security/response-body-is-one-typed-member",
+  # The five-row table with no row for a connection isolate, which is item 3 of what is wrong.
+  "tooling/echo-always-has-a-sink",
+  # The ordering every tradeoff in § *Standing decisions* is settled under, and the reason the
+  # jittered reconnect is priority 3 rather than a tuning preference.
+  "programs/memory-priority",
 ]
 
-adrs = []
+adrs = [
+  # The line between the two spellings, in its original words -- including the "which M7 already
+  # builds" that stage 0 corrects. Read the section, not the record.
+  "0083 §5",
+]
 
+# Two only, because these are the two every session of this goal writes. The member shape, the case
+# shape and the two prose shapes are each named by the one stage that writes them -- the base is
+# what every stage pays for, and this goal's stages 1 and 2 write no member and no record at all.
 shapes = [
   "A commit message",
-  "A decision record",
-  "A rule fragment",
   "A code comment",
 ]
 
-milestones = ["M6:verify"]
+milestones = ["M7:verify"]
 
 playbook = [
   # This goal's own file set and tools.
-  'Tooling > A full diagnostic band',
   'Tooling > A moved module takes',
   'Tooling > Making a type `pub`',
+  'Tooling > A full diagnostic band',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -193,34 +206,57 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `41-config-is-written.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `42-event-streams.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.1]
-# The three subsystems stage 1 marks rather than builds. Each is read to write one honest trailer --
-# what is missing and who owns it -- and none of them is built by this goal.
-rules = [
-  "observability/the-exporters-are-crates",
-  "http-server/a-unix-socket-listener",
-  "testing/debug-probes",
-  "packaging/extension-loading-is-root-controlled",
-]
+# The cell alone. Nothing about isolates, doors or framing reaches it -- it is two halves over one
+# `Rc` and a wake pair, and the only rule it works inside is the one about what a request may hold.
+rules = ["http-server/a-requests-blast-radius-is-bounded-at-four-tiers"]
 
 [context.stage.2]
-# Why a generated default is commented rather than live: a default that is unsafe or unbounded is a
-# defect, so a later tightening has to be able to reach a deployment that took this file.
-rules = ["http-server/an-unsafe-or-unbounded-default-is-a-defect"]
-shapes = ["A code comment"]
-
-[context.stage.3]
-# What `nvs serve` defends that `nvs run` does not, and the ladder a declined write reports on.
+# Framing is a function over bytes and needs no server. What it does need is the classification the
+# refusals are written against, since `$event` and `$id` are sinks and `$data` is not.
 rules = [
-  "errors/escalation-ladder",
-  "config/the-resolved-root-is-announced-and-stored",
+  "security/unclassified-parameter-refuses-tainted",
+  "security/sink-predicate",
 ]
 
-# Nothing here changes what a program allocates. The floor's entries are unioned in; this goal adds
-# none of its own.
+[context.stage.3]
+# Door two: a body member, so the one-body rule is the frame, and the head goes out while the
+# request isolate still runs -- which is where the request's own ceiling has to stay true.
+rules = [
+  "security/response-body-is-one-typed-member",
+  "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.4]
+shapes = ["A `Core` member"]
+# Door one: the connection isolate's own surface. `receive()` is the socket's wait minus its peer,
+# so the loop rule and the operand rule are both read here, and § 4's topic model is the far half.
+rules = [
+  "concurrency/a-connection-is-a-loop",
+  "concurrency/an-upgrade-is-spawn-shaped",
+  "security/isolate-shares-nothing",
+]
+adrs = ["0083 §4"]
+
+[context.stage.5]
+# The bounds, and the argument for why a default that is unbounded is a defect rather than a
+# tuning question. § 7 is the list stage 5 is checked against.
+rules = ["http-server/an-unsafe-or-unbounded-default-is-a-defect"]
+adrs = ["0083 §7"]
+
+[context.stage.6]
+# The prose stage. The proxy rule is here and not in the base because exactly one item argues from
+# it -- the emitted `X-Accel-Buffering`, which is an instruction to a proxy and not a feature of
+# this server, and the record has to say which.
+rules = ["http-server/two-deployments-and-nothing-a-proxy-owns"]
+shapes = ["A decision record", "A rule fragment", "A `Core` member"]
+
+# A new cell holding a `Bytes` per stream and a framing buffer per connection: both are dropped on
+# the connection's own teardown and neither closes a cycle. Nothing here is added to the skip list.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
@@ -233,6 +269,12 @@ compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 567 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -8169,22 +8211,19 @@ stage = "1 floor"
 name = "every record this goal opened is complete and cited"
 argv = ["python", "tools/decisions.py", "--gate"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- the roster. The tool exists before anything it would report on is fixed, because a
 # hand-audit is wrong the week after it is written. Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "0 the roster"
+stage = "1 floor"
 name = "the directive roster derives from the tree, and both spellings of a reader count"
 argv = ["python", "tools/directives.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "0 the roster"
+stage = "1 floor"
 name = "a key read only through a flat dotted lookup is not reported unread"
 argv = ["python", "tools/directives.py", "--explain", "storage.<name>.root"]
 
@@ -8193,10 +8232,9 @@ argv = ["python", "tools/directives.py", "--explain", "storage.<name>.root"]
 # a key with neither a reader nor a trailer fails, and so does a trailer over a key that now works.
 # Goal prose stage 1.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "1 implement or mark"
+stage = "1 floor"
 name = "the artifact cache directory has one spelling, and it is the one an operator writes"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -8206,7 +8244,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "1 implement or mark"
+stage = "1 floor"
 name = "every key the tree parses is read or carries a reason, and no reason outlives its gap"
 args = ["test", "-p", "nvs-config"]
 tests = [
@@ -8218,16 +8256,15 @@ tests = [
 # Stage 2 -- the default file. Commented, so the shipped defaults still apply and a later tightening
 # still reaches a deployment that took this file. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "2 the default file"
+stage = "1 floor"
 name = "the generated file holds every key the tree parses, exactly once, and nothing it does not"
 argv = ["python", "tools/directives.py", "--check-template"]
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the default file"
+stage = "1 floor"
 name = "the shipped file parses, resolves, and changes nothing about the run that takes it"
 args = ["test", "-p", "nvs-config"]
 tests = [
@@ -8240,10 +8277,9 @@ tests = [
 # Stage 3 -- a project command writes it. The four refusals are each a test, because each of them is a
 # way this stage could quietly become a defect. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the write"
+stage = "1 floor"
 name = "a project command with no tree writes one, and reads back exactly what it wrote"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -8254,7 +8290,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 the write"
+stage = "1 floor"
 name = "the four refusals: a named config, an audit, an opt-out, and a directory that fails the check"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -8266,7 +8302,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 the write"
+stage = "1 floor"
 name = "a write that cannot happen is an info record and never a failure"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -8278,21 +8314,246 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the records and the rulebook. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "4 the record"
+stage = "1 floor"
 name = "the rulebook validates, including the fragment this goal adds"
 argv = ["python", "tools/rules.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "4 the record"
+stage = "1 floor"
 name = "every record this goal opened is complete and cited"
 argv = ["python", "tools/decisions.py", "--gate"]
 
 [[check]]
 kind = "command"
-stage = "4 the record"
+stage = "1 floor"
 name = "no document in the tree still cites this goal's subject by ADR number"
 argv = ["python", "tools/check-links.py"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 1 -- the cell, and the body that reads it. The keystone: no Novis surface, no route, and
+# every stage after it sits on it. Goal prose stage 1.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "1 the cell"
+name = "one chunk in flight, and a producer that parks until the consumer has taken it"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_chunk_written_is_the_chunk_the_consumer_takes",
+  "a_second_write_parks_until_the_first_chunk_has_been_taken",
+  "a_dropped_consumer_ends_the_producer_rather_than_parking_it_forever",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 the cell"
+name = "a whole body and a streaming body are two answers, and only one of them chunks"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_whole_body_reports_an_exact_size_and_is_sent_with_content_length",
+  "a_streaming_body_reports_no_exact_size_and_is_chunked",
+  "answer_bytes_still_answers_the_whole_variants_buffer",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 the cell"
+name = "a consumer that stopped reading closes the producer at the send timeout"
+args = ["test", "-p", "nvs-server"]
+tests = ["a_stalled_reader_closes_the_stream_at_the_send_timeout_and_reports_as_that"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the framing, as a function over bytes. Shares no file with stage 1 and needs no server.
+# The refusals are checks because each of them is a way the framing could silently become a defect.
+# Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the framing"
+name = "a payload cannot escape its own event, whatever line endings it carries"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_payload_carrying_a_lone_carriage_return_is_one_event_and_not_two",
+  "every_line_of_a_multiline_payload_becomes_its_own_data_line",
+  "a_crlf_payload_frames_the_same_as_the_lf_one",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the framing"
+name = "the three refusals, each named in its own message"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "an_event_name_carrying_a_line_break_is_refused",
+  "an_id_carrying_a_line_break_or_a_nul_is_refused",
+  "an_empty_data_payload_is_refused_rather_than_sent_undispatchable",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the framing"
+name = "the optional fields, and the keepalive that carries no data"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "an_event_name_and_an_id_are_their_own_lines_before_the_data",
+  "a_retry_line_is_milliseconds_in_ascii_digits",
+  "a_keepalive_is_a_comment_and_dispatches_nothing",
+  "no_byte_order_mark_is_ever_written",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- door two, the stream that ends with its request. Before door one on purpose: this half
+# is assertable in-process, so it is what proves stages 1 and 2. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 door two"
+name = "the head is answered while the isolate is still running, and the isolate is joined at the end of the body"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_streaming_response_answers_its_head_before_the_isolate_ends",
+  "the_isolate_is_joined_when_the_body_ends_and_not_before",
+  "a_streaming_request_isolate_is_still_bounded_by_the_requests_own_ceiling",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 door two"
+name = "both stream members are body writers, so echo beside one does not compile"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "echo_beside_a_response_stream_is_a_diagnostic",
+  "echo_beside_an_event_stream_is_a_diagnostic",
+  "two_body_writers_on_one_response_is_a_diagnostic",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 door two"
+name = "conformance (a request-scoped event stream, whole body frozen)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/server/an-event-stream-that-ends-with-its-request-frames-every-event.nvst",
+  "tests/conformance/server/a-response-stream-writes-chunks-and-declares-its-own-type.nvst",
+  "tests/conformance/reject/set-status-on-a-path-that-opens-an-event-stream-is-refused.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- door one, the stream that outlives its request. Everything here is over stages 1-3 and
+# only the lifetime differs. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 door one"
+name = "an event stream isolate has a body to write into, and it is this response's"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "an_event_stream_is_answered_two_hundred_with_the_event_stream_media_type",
+  "what_the_connection_isolate_sends_reaches_the_peer_as_this_responses_body",
+  "the_upgrading_requests_arena_is_released_before_the_streams_isolate_starts",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 door one"
+name = "the wait is over topics and not over a peer, and it ends the way the socket's does"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_published_value_reaches_a_subscribed_event_stream_as_a_message",
+  "an_overflowing_subscriber_queue_answers_null_and_closes_that_stream",
+  "receive_in_a_streaming_response_is_refused_by_name",
+  "current_outside_an_event_stream_is_refused_by_name",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 door one"
+name = "the classification each parameter carries: data is contagious, a name and an id are sinks"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_tainted_event_name_is_refused_at_the_call_site",
+  "a_tainted_id_is_refused_at_the_call_site",
+  "a_tainted_data_payload_is_accepted_and_stays_tainted",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the bounds, and the trap under them. Needs both doors to exist before any of it can be
+# asserted. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the bounds"
+name = "the heartbeat is derived from the write wait and stays under it at every value the parser accepts"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "the_heartbeat_is_half_the_write_idle_wait_and_never_below_one_second",
+  "the_heartbeat_is_strictly_under_the_write_idle_wait_for_every_accepted_value",
+  "an_idle_event_stream_outlives_the_write_idle_wait",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the bounds"
+name = "the bound an event stream does not read, and the two it does"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "the_idle_bound_is_not_armed_for_an_event_stream",
+  "an_event_stream_is_closed_at_its_lifetime_however_busy_it_was",
+  "an_event_larger_than_the_message_bound_is_refused",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the bounds"
+name = "every bound is finite with nothing configured, and the reconnect hint is drawn per stream"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "connection_defaults_are_finite_for_every_field",
+  "a_retry_line_is_written_at_open_and_is_not_the_same_for_two_streams",
+  "a_drain_ends_the_body_cleanly_rather_than_resetting_the_connection",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the rulebook and the record. Prose, after the behaviour is green. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the record"
+name = "the spec rows this goal adds are registered under the names the spec writes"
+args = ["test", "-p", "nvs-stdlib"]
+tests = ["spec_registry_coverage"]
+
+[[check]]
+kind = "command"
+stage = "6 the record"
+name = "the rulebook validates, including the fragments this goal edits"
+argv = ["python", "tools/rules.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "6 the record"
+name = "every record this goal opened is complete and cited"
+argv = ["python", "tools/decisions.py", "--gate"]
+
+[[check]]
+kind = "command"
+stage = "6 the record"
+name = "no document in the tree still cites this goal's subject by ADR number"
+argv = ["python", "tools/check-links.py"]
+
+[[check]]
+kind = "command"
+stage = "6 the record"
+name = "the generated reference carries the new members and classes"
+argv = ["python", "tools/reference.py", "--check"]
