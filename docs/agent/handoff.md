@@ -2,54 +2,48 @@
 
 ## State
 
-**Goal `config-is-written` — stage 2 is green, and stage 1's `nvs-config` half is now green too.**
-`crates/nvs-config/tests/directives.rs` carries the roster's two Rust assertions:
-`every_unread_key_names_what_is_missing_and_who_owns_it` holds each `[unread:]` trailer to a
-non-empty *why* and an owner that can be opened — a `rule:` id or a four-digit record number — and
-`no_key_with_a_reader_still_claims_to_be_unread` holds every key the default file marks
-`NOT IMPLEMENTED` to having no reader that spells it under `crates/*/src` or `benches/*/src`.
+**Goal `config-is-written` — stage 1 is green, so with stage 2 already green the goal's own red
+stages are 3 and 4.** `crates/nvs-cli/src/cache.rs` now carries the artifact cache's pair:
+`the_configured_cache_directory_is_read_from_the_key_the_tree_documents` parses `[opcache]
+file_cache_dir` through `nvs_config::file::parse` and asserts `from_config`'s cache is rooted
+exactly there, and `a_cache_directory_written_in_the_retired_spelling_is_reported_not_ignored`
+holds `[cache] dir` to `E0601` naming both the key and the block it sits in.
 
-**The reader half is the narrower of the two claims its name allows, and its doc comment says so.**
-A reader is counted three ways (`tools/directives.py`'s module doc) and only the dotted key as a
-string literal is a spelling a scan can answer exactly: the field *name* is not the key, because
-`[metrics] listen` and `[debug] mode` share their names with `capabilities.net.listen`,
-`server.listen` and `[app] mode`. The census over all three spellings stays the tool's, which
-`verify.py` runs — and the half asserted in Rust is the one a field search cannot see.
+**Stage 1 needed no new behaviour.** `opcache.file_cache_dir` was already the only spelling
+(`docs/decisions/0175.md` § 2, § 4); what was missing was the two cases, and three comments in
+`cache.rs` that still called the cache root `[cache] dir` after that record retired the key.
 
-**The dotted key comes off the default file's own block headers**, so neither case walks the field
-graph: `settings_with_prose()` now returns the header with each setting, and the pair of cases that
-was already there holds that marked set equal to the tree's trailers.
-
-**Stage 1's remaining check is `nvs-cli`'s, and it is a test over landed behaviour rather than new
-code.** `opcache.file_cache_dir` is already the only spelling of the artifact cache directory
-(`crates/nvs-config/src/tree.rs:966`, `docs/decisions/0175.md`), `from_config` already reads it, and
-`[cache]` has no `dir` field at all — so what is missing is the pair of cases that pins both.
+**Stage 3 is the goal's remaining implementation** — a project command that resolves no tree
+writes the shipped default file and then resolves it. There is no `nvs init` yet:
+`crates/nvs-cli/src/main.rs:911`'s arm set has no `Command::Init`.
 
 ## Next group
 
-**Stage 1: the artifact cache's one spelling, in `nvs-cli` — one file set:**
-`crates/nvs-cli/src/cache.rs`, with `crates/nvs-config/src/tree.rs` read only.
+**Stage 3: a project command with no tree writes one — one file set:**
+`crates/nvs-cli/src/config.rs` and `crates/nvs-cli/src/main.rs`, with
+`crates/nvs-config/src/lib.rs:112`'s `default_file()` read only.
 
-- [ ] **`the_configured_cache_directory_is_read_from_the_key_the_tree_documents`.**
-      `crates/nvs-cli/src/cache.rs:1331`'s `from_config` builds the cache at the path
-      `opcache.file_cache_dir` names and `crates/nvs-cli/src/cache.rs:989`'s `dir()` hands it back,
-      so the case sets that key on a `Config` and asserts the path it gets. **`from_config` is
-      `pub(crate)`**, so this cannot be an integration test under `crates/nvs-cli/tests/` — it is a
-      `#[cfg(test)]` unit test in `cache.rs`, which the check's `cargo test -p nvs-cli` runs either
-      way. Specified by `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` and the
-      goal's stage 1.
-- [ ] **`a_cache_directory_written_in_the_retired_spelling_is_reported_not_ignored`.** `dir` is not
-      a field of `crates/nvs-config/src/tree.rs:971`'s `Cache`, so `deny_unknown_fields` refuses
-      `[cache] dir` already; the case parses that file text through `nvs_config::file::parse` and
-      asserts the refusal *names* the key, rather than a boot taking it silently. `nvs-cli` depends
-      on `nvs-config`, so it can host this beside the case above.
+- [ ] **The write itself, gated on which command is running.**
+      `crates/nvs-cli/src/config.rs:166` is the single call that owns all three steps of
+      `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`, so reaching step 3
+      is what the write hangs off; `crates/nvs-cli/src/config.rs:150`'s `boot_origins` does not
+      know which subcommand is running, so the gate is a parameter the arms at
+      `crates/nvs-cli/src/main.rs:911` fill with the five the goal's § *Standing decisions* tables
+      (`run`, `serve`, `test`, `build`, `check`). Check first whether
+      `nvs_config::resolve::Roots` already reports which step won — if it does not, that is the
+      one addition `nvs-config` owes this slice.
+- [ ] **`a_run_in_a_directory_with_no_config_writes_one_and_then_resolves_it` and
+      `an_existing_nvs_toml_is_never_touched`.** Both drive the built binary in a scratch
+      directory, which is `crates/nvs-cli/tests/meta.rs`'s shape — not the `#[cfg(test)]` unit
+      shape `crates/nvs-cli/src/cache.rs:1422` uses, since nothing here is `pub(crate)`.
+- [ ] **`the_written_file_is_the_shipped_template_byte_for_byte`.** What lands on disk is
+      `crates/nvs-config/src/lib.rs:112`'s `default_file()` verbatim, with no rendering step
+      between the `include_str!` and the write.
 
 ## Backlog
 
-- Stage 3, the write: six tests over `nvs-cli`, four of them refusals — `docs/agent/loop-goal.toml`
-  stage `3 the write`.
-- `crates/nvs-config/src/default.toml` carries no `[db]`/`[mail]`/`[storage]` block name but one
-  example each (`main`, `default`, `local`); if a doc wants the canonical example names, that is
-  `docs/reference/tools/20-config.md`'s to state.
-- The field-access and bare-name reader spellings have one home, `tools/directives.py`; a Rust case
-  that re-derives either answers about whichever same-named field it found.
+- `nvs init` needs a new `Command::Init` — stage 3's third check, `crates/nvs-cli/src/main.rs:911`.
+- Stage 3's four refusals, including the environment opt-out — `docs/agent/loop-goal.md` stage 3.
+- Stage 3's info record for a write that cannot happen — goal § *Standing decisions*, the silent-
+  failure entry.
+- Stage 4: the rule fragment and the record for the write — `docs/rules/config/`, `docs/decisions/`.
