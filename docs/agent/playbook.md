@@ -4246,6 +4246,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   because `const CASES` had been deleted with the line above it. Drop comment *lines* instead —
   `!/^\s*(\/\/|\/\*|\*)/` over the split source — which is exact where every block comment is a doc
   comment on its own lines, and blind to what a string holds. [until: reviewed 2026-09-11]
+- **A `.lspt` case whose document holds a construct no other case reached adds a column to the coverage
+  matrix, and `every_request_answers_every_construct` then owes a case for every cursor-taking request
+  at it** — one `regions` case over inline HTML cost seven more. The vocabulary is the corpus's own and
+  nothing declares it (`crates/nvs-lsp/src/coverage.rs:56`), so a construct exists the moment one case
+  reaches it. Run `target/debug/nvs.exe lsp-test --coverage tests/lsp/` before `cargo test -p nvs-lsp`:
+  the new column is a row of dots with one number in it. [until: reviewed 2026-09-11]
 
 ## Splitting a file that got too big
 

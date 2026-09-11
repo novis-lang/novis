@@ -2,59 +2,50 @@
 
 ## State
 
-**Goal `editor-surfaces` — milestone M10. Stages 0 and 5 are closed.** The Test Explorer is built:
-`editors/vscode` headless is **209 passing, 0 failing**, and the `surfaces:` suite is 23 of those.
-The stage 5 check at `docs/agent/loop-goal.toml:7903` names its three cases literally and they now
-exist, so that check is green rather than green-by-label.
+**Goal `editor-surfaces` — milestone M10. Stages 0 and 5 are closed; stage 6 is two thirds done.**
+`nvs/regions` is answered, frozen as `.lspt` cases and guarded: `cargo test -p nvs-lsp` and
+`nvs lsp-test tests/lsp/` (267 passing) are both green, so the two stage-6 checks at
+`docs/agent/loop-goal.toml:7915` and `:7921` are closed. What is left of the stage is the client half
+and the `editors/vscode` headless check at `docs/agent/loop-goal.toml:7935`.
 
-**The explorer is one `TestController` holding two suites.** `editors/vscode/src/tests.ts` is the
-controller, the processes and the editor's run object; `editors/vscode/src/report.ts` is what the two
-documents *mean* and imports no `vscode`, which is where the headless tier tests it — the same split
-`ast.ts`/`nodes.ts` already uses. Discovery is `nvs test --list --format=json` per program, lazily,
-so nothing runs while the tree is built. A run is `nvs test --format=json` per file, mapped back onto
-the queued items by `Class::method`. The `.nvst` half is one process per case file and the exit
-status is the verdict, because `nvs test` refuses `--format` over a case tree
-(`crates/nvs-cli/src/main.rs:2105`) and nothing here parses a human rendering to get around that.
-`flaky` reads as failed and `exited` as errored — the editor has four states where the runner has
-five, and `rule:testing/test-attribute` § 20 says which way that resolves.
+**The request is a lex, not an analysis.** `crates/nvs-lsp/src/regions.rs` maps every
+`TokenKind::InlineHtml` run to a `{range, language}`, and the server handler lexes the open buffer
+rather than resolving a graph — a boundary carries no type question and the client re-asks it on every
+edit. The `.lspt` suite calls `for_document` over the analysis it already holds; both reach the same
+walk. A markup literal's body (``html`…` ``) is named by the rule and is not answered, because the
+lexer has no token for one yet; that is written down in the module doc, not here.
 
-**`recorded/suite.nvs`, `recorded/list.json` and `recorded/report.json`** are a two-class program and
-the two documents the binary printed for it, byte for byte. Re-record both after any edit to it.
-
-**The chain check was red on a dangling selector, not on the tree.** The goal named a playbook bullet
-`Tooling > editors/vscode/package.json's contributes` that no commit ever wrote; it is gone and
-`python tools/chain.py --check` passes.
+**Completion now answers nothing inside a run of markup** (`crates/nvs-lsp/src/completion.rs:321`).
+It offered the whole keyword list, which inserts text a page renders rather than runs; the region is
+the HTML service's, which is what separates markup from the other three `NOT_CODE` spellings.
 
 ## Next group
 
-**Stage 6: the template regions** — one file set: `crates/nvs-lsp/` for the request and its two guard
-tests, then `editors/vscode/` for the client half. Nothing of `nvs/regions` exists on either side
-yet, so the two checks at `docs/agent/loop-goal.toml:7929` and `:7942` are red on unbuilt work rather
-than on a regression. `nvs/redactions` is the shape to copy at every anchor below — it is the only
-other request of Novis's own.
+**Stage 6: the client half** — one file set: `editors/vscode/`, and `editors/vscode/src/redactions.ts`
+is the shape to copy at every anchor below, being the only other client of a request of Novis's own.
 
-- [ ] **`nvs/regions` answers the lexer's mode boundaries**, per
-      `rule:ide/a-template-region-gets-services-but-no-second-formatter`: a `METHOD` const beside
-      `crates/nvs-lsp/src/redactions.rs:137`, a handler beside `crates/nvs-lsp/src/server.rs:1333`,
-      an `Answer` arm at `crates/nvs-lsp/src/render.rs:190`, and the guard test
-      `a_region_answer_carries_a_span_and_a_language_and_nothing_else` the check names. The other
-      named test, `the_server_declares_no_formatting_provider`, is about
-      `crates/nvs-lsp/src/capabilities.rs:285`, which already declares none — it pins that.
-- [ ] **The answer is frozen as a `.lspt` case like every other one**, per
-      `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`: a `Request` variant beside
-      `crates/nvs-lsp/src/case.rs:93`, its arm beside `crates/nvs-lsp/src/suite.rs:548`, and a case
-      under `tests/lsp/`. The check is `kind = "nvs-suite"` over that tree.
-- [ ] **The client forwards inside a region and nowhere else**, per the same rule: a new
-      `editors/vscode/src/regions.ts` on `editors/vscode/src/redactions.ts:51`'s shape, installed
-      beside `editors/vscode/src/extension.ts:105`, the contributed setting `nvs.template.services`
-      added to the manifest's roster, and `editors/vscode/test/surfaces/regions.test.ts` whose two
-      case titles the check at `docs/agent/loop-goal.toml:7942` matches literally.
+- [ ] **`nvs.template.services` joins the frozen roster**, per
+      `rule:ide/contributions-are-frozen-and-only-ever-added`: a `boolean` property defaulting to
+      `true` beside `editors/vscode/package.json:128`, and the two rows the contributions test asserts
+      it by — the name in the sorted list at
+      `editors/vscode/test/contributions/contributions.test.ts:88` and the default at
+      `editors/vscode/test/contributions/contributions.test.ts:371`.
+- [ ] **The client forwards inside a region and nowhere else**, per
+      `rule:ide/a-template-region-gets-services-but-no-second-formatter`: a `editors/vscode/src/template.ts`
+      modelled on `editors/vscode/src/redactions.ts:51` (the `METHOD` const), `:129` (`serve`) and
+      `:216` (the `sendRequest` and its cached answer), started beside the client at
+      `editors/vscode/src/extension.ts:149`. It registers no formatting provider — that is the half
+      the rule turns on, and `crates/nvs-lsp/src/capabilities.rs:287` is the server's end of it.
+- [ ] **The headless tier holds both**, per the check's own `want` list at
+      `docs/agent/loop-goal.toml:7935`: a `editors/vscode/test/surfaces/template.test.ts` whose
+      `describe` is `the template regions` and whose two cases are spelled
+      `forwards inside a region and nothing outside one` and
+      `forwards nothing at all when nvs.template.services is false` — the `want` list is ordered, so
+      those strings are the specification and not a paraphrase of it.
 
 ## Backlog
 
-- Coverage in the explorer waits for the Clover/lcov exporters; refused as a stub, per the goal's
-  § *Standing decisions*.
-- The reference chapter check (`python tools/reference.py --check`) is stage 6's last item.
-- Discovery compiles every `.nvs` in the workspace when the Testing view opens; if that is measured
-  as too slow, the cost is `editors/vscode/src/tests.ts`'s `discover`.
-- `docs/agent/carried-gaps.md` is where anything above goes if this goal is switched.
+- A markup literal's body is a region the lexer cannot yet report — `crates/nvs-lsp/src/regions.rs`'s
+  module doc, § *What is not a region yet*.
+- `nvs.completion.phpNames` and `nvs.checkWorkspace` are on the frozen roster and not yet contributed
+  — `rule:ide/contributions-are-frozen-and-only-ever-added`.
