@@ -71,6 +71,22 @@ impl ThreadClock {
     }
 }
 
+/// What a host says as it starts about the ceiling it can enforce: the note to
+/// print where this platform offers no per-thread clock, and `None` where it
+/// offers one and there is nothing to report.
+///
+/// The *Where there is no such clock* section above is what a caller owes its
+/// operator, and saying it at boot is how it is paid: `[limits] cpu_time` that
+/// nothing enforces is worse unsaid than unenforced, because the operator who
+/// wrote the key has no other way to learn it does nothing here.
+#[must_use]
+pub fn no_ceiling_note() -> Option<&'static str> {
+    ThreadClock::current().is_none().then_some(
+        "note: this platform offers no per-thread CPU clock, so `[limits] cpu_time` is not \
+         enforced on this host",
+    )
+}
+
 #[cfg(target_os = "linux")]
 type Clock = libc::clockid_t;
 
@@ -245,5 +261,26 @@ mod tests {
 
         release.send(()).ok();
         busy.join().expect("the busy thread panicked");
+    }
+
+    /// The other half of the platform's answer, and the one an operator reads:
+    /// a host with no clock announces the ceiling it is not enforcing, and a
+    /// host with one says nothing rather than warning about a key that works.
+    #[test]
+    fn a_platform_without_a_thread_clock_reports_no_cpu_ceiling_at_boot() {
+        match ThreadClock::current() {
+            Some(_) => assert!(
+                no_ceiling_note().is_none(),
+                "a platform that enforces the ceiling announced that it does not"
+            ),
+            None => {
+                let note =
+                    no_ceiling_note().expect("a platform with no clock announced no such thing");
+                assert!(
+                    note.contains("cpu_time"),
+                    "the note does not name the key it is about"
+                );
+            }
+        }
     }
 }

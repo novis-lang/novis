@@ -369,6 +369,12 @@ pub(crate) fn run(
     // The workers' sockets now: this thread accepts on nothing and keeps no
     // descriptor it does not use.
     drop(bound);
+    // Said once as the fleet starts, on the platforms that have something to
+    // say: `nvs_host::cpuclock`'s docs own which those are, and why none of
+    // them gets a wall-clock ceiling wearing the CPU one's name instead.
+    if let Some(note) = nvs_host::cpuclock::no_ceiling_note() {
+        eprintln!("{note}");
+    }
     let cpus = nvs_host::cpus();
     if cpus.is_empty() {
         // A host that enumerates no CPU offers no `CpuId` to pin to, and that
