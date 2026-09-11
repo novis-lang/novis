@@ -6073,6 +6073,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   raising it should stop every other context in the tree; if not it is a field on `Ctx`, the way
   `cancelled` is, and not a bit in `SafepointFlags`.
   [until: gone crates/nvs-runtime/src/ctx/mod.rs:safepoint_word]
+- **A budget pre-check written into `NvsStr::try_alloc_uninit` aborts the process, because
+  `alloc_uninit` beside it turns that `None` into `handle_alloc_error`.**
+  `crates/nvs-runtime/src/string.rs:486` is the infallible wrapper `NvsStr::build`,
+  `nvs_str_concat_n` and `nvs_str_append` all allocate through, so a refusal reaching it takes the
+  worker and every in-flight request with it — the one outcome a per-request ceiling exists to
+  avoid. Delete the wrapper and give each caller its degenerate return in the same slice as the
+  pre-check, never in an earlier one.
+  [until: gone crates/nvs-runtime/src/string.rs:fn alloc_uninit]
 
 ## Divergences and refusals already pinned
 

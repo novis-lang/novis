@@ -2,71 +2,62 @@
 
 ## State
 
-**Goal `resource-ceilings` — stage 4 is landed: the allocator publishes.** A request whose ceiling is
-computed arms an absolute threshold beside the byte counters
-(`crates/nvs-runtime/src/budget.rs:@armed_ceiling`), and `budget::add` compares every *growing*
-allocation against it — one thread-local load, then one compare an uncapped request short-circuits
-on, the sentinel being `0`. A crossing raises the new `SafepointFlags::MEMORY_LIMIT`
-(`crates/nvs-runtime/src/ctx/mod.rs:220`) in the word the request tree polls, through a thread-local
-`*const AtomicU64` armed beside the number. `nvs_safepoint` needed no new branch — its existing
-`memory_breach` arm is what the flag wakes — and lowers the bit at its foot for a crossing already
-given back (`crates/nvs-runtime/src/ctx/safepoint.rs:395`).
+**Goal `resource-ceilings` — stage 4 is landed, and stage 5's reader half with it.** A refusal is
+now a breach the poll reports: `crate::budget::affords`
+(`crates/nvs-runtime/src/budget.rs:@affords`) is the question an allocator asks in front of an
+allocation, and a `false` from it records the verdict in a thread-local beside the counters and
+raises `SafepointFlags::MEMORY_LIMIT`. `Ctx::over_memory_limit`
+(`crates/nvs-runtime/src/ctx/limits.rs:@over_memory_limit`) reads both, because a refused request
+holds *less* than its ceiling and every counting reader calls it comfortably inside one.
 
-**Arming is `Ctx::arm_memory_ceiling` (`crates/nvs-runtime/src/ctx/limits.rs:66`), called by the two
-writers that resolve a ceiling** — `refresh_limits` and `set_memory_limit` — so `Core\Config::set`
-leaves no stale copy. `Ctx::new` displaces the thread's pair into `memory_ceiling_saved` and `Drop`
-arms it again, which is `memory_peak_saved`'s arrangement and what keeps the armed *address* one a
-live context holds. A ceiling written any other way (`handler_isolate`, `run_limit_handler`'s
-widening) leaves the threshold alone, which fails open: the flag only ever asks for a poll, and the
-poll reads `memory_limit` itself.
+**The verdict is confined to the request that was refused.** `Ctx` displaces it exactly as it
+displaces the armed threshold — `memory_refused_saved`, taken in `Ctx::new` and given back in
+`Drop` — so a served core does not answer one `FATAL` per request for ever after the first
+refusal. `Ctx::run_limit_handler` takes it for the length of the call, which is the verdict half of
+`rule:errors/on-limit`'s reserved slice: a handler entered still carrying the refusal would be
+stopped by it at `run_helper`'s question before its first `Core` member.
 
-Stage 4's four named tests are green in `crates/nvs-runtime/tests/allocator_ceiling.rs`.
+**`run_limit_handler` now re-arms the threshold at both ends of the reserve it lends**
+(`crates/nvs-runtime/src/ctx/hooks.rs:@run_limit_handler`), and `arm_memory_ceiling` is
+`pub(super)` for it. Ahead of the next item on purpose: `affords` refuses against the *armed*
+number, so a handler given the reserve in `Ctx::memory_limit` alone would be refused every
+allocation it needs to write the report with. `handler_isolate` still arms nothing and still fails
+open, which that method's doc comment now says.
 
-**The stage-0 loop case is stopped but still red, and the reason is arithmetic, not a missing
-line.** `tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst`
-exists (all three stage-0 `.nvst` cases do) and the loop now dies inside itself — run by hand
-against a 16M ceiling it prints `FATAL: … 20986486 bytes held against a ceiling of 16777216`, where
-before this session it printed `grew 24 times to 83886080`. What is still missing is its
-`--EXPECT-- onLimit memory`: a doubling crosses by about the whole of what it held, the handler's
-widened ceiling is at most `[limits] memory` + a quarter of it, so the handler re-breaches at its
-first helper call and the zero-retry rule abandons it. **It goes green at stage 5**, where the
-allocation is refused and the bytes are never held — and that needs `Ctx::over_memory_limit`
-(`crates/nvs-runtime/src/ctx/limits.rs:89`) to answer on a *refusal* as well as on the counter, or a
-refused doubling leaves the request under its ceiling and the loop just spins and prints `grew 24
-times to 10485760`.
+Nothing under `crates/nvs-runtime/src/string.rs` asks `affords` yet, so the two stage-0 cases that
+wait on the refusal are still red. `crates/nvs-runtime/tests/refusal.rs` is where stage 5's cases go.
 
 ## Next group
 
 **Stage 5: the value allocators refuse** — one file set, `crates/nvs-runtime/src/string.rs` with
-`crates/nvs-runtime/src/ctx/limits.rs` for the state a refusal leaves behind. The goal's
-§ *Standing decisions* settles the shape: the refusal is a complete no-op, the ctx-less primitives
-return a degenerate value and acquire no status, and objects and `nvs_array_new` are out of scope.
-`rule:errors/on-limit` is what the report owes.
+`crates/nvs-runtime/src/object.rs` for the second aborting site. The goal's § *Standing decisions*
+settles the three `extern "C"` primitives and nothing above them, so the first item is a decision
+before it is an edit. `rule:errors/on-limit` is what the report owes.
 
-- [ ] **A refusal is a breach, so the poll that follows one reports it** —
-      `crates/nvs-runtime/src/ctx/limits.rs:89`'s `over_memory_limit` is the reader every poll
-      shares, and a request that was refused holds *less* than its ceiling. Lands the sticky half of
-      `a_single_operation_past_the_ceiling_never_allocates_what_it_asked_for`.
-- [ ] **The string allocator pre-checks and `alloc_uninit` goes** —
-      `crates/nvs-runtime/src/string.rs:486` is the aborting wrapper stage 5 deletes and
-      `crates/nvs-runtime/src/string.rs:495`'s `try_alloc_uninit` the fallible constructor that
-      stays. Lands `no_string_allocation_path_can_abort`.
-- [ ] **The degenerate returns, one primitive at a time** —
-      `crates/nvs-runtime/src/string.rs:1165`'s `nvs_str_append` returns its target unchanged, which
-      balances the one reference it consumes, and `crates/nvs-runtime/src/string.rs:1014`'s
-      `nvs_str_concat` the immortal empty string. Neither acquires a status, so no call site and no
-      lowering changes. Lands `an_append_past_the_ceiling_returns_its_target_unchanged`.
+- [ ] **`alloc_uninit` goes, and what `NvsStr::build` hands back instead is the decision**
+      — `crates/nvs-runtime/src/string.rs:486` is
+      `try_alloc_uninit(..).unwrap_or_else(handle_alloc_error)`, and `NvsStr::new`/`from_pieces`
+      reach it through `build` (`crates/nvs-runtime/src/string.rs:427`) from most of
+      `nvs-stdlib`, so neither can grow an `Option` without a sweep. The immortal empty string is
+      the degenerate return stage 5 already names for `nvs_str_concat`, and giving it to `build`
+      keeps every signature.
+- [ ] **The pre-check, in the one place a string allocation is made** —
+      `crates/nvs-runtime/src/string.rs:495`, in front of the `alloc(layout)` at
+      `crates/nvs-runtime/src/string.rs:507`, as `if !crate::budget::affords(layout.size())
+      { return None; }`. Lands `no_string_allocation_path_can_abort` and the never-allocated half
+      of `a_single_operation_past_the_ceiling_never_allocates_what_it_asked_for`, whose sticky
+      half is already asserted in `crates/nvs-runtime/tests/refusal.rs`.
+- [ ] **The degenerate returns, one primitive at a time** — `nvs_str_append`
+      (`crates/nvs-runtime/src/string.rs:1207`) returns its `target` unchanged and
+      `nvs_str_concat`/`nvs_str_concat_n` (`crates/nvs-runtime/src/string.rs:1014`,
+      `crates/nvs-runtime/src/string.rs:1094`) the immortal empty string, per the goal's
+      § *Standing decisions*. `StrWriter::grow` (`crates/nvs-runtime/src/string.rs:813`) is the
+      path beside them and aborts today.
 
 ## Backlog
 
-- An isolate is given no memory ceiling at all: `Ctx::isolate`
-  (`crates/nvs-runtime/src/ctx/isolate.rs:351`) copies the configuration but no `memory_limit`, and
-  `crates/nvs-host/src/isolate.rs:459` never refreshes — so `rule:security/isolate-budget-is-the-trees`
-  is unenforced per isolate. Verified by grep, not by a case.
-- `run_limit_handler`'s widening (`crates/nvs-runtime/src/ctx/hooks.rs:495`) does not re-arm the
-  threshold, so a handler pays a slow-path poll per crossing allocation. Safe, not free.
-- Stage 6's detached bracket and stage 7's record are untouched; the record still needs the next free
-  ADR number taken at the moment it is written.
-- `[context]` gap: the pack's `modules` names only `a-limit-fatal-is-not-catchable.nvst` under
-  `tests/conformance/error`, so this session re-derived that the goal's own three stage-0 cases are
-  already on disk. Add them to the manifest.
+- Stage 5's array half — `nvs_array_set` refuses without separating, goal § *Standing decisions*.
+- Stage 6 brackets `Core\Cache`'s store; the general property waits for M6's arena (goal prose).
+- Stage 7 opens this goal's one record, taking the next free number that day (goal § *Standing
+  decisions*).
+- `docs/agent/carried-gaps.md` holds what must survive a goal switch.
