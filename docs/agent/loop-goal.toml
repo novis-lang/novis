@@ -118,11 +118,14 @@ modules = [
   # The CLI's three arms (:1951-1993) -- the only host that drains the exit queue today, and the
   # shape stage 2 mirrors onto the served path.
   "crates/nvs-cli/src/main.rs",
-  # `Terminator::Catch`'s emission (:3415-3425) and the status check every call site carries
-  # (:3308). The `status == THROWN` comparison is stage 3's whole subject.
+  # `Terminator::Throw`'s emission (:3426-3450), the compare-and-branch every call site carries
+  # (:3329), and `emit_instanceof` (:2531-2556), which is a descriptor test and nothing more -- a
+  # marker class outside the tree is false against every arm with no special case here.
   "crates/nvs-codegen/src/emit.rs",
-  # `Terminator::Catch`'s two exits (:2585-2592) -- what `onward` releases and why a `FATAL` and an
-  # `EXITED` take it. Read this before deciding stage 3, not after.
+  # `Terminator::Catch`'s two exits (:2624-2651) -- the landing block asks `status == THROWN`, so
+  # `onward` is what a `FATAL` and an `EXITED` take, releasing the frame's locals and running no
+  # `finally`. Also `Terminator::Throw`'s `value` (:2585-2600), whose doc still says the operand is
+  # a `Throwable`; stage 3 is what makes that sentence false and owes the rewrite.
   "crates/nvs-ir/src/ir.rs",
   # `InstanceOf` (:942-956) and `TakeThrown` (:1073) -- the two instructions a catch region is built
   # from, and what stage 3's marker object has to be false against.
@@ -142,6 +145,10 @@ modules = [
   "crates/nvs-runtime/src/ctx/mod.rs",
   # What a host writes into a context before any Novis code runs.
   "crates/nvs-runtime/src/ctx/wiring.rs",
+  # `TREE` (:78-91), the seeded class table every compiled unit carries and the one `ErrorClass`
+  # reaches by name. Stage 3's marker class is a row here, and `ROOT`'s doc (:93-95) says every
+  # other row descends from `Throwable` -- which a second root makes false.
+  "crates/nvs-hir/src/errors.rs",
 ]
 
 # The three every stage works inside: the queue this ending joins, the queue it makes drain, and the
@@ -150,6 +157,9 @@ rules = [
   "observability/three-endings-fire-the-exit-queue",
   "concurrency/after-response-outlives-the-connection",
   "errors/escalation-ladder",
+  # The two endings this goal is decided *against* as much as against the table above -- stage 2's
+  # drain and stage 4's arm both have to leave them alone.
+  "observability/a-fatal-and-a-cancellation-run-no-exit-hook",
   # The ordering § *Standing decisions* settles this goal's one tradeoff under.
   "programs/memory-priority",
 ]
