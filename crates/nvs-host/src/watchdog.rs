@@ -4,8 +4,8 @@
 //! `rule:http-server/a-wedged-core-is-detected-by-its-deadline`
 //! is the whole specification, and its first clause decides this module's
 //! shape: the watchdog **reads the in-flight deadline each worker already
-//! maintains**. So there is no heartbeat here. A worker writes nothing for the
-//! watchdog's benefit, on any path; what it reads is [`crate::timer`]'s
+//! maintains**. So there is no heartbeat here, and nothing on a request path is
+//! written for this module's benefit. What it reads is [`crate::timer`]'s
 //! [`DeadlineView`], which is the first entry of a table the deadline mechanism
 //! was keeping anyway. A per-request beat would be the wrong implementation of
 //! this item even if it were cheap, because it measures the request rather than
@@ -56,6 +56,25 @@
 //! under compiled-in defaults and to say so at the site — this paragraph is
 //! that.
 //!
+//! # The request a core is running
+//!
+//! Reporting a wedged core answers the *core*. Stopping the **request** that
+//! wedged it needs a handle on that request, and
+//! [`Registration::publish_safepoint`] is where a core hands one over:
+//! `nvs-runtime`'s [`SafepointView`] on its request tree's safepoint word,
+//! which is the word compiled code polls at every function entry and loop back
+//! edge. One store through it stops every isolate and task under that tree,
+//! because `rule:security/isolate-shares-nothing` gives a tree one ceiling to
+//! divide and so one word to be stopped by.
+//!
+//! The handle goes through the lock this module already holds rather than
+//! through a second atomic beside the deadline. A core takes that lock to
+//! register and to deregister, and the watchdog holds it only across a clone,
+//! so a published handle costs a core no synchronisation the watched set was
+//! not already costing it. A *deadline* could not be published this way —
+//! [`crate::timer`]'s docs own that argument — because it is rewritten every
+//! time any task arms or disarms one.
+//!
 //! # Registering a core
 //!
 //! Whoever installs a core's [`Reactor`](crate::Reactor) registers it, because
@@ -75,6 +94,8 @@ use std::io::Write;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+
+use nvs_runtime::SafepointView;
 
 use crate::affinity::CpuId;
 use crate::timer::DeadlineView;
@@ -120,6 +141,11 @@ struct Watched {
     id: u64,
     cpu: CpuId,
     view: DeadlineView,
+    /// The safepoint word of the request tree this core is running, or `None`
+    /// while it is running none — [`Registration::publish_safepoint`] is the
+    /// only writer, and this module's docs say why it lives behind the same
+    /// lock as the rest of the entry.
+    safepoint: Option<SafepointView>,
     /// The deadline this core was last reported for, so an episode produces one
     /// record rather than one per sweep. Cleared whenever the core is not
     /// overdue, which is what makes a later stall a new episode.
@@ -248,6 +274,10 @@ impl Watchdog {
             id,
             cpu,
             view,
+            // A core registers when it installs its reactor, which is before it
+            // has a request to be running — so the handle arrives later, by
+            // publication, and never as a second argument here.
+            safepoint: None,
             reported: None,
         });
         if state.thread.is_none() && state.running {
@@ -268,6 +298,22 @@ impl Watchdog {
     #[must_use]
     pub fn watching(&self) -> usize {
         lock(&self.shared.state).watching.len()
+    }
+
+    /// Every registered core that has published a request tree, paired with the
+    /// handle that stops it.
+    ///
+    /// The read side of [`Registration::publish_safepoint`]. Cloned out under
+    /// the lock and handed back owned, so whatever decides to stop a request —
+    /// a sampler, a test — does that with the watched set released and cannot
+    /// wedge a core registering beside it.
+    #[must_use]
+    pub fn running(&self) -> Vec<(CpuId, SafepointView)> {
+        lock(&self.shared.state)
+            .watching
+            .iter()
+            .filter_map(|watched| Some((watched.cpu, watched.safepoint.clone()?)))
+            .collect()
     }
 }
 
@@ -292,6 +338,26 @@ impl Drop for Watchdog {
 pub struct Registration {
     shared: Arc<Shared>,
     id: u64,
+}
+
+impl Registration {
+    /// Publishes the request tree this core is now running, or clears it with
+    /// `None` when the core is running none.
+    ///
+    /// The handle must be the **tree root's** — `Ctx::safepoint_view` hands out
+    /// no other — so one store through it reaches every isolate and task under
+    /// it, including one spawned after the store. This module's docs say what
+    /// the watchdog does with it and why it rides the watched set's own lock.
+    ///
+    /// Called from the core's own thread, so a handle is published before the
+    /// request it names can wedge the core; a core that never publishes is
+    /// watched exactly as it is today and stops nothing.
+    pub fn publish_safepoint(&self, safepoint: Option<SafepointView>) {
+        let mut state = lock(&self.shared.state);
+        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
+            watched.safepoint = safepoint;
+        }
+    }
 }
 
 impl std::fmt::Debug for Registration {
@@ -377,7 +443,7 @@ mod tests {
     use crate::reactor::{Reactor, install, run_until_idle, with_current};
     use crate::scheduler::TaskId;
     use crate::timer::{Timers, sleep};
-    use nvs_runtime::{Ctx, OutputSink, TaskRoot};
+    use nvs_runtime::{Ctx, OutputSink, SafepointFlags, TaskRoot};
     use std::sync::mpsc;
 
     fn a_cpu() -> CpuId {
@@ -584,5 +650,51 @@ mod tests {
         assert_eq!(dog.watching(), 0, "a dropped registration stayed watched");
         // And the drop below joins the thread, so a hang here is a real bug and
         // not a flake.
+    }
+
+    /// What a core publishes is the request *tree's* root word, so one store
+    /// from a thread that owns none of it stops an isolate built after that
+    /// store — `rule:security/isolate-shares-nothing`.
+    #[test]
+    fn a_published_handle_stops_the_whole_request_tree() {
+        let (tx, _rx) = mpsc::channel();
+        // A margin nothing reaches: this case is about the handle, and a stall
+        // report would only add a second reason for the sink to fire.
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let timers = Timers::default();
+        let registered = dog.register(a_cpu(), timers.view());
+        assert!(
+            dog.running().is_empty(),
+            "a core running no request still offered a handle to stop one"
+        );
+
+        let request = ctx();
+        registered.publish_safepoint(Some(request.safepoint_view()));
+        let published = dog.running();
+        assert_eq!(published.len(), 1, "the published handle was not readable");
+        assert_eq!(published[0].0, a_cpu());
+
+        // Raised from this thread, which owns neither the request nor the `&mut
+        // Ctx` — the whole reason the word is reachable through a handle.
+        published[0].1.request(SafepointFlags::CPU_LIMIT);
+        assert!(
+            request
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT)
+        );
+        assert!(published[0].1.flags().contains(SafepointFlags::CPU_LIMIT));
+        let isolate = request.isolate(OutputSink::Sink);
+        assert!(
+            isolate
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "an isolate built after the store was born clean"
+        );
+
+        registered.publish_safepoint(None);
+        assert!(
+            dog.running().is_empty(),
+            "a core that finished its request kept offering the handle to it"
+        );
     }
 }

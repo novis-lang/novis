@@ -134,6 +134,24 @@ impl Ctx {
             .fetch_and(!flags.bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// A handle on this request tree's safepoint word, for a thread that does
+    /// not own the request.
+    ///
+    /// The word this hands out is the **tree root's**, because
+    /// `rule:security/isolate-shares-nothing` gives a tree one ceiling to
+    /// divide and so one word to be stopped by: a store through the handle
+    /// reaches every isolate and task under this context, whether it was
+    /// spawned before that store or after it. [`Ctx::safepoint_word`]'s field
+    /// doc owns the rest of that argument.
+    ///
+    /// This is the shape `nvs-host`'s watchdog already reads a core's earliest
+    /// deadline through, for the same reason: the reader is a stranger to the
+    /// request, holds no reference into it, and may outlive it.
+    #[must_use]
+    pub fn safepoint_view(&self) -> SafepointView {
+        SafepointView(std::sync::Arc::clone(&self.safepoint_word))
+    }
+
     /// Whether this request has been cancelled — the flag [`Ctx::cancel`] sets.
     ///
     /// What it distinguishes is a context that *failed* from one that was
@@ -183,6 +201,38 @@ impl Ctx {
     /// Turns probes on or off for a request that may already be running.
     pub fn set_debug_flags(&mut self, flags: DebugFlags) {
         self.debug = flags;
+    }
+}
+
+/// One request tree's safepoint word, in a form a thread that is not running
+/// the request may write.
+///
+/// Minted by [`Ctx::safepoint_view`], and `Send` where [`Ctx`] is not: it
+/// carries the word and nothing else — no reference to a context, a value, a
+/// stack or a scheduler — so raising a flag through it neither blocks the
+/// request nor can be blocked by it. That is the whole point. The thread that
+/// owns the request holds the `&mut Ctx` for as long as it is inside a helper
+/// body, which is exactly the interval a stop has to be able to reach it in.
+///
+/// A view outliving its request is inert rather than wrong: the word stays
+/// alive behind the handle, and a store into it reaches a poll that will never
+/// run again. A holder that means to stop a *live* request therefore drops the
+/// view when that request ends, rather than relying on the store to be refused.
+#[derive(Clone, Debug)]
+pub struct SafepointView(std::sync::Arc<std::sync::atomic::AtomicU64>);
+
+impl SafepointView {
+    /// Asks the next poll in the request tree to act — the same store
+    /// [`Ctx::request_safepoint`] makes for the thread that owns the request.
+    pub fn request(&self, flags: SafepointFlags) {
+        self.0
+            .fetch_or(flags.bits(), std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// The flags standing in the word, which is what the next poll reads.
+    #[must_use]
+    pub fn flags(&self) -> SafepointFlags {
+        SafepointFlags::from_bits_retain(self.0.load(std::sync::atomic::Ordering::Relaxed))
     }
 }
 
