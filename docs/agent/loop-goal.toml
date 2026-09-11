@@ -149,6 +149,11 @@ modules = [
   # `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s events, framed: the
   # bytes one event is on the wire, as a function over its payload.
   "crates/nvs-server/src/sse.rs",
+  # `rule:security/isolate-shares-nothing`'s isolate, as one type: a child task with a heap
+  # boundary.
+  "crates/nvs-host/src/isolate.rs",
+  # Where a request's bytes go, and what it declares about them.
+  "crates/nvs-runtime/src/ctx/output.rs",
 ]
 
 # The rules every stage of this goal works inside.
