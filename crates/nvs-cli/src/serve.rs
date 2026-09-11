@@ -216,6 +216,12 @@ pub(crate) fn run(
         Arc::new(Secure::of(snapshot.config.http.as_ref())),
         Arc::new(trusted),
         Arc::new(Cors::of(snapshot.config.http.as_ref())),
+        // `rule:config/the-config-is-an-immutable-snapshot`'s tree, handed to
+        // the accept loop beside the policies this boot resolved out of it. It
+        // crosses here rather than through [`Isolate`] because `nvs-host` names
+        // no configuration crate at all, and this is the argument every
+        // connection — and so every request — is already served under.
+        Arc::clone(&snapshot),
     );
     let wanted = match addresses(&configured, listen, port) {
         Ok(wanted) => wanted,
@@ -1628,40 +1634,6 @@ mod tests {
         took
     }
 
-    /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core` as a number:
-    /// the fan-out exists to serve more requests per second than one core can, and
-    /// one that does not is a fan-out to delete rather than to keep and explain.
-    ///
-    /// **The margin is named here as [`SCALES_BY`] and the assertion is against
-    /// it**, because "faster" with no floor under it passes on noise. Four times is
-    /// the ideal and nothing reaches it: `nvs_host::cpus` enumerates *logical*
-    /// CPUs, so the four cores this asks for are two physical ones on any machine
-    /// that pairs them — and a second thread on a core already saturated with
-    /// arithmetic adds a fraction of a core rather than one — while a box doing
-    /// something else at the time lends less again. The floor is therefore not set
-    /// near the ideal but where it stays true of the *worst* honest machine: four
-    /// hyperthreads on two cores, under load, is what `1.5` leaves room for.
-    ///
-    /// What it has to separate that from is a fan-out that does not scale at all —
-    /// a lock every request takes, a compile per core, one core accepting for the
-    /// fleet — and every one of those lands at or under `1.0`, which is the gap the
-    /// number sits in. It is a floor and not a target: the tree's own per-request
-    /// cost is what decides how far above it a given run lands, and closing that
-    /// distance is a perf question this test does not answer.
-    ///
-    /// **What the arms measure** is [`requests_on`]'s doc: every per-request cost
-    /// above the socket. Not the accept and not the message parse, because driving
-    /// those takes a client, and a loopback client fast enough not to be the
-    /// bottleneck is a second fleet — the test would be measuring itself. That
-    /// every core accepts on its own handle rather than through one is
-    /// `one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle`'s
-    /// claim, and this is the other half of it.
-    ///
-    /// **The arms are the best of `ROUNDS`, interleaved**, which is what makes this
-    /// survive a box under load: noise only ever makes a run slower, so the
-    /// shortest of several is the least contaminated estimate of each side, and
-    /// interleaving keeps a slow patch of the machine from landing on one side of
-    /// the ratio alone.
     /// A snapshot whose tree is the written one, which is what the boot hands
     /// every core.
     fn snapshot_of(written: &str) -> Arc<nvs_config::Snapshot> {
@@ -1776,6 +1748,40 @@ mod tests {
         );
     }
 
+    /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core` as a number:
+    /// the fan-out exists to serve more requests per second than one core can, and
+    /// one that does not is a fan-out to delete rather than to keep and explain.
+    ///
+    /// **The margin is named here as [`SCALES_BY`] and the assertion is against
+    /// it**, because "faster" with no floor under it passes on noise. Four times is
+    /// the ideal and nothing reaches it: `nvs_host::cpus` enumerates *logical*
+    /// CPUs, so the four cores this asks for are two physical ones on any machine
+    /// that pairs them — and a second thread on a core already saturated with
+    /// arithmetic adds a fraction of a core rather than one — while a box doing
+    /// something else at the time lends less again. The floor is therefore not set
+    /// near the ideal but where it stays true of the *worst* honest machine: four
+    /// hyperthreads on two cores, under load, is what `1.5` leaves room for.
+    ///
+    /// What it has to separate that from is a fan-out that does not scale at all —
+    /// a lock every request takes, a compile per core, one core accepting for the
+    /// fleet — and every one of those lands at or under `1.0`, which is the gap the
+    /// number sits in. It is a floor and not a target: the tree's own per-request
+    /// cost is what decides how far above it a given run lands, and closing that
+    /// distance is a perf question this test does not answer.
+    ///
+    /// **What the arms measure** is [`requests_on`]'s doc: every per-request cost
+    /// above the socket. Not the accept and not the message parse, because driving
+    /// those takes a client, and a loopback client fast enough not to be the
+    /// bottleneck is a second fleet — the test would be measuring itself. That
+    /// every core accepts on its own handle rather than through one is
+    /// `one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle`'s
+    /// claim, and this is the other half of it.
+    ///
+    /// **The arms are the best of `ROUNDS`, interleaved**, which is what makes this
+    /// survive a box under load: noise only ever makes a run slower, so the
+    /// shortest of several is the least contaminated estimate of each side, and
+    /// interleaving keeps a slow patch of the machine from landing on one side of
+    /// the ratio alone.
     #[test]
     fn serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names() {
         const CORES: usize = 4;

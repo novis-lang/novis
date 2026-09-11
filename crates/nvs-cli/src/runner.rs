@@ -1374,6 +1374,11 @@ impl TestServer {
             std::sync::Arc::new(nvs_server::Secure::of(None)),
             std::sync::Arc::new(nvs_server::Trusted::of(&[]).0),
             std::sync::Arc::new(nvs_server::Cors::of(None)),
+            // The tree, default for the reason every policy above it is: what a
+            // `#[Test(server: true)]` asserts is what the runtime does with
+            // nothing configured, and a request reading the deployment's
+            // `nvs.toml` here would make that deployment the test's subject.
+            std::sync::Arc::default(),
         );
         // A `Draining` of this server's own and deliberately not the process's:
         // `nvs test` is one process running many listeners one after another,

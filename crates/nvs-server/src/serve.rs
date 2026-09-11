@@ -353,15 +353,15 @@ impl Draining {
 }
 
 /// What every connection this server hands over is served under: `rule:http-server/the-server-block-is-boot-class`'s
-/// valve and `rule:http-server/secure-headers-with-nothing-written`
-/// 's header set.
+/// valve, `rule:http-server/secure-headers-with-nothing-written`
+/// 's header set, and the tree this instance booted on.
 ///
-/// One argument rather than two because these are the *shared* half of a
-/// connection's context — an [`Arc`] each, boot-fixed, so every core answers
-/// under the one valve and the one policy. `waits` stays a value beside it for
-/// exactly that reason: it is [`Copy`], and § 5 makes it `Boot`-class so a
-/// connection carries its own copy rather than a handle somebody could move
-/// under it.
+/// One argument rather than one per policy because these are the *shared* half
+/// of a connection's context — an [`Arc`] each, boot-fixed, so every core
+/// answers under the one valve, the one header set and the one configuration.
+/// `waits` stays a value beside it for exactly that reason: it is [`Copy`], and
+/// § 5 makes it `Boot`-class so a connection carries its own copy rather than a
+/// handle somebody could move under it.
 #[derive(Clone, Debug)]
 pub struct Serving {
     /// § 5's in-flight ceiling, asked before the handler is.
@@ -376,22 +376,32 @@ pub struct Serving {
     /// handler is. Closed is the default — [`crate::cors`] owns what that means
     /// and why the refusal is taken here rather than in an application.
     cors: Arc<Cors>,
+    /// The tree this instance booted on — `rule:config/the-config-is-an-immutable-snapshot`'s
+    /// immutable snapshot, which every request reads through a clone taken at
+    /// its own start ([`serve_connection`]). It rides here for the reason the
+    /// policies above it do: one tree for the whole instance, shared by every
+    /// core rather than resolved per connection, and never re-read under a
+    /// request that has begun.
+    snapshot: Arc<nvs_config::Snapshot>,
 }
 
 impl Serving {
-    /// The four, as a boot resolves them.
+    /// What a boot resolves, as the one argument every connection is served
+    /// under.
     #[must_use]
     pub fn new(
         admission: Arc<Admission>,
         secure: Arc<Secure>,
         trusted: Arc<Trusted>,
         cors: Arc<Cors>,
+        snapshot: Arc<nvs_config::Snapshot>,
     ) -> Self {
         Self {
             admission,
             secure,
             trusted,
             cors,
+            snapshot,
         }
     }
 }
@@ -809,6 +819,20 @@ where
                 // one, and a reply that answers no request is left alone by
                 // `Isolate::offering_sse` itself.
                 let isolate = isolate.offering_sse(streaming.clone());
+                // `rule:config/the-config-is-an-immutable-snapshot`'s one
+                // clone, taken at the request's start and not when this
+                // connection was accepted: a connection carries any number of
+                // requests, so a tree read once per socket would answer a
+                // request under whatever stood when its peer dialled. It is
+                // written to the connection's own context because that context
+                // is this request tree's root — `Ctx::isolate` carries the
+                // configuration down to the child, while the ceiling a watchdog
+                // charges the tree against is read off this one
+                // ([`nvs_host::Isolate::watched_by`]). Every ceiling under
+                // `[limits]` and every capability an entry asks for is this
+                // line: a context nobody configured states no ceiling and
+                // grants nothing.
+                ctx.borrow_mut().set_config(Arc::clone(&serving.snapshot));
                 // A statement of its own, because the borrow a `match`
                 // scrutinee takes lives to the end of the whole `match` — and
                 // the arm below borrows the same context again to collect.
@@ -1250,8 +1274,8 @@ fn failed() -> Response<Answer> {
 /// promise two of the four could not keep.
 ///
 /// `serving` is handed to every connection by clone rather than by copy, which
-/// is what [`Serving`]'s own docs say it is for: one valve and one header set
-/// for the whole process, not one of each per core.
+/// is what [`Serving`]'s own docs say it is for: one valve, one header set and
+/// one configuration for the whole process, not one of each per core.
 ///
 /// # Errors
 ///
@@ -3269,6 +3293,7 @@ mod tests {
             Arc::new(Secure::default()),
             Arc::new(trusted),
             Arc::new(Cors::default()),
+            Arc::default(),
         );
         let answer = served_under(
             listener,
@@ -4846,7 +4871,97 @@ mod tests {
             // `rule:http-server/cors-is-closed-until-origins-are-named`'s default: no origin named, so nothing crosses and no
             // CORS header is emitted at all.
             Arc::new(Cors::default()),
+            // The configuration of a host with no configuration file anywhere,
+            // which is what `nvs_config::Snapshot`'s own `Default` is for: it
+            // grants nothing and states no ceiling, so a case about the framing
+            // is not also a case about a tree.
+            Arc::default(),
         )
+    }
+
+    /// [`wide_open`]'s valve over a tree a boot resolved, for the case that is
+    /// about the configuration itself.
+    ///
+    /// **Both halves of the snapshot are filled from `written`**, because the
+    /// two are read by different readers: a `[limits]` key is answered off the
+    /// table, and everything typed — capabilities, `[http]`, `[server]` — off
+    /// the tree beside it. A snapshot carrying one of them is a fixture that
+    /// passes a case about the half it filled and says nothing about the other.
+    fn booted_on(written: &str) -> Serving {
+        let snapshot = nvs_config::Snapshot {
+            config: toml::from_str(written).expect("the tree deserializes"),
+            table: written.parse().expect("the tree is TOML"),
+            ..Default::default()
+        };
+        Serving::new(
+            Arc::new(Admission::new(&Ceiling::of(&Capacity {
+                configured: 10_000,
+                per_request: None,
+                budget: None,
+            }))),
+            Arc::new(Secure::default()),
+            Arc::new(Trusted::none()),
+            Arc::new(Cors::default()),
+            Arc::new(snapshot),
+        )
+    }
+
+    /// `rule:config/the-config-is-an-immutable-snapshot` on the served path: the
+    /// tree this instance booted on is what a request reads, and it is written
+    /// to the context the answering isolate starts on.
+    ///
+    /// Asserted through `[limits] cpu_time`, which is the same read
+    /// `Ctx::cpu_limit` takes — `nvs_config::Request::get` off the snapshot's
+    /// own table — so a request that can print a ceiling here is a request a
+    /// watchdog can charge against one
+    /// (`rule:http-server/a-wedged-core-is-detected-by-its-deadline`). What the
+    /// case fails as is not a wrong number but an absent tree: a context nobody
+    /// configured answers `None` to every `[limits]` key and denies every
+    /// capability an entry asks for, which is one request served under no
+    /// configuration at all rather than under this instance's.
+    #[test]
+    fn a_served_request_reads_the_tree_the_instance_booted_on() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+        // The request's own reading of its own context, which is the only place
+        // the answer can be taken from: what a program holds is the child the
+        // isolate built, so a tree that reached the connection and no further
+        // prints the same absence as one that never arrived.
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let said = match child.config().and_then(|config| config.get("cpu_time")) {
+                    Some(written) => format!("cpu_time={written}"),
+                    None => "no tree".to_owned(),
+                };
+                child.write_output(said.as_bytes()).expect("a buffer");
+                Value::null()
+            });
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+        });
+        let answer = served_under(
+            listener,
+            &handler,
+            client,
+            booted_on("[limits]\ncpu_time = \"7s\"\n"),
+        );
+        assert!(
+            answer.ends_with("cpu_time=7s"),
+            "the tree this instance booted on did not reach the request: {answer}"
+        );
     }
 
     /// Reads until `needle` has arrived, so a test can stop in the middle of a
@@ -5801,6 +5916,7 @@ mod tests {
             Arc::new(Secure::default()),
             Arc::new(Trusted::none()),
             Arc::new(Cors::of(Some(&http))),
+            Arc::default(),
         )
     }
 
@@ -6603,6 +6719,7 @@ mod tests {
             Arc::new(Secure::default()),
             Arc::new(Trusted::none()),
             Arc::new(Cors::default()),
+            Arc::default(),
         );
         // The one place this valve has, taken and held for the whole run: the
         // request below therefore arrives *at* the ceiling, which is the state
@@ -6780,6 +6897,7 @@ mod tests {
             Arc::new(Secure::default()),
             Arc::new(Trusted::none()),
             Arc::new(Cors::default()),
+            Arc::default(),
         );
 
         let hot_socket = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
