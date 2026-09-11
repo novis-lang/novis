@@ -1,0 +1,54 @@
+--TEST--
+`Core\Sse::stream` answers a request with an event stream, and every event a program sends is on the wire as the client will read it — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:concurrency/two-doors-one-isolate`
+--FILE--
+<?nvs
+// Door two is the stream that *ends* with its request, so off a connection
+// there is no cell to open and the events reach this program's own output --
+// which is what makes a whole event stream assertable here at all, no `.nvst`
+// case being a request a server is answering. What is pinned is the order and
+// the blank line between events: a member that buffered them and flushed at the
+// end would still print plausibly against one event.
+var $events = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send("ready");
+    $sse->send("still here");
+});
+echo $events;
+echo "--\n";
+
+// The optional fields are their own lines and stand before the payload: the
+// name is what a client dispatches on, and the id is what it echoes back in
+// `Last-Event-ID` when it reconnects.
+var $named = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send("sold", event: "order", id: "42");
+});
+echo $named;
+echo "--\n";
+
+// A `string` goes out as it was written and anything else is JSON-encoded by
+// the encoder `Core\Json::encode` is, so a caller never has to choose between
+// two members for one distinction it does not make.
+var $encoded = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send({room: "lobby", waiting: 3});
+    $sse->send(7);
+});
+echo $encoded;
+echo "--\n";
+--EXPECT--
+data: ready
+
+data: still here
+
+--
+event: order
+id: 42
+data: sold
+
+--
+data: {"room":"lobby","waiting":3}
+
+data: 7
+
+--

@@ -1,0 +1,88 @@
+--TEST--
+`Core\Sse` refuses the four events and heads a client could not act on, each named in its own message rather than framed and sent anyway — `rule:concurrency/two-doors-one-isolate` and `rule:errors/ambiguous-input-refused`
+--FILE--
+<?nvs
+// The refusals belong to the framing and not to the member, because each of
+// them is a way the framing could silently stop being true. They are reported
+// here, where the program that wrote the event is.
+
+// A client dispatches nothing for an empty data buffer, so an empty payload is
+// an event that provably could not arrive.
+var $empty = "";
+try {
+    Core\Out::capture(fn (): void => {
+        var $sse = Core\Sse::stream();
+        $sse->send("");
+    });
+} catch (LogicError $refused) {
+    $empty = $refused->message;
+}
+echo $empty, "\n";
+
+// Stripping the line break would change the name an application dispatches on,
+// which is the silent wrong answer a refusal exists instead of.
+var $named = "";
+try {
+    Core\Out::capture(fn (): void => {
+        var $sse = Core\Sse::stream();
+        $sse->send("sold", event: "order\ndata: forged");
+    });
+} catch (LogicError $refused) {
+    $named = $refused->message;
+}
+echo $named, "\n";
+
+// A NUL is refused with the two line breaks because its effect is the same: a
+// client discards an id containing one outright, so what the application wrote
+// is not what the peer acts on.
+var $identified = "";
+try {
+    Core\Out::capture(fn (): void => {
+        var $sse = Core\Sse::stream();
+        $sse->send("sold", id: "42\u{0}9");
+    });
+} catch (LogicError $refused) {
+    $identified = $refused->message;
+}
+echo $identified, "\n";
+
+// `Core\Response::stream` takes any status; this refusal is the event stream's
+// alone. An event stream is `200` by protocol, so a program that set a status
+// and then opened one said two things about one response.
+var $contradicted = "";
+try {
+    Core\Out::capture(fn (): void => {
+        Core\Response::setStatus(404);
+        Core\Sse::stream();
+    });
+} catch (LogicError $refused) {
+    $contradicted = $refused->message;
+}
+echo $contradicted, "\n";
+
+// A payload that is not a `string` goes through the encoder `Core\Json::encode`
+// is, so a value that encoder has no document for is refused here in the same
+// sentence it would be refused there.
+var $unencodable = "";
+try {
+    Core\Out::capture(fn (): void => {
+        var $sse = Core\Sse::stream();
+        $sse->send(new Ticket());
+    });
+} catch (LogicError $refused) {
+    $unencodable = $refused->message;
+}
+echo $unencodable, "\n";
+
+/// A class that does not participate in JSON, which is the default: nothing
+/// crosses the encoder without `#[Json\Derive]` saying which fields may.
+class Ticket
+{
+    public string $id = "t-1";
+}
+--EXPECT--
+Core\Sse::send(): an event needs a payload: a client dispatches nothing for an empty data buffer, so this event could not arrive
+Core\Sse::send(): an event name cannot carry a line break or a NUL: a client dispatches on this name, and either byte would end the event early
+Core\Sse::send(): an event id cannot carry a line break or a NUL: either byte would end the event early, and a client discards an id containing a NUL outright
+Core\Sse::stream(): this request set the status `404` and an event stream is `200` by protocol, so the two cannot both be answered
+Core\Sse::send(): the payload cannot be encoded: an instance of `Ticket` has no JSON encoding — a class participates by carrying `#[Json\Derive]`

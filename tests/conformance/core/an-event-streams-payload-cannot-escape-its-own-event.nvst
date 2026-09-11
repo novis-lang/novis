@@ -1,0 +1,64 @@
+--TEST--
+An event stream's payload becomes `data:` lines and reaches no other field, whichever of the three line endings it carries — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:security/sink-predicate`
+--FILE--
+<?nvs
+// A client ends a line on `\n`, on `\r\n` and on `\r` alike, and the last of
+// those is the one a program reaches by accident -- a Windows file read in, a
+// spreadsheet's export. Every payload is normalized and then split, one `data:`
+// line per line, so the three spellings frame identically and a caller never
+// has to know which one it is holding.
+var $lf = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send("first\nsecond");
+});
+var $cr = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send("first\rsecond");
+});
+var $crlf = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send("first\r\nsecond");
+});
+// Interpolated rather than compared as they came back: `Core\Out::capture`
+// answers the sink's carrier, and two carriers are two objects.
+var $written = "{$lf}";
+echo $written;
+echo $written == "{$cr}" ? "a lone carriage return agrees\n" : "a lone carriage return frames differently\n";
+echo $written == "{$crlf}" ? "a carriage return and line feed agrees\n" : "a carriage return and line feed frames differently\n";
+echo "--\n";
+
+// This is what makes `$data` admit a `tainted` value: the framing belongs to
+// the framer, so a payload that spells a field of its own is one event with a
+// two-line payload and never a second event naming itself.
+var $forged = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send("harmless\nevent: admin\nid: 9");
+});
+echo $forged;
+echo "--\n";
+
+// A payload ending in a line break keeps it: a client appends each data line
+// and a `\n` to its buffer and strips one `\n` at dispatch, so the trailing
+// empty line is what makes the round trip exact rather than merely safe.
+var $trailing = Core\Out::capture(fn (): void => {
+    var $sse = Core\Sse::stream();
+    $sse->send("line\n");
+});
+echo $trailing;
+echo "--\n";
+--EXPECT--
+data: first
+data: second
+
+a lone carriage return agrees
+a carriage return and line feed agrees
+--
+data: harmless
+data: event: admin
+data: id: 9
+
+--
+data: line
+data:
+
+--
