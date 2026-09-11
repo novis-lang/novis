@@ -3113,12 +3113,20 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   see the configuration:
   `tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst`.
   [until: gone crates/nvs-cli/src/runner.rs:nvs_runtime::Ctx::stdout()]
-- **A memory-limit breach is observed at the first `run_helper` member call after it, and an `$a[] =
-  ...` is not one.** A fixture that grows an array past `[limits] memory` gets the `FATAL` at
-  whatever `Core` member or `echo` runs next, and `nvs_runtime::run_helper`'s comment owns that
-  rule. Put the member call where you want the breach reported, and expect nothing printed before
-  it, since `run_helper` asks ahead of the body.
-  [until: gone crates/nvs-runtime/src/abi.rs:observed at the first member call after]
+- **A memory-limit breach is observed at the next loop back edge or the next member call, whichever
+  the program reaches first, and an `$a[] = ...` on its own is neither.** The allocator raises
+  `SafepointFlags::MEMORY_LIMIT` at the crossing, so a fixture that grows inside a `while` stops
+  inside it; straight-line growth reaches nothing until `run_helper` asks ahead of a member's body.
+  Put the loop or the member call where you want the breach reported, and expect nothing printed
+  after the crossing. [until: gone crates/nvs-runtime/src/budget.rs:fn publish]
+- **A fixture whose loop *doubles* what it holds cannot run `Core\Fatal::onLimit`'s handler, and the
+  tell is an empty stdout beside a `FATAL` naming about twice the ceiling.** The handler is entered
+  with the reserve added back, and that slice is at most a quarter of `[limits] memory`
+  (`Ctx::reserve_within`), while a doubling crosses by about the whole of what it held — so the
+  handler's first helper call breaches again and `rule:errors/on-limit`'s zero-retry rule abandons
+  it. Size the ballast to cross by less than `fatal_reserve_memory`, as
+  `tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` does, or expect the `FATAL` alone.
+  [until: gone crates/nvs-runtime/src/string.rs:fn alloc_uninit]
 - **A `reject` case pins the *first* diagnostic, and the recovery type behind it writes a second
   one.** `check_read` answers `mixed` after reporting, so a `static` method declared `: int` whose
   body reads `$this->size` also reports `E0403 declares int but returns mixed`, and `%A` does not

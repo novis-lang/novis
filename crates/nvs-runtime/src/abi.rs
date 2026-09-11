@@ -389,8 +389,15 @@ where
     // it: a member that has already run holds a `Value` this frame would then
     // have to release on a path nothing else takes, and refusing in front of
     // the allocation is what [`affordable`]'s own doc comment says this seam is
-    // for. The breach is therefore observed at the first member call after it
-    // happens, which is at most one member's work later.
+    // for.
+    //
+    // One of the two places the question is asked, and no longer the only one:
+    // [`crate::budget`] arms the allocator with this request's ceiling, so a
+    // growing allocation that crosses it raises
+    // [`SafepointFlags::MEMORY_LIMIT`] and the program is stopped at its next
+    // back edge. What this seam still answers alone is growth that reaches
+    // neither — no loop between the allocation and the call — and what it
+    // answers in every case is that no member's body runs past the ceiling.
     //
     // What it costs an uncapped request — every context with no configuration,
     // which is every test's — is one compare against a zero field: see
