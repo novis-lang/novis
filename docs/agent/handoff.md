@@ -2,52 +2,57 @@
 
 ## State
 
-**Goal `editor-surfaces` — milestone M10. Stage 0 is half closed and stage 2 is untouched.**
-`editors/vscode/test/contributions/contributions.test.ts` now asserts both answering claims — every
-contributed command reaches a `registerCommand` call, every contributed setting reaches a reader —
-and it fails on exactly four names: `nvs.run`, `nvs.test`, `nvs.showAst` (stages 3 and 4) and
-`nvs.lsp.debounce` (nothing reads it on either side of the wire).
+**Goal `editor-surfaces` — milestone M10. Stage 2's first CLI surface is landed; stage 0 is where it
+was.** `nvs check --json` writes one record per diagnostic the text renderer prints:
+`crates/nvs-cli/src/check.rs` is the renderer, `Sink` at `crates/nvs-cli/src/main.rs:2096` is what
+picks it, and the three tests stage 2's `[[check]]` names pass in `crates/nvs-cli/tests/check.rs`.
+The text rendering is untouched and is still the default — `rule:ide/tasks-carry-a-problem-matcher`'s
+`problemMatcher` reads it, and stage 3 has not been written yet.
 
-**`tools/verify.py`'s `extension` step is therefore red on purpose**, two failing tests out of 186,
-and the playbook bullet at `docs/agent/playbook.md:1268` is what says so. Nothing else in the gate
-is red. Do not widen either assertion and do not remove an id
-(`rule:ide/contributions-are-frozen-and-only-ever-added`).
+**`tools/verify.py`'s `extension` step is still red on purpose**, the same two contributions tests
+as before (`nvs.run`, `nvs.test`, `nvs.showAst`, answered by stages 3 and 4), and the playbook bullet
+at `docs/agent/playbook.md:1268` is what says so. Nothing else in the gate is red.
 
-The settings half was one name wider than the item claimed: the client passed no
-`initializationOptions` at all, so `nvs.completion.phpNames` was inert too although
-`crates/nvs-lsp/src/settings.rs:110` has read it since goal `workspace-index`. The client now hands
-over the `nvs` section whole, which also made `nvs.check.scope` and `nvs.codeLens.enable` — read by
-that same server, contributed by nobody — worth contributing, so they are on the roster now.
+**Stage 2's second surface is wider than its item claimed.** The declaring file and line a Test
+Explorer needs are not in `runner.rs` to render: `nvs_types::testing::TestCase` carries no span at
+all, so the row has to grow one before the document can print it. `crates/nvs-types/src/testing.rs`
+is in the goal's `[context] modules` as of this session for that reason.
 
 ## Next group
 
-**Stage 2: the two CLI surfaces, and the one ADR this goal opens** — one file set: `crates/nvs-cli/`
-and `crates/nvs-diagnostics/`. Both are data the compiler already holds, rendered a second way, and
-two later client stages query them, so they go before any more TypeScript.
+**Stage 2: the test report, and the ADR that freezes both schemas** — one file set:
+`crates/nvs-types/src/testing.rs`, `crates/nvs-cli/src/runner.rs` and `crates/nvs-cli/src/main.rs`.
+The first item is what makes the second possible, so they go in this order.
 
-- [ ] **`nvs check --json`**, per `rule:ide/check-json-is-the-diagnostic-record-as-a-document`: one
-      record per diagnostic the text renderer prints — code, span, severity, help, `suggestions` —
-      under a frozen schema, with the text rendering still the default. The flag goes on
-      `Command::Check` at `crates/nvs-cli/src/main.rs:895`, the record it writes is
-      `crates/nvs-diagnostics/src/diagnostic.rs:128`, and `crates/nvs-cli/src/ast.rs:54` is the
-      frozen `--json` renderer to model it on rather than invent a second convention. Its three test
-      names are in the stage 2 `[[check]]` block.
-- [ ] **The test report to `schemaVersion: 2`**, per the same stage: each record gains its declaring
-      file and line, and a listing mode discovers without executing. `json_document` at
-      `crates/nvs-cli/src/runner.rs:1653` is the document; JUnit and the human format stay
-      byte-identical.
-- [ ] **One ADR** covering both schemas above and stage 5's explorer shape — the only record this
-      goal opens. Re-derive the next free number from `docs/decisions/` immediately before creating
-      it; it was 0172 at this commit. The shape, and the `changes:`/`because` relation it must write
-      twice, is `docs/agent/conventions.md:443`.
+- [ ] **A `#[Test]` row carries where it was declared**, per `rule:testing/test-attribute`'s table:
+      `crates/nvs-types/src/testing.rs:417` pushes the row and `crates/nvs-types/src/testing.rs:423`
+      pushes the method's own span into `case_spans`, which only diagnostics read. The span is in
+      hand at both lines; the struct is `crates/nvs-types/src/testing.rs:243`.
+- [ ] **The report to `schemaVersion: 2`, with that file and line on each record**, per
+      `rule:testing/report-formats`: `json_document` at `crates/nvs-cli/src/runner.rs:1653` is the
+      document and `Case` at `crates/nvs-cli/src/runner.rs:237` is what it renders; the runner reaches
+      a `SourceMap` through `crate::Checked`. JUnit and the human format stay byte-identical. Test
+      names `every_json_test_record_carries_its_declaring_file_and_line` and
+      `the_schema_version_is_two_and_junit_and_human_are_byte_identical`.
+- [ ] **A listing mode that discovers without executing**, same rule: a flag on `Command::Test` at
+      `crates/nvs-cli/src/main.rs:335`, answered where `runner::run` at
+      `crates/nvs-cli/src/runner.rs:258` has the compiled table and before it runs anything. Test
+      name `the_listing_mode_discovers_without_executing`. **The open decision is what the listing
+      document is** — one `schemaVersion: 2` document whose records carry `class`, `method`, `file`
+      and `line` and no verdict, versus a `summary` of zeros that reads as a run where nothing
+      passed. Decide it in the ADR below rather than in the emitter.
+- [ ] **One ADR**, covering `nvs check --json`'s schema (landed, version 1), the test report's
+      version 2 and stage 5's explorer shape — the only record this goal opens. Re-derive the next
+      free number from `docs/decisions/` immediately before creating it; it was 0172 at this commit.
+      The shape, and the `changes:`/`because` relation it writes twice, is
+      `docs/agent/conventions.md:443`.
 
 ## Backlog
 
-- `nvs.lsp.debounce` is stage 0's remaining half: nothing in `nvs-lsp` debounces anything, and
-  `Settings::from_initialize` (`crates/nvs-lsp/src/settings.rs:110`) is where it would be read.
-- `nvs.checkWorkspace` and `nvs.template.services` are in `rule:ide/contributions-are-frozen-and-only-ever-added`'s
-  M10 roster and still contributed by nobody; each arrives with its feature, not before it.
-- Stages 3 and 4 own the three unanswered commands; stage 5 the explorer, stage 6 the regions.
-- `docs/agent/loop-goal.toml`'s `[context]` gained `ide/check-scope-defaults-to-open-documents` and
-  three modules (`ast.rs`, `diagnostic.rs`'s crate already listed, `nvs-lsp/src/settings.rs`) this
-  session; `docs/agent/goals/39-editor-surfaces.toml` is the byte-identical copy.
+- The pack prints `loop-goal.md`'s `## Standing decisions` and not the current stage's own prose,
+  which is where an item's specification actually is — stage 2's listing mode is named there and
+  nowhere else. No `[context]` field selects it; the fix is in `orient.py`, not the manifest.
+- Stage 0's two failing contributions tests close in stages 3 and 4 — `docs/agent/loop-goal.md`
+  § *Stage 0*.
+- `nvs check --json` prints no document when the entry file or the configuration cannot be read;
+  both say so on standard error, as `nvs ast --json` does — `crates/nvs-cli/src/main.rs:@run_check`.

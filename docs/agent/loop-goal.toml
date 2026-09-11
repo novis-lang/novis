@@ -112,6 +112,10 @@ modules = [
   "crates/nvs-cli/src/runner.rs",
   # `Command::Check`'s flags, and the front end whose diagnostics stage 2 renders a second way.
   "crates/nvs-cli/src/main.rs",
+  # `TestCase` at :243 -- the roster stage 2's listing mode enumerates. It carries no declaring
+  # span: `case_spans` at :423 has one and only diagnostics read it, so the file and line stage 2
+  # adds to each record start here rather than in `runner.rs`.
+  "crates/nvs-types/src/testing.rs",
   # The `Diagnostic` record `--json` writes: code, span, severity, help, suggestions.
   "crates/nvs-diagnostics/src/lib.rs",
   # `ast::run` at :54 -- the frozen `--json` renderer stage 2's `check --json` is modelled on.
