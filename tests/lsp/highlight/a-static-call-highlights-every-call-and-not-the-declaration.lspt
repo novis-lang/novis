@@ -1,0 +1,16 @@
+--TEST--
+a static call highlights every call of its method in this file, a static member being one index entry like any other and each hit placed at the method's own name rather than at the class the expression opens with, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Counter
+{
+    public static function reset(): void {}
+}
+
+Counter::re<|>set();
+Counter::reset();
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:7:10
+case.nvs:8:10

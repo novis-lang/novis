@@ -1,0 +1,11 @@
+--TEST--
+a local is scoped to the body that declares it and is no workspace symbol, so reading one highlights nothing rather than the other read one line down — the one answer an editor's highlight-on-hover would most obviously have given, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+var $total = 3;
+echo $to<|>tal;
+echo $total;
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

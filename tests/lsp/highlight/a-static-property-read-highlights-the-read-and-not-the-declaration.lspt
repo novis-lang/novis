@@ -1,0 +1,17 @@
+--TEST--
+a static property read through `self::` highlights the read at the slot's own name with its `$` and leaves the declaration in the same class unhighlighted, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Counter
+{
+    public static int $count = 0;
+
+    public function total(): int
+    {
+        return self::$co<|>unt;
+    }
+}
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:8:22

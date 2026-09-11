@@ -1,0 +1,11 @@
+--TEST--
+an import brings a name into scope rather than using it, so a cursor in one highlights nothing where a cursor on the `new` below it would highlight that allocation, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+us<|>e App\User;
+
+var $u = new User();
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

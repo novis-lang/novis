@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `foreach` keyword is on a statement rather than a name, so the index is not asked and nothing is highlighted, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+array<int> $rows = [1, 2, 3];
+forea<|>ch ($rows as int $row) {
+    echo $row;
+}
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

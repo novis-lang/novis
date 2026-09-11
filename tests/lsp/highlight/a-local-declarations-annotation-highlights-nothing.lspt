@@ -1,0 +1,9 @@
+--TEST--
+a cursor in a built-in type annotation is on no declared name, so there is nothing in the index for it to be an occurrence of, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+array<mi<|>xed> $rows = [1, 2, 3];
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

@@ -1,0 +1,20 @@
+--TEST--
+a cursor on a call highlights every other call of the method in this file and not its declaration, which is the one place a highlight list and a reference list at the same cursor are visibly different lengths, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+
+var $u = new User();
+echo $u->gre<|>et();
+echo $u->greet();
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:11:10
+case.nvs:12:10
