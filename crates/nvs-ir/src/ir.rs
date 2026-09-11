@@ -2583,10 +2583,16 @@ pub enum Terminator {
     /// through, and because the status entering `landing` is the constant
     /// `THROWN` here rather than a value read back from a call.
     Throw {
-        /// The [`crate::ty::Ty::Object`] being raised — an instance of
-        /// `Throwable` or one of its subclasses. Ownership of one reference
-        /// transfers to the context; `crate::lower` retains an aliasing
-        /// operand (`throw $e;`) first.
+        /// The [`crate::ty::Ty::Object`] being raised, which is all this
+        /// terminator asks of it. A `throw` statement's operand is a
+        /// `Throwable` or one of its subclasses, but the `catch` machinery on
+        /// the other end matches by descriptor
+        /// (`nvs_runtime::object::ClassDesc::conforms_to_name`, self-or-ancestor
+        /// by name), so an object of a class outside that tree —
+        /// `nvs_hir::errors::FINISH_MARKER` is the one the compiler declares —
+        /// travels this edge, runs every `finally` on the way and matches no
+        /// arm. Ownership of one reference transfers to the context;
+        /// `crate::lower` retains an aliasing operand (`throw $e;`) first.
         value: ValueId,
         /// Where this `throw` is, as [`InstKind::SourceConst`] carries it: the
         /// constant `nvs_runtime::nvs_raise` fills the raised object's
