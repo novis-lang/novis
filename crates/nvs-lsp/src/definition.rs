@@ -50,7 +50,7 @@ use lsp_types::Range;
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, DocComment, Stmt, StmtKind};
-use nvs_types::{ExprInfo, ResolvedCall};
+use nvs_types::{ExprInfo, ResolvedCall, Ty, TypeId, TypeInterner};
 
 use crate::document::Analysed;
 use crate::position::range_at;
@@ -82,6 +82,98 @@ pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> O
         path: file.path()?.to_path_buf(),
         range: range_at(file, declared.span, encoding),
     })
+}
+
+/// Where the **type** of the expression at `offset` is declared.
+///
+/// [`at`]'s answer one step further along: that one follows the name the cursor
+/// is on, and this one follows the type the checker recorded for it, so a
+/// cursor on `$c->engine` reaches `class Engine` rather than the property that
+/// holds one. The walk from a class name to its declaration is [`site`]'s in
+/// both, which is what keeps the `require`/`autoload` graph resolved once and
+/// what makes a type declared in a required file reachable here at all.
+///
+/// `None` for an expression the checker recorded no type for — a plain local
+/// read is the common one, for [`crate::hover`]'s reason — and for a type with
+/// no declaration to open: a scalar, an array, a union of more than one class,
+/// and a `Core` class, whose declaration is Rust.
+#[must_use]
+pub fn type_at(
+    analysed: &Analysed,
+    offset: BytePos,
+    encoding: PositionEncoding,
+) -> Option<Declared> {
+    let class = analysed
+        .index
+        .at(offset)
+        .nodes()
+        .iter()
+        .find_map(|node| instance_of(analysed, analysed.exprs.lookup(node.span)?))?;
+    let declared = site(analysed, &Target::Type(&class))?;
+    let file = analysed.map.file(declared.span.file);
+    Some(Declared {
+        path: file.path()?.to_path_buf(),
+        range: range_at(file, declared.span, encoding),
+    })
+}
+
+/// The class one recorded expression is an instance of, by name.
+///
+/// Read off the type the checker gave the expression rather than off the name
+/// it wrote, because only some of them wrote one: `$c->engine` names a property
+/// and is an `Engine`, and the type table is the only place that second fact
+/// is. The three that *are* their own type answer it directly — asking for the
+/// type of `new User()` is asking about `User`, which is also what [`at`]
+/// answers there and is the right answer rather than a duplicated one.
+fn instance_of(analysed: &Analysed, info: &ExprInfo) -> Option<QName> {
+    match info {
+        ExprInfo::New { class, .. } | ExprInfo::InstanceOf { class } => Some(class.clone()),
+        ExprInfo::EnumCase { enum_, .. } => Some(enum_.clone()),
+        _ => class_of(&analysed.interner, recorded_ty(info)?),
+    }
+}
+
+/// The type the checker recorded on one expression, and `None` for an entry
+/// that carries none.
+///
+/// The same entries [`crate::hover`]'s type arm reads, plus a call's return
+/// type: hovering a call shows its whole row, so the return type is already on
+/// screen there and is what this request is asking for.
+const fn recorded_ty(info: &ExprInfo) -> Option<TypeId> {
+    Some(match info {
+        ExprInfo::Property { ty, .. }
+        | ExprInfo::StaticProperty { ty, .. }
+        | ExprInfo::HookedProperty { ty, .. } => *ty,
+        ExprInfo::Index { elem_ty, .. } => *elem_ty,
+        ExprInfo::NarrowedRead { to } => *to,
+        ExprInfo::Call(call) | ExprInfo::ClassRefCall(call) => call.return_ty,
+        _ => return None,
+    })
+}
+
+/// The class a type is an instance of, through the two wrappers that do not
+/// change the answer.
+///
+/// A `ClassRef` is a class written as a value, and a nullable type is one class
+/// beside `null` — neither is a different declaration to open. A union of two
+/// classes is: there are two answers and this request's response holds one, so
+/// it answers none rather than picking one of them.
+fn class_of(interner: &TypeInterner, ty: TypeId) -> Option<QName> {
+    match interner.get(ty) {
+        Ty::Class(qname, _) | Ty::Enum(qname, _) | Ty::EnumCase(qname, _, _) => Some(qname.clone()),
+        Ty::ClassRef(inner) => class_of(interner, *inner),
+        Ty::Union(members) => {
+            let mut classes = members
+                .iter()
+                .filter(|id| !matches!(interner.get(**id), Ty::Null));
+            let one = *classes.next()?;
+            if classes.next().is_some() {
+                return None;
+            }
+            class_of(interner, one)
+        }
+        _ => None,
+    }
 }
 
 /// What the node under the cursor named, and so what is looked up to answer it.
