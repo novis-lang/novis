@@ -851,7 +851,7 @@ reaches a file, which is what [`statements/nothing-gets-a-second-name`](statemen
 
 <a id="ide-a-template-region-gets-services-but-no-second-formatter"></a>
 
-## An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside `nvs fmt`  *(designed — not yet in the compiler)*
+## An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after `nvs fmt`, indented from the Novis code around it  *(designed — not yet in the compiler)*
 
 `rule:ide/a-template-region-gets-services-but-no-second-formatter`
 
@@ -869,19 +869,30 @@ terms — the holes are Novis and the segments are HTML, which is the boundary t
 `nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
 grammar, for the reason [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server) gives for redaction
 ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
-the extension did not write is not language logic in the client.
+the extension did not write is not language logic in the client. The request carries an optional `text`,
+and then answers for that text rather than the open buffer.
 
-**Formatting is excluded, and this is the load-bearing half.** The embedded services are not registered as
-formatting providers, and `editor.formatOnSave` in a `.nvs` file runs `nvs fmt` over the whole file and
-nothing else. A second, configurable formatter inside a file whose formatter is unconfigurable by
-decision would make `nvs fmt --check` fail for a second reason. `nvs fmt` treats an inline-HTML region as
-any other span it does not reflow, so formatting a `.nvs` file with markup in it is byte-identical to
-`nvs fmt`.
+**Formatting is `nvs fmt` first, then the editor's own HTML formatter over the markup, starting where the
+Novis code is.** A format request runs `nvs fmt` over the whole file, asks `nvs/regions` for the regions
+of the result, and hands the editor's HTML formatter each chunk: the markup between a `?>` that ends its
+line and the `<?nvs` that reopens code, `<?= … ?>` holes included. A chunk's lines start at the
+indentation of its `?>` line, which [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs) puts at the depth of its block,
+so markup nests from the Novis code around it and the file does not jump between the two; the line
+holding the closing `<?nvs` starts there too. Nesting inside a chunk is the HTML formatter's, in
+`nvs fmt`'s four-space unit. A hole's bytes are Novis's and are never edited: a chunk whose formatting
+would change one is left as written.
 
-`nvs.template.services` (default `true`) disables the forwarding, because a user with their own HTML
-tooling has to be able to get out of the way of ours.
+**`nvs fmt` stays the only formatter of Novis and never touches markup**, so `nvs fmt --check` passes over
+a file this pass formatted. What is given up is a canonical layout for markup: it reads the user's
+`html.format.*` settings, and it re-indents bytes a program prints — which a browser ignores and a
+program printing text through inline HTML does not.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md), [0169](../decisions/0169.md).</sub>
+`nvs.template.services` (default `true`) disables the forwarding and `nvs.template.format` (default
+`true`) the markup pass, because a user with their own HTML tooling, or with markup whose whitespace is
+output, has to be able to get out of the way of ours. With the second off, format-on-save is `nvs fmt`
+and nothing else.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
 
 <a id="ide-case-files-have-their-own-grammar"></a>
 
@@ -1017,12 +1028,12 @@ the developer's own `settings.json`.
 
 <a id="ide-one-server-two-thin-clients"></a>
 
-## Language smarts and formatting have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either  *(designed — not yet in the compiler)*
+## Language smarts and formatting of Novis have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either  *(designed — not yet in the compiler)*
 
 `rule:ide/one-server-two-thin-clients`
 
 `nvs-lsp` and `nvs-fmt` are the only place completion, hover, diagnostics, rename, go-to-definition
-and formatting are implemented. An editor client is a thin adapter: it starts the server or the
+and formatting of Novis are implemented. An editor client is a thin adapter: it starts the server or the
 formatter, translates its own editor's events into LSP requests, and renders what comes back. It
 decides nothing about the language — not what a name resolves to, not where a line breaks, not even
 which range is a `secret` ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)).
@@ -1032,11 +1043,17 @@ behaviour: two implementations of the formatting rules drift the first time one 
 bug the other's has not, and the verification that both editors produce byte-identical diagnostics and
 formatted output for one file only holds while there is one implementation to agree with.
 
+**Markup is the one exception, and it belongs to the editor rather than to the client.** Inside an
+inline-HTML region the services and the formatter are the editor's own HTML ones
+([`ide/a-template-region-gets-services-but-no-second-formatter`](ide.md#ide-a-template-region-gets-services-but-no-second-formatter)): the client forwards to them on
+boundaries the server reports and implements neither. So byte-identical formatted output across the two
+editors holds for the Novis bytes of a file; its markup bytes are each editor's HTML formatter's.
+
 The VS Code extension ([`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client)) and the PhpStorm plugin
 ([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)) are the two clients, and a dependency-allowlist test on
 the extension is what enforces "holds no language logic" rather than review.
 
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md), [0173](../decisions/0173.md).</sub>
 
 <a id="ide-editor-clients-live-under-editors"></a>
 

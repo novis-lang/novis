@@ -548,11 +548,12 @@
     },
     {
       "id": "tooling/fmt-novis-constructs",
-      "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals — has exactly one layout",
+      "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout",
       "status": "designed",
       "because": [
         "0039",
-        "0169"
+        "0169",
+        "0173"
       ],
       "seeAlso": [
         "tooling/fmt-base-style-is-per",

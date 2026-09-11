@@ -594,13 +594,14 @@
     },
     {
       "id": "ide/a-template-region-gets-services-but-no-second-formatter",
-      "title": "An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside `nvs fmt`",
+      "title": "An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after `nvs fmt`, indented from the Novis code around it",
       "status": "designed",
       "because": [
         "0108",
-        "0169"
+        "0169",
+        "0173"
       ],
-      "divergesFromPhp": "the markup half of a file gets Emmet, tag closing and the colour picker as in a PHP editor, but never the editor's HTML formatter — format-on-save is `nvs fmt` over the whole file and nothing else",
+      "divergesFromPhp": "the markup half of a file gets Emmet, tag closing, the colour picker and the HTML formatter as in a PHP editor, but each markup chunk is indented from the `?>` that opened it — the Novis block's depth — rather than from the markup's own nesting alone",
       "seeAlso": [
         "ide/redaction-ranges-come-from-the-server",
         "programs/first-party-framework",
@@ -698,11 +699,12 @@
     },
     {
       "id": "ide/one-server-two-thin-clients",
-      "title": "Language smarts and formatting have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either",
+      "title": "Language smarts and formatting of Novis have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either",
       "status": "designed",
       "because": [
         "0016",
-        "0040"
+        "0040",
+        "0173"
       ],
       "divergesFromPhp": "PhpStorm's PHP support is a native PSI plugin with its own formatter and refactorings, whereas its Novis plugin is a bridge to the same server VS Code drives, so nothing about `.nvs` is decided in the editor",
       "seeAlso": [

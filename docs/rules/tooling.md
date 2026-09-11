@@ -674,7 +674,7 @@ position is not observable and a member's is.
 
 <a id="tooling-fmt-novis-constructs"></a>
 
-## Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals — has exactly one layout  *(designed — not yet in the compiler)*
+## Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout  *(designed — not yet in the compiler)*
 
 `rule:tooling/fmt-novis-constructs`
 
@@ -695,12 +695,17 @@ Each construct with no PER precedent has one layout, chosen once:
   heredoc body and an inline-HTML region are not ([`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes),
   [`core-classes/html-literal`](core-classes.md#core-classes-html-literal)). Only its surroundings are laid out, so the bytes between the
   backticks survive formatting unchanged and `nvs fmt` stays idempotent over a template.
+- A `?>` that begins its line is indented to the depth of the block it sits in — the column a statement
+  there would start at — so the markup after it can start from the code around it
+  ([`ide/a-template-region-gets-services-but-no-second-formatter`](ide.md#ide-a-template-region-gets-services-but-no-second-formatter)). Only its leading whitespace
+  moves, and that whitespace is code, so nothing the program prints changes: a `?>` is never moved onto
+  or off a line, and the markup after it is the editor's to lay out, never `nvs fmt`'s.
 - Attributes need no rule, since Novis has no annotation syntax.
 
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/closure-literal`](types.md#types-closure-literal), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-literal`](core-classes.md#core-classes-html-literal). Decided in [0039](../decisions/0039.md), [0169](../decisions/0169.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/closure-literal`](types.md#types-closure-literal), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-literal`](core-classes.md#core-classes-html-literal). Decided in [0039](../decisions/0039.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 

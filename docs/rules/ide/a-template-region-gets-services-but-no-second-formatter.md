@@ -12,14 +12,25 @@ terms — the holes are Novis and the segments are HTML, which is the boundary t
 `nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
 grammar, for the reason `rule:ide/redaction-ranges-come-from-the-server` gives for redaction
 ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
-the extension did not write is not language logic in the client.
+the extension did not write is not language logic in the client. The request carries an optional `text`,
+and then answers for that text rather than the open buffer.
 
-**Formatting is excluded, and this is the load-bearing half.** The embedded services are not registered as
-formatting providers, and `editor.formatOnSave` in a `.nvs` file runs `nvs fmt` over the whole file and
-nothing else. A second, configurable formatter inside a file whose formatter is unconfigurable by
-decision would make `nvs fmt --check` fail for a second reason. `nvs fmt` treats an inline-HTML region as
-any other span it does not reflow, so formatting a `.nvs` file with markup in it is byte-identical to
-`nvs fmt`.
+**Formatting is `nvs fmt` first, then the editor's own HTML formatter over the markup, starting where the
+Novis code is.** A format request runs `nvs fmt` over the whole file, asks `nvs/regions` for the regions
+of the result, and hands the editor's HTML formatter each chunk: the markup between a `?>` that ends its
+line and the `<?nvs` that reopens code, `<?= … ?>` holes included. A chunk's lines start at the
+indentation of its `?>` line, which `rule:tooling/fmt-novis-constructs` puts at the depth of its block,
+so markup nests from the Novis code around it and the file does not jump between the two; the line
+holding the closing `<?nvs` starts there too. Nesting inside a chunk is the HTML formatter's, in
+`nvs fmt`'s four-space unit. A hole's bytes are Novis's and are never edited: a chunk whose formatting
+would change one is left as written.
 
-`nvs.template.services` (default `true`) disables the forwarding, because a user with their own HTML
-tooling has to be able to get out of the way of ours.
+**`nvs fmt` stays the only formatter of Novis and never touches markup**, so `nvs fmt --check` passes over
+a file this pass formatted. What is given up is a canonical layout for markup: it reads the user's
+`html.format.*` settings, and it re-indents bytes a program prints — which a browser ignores and a
+program printing text through inline HTML does not.
+
+`nvs.template.services` (default `true`) disables the forwarding and `nvs.template.format` (default
+`true`) the markup pass, because a user with their own HTML tooling, or with markup whose whitespace is
+output, has to be able to get out of the way of ours. With the second off, format-on-save is `nvs fmt`
+and nothing else.
