@@ -380,16 +380,16 @@ const ON_EXIT_SYMBOL: &str = "nvs_core_script_on_exit";
 /// the lowering ever stops intercepting the call.
 pub const FINISH_SYMBOL: &str = "nvs_core_script_finish";
 
-/// The class `Core\Script::finish` raises, as the name a [`nvs_runtime::Thrown`]
-/// carries — [`is_finish`] is the one place it is compared.
+/// The class `Core\Script::finish` raises, and the one place a class name is
+/// compared against it — both of them `nvs_runtime::throwable`'s, re-exported
+/// here because this module is the spelling every caller outside a host uses.
 ///
-/// `nvs_hir::errors::FINISH_MARKER` is the home of this spelling and of what the
-/// class is: a second, parentless root of the exception tree that no `catch` arm
-/// matches. This crate spells it rather than naming that constant for
-/// [`THROWABLE`]'s reason — it depends on `nvs-runtime` and on no part of the
-/// compiler — and `nvs_types`'s `the_marker_the_runtime_classifies_by_is_the_one_the_compiler_declares`
-/// holds the two spellings together.
-pub const FINISH_MARKER_NAME: &str = r"Core\Script\Finished";
+/// **The home is that crate rather than this one** because `nvs-host` has to
+/// classify a served request's ending and cannot name `nvs-stdlib`: this crate
+/// depends on `nvs-host` for `Core\Http\Client`'s socket, so the edge back would
+/// close a cycle. What is restated where, and against which test, is
+/// [`is_finish`]'s own doc and [`THROWABLE`]'s.
+pub use nvs_runtime::{FINISH_MARKER_NAME, is_finish};
 
 /// The symbols [`EXIT_REPORT`]'s three accessors are reached through.
 const REASON_SYMBOL: &str = "nvs_core_script_exit_report_reason";
@@ -543,23 +543,6 @@ const NORMAL: i64 = 0;
 const EXIT_CALL: i64 = 1;
 const UNCAUGHT_THROW: i64 = 2;
 const FINISH: i64 = 3;
-
-/// Whether the class that reached a root is the marker `Core\Script::finish()`
-/// raises rather than a `Throwable` a program could have caught.
-///
-/// **The one home of that question**, asked by every host that classifies an
-/// ending: `nvs-cli` for a `nvs run`, `nvs-host` for a served request, and
-/// [`run_exit_hooks`] for the report. A finish is an ordinary end that travels
-/// the throw path, so a host answering `true` here skips the uncaught-throw
-/// handler, the escalation ladder and the failure report, and keeps the status
-/// its own success path would have given.
-///
-/// It takes the *name* rather than the object because a host asks before it
-/// takes anything: `Ctx::pending_class` answers while the exception is still
-/// pending, which is what leaves the real one in place for the ladder.
-pub fn is_finish(class: &str) -> bool {
-    class == FINISH_MARKER_NAME
-}
 
 /// A slot of the receiving [`EXIT_REPORT`], retained because it is being
 /// answered — `crate::ratelimit`'s `slot_of`, over this class's layout.
@@ -1310,6 +1293,134 @@ mod tests {
         );
         release(bad);
         release(good);
+    }
+
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s fourth row: a
+    /// request that called `Core\Script::finish()` is `Finish` at status `0`,
+    /// with **no error beside it**.
+    ///
+    /// The pairing is the assertion. The marker arrives on the `THROWN` path,
+    /// which is the same status an uncaught throw arrives on, so a classifier
+    /// reading the status alone reports every finish as a failure at status 1
+    /// carrying a `Throwable` a hook could then read — and the object it would
+    /// hand over is an implementation detail of how a finish unwinds, not
+    /// something the program ever named.
+    #[test]
+    fn the_exit_report_names_the_finish_ending_with_a_zero_status_and_no_error() {
+        let mut ctx = Ctx::buffered();
+        let marker = finish_marker(&mut ctx);
+        let hook = register(&mut ctx, 1, records_first);
+
+        SEEN.with(|seen| seen.borrow_mut().clear());
+        super::run_exit_hooks(&mut ctx, Err(nvs_runtime::THROWN), Some(&marker));
+
+        assert_eq!(
+            SEEN.with(|seen| (seen.borrow()[0].reason, seen.borrow()[0].status)),
+            (super::FINISH, 0),
+            "§ 2's fourth row: a finish is an ordinary end, so status 0"
+        );
+        assert_eq!(
+            SEEN.with(|seen| seen.borrow()[0].error),
+            Value::null().bits(),
+            "the marker is how a finish unwinds and never the report's payload: \
+             only an uncaught throw carries an error"
+        );
+        release(hook);
+    }
+
+    /// `rule:observability/a-hook-observes-and-never-steers`, for the ending
+    /// this goal adds: `Core\Script::finish()` inside a hook is refused the way
+    /// `exit` is, and the queue behind it still runs.
+    ///
+    /// A hook that could finish would suppress every hook behind it, which is
+    /// the reasoning that section gives for `exit` — and here it is stronger,
+    /// since the queue *is* what a finish delays the end of, so the marker would
+    /// cut short the very drain it was raised inside. The second hook's own
+    /// report is asserted beside the refusal: the ending was fixed before the
+    /// first hook ran and the refusal does not restate it either.
+    #[test]
+    fn finish_inside_an_exit_hook_throws_and_the_drain_continues() {
+        let mut ctx = Ctx::buffered();
+        // The refusal's own words leave through the floor, which writes to the
+        // diagnostic channel when `[log] target` names nothing —
+        // `Ctx::write_log_record` is the routing.
+        ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        let bad = register(&mut ctx, 1, finishes);
+        let good = register(&mut ctx, 1, records_second);
+
+        SEEN.with(|seen| seen.borrow_mut().clear());
+        super::run_exit_hooks(&mut ctx, Ok(()), None);
+
+        assert_eq!(
+            SEEN.with(|seen| seen.borrow().iter().map(|saw| saw.who).collect::<Vec<_>>()),
+            ["finishes", "second"],
+            "§ 5: the refusal is logged and abandoned, and the hook behind it runs"
+        );
+        assert_eq!(
+            SEEN.with(|seen| (seen.borrow()[1].reason, seen.borrow()[1].status)),
+            (super::NORMAL, 0),
+            "the ending was fixed before the first hook ran, and no hook renames it"
+        );
+        assert!(
+            ctx.take_thrown().is_none(),
+            "the refusal is reported through the floor rather than left pending"
+        );
+        let reported = String::from_utf8(
+            ctx.take_buffered_diagnostic()
+                .expect("the diagnostic channel was given a buffer"),
+        )
+        .expect("a record renders as UTF-8");
+        assert!(
+            reported.contains(r"Core\\Script::finish()"),
+            "the record does not name what the hook did: {reported}"
+        );
+        assert!(
+            reported.contains(r#""class":"RuntimeError""#),
+            "the marker was reported as itself rather than as the \
+             `RuntimeError` § 5 names, which is the whole of the refusal — a \
+             record naming the marker's own class says an internal one \
+             escaped: {reported}"
+        );
+        release(bad);
+        release(good);
+    }
+
+    /// The marker `Core\Script::finish()` raises, as the object that reaches a
+    /// root — built here because no compiler is in front of these cases.
+    ///
+    /// The table is the narrowest one the raise needs: `RuntimeError` for the
+    /// class the context installs, and the marker beside it with no parent and
+    /// no slots, which is what `nvs_hir::errors::TREE` declares it as. Leaked
+    /// for [`closure_of`]'s reason.
+    fn finish_marker(ctx: &mut Ctx) -> nvs_runtime::Thrown {
+        const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut classes = ClassTable::new();
+        let root = classes.define("RuntimeError", &SLOTS, &[]);
+        classes.define(super::FINISH_MARKER_NAME, &[] as &[&str], &[]);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), root));
+        let desc = ctx
+            .class_desc(super::FINISH_MARKER_NAME)
+            .expect("the table installed a line above declares it");
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor comes out of the table this context now \
+                      holds, so it outlives the object, whose one reference is \
+                      handed to the `Thrown`"
+        )]
+        unsafe {
+            nvs_runtime::Thrown::from_raw(NvsObj::new(desc).into_raw())
+        }
+    }
+
+    /// A hook that records that it ran and then finishes, for § 5's second
+    /// refusal.
+    #[expect(unsafe_code, reason = "[`throws`]'s reason, on its twin")]
+    unsafe extern "C" fn finishes(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        unsafe { record("finishes", args, out) };
+        let ctx = unsafe { &mut *ctx };
+        let marker = finish_marker(ctx);
+        ctx.raise(marker);
+        nvs_runtime::THROWN
     }
 
     /// Registers one callback as a hook, through the member itself, and answers

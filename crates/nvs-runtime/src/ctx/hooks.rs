@@ -274,6 +274,12 @@ impl Ctx {
     /// - **An `exit`** is § 5's refusal: a hook that could end the script would
     ///   suppress every hook behind it, so the status it named is dropped and
     ///   the `RuntimeError` that section names is reported in its place.
+    /// - **A `Core\Script::finish()`** is that refusal for the same reason and
+    ///   with more to suppress: the ending is already fixed, and the queue *is*
+    ///   what a finish delays the end of, so a hook allowed to raise the marker
+    ///   would cut short the very drain it is running inside. It arrives as a
+    ///   throw rather than as a status of its own — [`crate::is_finish`] is what
+    ///   separates the two — and leaves the same `RuntimeError` behind.
     /// - **A `FATAL`** is the one that stops the drain. § 5's last sentence: a
     ///   limit breach inside a hook is a `FATAL` like any other, the ladder
     ///   takes over and the rest of the queue never runs — so the pending state
@@ -285,6 +291,23 @@ impl Ctx {
                 "`exit` inside a `Core\\Script::onExit` hook: a hook observes the ending it was \
                  given and cannot choose another",
             ),
+            crate::Fault::Pending(status)
+                if *status == crate::THROWN
+                    && self
+                        .pending_class()
+                        .as_deref()
+                        .is_some_and(crate::is_finish) =>
+            {
+                // The marker is released here rather than left for the take
+                // below: `set_pending` overwrites the slot and releases nothing
+                // it displaces, so the object the hook raised would otherwise
+                // outlive every reference to it.
+                drop(self.take_thrown());
+                self.set_pending(
+                    "`Core\\Script::finish()` inside a `Core\\Script::onExit` hook: a hook \
+                     observes the ending it was given and cannot choose another",
+                );
+            }
             // The callee already recorded what failed; that is the whole of what
             // this variant means.
             crate::Fault::Pending(_) => {}
