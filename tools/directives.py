@@ -12,6 +12,8 @@ writes it, the file is accepted, and the setting silently does nothing.
     python tools/directives.py --check  # exit 1 on a key with no reader and no trailer,
                                         # or a trailer over a key that now has one
     python tools/directives.py --json   # the roster as JSON, for a generator to consume
+    python tools/directives.py --explain <key>   # one key: its home, and every reader of it
+    python tools/directives.py --check-template  # the shipped default file against the roster
 
 This is the roster every later stage of goal `config-is-written` consumes: the
 generated `nvs.toml` is rendered from it, so a key missing here is a key missing
@@ -66,6 +68,21 @@ is no manifest file to keep in step with it. `--check` fails in both directions:
 a key with no reader and no trailer is one that landed silently, and a trailer
 over a key that now *has* a reader is the worse failure, because that is the one
 that makes a generated file lie about its own surface.
+
+**`--explain` is the same question asked about one key, and it asserts rather
+than reports.** It exits 1 when the named key reaches nothing, so a key whose
+only reader is a spelling a field search cannot see -- `Core\\Storage`'s
+`config.get("storage.{disk}.root")` -- is one a check can name and hold.
+
+**`--check-template` holds the shipped default file to the roster.** Every leaf
+key appears in `default.toml`, beside the tree, exactly once, no key the tree
+does not parse appears at all, and every key whose field carries an `[unread:]`
+trailer sits under a `# NOT IMPLEMENTED` line naming its owner. A key is written
+commented out -- `#cpu_time = "5s"` -- because that file's effective content is
+empty on purpose, so a default this project later tightens for a security reason
+still reaches a deployment that took the file. The `#` with no space after it is
+what separates a commented-out setting from the prose above it, and that prose
+block is where a key's `# NOT IMPLEMENTED` note has to be.
 """
 
 from __future__ import annotations
@@ -79,6 +96,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TREE_REL = "crates/nvs-config/src/tree.rs"
 TREE = ROOT / TREE_REL
+
+#: The generated default file `--check-template` gates: `default.toml` beside the
+#: tree it is derived from, `include_str!`'d into the crate from there and written
+#: into a project that has no `nvs.toml` of its own.
+TEMPLATE_REL = f"{TREE_REL.rsplit('/', 1)[0]}/default.toml"
+TEMPLATE = ROOT / TEMPLATE_REL
 
 #: The struct the walk starts from. Everything an `nvs.toml` may say is reachable
 #: from it, because it is what one configuration file deserializes into.
@@ -101,6 +124,19 @@ NAME = "<name>"
 
 TRAILER = re.compile(r"\[unread:\s*(?P<why>[^\]]+?)\s+owner:\s*(?P<owner>[^\]]+?)\s*\]")
 TRAILER_LIKE = re.compile(r"\[unread:")
+
+#: A block header in the default file, live or commented out -- `[limits]`,
+#: `#[db.main]`, `[[server.mount]]`. Its segments prefix every setting under it.
+HEADER = re.compile(r"^#?\s*\[\[?([\w.\-]+)\]\]?$")
+
+#: A setting in the default file. The `#` with nothing between it and the key is
+#: what makes a commented-out setting different from the prose above it, which is
+#: always `#` followed by a space or by nothing at all.
+SETTING = re.compile(r"^(?P<out>#?)(?P<key>[A-Za-z_][\w\-]*(?:\.[A-Za-z_][\w\-]*)*)\s*=")
+
+#: What an `[unread:]` key's prose block has to open with, so that an operator
+#: reads it before the key rather than after writing the key.
+UNIMPLEMENTED = "NOT IMPLEMENTED"
 
 #: What this workspace binds a block to when it is neither named after its key nor
 #: after its type. `written` is the idiom for *what the operator wrote*, and it is
@@ -128,8 +164,9 @@ class Field:
         self.flatten = flatten
 
 
-def parse_tree(text: str) -> tuple[dict[str, list[Field]], dict[str, list[str]]]:
-    """Every block struct's fields and every enum's payload types, from the source.
+def parse_tree(text: str) -> tuple[dict[str, list[Field]], dict[str, list[str]],
+                                   dict[str, list[str]]]:
+    """Every block struct's fields, every enum's payload types, and each block's own doc.
 
     A regex reader rather than a Rust parse: the file is one flat run of derived
     structs with no generics, no `impl` blocks between a field and its type, and
@@ -138,6 +175,7 @@ def parse_tree(text: str) -> tuple[dict[str, list[Field]], dict[str, list[str]]]
     being skipped."""
     structs: dict[str, list[Field]] = {}
     enums: dict[str, list[str]] = {}
+    blocks: dict[str, list[str]] = {}
     doc: list[str] = []
     attrs: list[str] = []
     holder: str | None = None
@@ -155,6 +193,7 @@ def parse_tree(text: str) -> tuple[dict[str, list[Field]], dict[str, list[str]]]
             opened = re.match(r"pub (struct|enum) (\w+) \{$", line)
             if opened:
                 kind, holder = opened.group(1), opened.group(2)
+                blocks[holder] = doc
                 if kind == "struct":
                     structs[holder] = []
                 else:
@@ -204,7 +243,7 @@ def parse_tree(text: str) -> tuple[dict[str, list[Field]], dict[str, list[str]]]
 
     if ROOT_STRUCT not in structs:
         raise SystemExit(f"directives.py: {TREE_REL} has no `pub struct {ROOT_STRUCT}`")
-    return structs, enums
+    return structs, enums, blocks
 
 
 def unwrap(ty: str) -> str:
@@ -489,11 +528,182 @@ def check(keys: list[Key]) -> list[str]:
     return problems
 
 
-def roster() -> list[Key]:
-    structs, enums = parse_tree(TREE.read_text(encoding="utf-8"))
+def find_key(keys: list[Key], wanted: str) -> Key | None:
+    """The roster key a spelling names.
+
+    A map block is `storage.<name>.root` in the roster and `storage.local.root` in a
+    file an operator wrote, and the two name one field, so the operator's spelling
+    resolves here as well as the roster's own."""
+    exact = next((k for k in keys if k.dotted == wanted), None)
+    if exact:
+        return exact
+    return next((k for k in keys
+                 if NAME in k.dotted and literal_re(k.dotted).fullmatch(wanted)), None)
+
+
+def explain(keys: list[Key], wanted: str) -> int:
+    """One key, whole: where it is written, what reads it, and by which spelling.
+
+    Exit 1 says the key reaches no reader, so this asserts rather than reports -- which
+    is what lets a check name the one key whose only reader is a flat dotted lookup and
+    fail the day a refactor a field search cannot see takes that reader away."""
+    read_trailers(keys, [])
+    key = find_key(keys, wanted)
+    if key is None:
+        head = wanted.split(".")[0]
+        near = [k.dotted for k in keys if k.dotted.split(".")[0] == head]
+        print(f"directives.py: `{wanted}` is not a key {TREE_REL} parses.", file=sys.stderr)
+        print(f"Under `{head}`: {', '.join(near)}" if near else
+              "`python tools/directives.py` lists the roster.", file=sys.stderr)
+        return 1
+
+    spelled = [k.dotted for k in keys if k.field is key.field and k.dotted != key.dotted]
+    print(key.dotted)
+    print(f"  home    {key.anchor}  ({key.owner}::{key.field.name}: {key.field.ty})")
+    if spelled:
+        print(f"  also    {' / '.join(spelled)}")
+    for reader in key.readers:
+        print(f"  read    {reader}")
+    if key.trailer:
+        print(f"  unread  {key.trailer[0]}")
+        print(f"  owner   {key.trailer[1]}")
+    if not key.readers:
+        print(f"\ndirectives.py: `{key.dotted}` reaches no reader.", file=sys.stderr)
+        return 1
+    return 0
+
+
+# ------------------------------------------------------------------------------ the template
+
+
+class Entry:
+    """One setting in the default file: the key it spells, and the prose above it."""
+
+    def __init__(self, dotted: str, line: int, prose: list[str], commented: bool):
+        self.dotted = dotted
+        self.line = line
+        self.prose = prose
+        self.commented = commented
+
+
+def parse_template(text: str) -> list[Entry]:
+    """Every setting the default file spells, under the block header it sits below.
+
+    A run of settings shares the prose block above it, because `[limits.hard]`'s pair
+    of keys is one explanation's worth; a blank line or a header ends the block."""
+    entries: list[Entry] = []
+    prefix = ""
+    prose: list[str] = []
+    for number, raw in enumerate(text.split("\n"), start=1):
+        line = raw.strip()
+        if not line:
+            prose = []
+            continue
+        header = HEADER.match(line)
+        if header:
+            prefix, prose = header.group(1), []
+            continue
+        setting = SETTING.match(line)
+        if setting:
+            key = setting.group("key")
+            entries.append(Entry(f"{prefix}.{key}" if prefix else key, number, prose,
+                                 bool(setting.group("out"))))
+            continue
+        if line.startswith("#"):
+            prose.append(line.lstrip("#").strip())
+            continue
+        prose = []
+    return entries
+
+
+def marked(entry: Entry, owner: str) -> bool:
+    """Whether the prose above a setting carries its `# NOT IMPLEMENTED` note, owner and all."""
+    return (any(line.startswith(UNIMPLEMENTED) for line in entry.prose)
+            and owner in " ".join(entry.prose))
+
+
+def check_template(keys: list[Key], path: Path) -> list[str]:
+    """A default file against the roster, in the four ways that file rots.
+
+    A key the tree parses and the file omits is a setting an operator never learns
+    exists. A key the file spells and the tree does not parse is one they write and
+    the next boot refuses. A key spelled twice means they uncomment the copy nothing
+    reads. And an `[unread:]` key with no `# NOT IMPLEMENTED` note is the worst of
+    them, because the file accepts the key, the boot accepts the file, and nothing
+    happens -- which is the whole failure this goal exists to close.
+
+    The path is an argument so that a draft is gated where it is written, rather than
+    only once it has been moved into the crate."""
+    rel = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.as_posix()
+    problems: list[str] = []
+    read_trailers(keys, problems)
+    if not path.exists():
+        problems.append(
+            f"{rel} is not written yet, so there is nothing to gate. It is the default "
+            f"file goal `config-is-written` stage 2 generates: each of the {len(keys)} "
+            f"leaf keys `python tools/directives.py` lists, commented out, under a "
+            f"comment saying what it does and what the default is."
+        )
+        return problems
+
+    seen: dict[str, Entry] = {}
+    for entry in parse_template(path.read_text(encoding="utf-8")):
+        key = find_key(keys, entry.dotted)
+        if key is None:
+            problems.append(
+                f"{rel}:{entry.line}: `{entry.dotted}` is not a key {TREE_REL} "
+                f"parses, so every file that keeps this line is refused at boot the "
+                f"moment it is uncommented. Delete it, or add the field to the tree."
+            )
+            continue
+        if key.dotted in seen:
+            problems.append(
+                f"{rel}:{entry.line}: `{key.dotted}` is already spelled at line "
+                f"{seen[key.dotted].line}. One key, one place -- two of them is how an "
+                f"operator ends up uncommenting the copy that is not the one they read."
+            )
+            continue
+        seen[key.dotted] = entry
+        if not entry.commented:
+            problems.append(
+                f"{rel}:{entry.line}: `{key.dotted}` is live. Every key in this "
+                f"file is commented out, so that a default this project later tightens "
+                f"still reaches a deployment that took the file once."
+            )
+        if key.trailer and not marked(entry, key.trailer[1]):
+            problems.append(
+                f"{rel}:{entry.line}: `{key.dotted}` is declared unread at "
+                f"{key.anchor} and the file does not say so. Open the comment above it "
+                f"with a `# {UNIMPLEMENTED}` line naming `{key.trailer[1]}`, so an "
+                f"operator learns that writing the key does nothing before they write it."
+            )
+    for key in sorted(keys, key=lambda k: k.dotted):
+        if key.dotted not in seen:
+            problems.append(
+                f"{rel}: `{key.dotted}` parses and this file does not spell it "
+                f"({key.anchor}). A key only this tool knows about is one an operator "
+                f"never finds."
+            )
+    return problems
+
+
+def report(problems: list[str], keys: list[Key], green: str) -> int:
+    """Every problem, then what they add up to -- or the one line that says it is green."""
+    if problems:
+        print("\n\n".join(problems), file=sys.stderr)
+        print(f"\n{len(problems)} problem(s) over {len(keys)} leaf key(s). "
+              f"`python tools/directives.py` lists the roster.", file=sys.stderr)
+        return 1
+    print(green)
+    return 0
+
+
+def roster() -> tuple[list[Key], dict[str, list[str]]]:
+    """The roster, and each block's own doc comment beside it -- what a generator reads."""
+    structs, enums, blocks = parse_tree(TREE.read_text(encoding="utf-8"))
     keys = walk(structs, enums, ROOT_STRUCT, [], [])
     find_readers(keys)
-    return keys
+    return keys, blocks
 
 
 def main() -> int:
@@ -503,28 +713,44 @@ def main() -> int:
         help="exit 1 on a key with no reader and no trailer, or a trailer over a read key",
     )
     parser.add_argument("--json", action="store_true", help="the roster as JSON, on stdout")
+    parser.add_argument(
+        "--explain", metavar="KEY",
+        help="one key: its home, every reader of it, and exit 1 if it reaches none",
+    )
+    parser.add_argument(
+        "--check-template", nargs="?", const=TEMPLATE_REL, metavar="PATH",
+        help=f"exit 1 unless a default file -- {TEMPLATE_REL} unless one is named -- "
+             f"spells every leaf key exactly once, commented out, and nothing else",
+    )
     args = parser.parse_args()
 
-    keys = roster()
+    keys, blocks = roster()
     if args.json:
         read_trailers(keys, [])
+        # `doc` and `block_doc` are what `tree.rs` already says about the key and about
+        # the block holding it. They are maintainer prose rather than operator prose --
+        # they carry the changeability class and the rule, and never the default value --
+        # so a generator shortens them for an operator rather than copying them.
         print(json.dumps([
-            {"key": k.dotted, "block": k.owner, "field": k.field.name, "anchor": k.anchor,
+            {"key": k.dotted, "block": k.owner, "field": k.field.name, "type": k.field.ty,
+             "anchor": k.anchor, "doc": k.field.doc, "block_doc": blocks.get(k.owner, []),
              "readers": k.readers, "unread": k.trailer[0] if k.trailer else None,
              "owner": k.trailer[1] if k.trailer else None}
             for k in keys
         ], indent=2))
         return 0
 
-    problems = check(keys)
+    if args.explain:
+        return explain(keys, args.explain)
+    if args.check_template is not None:
+        named = Path(args.check_template)
+        path = named if named.is_absolute() else ROOT / named
+        return report(check_template(keys, path), keys,
+                      f"directives: {args.check_template} spells all {len(keys)} "
+                      f"leaf keys, each once")
     if args.check:
-        if problems:
-            print("\n\n".join(problems), file=sys.stderr)
-            print(f"\n{len(problems)} problem(s) over {len(keys)} leaf key(s). "
-                  f"`python tools/directives.py` lists the roster.", file=sys.stderr)
-            return 1
-        print(f"directives: {len(keys)} leaf keys, every one read or declared")
-        return 0
+        return report(check(keys), keys,
+                      f"directives: {len(keys)} leaf keys, every one read or declared")
 
     read_trailers(keys, [])
     silent = [k for k in keys if not k.readers and not k.trailer]
