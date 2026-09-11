@@ -35,6 +35,7 @@ import {
 import * as ast from "./ast";
 import { binary } from "./binary";
 import * as redactions from "./redactions";
+import * as regions from "./regions";
 import * as tasks from "./tasks";
 import * as testing from "./tests";
 import { refusal } from "./version";
@@ -94,6 +95,10 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }),
   );
   redactions.install(context);
+  // The embedded services, likewise installed once and asking only while a server is answering.
+  // The providers are registered from activation because a document with markup in it is often the
+  // one the window opened on (`rule:ide/a-template-region-gets-services-but-no-second-formatter`).
+  regions.install(context);
   // The provider is what makes a hand-written `"type": "nvs"` entry in a `tasks.json` resolve;
   // `contributes.taskDefinitions` alone only describes the shape of one.
   tasks.install(context);
@@ -165,6 +170,7 @@ async function start(context: ExtensionContext): Promise<void> {
 
   client = starting;
   redactions.serve(client);
+  regions.serve(client);
   report(`nvs lsp ${reported?.version}`, `${command} lsp is answering.`, LanguageStatusSeverity.Information);
 }
 
@@ -174,6 +180,9 @@ async function stop(): Promise<void> {
   // What is already concealed stays concealed while nothing is answering
   // (`rule:ide/redaction-ranges-come-from-the-server`); this only says where to ask next.
   redactions.serve(undefined);
+  // The embedded services go the other way: without a server there is no boundary, and a client
+  // that guessed one would be a second lexer.
+  regions.serve(undefined);
   await running?.stop();
 }
 
