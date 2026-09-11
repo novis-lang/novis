@@ -223,7 +223,8 @@ pub struct Inbox {
 }
 
 impl std::fmt::Debug for Inbox {
-    /// What a queue *is*, rather than what is in it: the [`Waker`] is a boxed
+    /// What a queue *is*, rather than what is in it: the
+    /// [`Waker`](crate::host::Waker) is a boxed
     /// closure and has nothing to render, and a queued [`Delivery`] holds a
     /// reference this type may not follow.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
