@@ -1853,6 +1853,12 @@ fn run_run(
     // borrowed by it, and everything reported below is read off that one.
     let status: std::rc::Rc<std::cell::Cell<Option<Result<(), i32>>>> =
         std::rc::Rc::new(std::cell::Cell::new(None));
+    // Read off the context while it is still here, because the spawn below
+    // moves it into the task: the handle is what a sampler stops this run
+    // through, and the ceiling is what it charges against. Both are the tree
+    // root's — this is the root — so one store through the handle reaches every
+    // isolate and task the program goes on to build.
+    let ceiling = (ctx.safepoint_view(), ctx.cpu_limit());
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, {
         let status = std::rc::Rc::clone(&status);
         let workers = workers.clone();
@@ -1970,9 +1976,35 @@ fn run_run(
     // `rule:testing/in-process-request`'s seam nests inside the resolver's for the same length and
     // on the same terms — `runner::UnderTest` owns why the program under test
     // is this crate's to hold.
+    // `rule:errors/on-limit`'s CPU ceiling reaches a program that allocates
+    // nothing, writes nothing and calls nothing only if a thread that is not
+    // this one is charging it, and `nvs_host::watchdog` is the one thread that
+    // does. A run registers for that half alone —
+    // `nvs_host::Watchdog::register_requests` owns why a `nvs run` is watched
+    // for its ceiling and never reported as a wedged core — and publishes the
+    // one request it is: this whole run, from here until the scheduler is idle.
+    //
+    // Built only where there is something to charge, so the ordinary run starts
+    // no thread and wakes for nothing: `RunningRequest::new` answers `None` for
+    // a request under no cap and for a platform with no per-thread clock alike,
+    // and the clock it is handed is this thread's because this is the thread
+    // the program runs on.
+    let (view, cpu_limit) = ceiling;
+    let charged = nvs_host::RunningRequest::new(view, nvs_host::ThreadClock::current(), cpu_limit);
+    let watchdog = charged.is_some().then(nvs_host::Watchdog::new);
+    let watched = watchdog.as_ref().map(|watchdog| {
+        let watched = watchdog.register_requests();
+        watched.publish_safepoint(charged);
+        watched
+    });
     let ran = nvs_runtime::script::scoped(&compiler, || {
         nvs_runtime::inproc::scoped(&under_test, || nvs_host::run_until_idle(&mut sched))
     });
+    // The run is over at this line, so the request stops being charged at it:
+    // the registration goes first, and the watchdog after it joins its thread.
+    // Everything below reads a context nothing is sampling any more.
+    drop(watched);
+    drop(watchdog);
     drop(installed);
     if let Err(error) = ran {
         eprintln!("error: the scheduler stopped: {error}");

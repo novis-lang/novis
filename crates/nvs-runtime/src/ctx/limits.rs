@@ -356,14 +356,16 @@ impl Ctx {
     /// [`Self::cpu_limit`] was reduced by, and the room the tier-1 handler is
     /// meant to run in.
     ///
-    /// [`Self::fatal_reserve`] is the sibling that has a *spender*: the memory
-    /// half is added back for the length of the call in
-    /// [`Self::run_limit_handler`], because a handler that cannot allocate is a
-    /// tier that says nothing. Nothing hands this half back yet, because nothing
-    /// samples a clock against `cpu_limit` in the first place — the gap
-    /// [`nvs_safepoint`]'s CPU branch describes, and the reason a handler
-    /// entered under [`SafepointFlags::CPU_LIMIT`] still stops at its own first
-    /// back edge.
+    /// [`Self::fatal_reserve`] is the sibling this follows: both halves are
+    /// added back for the length of the call in [`Self::run_limit_handler`],
+    /// because a handler that cannot allocate or cannot run is a tier that says
+    /// nothing. This one is a flag edit as well as a ceiling edit — that method
+    /// owns why a handler entered under [`SafepointFlags::CPU_LIMIT`] would
+    /// otherwise stop at its own first back edge. What samples the clock is
+    /// `nvs_host::watchdog`, and it is told of neither edit: it charges against
+    /// the ceiling that stood when the request was published, so a handler is
+    /// bounded by that sampler's next sweep rather than by the slice this
+    /// names.
     #[must_use]
     pub fn fatal_reserve_time(&self) -> u64 {
         self.fatal_reserve_time

@@ -315,16 +315,19 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         // flag needs — a ceiling nothing consults would have bought it nothing,
         // because the flag alone stops it again at its own first back edge.
         //
-        // The clock is `nvs_host::watchdog`'s: it samples every request a core
-        // has published against [`Ctx::cpu_limit`] once per interval and raises
-        // this flag through a [`SafepointView`] ([`Ctx::cpu_limit`]'s field doc
-        // owns why the sampling is the host's). Two things that sampler does
-        // not know, and neither is an edit here. No core publishes the request
-        // it is running yet, so in this tree the flag still arrives only from a
-        // caller that already decided the request is over. And the ceiling a
-        // publication carries is the one that stood before the handler below
-        // widened it, so a handler is bounded by the next sweep rather than by
-        // its reserve — what fixes that is what the publisher hands over.
+        // The clock is `nvs_host::watchdog`'s: it samples every request a
+        // thread has published against [`Ctx::cpu_limit`] once per interval and
+        // raises this flag through a [`SafepointView`] ([`Ctx::cpu_limit`]'s
+        // field doc owns why the sampling is the host's). A `nvs run` publishes
+        // the one request it is, so a program that reaches no member at all is
+        // stopped here; a served core publishes nothing yet, and on that path
+        // the flag still arrives only from a caller that had already decided
+        // the request was over.
+        //
+        // One thing that sampler is not told, and it is not an edit here: the
+        // ceiling a publication carries is the one that stood before the
+        // handler below widened it, so a handler is bounded by the next sweep
+        // rather than by its reserve.
         ctx.run_limit_handler(Limit::CpuTime);
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;
