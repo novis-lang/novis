@@ -28,6 +28,7 @@
 //! and nothing on screen saying why.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use lsp_types::InitializeParams;
 use serde_json::Value;
@@ -55,6 +56,18 @@ pub struct Settings {
     /// `nvs.completion.phpNames`: which of the PHP inventory's names a
     /// half-written one is offered beside.
     pub php_names: PhpNames,
+    /// `nvs.lsp.debounce`: how long an edit waits before the analysis it made
+    /// stale runs.
+    ///
+    /// The wait is the point: a keystroke in the same buffer inside the window
+    /// replaces the edit waiting there, so a line being typed is analysed once
+    /// rather than once per character. Zero is no wait at all, which is what
+    /// this server did before it read the setting.
+    ///
+    /// Milliseconds on the wire, and a value that is not a whole count of them
+    /// — a negative number, a fraction — is one this cannot read and takes the
+    /// default like any other.
+    pub debounce: Duration,
     /// The workspace directory a [`CheckScope::Workspace`] pass walks, from
     /// the first folder the client named.
     ///
@@ -98,6 +111,10 @@ impl Default for Settings {
             scope: CheckScope::Open,
             code_lens: true,
             php_names: PhpNames::All,
+            // The same 150 the manifest declares, because a client that sends
+            // the section it holds sends this number anyway and the two
+            // disagreeing would be a default nobody can read off either side.
+            debounce: Duration::from_millis(150),
             root: None,
         }
     }
@@ -122,6 +139,10 @@ impl Settings {
                 .and_then(Value::as_str)
                 .and_then(php_names_named)
                 .unwrap_or(defaults.php_names),
+            debounce: at(options, &["lsp", "debounce"])
+                .and_then(Value::as_u64)
+                .map(Duration::from_millis)
+                .unwrap_or(defaults.debounce),
             root: root_of(params),
         }
     }
