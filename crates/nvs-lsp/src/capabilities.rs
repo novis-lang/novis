@@ -18,11 +18,12 @@
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
     CodeLensOptions, CompletionOptions, DocumentLinkOptions, FoldingRangeProviderCapability,
-    HoverProviderCapability, InitializeParams, OneOf, PositionEncodingKind,
-    SelectionRangeProviderCapability, SemanticTokenModifier, SemanticTokenType,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
-    TextDocumentSyncKind, WorkDoneProgressOptions,
+    HoverProviderCapability, ImplementationProviderCapability, InitializeParams, OneOf,
+    PositionEncodingKind, SelectionRangeProviderCapability, SemanticTokenModifier,
+    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelpOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TypeDefinitionProviderCapability,
+    WorkDoneProgressOptions,
 };
 
 /// The name this server reports in `serverInfo`.
@@ -162,6 +163,23 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
+        // The three requests answered out of what `hover` already reads.
+        // `declarationProvider` is not among them and is not an omission: Novis
+        // has no declaration site separate from a definition, so the request
+        // would answer exactly what the field above it answers, and a client
+        // offered both would give a reader two menu entries for one jump.
+        signature_help_provider: Some(SignatureHelpOptions {
+            // The character that opens an argument list and the one that ends
+            // an argument. `)` is not among them — it closes the call, and a
+            // popup opened there is one about a call that is finished. LSP
+            // counts every trigger character as a re-trigger, so naming these
+            // twice would say nothing more.
+            trigger_characters: Some(vec!["(".to_owned(), ",".to_owned()]),
+            retrigger_characters: None,
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        }),
+        type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
+        implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
         // The two readers of the workspace symbol index that answer a cursor.
         // Neither takes options: a partial-result token would promise to stream
         // a list this server builds in one pass, and there is no second phase

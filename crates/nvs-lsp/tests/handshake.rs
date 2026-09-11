@@ -134,6 +134,12 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         "hoverProvider",
         "definitionProvider",
         "completionProvider",
+        // The three that answer out of what hover already reads. There is no
+        // `declarationProvider` beside them, and `tests/navigation.rs` holds
+        // that as a claim rather than leaving it to this list's silence.
+        "signatureHelpProvider",
+        "typeDefinitionProvider",
+        "implementationProvider",
         "documentSymbolProvider",
         "selectionRangeProvider",
         "foldingRangeProvider",

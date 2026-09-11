@@ -44,9 +44,10 @@ use lsp_types::notification::{
 };
 use lsp_types::request::{
     CodeActionRequest, CodeLensRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
-    DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, HoverRequest, References,
-    Request as _, SelectionRangeRequest, SemanticTokensFullRequest, TypeHierarchyPrepare,
-    TypeHierarchySubtypes, TypeHierarchySupertypes,
+    DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, GotoImplementation,
+    GotoTypeDefinition, HoverRequest, References, Request as _, SelectionRangeRequest,
+    SemanticTokensFullRequest, SignatureHelpRequest, TypeHierarchyPrepare, TypeHierarchySubtypes,
+    TypeHierarchySupertypes,
 };
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams,
@@ -56,9 +57,9 @@ use lsp_types::{
     DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
     GotoDefinitionParams, GotoDefinitionResponse, HoverParams, InitializeParams, Location,
     PublishDiagnosticsParams, Range, ReferenceParams, SelectionRange, SelectionRangeParams,
-    SemanticTokens, SemanticTokensParams, SemanticTokensResult, SymbolKind, TextDocumentIdentifier,
-    TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
-    TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
+    SemanticTokens, SemanticTokensParams, SemanticTokensResult, SignatureHelp, SignatureHelpParams,
+    SymbolKind, TextDocumentIdentifier, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
@@ -251,10 +252,33 @@ fn answer(
             Ok(params) => Response::new_ok(id, definition(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
+        // The same parameters as `definition`: LSP declares one position shape
+        // for all three of these, and `lsp_types` spells the other two as
+        // aliases of this one rather than as types of their own.
+        GotoTypeDefinition::METHOD => {
+            match serde_json::from_value::<GotoDefinitionParams>(params) {
+                Ok(params) => Response::new_ok(id, type_definition(documents, encoding, &params)),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
+        GotoImplementation::METHOD => {
+            match serde_json::from_value::<GotoDefinitionParams>(params) {
+                Ok(params) => {
+                    Response::new_ok(id, implementation(documents, index, encoding, &params))
+                }
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
         HoverRequest::METHOD => match serde_json::from_value::<HoverParams>(params) {
             Ok(params) => Response::new_ok(id, hover(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
+        SignatureHelpRequest::METHOD => {
+            match serde_json::from_value::<SignatureHelpParams>(params) {
+                Ok(params) => Response::new_ok(id, signature_help(documents, encoding, &params)),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
         Completion::METHOD => match serde_json::from_value::<CompletionParams>(params) {
             Ok(params) => Response::new_ok(id, completion(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
@@ -932,6 +956,94 @@ fn hover(
     )?;
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
     hover::at(&analysed, offset, encoding)
+}
+
+/// `textDocument/signatureHelp` — the row of the call the cursor is inside.
+///
+/// `null` for a document this server has nothing open for and for a cursor
+/// inside no call the checker resolved, which are one answer on the wire for
+/// [`definition`]'s reason. The lookup is [`hover::help_at`], which is where
+/// the row's one spelling lives.
+fn signature_help(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &SignatureHelpParams,
+) -> Option<SignatureHelp> {
+    let position = params.text_document_position_params.position;
+    let analysed = analyse(
+        documents,
+        &params.text_document_position_params.text_document.uri,
+    )?;
+    let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
+    hover::help_at(&analysed, offset)
+}
+
+/// `textDocument/typeDefinition` — where the type of what the cursor is on was
+/// declared.
+///
+/// [`definition`] pointed one step further: that one answers where the *name*
+/// under the cursor was declared, and this one reads the type the checker
+/// recorded for it and answers where **that** was. The walk is the same one, so
+/// a type declared in a required file is found for [`definition`]'s reason
+/// rather than a second one.
+///
+/// `null` on [`definition`]'s terms, and additionally for a type that is not a
+/// declaration — the lookup is [`definition::type_at`], which owns that list.
+fn type_definition(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &GotoDefinitionParams,
+) -> Option<GotoDefinitionResponse> {
+    let position = params.text_document_position_params.position;
+    let analysed = analyse(
+        documents,
+        &params.text_document_position_params.text_document.uri,
+    )?;
+    let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
+    let declared = definition::type_at(&analysed, offset, encoding)?;
+    Some(GotoDefinitionResponse::Scalar(Location {
+        uri: uri_of(&declared.path)?,
+        range: declared.range,
+    }))
+}
+
+/// `textDocument/implementation` — every type the index records as extending or
+/// implementing the one under the cursor.
+///
+/// [`SymbolIndex::subtypes`] is the query, which is
+/// `rule:ide/five-features-are-one-reference-index`'s type-hierarchy reader
+/// asked from a second place rather than a sixth feature arriving: the
+/// hierarchy shows those edges as a tree and this shows them as a jump list.
+/// The cursor is read as [`prepare_type_hierarchy`] reads it, so standing on a
+/// declaration's own name and standing on a use of it are one answer.
+///
+/// `null` for a document this server has nothing open for and for a cursor on
+/// no name the index holds. An **empty list** is a different answer and a real
+/// one, for [`references`]' reason: an interface nothing implements is a fact
+/// rather than a question to ask again somewhere else.
+fn implementation(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: &GotoDefinitionParams,
+) -> Option<GotoDefinitionResponse> {
+    let uri = &params.text_document_position_params.text_document.uri;
+    let path = path_of(uri)?;
+    let analysed = analyse(documents, uri)?;
+    let offset = offset_at(
+        analysed.map.file(analysed.entry),
+        params.text_document_position_params.position,
+        encoding,
+    );
+    let symbol = match declared_at(index, &path, offset) {
+        Some(declared) => declared.symbol.clone(),
+        None => symbol_at(&analysed, offset)?,
+    };
+    let found = index.subtypes(&symbol);
+    let sites: Vec<&Site> = found.iter().map(|declared| &declared.site).collect();
+    Some(GotoDefinitionResponse::Array(locations(
+        documents, &sites, encoding,
+    )))
 }
 
 /// `textDocument/selectionRange` — the expand-selection chain at each position.
