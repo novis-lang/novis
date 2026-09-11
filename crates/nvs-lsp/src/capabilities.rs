@@ -3,9 +3,10 @@
 //! A capability is a promise to answer a request, and a client that reads one
 //! it was not offered simply never asks. So the closed list of
 //! `rule:ide/the-request-set-is-closed` is written **here and nowhere else**:
-//! [`server_capabilities`] is the whole declaration, the acceptance test reads
-//! it back field by field, and a request that grows the set has to change this
-//! function to exist at all.
+//! [`server_capabilities`] is the declaration, [`declared_capabilities`] adds
+//! the one field `lsp_types` has no struct member for, the acceptance test
+//! reads the two of them back as one object key by key, and a request that
+//! grows the set has to change this file to exist at all.
 //!
 //! The provider fields are declared for the whole goal rather than switched on
 //! stage by stage. A capability is data the client caches at `initialize` and
@@ -16,8 +17,8 @@
 
 use lsp_types::{
     ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
-    CompletionOptions, DocumentLinkOptions, FoldingRangeProviderCapability,
-    HoverProviderCapability, InitializeParams, InitializeResult, OneOf, PositionEncodingKind,
+    CodeLensOptions, CompletionOptions, DocumentLinkOptions, FoldingRangeProviderCapability,
+    HoverProviderCapability, InitializeParams, OneOf, PositionEncodingKind,
     SelectionRangeProviderCapability, SemanticTokenModifier, SemanticTokenType,
     SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
     SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
@@ -167,6 +168,16 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
         // to report work-done progress over.
         references_provider: Some(OneOf::Left(true)),
         document_highlight_provider: Some(OneOf::Left(true)),
+        // The same index's third reader, and the one that answers a document
+        // rather than a cursor. Nothing is resolved lazily: the count a lens
+        // shows is two lookups in a map the index already holds, so a second
+        // round trip per lens would cost more than it saves. `nvs.codeLens.enable`
+        // is not read here — this module's rule above is that a provider field
+        // is the closed list and not the client's configuration of it, and a
+        // capability the client cached at `initialize` is never re-read anyway.
+        code_lens_provider: Some(CodeLensOptions {
+            resolve_provider: Some(false),
+        }),
         completion_provider: Some(CompletionOptions {
             // Nothing is resolved lazily: a completion item's detail is the
             // type the analysis already computed, so there is no second round
@@ -217,16 +228,49 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
     }
 }
 
-/// The whole `initialize` answer for the client that sent `params`.
+/// Every capability this server declares, as the client reads it: the fields
+/// [`server_capabilities`] can express, and the one it cannot.
+///
+/// `lsp_types` 0.97 carries LSP 3.17's three type-hierarchy requests, their
+/// params, its options struct and the *client* capability for it — and its
+/// `ServerCapabilities` has no `typeHierarchyProvider` member at all. So the
+/// promise `rule:ide/five-features-are-one-reference-index`'s fourth reader
+/// needs cannot be written in the struct above, and is written here on the
+/// same terms as every other one. The day that crate grows the field, this
+/// function's body is one line shorter and nothing else here moves.
+#[must_use]
+pub fn declared_capabilities(encoding: PositionEncodingKind) -> serde_json::Value {
+    let mut declared = serde_json::to_value(server_capabilities(encoding))
+        .expect("`ServerCapabilities` is a struct of serializable fields");
+    if let Some(fields) = declared.as_object_mut() {
+        fields.insert(
+            "typeHierarchyProvider".to_owned(),
+            serde_json::Value::Bool(true),
+        );
+    }
+    declared
+}
+
+/// The whole `initialize` answer for the client that sent `params`, with the
+/// encoding that answer declares.
+///
+/// JSON rather than an `lsp_types::InitializeResult` because
+/// [`declared_capabilities`] is JSON for the reason given there, and the pair
+/// rather than the JSON alone because every position this server counts from
+/// here on is counted in the encoding this answer names — digging it back out
+/// of a string key would be a second answer to what this function just
+/// settled.
 ///
 /// `nvs/redactions` appears nowhere in it, and that is not an omission: it is
 /// Novis's own request (`rule:ide/redaction-ranges-come-from-the-server`),
 /// LSP has no capability field for one, and the client knows it is available
 /// from `serverInfo` naming this server at all.
 #[must_use]
-pub fn initialize_result(params: &InitializeParams) -> InitializeResult {
-    InitializeResult {
-        capabilities: server_capabilities(negotiate_encoding(&params.capabilities)),
-        server_info: Some(server_info()),
-    }
+pub fn initialize_result(params: &InitializeParams) -> (PositionEncodingKind, serde_json::Value) {
+    let negotiated = negotiate_encoding(&params.capabilities);
+    let answer = serde_json::json!({
+        "capabilities": declared_capabilities(negotiated.clone()),
+        "serverInfo": server_info(),
+    });
+    (negotiated, answer)
 }

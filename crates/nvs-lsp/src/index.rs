@@ -71,7 +71,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{BytePos, SourceFile, Span, canonical_key};
-use nvs_hir::{Loaded, SymbolKind};
+use nvs_hir::{Loaded, QName, SymbolKind};
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, Modifier, Stmt, StmtKind};
 use nvs_syntax::walk;
 
@@ -189,6 +189,21 @@ pub struct Declaration {
     /// make; a private one with none is unreachable from anywhere by
     /// construction, which is why the tag is only correct there.
     pub visibility: Visibility,
+    /// What it directly `extends` or `implements`, spelled as
+    /// [`Self::symbol`] is, and empty for everything that is not a class or an
+    /// interface.
+    ///
+    /// The direct edge and never the ancestors: a type hierarchy is expanded a
+    /// level at a time by the client asking again
+    /// (`rule:ide/five-features-are-one-reference-index`), so an index that
+    /// flattened the chain would answer the question nobody asked and lose the
+    /// one that was.
+    ///
+    /// `extends` and `implements` share the field because every reader of it
+    /// wants the same "what is above this" step, which is the reason
+    /// [`nvs_hir::ClassLinks`] keeps a class's superclass and an interface's
+    /// extended interfaces in one field too.
+    pub supertypes: Vec<String>,
 }
 
 /// One place a declared name was used, with what it resolved to.
@@ -316,6 +331,42 @@ impl SymbolIndex {
             .iter()
             .filter(|declared| declared.visibility == Visibility::Private)
             .filter(|declared| self.occurrences(&declared.symbol).is_empty())
+            .collect()
+    }
+
+    /// What `symbol` directly extends or implements, in the order it was
+    /// written, and nothing for a name the index does not hold a declaration
+    /// for.
+    ///
+    /// A supertype the index has never seen drops out rather than appearing as
+    /// a name with no site: an editor cannot navigate to one, and a `Core`
+    /// class or a file outside the scope
+    /// `rule:ide/check-scope-defaults-to-open-documents` selects is exactly
+    /// that case.
+    #[must_use]
+    pub fn supertypes(&self, symbol: &str) -> Vec<&Declaration> {
+        self.declaration(symbol).map_or_else(Vec::new, |declared| {
+            declared
+                .supertypes
+                .iter()
+                .filter_map(|above| self.declaration(above))
+                .collect()
+        })
+    }
+
+    /// Every declaration that directly extends or implements `symbol`, in file
+    /// and then source order.
+    ///
+    /// The reverse edge is a scan and not a second map: it is asked once per
+    /// expansion of one node of a hierarchy view, where the forward edge is
+    /// asked by every reader, and a stored reverse edge would be a second
+    /// thing [`SymbolIndex::invalidate`] has to get right.
+    #[must_use]
+    pub fn subtypes(&self, symbol: &str) -> Vec<&Declaration> {
+        self.files
+            .values()
+            .flat_map(|indexed| &indexed.decls)
+            .filter(|declared| declared.supertypes.iter().any(|above| above == symbol))
             .collect()
     }
 
@@ -525,6 +576,7 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
             // A type declaration carries no visibility modifier: it is reachable
             // from every file that resolves its name.
             visibility: Visibility::Public,
+            supertypes: supertypes_of(analysed, &symbol.qname),
         });
         if let Some((stmt, file)) = declared_type(analysed, &symbol.qname) {
             members(stmt, file, &class, path, &mut found);
@@ -625,7 +677,32 @@ fn push_member(
         kind,
         site: site(path, name),
         visibility,
+        // A member inherits nothing of its own: what a class extends is a fact
+        // about the class, and the override edge a lens shows is read off the
+        // two ends of that.
+        supertypes: Vec::new(),
     });
+}
+
+/// The names `qname` directly extends or implements, spelled the way the
+/// module doc's first decision spells a type.
+///
+/// Read off `nvs_hir`'s resolved graph and never off the `extends` clause's own
+/// text: what is written there is a relative or imported spelling, and the
+/// index keys on the fully-qualified name the checker resolved it to.
+fn supertypes_of(analysed: &Analysed, qname: &QName) -> Vec<String> {
+    analysed
+        .module
+        .graph
+        .get(qname)
+        .map_or_else(Vec::new, |links| {
+            links
+                .extends
+                .iter()
+                .chain(links.implements.iter())
+                .map(QName::to_string)
+                .collect()
+        })
 }
 
 /// Every resolved use one file of an analysis writes, in source order.

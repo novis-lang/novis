@@ -119,8 +119,7 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
     // the third is its own settings question. ADR 0099 § 3 is where the test a
     // request outside M4B's nine has to pass is written down, and this
     // assertion is what makes failing it visible.
-    let declared = serde_json::to_value(nvs_lsp::server_capabilities(PositionEncodingKind::UTF8))
-        .expect("the capabilities serialize");
+    let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
     let keys: BTreeSet<&str> = declared
         .as_object()
         .expect("`ServerCapabilities` is a JSON object")
@@ -147,6 +146,15 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         // they read is what they were waiting for.
         "referencesProvider",
         "documentHighlightProvider",
+        // The same rule's third reader. It answers a document rather than a
+        // cursor, and it is the one a client can turn off — which it does by
+        // the setting and not by this field, since a capability is cached at
+        // `initialize` and a setting arrives in the same message.
+        "codeLensProvider",
+        // The fourth, and the one `lsp_types` has no struct field for —
+        // `nvs_lsp::declared_capabilities` is what puts it in the object, which
+        // is why this test reads the object and not the struct.
+        "typeHierarchyProvider",
         // Not a request. It is the answer to "in what units are the positions
         // in every one of the above", and LSP 3.17 puts it here.
         "positionEncoding",

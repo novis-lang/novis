@@ -1,13 +1,15 @@
-//! What a reference list and an occurrence highlight answer, off a running
-//! server.
+//! What a reference list, an occurrence highlight and a lens answer, off a
+//! running server.
 //!
-//! `rule:ide/five-features-are-one-reference-index`'s first two readers, driven
-//! over `lsp_server::Connection::memory()` the way `publish.rs` is: the index
-//! these answer from is the one `serve` holds, so a test that built its own
-//! would prove nothing about whether the server has one at all. The claims are
-//! that the answer crosses a file the client never opened, that the declaration
-//! is sent only when it is asked for, that a highlight is the same query
-//! narrowed to the open document, and that an edit is in the next answer.
+//! `rule:ide/five-features-are-one-reference-index`'s readers that answer a
+//! request, driven over `lsp_server::Connection::memory()` the way `publish.rs`
+//! is: the index these answer from is the one `serve` holds, so a test that
+//! built its own would prove nothing about whether the server has one at all.
+//! The claims are that the answer crosses a file the client never opened, that
+//! the declaration is sent only when it is asked for, that a highlight is the
+//! same query narrowed to the open document, that a lens counts what the whole
+//! index holds and says nothing at all when `nvs.codeLens.enable` is off, and
+//! that an edit is in the next answer.
 
 use std::fs;
 use std::path::PathBuf;
@@ -17,8 +19,8 @@ use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use lsp_types::notification::{DidChangeTextDocument, DidOpenTextDocument, Notification as _};
 use lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams, Location,
-    TextDocumentContentChangeEvent, TextDocumentItem, Uri, VersionedTextDocumentIdentifier,
-    WorkspaceFolder,
+    TextDocumentContentChangeEvent, TextDocumentItem, TypeHierarchyItem, Uri,
+    VersionedTextDocumentIdentifier, WorkspaceFolder,
 };
 
 /// The class, declaring `$count` on line 2 and using it on line 4.
@@ -36,6 +38,20 @@ const MAIN: &str = "<?nvs\nrequire 'lib.nvs';\nvar $c = new Counter();\n\
 /// document's `require` graph reaches it — which is precisely what
 /// `nvs.check.scope` decides.
 const OTHER: &str = "<?nvs\nrequire 'lib.nvs';\nvar $c = new Counter();\necho $c->count;\n";
+
+/// An interface and its two implementors, for the hierarchy readers.
+///
+/// One file and three declarations, because what is under test is the edge the
+/// index records and not the graph the front end resolved it through — and a
+/// shape a reader most needs shown rather than reconstructed is exactly this
+/// one (`rule:classes/interface-default-methods`).
+const SHAPES: &str = "<?nvs\ninterface Shape { public function area(): int; }\n\
+                      class Square implements Shape { public function area(): int { return 1; } }\n\
+                      class Circle implements Shape { public function area(): int { return 2; } }\n";
+
+/// The cursor: inside `Square` in its own declaration, which is line 2 of
+/// [`SHAPES`].
+const ON_SQUARE: (u32, u32) = (2, 8);
 
 /// [`MAIN`] with a second use of `$count`, on line 5.
 const MAIN_AGAIN: &str = "<?nvs\nrequire 'lib.nvs';\nvar $c = new Counter();\n\
@@ -247,6 +263,53 @@ fn highlights(client: &Connection, id: i32, uri: &Uri) -> Vec<u32> {
     found.iter().map(|hit| hit.range.start.line).collect()
 }
 
+/// Asks `textDocument/codeLens` for `uri`, as one line-and-title pair per lens.
+fn lenses(client: &Connection, id: i32, uri: &Uri) -> Vec<(u32, String)> {
+    let answer = ask(
+        client,
+        id,
+        "textDocument/codeLens",
+        serde_json::json!({ "textDocument": { "uri": uri } }),
+    );
+    let found: Vec<lsp_types::CodeLens> =
+        serde_json::from_value(answer).expect("a lens list is an array of lenses");
+    found
+        .iter()
+        .map(|lens| {
+            let shown = lens.command.as_ref().expect("a lens carries its command");
+            (lens.range.start.line, shown.title.clone())
+        })
+        .collect()
+}
+
+/// Asks `textDocument/prepareTypeHierarchy` at `at` in `uri`.
+fn prepare(client: &Connection, id: i32, uri: &Uri, at: (u32, u32)) -> Vec<TypeHierarchyItem> {
+    let answer = ask(
+        client,
+        id,
+        "textDocument/prepareTypeHierarchy",
+        serde_json::json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": at.0, "character": at.1 },
+        }),
+    );
+    serde_json::from_value(answer).expect("a prepared hierarchy is an array of items")
+}
+
+/// Asks one of the two `typeHierarchy/…` requests about `item`, as the names it
+/// answers with.
+fn related(client: &Connection, id: i32, method: &str, item: &TypeHierarchyItem) -> Vec<String> {
+    let answer = ask(
+        client,
+        id,
+        method,
+        serde_json::json!({ "item": serde_json::to_value(item).expect("an item") }),
+    );
+    let found: Vec<TypeHierarchyItem> =
+        serde_json::from_value(answer).expect("a hierarchy answer is an array of items");
+    found.iter().map(|item| item.name.clone()).collect()
+}
+
 /// The file name a location names, which is what an assertion can be read in.
 fn named(uri: &Uri) -> String {
     nvs_lsp::path_of(uri)
@@ -351,6 +414,117 @@ fn a_highlight_is_the_reference_query_filtered_to_the_open_document() {
             vec![4],
             "the use in `lib.nvs` belongs to a reference list and never to a \
              highlight of this document"
+        );
+    });
+}
+
+/// A lens counts every use the index holds, and not the uses in the file the
+/// lens is shown in.
+///
+/// The declarations are all in `lib.nvs` and two of the three uses counted are
+/// written in `main.nvs`, which is
+/// `references_cross_a_file_the_client_never_opened`'s claim read from the
+/// other end: one index, and a lens is a query against it rather than a walk of
+/// the document it appears in.
+#[test]
+fn a_lens_counts_every_use_the_index_holds_of_a_declaration() {
+    let dir = TempDir::new("lens");
+    let lib = dir.uri("lib.nvs");
+    let main = dir.uri("main.nvs");
+
+    served(|client| {
+        open(client, &main, MAIN);
+        open(client, &lib, LIB);
+
+        assert_eq!(
+            lenses(client, 2, &lib),
+            vec![
+                (1, "1 reference".to_owned()),
+                (2, "2 references".to_owned()),
+                (3, "1 reference".to_owned()),
+            ],
+            "`Counter` is constructed once, `$count` is read twice — once in \
+             each file — and `bump` is called once"
+        );
+    });
+}
+
+/// `nvs.codeLens.enable` turned off is no answer rather than an empty one.
+///
+/// The index is built and the declarations are in it either way: the setting
+/// decides whether a lens is offered, not what this server knows
+/// (`rule:ide/contributions-are-frozen-and-only-ever-added` freezes the name).
+#[test]
+fn a_lens_is_not_offered_when_the_client_turned_it_off() {
+    let dir = TempDir::new("lens-off");
+    let lib = dir.uri("lib.nvs");
+
+    let off = InitializeParams {
+        initialization_options: Some(serde_json::json!({
+            "codeLens": { "enable": false },
+        })),
+        ..InitializeParams::default()
+    };
+    served_with(off, |client| {
+        open(client, &lib, LIB);
+
+        assert_eq!(
+            ask(
+                client,
+                2,
+                "textDocument/codeLens",
+                serde_json::json!({ "textDocument": { "uri": lib } }),
+            ),
+            serde_json::Value::Null,
+            "the setting is what decides the answer"
+        );
+    });
+}
+
+/// A type hierarchy is the index's own `extends`/`implements` edge, walked one
+/// level per request.
+///
+/// The client's walk is the test's: prepare at a cursor, ask that item what is
+/// above it, and ask *that* item what is below it — which is how a hierarchy
+/// view expands, and the reason each answer is the direct edge rather than the
+/// flattened chain (`rule:ide/five-features-are-one-reference-index`).
+#[test]
+fn a_type_hierarchy_walks_the_index_one_level_per_request() {
+    let dir = TempDir::new("hierarchy");
+    dir.write("shapes.nvs", SHAPES);
+    let shapes = dir.uri("shapes.nvs");
+
+    served(|client| {
+        open(client, &shapes, SHAPES);
+
+        let prepared = prepare(client, 2, &shapes, ON_SQUARE);
+        assert_eq!(
+            prepared
+                .iter()
+                .map(|item| item.name.clone())
+                .collect::<Vec<_>>(),
+            vec!["Square".to_owned()],
+            "the cursor is in a declaration's own name, which is never a \
+             resolved use and has to be found in the index instead"
+        );
+
+        let above = "typeHierarchy/supertypes";
+        assert_eq!(
+            related(client, 3, above, &prepared[0]),
+            vec!["Shape".to_owned()]
+        );
+
+        let shape = prepare(client, 4, &shapes, (1, 12));
+        assert_eq!(
+            related(client, 5, "typeHierarchy/subtypes", &shape[0]),
+            vec!["Square".to_owned(), "Circle".to_owned()],
+            "the reverse edge is every declaration naming `Shape`, in source \
+             order"
+        );
+        assert!(
+            related(client, 6, above, &shape[0]).is_empty(),
+            "`Shape` extends nothing, and an interface that does is the same \
+             field read the same way"
         );
     });
 }

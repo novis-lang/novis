@@ -13,7 +13,8 @@
 //! gets a refusal is everything outside that list, permanently.
 //!
 //! An arm answers out of the two stores it is handed — the open documents and
-//! the one workspace symbol index — and writes nothing back to either. The
+//! the one workspace symbol index — and out of what the client configured, and
+//! writes nothing back to any of them. The
 //! index is [`serve`]'s because the store it is built from is, and it is
 //! refreshed where an edit is applied rather than where one is answered, which
 //! is what keeps every one of its five features a reader
@@ -34,7 +35,7 @@
 
 use std::collections::HashMap;
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
@@ -42,21 +43,24 @@ use lsp_types::notification::{
     PublishDiagnostics,
 };
 use lsp_types::request::{
-    CodeActionRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
+    CodeActionRequest, CodeLensRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
     DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, HoverRequest, References,
-    Request as _, SelectionRangeRequest, SemanticTokensFullRequest,
+    Request as _, SelectionRangeRequest, SemanticTokensFullRequest, TypeHierarchyPrepare,
+    TypeHierarchySubtypes, TypeHierarchySupertypes,
 };
 use lsp_types::{
-    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CompletionParams,
-    CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
-    DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
-    InitializeParams, Location, PublishDiagnosticsParams, Range, ReferenceParams, SelectionRange,
-    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SemanticTokensResult,
-    TextDocumentIdentifier, TextEdit, Uri, WorkspaceEdit,
+    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams,
+    Command, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentHighlight,
+    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
+    GotoDefinitionParams, GotoDefinitionResponse, HoverParams, InitializeParams, Location,
+    PublishDiagnosticsParams, Range, ReferenceParams, SelectionRange, SelectionRangeParams,
+    SemanticTokens, SemanticTokensParams, SemanticTokensResult, SymbolKind, TextDocumentIdentifier,
+    TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
+    TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
 };
-use nvs_diagnostics::{PositionEncoding, SourceId, SourceMap};
+use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
 use crate::actions;
 use crate::capabilities::initialize_result;
@@ -66,7 +70,7 @@ use crate::diagnostics::{Phases, dimming, for_document};
 use crate::document::{Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hover;
-use crate::index::{CheckScope, Site, SymbolIndex, symbol_at};
+use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_at};
 use crate::links;
 use crate::position::{encoding_of, offset_at, range_of};
 use crate::redactions;
@@ -122,18 +126,14 @@ pub fn run() -> Result<(), ServerError> {
 pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     let (id, params) = connection.initialize_start()?;
     let params: InitializeParams = serde_json::from_value(params)?;
-    let declared = initialize_result(&params);
-    // Settled once, and read back off what the client is about to be told
-    // rather than negotiated a second time here: every position sent
-    // afterwards is counted in it, and a server counting in an encoding it did
-    // not declare is wrong by a little on every non-ASCII line and reports no
-    // error anywhere.
-    let encoding = declared
-        .capabilities
-        .position_encoding
-        .as_ref()
-        .map_or(PositionEncoding::Utf16, encoding_of);
-    connection.initialize_finish(id, serde_json::to_value(declared)?)?;
+    // Negotiated once, and what every position from here on is counted in is
+    // the encoding the answer about to be sent declares rather than a second
+    // reading of the same client capability: a server counting in an encoding
+    // it did not declare is wrong by a little on every non-ASCII line and
+    // reports no error anywhere.
+    let (negotiated, declared) = initialize_result(&params);
+    let encoding = encoding_of(&negotiated);
+    connection.initialize_finish(id, declared)?;
 
     // This thread owns the store, which is the whole of the analysis half of
     // `rule:ide/the-server-is-synchronous`: one place holds what the client has
@@ -164,7 +164,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                 if connection.handle_shutdown(&request)? {
                     return Ok(());
                 }
-                let answered = answer(&documents, &index, encoding, request);
+                let answered = answer(&documents, &index, &settings, encoding, request);
                 connection.sender.send(answered.into())?;
             }
             Message::Notification(notification) => {
@@ -215,6 +215,7 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
 fn answer(
     documents: &Documents,
     index: &SymbolIndex,
+    settings: &Settings,
     encoding: PositionEncoding,
     request: Request,
 ) -> Response {
@@ -284,6 +285,46 @@ fn answer(
                 Ok(params) => {
                     Response::new_ok(id, document_highlight(documents, index, encoding, &params))
                 }
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
+        CodeLensRequest::METHOD => match serde_json::from_value::<CodeLensParams>(params) {
+            Ok(params) => Response::new_ok(
+                id,
+                code_lens(
+                    documents,
+                    index,
+                    settings,
+                    encoding,
+                    &params.text_document.uri,
+                ),
+            ),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        TypeHierarchyPrepare::METHOD => {
+            match serde_json::from_value::<TypeHierarchyPrepareParams>(params) {
+                Ok(params) => Response::new_ok(
+                    id,
+                    prepare_type_hierarchy(documents, index, encoding, &params),
+                ),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
+        TypeHierarchySupertypes::METHOD => {
+            match serde_json::from_value::<TypeHierarchySupertypesParams>(params) {
+                Ok(params) => Response::new_ok(
+                    id,
+                    hierarchy_items(documents, &index.supertypes(&params.item.name), encoding),
+                ),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
+        TypeHierarchySubtypes::METHOD => {
+            match serde_json::from_value::<TypeHierarchySubtypesParams>(params) {
+                Ok(params) => Response::new_ok(
+                    id,
+                    hierarchy_items(documents, &index.subtypes(&params.item.name), encoding),
+                ),
                 Err(error) => unreadable(id, &method, &error),
             }
         }
@@ -498,14 +539,7 @@ fn document_highlight(
 /// developer asked about, which beats refusing the answer over one file that
 /// has been deleted since it was indexed.
 fn locations(documents: &Documents, sites: &[&Site], encoding: PositionEncoding) -> Vec<Location> {
-    let mut map = SourceMap::new();
-    documents.overlay(&mut map);
-    let mut loaded: HashMap<PathBuf, Option<SourceId>> = HashMap::new();
-    for site in sites {
-        if !loaded.contains_key(&site.path) {
-            loaded.insert(site.path.clone(), map.load(&site.path).ok());
-        }
-    }
+    let (map, loaded) = overlaid(documents, sites.iter().map(|site| site.path.as_path()));
 
     sites
         .iter()
@@ -517,6 +551,215 @@ fn locations(documents: &Documents, sites: &[&Site], encoding: PositionEncoding)
             })
         })
         .collect()
+}
+
+/// One source map with the open buffers overlaid, holding each of `paths`
+/// loaded exactly once.
+///
+/// A file this process cannot load is `None` rather than an error, so what was
+/// written in it drops out of the answer and the rest of it stands — which
+/// beats refusing a whole reference list or hierarchy over one file that has
+/// been deleted since it was indexed.
+fn overlaid<'a>(
+    documents: &Documents,
+    paths: impl Iterator<Item = &'a Path>,
+) -> (SourceMap, HashMap<PathBuf, Option<SourceId>>) {
+    let mut map = SourceMap::new();
+    documents.overlay(&mut map);
+    let mut loaded: HashMap<PathBuf, Option<SourceId>> = HashMap::new();
+    for path in paths {
+        if !loaded.contains_key(path) {
+            loaded.insert(path.to_path_buf(), map.load(path).ok());
+        }
+    }
+    (map, loaded)
+}
+
+/// `textDocument/prepareTypeHierarchy` — the type under the cursor, as the item
+/// the two requests below are then asked about.
+///
+/// The declaration under the cursor is tried before the use under it, and that
+/// order is the whole of what makes the feature reachable: a developer opens a
+/// hierarchy from the `class C` line, and [`symbol_at`] answers for a resolved
+/// *use* — a declaration's own name is not one.
+///
+/// A class and an interface, and nothing else. They are what
+/// [`nvs_hir::ClassGraph`] holds an entry for, and an enum has neither an
+/// `extends` grammar nor an `implements` clause it is allowed to write
+/// (`rule:enums/no-class-machinery`), so a hierarchy rooted at one could only
+/// ever be the item itself.
+fn prepare_type_hierarchy(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: &TypeHierarchyPrepareParams,
+) -> Option<Vec<TypeHierarchyItem>> {
+    let uri = &params.text_document_position_params.text_document.uri;
+    let path = path_of(uri)?;
+    let analysed = analyse(documents, uri)?;
+    let offset = offset_at(
+        analysed.map.file(analysed.entry),
+        params.text_document_position_params.position,
+        encoding,
+    );
+
+    let symbol = match declared_at(index, &path, offset) {
+        Some(declared) => declared.symbol.clone(),
+        None => symbol_at(&analysed, offset)?,
+    };
+    let declared = index.declaration(&symbol)?;
+    if !matches!(declared.kind, DeclKind::Class | DeclKind::Interface) {
+        return None;
+    }
+    Some(hierarchy_items(documents, &[declared], encoding))
+}
+
+/// The declaration whose own name covers `offset` in `path`, if one does.
+fn declared_at<'a>(
+    index: &'a SymbolIndex,
+    path: &Path,
+    offset: BytePos,
+) -> Option<&'a Declaration> {
+    index
+        .declarations_in(path)
+        .iter()
+        .find(|declared| declared.site.start <= offset && offset <= declared.site.end)
+}
+
+/// Every declaration as a hierarchy item, each file's positions counted in its
+/// own text.
+///
+/// **The item's `name` is the index's own spelling of the symbol, and it is
+/// also its identity.** LSP keeps a `data` field for a server that needs to
+/// recognise its own item when the client sends it back, and this one does not:
+/// a name here is already the fully-qualified string every query in
+/// [`crate::index`] is keyed on, so carrying it twice would be two spellings of
+/// one thing and a second one to keep in step.
+///
+/// `range` and `selection_range` are the same range, which is the declared
+/// name's own bytes. The index keeps a name and not a declaration's extent
+/// (`crate::index::Site`), and a range invented to enclose more than that would
+/// be a guess the client then reveals.
+fn hierarchy_items(
+    documents: &Documents,
+    found: &[&Declaration],
+    encoding: PositionEncoding,
+) -> Vec<TypeHierarchyItem> {
+    let (map, loaded) = overlaid(
+        documents,
+        found.iter().map(|declared| declared.site.path.as_path()),
+    );
+
+    found
+        .iter()
+        .filter_map(|declared| {
+            let id = (*loaded.get(&declared.site.path)?)?;
+            let range = range_of(
+                map.file(id),
+                declared.site.start,
+                declared.site.end,
+                encoding,
+            );
+            Some(TypeHierarchyItem {
+                name: declared.symbol.clone(),
+                kind: symbol_kind(declared.kind),
+                tags: None,
+                detail: None,
+                uri: uri_of(&declared.site.path)?,
+                range,
+                selection_range: range,
+                data: None,
+            })
+        })
+        .collect()
+}
+
+/// What an editor shows a declaration of this kind as.
+///
+/// A type alias is `TypeParameter` because LSP has no kind for an alias and
+/// that is the one whose icon says "a name standing for a type" rather than
+/// "a thing with members".
+const fn symbol_kind(kind: DeclKind) -> SymbolKind {
+    match kind {
+        DeclKind::Class => SymbolKind::CLASS,
+        DeclKind::Interface => SymbolKind::INTERFACE,
+        DeclKind::Enum => SymbolKind::ENUM,
+        DeclKind::TypeAlias => SymbolKind::TYPE_PARAMETER,
+        DeclKind::Method => SymbolKind::METHOD,
+        DeclKind::Property => SymbolKind::PROPERTY,
+        DeclKind::Const => SymbolKind::CONSTANT,
+        DeclKind::EnumCase => SymbolKind::ENUM_MEMBER,
+    }
+}
+
+/// `textDocument/codeLens` — how many uses the index holds of each name this
+/// document declares.
+///
+/// The third reader `rule:ide/five-features-are-one-reference-index` names, and
+/// the cheapest of them: [`SymbolIndex::declarations_in`] is one map lookup and
+/// the count is [`SymbolIndex::occurrences`], so no front end runs here at all.
+/// That matters more here than for a cursor answer — a client asks for the
+/// lenses of every visible document and asks again after every edit, which is
+/// the cost `nvs.codeLens.enable` exists to let a developer refuse, and
+/// refusing it is `None` rather than an empty list.
+///
+/// **A lens is a label and not a link.** Its command is the empty string, which
+/// renders the title and runs nothing. A clickable one would have to name a
+/// command id, the roster `rule:ide/contributions-are-frozen-and-only-ever-added`
+/// freezes holds none that shows a reference list, and an editor's own built-in
+/// id would be an error message in the other client
+/// (`rule:ide/one-server-two-thin-clients`).
+///
+/// An enum case gets no lens. Its uses are recorded against the enum rather
+/// than against the case ([`crate::index`]'s known gap), so the only count
+/// available for one would read `no references` above a case the program uses.
+fn code_lens(
+    documents: &Documents,
+    index: &SymbolIndex,
+    settings: &Settings,
+    encoding: PositionEncoding,
+    uri: &Uri,
+) -> Option<Vec<CodeLens>> {
+    if !settings.code_lens {
+        return None;
+    }
+    let path = path_of(uri)?;
+    // One file loaded and no graph: a site is two byte offsets into the text of
+    // the file it is in, and the open buffer is what the client counts its own
+    // positions in.
+    let mut map = SourceMap::new();
+    documents.overlay(&mut map);
+    let id = map.load(&path).ok()?;
+    let file = map.file(id);
+
+    Some(
+        index
+            .declarations_in(&path)
+            .iter()
+            .filter(|declared| declared.kind != DeclKind::EnumCase)
+            .map(|declared| CodeLens {
+                range: range_of(file, declared.site.start, declared.site.end, encoding),
+                command: Some(Command {
+                    title: reference_count(index.occurrences(&declared.symbol).len()),
+                    command: String::new(),
+                    arguments: None,
+                }),
+                data: None,
+            })
+            .collect(),
+    )
+}
+
+/// What a lens says above a declaration `count` things refer to.
+///
+/// Singular, plural, and a word rather than a `0`: the line is read above a
+/// declaration in an editor, where what is around it is prose and not a table.
+fn reference_count(count: usize) -> String {
+    match count {
+        0 => "no references".to_owned(),
+        1 => "1 reference".to_owned(),
+        _ => format!("{count} references"),
+    }
 }
 
 /// `textDocument/completion` — what may be written at the cursor.

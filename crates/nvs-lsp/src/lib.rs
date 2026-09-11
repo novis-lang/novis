@@ -30,7 +30,7 @@
 //!
 //! The request set is closed: `rule:ide/the-request-set-is-closed` names nine
 //! standard requests, two code actions and exactly one of Novis's own, and
-//! [`server_capabilities`] is the single place that declaration is written.
+//! [`capabilities`] is the single place that declaration is written.
 //! A tenth request is a decision, not an addition — ADR 0099 § 3
 //! holds the test a candidate has to pass.
 //!
@@ -116,8 +116,9 @@ pub mod suite;
 pub mod symbols;
 
 pub use capabilities::{
-    CODE_ACTION_KINDS, SERVER_NAME, TOKEN_MODIFIERS, TOKEN_TYPES, initialize_result,
-    negotiate_encoding, semantic_tokens_legend, server_capabilities, server_info, server_version,
+    CODE_ACTION_KINDS, SERVER_NAME, TOKEN_MODIFIERS, TOKEN_TYPES, declared_capabilities,
+    initialize_result, negotiate_encoding, semantic_tokens_legend, server_capabilities,
+    server_info, server_version,
 };
 pub use case::{AuxFile, CURSOR, Case, MAIN_PATH, ParseError, Request, RequestArgs};
 pub use diagnostics::{Phases, SOURCE, for_document, phase_gated, to_wire};
