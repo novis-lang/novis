@@ -8447,8 +8447,8 @@ stage = "3 door two"
 name = "conformance (a request-scoped event stream, whole body frozen)"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/server/an-event-stream-that-ends-with-its-request-frames-every-event.nvst",
-  "tests/conformance/server/a-response-stream-writes-chunks-and-declares-its-own-type.nvst",
+  "tests/conformance/core/an-event-stream-that-ends-with-its-request-frames-every-event.nvst",
+  "tests/conformance/core/a-response-stream-writes-chunks-and-declares-its-own-type.nvst",
   "tests/conformance/reject/set-status-on-a-path-that-opens-an-event-stream-is-refused.nvst",
 ]
 

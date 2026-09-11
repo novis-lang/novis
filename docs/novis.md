@@ -123,6 +123,7 @@ Conventions the whole file uses:
 | [`Core\Request\Part`](#core-core-request-part) | one uploaded part — what it declared about itself, and the three ways to spend its bytes |
 | [`Core\Request\PartContent`](#core-core-request-partcontent) | one uploaded part's bytes as a walk over its chunks — `Core\Request\Part::content()`'s answer, holding one chunk at a time and valid only while its part is the current one |
 | [`Core\Response`](#core-core-response) |  |
+| [`Core\Response\Stream`](#core-core-response-stream) |  |
 | [`Core\Session`](#core-core-session) |  |
 | [`Core\Socket`](#core-core-socket) |  |
 | [`Core\Socket\Message`](#core-core-socket-message) |  |
@@ -17300,13 +17301,14 @@ no request here
 <a id="core-core-response"></a>
 ### `Core\Response`
 
-Keywords: json, text, bytes, setStatus, setHeader, redirect, addCookie
+Keywords: json, text, bytes, stream, setStatus, setHeader, redirect, addCookie
 
 | Member | Signature |
 |---|---|
 | [`Core\Response::json`](#core-core-response-json) | `json(mixed $value): void` |
 | [`Core\Response::text`](#core-core-response-text) | `text(string $body): void` |
 | [`Core\Response::bytes`](#core-core-response-bytes) | `bytes(bytes $body, string $contentType): void` |
+| [`Core\Response::stream`](#core-core-response-stream) | `stream(string $contentType): Core\Response\Stream` |
 | [`Core\Response::setStatus`](#core-core-response-setstatus) | `setStatus(uint $code): void` |
 | [`Core\Response::setHeader`](#core-core-response-setheader) | `setHeader(string $name, string $value): void` |
 | [`Core\Response::redirect`](#core-core-response-redirect) | `redirect(string $url, Core\Response\Redirect $status = Core\Response\Redirect::SeeOther): void` |
@@ -17361,6 +17363,23 @@ Answers with `$body` verbatim, declaring `$contentType` — the one body member 
 **Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error.
 
 **Throws** `LogicError` — `$contentType` is empty or holds a byte outside a header field value — a control character, a newline, or anything above ASCII.
+
+<a id="core-core-response-stream"></a>
+#### `Core\Response::stream`
+
+```nvs skip
+Core\Response::stream(string $contentType): Core\Response\Stream
+```
+
+Answers with a body written over time, declaring `$contentType` — the head goes out as soon as this is called and the body ends when the request does.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$contentType` | `string` (sink) | The media type to declare. A sink, exactly as `bytes`' is: it becomes a header the peer obeys, so a `tainted` value is refused at compile time and one holding anything a header cannot carry is refused here. |
+
+**Returns** `Core\Response\Stream` — The handle to write chunks through. Mixing this with `echo` on one response is a compile error, and the body is complete when the request ends — a browser reading one with `EventSource` reconnects at that point, so a stream a client keeps open across page lifetimes is `Core\Sse::upgrade` instead.
+
+**Throws** `LogicError` — `$contentType` is empty or holds a byte outside a header field value — a control character, a newline, or anything above ASCII. Or this request has already opened a body stream, a response having one body.
 
 <a id="core-core-response-setstatus"></a>
 #### `Core\Response::setStatus`
@@ -17438,6 +17457,32 @@ Adds one `Set-Cookie` to this response, every option it leaves out taken from `[
 **Returns** `void` — Nothing. Each call adds a cookie — two calls write two `Set-Cookie` lines, and a name written twice is sent twice rather than collapsed.
 
 **Throws** `LogicError` — `$name` is not a cookie name, or does not conform to the `__Host-`/`__Secure-` prefix it carries; `$value`, `path` or `domain` holds a byte that would end the attribute and begin one the program never wrote; `sameSite` is `None` without `secure`; or `maxAge` is negative.
+
+<a id="core-core-response-stream"></a>
+### `Core\Response\Stream`
+
+Keywords: write
+
+| Member | Signature |
+|---|---|
+| [`Core\Response\Stream->write`](#core-core-response-stream-write) | `write(string\|bytes $chunk): void` |
+
+<a id="core-core-response-stream-write"></a>
+#### `Core\Response\Stream->write`
+
+```nvs skip
+$stream->write(string|bytes $chunk): void
+```
+
+Writes one chunk of the body, waiting while the client is still reading the last one — the whole of the backpressure, since nothing accumulates in between.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$chunk` | `string\|bytes` | The bytes to send, unchanged, as text or as `bytes`. An empty chunk reaches no wire and is not an error. A `tainted` value is refused at compile time: a parameter taking two shapes carries no classification, and refusing is the safe half of that. |
+
+**Returns** `void` — Nothing. The chunk has been handed to the connection by the time this returns.
+
+**Throws** `RuntimeError` — The client stopped reading — it went away, or it did not take this chunk within the connection's send timeout, which closes the stream rather than waiting without end.
 
 <a id="core-core-session"></a>
 ### `Core\Session`
