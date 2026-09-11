@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -102,11 +103,22 @@ def call_text(call):
 # `[context]` manifest in loop-goal.toml is written against: a goal whose sessions spend a
 # third of their budget reading whole ADRs is a goal whose manifest should be naming ADR
 # *sections*, and the only way to know that is to charge every byte to the call that fetched
-# it. Buckets are matched in order, first hit wins.
+# it. Buckets are matched in order, first hit wins, against one TARGET at a time: a batched
+# `peek.py` call is split into the paths it names (`targets_of`), because matched as one string
+# the first orientation path in it charged every source file beside it to `orientation` -- so the
+# better a session followed AGENTS.md rule 2, the more it read as re-reading the pack.
+#
+# `orientation` names the files the pack is built from, by full path, and nothing else. A bare
+# `docs/agent/` or `playbook` matched `tools/playbook.py`'s source and every process doc AGENTS.md
+# routes to, none of which the pack carries. The goal and its acceptance list get their own bucket:
+# the pack carries one item of the list and none of the rest, so a session reading them is usually
+# fetching what the pack left out -- the opposite defect from re-reading what it held.
 
 BUCKETS = (
-    ("orientation", ("orient.py", "brief.py", "docs/agent/", "loop-goal", "handoff", "playbook",
-                     "conventions", "AGENTS.md", "CLAUDE.md")),
+    ("goal", ("docs/agent/goals/", "loop-goal")),
+    ("orientation", ("orient.py", "brief.py", "docs/agent/handoff.md", "docs/agent/playbook.md",
+                     "docs/agent/conventions.md", "AGENTS.md", "CLAUDE.md")),
+    ("process docs", ("docs/agent/",)),
     ("adr", ("docs/adr/", "docs/decisions/")),
     ("plan + spec", ("implementation-plan", "docs/plan/", "docs/spec/", "plan.py")),
     ("build + test", ("verify.py", "cargo ", "nvs test", "nvs run", "loop.py")),
@@ -119,10 +131,79 @@ BUCKETS = (
 def bucket_of(name, text):
     if name in MUTATORS:
         return "writing"
+    # A Windows path is spelled with backslashes -- doubled once `call_text` has JSON-dumped it --
+    # and every needle above is spelled with `/`.
+    text = re.sub(r"\\+", "/", text)
     for label, needles in BUCKETS:
         if any(nd in text for nd in needles):
             return label
     return "other"
+
+
+#: A shell call running `peek.py`, whose arguments are the paths it reads.
+PEEK_RE = re.compile(r"\bpeek\.py\b")
+
+#: Where one `peek.py` target's output begins. Every target opens with this line naming itself.
+PEEK_SECTION_RE = re.compile(r"^===== (.*)$", re.M)
+
+
+def is_peek(name, inp) -> bool:
+    return name in ("Bash", "PowerShell") and bool(PEEK_RE.search(call_text((name, inp))))
+
+
+def targets_of(name, inp):
+    """What one call reads, as the strings `bucket_of` should see: the paths a `peek.py` call names,
+    or the call's whole text for anything else. `--locate` takes symbols rather than paths, and a
+    `;`/`&&` chain puts other commands' words in the list, so both stay one target. Split without
+    POSIX escapes, because a PowerShell path's backslashes are separators, not escapes."""
+    text = call_text((name, inp))
+    m = PEEK_RE.search(text) if is_peek(name, inp) else None
+    if not m or SEPARATOR_RE.search(text):
+        return [text]
+    try:
+        words = shlex.split(text[m.end():].split("|", 1)[0], posix=False)
+    except ValueError:
+        return [text]
+    if "--locate" in words:
+        return [text]
+    paths = [w for w in words if not w.startswith("-")]
+    return paths or [text]
+
+
+def shares_of(name, inp):
+    """One call's buckets, each with the share of the call it takes: `{label: fraction}`."""
+    targets = targets_of(name, inp)
+    shares = {}
+    for t in targets:
+        label = bucket_of(name, t)
+        shares[label] = shares.get(label, 0) + 1 / len(targets)
+    return shares
+
+
+def charge_result(attribution, shares, peek, body):
+    """Charge one tool result's bytes to the buckets of the call that fetched it.
+
+    A result is sized JSON-dumped when it is not a plain string. A `peek.py` result opens every
+    target with a `===== <target>` line, so a batched read is charged section by section to the
+    bucket its own header names -- the handoff's lines to `orientation`, the source file's beside
+    it to `source` -- and only what sits outside every section is split by the call's shares."""
+    size = len(body if isinstance(body, str) else json.dumps(body))
+    charged = 0
+    if peek:
+        if isinstance(body, str):
+            plain = body
+        elif isinstance(body, list):
+            plain = "".join(b.get("text", "") for b in body if isinstance(b, dict))
+        else:
+            plain = ""
+        found = list(PEEK_SECTION_RE.finditer(plain))
+        for m, end in zip(found, [n.start() for n in found[1:]] + [len(plain)]):
+            label = bucket_of(None, m.group(1))
+            attribution[label] = attribution.get(label, 0) + (end - m.start())
+            charged += end - m.start()
+    rest = max(size - charged, 0)
+    for label, share in shares.items():
+        attribution[label] = attribution.get(label, 0) + round(rest * share)
 
 
 def subagent_cost(path):
@@ -165,7 +246,7 @@ def read_session(path):
     calls, contexts, per_message, result = [], [], [], None
     shell_calls, shell_cmds = 0, 0
     names, attribution = {}, {}
-    pack_bytes = 0
+    pack_bytes, pack_goal = 0, ""
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if not line:
@@ -185,6 +266,7 @@ def read_session(path):
         kind = event.get("type")
         if kind == "loop_pack":
             pack_bytes = event.get("bytes") or 0
+            pack_goal = event.get("goal") or ""
             continue
         if kind == "result":
             result = event
@@ -195,10 +277,8 @@ def read_session(path):
             for block in event.get("message", {}).get("content", []) or []:
                 if not isinstance(block, dict) or block.get("type") != "tool_result":
                     continue
-                label = names.get(str(block.get("tool_use_id")), "other")
-                body = block.get("content")
-                text = body if isinstance(body, str) else json.dumps(body)
-                attribution[label] = attribution.get(label, 0) + len(text)
+                shares, peek = names.get(str(block.get("tool_use_id")), ({"other": 1.0}, False))
+                charge_result(attribution, shares, peek, block.get("content"))
             continue
         if kind != "assistant":
             continue
@@ -209,8 +289,8 @@ def read_session(path):
             per_message.append(len(tool_uses))
             calls.extend((c.get("name"), c.get("input")) for c in tool_uses)
             for c in tool_uses:
-                label = bucket_of(c.get("name"), call_text((c.get("name"), c.get("input"))))
-                names[str(c.get("id"))] = label
+                names[str(c.get("id"))] = (shares_of(c.get("name"), c.get("input")),
+                                           is_peek(c.get("name"), c.get("input")))
                 # A `;`/`&&` chain is a batch: one round trip, several commands. Counting only
                 # calls-per-message called a session that chained 39 commands into one call
                 # "never batched", which is the opposite of what it did. Pipes are one command.
@@ -221,7 +301,7 @@ def read_session(path):
                     shell_cmds += len(SEPARATOR_RE.findall(cmd)) + 1
                 # An Edit's *input* is the new code, which is real context the session spent.
                 if c.get("name") in MUTATORS:
-                    attribution[label] = attribution.get(label, 0) + len(
+                    attribution["writing"] = attribution.get("writing", 0) + len(
                         json.dumps(c.get("input") or {})
                     )
         usage = message.get("usage", {})
@@ -282,10 +362,13 @@ def read_session(path):
     # missing something the goal needs is a `[context]` manifest to widen, while a session
     # re-reading what the pack already said is a pack to make more legible. A single number
     # cannot tell those apart, so keep the breakdown rather than the count.
+    #
+    # A batched call is split across the buckets of the targets it names, so a head count is a sum
+    # of fractions: a `peek.py` of the handoff and one source file is half a re-read.
     head_buckets = {}
     for i in range(head):
-        label = bucket_of(calls[i][0], texts[i])
-        head_buckets[label] = head_buckets.get(label, 0) + 1
+        for label, share in shares_of(*calls[i]).items():
+            head_buckets[label] = head_buckets.get(label, 0) + share
 
     drops = [
         (i, contexts[i - 1], contexts[i])
@@ -308,6 +391,7 @@ def read_session(path):
         "ctx_start": contexts[0] if contexts else 0,
         "ctx_end": max(contexts) if contexts else 0,
         "pack_bytes": pack_bytes,
+        "pack_goal": pack_goal,
         "compactions": len(drops),
         "duration_ms": (result or {}).get("duration_ms"),
         "duration_api_ms": (result or {}).get("duration_api_ms"),
@@ -641,7 +725,7 @@ def report_head(sessions):
     if reread:
         with_reread = sum(1 for s in heads if s["head_buckets"].get("orientation"))
         print(
-            f"\n   {reread} of those, across {with_reread} of {n_sessions} session(s), RE-READ AN "
+            f"\n   {reread:.0f} of those, across {with_reread} of {n_sessions} session(s), RE-READ AN "
             f"ORIENTATION SOURCE\n"
             f"   -- the pack, the handoff, the playbook, conventions.md, AGENTS.md -- which the\n"
             f"   driver had already piped in ahead of the prompt. Either the `[context]` manifest\n"
@@ -651,22 +735,47 @@ def report_head(sessions):
 
 
 def report_drift(sessions):
-    """Is the pack growing with the number of sessions? A slope, printed only when there is one."""
-    pts = [(i, s["pack_bytes"]) for i, s in enumerate(sessions) if s.get("pack_bytes")]
+    """Is the pack growing with the number of sessions? A slope, printed only when there is one.
+
+    The slope is fitted **inside each goal** and pooled: every session's pack is measured against
+    its own goal's mean, so a chain switch -- which installs a new `[context]` manifest and can
+    double the pack without any session writing a byte of it -- is a step between goals rather
+    than a slope through them. Fitted across a switch, a goal boundary reads as a leak. Sessions
+    whose pack event names no goal share one unnamed goal, and a window of only those is fitted
+    whole."""
+    pts = [(i, s["pack_bytes"], s.get("pack_goal") or "") for i, s in enumerate(sessions)
+           if s.get("pack_bytes")]
     if len(pts) < 5:
         return
     n = len(pts)
-    mx = sum(x for x, _ in pts) / n
-    my = sum(y for _, y in pts) / n
-    denom = sum((x - mx) ** 2 for x, _ in pts)
+    runs = []  # consecutive sessions on one goal: [(goal, [(x, y), ...]), ...]
+    for x, y, goal in pts:
+        if runs and runs[-1][0] == goal:
+            runs[-1][1].append((x, y))
+        else:
+            runs.append((goal, [(x, y)]))
+    num = denom = 0.0
+    for _, run in runs:
+        mx = sum(x for x, _ in run) / len(run)
+        my = sum(y for _, y in run) / len(run)
+        num += sum((x - mx) * (y - my) for x, y in run)
+        denom += sum((x - mx) ** 2 for x, _ in run)
     if not denom:
         return
-    slope = sum((x - mx) * (y - my) for x, y in pts) / denom
+    slope = num / denom
     first, last = pts[0][1], pts[-1][1]
+    # What the chain switches moved by themselves: each goal's first pack against the last one the
+    # goal before it left.
+    switched = sum(run[0][1] - prev[-1][1] for (_, prev), (_, run) in zip(runs, runs[1:]))
     print(f"\n== FIXED COST  (the orientation pack, first session to last)")
-    print(f"   {first:,} -> {last:,} B, {slope:+,.0f} B a session")
+    print(f"   {first:,} -> {last:,} B, {slope:+,.0f} B a session inside a goal")
+    if len(runs) > 1:
+        names = " -> ".join(f"`{g}`" if g else "(unnamed)" for g, _ in runs)
+        print(f"   {switched:+,} B of that is at {len(runs) - 1} chain switch(es), {names}:\n"
+              f"   a new manifest, authored rather than accumulated, and narrowed only by whoever\n"
+              f"   writes the goal.")
     if slope < DRIFT_BYTES_PER_SESSION:
-        step = last - first
+        step = last - first - switched
         if step > STEP_BYTES:
             print(
                 f"   NOT A LEAK, BUT NOT FLAT EITHER: the pack STEPPED {step:+,} B "
