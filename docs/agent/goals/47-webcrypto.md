@@ -5,16 +5,17 @@ milestone: M8
 
 Anything a browser encrypts with WebCrypto, a Novis server can decrypt, and the other way round, with no
 JavaScript crypto library on the browser side. **One streamlined API serves every cipher**:
-`Core\Crypto::generateKey`, `seal` and `open` take a closed `Cipher` enum — XChaCha20-Poly1305, as today,
-or AES-256-GCM — the way `Core\Hash::of` takes a `Core\Digest`. Beside them sit the members whose
+`Core\Crypto::seal` and `open` take a closed, **required** `Cipher` enum — XChaCha20-Poly1305 or
+AES-256-GCM — the way `Core\Hash::of` takes a required `Core\Digest`. Beside them sit the members whose
 parameters genuinely differ: PBKDF2 and HKDF derivation, and ECDH over P-256 and X25519 through typed key
 objects. The protocol roster gains **`Core\Jwe`**, a closed subset of JSON Web Encryption (RFC 7516/7518)
 whose algorithm follows from the type of the key it is handed. What proves it is Node's own
 `crypto.subtle`, the W3C Web Cryptography API browsers expose, round-tripping every mode against the built
 `nvs` binary.
 
-Nothing is taken away: XChaCha20-Poly1305 stays, and stays the default, and every `Core\Digest` case stays.
-Nothing has shipped publicly, so an existing signature is changed wherever the streamlined surface needs it.
+Nothing is taken away: XChaCha20-Poly1305 stays and every `Core\Digest` case stays. Nothing has shipped
+publicly, so `seal` and `open` change signature, and **every existing call site moves in the same commit**
+— no existing case, example or floor check is left red.
 
 ## Why here
 
@@ -27,8 +28,8 @@ adds to it has run, and this goal adds and closes rows.
 
 What it needs already built, all on disk: `Core\Crypto`'s one construction and its three seams
 (`crates/nvs-stdlib/src/crypto.rs:103-113`), every draw through `crate::random::draw`
-(`crates/nvs-stdlib/src/crypto.rs:115-121`), `Core\Hash::of`'s enum-argument shape
-(`crates/nvs-stdlib/src/hash.rs:352-365`), JWT's compare-only header reading that JWE copies
+(`crates/nvs-stdlib/src/crypto.rs:115-121`), `Core\Hash::of`'s required-enum row
+(`crates/nvs-stdlib/src/hash.rs:304-312`), JWT's compare-only header reading that JWE copies
 (`crates/nvs-stdlib/src/jwt.rs:11-22`), `Core\Signature`'s key ring and `tainted` payload answer
 (`docs/spec/01-core-library.md:1175`), base64url in `crates/nvs-stdlib/src/encoding.rs`, and the
 RustCrypto base the lockfile already carries — `aead` 0.6, `cipher` 0.5, `hmac` 0.13, `sha2` 0.11, `pbkdf2`
@@ -46,9 +47,12 @@ before editing: these are anchors, and files move.
   `crates/nvs-stdlib/src/jwt.rs:24-28` is the argument for why a program choosing its own algorithm
   chooses nothing an attacker supplied. Stage 4 rewrites the section as a whole to say that.
 - `crates/nvs-stdlib/src/crypto.rs:36-40` — "AES-GCM was the alternative and loses on two counts". Still
-  the reason XChaCha is the *default*; stage 4 rewrites it to say so, and that AES-GCM is here for interop.
+  why XChaCha is the construction to *prefer* when both ends are Novis; stage 4 rewrites it to say so,
+  and that AES-GCM is here for interop.
 - `crates/nvs-stdlib/src/crypto.rs:103-113` — "there is exactly one `XChaCha20Poly1305::new_from_slice`".
   Stage 4 says what the second construction is and that it has one home too.
+- `docs/reference/core/Crypto.md:2-11` — the summary and opening say "no cipher, mode, padding or nonce
+  argument" and "three members and no cipher name anywhere in them". Stage 4.
 - `docs/rules/security/protocol-roster.md:1-3` and `docs/spec/01-core-library.md:1175` — a roster of five.
   JWE is the sixth. Stage 2.
 - `docs/rules/security/protocol-roster.md:14-16` — "`Core\Signature` is not: no member, no module, no
@@ -61,6 +65,8 @@ before editing: these are anchors, and files move.
 ## Stage 1 — the floor
 
 Goal `template-format`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+It holds `examples/crypto.nvs` as an `exact` check (`docs/agent/loop-goal.toml:2691-2692`), so stage 4
+changes that file's source and never its six lines of output.
 
 ## Stage 2 — the record
 
@@ -92,17 +98,25 @@ specification publishes before any `Core` member calls it:
 The vectors go in as test source with the section they came from named beside each one. Every key, nonce
 and salt a primitive draws comes from `crate::random::draw`, so a `#[Test(seed: …)]` reproduces it.
 
-## Stage 4 — the `Core\Crypto` surface
+## Stage 4 — the `Core\Crypto` surface, and every call site with it
 
-The surface § *Standing decisions* fixes, five edits per member (conventions.md § *A `Core` member*):
-`generateKey`, `seal` and `open` over the `Cipher` enum, `deriveKey` and `expandKey`, `generateKeyPair`
-and `agree`, and the `KeyPair` and `PublicKey` classes. The existing crypto conformance cases are
-corrected to the new signatures where a signature changed — their source, never their expected output —
-and `crates/nvs-stdlib/src/signed_cookie.rs`, which reaches the construction through the crate-private
-seams, is kept on XChaCha. Then `docs/spec/02-php-migration.md:811-812` become two `member` rows naming
-`deriveKey` and `expandKey`, which `every_migration_member_row_names_a_registered_member` and
-`every_migration_member_row_has_a_conformance_case` hold. Stage 0's four `crypto.rs` sentences are
-rewritten here.
+The surface § *Standing decisions* fixes, five edits per member (conventions.md § *A `Core` member*).
+`seal` and `open` gain their required `Cipher`, and **in the same commit every existing call moves to
+it**, so the tree never holds a red case:
+
+| File | What changes |
+|---|---|
+| `crates/nvs-stdlib/src/crypto.rs:158-195` | the `seal` and `open` rows gain `CoreTy::Enum` for the cipher, with `defaults: &[]` |
+| `examples/crypto.nvs:53-66` | the three calls pass `Cipher::XChaCha20Poly1305`; the frozen output does not change |
+| `tests/conformance/core/crypto-seals-and-opens-with-no-cipher-argument.nvst` | renamed `crypto-seals-and-opens-under-the-cipher-the-call-names.nvst` (no floor names it by path), and its calls take the cipher |
+| the other five `tests/conformance/core/crypto-*.nvst` | every `seal`/`open` call takes the cipher; expected output unchanged |
+| `docs/reference/core/Crypto.md` | rewritten for the new surface; `python tools/reference.py` regenerates `docs/novis.md` from it |
+| `crates/nvs-stdlib/src/signed_cookie.rs` | nothing: it reaches the construction through the crate-private seams and stays on XChaCha |
+
+`generateKey()` does not change, so the ~40 JWT, CSRF, `Core\Signature`, signed-cookie, `Core\Uri` and
+router cases that draw a key through it are untouched. A new reject case proves the old two-argument
+call no longer compiles. Then `docs/spec/02-php-migration.md:811-812` become two `member` rows naming
+`deriveKey` and `expandKey`. Stage 0's `crypto.rs` and `Crypto.md` sentences are rewritten here.
 
 ## Stage 5 — `Core\Jwe`
 
@@ -125,42 +139,50 @@ filled from this goal's cases and tests, and `python tools/rules.py --render`.
 
 ## Standing decisions
 
-- **One member per job, and an enum where the parameters are the same.** Where two algorithms take the
-  same parameters they are one member with a closed enum argument, as `Core\Hash::of` takes a
-  `Core\Digest` (`crates/nvs-stdlib/src/hash.rs:352-365`). Where the parameters differ they are separate
-  members. No member name carries an algorithm, and no algorithm is ever a string.
+- **One member per job, and a required enum where the parameters are the same.** Where two algorithms
+  take the same parameters they are one member with a closed enum argument, as `Core\Hash::of` takes a
+  `Core\Digest`. Where the parameters differ they are separate members. No member name carries an
+  algorithm, and no algorithm is ever a string.
+- **No algorithm argument has a default — not a cipher, not a digest, not a curve.** A call names what it
+  uses. `Core\Hash` already holds this: every row is `defaults: &[]`
+  (`crates/nvs-stdlib/src/hash.rs:304-343`), and it is not touched. A member that answers a key with no
+  algorithm in it takes no algorithm argument at all, which is `generateKey`: its 32 octets are the one
+  key length both ciphers and every roster protocol share, and one ring of them is handed to
+  `Core\Signature` and `Core\SignedCookie` alike (`crates/nvs-stdlib/src/signature.rs:48-73`).
 - **The surface.** Spellings may be adjusted by the record; the shape may not:
 
   | Member | Does |
   |---|---|
-  | `Crypto::generateKey(Cipher $cipher = Cipher::XChaCha20Poly1305): secret bytes` | a fresh key of the cipher's length |
-  | `Crypto::seal(bytes $message, secret bytes $key, Cipher $cipher = Cipher::XChaCha20Poly1305): bytes` | `nonce ‖ ciphertext ‖ tag` |
-  | `Crypto::open(bytes $sealed, secret bytes $key, Cipher $cipher = Cipher::XChaCha20Poly1305): bytes` | the plaintext, or one forgery `RuntimeError` |
+  | `Crypto::generateKey(): secret bytes` | 32 random octets, a key for either cipher and for every roster protocol |
+  | `Crypto::seal(bytes $message, secret bytes $key, Crypto\Cipher $cipher): bytes` | `nonce ‖ ciphertext ‖ tag` |
+  | `Crypto::open(bytes $sealed, secret bytes $key, Crypto\Cipher $cipher): bytes` | the plaintext, or one forgery `RuntimeError` |
   | `Crypto::deriveKey(secret string $password, bytes $salt, uint $iterations): secret bytes` | PBKDF2-HMAC-SHA256, 32 octets |
   | `Crypto::expandKey(secret bytes $material, bytes $salt, string $info): secret bytes` | HKDF-SHA256, 32 octets |
-  | `Crypto::generateKeyPair(Curve $curve): Crypto\KeyPair` | P-256 or X25519 |
+  | `Crypto::generateKeyPair(Crypto\Curve $curve): Crypto\KeyPair` | P-256 or X25519 |
   | `Crypto::agree(Crypto\KeyPair $mine, Crypto\PublicKey $theirs): secret bytes` | the raw shared secret, meant for `expandKey` |
-  | `Crypto\PublicKey::read(bytes $encoded, Curve $curve, KeyFormat $format): Crypto\PublicKey` / `->write(KeyFormat $format): bytes` | raw, SPKI or JWK, validated at read |
-  | `Crypto\KeyPair::read(secret bytes $pkcs8, Curve $curve): Crypto\KeyPair` / `->write(): secret bytes` / `->publicKey(): Crypto\PublicKey` | PKCS#8, so a server keeps its pair across requests |
+  | `Crypto\PublicKey::read(bytes $encoded, Crypto\Curve $curve, Crypto\KeyFormat $format): Crypto\PublicKey` | raw, SPKI or JWK, validated on read |
+  | `$publicKey->write(Crypto\KeyFormat $format): bytes` | the same three forms |
+  | `$publicKey->curve(): Crypto\Curve` | which curve it is on |
+  | `Crypto\KeyPair::read(secret bytes $pkcs8, Crypto\Curve $curve): Crypto\KeyPair` | a stored pair back |
+  | `$keyPair->write(): secret bytes` | PKCS#8, so a server keeps its pair across requests |
+  | `$keyPair->publicKey(): Crypto\PublicKey` | the half that is sent |
   | `Jwe::encrypt(string $payload, secret bytes\|Crypto\PublicKey\|secret string $key): string` | the compact token |
   | `Jwe::decrypt(string $token, array<secret bytes>\|array<Crypto\KeyPair>\|secret string $keys): tainted string` | the payload, or one `RuntimeError` |
 
-  `Cipher` is `XChaCha20Poly1305` and `Aes256Gcm`; `Curve` is `P256` and `X25519`; `KeyFormat` is `Raw`,
-  `Spki` and `Jwk`. **XChaCha20-Poly1305 is the default** because it is the construction a program should
-  get without choosing (`crates/nvs-stdlib/src/crypto.rs:21-40`). Opening under the wrong cipher is a
-  forgery, never plausible bytes.
-- **Two fallbacks, because two things were not checked when this was written.** A `Core` member row's
-  defaults were seen only as `null` (`crates/nvs-stdlib/src/db/registry.rs:69`). If the registry cannot
-  default an enum parameter, `Cipher` becomes a **required** argument on all three members and every
-  call site is updated — `examples/crypto.nvs`, the existing crypto cases, anything the tree holds —
-  rather than a `?Cipher = null` that means XChaCha. If a member row cannot declare a union with `secret`
-  members, JWE's key becomes a `Jwe\Key` built by one static per kind (`shared`, `password`,
-  `recipient`, `own`), with still two `Jwe` members. Record whichever held in the record.
-- **Existing signatures may change; the good parts may not.** Nothing has shipped publicly, so a shipped
-  member's signature changes wherever the surface needs it, and the source of an existing case is
-  corrected to match (its expected output stays frozen). What stays: XChaCha20-Poly1305 as the default
-  construction and its sealed layout, every `Core\Digest` case, `Core\Password`, and
-  `signed_cookie.rs`'s use of the construction.
+  `Crypto\Cipher` is `XChaCha20Poly1305` and `Aes256Gcm`; `Crypto\Curve` is `P256` and `X25519`;
+  `Crypto\KeyFormat` is `Raw`, `Spki` and `Jwk`. Opening under the wrong cipher is a forgery, never
+  plausible bytes. XChaCha20-Poly1305 is the one to prefer when both ends are Novis
+  (`crates/nvs-stdlib/src/crypto.rs:21-40`), and `seal`'s doc says so — as advice, not as a default.
+- **One fallback, because one thing was not checked when this was written.** If a member row cannot
+  declare a union with `secret` members, JWE's key becomes a `Jwe\Key` built by one static per kind
+  (`shared`, `password`, `recipient`, `own`), with still two `Jwe` members. The record says whether it
+  held.
+- **Existing call sites move with the signature, in the same commit.** Nothing has shipped publicly, so
+  `seal` and `open` change signature; stage 4's table is every file that calls them, and a session that
+  finds one more adds it rather than leaving it red. A case's source is corrected, never its expected
+  output, and a case is renamed only where its name has become false and no floor names it by path.
+  What stays: XChaCha20-Poly1305 and its sealed layout, `generateKey()`, every `Core\Digest` case and
+  every `Core\Hash` signature, `Core\Password`, and `signed_cookie.rs`'s use of the construction.
 - **The roster, closed.** In: AES-256-GCM, PBKDF2-HMAC-SHA256, HKDF-SHA256, ECDH over P-256 and X25519.
   Internal only, never a member: AES Key Wrap (PBES2 needs it) and Concat KDF (ECDH-ES needs it). Out,
   and not to be added by any session of this goal: AES-CBC, AES-CTR, AES-128, RSA in any form, and JWE's
@@ -171,12 +193,13 @@ filled from this goal's cases and tests, and `python tools/rules.py --render`.
   nonce parameter; the record and `seal`'s doc state AES-GCM's 2^32-messages-per-key bound and name
   XChaCha as the answer when that bound matters. No additional-data parameter in this goal; JWE uses AAD
   internally.
-- **Keys.** A symmetric key is `secret bytes`, length-checked against its cipher: the wrong length is a
-  `LogicError` naming the length wanted, never the bytes got (`crates/nvs-stdlib/src/crypto.rs:68-74`).
-  A private key never leaves a `KeyPair` except as `secret bytes` through `write`. **Every public key is
-  validated at `read`**: on the curve for P-256, and an all-zero X25519 shared secret is refused at
-  `agree`. A public key off the wire that fails is a `RuntimeError` (a verdict); a malformed key the
-  program built is a `LogicError` (a bug). JWK export of a private key is out of scope.
+- **Keys.** A symmetric key is `secret bytes`, length-checked: the wrong length is a `LogicError` naming
+  the length wanted, never the bytes got (`crates/nvs-stdlib/src/crypto.rs:68-74`). A private key never
+  leaves a `KeyPair` except as `secret bytes` through `write`. **Every public key is validated at
+  `read`**: on the curve for P-256, and an all-zero X25519 shared secret is refused at `agree`. A public
+  key off the wire that fails is a `RuntimeError` (a verdict); a malformed key the program built is a
+  `LogicError` (a bug). Two keys on different curves given to `agree` is a `LogicError`. JWK export of a
+  private key is out of scope.
 - **PBKDF2 has a floor and a ceiling, and both are checked before the first HMAC.** The iteration count
   is a required parameter, because the other end chose it. It is refused below 100,000 and above
   2,000,000, and a salt shorter than 16 octets is refused. The record may move either number with a

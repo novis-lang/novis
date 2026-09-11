@@ -183,10 +183,20 @@ stage = "4 the members"
 name = "one seal and open over every cipher, the derivations, the key classes, their bounds and refusals"
 args = ["test", "tests/conformance/"]
 cases = [
+  # The existing six, moved to the required cipher in the commit that changed the signature. Their
+  # expected output is what it was; one is renamed because its old name said "no cipher argument".
+  "tests/conformance/core/crypto-seals-and-opens-under-the-cipher-the-call-names.nvst",
+  "tests/conformance/core/crypto-names-the-key-length-bound-on-both-sides.nvst",
+  "tests/conformance/core/crypto-open-refuses-every-forgery-with-one-message.nvst",
+  "tests/conformance/core/crypto-round-trips-every-message-length-with-a-flat-overhead.nvst",
+  "tests/conformance/core/crypto-every-seal-draws-its-own-nonce-and-the-body-moves-with-it.nvst",
+  "tests/conformance/core/crypto-generate-key-draws-are-distinct-and-each-opens-only-its-own.nvst",
+  # The old two-argument call no longer compiles.
+  "tests/conformance/reject/crypto-seal-and-open-without-a-cipher-are-refused.nvst",
+  # The new surface.
   "tests/conformance/core/crypto-seal-and-open-take-a-cipher-and-round-trip-under-each.nvst",
   "tests/conformance/core/crypto-opening-under-the-wrong-cipher-is-a-forgery.nvst",
   "tests/conformance/core/crypto-aes-gcm-sealed-bytes-are-nonce-then-ciphertext-then-tag.nvst",
-  "tests/conformance/core/crypto-generate-key-answers-the-cipher-s-key-length.nvst",
   "tests/conformance/core/crypto-pbkdf2-refuses-an-iteration-count-or-salt-outside-its-bounds.nvst",
   "tests/conformance/core/crypto-derived-and-agreed-keys-are-secret-bytes.nvst",
   "tests/conformance/core/crypto-agree-refuses-a-public-key-that-is-not-on-its-curve.nvst",
