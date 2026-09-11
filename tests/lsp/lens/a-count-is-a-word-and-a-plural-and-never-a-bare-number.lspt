@@ -1,0 +1,14 @@
+--TEST--
+a lens says `2 references` over a class two sites name and `no references` over a property nothing does, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Cart {
+    private int $items;
+}
+var $a = new Cart();
+var $b = new Cart();
+--REQUEST--
+codeLens
+--EXPECT--
+2:7 2 references
+3:17 no references

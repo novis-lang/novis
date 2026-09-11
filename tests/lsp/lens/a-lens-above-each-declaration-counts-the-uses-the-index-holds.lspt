@@ -1,0 +1,16 @@
+--TEST--
+every declaration the document makes gets a lens counting what refers to it, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User {
+    public string $name;
+    public function greet(): string { return "hi"; }
+}
+var $u = new User();
+echo $u->greet();
+--REQUEST--
+codeLens
+--EXPECT--
+2:7 1 reference
+3:19 no references
+4:21 1 reference
