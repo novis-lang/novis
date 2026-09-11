@@ -815,7 +815,13 @@ fn start_as_task(
         // produced: a program that threw, exited or was torn down runs none of
         // its after-response work, and `nvs_runtime::deferred`'s module doc
         // owns why those registrations are released unrun instead.
-        let deferred = completion.ok && child.has_deferred();
+        //
+        // **Two questions, because an `exit` is not a failure.** Its answer
+        // crosses and `Completion::ok` is true, so the flag alone cannot tell it
+        // from the last top-level statement having run; the status the program
+        // recorded (`Ctx::ending`) is what does. A finish records none, which is
+        // the whole of why the fourth ending comes out on this side of the gate.
+        let deferred = completion.ok && child.ending().is_ok() && child.has_deferred();
         *filed.borrow_mut() = Some(completion);
         // The answer is filed and the guard publishes it, so from here whoever
         // was waiting may take it and go. Everything below therefore runs on a
@@ -880,8 +886,10 @@ fn run_here(
     // the isolate's own frame has returned and its answer is in hand, which is
     // the same trigger the task above reads. There is nothing to detach from —
     // this ran on the caller's own stack — and nothing waiting behind it, so
-    // the work simply runs before the answer is handed back.
-    if completion.ok && isolate_ctx.has_deferred() {
+    // the work simply runs before the answer is handed back. The gate is the
+    // one above, for the reason stated there: an `exit` crosses as an ordinary
+    // answer and only the recorded status says it was one.
+    if completion.ok && isolate_ctx.ending().is_ok() && isolate_ctx.has_deferred() {
         nvs_runtime::deferred::run_deferred(&mut isolate_ctx);
     }
     completion
@@ -896,8 +904,24 @@ fn run_here(
 /// caller's root owns what comes back.
 fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) -> Completion {
     let cancelled = isolate_ctx.cancelled();
-    let failed = !cancelled && isolate_ctx.pending().is_some();
+    // `Core\Script::finish()` reaches this root as a `THROWN`, because the throw
+    // path is the one every `finally` lives on, and it is an ordinary end all
+    // the same. Asked before anything is taken, so the failure below still has
+    // the real exception to climb the ladder with;
+    // `nvs_runtime::is_finish` is the one home of the question.
+    let finished = !cancelled
+        && isolate_ctx
+            .pending_class()
+            .as_deref()
+            .is_some_and(nvs_runtime::is_finish);
+    let failed = !cancelled && !finished && isolate_ctx.pending().is_some();
     let thrown = failed.then(|| isolate_ctx.take_thrown());
+    // The marker, off the context and onto this frame. It is a separate binding
+    // from the throw above because every gate below reads that one to mean *this
+    // isolate failed*, which a finish did not: taking the marker here is what
+    // leaves nothing pending for those gates to find, and handing it to the
+    // queue below is what makes the report name `Finish` rather than `Normal`.
+    let marker = finished.then(|| isolate_ctx.take_thrown());
     if let Some(thrown) = &thrown {
         // `rule:errors/handler-script`'s tier 3, climbed here for the same reason `nvs run`
         // climbs it at the end of a program: an isolate *is* a program, and
@@ -937,13 +961,16 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // remaining endings this is comes from the status the program recorded
     // (`Ctx::set_ending`) — a `FATAL` among them, which the seam refuses. A
     // pending throw with no status recorded is a `Program` written in Rust
-    // rather than compiled, and it is the same ending.
+    // rather than compiled, and it is the same ending. A finish left no status
+    // either and is `THROWN` for the same reason an uncaught throw is: it is the
+    // object beside the status that tells the two apart, which is why the marker
+    // is handed on below rather than dropped here.
     if !cancelled {
         let outcome = match isolate_ctx.ending() {
-            Ok(()) if failed => Err(nvs_runtime::THROWN),
+            Ok(()) if failed || finished => Err(nvs_runtime::THROWN),
             ending => ending,
         };
-        isolate_ctx.drain_exit_hooks(outcome, thrown.as_ref());
+        isolate_ctx.drain_exit_hooks(outcome, thrown.as_ref().or(marker.as_ref()));
     }
     // `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back, at the end of the program that opened the
     // record: an HTTP request is a root isolate, so this is the line where a

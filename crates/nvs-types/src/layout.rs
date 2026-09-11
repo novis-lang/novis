@@ -617,9 +617,10 @@ mod tests {
         assert_eq!(table.get("B").expect("B").fields, ["v", "w"]);
     }
 
-    /// `nvs-stdlib` classifies a finished ending by the marker's *name*,
-    /// because it depends on `nvs-runtime` and on no part of the compiler —
-    /// `nvs_stdlib::script::FINISH_MARKER_NAME` says so at the spelling itself.
+    /// A host classifies a finished ending by the marker's *name*, because the
+    /// crate that answers the question depends on `nvs-runtime` and on no part
+    /// of the compiler — `nvs_runtime::FINISH_MARKER_NAME` says so at the
+    /// spelling itself, and `nvs_stdlib::script` re-exports it.
     /// This crate sees both sides, so this is where the two are held together:
     /// without it, renaming the class the compiler declares would leave every
     /// finish reported as an uncaught throw and no build would say so.

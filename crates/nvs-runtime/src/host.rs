@@ -266,8 +266,14 @@ pub struct Failure {
 /// language surface presents.
 #[derive(Debug)]
 pub struct Completion {
-    /// True exactly when the child ran to its top-level `return` **and** its
-    /// answer crossed.
+    /// True exactly when the child ended **without failing** and its answer
+    /// crossed — which is the last top-level statement having run, an `exit`,
+    /// and a `Core\Script::finish()`, since none of the three is a failure.
+    ///
+    /// So this is not the question "may this child's after-response work run":
+    /// `rule:concurrency/after-response-outlives-the-connection` admits one of
+    /// those three and `nvs_host::isolate`'s gate reads [`Ctx::ending`] beside
+    /// this flag to tell them apart.
     pub ok: bool,
     /// The child's returned value, copied into the caller's ownership root.
     /// `null` whenever `ok` is false.

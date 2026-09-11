@@ -150,6 +150,40 @@ pub const SQL_SLOT: usize = KIND_SLOT + 4;
 /// thrower pass the same text twice.
 pub const REASON_SLOT: usize = SLOT_COUNT;
 
+/// The class `Core\Script::finish()` raises, as the name a [`Thrown`] carries.
+///
+/// `nvs_hir::errors::FINISH_MARKER` is the home of this spelling and of what the
+/// class is: a second, parentless root of the exception tree that no `catch` arm
+/// matches. The name is restated here for the reason the slot indices above are
+/// — `nvs-runtime` depends on nothing (see [`crate`]'s own docs) — and
+/// `nvs_types`'s `the_marker_the_runtime_classifies_by_is_the_one_the_compiler_declares`
+/// holds the two spellings together.
+pub const FINISH_MARKER_NAME: &str = r"Core\Script\Finished";
+
+/// Whether the class that reached a root is the marker [`FINISH_MARKER_NAME`]
+/// names rather than a `Throwable` a program could have caught.
+///
+/// **The one home of that question**, asked by every host that classifies an
+/// ending: `nvs-cli` for a `nvs run`, `nvs_host::isolate` for a served request,
+/// and `nvs_stdlib::script::run_exit_hooks` for the report. A finish is an
+/// ordinary end that travels the throw path, so a host answering `true` here
+/// skips the uncaught-throw handler, the escalation ladder and the failure
+/// report, and keeps the status its own success path would have given.
+///
+/// **In this crate rather than beside the registry row that declares the
+/// member**, because of the two hosts that ask only one can name `nvs-stdlib`:
+/// that crate depends on `nvs-host` for `Core\Http\Client`'s socket, so an edge
+/// back would close a cycle. `nvs_stdlib::script` re-exports both of these,
+/// which is the spelling every caller outside the host uses.
+///
+/// It takes the *name* rather than the object because a host asks before it
+/// takes anything: [`Ctx::pending_class`] answers while the exception is still
+/// pending, which is what leaves the real one in place for the ladder.
+#[must_use]
+pub fn is_finish(class: &str) -> bool {
+    class == FINISH_MARKER_NAME
+}
+
 /// Which of [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// § 10's classes a runtime helper's failure lands in.
 ///
