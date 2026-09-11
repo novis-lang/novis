@@ -144,10 +144,10 @@ pub fn negotiate_encoding(client: &ClientCapabilities) -> PositionEncodingKind {
 /// Everything this server promises to answer, at the negotiated `encoding`.
 ///
 /// Every `Some` here is one entry of `rule:ide/the-request-set-is-closed`'s
-/// list and every other provider field is `None` on purpose:
-/// `documentHighlight`, `references`, `rename`, `workspaceSymbol` and inlay
-/// hints each need the workspace index M10 builds, and declaring one before
-/// then is a promise answered with an error.
+/// list or of `rule:ide/five-features-are-one-reference-index`'s, and every
+/// other provider field is `None` on purpose: `rename`, `workspaceSymbol` and
+/// inlay hints each still need something no store this server holds can answer
+/// from, and declaring one before then is a promise answered with an error.
 #[must_use]
 pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities {
     ServerCapabilities {
@@ -161,6 +161,12 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
+        // The two readers of the workspace symbol index that answer a cursor.
+        // Neither takes options: a partial-result token would promise to stream
+        // a list this server builds in one pass, and there is no second phase
+        // to report work-done progress over.
+        references_provider: Some(OneOf::Left(true)),
+        document_highlight_provider: Some(OneOf::Left(true)),
         completion_provider: Some(CompletionOptions {
             // Nothing is resolved lazily: a completion item's detail is the
             // type the analysis already computed, so there is no second round

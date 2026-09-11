@@ -1,0 +1,302 @@
+//! What a reference list and an occurrence highlight answer, off a running
+//! server.
+//!
+//! `rule:ide/five-features-are-one-reference-index`'s first two readers, driven
+//! over `lsp_server::Connection::memory()` the way `publish.rs` is: the index
+//! these answer from is the one `serve` holds, so a test that built its own
+//! would prove nothing about whether the server has one at all. The claims are
+//! that the answer crosses a file the client never opened, that the declaration
+//! is sent only when it is asked for, that a highlight is the same query
+//! narrowed to the open document, and that an edit is in the next answer.
+
+use std::fs;
+use std::path::PathBuf;
+use std::time::Duration;
+
+use lsp_server::{Connection, Message, Notification, Request, RequestId};
+use lsp_types::notification::{DidChangeTextDocument, DidOpenTextDocument, Notification as _};
+use lsp_types::{
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams, Location,
+    TextDocumentContentChangeEvent, TextDocumentItem, Uri, VersionedTextDocumentIdentifier,
+};
+
+/// The class, declaring `$count` on line 2 and using it on line 4.
+const LIB: &str = "<?nvs\nclass Counter {\n    public int $count = 0;\n    \
+                   public function bump(): int {\n        return $this->count;\n    }\n}\n";
+
+/// The open document, using `$count` on line 4.
+const MAIN: &str = "<?nvs\nrequire 'lib.nvs';\nvar $c = new Counter();\n\
+                    echo $c->bump();\necho $c->count;\n";
+
+/// [`MAIN`] with a second use of `$count`, on line 5.
+const MAIN_AGAIN: &str = "<?nvs\nrequire 'lib.nvs';\nvar $c = new Counter();\n\
+                          echo $c->bump();\necho $c->count;\necho $c->count;\n";
+
+/// The cursor: inside `count` in `echo $c->count;`, which is line 4 of
+/// [`MAIN`].
+const CURSOR: (u32, u32) = (4, 11);
+
+/// A directory of this run's own, removed when the test that made it ends.
+///
+/// The fixtures are on disk because a `require` resolves against the requiring
+/// file's own directory before any source map is consulted — `publish.rs` and
+/// `index.rs` both need the same thing for the same reason.
+struct TempDir {
+    path: PathBuf,
+}
+
+impl TempDir {
+    fn new(name: &str) -> Self {
+        let path = std::env::temp_dir().join(format!("nvs-refs-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).expect("a scratch directory");
+        fs::write(path.join("lib.nvs"), LIB).expect("a fixture file");
+        fs::write(path.join("main.nvs"), MAIN).expect("a fixture file");
+        Self { path }
+    }
+
+    fn uri(&self, name: &str) -> Uri {
+        nvs_lsp::uri_of(&self.path.join(name)).expect("a temp path is UTF-8")
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+/// Runs `exchange` against a server in this process that has already answered
+/// `initialize`, then shuts it down and asserts it served without a protocol
+/// error.
+fn served(exchange: impl FnOnce(&Connection)) {
+    let (server, client) = Connection::memory();
+    let serving = std::thread::spawn(move || nvs_lsp::serve(&server));
+
+    ask(
+        &client,
+        1,
+        "initialize",
+        serde_json::to_value(InitializeParams::default()).expect("params"),
+    );
+    notify(
+        &client,
+        Notification::new("initialized".to_owned(), serde_json::json!({})),
+    );
+
+    exchange(&client);
+
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(99),
+            "shutdown".to_owned(),
+            serde_json::json!(null),
+        )))
+        .expect("the server is still reading");
+    // Anything still queued ahead of the acknowledgement is drained: a publish
+    // this suite never read is not a protocol error.
+    while !matches!(client.receiver.recv(), Ok(Message::Response(_)) | Err(_)) {}
+    notify(
+        &client,
+        Notification::new("exit".to_owned(), serde_json::json!(null)),
+    );
+
+    serving
+        .join()
+        .expect("the server thread did not panic")
+        .expect("the server served without a protocol error");
+}
+
+fn notify(client: &Connection, notification: Notification) {
+    client
+        .sender
+        .send(Message::Notification(notification))
+        .expect("the server is still reading");
+}
+
+/// Sends one request and returns its result, skipping every `publishDiagnostics`
+/// that arrives first.
+///
+/// Skipping rather than draining beforehand: a publish is sent for every edit
+/// and this suite makes several, so a test that counted them would be a test
+/// about `publish.rs`'s subject written in the wrong file.
+fn ask(client: &Connection, id: i32, method: &str, params: serde_json::Value) -> serde_json::Value {
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(id),
+            method.to_owned(),
+            params,
+        )))
+        .expect("the server is still reading");
+
+    loop {
+        match client.receiver.recv_timeout(Duration::from_secs(30)) {
+            Ok(Message::Response(response)) => {
+                return response
+                    .response_result
+                    .unwrap_or_else(|error| panic!("`{method}` was refused: {error:?}"));
+            }
+            Ok(Message::Notification(_)) => {}
+            other => panic!("expected the `{method}` response, got {other:?}"),
+        }
+    }
+}
+
+/// `textDocument/didOpen`.
+fn open(client: &Connection, uri: &Uri, text: &str) {
+    let params = DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: uri.clone(),
+            language_id: "novis".to_owned(),
+            version: 1,
+            text: text.to_owned(),
+        },
+    };
+    notify(
+        client,
+        Notification::new(DidOpenTextDocument::METHOD.to_owned(), params),
+    );
+}
+
+/// `textDocument/didChange`, carrying the whole document as `FULL` sync means.
+fn change(client: &Connection, uri: &Uri, version: i32, text: &str) {
+    let params = DidChangeTextDocumentParams {
+        text_document: VersionedTextDocumentIdentifier {
+            uri: uri.clone(),
+            version,
+        },
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: None,
+            range_length: None,
+            text: text.to_owned(),
+        }],
+    };
+    notify(
+        client,
+        Notification::new(DidChangeTextDocument::METHOD.to_owned(), params),
+    );
+}
+
+/// Asks `textDocument/references` at [`CURSOR`] in `uri`.
+fn references(client: &Connection, id: i32, uri: &Uri, declaration: bool) -> Vec<(String, u32)> {
+    let answer = ask(
+        client,
+        id,
+        "textDocument/references",
+        serde_json::json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": CURSOR.0, "character": CURSOR.1 },
+            "context": { "includeDeclaration": declaration },
+        }),
+    );
+    let locations: Vec<Location> =
+        serde_json::from_value(answer).expect("a reference list is an array of locations");
+    locations
+        .iter()
+        .map(|found| (named(&found.uri), found.range.start.line))
+        .collect()
+}
+
+/// Asks `textDocument/documentHighlight` at [`CURSOR`] in `uri`.
+fn highlights(client: &Connection, id: i32, uri: &Uri) -> Vec<u32> {
+    let answer = ask(
+        client,
+        id,
+        "textDocument/documentHighlight",
+        serde_json::json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": CURSOR.0, "character": CURSOR.1 },
+        }),
+    );
+    let found: Vec<lsp_types::DocumentHighlight> =
+        serde_json::from_value(answer).expect("a highlight list is an array of highlights");
+    found.iter().map(|hit| hit.range.start.line).collect()
+}
+
+/// The file name a location names, which is what an assertion can be read in.
+fn named(uri: &Uri) -> String {
+    nvs_lsp::path_of(uri)
+        .expect("a location names a file")
+        .file_name()
+        .expect("a location names a file")
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// A reference list reaches a file the client never opened, and carries the
+/// declaration only when it was asked for.
+///
+/// The whole point of the index having a home in `serve`: `lib.nvs` is open in
+/// no editor tab, and its use of `$count` is still in the answer
+/// (`rule:ide/five-features-are-one-reference-index`).
+#[test]
+fn references_cross_a_file_the_client_never_opened() {
+    let dir = TempDir::new("cross");
+    let main = dir.uri("main.nvs");
+
+    served(|client| {
+        open(client, &main, MAIN);
+
+        assert_eq!(
+            references(client, 2, &main, false),
+            vec![("lib.nvs".to_owned(), 4), ("main.nvs".to_owned(), 4)],
+            "the use inside `Counter::bump` is in a file nobody opened"
+        );
+        assert_eq!(
+            references(client, 3, &main, true),
+            vec![
+                ("lib.nvs".to_owned(), 2),
+                ("lib.nvs".to_owned(), 4),
+                ("main.nvs".to_owned(), 4),
+            ],
+            "`includeDeclaration` adds the property's own declaration and \
+             nothing else"
+        );
+    });
+}
+
+/// An occurrence highlight is the reference query narrowed to the open file.
+#[test]
+fn a_highlight_is_the_reference_query_filtered_to_the_open_document() {
+    let dir = TempDir::new("highlight");
+    let main = dir.uri("main.nvs");
+
+    served(|client| {
+        open(client, &main, MAIN);
+
+        assert_eq!(
+            highlights(client, 2, &main),
+            vec![4],
+            "the use in `lib.nvs` belongs to a reference list and never to a \
+             highlight of this document"
+        );
+    });
+}
+
+/// An edit is in the next reference list, which is the refresh the server
+/// applies where it applies the edit.
+#[test]
+fn an_edit_is_in_the_next_reference_list() {
+    let dir = TempDir::new("edit");
+    let main = dir.uri("main.nvs");
+
+    served(|client| {
+        open(client, &main, MAIN);
+        assert_eq!(references(client, 2, &main, false).len(), 2);
+
+        change(client, &main, 2, MAIN_AGAIN);
+
+        assert_eq!(
+            references(client, 3, &main, false),
+            vec![
+                ("lib.nvs".to_owned(), 4),
+                ("main.nvs".to_owned(), 4),
+                ("main.nvs".to_owned(), 5),
+            ],
+            "the second use was typed after the index was built"
+        );
+        assert_eq!(highlights(client, 4, &main), vec![4, 5]);
+    });
+}

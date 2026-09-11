@@ -58,14 +58,31 @@ pub fn position_at(file: &SourceFile, offset: BytePos, encoding: PositionEncodin
 /// The range in `file` that `span` covers, as the wire carries one.
 ///
 /// A span is a byte range and a range is a pair of positions, so this is
-/// [`position_at`] twice — here rather than in each answer that needs one,
-/// because an answer converting its own spans is one more place the conversion
-/// can be wrong.
+/// [`range_of`] over the span's two ends — here rather than in each answer that
+/// needs one, because an answer converting its own spans is one more place the
+/// conversion can be wrong.
 #[must_use]
 pub fn range_at(file: &SourceFile, span: Span, encoding: PositionEncoding) -> Range {
+    range_of(file, span.start, span.end, encoding)
+}
+
+/// The range in `file` that the bytes `start..end` cover.
+///
+/// [`range_at`]'s sibling for an answer whose bytes never were a [`Span`].
+/// `crate::index::Site` keeps a path and two offsets rather than a span,
+/// because a `SourceId` means nothing outside the one analysis that issued it —
+/// so a reference in a file the current analysis never read arrives here as two
+/// offsets and the file loaded for them.
+#[must_use]
+pub fn range_of(
+    file: &SourceFile,
+    start: BytePos,
+    end: BytePos,
+    encoding: PositionEncoding,
+) -> Range {
     Range {
-        start: position_at(file, span.start, encoding),
-        end: position_at(file, span.end, encoding),
+        start: position_at(file, start, encoding),
+        end: position_at(file, end, encoding),
     }
 }
 

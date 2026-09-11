@@ -12,7 +12,12 @@
 //! `rule:ide/the-request-set-is-closed`'s list is implemented; the set that
 //! gets a refusal is everything outside that list, permanently.
 //!
-//! An arm answers out of the store it is handed and writes nothing back to it.
+//! An arm answers out of the two stores it is handed — the open documents and
+//! the one workspace symbol index — and writes nothing back to either. The
+//! index is [`serve`]'s because the store it is built from is, and it is
+//! refreshed where an edit is applied rather than where one is answered, which
+//! is what keeps every one of its five features a reader
+//! (`rule:ide/five-features-are-one-reference-index`).
 //! A request carries no version — the client is asking about whatever it last
 //! sent — so `rule:ide/the-server-is-synchronous`'s version check has nothing
 //! to compare against here, and the one thing that would be wrong is analysing
@@ -26,6 +31,7 @@
 //! rather than this module's, and what goes into one is
 //! [`crate::diagnostics::for_document`]'s.
 
+use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
 
@@ -35,19 +41,21 @@ use lsp_types::notification::{
     PublishDiagnostics,
 };
 use lsp_types::request::{
-    CodeActionRequest, Completion, DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest,
-    GotoDefinition, HoverRequest, Request as _, SelectionRangeRequest, SemanticTokensFullRequest,
+    CodeActionRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
+    DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, HoverRequest, References,
+    Request as _, SelectionRangeRequest, SemanticTokensFullRequest,
 };
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CompletionParams,
     CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentLink, DocumentLinkParams, DocumentSymbolParams,
-    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, GotoDefinitionParams,
-    GotoDefinitionResponse, HoverParams, InitializeParams, Location, PublishDiagnosticsParams,
-    Range, SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
-    SemanticTokensResult, TextDocumentIdentifier, TextEdit, Uri, WorkspaceEdit,
+    DidOpenTextDocumentParams, DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams,
+    DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
+    FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
+    InitializeParams, Location, PublishDiagnosticsParams, Range, ReferenceParams, SelectionRange,
+    SelectionRangeParams, SemanticTokens, SemanticTokensParams, SemanticTokensResult,
+    TextDocumentIdentifier, TextEdit, Uri, WorkspaceEdit,
 };
-use nvs_diagnostics::PositionEncoding;
+use nvs_diagnostics::{PositionEncoding, SourceId, SourceMap};
 
 use crate::actions;
 use crate::capabilities::initialize_result;
@@ -57,8 +65,9 @@ use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hover;
+use crate::index::{CheckScope, Site, SymbolIndex, symbol_at};
 use crate::links;
-use crate::position::{encoding_of, offset_at};
+use crate::position::{encoding_of, offset_at, range_of};
 use crate::redactions;
 use crate::selection;
 use crate::semantic;
@@ -128,6 +137,13 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // `rule:ide/the-server-is-synchronous`: one place holds what the client has
     // open, and it is the place that reads the channel.
     let mut documents = Documents::new();
+    // The one index `rule:ide/five-features-are-one-reference-index` names,
+    // held here because this is what owns the store it is built from. Empty at
+    // this point — nothing is open yet — and filled by the refresh below as
+    // documents arrive. `nvs.check.scope` and the workspace root a `Workspace`
+    // pass walks belong to the reader that needs them, which is unused-member
+    // dimming and not this.
+    let mut index = SymbolIndex::build(&documents, CheckScope::default(), None);
 
     for message in &connection.receiver {
         match message {
@@ -138,11 +154,22 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                 if connection.handle_shutdown(&request)? {
                     return Ok(());
                 }
-                let answered = answer(&documents, encoding, request);
+                let answered = answer(&documents, &index, encoding, request);
                 connection.sender.send(answered.into())?;
             }
             Message::Notification(notification) => {
                 if let Some(changed) = apply(&mut documents, notification) {
+                    // Refreshed for every edit and not just for the documents
+                    // `publish` re-analyses: a file nobody has open is still a
+                    // file a reference list has to be right about, which is
+                    // where the index stops being the document server
+                    // `rule:ide/an-open-document-is-its-own-entry-point`
+                    // describes. Before the publish because that one takes the
+                    // store mutably, and on this thread nothing reads the index
+                    // in between.
+                    if let Some(path) = &changed.path {
+                        index.refresh(&documents, path);
+                    }
                     publish(connection, &mut documents, encoding, &changed)?;
                 }
             }
@@ -168,7 +195,12 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
 /// two share what does the work rather than the dispatch: a case names its
 /// request in a `--REQUEST--` line and never a method string, and it holds no
 /// `RequestId` to answer with.
-fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -> Response {
+fn answer(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    request: Request,
+) -> Response {
     let Request { id, method, params } = request;
 
     match method.as_str() {
@@ -226,6 +258,18 @@ fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -
             Ok(params) => Response::new_ok(id, code_actions(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
+        References::METHOD => match serde_json::from_value::<ReferenceParams>(params) {
+            Ok(params) => Response::new_ok(id, references(documents, index, encoding, &params)),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        DocumentHighlightRequest::METHOD => {
+            match serde_json::from_value::<DocumentHighlightParams>(params) {
+                Ok(params) => {
+                    Response::new_ok(id, document_highlight(documents, index, encoding, &params))
+                }
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
         redactions::METHOD => match serde_json::from_value::<TextDocumentIdentifier>(params) {
             Ok(document) => {
                 Response::new_ok(id, redaction_ranges(documents, encoding, &document.uri))
@@ -341,6 +385,121 @@ fn definition(
         uri: uri_of(&declared.path)?,
         range: declared.range,
     }))
+}
+
+/// `textDocument/references` — every use of the name under the cursor, anywhere
+/// the index reaches.
+///
+/// `null` for a document this server has nothing open for and for a cursor on
+/// no name it can follow, on [`definition`]'s terms. An **empty list** is a
+/// different answer and a real one: a name the index holds that nothing uses is
+/// exactly what unused-member dimming is about, so it must not read as "ask me
+/// again somewhere else".
+///
+/// `context.include_declaration` is honoured out of
+/// [`SymbolIndex::declaration`] rather than by widening the occurrence query:
+/// the two sides of the index are separate, and a client that did not ask for
+/// the declaration would otherwise be sent it.
+fn references(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: &ReferenceParams,
+) -> Option<Vec<Location>> {
+    let position = params.text_document_position.position;
+    let analysed = analyse(documents, &params.text_document_position.text_document.uri)?;
+    let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
+    let symbol = symbol_at(&analysed, offset)?;
+
+    let mut sites: Vec<&Site> = Vec::new();
+    if params.context.include_declaration
+        && let Some(declared) = index.declaration(&symbol)
+    {
+        sites.push(&declared.site);
+    }
+    sites.extend(
+        index
+            .occurrences(&symbol)
+            .into_iter()
+            .map(|occurrence| &occurrence.site),
+    );
+    Some(locations(documents, &sites, encoding))
+}
+
+/// `textDocument/documentHighlight` — every use of the name under the cursor in
+/// the document it was written in.
+///
+/// **[`references`]' query, filtered to the open file**, and that is the whole
+/// of why this waited for the index rather than shipping with the rest of the
+/// cursor answers: it needs resolution applied to *every* occurrence rather
+/// than to the one under the cursor (ADR 0099 § 3). A walk of its own here is
+/// what `rule:ide/five-features-are-one-reference-index` refuses.
+///
+/// Every hit is `Text`, never `Read` or `Write`. Which of those an access is is
+/// a fact about the access, and the index records where a name was used rather
+/// than what was done to it — a kind this server cannot compute is better left
+/// as the one LSP defaults to than guessed at.
+fn document_highlight(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: &DocumentHighlightParams,
+) -> Option<Vec<DocumentHighlight>> {
+    let position = params.text_document_position_params.position;
+    let uri = &params.text_document_position_params.text_document.uri;
+    let analysed = analyse(documents, uri)?;
+    // The entry document's own file, because the answer cannot leave it: no
+    // second file is loaded here where [`locations`] has to load one per hit.
+    let file = analysed.map.file(analysed.entry);
+    let offset = offset_at(file, position, encoding);
+    let symbol = symbol_at(&analysed, offset)?;
+    let here = path_of(uri)?;
+
+    Some(
+        index
+            .occurrences_in(&here)
+            .iter()
+            .filter(|occurrence| occurrence.symbol == symbol)
+            .map(|occurrence| DocumentHighlight {
+                range: range_of(file, occurrence.site.start, occurrence.site.end, encoding),
+                kind: Some(DocumentHighlightKind::TEXT),
+            })
+            .collect(),
+    )
+}
+
+/// Every site as a [`Location`], each file's positions counted in its own text.
+///
+/// One [`SourceMap`] for the whole answer with the open buffers overlaid on it,
+/// and each file loaded once however many sites are in it: a site is a path and
+/// two byte offsets rather than a span, so turning one into a range means
+/// having read the file it is in, and a reference list is usually several sites
+/// per file.
+///
+/// A file this process cannot load, or cannot spell as a URI, drops its own
+/// sites and nothing else. The rest of the list is still every reference the
+/// developer asked about, which beats refusing the answer over one file that
+/// has been deleted since it was indexed.
+fn locations(documents: &Documents, sites: &[&Site], encoding: PositionEncoding) -> Vec<Location> {
+    let mut map = SourceMap::new();
+    documents.overlay(&mut map);
+    let mut loaded: HashMap<PathBuf, Option<SourceId>> = HashMap::new();
+    for site in sites {
+        if !loaded.contains_key(&site.path) {
+            loaded.insert(site.path.clone(), map.load(&site.path).ok());
+        }
+    }
+
+    sites
+        .iter()
+        .filter_map(|site| {
+            let id = (*loaded.get(&site.path)?)?;
+            Some(Location {
+                uri: uri_of(&site.path)?,
+                range: range_of(map.file(id), site.start, site.end, encoding),
+            })
+        })
+        .collect()
 }
 
 /// `textDocument/completion` — what may be written at the cursor.

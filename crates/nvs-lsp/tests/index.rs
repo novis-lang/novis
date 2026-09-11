@@ -16,6 +16,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use lsp_types::PositionEncodingKind;
 use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, uri_of};
 
 /// A scratch directory that cleans up after itself.
@@ -145,26 +146,63 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
          once inside it: {built:?}"
     );
 
+    // `build` is called once, by the module that owns the store it reads.
+    // `serve` is that module: one server holding one index is what makes every
+    // reader's `&SymbolIndex` come from the same place, and a second caller
+    // would be a second index with staleness of its own.
     let entry_points = code_hits("SymbolIndex::build");
     assert!(
-        entry_points.is_empty() || entry_points == vec![("index.rs".to_owned(), 1)],
-        "the index is built from inside the crate somewhere other than its own \
-         module: {entry_points:?}"
+        entry_points == vec![("server.rs".to_owned(), 1)] || entry_points.is_empty(),
+        "the index is built from somewhere other than the one place that owns \
+         it: {entry_points:?}"
     );
 
     // Every other module reads a `&SymbolIndex`. A module holding one by value
     // is a module that built it. `lib.rs` is the crate's export list rather
-    // than a reader, and naming the type there is what makes it public at all.
+    // than a reader, and naming the type there is what makes it public at all;
+    // `server.rs` is the owner above.
     for (file, _) in code_hits("SymbolIndex") {
-        if file == "lib.rs" {
-            continue;
-        }
-        assert_eq!(
-            file, "index.rs",
+        assert!(
+            matches!(file.as_str(), "index.rs" | "lib.rs" | "server.rs"),
             "{file} names SymbolIndex; a reader takes one by reference and the \
              one construction site is index.rs"
         );
     }
+}
+
+/// Call hierarchy is not answered, and nothing here is keeping the edges that
+/// would answer it.
+///
+/// `rule:ide/five-features-are-one-reference-index` names five readers and
+/// excludes this one with a reason rather than by omission:
+/// `textDocument/callHierarchy` wants call-site edges kept incrementally, which
+/// is a different index from the one this crate builds, and nothing else needs
+/// them. The exclusion is therefore two facts, and this holds both — the
+/// capability is not declared, so a conforming client never asks, and nothing
+/// in the crate names the request, so a client that asks anyway reaches
+/// `answer`'s refusal arm like any other method outside the list.
+#[test]
+fn call_hierarchy_is_not_answered() {
+    let declared = serde_json::to_value(nvs_lsp::server_capabilities(PositionEncodingKind::UTF8))
+        .expect("the capabilities serialize");
+    assert!(
+        declared.get("callHierarchyProvider").is_none(),
+        "`callHierarchyProvider` is declared, so a client will ask: {declared}"
+    );
+
+    // Both spellings, because either one appearing is something answering or
+    // preparing to: `callHierarchy` is the method string's and `CallHierarchy`
+    // is `lsp_types`'. The needle is not `Hierarchy` — `typeHierarchy` is a
+    // reader the same rule does name.
+    let named: Vec<(String, usize)> = ["callHierarchy", "CallHierarchy"]
+        .into_iter()
+        .flat_map(code_hits)
+        .collect();
+    assert!(
+        named.is_empty(),
+        "the crate names call hierarchy, which is a second index this rule \
+         refuses to build: {named:?}"
+    );
 }
 
 /// The declaration side and the occurrence side, from one walk.

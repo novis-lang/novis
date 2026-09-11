@@ -97,15 +97,17 @@ fn client_offering(encodings: &[PositionEncodingKind]) -> ClientCapabilities {
 // covers: tools:editor/nvs-lsp
 #[test]
 fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
-    // `rule:ide/the-request-set-is-closed`, read back off the wire rather than
-    // off the source: what a client acts on is the JSON, and a field that
-    // serializes under a different name than the one the specification gives is
-    // a capability nothing ever uses.
+    // `rule:ide/the-request-set-is-closed` and
+    // `rule:ide/five-features-are-one-reference-index`, read back off the wire
+    // rather than off the source: what a client acts on is the JSON, and a
+    // field that serializes under a different name than the one the
+    // specification gives is a capability nothing ever uses.
     //
-    // The absences are the load-bearing half. `documentHighlight`, `references`,
-    // `rename`, `workspaceSymbol` and inlay hints all need the workspace index
-    // M10 builds, and each looks one line away from being free — ADR 0099 § 3
-    // is where the test a tenth request has to pass is written down, and this
+    // The absences are the load-bearing half. `rename`, `workspaceSymbol` and
+    // inlay hints each look one line away from being free and are not: the
+    // first two need an edit and a query the symbol index does not hold, and
+    // the third is its own settings question. ADR 0099 § 3 is where the test a
+    // request outside M4B's nine has to pass is written down, and this
     // assertion is what makes failing it visible.
     let declared = serde_json::to_value(nvs_lsp::server_capabilities(PositionEncodingKind::UTF8))
         .expect("the capabilities serialize");
@@ -129,6 +131,12 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         "documentLinkProvider",
         "semanticTokensProvider",
         "codeActionProvider",
+        // The two readers of the one workspace symbol index that answer a
+        // cursor. They are here rather than in M4B's nine because they are
+        // `rule:ide/five-features-are-one-reference-index`'s, and the index
+        // they read is what they were waiting for.
+        "referencesProvider",
+        "documentHighlightProvider",
         // Not a request. It is the answer to "in what units are the positions
         // in every one of the above", and LSP 3.17 puts it here.
         "positionEncoding",
