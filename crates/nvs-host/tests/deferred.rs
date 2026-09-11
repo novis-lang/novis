@@ -146,3 +146,71 @@ fn an_after_response_tree_outlives_its_connection() {
          connection had gone"
     );
 }
+
+/// What the completion path handed the seam, and the code beside it.
+///
+/// A static rather than a capture because the seam is a bare `fn` that captures
+/// nothing — `Ctx::set_exit_drain` owns why it is one word and not a closure —
+/// so a static is the only way a test reads what it was handed.
+static DRAINED: Mutex<Vec<(Result<(), i32>, i64)>> = Mutex::new(Vec::new());
+
+/// `nvs_stdlib::script::run_exit_hooks`'s stand-in: this crate may not depend on
+/// `nvs-stdlib`, and the half guarded here is that the isolate's completion path
+/// *reaches* the seam with a faithful ending. Turning that ending into a
+/// `Core\Script\ExitReport` is the other half, and it is guarded by
+/// `rule:observability/three-endings-fire-the-exit-queue`'s own cases.
+fn records_the_ending(
+    ctx: &mut Ctx,
+    outcome: Result<(), i32>,
+    _thrown: Option<&nvs_runtime::Thrown>,
+) {
+    DRAINED
+        .lock()
+        .expect("no test panics holding this")
+        .push((outcome, ctx.exit_code()));
+}
+
+/// `rule:observability/three-endings-fire-the-exit-queue` on the served path: an
+/// isolate that ended at an `exit` drains its queue, with the `exit`'s own
+/// ending and the status it named.
+///
+/// The ending is the whole assertion. An `exit` leaves no pending message, and
+/// `Ctx::exit_code` reads `0` both for `exit(0)` and for a script that never
+/// called `exit` — so a classifier reading only the context cannot tell one
+/// from a normal end, and before the status was recorded there nothing on this
+/// path reached the queue at all: the registrations were released unrun at
+/// teardown.
+#[test]
+fn an_exited_isolate_drains_its_exit_queue_as_an_exit() {
+    let mut sched = Scheduler::new();
+    sched.spawn(
+        Ctx::new(OutputSink::Sink),
+        TaskRoot::Request,
+        |connection: &mut Ctx| {
+            let program: Program = Box::new(|request: &mut Ctx, _args| {
+                // The two halves the seam is made of, as the production pair
+                // does them: `Core\Script::onExit` fills the pointer on its
+                // first registration, and `nvs-cli`'s `program_over` records
+                // the status its frame came back with.
+                request.set_exit_drain(records_the_ending);
+                request.set_exit_code(3);
+                request.set_ending(nvs_runtime::EXITED);
+                Value::null()
+            });
+            let running = Isolate::new(program, Value::null(), Output::Capture)
+                .start(connection)
+                .expect("the isolate was refused before it started");
+            let completion = running.join(connection);
+            assert!(completion.ok, "an `exit` is not a failure");
+        },
+    );
+    sched.run();
+
+    let drained = DRAINED.lock().expect("no test panics holding this").clone();
+    assert_eq!(
+        drained,
+        [(Err(nvs_runtime::EXITED), 3)],
+        "the served path either never reached the exit queue, or reached it \
+         with an ending that is not the `exit`"
+    );
+}
