@@ -129,6 +129,7 @@ Conventions the whole file uses:
 | [`Core\Socket\Message`](#core-core-socket-message) |  |
 | [`Core\Topic`](#core-core-topic) |  |
 | [`Core\Sse`](#core-core-sse) |  |
+| [`Core\Sse\Message`](#core-core-sse-message) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Taint`](#core-core-taint) | the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason |
@@ -17909,6 +17910,38 @@ Tells the client how long to wait before it reconnects, as a block of its own th
 **Returns** `void` — Nothing, once the block is handed to the body being written.
 
 **Throws** `LogicError` — A negative `$after`: a client waits this long before coming back, and there is no wait shorter than none.
+
+<a id="core-core-sse-message"></a>
+### `Core\Sse\Message`
+
+Keywords: topic, value
+
+| Member | Signature |
+|---|---|
+| [`Core\Sse\Message->topic`](#core-core-sse-message-topic) | `topic(): string` |
+| [`Core\Sse\Message->value`](#core-core-sse-message-value) | `value(): mixed` |
+
+<a id="core-core-sse-message-topic"></a>
+#### `Core\Sse\Message->topic`
+
+```nvs skip
+$message->topic(): string
+```
+
+The topic this value was published to, which is one of the names this stream subscribed under.
+
+**Returns** `string` — The topic's name. Never `null`: an event stream is handed no peer, so every message it receives is a delivery. It is the name this program subscribed under and not anything a client chose, so it is not `tainted`.
+
+<a id="core-core-sse-message-value"></a>
+#### `Core\Sse\Message->value`
+
+```nvs skip
+$message->value(): mixed
+```
+
+What a publisher put on the topic, copied across the isolate boundary the way every other value crosses one.
+
+**Returns** `mixed` — The published value, with whatever qualifiers it already carried. It is a copy and never a shared reference, so writing to it changes nothing the publisher can see.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
