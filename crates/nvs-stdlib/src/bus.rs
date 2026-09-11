@@ -58,6 +58,27 @@
 //! whole core's, so what it declines is an envelope rather than a subscriber,
 //! and nobody is closed for it.
 //!
+//! # Decision: the bus's bytes are the process's, and each end brackets its own
+//!
+//! An envelope is allocated on the publishing core and freed on the receiving
+//! one, so neither request may be measured by it:
+//! `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`. Every
+//! path that allocates or frees what the registry holds — a core's
+//! [`Registration`], the topic counts [`note_subscribers`] writes, the envelope
+//! [`hand_off`] queues and the [`Drained`] one a delivery gives back — runs
+//! inside [`nvs_runtime::budget::Detached`], so those bytes move the process's
+//! balance and leave every request's reading, and every ceiling armed against
+//! one, where they found it.
+//!
+//! The two ends are two brackets rather than one because they are on two
+//! threads, and the detached balance is per thread and **signed**: the
+//! publisher's rises with the envelope and the receiver's falls with it, which
+//! is the ordinary shape of a store one core fills and another empties rather
+//! than an imbalance. What the pair owes is that a block is allocated and freed
+//! on the same side of the boundary, which is why [`hand_off`] copies the bytes
+//! it is handed instead of keeping the caller's `Vec` — the request frees its
+//! own buffer outside the bracket, and the store frees the carrier inside one.
+//!
 //! # What it spends
 //!
 //! One [`Mailbox`] per live core — two locks and two empty collections — and,
@@ -71,6 +92,8 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+
+use nvs_runtime::budget;
 
 /// How many envelopes one core's mailbox holds before the next is refused.
 ///
@@ -131,7 +154,13 @@ struct Registration(Arc<Mailbox>);
 
 impl Registration {
     /// Puts a fresh mailbox in the registry and keeps the handle.
+    ///
+    /// Bracketed because the mailbox and the registry slot naming it outlive
+    /// the request whose first touch of the bus made them, and the request that
+    /// happens to be running when the thread ends is not the one to be credited
+    /// for them either.
     fn open() -> Self {
+        let _bracket = budget::Detached::begin();
         let mine = Arc::new(Mailbox::default());
         cores_mut().push(Arc::clone(&mine));
         Self(mine)
@@ -140,6 +169,7 @@ impl Registration {
 
 impl Drop for Registration {
     fn drop(&mut self) {
+        let _bracket = budget::Detached::begin();
         cores_mut().retain(|core| !Arc::ptr_eq(core, &self.0));
     }
 }
@@ -199,6 +229,9 @@ fn count_in(mailbox: &Mailbox, topic: &str) -> u64 {
 /// module's own decision.
 pub(crate) fn note_subscribers(topic: &str, live: usize) {
     with_mine(|mine| {
+        // The row's name is put there by one subscriber and dropped by
+        // whichever one leaves last, so both ends of it are the process's.
+        let _bracket = budget::Detached::begin();
         let mut topics = mine.topics.write().unwrap_or_else(PoisonError::into_inner);
         if live == 0 {
             topics.remove(topic);
@@ -233,27 +266,59 @@ pub(crate) fn subscribers_elsewhere(topic: &str) -> u64 {
 /// mailbox is full takes none of it and contributes none of it, which is the
 /// module doc's refusal.
 pub(crate) fn hand_off(topic: &str, payload: Vec<u8>) -> u64 {
-    let payload: Arc<[u8]> = Arc::from(payload);
-    with_mine(|mine| {
-        let mut queued = 0;
-        for core in cores().iter().filter(|core| !Arc::ptr_eq(core, mine)) {
-            let listening = count_in(core, topic);
-            if listening == 0 {
-                continue;
+    let queued = {
+        // Everything the queue comes to hold is allocated here, and the carrier
+        // is a *copy* of what the caller handed over rather than that `Vec`
+        // taken by the ownership it came with: the request allocated the `Vec`
+        // on its own balance and has to free it on the same one, which it does
+        // below, outside this block.
+        let _bracket = budget::Detached::begin();
+        let carrier: Arc<[u8]> = Arc::from(&payload[..]);
+        with_mine(|mine| {
+            let mut queued = 0;
+            for core in cores().iter().filter(|core| !Arc::ptr_eq(core, mine)) {
+                let listening = count_in(core, topic);
+                if listening == 0 {
+                    continue;
+                }
+                let mut waiting = queue(core);
+                if waiting.len() >= MAILBOX_CAP {
+                    continue;
+                }
+                waiting.push_back(Envelope {
+                    topic: Box::from(topic),
+                    payload: Arc::clone(&carrier),
+                });
+                queued += listening;
             }
-            let mut waiting = queue(core);
-            if waiting.len() >= MAILBOX_CAP {
-                continue;
-            }
-            waiting.push_back(Envelope {
-                topic: Box::from(topic),
-                payload: Arc::clone(&payload),
-            });
-            queued += listening;
-        }
-        queued
-    })
-    .unwrap_or(0)
+            queued
+        })
+    };
+    queued.unwrap_or(0)
+}
+
+/// What one drain took, and the balance it hands the envelopes back to.
+///
+/// They were allocated on the publishing core inside [`hand_off`]'s bracket, so
+/// they are freed inside one here — a [`Drop`] rather than a call at the end of
+/// the fan-out, so that a panic partway through it gives them back to the same
+/// balance a return does. The fan-out itself reads them from *outside* the
+/// bracket, because the values it decodes are the receiving request's own.
+#[derive(Debug)]
+pub(crate) struct Drained(Vec<Envelope>);
+
+impl Drained {
+    /// What the drain took, in arrival order.
+    pub(crate) fn envelopes(&self) -> &[Envelope] {
+        &self.0
+    }
+}
+
+impl Drop for Drained {
+    fn drop(&mut self) {
+        let _bracket = budget::Detached::begin();
+        drop(std::mem::take(&mut self.0));
+    }
 }
 
 /// Everything other cores have handed this one since the last drain.
@@ -262,13 +327,17 @@ pub(crate) fn hand_off(topic: &str, payload: Vec<u8>) -> u64 {
 /// own stack at a point where it is about to wait anyway, and leaving an
 /// envelope behind would make a delivery's latency depend on how many other
 /// connections happen to call `receive()`.
-pub(crate) fn take_all() -> Vec<Envelope> {
-    with_mine(|mine| queue(mine).drain(..).collect()).unwrap_or_default()
+///
+/// Answered inside a [`Drained`] rather than as a bare `Vec` so that the store
+/// frees what the store allocated, which is the module doc's second bracket.
+pub(crate) fn take_all() -> Drained {
+    let _bracket = budget::Detached::begin();
+    Drained(with_mine(|mine| queue(mine).drain(..).collect()).unwrap_or_default())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{MAILBOX_CAP, hand_off, note_subscribers, subscribers_elsewhere, take_all};
+    use super::{MAILBOX_CAP, budget, hand_off, note_subscribers, subscribers_elsewhere, take_all};
 
     /// A core does not hand an envelope to itself: the publisher's own
     /// subscribers are `crate::topic`'s local walk, and counting them twice is
@@ -278,7 +347,7 @@ mod tests {
         note_subscribers("bus:self", 3);
         assert_eq!(subscribers_elsewhere("bus:self"), 0);
         assert_eq!(hand_off("bus:self", vec![1, 2, 3]), 0);
-        assert!(take_all().is_empty());
+        assert!(take_all().envelopes().is_empty());
         note_subscribers("bus:self", 0);
     }
 
@@ -293,7 +362,7 @@ mod tests {
             note_subscribers("bus:flooded", 1);
             ready.send(()).expect("the publisher is waiting");
             stop.recv().expect("the publisher says when");
-            let taken = take_all().len();
+            let taken = take_all().envelopes().len();
             note_subscribers("bus:flooded", 0);
             taken
         });
@@ -313,6 +382,68 @@ mod tests {
             neighbour.join().expect("the neighbour finished"),
             MAILBOX_CAP,
             "and the queue held exactly the cap"
+        );
+    }
+
+    /// An envelope is the process's bytes at both ends, and neither the request
+    /// that published it nor the one that drains it is measured by them.
+    ///
+    /// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` asked
+    /// of a store whose two ends are on two cores. The publishing core's
+    /// detached balance rises with the envelope while the balance its ceiling is
+    /// armed against only *falls* — by the caller's own copy, which the store
+    /// does not keep — and the receiving core's detached balance falls by that
+    /// same envelope while its request's reading does not move at all. A bracket
+    /// on one end alone leaves one of those two halves failing.
+    #[test]
+    fn a_publish_is_charged_to_the_process_at_both_ends_and_to_neither_request() {
+        /// The payload one envelope has to show through the noise.
+        const ENTRY: usize = 256 * 1024;
+
+        let (ready, listening) = std::sync::mpsc::channel();
+        let (done, stop) = std::sync::mpsc::channel::<()>();
+        let neighbour = std::thread::spawn(move || {
+            note_subscribers("bus:charged", 1);
+            ready.send(()).expect("the publisher is waiting");
+            stop.recv().expect("the publisher says when");
+
+            let held = budget::detached_bytes();
+            let live = budget::live_bytes();
+            let taken = take_all().envelopes().len();
+            let given_back = held - budget::detached_bytes();
+            let moved = budget::live_bytes() - live;
+
+            note_subscribers("bus:charged", 0);
+            (taken, given_back, moved)
+        });
+
+        listening.recv().expect("the neighbour has joined");
+        let payload = vec![b'e'; ENTRY];
+        let held = budget::detached_bytes();
+        let live = budget::live_bytes();
+        assert_eq!(hand_off("bus:charged", payload), 1);
+
+        assert!(
+            budget::detached_bytes() - held >= ENTRY.cast_signed(),
+            "the envelope reached no balance at all, so nothing holds its bytes to the process"
+        );
+        assert!(
+            budget::live_bytes() <= live - ENTRY.cast_signed(),
+            "the publishing request was charged for the store's carrier, or credited nothing \
+             for the buffer it handed over"
+        );
+
+        done.send(()).expect("the neighbour is waiting");
+        let (taken, given_back, moved) = neighbour.join().expect("the neighbour finished");
+        assert_eq!(taken, 1, "the envelope reached the other core");
+        assert!(
+            given_back >= ENTRY.cast_signed(),
+            "the receiving core gave the envelope back to its own balance instead of the \
+             process's, so a request that drains one is credited for bytes it never held"
+        );
+        assert_eq!(
+            moved, 0,
+            "the drain moved the balance the receiving request's ceiling is armed against"
         );
     }
 }

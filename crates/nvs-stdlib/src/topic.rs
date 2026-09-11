@@ -51,6 +51,30 @@
 //! entry only until the next walk of that name, and an empty one is removed
 //! rather than left behind.
 //!
+//! # Decision: the table's own bytes are the process's, and the inbox behind a `Weak` is not
+//!
+//! A row outlives the request that made it — one connection subscribes, and
+//! whichever connection next walks that name is the one that prunes it — so the
+//! name and the row it keys are the process's bytes and neither request's:
+//! `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`. Without
+//! that, a connection subscribing to ten thousand long names is charged for a
+//! table it does not own, and the later one that prunes them is credited for
+//! memory it never held and runs that much further past its ceiling. Every path
+//! that allocates or frees what the table itself holds — the [`Box<str>`](Box)
+//! an insert makes, the row it grows, and the removal of a row already emptied
+//! — therefore runs inside [`nvs_runtime::budget::Detached`].
+//!
+//! **The prune is deliberately outside it.** Dropping the last [`Weak`] onto a
+//! dead connection's [`Inbox`] frees the allocation behind it, which the
+//! *subscribing* request made on its own balance; handing that back to the
+//! process's would turn a bounded credit into an unbounded one, which is the
+//! case that rule leaves unbracketed. So the two are split where they meet: a
+//! `retain` runs outside the bracket, and the `remove` that may follow it runs
+//! inside one, by which point the row holds no [`Weak`] left to free. What
+//! stays unattributed is that header — two words and a refcount pair per dead
+//! subscription, O(live connections) — and charging its release to the request
+//! that allocated it needs the per-request provenance M6's arena is what gives.
+//!
 //! # Decision: a publisher needs no connection, and is not excluded from its own topic
 //!
 //! `subscribe` and `unsubscribe` refuse a program that is not a connection,
@@ -161,7 +185,7 @@
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use nvs_runtime::{Ctx, Delivery, Fault, Inbox, ThrownClass, Value, copy_graph};
+use nvs_runtime::{Ctx, Delivery, Fault, Inbox, ThrownClass, Value, budget, copy_graph};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 use crate::socket::{release_crossed, retained};
@@ -380,14 +404,19 @@ fn connection_inbox(ctx: &mut Ctx, member: &str) -> Result<Rc<Inbox>, Fault> {
 fn join(topic: &str, inbox: &Rc<Inbox>) {
     let live = SUBSCRIBERS.with_borrow_mut(|table| {
         let Some(row) = table.get_mut(topic) else {
+            let _bracket = budget::Detached::begin();
             table.insert(Box::from(topic), vec![Rc::downgrade(inbox)]);
             return 1;
         };
+        // Outside the bracket on purpose: what this drops is the last handle
+        // onto a dead connection's inbox, and that allocation is its own
+        // request's. The module doc's accounting decision owns the split.
         row.retain(|held| held.strong_count() > 0);
         if !row
             .iter()
             .any(|held| held.upgrade().is_some_and(|live| Rc::ptr_eq(&live, inbox)))
         {
+            let _bracket = budget::Detached::begin();
             row.push(Rc::downgrade(inbox));
         }
         row.len()
@@ -408,6 +437,10 @@ fn leave(topic: &str, inbox: &Rc<Inbox>) {
         row.retain(|held| held.upgrade().is_some_and(|live| !Rc::ptr_eq(&live, inbox)));
         let live = row.len();
         if row.is_empty() {
+            // The row holds nothing by now, so what the removal frees is the
+            // name and the row itself — the table's own bytes, given back to
+            // the balance they were taken from.
+            let _bracket = budget::Detached::begin();
             table.remove(topic);
         }
         live
@@ -429,6 +462,12 @@ fn subscribers_of(topic: &str) -> Vec<Rc<Inbox>> {
         };
         let live: Vec<Rc<Inbox>> = row.iter().filter_map(Weak::upgrade).collect();
         if live.is_empty() {
+            // Emptied first and removed second, so that the dead handles go
+            // back to the requests that made them and only the name and the
+            // row reach the bracket. The two steps are one `remove` without
+            // that split.
+            row.clear();
+            let _bracket = budget::Detached::begin();
             table.remove(topic);
         } else {
             row.retain(|held| held.strong_count() > 0);
@@ -499,7 +538,11 @@ fn externalize(value: Value) -> Result<Vec<u8>, Fault> {
 /// did not publish it and has no answer to give, and the resolver is the
 /// draining program's own class table (`nvs_runtime::graph`'s known gap 2).
 pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
-    for envelope in crate::bus::take_all() {
+    // The drain is held for the whole fan-out and freed by the bus, on the
+    // balance the publishing core allocated it on — `crate::bus`'s accounting
+    // decision, which is why this is not a `for` over an owned `Vec`.
+    let drained = crate::bus::take_all();
+    for envelope in drained.envelopes() {
         let subscribers = subscribers_of(envelope.topic());
         let resolve = |name: &str| ctx.class_desc(name);
         for inbox in &subscribers {
@@ -609,7 +652,7 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{
-        Closing, Ctx, INBOX_CAP, NvsFn, NvsStr, PeerError, PeerFrame, PeerSocket, Value,
+        Closing, Ctx, INBOX_CAP, NvsFn, NvsStr, PeerError, PeerFrame, PeerSocket, Value, budget,
     };
 
     use super::{
@@ -677,6 +720,46 @@ mod tests {
             name.release();
         }
         answered
+    }
+
+    /// The table's bytes are the process's at both ends, and no connection is
+    /// measured by a row it did not allocate and did not free.
+    ///
+    /// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` asked
+    /// of this module's half of the bus. The name is long enough that a charge
+    /// for it cannot hide in the noise of a call: the process's balance takes it
+    /// and the connection's does not, and the unsubscribe gives it back to the
+    /// same balance rather than crediting whichever connection happened to be
+    /// the last one out. The module doc's accounting decision is why the prune
+    /// beside it is deliberately outside the bracket.
+    #[test]
+    fn a_subscription_is_charged_to_the_process_and_not_to_the_connection() {
+        /// A name long enough to show through what a call allocates around it.
+        const NAME: usize = 256 * 1024;
+
+        let name = format!("room:{}", "n".repeat(NAME));
+        let mut joining = connected();
+        let live = budget::live_bytes();
+        let held = budget::detached_bytes();
+        call(nvs_core_topic_subscribe, &mut joining, &name).expect("it joins");
+
+        assert!(
+            budget::detached_bytes() - held >= NAME.cast_signed(),
+            "the row's name reached no balance at all, so nothing holds it to the process"
+        );
+        assert!(
+            budget::live_bytes() - live < NAME.cast_signed(),
+            "the connection was charged for a table row that outlives it"
+        );
+
+        let stored = budget::detached_bytes();
+        call(nvs_core_topic_unsubscribe, &mut joining, &name).expect("and leaves");
+        assert!(
+            budget::detached_bytes() <= stored - NAME.cast_signed(),
+            "the row was freed on some balance other than the one it was allocated on, so a \
+             connection that prunes a name is credited for bytes it never held"
+        );
+        assert_eq!(subscriber_count(&name), 0, "and the row is gone");
     }
 
     /// One `publish` call, with the name and a text payload as arguments, and
