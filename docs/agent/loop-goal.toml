@@ -130,6 +130,13 @@ modules = [
   # Where a gate is wired, and the argument for why the generated-file step precedes the compile
   # steps rather than following them.
   "tools/verify.py",
+  # `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s portable
+  # single-file executable: `nvs build --compile` on the way out, and the footer check every `nvs`
+  # process makes on the way in.
+  "crates/nvs-cli/src/bundle.rs",
+  # `nvs serve`: one worker per core, every socket `[server] listen` names, and every request
+  # running one entry file as `rule:security/isolate-shares-nothing`'s isolate.
+  "crates/nvs-cli/src/serve.rs",
 ]
 
 # The rules every stage of this goal works inside.
