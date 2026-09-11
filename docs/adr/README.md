@@ -8,7 +8,7 @@ from the rulebook by `python tools/rules.py --render`. A record is where you go 
 never to learn one; `python tools/brief.py --where <keyword>` routes a topic to the rule that owns it.
 
 **Where they live.** `docs/decisions/NNNN.md`, one file per decision, frozen on acceptance. Each opens
-with a YAML block — `date`, `status` (`accepted` or `retired`) and `changes`, the rules the decision
+with a YAML block — `status` (`accepted` or `retired`) and `changes`, the rules the decision
 created and the ones it modified, derived from every rule's `because` — then the title, `Scope`,
 `Depends on` and `Validated by` where the decision has them, the **In short** paragraph, and the full
 reasoning under `## Context` / `## Decision` / `## Consequences` / `## Alternatives rejected` /
@@ -25,9 +25,9 @@ reports a citation into a section that does not exist.
 [`benches/abi-probe`](../../benches/abi-probe/). The tests are authoritative; a number written anywhere
 else is a copy that can go stale.
 
-Numbering starts at 0002 and has gaps where a record was folded into another before the freeze —
-**0032** → [0029](../decisions/0029.md) § 1. The project-start decisions below are what 0001 would have
-been. [tooling-parity.md](tooling-parity.md) — the PHP tool ecosystem, tool by tool, and where each job
+Numbering starts at 0002 and has gaps: **0032** was folded into [0029](../decisions/0029.md) § 1
+before the freeze, and **0140** and **0141** were never claimed. The project-start decisions below
+are what 0001 would have been. [tooling-parity.md](tooling-parity.md) — the PHP tool ecosystem, tool by tool, and where each job
 landed — still lives beside this file.
 
 ## Decisions taken at project start
