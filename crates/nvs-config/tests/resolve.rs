@@ -215,6 +215,35 @@ fn the_shipped_defaults_resolve_to_the_default_tree() {
     assert!(resolved.overrides.is_empty());
 }
 
+/// § 1 step 3 from the other side: the file this project ships is the shipped defaults written out,
+/// so a directory that took it resolves to what that directory resolved to while it was empty. That
+/// equality is the whole licence for a command to write the file without being asked, and it holds
+/// only while every key in it is commented out — one live key moves this assertion and nothing else
+/// in the tree would notice.
+///
+/// `files` is where the two part company, and deliberately: a tree that read a file names it, which
+/// is what `nvs config dump` reports and what the boot line announces.
+#[test]
+fn the_default_file_resolves_to_the_same_snapshot_as_no_file_at_all() {
+    let fs = Fake::with(&[("app/nvs.toml", nvs_config::default_file())]);
+    let took_the_file = tree_of(&fs, "app/nvs.toml");
+
+    let mut sources = SourceMap::new();
+    let took_nothing = resolve(&Roots::Defaults, &mut sources, &Fake::default())
+        .expect("the shipped defaults are a configuration");
+
+    assert_eq!(
+        took_the_file.config, took_nothing.config,
+        "the written file says exactly what no file says",
+    );
+    assert_eq!(took_the_file.config, nvs_config::Config::default());
+    assert!(
+        took_the_file.overrides.is_empty(),
+        "a file that assigns nothing overrides nothing: {:?}",
+        took_the_file.overrides,
+    );
+}
+
 /// § 3: an include overrides the file that pulled it in — the base-plus-local shape, with the
 /// include line at the point the operator wants overridden — and **both origins are recorded**.
 /// That record is the whole of what makes later-wins acceptable here, so it is asserted, not the

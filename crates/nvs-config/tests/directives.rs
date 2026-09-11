@@ -313,3 +313,154 @@ fn every_queue_row_is_system_class() {
         assert!(!row.class.settable_by_a_request());
     }
 }
+
+/// The shipped default file against the reader that refuses an unknown key
+/// (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`).
+///
+/// What this pins is that the bytes a project command writes can never themselves be the reason a
+/// boot refuses. It resolves to [`Config::default`] because every key in the file is commented out,
+/// which is the property `rule:config/no-configuration-file-is-a-complete-configuration` rests the
+/// whole write on: taking the file changes nothing about the run that took it.
+#[test]
+fn the_default_file_parses_with_deny_unknown_fields() {
+    let mut sources = SourceMap::new();
+    let (_, parsed) = nvs_config::file::parse::<Config>(
+        &mut sources,
+        "crates/nvs-config/src/default.toml",
+        nvs_config::default_file(),
+    );
+
+    let config =
+        parsed.unwrap_or_else(|err| panic!("the shipped file was refused: {}", err.message));
+    assert_eq!(
+        config,
+        Config::default(),
+        "a live key in the shipped file is a value every deployment that takes it inherits",
+    );
+}
+
+/// Whether a `#` line is a setting rather than the prose above one.
+///
+/// The `#` with nothing between it and the key is the whole difference, which is why every prose
+/// line in that file opens `# ` and every commented-out key opens `#key`. `tools/directives.py`
+/// draws the line in the same place.
+fn is_setting(after_hash: &str) -> bool {
+    let Some((key, _)) = after_hash.split_once('=') else {
+        return false;
+    };
+    !after_hash.starts_with(' ')
+        && !key.is_empty()
+        && key.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+        && key
+            .trim_end()
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+}
+
+/// Every setting the default file spells, each with the prose block standing above it.
+///
+/// A blank line or a block header ends a prose block, so what comes back beside a key is what an
+/// operator reads immediately before writing it — which is the only place a warning about the key
+/// is any use.
+fn settings_with_prose() -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    let mut prose = String::new();
+    for line in nvs_config::default_file().lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix('#') else {
+            prose.clear();
+            continue;
+        };
+        if rest.starts_with('[') {
+            prose.clear();
+            continue;
+        }
+        if is_setting(rest) {
+            let (key, _) = rest.split_once('=').expect("a setting carries its `=`");
+            found.push((key.trim().to_string(), prose.clone()));
+        } else {
+            prose.push(' ');
+            prose.push_str(rest.trim());
+        }
+    }
+    found
+}
+
+/// The owner a doc comment's `[unread:]` trailer names, for a comment that carries one.
+fn unread_owner(doc: &str) -> Option<String> {
+    let (trailer, _) = doc.split_once("[unread:")?.1.split_once(']')?;
+    Some(trailer.split_once("owner:")?.1.trim().to_string())
+}
+
+/// Every field the tree declares unread, paired with the owner that declaration names.
+///
+/// Read out of `tree.rs`'s own text rather than listed here, so that a key gaining a trailer joins
+/// this case in the commit that declares it and a key losing one leaves. Which *dotted* key a field
+/// is belongs to `tools/directives.py`, which walks the field graph a string scan cannot see; what
+/// is asserted below is the pair the file owes either way.
+fn declared_unread() -> Vec<(String, String)> {
+    const TREE: &str = include_str!("../src/tree.rs");
+
+    let mut found = Vec::new();
+    let mut doc = String::new();
+    for line in TREE.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("///") {
+            doc.push(' ');
+            doc.push_str(rest.trim());
+            continue;
+        }
+        if line.starts_with("#[") {
+            continue;
+        }
+        if let Some((field, _)) = line
+            .strip_prefix("pub ")
+            .and_then(|rest| rest.split_once(':'))
+            && let Some(owner) = unread_owner(&doc)
+        {
+            found.push((field.trim().trim_start_matches("r#").to_string(), owner));
+        }
+        doc.clear();
+    }
+    found
+}
+
+/// `rule:config/no-configuration-file-is-a-complete-configuration` read at its worst case: a key the
+/// file offers, the boot accepts, and nothing acts on.
+///
+/// An operator who writes such a key has configured nothing and has no way to find that out, which
+/// is worse than the key not being there at all — so the tree's own `[unread:]` declaration has to
+/// reach the line the operator is about to write.
+///
+/// Both directions, because each is a way the file rots and the second is what keeps the first
+/// honest: a scan that found no declaration at all would satisfy the loop below and fail the loop
+/// after it. A note that outlives the gap it describes is the same defect read backwards — it tells
+/// an operator not to write a key that now works.
+#[test]
+fn every_unimplemented_key_in_the_default_file_is_marked_as_one() {
+    let settings = settings_with_prose();
+    let unread = declared_unread();
+
+    for (field, owner) in &unread {
+        assert!(
+            settings.iter().any(|(key, prose)| key == field
+                && prose.contains("NOT IMPLEMENTED")
+                && prose.contains(owner)),
+            "`{field}` is declared unread in the tree, and no `{field} = ` line in the default \
+             file stands under a `NOT IMPLEMENTED` note naming `{owner}`",
+        );
+    }
+
+    for (key, prose) in settings
+        .iter()
+        .filter(|(_, p)| p.contains("NOT IMPLEMENTED"))
+    {
+        assert!(
+            unread
+                .iter()
+                .any(|(field, owner)| field == key && prose.contains(owner)),
+            "the default file marks `{key}` unimplemented and `crates/nvs-config/src/tree.rs` \
+             declares no `[unread:]` for it",
+        );
+    }
+}
