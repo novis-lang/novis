@@ -1,0 +1,553 @@
+{
+  "about": [
+    "Written by tools/webcrypto-vectors.mjs from Node's crypto.subtle, the W3C Web Cryptography API a browser exposes; regenerate it only by running that script.",
+    "Every input is derived from a label, so the script writes these bytes every time. Octets are lowercase hex; tokens, passwords, info strings and payloads are text.",
+    "aesGcm.sealed is nonce(12) || ciphertext || tag(16), the layout Core\\Crypto::seal answers under Cipher::Aes256Gcm.",
+    "A jwe vector proves both directions: Core\\Jwe::decrypt must answer its payload, and Core\\Jwe::encrypt given the same randomness must answer its token byte for byte.",
+    "A refusal of kind \"policy\" is well-formed except for the one thing it is refused for; one of kind \"authenticity\" fails its cryptography. Core\\Jwe refuses both with one RuntimeError."
+  ],
+  "aesGcm": {
+    "vectors": [
+      {
+        "name": "a 0-octet message",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "nonce": "b9b490f77701aa1d3835a953",
+        "plaintext": "",
+        "sealed": "b9b490f77701aa1d3835a953fe54f86f7027a6206b5c254b763e80a7"
+      },
+      {
+        "name": "a 1-octet message",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "nonce": "6c59d6670082cd7c87d59202",
+        "plaintext": "61",
+        "sealed": "6c59d6670082cd7c87d59202e74474e22d5b3e539080d53cd0ac09adb0"
+      },
+      {
+        "name": "a 15-octet message",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "nonce": "a624a8c2bb465d0603e5b4ac",
+        "plaintext": "99795af4c9e1ca652992ad3881f2b2",
+        "sealed": "a624a8c2bb465d0603e5b4ac57e1a4de046e1973fc92dac5508b1e3f0608eb50829452d58975dde6a0a8a2"
+      },
+      {
+        "name": "a 16-octet message",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "nonce": "2eed4c47af7d759f3e9e0ac8",
+        "plaintext": "19cf70395afee6adff37707163005877",
+        "sealed": "2eed4c47af7d759f3e9e0ac8c6c697d6c70a0ae382b2f421cd0cefbc81a72c4a561f2797e54a141cd6e5b324"
+      },
+      {
+        "name": "a 17-octet message",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "nonce": "4fe6d924d1fe8d7521334425",
+        "plaintext": "14ca8a1702cb95a1d3d304b9dbe381cf0d",
+        "sealed": "4fe6d924d1fe8d7521334425ef9a645911d5f82890c3d7d15e88982666eeb8748b3a8a2fbaeb5524ec8304ce4f"
+      },
+      {
+        "name": "a 64-octet message",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "nonce": "a1b697413392ffe5a6660d25",
+        "plaintext": "4a93853ca23ccb289cf452a603698ad63e0df9b778e1727c64e1fa175218cb0f49f318425de5109099e680fc44627f31bceadb957d742c7169dd7614d9ac8211",
+        "sealed": "a1b697413392ffe5a6660d2515f9420cf3e0dbe34396d4e62ceee91425aa74724ed9ffd9c1acbf8b0a2a6eea43847c955a635e416e2e38b9e4b0b5b3053958841e82e52b874f698980febe3b502b54c72fdddbdcf1eb30259f8648e1"
+      },
+      {
+        "name": "a 1000-octet message",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "nonce": "4975e36519154754b7967303",
+        "plaintext": "87e2be83990fcca994cbe666252ecb7154151a70b177de581f85e3e0a2a33d939e6a11b17d4d36f67dc00f4f3874a2c0ac64243f30f02fc2429aa9d941a5f8f1c020442a47d8b0ede8dd713542f2b2965bf34e3b4266f611917f797cf5847cafc1e456306aa998be1522105a7da707cf9150ddaab300b16670c670bc0d97960876d0cb23a2db4fc01958b426b1fd0b4aa77cee29d604c64a9bf32e952da84040c7eeda5c8cfffbb676c663d89ad73c1e200e79fd756502fb139e28aae57989ec572af9bf3a86e9696697ca474c2cc85b0b27878483faeb0db942b50136c6f55b75b11c10c0e36c4a7f9b5cf79569d9cc827c798539bc42b3f628de1ce0baa4826de7534cdb2dd2285b4d5cf71253ea0b9716ebf3202ebbd6eb0f6fb460e7e3a3c7aefdefb4f301f6eb4f89f5d4486560c079128851777e4b1668a63bce449b43605deb72cb15b27e37f94e5bc32f01d41ad092db2fe65c947e8ac6ce6b971eb7601206597700e1392b2a242e4c66b89813722b8f516f019a0c84e88fb8f0da00068b6e8d604bfdbcff1df339561cf738c45396e13f58d12989df3672980a2407c6eb6f363ee1b64e6db24ff9e6e03dc04629a7c0be767144e17fd5c7774d8b0170ad5fba7f283a108c4667e2e422f0f71fd3a578b21e9cb45a79c6913d6f8b9592f1e73f1ec076b9da199e2a4a9ce1a62250e31e2b21955f63e8c644486aece7fcc9102e17b9928ba55194239c69fc78a025764da1c9df1586cee8db42454b0c6338f1d9cd04361791a7d6931650d6585cf0959acba1031ee7962317a84c2ea789e2e5c0c38669141b16d9d6989f1c227b4cc5b9c28630b5a02874b4a7bf1392eecacafe755112e5a6eb709a40626953371ec049c8873fa8ac309b164342a9b470a12946fa36edc89ceb57eb411d468b87e8afa134a6fb9cfa3b22234b678a331461f5a31c462621d135217def20777acaaf83b5ef059ecca0bb5fc15f1fc5c29b5934b7e7a6b46be761194dec3d6b5e7fb8a77657bb5d34a9022273955c802c66f683451ea2dfa0580a9c0212e27d78530403597db160fa5b07d70905730cd5e9c48b429a622c0d40d1278b3f0ad367986a8bd005b62f96997dbb9b8947e8c7145a23aaf8ac9f37941d62fa25ea03c3d366b4ce36219f0afa70596dd3d39e7956e93d9232c0d280ff5b96f6432d1ae5e80e6867edebdc27d3e33ce433b01745235aa0a1f1061ec51a9f2776fcb668e7217f9649afb31d6f9438d953a51a3e194ff7eb2b656c1b997445327eaa5fad90804097dd879236e4397113e4ea7ca61d3cc88cd9d202a5a44952d2533ca2849b338862b4daa4957fa74dc331286e27cde1f5c6d9eb72eab261d72f531c5d1c966bbac808d89d16dc47d416643fc957dba71b1df6a2ed03a9",
+        "sealed": "4975e36519154754b79673033b7713325c4fb06c921768c65fa90b172d0c6b94170d13e9187bd5d226c8256f5a4b00e2f1b022c0cc415847735ad43e11750865d0307571b3d210f8251fafc475f2d6ecbb3d984e2b17f3a2e28f15fd34abd22e79a94a3cf40380a6ad249f39939480d0445249c174f66ee31dbc4745acb26a6d8b94863ece578a4b60dd5e13753c0b1b1d502920be7720d5977c2d7e5ad98a921ea0d8df6c9aa26cccee96e8a24d991baa42219adc341ab62db076d05de88fc08a684115f47e5445152475bbd4f6070cafabc141f8402af8bca57dbca5d259c7fd41c100a939218f8f7da0eefcccf3bcb2116ad7ef15c2ae108a087a8a83147286ebeab8343d71c5e2f6744695a6387045b1e2c9c57c23b1a5e7241bf23a5feb9e5d38c3881115aad2123a4f8c7eeb17763cd6946050e254657a04ef400a11ae7e82c882de1bfda2914be8cb5115218b049fd7ab35b9eef6477652c01b0e49a68bee9121f700805b109b6b5172974730474f5b6790e4a66398f2c2e05cf2d2ce5a771d2dc7f5967c5779b966dbe09541636d0b7cbea54276a8c6d145ebd971ad701bd9f6caabda02fb275d7340d31e77b1b8b9327a64748c1e074d26ea92d3ce8403c229ee7cd71c6f227887ec8f28f8bf47fb398273d68a0db9b7847ca1067fc0498465e6a2c0923e78f1610be58336ec1126fe9b173b2c5528f29586e670878adcbfc9871ff25c09958e001323e4efc78ae438ea218b7f7c0a9ad75267b6cb8ba6874e0da0f4a241fb3dd87af7f10710b95d20ec3ebe923e7b3176b3ae609e0f1aad30cb1addb5660c8344c8fda382f3149a7918f83fe4991bb7c623508997e6e35d92b015bb1e7a32ee42c868516beae7b46b2c8f63add87f4269a54406bec06dfb206a863c3f7a9703b044da8d2cb59ca6c09650147513a7513e7e68283e9a1bee2955c7a0763b1cd7e72c56ef2e7ebd40097eba150a7856e2810d97b6f203b9cc45264a9ce2117513aab06d9a890cb72533ffc084dac9fd88615f6b8ee4002ff9aeabfadbb06664c6aa3f8f0104ac27aff0de6f64bc9b92f554d1115de04ee74a886faa678ae020ed0bf8a0188493a918002c931706c064119488063897008fe6ff0f89589c06ca79ff0b1b96a58ee027d9c87aad314bea25e5effc797f24e04bd468bc9d5bc448910f764f344f6bb3fd75b04cb8b8428a3ef64afee710cb12d66f17f370f5ba656c6e1db16598d98f8aee29f934e655fc00916f1e40978988b9e2d1b34d498251b5273e2de60c60fd231721958f8b3fd196e45f245a6511db2ae5e172555a573aef12c49408aba4d96d46cfa6416afef639a136373bfe4e9564d5f2e9cc3625b42e32a759c2e9f0436a3d52a6b02468b764c7d07a3ec9a2012826043713ccb8c7018b030bbf0594ff54de49afa52357b9d3ead4e22583468a2502"
+      }
+    ],
+    "refusals": [
+      {
+        "name": "the last tag octet flipped",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "sealed": "4fe6d924d1fe8d7521334425ef9a645911d5f82890c3d7d15e88982666eeb8748b3a8a2fbaeb5524ec8304ce4e"
+      },
+      {
+        "name": "the first ciphertext octet flipped",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "sealed": "4fe6d924d1fe8d7521334425ee9a645911d5f82890c3d7d15e88982666eeb8748b3a8a2fbaeb5524ec8304ce4f"
+      },
+      {
+        "name": "the first nonce octet flipped",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "sealed": "4ee6d924d1fe8d7521334425ef9a645911d5f82890c3d7d15e88982666eeb8748b3a8a2fbaeb5524ec8304ce4f"
+      },
+      {
+        "name": "one octet short of a nonce and a tag",
+        "key": "62e11d38ba09a4e4b9c1c3cd1b072f67a3d8a85556ffe0bd1b85037557fa217d",
+        "sealed": "4fe6d924d1fe8d7521334425ef9a645911d5f82890c3d7d15e8898"
+      },
+      {
+        "name": "the right bytes under another key",
+        "key": "6d35c913b902713f59f8b4e8d78796ccf26a84c662e45ac8ef1bc70244aade93",
+        "sealed": "4fe6d924d1fe8d7521334425ef9a645911d5f82890c3d7d15e88982666eeb8748b3a8a2fbaeb5524ec8304ce4f"
+      }
+    ]
+  },
+  "pbkdf2": {
+    "vectors": [
+      {
+        "name": "an ASCII passphrase",
+        "password": "correct horse battery staple",
+        "salt": "09d5c12dfbb758ae11352b2192099792",
+        "iterations": 100000,
+        "key": "0369523427f5b443c31ff6942e6d5af2fe33275e0794cb5f4e9d1b9da3466d87"
+      },
+      {
+        "name": "a non-ASCII password",
+        "password": "pässwörd 🔑 密码",
+        "salt": "f0b9368c17a43bbe189c44e45e48ce16",
+        "iterations": 100000,
+        "key": "a368f257f9f7d3d8c33456aa6055c71526ac99d5e006622c985d8d6b275039e3"
+      }
+    ],
+    "refusals": [
+      {
+        "name": "one iteration under the floor",
+        "password": "correct horse battery staple",
+        "salt": "5fa44c4a7f72dd72033883c9fa099e20",
+        "iterations": 99999
+      },
+      {
+        "name": "one iteration over the ceiling",
+        "password": "correct horse battery staple",
+        "salt": "5fa44c4a7f72dd72033883c9fa099e20",
+        "iterations": 2000001
+      },
+      {
+        "name": "a salt one octet short",
+        "password": "correct horse battery staple",
+        "salt": "5fa44c4a7f72dd72033883c9fa099e",
+        "iterations": 100000
+      }
+    ]
+  },
+  "hkdf": {
+    "vectors": [
+      {
+        "name": "a salt and an info string",
+        "material": "c2ed95c1a3559527f4f53e22fc83d19fefa089707e88a839729b09147d14e8c5",
+        "salt": "05cd62809e819347181d12ab873685c4",
+        "info": "chat v1",
+        "key": "b62029269193708c9eac006210ebb11050c879699f85b65380dabe9aa599bb90"
+      },
+      {
+        "name": "an empty salt and an empty info",
+        "material": "a8a31a51a745eab821b152315f6870245b3b9e953682affa02728aae2e83aefb",
+        "salt": "",
+        "info": "",
+        "key": "a73371822cd13b421ee14f764ec265a3b6f38cd247db31c3e447eee423eec71d"
+      },
+      {
+        "name": "long material and a long info",
+        "material": "1d9b5009320f9dcbeb1dde86606170f15c461fc88281421bfd6555c9f357368b811ca187f6bdde0400b48fd3a64de4338c1fc05331d5af3a232c8ea20e202f45215d90aa4fad8d9f0c05e1b9af617656",
+        "salt": "601b446d2122f847d888b4474a09f01df9515d5dc70256bf1335b0be62d3606e",
+        "info": "Novis ⇄ WebCrypto, a longer context string",
+        "key": "631f7f7a5a15c5e90cffc2ca066bab2e0bbc4c377b14aefebae370ec537d7622"
+      }
+    ]
+  },
+  "ecdh": {
+    "vectors": [
+      {
+        "name": "two P-256 key pairs agree",
+        "curve": "P-256",
+        "a": {
+          "scalar": "27175a3adf2d51bb7d19a1d87129a545d6a67618341e284de0670d57557434e2",
+          "pkcs8": "3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042027175a3adf2d51bb7d19a1d87129a545d6a67618341e284de0670d57557434e2",
+          "raw": "04262e20a0feb47b10d1dc0ff5566fd57662d95c936e8a5c05ab733582a1bb9a99805038e7cac3509043afccc54e67b8d635f765f14e32b08bb5be84c938ce53b6",
+          "spki": "3059301306072a8648ce3d020106082a8648ce3d03010703420004262e20a0feb47b10d1dc0ff5566fd57662d95c936e8a5c05ab733582a1bb9a99805038e7cac3509043afccc54e67b8d635f765f14e32b08bb5be84c938ce53b6",
+          "jwk": "{\"key_ops\":[],\"ext\":true,\"kty\":\"EC\",\"x\":\"Ji4goP60exDR3A_1Vm_VdmLZXJNuilwFq3M1gqG7mpk\",\"y\":\"gFA458rDUJBDr8zFTme41jX3ZfFOMrCLtb6EyTjOU7Y\",\"crv\":\"P-256\"}",
+          "jwkMinimal": "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"Ji4goP60exDR3A_1Vm_VdmLZXJNuilwFq3M1gqG7mpk\",\"y\":\"gFA458rDUJBDr8zFTme41jX3ZfFOMrCLtb6EyTjOU7Y\"}"
+        },
+        "b": {
+          "scalar": "1273ae38c9225cb4b3a0525f528f86fb130c7d29d1c1a48f433c8fac3dca9ecd",
+          "pkcs8": "3041020100301306072a8648ce3d020106082a8648ce3d0301070427302502010104201273ae38c9225cb4b3a0525f528f86fb130c7d29d1c1a48f433c8fac3dca9ecd",
+          "raw": "049ec2958dd9b249a49b6ef21bdefe416d32e07e186e821c50bb31d07a4b90028e4ef2d61be2c940f6d0c8d5360626af60650dbb6bda372c0766b789364a93a6b3",
+          "spki": "3059301306072a8648ce3d020106082a8648ce3d030107034200049ec2958dd9b249a49b6ef21bdefe416d32e07e186e821c50bb31d07a4b90028e4ef2d61be2c940f6d0c8d5360626af60650dbb6bda372c0766b789364a93a6b3",
+          "jwk": "{\"key_ops\":[],\"ext\":true,\"kty\":\"EC\",\"x\":\"nsKVjdmySaSbbvIb3v5BbTLgfhhughxQuzHQekuQAo4\",\"y\":\"TvLWG-LJQPbQyNU2BiavYGUNu2vaNywHZreJNkqTprM\",\"crv\":\"P-256\"}",
+          "jwkMinimal": "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"nsKVjdmySaSbbvIb3v5BbTLgfhhughxQuzHQekuQAo4\",\"y\":\"TvLWG-LJQPbQyNU2BiavYGUNu2vaNywHZreJNkqTprM\"}"
+        },
+        "secret": "ebd7bf6d8099e34b7940876a7fc89d2403289bde0b96fd25dad07bc626dd2395"
+      },
+      {
+        "name": "two X25519 key pairs agree",
+        "curve": "X25519",
+        "a": {
+          "scalar": "0172af48574da59d306df1b27cc27457304669fb73e0630b9f84eac038695c2c",
+          "pkcs8": "302e020100300506032b656e042204200172af48574da59d306df1b27cc27457304669fb73e0630b9f84eac038695c2c",
+          "raw": "7d82b8dc4d111da7d459301c4d278d8519db6bc4e05cf6de7b078a891767a331",
+          "spki": "302a300506032b656e0321007d82b8dc4d111da7d459301c4d278d8519db6bc4e05cf6de7b078a891767a331",
+          "jwk": "{\"key_ops\":[],\"ext\":true,\"crv\":\"X25519\",\"x\":\"fYK43E0RHafUWTAcTSeNhRnba8TgXPbeeweKiRdnozE\",\"kty\":\"OKP\"}",
+          "jwkMinimal": "{\"crv\":\"X25519\",\"kty\":\"OKP\",\"x\":\"fYK43E0RHafUWTAcTSeNhRnba8TgXPbeeweKiRdnozE\"}"
+        },
+        "b": {
+          "scalar": "1135b8655ccc4ea0b976d3a303d6b64b90e9f0b643f65e52288c25bdcebe4fa4",
+          "pkcs8": "302e020100300506032b656e042204201135b8655ccc4ea0b976d3a303d6b64b90e9f0b643f65e52288c25bdcebe4fa4",
+          "raw": "9c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e",
+          "spki": "302a300506032b656e0321009c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e",
+          "jwk": "{\"key_ops\":[],\"ext\":true,\"crv\":\"X25519\",\"x\":\"nHvjqclhzgCDQGdM09Ro_FvifJi2WjUmLKLQVXPQWF4\",\"kty\":\"OKP\"}",
+          "jwkMinimal": "{\"crv\":\"X25519\",\"kty\":\"OKP\",\"x\":\"nHvjqclhzgCDQGdM09Ro_FvifJi2WjUmLKLQVXPQWF4\"}"
+        },
+        "secret": "34749db6e8052e771090b04ad9ba16459ac958541996589611b0930a4d5ff709"
+      }
+    ],
+    "refusals": [
+      {
+        "name": "X25519 the all-zero point, whose shared secret is all zero",
+        "curve": "X25519",
+        "mine": "302e020100300506032b656e042204200172af48574da59d306df1b27cc27457304669fb73e0630b9f84eac038695c2c",
+        "theirs": "0000000000000000000000000000000000000000000000000000000000000000",
+        "webcrypto": "refused"
+      },
+      {
+        "name": "X25519 the point u = 1, whose shared secret is all zero",
+        "curve": "X25519",
+        "mine": "302e020100300506032b656e042204200172af48574da59d306df1b27cc27457304669fb73e0630b9f84eac038695c2c",
+        "theirs": "0100000000000000000000000000000000000000000000000000000000000000",
+        "webcrypto": "refused"
+      },
+      {
+        "name": "P-256 a point off the curve (the last y octet flipped)",
+        "curve": "P-256",
+        "mine": "3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042027175a3adf2d51bb7d19a1d87129a545d6a67618341e284de0670d57557434e2",
+        "theirs": "049ec2958dd9b249a49b6ef21bdefe416d32e07e186e821c50bb31d07a4b90028e4ef2d61be2c940f6d0c8d5360626af60650dbb6bda372c0766b789364a93a6b2",
+        "webcrypto": "refused"
+      },
+      {
+        "name": "P-256 the point at infinity",
+        "curve": "P-256",
+        "mine": "3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042027175a3adf2d51bb7d19a1d87129a545d6a67618341e284de0670d57557434e2",
+        "theirs": "00",
+        "webcrypto": "refused"
+      },
+      {
+        "name": "P-256 an uncompressed point one octet short",
+        "curve": "P-256",
+        "mine": "3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042027175a3adf2d51bb7d19a1d87129a545d6a67618341e284de0670d57557434e2",
+        "theirs": "049ec2958dd9b249a49b6ef21bdefe416d32e07e186e821c50bb31d07a4b90028e4ef2d61be2c940f6d0c8d5360626af60650dbb6bda372c0766b789364a93a6",
+        "webcrypto": "refused"
+      }
+    ]
+  },
+  "aesKw": {
+    "vectors": [
+      {
+        "name": "a 128-bit key-encryption key",
+        "kek": "61fa380fb48cdfc1f7fdfe80b196a781",
+        "key": "1c3e73f0906d9033fb392a0845b16f9a9a9dcb2e9e2fa672ff91c94cb18e1d21",
+        "wrapped": "6dd959f6e117b8111ad6a5c3d2017df4e17f845724dfd8eb8146f82ef6e5edf8025690f2f9a87dea"
+      },
+      {
+        "name": "a 256-bit key-encryption key",
+        "kek": "32873d5eb250a1a332ef980d21b7fd38f887cd5c22353bed9b85bff80fc0fc52",
+        "key": "4de63f110017495f20b989edf28150561e0e2df31dfca744f289d5aad3767765",
+        "wrapped": "62d6748ab0381ddb274fed47224bc14c839f930d52604b2ff25b1e8b5db30c2197085c325a3b8e90"
+      }
+    ]
+  },
+  "jwe": {
+    "vectors": [
+      {
+        "name": "dir, a JSON payload",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "randomness": {
+          "iv": "c96a83688e05e7f5442e0e1e"
+        },
+        "payload": "{\"scope\":[\"read\",\"write\"],\"user\":42}",
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg"
+      },
+      {
+        "name": "dir, the empty payload",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "randomness": {
+          "iv": "3d7a55e6626832c84f578413"
+        },
+        "payload": "",
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..PXpV5mJoMshPV4QT..GY3Co9HwG6F9FomIGgE7uw"
+      },
+      {
+        "name": "dir with a kid, a non-ASCII payload",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "randomness": {
+          "iv": "5252f1298d9f6e0e37e74add"
+        },
+        "payload": "grüße, 世界 🔐",
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwia2lkIjoicmluZy0xIn0..UlLxKY2fbg4350rd.aNWN3DrxPTaQSkXXxvlsJFMUeAA.Pdeg0cj_wNJ6DQp_MQNZmQ"
+      },
+      {
+        "name": "ECDH-ES over P-256",
+        "key": {
+          "kind": "keyPair",
+          "curve": "P-256",
+          "pkcs8": "3041020100301306072a8648ce3d020106082a8648ce3d0301070427302502010104201273ae38c9225cb4b3a0525f528f86fb130c7d29d1c1a48f433c8fac3dca9ecd",
+          "public": "049ec2958dd9b249a49b6ef21bdefe416d32e07e186e821c50bb31d07a4b90028e4ef2d61be2c940f6d0c8d5360626af60650dbb6bda372c0766b789364a93a6b3"
+        },
+        "randomness": {
+          "iv": "b5cca16e4345ddc9a604fa08",
+          "ephemeralScalar": "a7a6edcc4851d042867e2ed8a29ee93df6bea835ca02c9176e7b032b49c7d548",
+          "ephemeralPkcs8": "3041020100301306072a8648ce3d020106082a8648ce3d030107042730250201010420a7a6edcc4851d042867e2ed8a29ee93df6bea835ca02c9176e7b032b49c7d548"
+        },
+        "payload": "{\"card\":\"4111 1111 1111 1111\"}",
+        "token": "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6InQ1RThMSTZHYmQ5ejYyZGNhUFpjbHpyUTg0dmpxemh4SVpKNXluS0FOR2siLCJ5IjoicGF0S2pUVEFGY1JOYkVXcnh0UzRNUDMyZ3JmY3djSW1BeEZsVWpJMFNNNCJ9fQ..tcyhbkNF3cmmBPoI.GOeTEUQ9srGec1ozeK17lr5HwIjd_2IY53AMz2Zi.cr9tWOfsMB_k-XeAgAi2MA"
+      },
+      {
+        "name": "ECDH-ES over X25519",
+        "key": {
+          "kind": "keyPair",
+          "curve": "X25519",
+          "pkcs8": "302e020100300506032b656e042204201135b8655ccc4ea0b976d3a303d6b64b90e9f0b643f65e52288c25bdcebe4fa4",
+          "public": "9c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e"
+        },
+        "randomness": {
+          "iv": "acc5329af8a775a5ec14393b",
+          "ephemeralScalar": "0d3ae6e3bc810b2fbef20f7c4345d888b8eb049015ca0f36123022047b2f4ef6",
+          "ephemeralPkcs8": "302e020100300506032b656e042204200d3ae6e3bc810b2fbef20f7c4345d888b8eb049015ca0f36123022047b2f4ef6"
+        },
+        "payload": "a message for the server alone",
+        "token": "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJYMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiQTBURWxubG16ZTNMNllWWHZUX0ROUDFHdTNsbGhjN242M3lCSTZ2VTdrdyJ9fQ..rMUymvindaXsFDk7.nR4Bh6a6oMQdTnl23OZqAL7su_hrymN_2t_7cylV.w6IiCEkH3aGvKcNq5lG-Og"
+      },
+      {
+        "name": "PBES2 at the iteration floor",
+        "key": {
+          "kind": "password",
+          "password": "correct horse battery staple"
+        },
+        "randomness": {
+          "iv": "633b371ba5661491cf8087f6",
+          "cek": "695242d41e132acf0035b8a66d37ceed9fbc3369c9a04224b6ea8cfa3847f3fd",
+          "p2s": "ada83c6076ac728d4bf9ac930269fcf6",
+          "p2c": 100000
+        },
+        "payload": "{\"note\":\"sealed under a passphrase\"}",
+        "token": "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoxMDAwMDAsInAycyI6InJhZzhZSGFzY28xTC1heVRBbW44OWcifQ.Tm-wRawKwGhnshTzTr3fvvgMCXEVf36FZbvsSTexm_r5nedzhFU9rg.Yzs3G6VmFJHPgIf2.YPZinOm18x5tzxUE48yH2A8hHmPelObo4q4JMd5cfpTreYY3.z6Ru1D5p08dSCJL2PWgHpA"
+      }
+    ],
+    "refusals": [
+      {
+        "name": "enc A128GCM, which is not the subset",
+        "kind": "policy",
+        "key": {
+          "kind": "shared",
+          "key": "303f809da89d905fdce1917339f4b8aa"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4R0NNIn0..9lNwSr6eXK7mJMc_.PIHyObx9A-aLUdk.QOJt5Jat5ZM_iWA_KPjOFw"
+      },
+      {
+        "name": "alg none",
+        "kind": "policy",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJub25lIiwiZW5jIjoiQTI1NkdDTSJ9..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.b5Xw6SThyYFnQa_r-TzUew"
+      },
+      {
+        "name": "zip DEF, a decompression bomb waiting to happen",
+        "kind": "policy",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiemlwIjoiREVGIn0..9lNwSr6eXK7mJMc_.gSERTb52m2GHdklRqg.ZyZ02-4vRejLt14VXgmQnQ"
+      },
+      {
+        "name": "a crit list",
+        "kind": "policy",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJjcml0IjpbImV4cCJdLCJlbmMiOiJBMjU2R0NNIiwiZXhwIjoxfQ..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.JHD4U6LaoX89BH0-GVQeRw"
+      },
+      {
+        "name": "jku, a fetch",
+        "kind": "policy",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiamt1IjoiaHR0cHM6Ly9rZXlzLmV4YW1wbGUvandrcy5qc29uIn0..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.Qswh8hnNeZuNodWU1bliXw"
+      },
+      {
+        "name": "x5u, a fetch",
+        "kind": "policy",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwieDV1IjoiaHR0cHM6Ly9rZXlzLmV4YW1wbGUvY2VydC5wZW0ifQ..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.lcMCSGkZk92ixTCjUHYm4Q"
+      },
+      {
+        "name": "a jwk member that is not epk",
+        "kind": "policy",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoiSmk0Z29QNjBleERSM0FfMVZtX1ZkbUxaWEpOdWlsd0ZxM00xZ3FHN21wayIsInkiOiJnRkE0NThyRFVKQkRyOHpGVG1lNDFqWDNaZkZPTXJDTHRiNkV5VGpPVTdZIn19..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.ig48zFcYk1oaAQKPTx6Sow"
+      },
+      {
+        "name": "an unknown header parameter",
+        "kind": "policy",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiZm9vIjoiYmFyIn0..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.LTkp-A63n4YfRaHrIChh2g"
+      },
+      {
+        "name": "a dir token handed a password",
+        "kind": "policy",
+        "key": {
+          "kind": "password",
+          "password": "correct horse battery staple"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg"
+      },
+      {
+        "name": "a PBES2 token handed a shared key",
+        "kind": "policy",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoxMDAwMDAsInAycyI6InJhZzhZSGFzY28xTC1heVRBbW44OWcifQ.Tm-wRawKwGhnshTzTr3fvvgMCXEVf36FZbvsSTexm_r5nedzhFU9rg.Yzs3G6VmFJHPgIf2.YPZinOm18x5tzxUE48yH2A8hHmPelObo4q4JMd5cfpTreYY3.z6Ru1D5p08dSCJL2PWgHpA"
+      },
+      {
+        "name": "a P-256 ECDH-ES token handed an X25519 key pair",
+        "kind": "policy",
+        "key": {
+          "kind": "keyPair",
+          "curve": "X25519",
+          "pkcs8": "302e020100300506032b656e042204201135b8655ccc4ea0b976d3a303d6b64b90e9f0b643f65e52288c25bdcebe4fa4",
+          "public": "9c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e"
+        },
+        "token": "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6InQ1RThMSTZHYmQ5ejYyZGNhUFpjbHpyUTg0dmpxemh4SVpKNXluS0FOR2siLCJ5IjoicGF0S2pUVEFGY1JOYkVXcnh0UzRNUDMyZ3JmY3djSW1BeEZsVWpJMFNNNCJ9fQ..tcyhbkNF3cmmBPoI.GOeTEUQ9srGec1ozeK17lr5HwIjd_2IY53AMz2Zi.cr9tWOfsMB_k-XeAgAi2MA"
+      },
+      {
+        "name": "p2c one over the ceiling",
+        "kind": "policy",
+        "key": {
+          "kind": "password",
+          "password": "correct horse battery staple"
+        },
+        "token": "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoyMDAwMDAxLCJwMnMiOiI4bHAzTXZ4MnhVSXQybllUZFN2VUZBIn0.631okfB9jHxg8JSVEaFSC3radCMv_0pkTY9SaKP3_KTak4doj0AOuA.AhX9uILfedAG4y7L.PcIAqIqcB4nfPDI.MWwgWwQWrVIyM8OBYiwQnA"
+      },
+      {
+        "name": "p2c one under the floor",
+        "kind": "policy",
+        "key": {
+          "kind": "password",
+          "password": "correct horse battery staple"
+        },
+        "token": "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjo5OTk5OSwicDJzIjoiTmJvU2FaVHo5M01sMkNkWE56c2xDdyJ9.yoWYL-fHy8Fz1LeRKZTqPYZOMTkl4S9tH5fDbSjfaUR4lZzkAF_c7w.9Xczw6_qA5lGK89E.OVZj8hZEDNk-kPw.nguNydfJ69u6p2AQybeu9Q"
+      },
+      {
+        "name": "p2s one octet short",
+        "kind": "policy",
+        "key": {
+          "kind": "password",
+          "password": "correct horse battery staple"
+        },
+        "token": "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoxMDAwMDAsInAycyI6IjZXdUgwbzRqUzBScnVZM0dNVk5ZIn0.WcxIFq7banFWy1Rda_zjLQuoXV4DH-ZsgUD2IEj4EqosSjx86ZCRCw.RHV4rrPnBEgO78NS.mDSiDILi0eL-mlc.miTimLsGcWiROftoBgC4QQ"
+      },
+      {
+        "name": "an epk off the P-256 curve",
+        "kind": "authenticity",
+        "key": {
+          "kind": "keyPair",
+          "curve": "P-256",
+          "pkcs8": "3041020100301306072a8648ce3d020106082a8648ce3d0301070427302502010104201273ae38c9225cb4b3a0525f528f86fb130c7d29d1c1a48f433c8fac3dca9ecd",
+          "public": "049ec2958dd9b249a49b6ef21bdefe416d32e07e186e821c50bb31d07a4b90028e4ef2d61be2c940f6d0c8d5360626af60650dbb6bda372c0766b789364a93a6b3"
+        },
+        "token": "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6InQ1RThMSTZHYmQ5ejYyZGNhUFpjbHpyUTg0dmpxemh4SVpKNXluS0FOR2siLCJ5IjoicEt0S2pUVEFGY1JOYkVXcnh0UzRNUDMyZ3JmY3djSW1BeEZsVWpJMFNNNCJ9fQ..9lNwSr6eXK7mJMc_.czEX2OjV-WAxK1o.ace941nvHyQm50kKAJ8gNw"
+      },
+      {
+        "name": "an X25519 epk of low order",
+        "kind": "authenticity",
+        "key": {
+          "kind": "keyPair",
+          "curve": "X25519",
+          "pkcs8": "302e020100300506032b656e042204201135b8655ccc4ea0b976d3a303d6b64b90e9f0b643f65e52288c25bdcebe4fa4",
+          "public": "9c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e"
+        },
+        "token": "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJYMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQSJ9fQ..9lNwSr6eXK7mJMc_.-GZl112gY9KmyKM.YIAvEX8DFccFLRCzSZIu-A"
+      },
+      {
+        "name": "the tag flipped",
+        "kind": "authenticity",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.JsrVCjtIvszJAlP-1o4yNg"
+      },
+      {
+        "name": "the ciphertext one octet short",
+        "kind": "authenticity",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikI.J8rVCjtIvszJAlP-1o4yNg"
+      },
+      {
+        "name": "the protected header edited after sealing",
+        "kind": "authenticity",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwia2lkIjoieCJ9..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg"
+      },
+      {
+        "name": "the right token under another key",
+        "kind": "authenticity",
+        "key": {
+          "kind": "shared",
+          "key": "a8484b7f2343539cca6fcdbb5505f277050a78f6d86d639dc27194d4abc3f005"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg"
+      },
+      {
+        "name": "four segments",
+        "kind": "authenticity",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU"
+      },
+      {
+        "name": "a protected header that is not base64url",
+        "kind": "authenticity",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "!!!..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg"
+      },
+      {
+        "name": "the JSON serialization, which is not compact",
+        "kind": "authenticity",
+        "key": {
+          "kind": "shared",
+          "key": "0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96"
+        },
+        "token": "{\"protected\":\"eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0\",\"iv\":\"yWqDaI4F5_VELg4e\",\"ciphertext\":\"e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU\",\"tag\":\"J8rVCjtIvszJAlP-1o4yNg\"}"
+      }
+    ]
+  }
+}
