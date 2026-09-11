@@ -138,6 +138,18 @@ impl ErrorClass {
 /// A [`crate::FATAL`] never becomes a `Thrown`: compiled code only ever pushes
 /// a frame for a `THROWN` status, and no `catch` is ever entered for a
 /// `FATAL` (`rule:errors/escalation-ladder`).
+///
+/// [`Pending::Thrown`] is a slot for an **object**, not for a `Throwable`:
+/// [`Thrown`] is one nullable reference with no class bound on it, and
+/// [`Ctx::raise`] records whatever it is handed. Every read of one is
+/// width-guarded rather than ancestry-guarded — [`Thrown::message`],
+/// [`Thrown::field`] and [`Thrown::push_frame`] each answer emptily for a class
+/// declaring fewer than [`crate::SLOT_COUNT`] slots instead of reaching past
+/// its end — while [`Ctx::pending_conforms_to`], which is the reading a `catch`
+/// clause binds by, answers off the descriptor's own ancestry. So an object of
+/// a class outside the `Throwable` tree rides the `THROWN` path through every
+/// landing pad and matches no `catch` naming a class in that tree, and neither
+/// property costs a widening here.
 #[derive(Debug)]
 pub(super) enum Pending {
     /// A message alone, with no exception object behind it yet, plus the
@@ -661,6 +673,69 @@ mod tests {
                 .is_none(),
             "nothing is pending once it has been taken"
         );
+    }
+
+    /// The property `Pending`'s own doc states, pinned: the pending slot is a
+    /// place for an object rather than for a `Throwable`, so a marker class
+    /// outside the tree can travel the `THROWN` path — which is what runs every
+    /// `finally` between the raise and the root — while matching no `catch`
+    /// clause naming a class in that tree. Both halves are load-bearing for
+    /// `Core\Script::finish`, and neither is asserted anywhere the compiled
+    /// side can see; a widening of either read here is what would silently
+    /// admit one to a `catch (Throwable $e)`.
+    #[test]
+    fn a_pending_object_outside_the_throwable_tree_unwinds_intact_and_matches_no_catch() {
+        const THROWABLE: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut table = ClassTable::new();
+        let root = table.define("Throwable", &THROWABLE, &[]);
+        table.define("RuntimeError", &THROWABLE, &[root]);
+        // No parents and no slots: outside the tree, and not shaped like it
+        // either — the narrowest class a promotion or a backtrace push can meet.
+        table.define("Core\\Script\\Finish", &[] as &[&str], &[]);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(table), root));
+        let desc = ctx
+            .class_desc("Core\\Script\\Finish")
+            .expect("the installed table defines it");
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor comes out of the table this context holds, \
+                      so it outlives the object, whose one reference is handed \
+                      to the `Thrown`"
+        )]
+        let marker = unsafe { Thrown::from_raw(crate::NvsObj::new(desc).into_raw()) };
+        ctx.raise(marker);
+
+        assert_eq!(ctx.pending_class().as_deref(), Some("Core\\Script\\Finish"));
+        assert!(
+            !ctx.pending_conforms_to("Throwable"),
+            "a `catch (Throwable $e)` binds by this and must not admit the marker"
+        );
+        assert!(!ctx.pending_conforms_to("RuntimeError"));
+        assert!(
+            ctx.pending_conforms_to("Core\\Script\\Finish"),
+            "it is still an instance of its own class"
+        );
+
+        // One compiled frame reporting itself on the way out. A class narrower
+        // than `SLOT_COUNT` grows no backtrace, and stays the very object that
+        // was raised rather than being promoted to a `RuntimeError`.
+        ctx.push_frame("main");
+        assert_eq!(ctx.pending_class().as_deref(), Some("Core\\Script\\Finish"));
+        assert_eq!(
+            ctx.pending().as_deref(),
+            Some(""),
+            "there is no message slot to read one out of"
+        );
+
+        let taken = ctx.take_thrown();
+        assert_eq!(taken.class_name(), "Core\\Script\\Finish");
+        assert!(
+            taken.field(crate::MESSAGE_SLOT).is_none(),
+            "a read past the end of the class answers nothing rather than panicking"
+        );
+        assert!(ctx.pending().is_none());
     }
 
     #[test]
