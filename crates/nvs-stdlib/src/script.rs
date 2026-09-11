@@ -798,8 +798,15 @@ nvs_runtime::nvs_helper! {
                     Value::null()
                 }
                 // `call_static_bound`'s remaining `Err` is `Fault::Pending`,
-                // which means the throw is already on this context — where
-                // `nvs_host::Isolate`'s `finish` reads it from.
+                // whose status is the whole of what the frame said: a throw is
+                // already on this context, where `nvs_host::Isolate`'s `finish`
+                // reads it from, and an `EXITED` leaves nothing there. Both are
+                // recorded the same way, because a `Program` answers a `Value`
+                // and no status — `Ctx::set_ending`.
+                Err(Fault::Pending(status)) => {
+                    child.set_ending(status);
+                    Value::null()
+                }
                 Err(_) => Value::null(),
             }
         });
@@ -915,6 +922,14 @@ nvs_runtime::nvs_helper! {
             args[0].retain();
         }
         ctx.push_exit_hook(args[0]);
+        // The routing half of the same registration, and the reason it is here
+        // rather than at either ending: `nvs-host`'s isolate teardown is where
+        // a served request ends and it may not name this crate, so the seam is
+        // inverted through `nvs_runtime` and the one member that registers a
+        // hook is what fills it — `Ctx::exit_drain`'s own doc owns the crate
+        // graph behind that. Filling it again on a second registration writes
+        // the same pointer.
+        ctx.set_exit_drain(run_exit_hooks);
         Ok(Value::null())
     }
 }

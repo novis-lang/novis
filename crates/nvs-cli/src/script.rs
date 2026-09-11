@@ -735,10 +735,19 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
             ctx.set_pending("the child's script frame was not compiled");
             return Value::null();
         };
-        // An error status leaves the throw on the context, which is where
-        // `nvs_host::Isolate`'s own `finish` reads it from; there is nothing
-        // to carry back by hand.
-        entry.call(ctx).unwrap_or_else(|_| Value::null())
+        // A throw leaves its object on the context, which is where
+        // `nvs_host::Isolate`'s own `finish` reads it from — but an
+        // `nvs_runtime::EXITED` leaves nothing there at all, and a `Program`
+        // answers a `Value` and no status. So the status is recorded on the
+        // context beside the answer, and `Ctx::set_ending` owns why that is the
+        // only way an `exit` reaches the classifier.
+        match entry.call(ctx) {
+            Ok(answer) => answer,
+            Err(status) => {
+                ctx.set_ending(status);
+                Value::null()
+            }
+        }
     })
 }
 

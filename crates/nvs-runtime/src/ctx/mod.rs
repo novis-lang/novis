@@ -153,6 +153,11 @@ use nvs_render::{Level, Record};
 
 use crate::object::{ClassDesc, ClassId, ClassTable, FieldDefault};
 use crate::throwable::{Thrown, ThrownClass};
+
+/// How the exit queue is drained — [`Ctx::exit_drain`]'s one word, named
+/// because the seam is spelled out at both ends of it and `nvs-stdlib`'s end is
+/// in another crate.
+pub(crate) type ExitDrain = fn(&mut Ctx, Result<(), i32>, Option<&Thrown>);
 use crate::value::Value;
 
 mod current;
@@ -576,6 +581,36 @@ pub struct Ctx {
     /// empties neither, and an ending that ran an empty queue has still had its
     /// one drain.
     exit_hooks_drained: bool,
+    /// The ABI status the isolate's program answered with, where it recorded
+    /// one — `None` for a program that ran to its end, and for one written in
+    /// Rust, which records nothing.
+    ///
+    /// [`crate::script::Program`] answers a [`crate::Value`] and no status, so
+    /// an ending that leaves nothing else behind is invisible to the classifier
+    /// on the other side of the boundary: a [`crate::THROWN`] leaves
+    /// [`Self::pending`], but a [`crate::EXITED`] leaves only
+    /// [`Self::exit_code`], and `0` is what that reads both for `exit(0)` and
+    /// for a script that never called `exit`. Recording the status is what lets
+    /// one classifier tell every ending apart, which is what
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s table is read
+    /// against. Four bytes per request, in the word
+    /// [`Self::exit_hooks_drained`] is already holding.
+    ending: Option<i32>,
+    /// How the exit queue is drained when the program that registered a hook
+    /// ends — `rule:observability/script-on-exit`'s routing half, travelling
+    /// **on the context** rather than being reached for at the end.
+    ///
+    /// It travels for the reason `Session::write_back` does: the report each
+    /// hook is handed is a `Core` instance, so only `nvs-stdlib` can build one,
+    /// while the two places a program ends are `nvs-host`'s isolate teardown
+    /// and `nvs run`'s root task. `nvs-stdlib` already depends on `nvs-host`,
+    /// so that edge cannot run the other way; this crate is the one all three
+    /// rest on, so the seam is inverted through it and `Core\Script::onExit` —
+    /// the one member that registers anything — fills the pointer.
+    ///
+    /// `None` until a hook is registered, so a script that registers none costs
+    /// one word and no call.
+    exit_drain: Option<ExitDrain>,
     /// How deep a chain of `spawn script` may nest — `[limits] max_script_depth`,
     /// [`Self::DEFAULT_MAX_SCRIPT_DEPTH`] where nothing states one, and `0`
     /// (no ceiling) only where an operator wrote `false`.

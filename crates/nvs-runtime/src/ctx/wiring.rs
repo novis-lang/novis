@@ -127,6 +127,8 @@ impl Ctx {
             shutdown_handler: Value::null(),
             exit_hooks: Vec::new(),
             exit_hooks_drained: false,
+            ending: None,
+            exit_drain: None,
             max_script_depth: Self::DEFAULT_MAX_SCRIPT_DEPTH,
             script_depth: 0,
             deferred: Some(Vec::new()),
@@ -266,6 +268,58 @@ impl Ctx {
     /// Records the status `exit(n)` named — `nvs_exit`'s one side effect.
     pub fn set_exit_code(&mut self, code: i64) {
         self.exit_code = code;
+    }
+
+    /// The ending the isolate's program recorded, spelled the way the seam that
+    /// routes it spells one: `Ok(())` where nothing was recorded.
+    ///
+    /// [`Self::set_ending`] owns why a program records at all, and
+    /// `nvs_stdlib::script::run_exit_hooks` is the table this is read against.
+    pub fn ending(&self) -> Result<(), i32> {
+        match self.ending {
+            Some(status) => Err(status),
+            None => Ok(()),
+        }
+    }
+
+    /// Records the ABI status the isolate's program answered with.
+    ///
+    /// Called by the program itself, on the one path where its frame came back
+    /// with a status: [`crate::script::Program`] answers a [`crate::Value`]
+    /// alone, so a status not recorded here is one the classifier across the
+    /// boundary cannot see. [`crate::EXITED`] is the ending that needs it — it
+    /// leaves no pending message, and [`Self::exit_code`] reads `0` both for
+    /// `exit(0)` and for a script that never called `exit`.
+    pub fn set_ending(&mut self, status: i32) {
+        self.ending = Some(status);
+    }
+
+    /// Fills the seam the exit queue is drained through.
+    ///
+    /// `Core\Script::onExit` is the one caller; the field's own doc owns why
+    /// the pointer travels on the context, and why a registration is what fills
+    /// it.
+    pub fn set_exit_drain(
+        &mut self,
+        drain: fn(&mut Self, Result<(), i32>, Option<&crate::Thrown>),
+    ) {
+        self.exit_drain = Some(drain);
+    }
+
+    /// Drains the exit queue for `outcome`, through the seam a registration
+    /// filled — and does nothing at all where no hook was ever registered.
+    ///
+    /// **Which endings run hooks is not decided here.** This end knows only
+    /// that the program ended and with what;
+    /// `nvs_stdlib::script::run_exit_hooks` is the one place that reads
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s table, builds
+    /// the report and refuses the two endings that fire nothing, and it is what
+    /// the pointer holds.
+    pub fn drain_exit_hooks(&mut self, outcome: Result<(), i32>, thrown: Option<&crate::Thrown>) {
+        let Some(drain) = self.exit_drain else {
+            return;
+        };
+        drain(self, outcome, thrown);
     }
 
     /// `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin, or `None` when this unit resolves
