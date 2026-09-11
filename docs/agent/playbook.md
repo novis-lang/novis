@@ -1698,6 +1698,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   duplicates. Check each name's claim against the candidate test's *body*, one entry at a time — a
   conjunction reads as covering two drafted claims while asserting one.
   [until: reviewed 2026-09-11]
+- **`verify.py`'s `directives` step is red on purpose, and it stops the gate before `build`.**
+  `tools/directives.py --check` names the `nvs.toml` keys that reach no reader, and stage 1 of goal
+  `config-is-written` is what decides each one — a reader, a deletion, or an `[unread: … owner: …]`
+  trailer — so until that lands, `test`, the `.nvst` trees, `reference` and `clippy` never run.
+  Decide the named keys first; if you must verify Rust before then, `python tools/verify.py --fast`
+  is build and test, and `cargo clippy --all-targets -- -D warnings` is the rest.
+  [until: gone tools/verify.py:red on purpose until stage 1]
 
 ## Running things
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """AGENTS.md § *Session workflow* step 3, as one command.
 
-`cargo fmt`, `tools/lints.py --check`, `cargo build`, `cargo test`, the `.nvst` trees through the
-binary the build just produced, `cargo clippy --all-targets -- -D warnings`, and -- once
-`editors/vscode` exists -- that extension's headless suites, in that order, stopping at the first
-failure. The lint gate precedes the compile steps because it decides what they enforce. Green prints one
+`cargo fmt`, `tools/lints.py --check`, `tools/directives.py --check`, `cargo build`, `cargo test`,
+the `.nvst` trees through the binary the build just produced, `cargo clippy --all-targets -- -D
+warnings`, and -- once `editors/vscode` exists -- that extension's headless suites, in that order,
+stopping at the first failure. The two script gates precede the compile steps because they decide
+what the tree means rather than whether it builds. Green prints one
 line per step; a failure prints that step's output and nothing else. `fmt` is the one step that
 *writes*: it formats rather than checks, and *Why `fmt` formats* below is the measurement.
 
@@ -181,13 +182,14 @@ CACHE_TTL = 3600  # seconds. A tree hash cannot go stale on its own; this is a b
 # fixture, an insta `.snap` and a `Cargo.toml` all change what the steps will answer.
 INPUT_DIRS = ("crates", "benches", "tests", "examples", "editors", "docs/reference")
 INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml",
-               # The two steps that are a script rather than `cargo`. Their verdict changes when
-               # the script does -- a crate added to `lints.py`'s roster, a chapter rule changed
-               # in `reference.py` -- and `tools/` is not otherwise hashed, so without these a
+               # The steps that are a script rather than `cargo`. Their verdict changes when
+               # the script does -- a crate added to `lints.py`'s roster, a reader counted a
+               # third way in `directives.py`, a chapter rule changed in `reference.py` -- and
+               # `tools/` is not otherwise hashed, so without these a
                # green cache would answer for a policy the tree no longer has. The rest of
                # `tools/` is deliberately not an input: `loop.py` and friends change most
                # sessions and change nothing these steps would say.
-               "tools/lints.py", "tools/reference.py",
+               "tools/lints.py", "tools/reference.py", "tools/directives.py",
                # The third file `reference.py` reads, and the only one outside `docs/reference/`:
                # every row of the migration table is rendered into `docs/novis.md`. Without it
                # here, a session that edits the table alone answers from the green cache, the
@@ -359,6 +361,15 @@ def summarize_lints(out):
         "ran, but printed no summary line -- check the log"
 
 
+def summarize_directives(out):
+    m = re.search(r"directives: (\d+) leaf keys", out)
+    if m:
+        return f"{m.group(1)} leaf keys, every one read or declared"
+    m = re.search(r"(\d+) problem\(s\) over (\d+) leaf key", out)
+    return f"{m.group(1)} of {m.group(2)} leaf keys unread and undeclared" if m else \
+        "ran, but printed no summary line -- check the log"
+
+
 def doc_step(opts):
     """The rustdoc gate: every ``[`Foo::bar`]`` in a doc comment, resolved.
 
@@ -396,6 +407,19 @@ def steps_for(opts):
         # unscoped: it reads manifests, so `-p` has nothing to narrow.
         steps.append(Step("lints", ["tools/lints.py", "--check"], summarize_lints,
                           exe=sys.executable))
+        # Beside `lints`, and before the compile steps for the same reason: it decides what a
+        # key in `nvs.toml` *means*, which no amount of compiling answers. `deny_unknown_fields`
+        # makes `crates/nvs-config/src/tree.rs` the accepted key set exactly, and a key that
+        # parses but reaches no reader is worse than one that is refused -- the operator writes
+        # it, the file is accepted, and the setting silently does nothing. Sub-second, and
+        # unscoped: it reads one Rust file and greps the rest, so `-p` has nothing to narrow.
+        #
+        # It is red on purpose until stage 1 of goal `config-is-written` has decided each of the
+        # keys it names -- a reader, a deletion, or an `[unread: … owner: …]` trailer. Landing it
+        # green by pre-marking every key is how a gate becomes a rubber stamp. `--fast` and `-p`
+        # skip it while that holds.
+        steps.append(Step("directives", ["tools/directives.py", "--check"],
+                          summarize_directives, exe=sys.executable))
     steps.append(Step("build", ["build", *scope], summarize_build))
     steps.append(Step("test", ["test", *scope], summarize_test))
     if not opts.fast:
@@ -467,7 +491,8 @@ def list_steps(opts):
     """`--list`: the order the gate walks, without walking it.
 
     The order is the specification -- `fmt` first because it rewrites what everything after it
-    reads, `lints` before the compile steps because it decides what they enforce, the `.nvst` trees
+    reads, `lints` and `directives` before the compile steps because they decide what the tree
+    means rather than whether it builds, the `.nvst` trees
     after `test` so a Rust fault is reported by the Rust step -- and a second copy of that list in
     a document drifts the day a step moves. So this prints `steps_for`'s own list, and `-p`,
     `--fast` and `--doc` narrow the listing exactly as far as they narrow a run.
