@@ -107,6 +107,11 @@ impl Ctx {
             exit_code: 0,
             memory_base: crate::budget::live_bytes(),
             memory_peak_saved: crate::budget::rebase_peak(),
+            // A context with no ceiling arms none, and takes the thread's
+            // arming with it either way: what it displaced comes back as it
+            // drops, so the enclosing request is measured against its own
+            // ceiling again rather than against a child's.
+            memory_ceiling_saved: crate::budget::displace(crate::budget::Armed::NONE),
             output_base: crate::budget::written_bytes(),
             memory_limit: 0,
             output_limit: 0,

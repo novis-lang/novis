@@ -335,8 +335,12 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
     // `rule:errors/on-limit`'s memory limit, asked here as well as at every helper
     // boundary ([`crate::run_helper`]): this poll sits between two Novis
     // statements, which is the one place a limit can stop a program that is
-    // allocating without calling anything. `crate::budget`'s module doc owns
-    // which allocations that reaches and which it does not.
+    // allocating without calling anything. What *brings* a program here is
+    // [`SafepointFlags::MEMORY_LIMIT`], raised by the allocator at the crossing
+    // itself — but the question asked is the counter and not the flag, so a
+    // crossing already given back is lowered at the foot of this function
+    // rather than reported. `crate::budget`'s module doc owns which allocations
+    // the threshold reaches and which it does not.
     if let Some(crate::Fault::Fatal(message)) = ctx.memory_breach() {
         // `rule:errors/on-limit`'s tier 1, ahead of the status this returns: the handler
         // is the last thing the program gets to run, and it runs before the
@@ -383,7 +387,14 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.lower_safepoint(SafepointFlags::SHUTDOWN);
         ctx.run_shutdown_handler();
     }
-    ctx.lower_safepoint(SafepointFlags::COLLECT | SafepointFlags::DEBUG_BREAK);
+    // Reached only by a request that is under every ceiling it has, so the
+    // memory bit is lowered with the two housekeeping ones: a request whose
+    // allocation crossed the ceiling and whose release brought it back again
+    // would otherwise take this slow path at every back edge it has left, for a
+    // breach the branch above has already declined to report.
+    ctx.lower_safepoint(
+        SafepointFlags::COLLECT | SafepointFlags::DEBUG_BREAK | SafepointFlags::MEMORY_LIMIT,
+    );
     crate::OK
 }
 

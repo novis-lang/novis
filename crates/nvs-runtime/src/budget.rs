@@ -61,18 +61,27 @@
 //! [`crate::nvs_safepoint`], the poll compiled code makes between statements.
 //! Together those bound any program that calls anything.
 //!
-//! **Known gap.** A compiled loop that allocates only through the ctx-less
-//! runtime helpers — `nvs_str_concat`, `nvs_array_append` — reaches neither
-//! until it next calls a member, because the safepoint's *fast* path branches
-//! on `Ctx`'s flags word and nothing sets that word for a breach. Closing it
-//! means giving the allocator a way to publish into that word, and the
-//! candidates are a thread-local `*const AtomicU64` armed for the running
-//! request, and a poll word compiled code reads out of thread-local storage.
-//! The first is the small change and it is the one with a real question under
-//! it: the allocator runs on the same thread as the `&mut Ctx` that reborrows
-//! that word, so the stashed pointer is not obviously sound in the way
-//! [`Ctx`](crate::Ctx)'s cross-thread `deadline` is. That question is why the
-//! gap is recorded here rather than closed in passing.
+//! **The allocator itself is what bounds the rest.** A request whose ceiling
+//! is armed carries it here as an absolute balance — [`armed_ceiling`] — and
+//! [`add`] compares every *growing* allocation against it. A crossing raises
+//! [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) in the word that
+//! request's tree polls, which is why a loop allocating only through the
+//! ctx-less helpers — `nvs_str_concat`, `nvs_array_append` — stops at its own
+//! next back edge rather than at whatever member it happens to call next. The
+//! flag is a *request to poll*, not the verdict: what it wakes asks
+//! [`Ctx::memory_breach`](crate::Ctx::memory_breach) against these counters, so
+//! a crossing given back before the poll arrives is lowered there rather than
+//! reported.
+//!
+//! **Known gap.** One allocation larger than the whole remaining budget is
+//! still *made* before it is noticed: the compare above happens after
+//! `Backing` has handed back the block, so a request that asks for its ceiling
+//! twice over in a single operation holds those bytes until its next poll.
+//! Bounding one operation rather than a loop means refusing in front of the
+//! allocation, where the size is known and the caller is ours, and that is a
+//! different seam — the value allocators in [`crate::string`] and
+//! [`crate::array`], never this one, whose null reaches `handle_alloc_error`
+//! and aborts the process.
 //! — owner: resource-ceilings
 //!
 //! # What it spends
@@ -89,6 +98,13 @@
 //! of an allocation that costs far more than they do even out of the pool. It
 //! is bought deliberately: AGENTS.md's priority ordering puts request
 //! isolation above latency, and a cap nothing counts against is not a cap.
+//!
+//! The ceiling above it is two more cells of the same set — the threshold and
+//! the address a crossing publishes into — and on the allocation path one
+//! thread-local load and one compare per *growing* allocation. A request under
+//! no ceiling arms `0` and stops at that compare, which is why the sentinel is
+//! zero rather than a maximum: the uncapped case is the one that must stay
+//! shortest.
 
 #[cfg(not(test))]
 use std::alloc::{GlobalAlloc, Layout};
@@ -127,6 +143,107 @@ thread_local! {
     /// Monotonic: how many bytes this thread has written to a request's output
     /// sink — the module doc's second counter.
     static WRITTEN: Cell<usize> = const { Cell::new(0) };
+    /// The [`LIVE`] balance the running request may not pass, or `0` for one
+    /// under no ceiling.
+    ///
+    /// `rule:errors/on-limit`'s memory limit as an **absolute** balance rather
+    /// than as the request's own reading, so that the compare in [`add`]
+    /// subtracts nothing first. [`Ctx::refresh_limits`](crate::Ctx) is the one
+    /// pass that computes the ceiling and [`arm`] the one writer of this.
+    static CEILING: Cell<isize> = const { Cell::new(0) };
+    /// The safepoint word the request that armed [`CEILING`] polls, or null
+    /// where nothing is armed.
+    ///
+    /// Read by an allocation that has already crossed the ceiling and by
+    /// nothing else, which is why it is a second cell rather than a field
+    /// beside the threshold: the ordinary path loads [`CEILING`] alone.
+    static POLLED: Cell<*const std::sync::atomic::AtomicU64> =
+        const { Cell::new(std::ptr::null()) };
+}
+
+/// A ceiling and the word a crossing of it publishes into — what [`arm`] sets
+/// and [`displace`] hands back.
+///
+/// The two travel together because arming one without the other is either a
+/// threshold nothing can report or an address nothing will reach.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Armed {
+    ceiling: isize,
+    word: *const std::sync::atomic::AtomicU64,
+}
+
+impl Armed {
+    /// Nothing armed: no threshold, and no word to publish a crossing into —
+    /// what a request under no ceiling arms, and the state a thread running no
+    /// request is left in.
+    pub(crate) const NONE: Self = Self {
+        ceiling: 0,
+        word: std::ptr::null(),
+    };
+
+    /// The threshold `ceiling` published into `word`.
+    ///
+    /// `word` must be the address of an `AtomicU64` that outlives the arming —
+    /// [`arm`] owns what the caller owes for that.
+    pub(crate) const fn new(ceiling: isize, word: *const std::sync::atomic::AtomicU64) -> Self {
+        Self { ceiling, word }
+    }
+}
+
+/// Arms `next` for this thread.
+///
+/// **What the caller owes:** the word `next` names must still be there at every
+/// allocation until something arms over it. [`Ctx`](crate::Ctx) discharges that
+/// by holding the pair it displaced in a field and arming it again as it drops,
+/// which is [`rebase_peak`]'s arrangement applied to a second number — so the
+/// address armed always belongs to a context that is still running.
+pub(crate) fn arm(next: Armed) {
+    CEILING.with(|ceiling| ceiling.set(next.ceiling));
+    POLLED.with(|polled| polled.set(next.word));
+}
+
+/// Arms `next` and hands back the pair it displaced.
+///
+/// [`Ctx::new`](crate::Ctx)'s half of the nesting above: a context made inside
+/// another takes the thread's arming with its own and carries the enclosing
+/// pair until it drops.
+pub(crate) fn displace(next: Armed) -> Armed {
+    let displaced = Armed {
+        ceiling: CEILING.with(Cell::get),
+        word: POLLED.with(Cell::get),
+    };
+    arm(next);
+    displaced
+}
+
+/// Raises [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) in the word
+/// the armed request's tree polls.
+///
+/// Out of line from [`add`], because it is reached only by an allocation that
+/// has already crossed the ceiling. It allocates nothing and takes no lock,
+/// which is what lets the global allocator be the caller.
+fn publish() {
+    let word = POLLED.with(Cell::get);
+    if word.is_null() {
+        return;
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the word is reached by address because the allocator has no \
+                  `Ctx` to reach it through; the reference made here is shared \
+                  and the store below is atomic, so this is the access the \
+                  watchdog thread already makes through `SafepointView`"
+    )]
+    // SAFETY: `POLLED` is non-null only between an `arm` and the arming that
+    // replaces it, and every armed address is the `Arc` allocation a live
+    // `Ctx` holds — the word lives in that allocation rather than inside the
+    // context, so a `&mut Ctx` on this thread grants no unique access to it
+    // and this shared reference does not alias one.
+    let word = unsafe { &*word };
+    word.fetch_or(
+        crate::SafepointFlags::MEMORY_LIMIT.bits(),
+        std::sync::atomic::Ordering::Relaxed,
+    );
 }
 
 /// How many bytes this thread has allocated and not yet freed.
@@ -219,6 +336,19 @@ pub(crate) fn wrote(bytes: usize) {
     WRITTEN.with(|written| written.set(written.get().saturating_add(bytes)));
 }
 
+/// The [`live_bytes`] balance the running request may not pass, or `0` for one
+/// under no ceiling.
+///
+/// The absolute threshold [`add`] compares a growing allocation against, which
+/// is [`Ctx::memory_limit`](crate::Ctx::memory_limit) plus the balance the
+/// request started from. The `0` is not a small ceiling but the sentinel the
+/// allocator short-circuits on, and reading it is how a case asks whether a
+/// request armed anything at all.
+#[must_use]
+pub fn armed_ceiling() -> isize {
+    CEILING.with(Cell::get)
+}
+
 /// Charges `bytes` to this thread's counters — negative for a release.
 ///
 /// `pub(crate)`, and called from [`Accounting`] below and from
@@ -244,6 +374,16 @@ pub(crate) fn add(bytes: isize) {
         REQUESTS.with(|count| count.set(count.get().wrapping_add(1)));
         let grew = usize::try_from(bytes).unwrap_or(0);
         TOTAL.with(|total| total.set(total.get().wrapping_add(grew)));
+        // `rule:errors/on-limit`'s memory ceiling, asked here because this is
+        // the one place a growing allocation passes: a loop growing a string
+        // through the ctx-less primitives reaches no other question until it
+        // calls something. A release is deliberately outside this branch —
+        // bytes given back cannot cross a ceiling, exactly as they cannot raise
+        // the mark above.
+        let ceiling = CEILING.with(Cell::get);
+        if ceiling != 0 && live > ceiling {
+            publish();
+        }
     }
 }
 

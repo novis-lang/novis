@@ -61,6 +61,43 @@ impl Ctx {
     /// arrives.
     pub fn set_memory_limit(&mut self, bytes: usize) {
         self.memory_limit = bytes;
+        self.arm_memory_ceiling();
+    }
+
+    /// Arms the allocator with this request's ceiling as an absolute balance,
+    /// so a growing allocation is measured against it where it happens rather
+    /// than at the next poll.
+    ///
+    /// **The two writers that resolve a ceiling call this** — [`Self::set_config`]
+    /// through [`Self::refresh_limits`], and [`Self::set_memory_limit`] — because
+    /// what it arms is a mirror of [`Self::memory_limit`] and a stale mirror
+    /// would hold a request to a ceiling it no longer has. The address armed
+    /// beside the number is this context's safepoint word, which is the request
+    /// *tree*'s — so a crossing stops whichever context in the tree is running,
+    /// the same division `rule:security/isolate-shares-nothing` gives the budget
+    /// itself.
+    ///
+    /// A ceiling written any other way — [`Self::handler_isolate`]'s reserve,
+    /// the widening [`Self::run_limit_handler`] does for the length of a
+    /// handler — leaves the threshold where it was, and that direction is the
+    /// safe one: the allocator's flag only ever asks for a poll, and the poll
+    /// reads [`Self::memory_limit`] itself. An unarmed request is bounded by
+    /// exactly what bounded it before this existed.
+    ///
+    /// A request under no ceiling arms nothing at all: [`crate::budget`]'s
+    /// sentinel is `0`, and short-circuiting on it is what keeps the uncapped
+    /// case to one compare per allocation.
+    fn arm_memory_ceiling(&mut self) {
+        crate::budget::arm(if self.memory_limit == 0 {
+            crate::budget::Armed::NONE
+        } else {
+            // Absolute, and saturating for the reason [`Self::memory_used`]
+            // floors at zero: the threshold is a balance rather than a size, so
+            // a ceiling that cannot be added to this request's baseline is one
+            // no allocation on this thread will reach.
+            let ceiling = isize::try_from(self.memory_limit).unwrap_or(isize::MAX);
+            crate::budget::Armed::new(self.memory_base.saturating_add(ceiling), self.safepoint)
+        });
     }
 
     /// This request's reserved slice in bytes — the bytes ordinary execution's
@@ -315,6 +352,11 @@ impl Ctx {
         // Nothing is carved out of it — [`Self::output_limit`]'s field doc owns
         // why a ceiling on writing needs no slice reserved from it.
         self.output_limit = self.configured_output_limit();
+        // Last, because it mirrors what the lines above just decided: the
+        // allocator is held to the ceiling ordinary execution is held to, and
+        // arming it from the same pass is what stops the two from being left
+        // disagreeing by a caller that moved one of them.
+        self.arm_memory_ceiling();
     }
 
     /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap.

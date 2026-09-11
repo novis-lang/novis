@@ -208,6 +208,17 @@ bitflags::bitflags! {
         const COLLECT = 1 << 2;
         /// A debugger wants to break here.
         const DEBUG_BREAK = 1 << 3;
+        /// A growing allocation has carried this request past
+        /// `rule:errors/on-limit`'s memory ceiling.
+        ///
+        /// Raised by [`crate::budget`]'s threshold, at the allocation, and it
+        /// is a request to *poll* rather than the verdict: the branch it wakes
+        /// asks [`Ctx::memory_breach`] against the counter, so a crossing that
+        /// has been given back again by the time the poll arrives lowers this
+        /// and carries on. That is what makes an allocation's share of the work
+        /// one compare and a store — the ceiling is read where it was already
+        /// being read, between two statements.
+        const MEMORY_LIMIT = 1 << 5;
         /// A terminating signal has been delivered to this process and the
         /// handler `Core\Signal::onShutdown` registered has not run yet.
         ///
@@ -367,6 +378,18 @@ pub struct Ctx {
     /// spawned it. Cold, and beside [`Self::memory_base`] for that field's own
     /// reason.
     memory_peak_saved: isize,
+    /// The allocator threshold this context displaced when it armed its own,
+    /// armed again as it drops.
+    ///
+    /// [`Self::memory_peak_saved`]'s arrangement applied to
+    /// [`crate::budget::armed_ceiling`], and for a sharper reason: the thread's
+    /// armed pair names a word by address, so a context that took the arming
+    /// and did not give it back would leave the allocator publishing into a
+    /// request that has ended. Restoring here is what keeps the armed address
+    /// one a live context holds — [`crate::budget::arm`] states the obligation
+    /// this field discharges. Cold, and beside its twin for that field's own
+    /// reason.
+    memory_ceiling_saved: crate::budget::Armed,
     /// The thread's output-byte count when this context was made — the zero
     /// point [`Self::output_used`] measures this request's own writing from.
     /// [`Self::memory_base`]'s twin in every respect, the reason it sits below
@@ -1188,6 +1211,12 @@ impl Drop for Ctx {
         // is the field, and the rule it names owns why the larger of the two
         // wins.
         crate::budget::publish_peak(self.memory_peak_saved);
+        // Beside it, and first for the same reason twice over: what the
+        // teardown below allocates belongs to whatever context encloses this
+        // one, and the word this context armed stops being a word anything may
+        // publish into the moment it drops. `Ctx::memory_ceiling_saved` is the
+        // field and `crate::budget::arm` the obligation.
+        crate::budget::arm(self.memory_ceiling_saved);
         self.release_statics();
         // An isolate's argument is one of its roots and is released with them
         // — `Ctx::set_isolate_argument` owns why it is held here at all.
