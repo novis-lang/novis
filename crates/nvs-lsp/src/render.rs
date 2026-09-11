@@ -98,6 +98,23 @@ pub struct Redaction {
     pub kind: String,
 }
 
+/// One span of a document that is not Novis, and which service owns it.
+///
+/// **Two fields, and the second one is not an instruction.** A language names
+/// the editor's own service — HTML, and the CSS and JavaScript it embeds — and
+/// says nothing about what that service may then be asked for. Formatting is
+/// what it may not be asked for
+/// (`rule:ide/a-template-region-gets-services-but-no-second-formatter`), and
+/// that is the client's registration rather than a field here: a region that
+/// could carry a formatter is a `.nvs` file with two of them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Region {
+    /// The bytes the named service answers inside.
+    pub range: Range,
+    /// Which service that is, as `crate::regions::HTML` spells it.
+    pub language: String,
+}
+
 /// One fix an editor may offer, with the edit it would apply.
 ///
 /// **One edit and not a list.** Every action this server offers is a
@@ -188,6 +205,8 @@ pub enum Response {
     Hints(Vec<InlayHint>),
     /// `nvs/redactions`.
     Redactions(Vec<Redaction>),
+    /// `nvs/regions`.
+    Regions(Vec<Region>),
 }
 
 impl Response {
@@ -210,6 +229,7 @@ impl Response {
             Self::DocumentHighlight(_) => Request::DocumentHighlight,
             Self::Hints(_) => Request::InlayHint,
             Self::Redactions(_) => Request::Redactions,
+            Self::Regions(_) => Request::Regions,
         }
     }
 
@@ -236,6 +256,7 @@ impl Response {
             Self::DocumentHighlight(items) => lines(sorted(items.iter().map(reference))),
             Self::Hints(items) => lines(sorted(items.iter().map(hint))),
             Self::Redactions(items) => lines(items.iter().map(redaction).collect()),
+            Self::Regions(items) => lines(items.iter().map(region).collect()),
         }
     }
 }
@@ -510,6 +531,12 @@ fn redaction(item: &Redaction) -> String {
     format!("{} {}", range(item.range), item.kind)
 }
 
+/// `L:C-L:C language`, which is [`redaction`]'s shape because it is the same
+/// claim: a span of the document, and one word saying what it is.
+fn region(item: &Region) -> String {
+    format!("{} {}", range(item.range), item.language)
+}
+
 /// `L:C kind label`, keyed by where the hint is drawn.
 ///
 /// The padding either side of a hint is not rendered: it is the gap an editor
@@ -738,6 +765,10 @@ mod tests {
                 range: span(3, 18, 30),
                 kind: "secretLiteral".to_owned(),
             }]),
+            Response::Regions(vec![Region {
+                range: span(4, 0, 12),
+                language: "html".to_owned(),
+            }]),
         ]
     }
 
@@ -773,6 +804,7 @@ mod tests {
             Response::DocumentHighlight(Vec::new()),
             Response::Hints(Vec::new()),
             Response::Redactions(Vec::new()),
+            Response::Regions(Vec::new()),
         ]
     }
 
@@ -885,6 +917,14 @@ mod tests {
             }])
             .render(),
             "4:19-4:31 secretLiteral\n"
+        );
+        assert_eq!(
+            Response::Regions(vec![Region {
+                range: span(4, 0, 12),
+                language: "html".to_owned(),
+            }])
+            .render(),
+            "5:1-5:13 html\n"
         );
 
         // A highlight list is spelled and sorted exactly as a reference list

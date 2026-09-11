@@ -277,6 +277,7 @@ pub(crate) fn answer(case: &Case) -> Result<Answered, String> {
         }
         Request::InlayHint => inlay_hints(&analysed),
         Request::Redactions => redactions(&analysed),
+        Request::Regions => regions(&analysed),
     };
     let covered = coverage::of(&analysed, cursor(case), &response, COLUMNS);
     Ok(Answered { response, covered })
@@ -552,6 +553,17 @@ fn code_action(analysed: &Analysed, offset: BytePos) -> Response {
 /// [`crate::redactions::for_document`] call the server makes answers it.
 fn redactions(analysed: &Analysed) -> Response {
     Response::Redactions(crate::redactions::for_document(analysed, COLUMNS))
+}
+
+/// `nvs/regions` — where the entry document stops being Novis.
+///
+/// No cursor and no arguments, on [`folding_range`]'s terms. Through
+/// [`crate::regions::for_document`] rather than the lex the server runs over a
+/// buffer, because that is the analysis this suite already has in hand; both
+/// reach the same walk, so a case and an editor cannot disagree about a
+/// boundary.
+fn regions(analysed: &Analysed) -> Response {
+    Response::Regions(crate::regions::for_document(analysed, COLUMNS))
 }
 
 /// `textDocument/inlayHint` — what the type phase recorded at the two places

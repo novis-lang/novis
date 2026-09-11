@@ -175,6 +175,7 @@ fn named(response: &Response) -> Vec<Position> {
         Response::CodeLens(items) => items.iter().map(|item| item.range.start).collect(),
         Response::Hints(items) => items.iter().map(|item| item.position).collect(),
         Response::Redactions(items) => items.iter().map(|item| item.range.start).collect(),
+        Response::Regions(items) => items.iter().map(|item| item.range.start).collect(),
     }
 }
 

@@ -84,6 +84,7 @@ use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_
 use crate::links;
 use crate::position::{encoding_of, offset_at, range_of};
 use crate::redactions;
+use crate::regions;
 use crate::selection;
 use crate::semantic;
 use crate::settings::Settings;
@@ -467,6 +468,12 @@ fn answer(
         redactions::METHOD => match serde_json::from_value::<TextDocumentIdentifier>(params) {
             Ok(document) => {
                 Response::new_ok(id, redaction_ranges(documents, encoding, &document.uri))
+            }
+            Err(error) => unreadable(id, &method, &error),
+        },
+        regions::METHOD => match serde_json::from_value::<TextDocumentIdentifier>(params) {
+            Ok(document) => {
+                Response::new_ok(id, template_regions(documents, encoding, &document.uri))
             }
             Err(error) => unreadable(id, &method, &error),
         },
@@ -1355,6 +1362,35 @@ fn redaction_ranges(
             .map(|item| serde_json::json!({ "range": item.range, "kind": item.kind }))
             .collect()
     })
+}
+
+/// `nvs/regions` — which spans of one open document are markup rather than
+/// Novis.
+///
+/// [`redaction_ranges`]'s sibling: the same [`TextDocumentIdentifier`] goes in,
+/// a JSON array comes back, and an empty array is an answer rather than an
+/// omission — a client that holds its last list keeps forwarding into a region
+/// the developer has since deleted.
+///
+/// **Over the buffer, not over an analysis.** A boundary is a lexical fact and
+/// this question arrives on the heels of an edit, so the document is lexed
+/// where every other handler here resolves a graph and type-checks it;
+/// [`regions::for_source`] is where that decision is written down. A URI
+/// nothing is open for answers nothing, because the text to lex is the buffer.
+fn template_regions(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    uri: &Uri,
+) -> Vec<serde_json::Value> {
+    let Some(document) = documents.get(uri) else {
+        return Vec::new();
+    };
+    let mut map = SourceMap::new();
+    let id = map.add(uri.as_str(), document.text());
+    regions::for_source(map.file(id), encoding)
+        .iter()
+        .map(regions::wire)
+        .collect()
 }
 
 /// What a document-sync notification changed, and so what has to be published

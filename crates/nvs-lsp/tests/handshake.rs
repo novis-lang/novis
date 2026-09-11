@@ -181,6 +181,39 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
 }
 
 #[test]
+fn the_server_declares_no_formatting_provider() {
+    // The load-bearing half of
+    // `rule:ide/a-template-region-gets-services-but-no-second-formatter`, asked
+    // of the server rather than of the client: a `.nvs` file has exactly one
+    // formatter and it is `nvs fmt`, run by the extension over the whole file
+    // (`rule:tooling/fmt-is-never-a-diagnostic`). A provider declared here
+    // would be a second one — `editor.formatOnSave` would reach it inside a
+    // template region, and `nvs fmt --check` would then fail for a reason that
+    // is not "this file is laid out differently".
+    //
+    // Named on its own rather than left to the closed list above because the
+    // list says what is absent by saying nothing, and an absence a rule turns
+    // on has to fail with its own name on it. The three spellings are checked
+    // together: on-type formatting is the one a reviewer forgets, since it is
+    // the only one an editor never shows in a menu.
+    let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
+    let object = declared
+        .as_object()
+        .expect("`ServerCapabilities` is a JSON object");
+
+    for field in [
+        "documentFormattingProvider",
+        "documentRangeFormattingProvider",
+        "documentOnTypeFormattingProvider",
+    ] {
+        assert!(
+            !object.contains_key(field),
+            "`{field}` is declared; a `.nvs` file's only formatter is `nvs fmt`"
+        );
+    }
+}
+
+#[test]
 fn initialize_reports_the_binary_version() {
     // `rule:ide/the-extension-refuses-a-binary-it-does-not-understand`: the
     // client compares this against what it was built for and refuses to start

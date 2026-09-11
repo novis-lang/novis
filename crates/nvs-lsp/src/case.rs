@@ -91,6 +91,8 @@ pub enum Request {
     InlayHint,
     /// `nvs/redactions`.
     Redactions,
+    /// `nvs/regions`.
+    Regions,
 }
 
 impl Request {
@@ -111,6 +113,7 @@ impl Request {
         Self::DocumentHighlight,
         Self::InlayHint,
         Self::Redactions,
+        Self::Regions,
     ];
 
     /// How a `--REQUEST--` line writes it.
@@ -132,6 +135,7 @@ impl Request {
             Self::DocumentHighlight => "documentHighlight",
             Self::InlayHint => "inlayHint",
             Self::Redactions => "redactions",
+            Self::Regions => "regions",
         }
     }
 

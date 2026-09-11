@@ -284,10 +284,18 @@ pub fn declared_capabilities(encoding: PositionEncodingKind) -> serde_json::Valu
 /// of a string key would be a second answer to what this function just
 /// settled.
 ///
-/// `nvs/redactions` appears nowhere in it, and that is not an omission: it is
-/// Novis's own request (`rule:ide/redaction-ranges-come-from-the-server`),
-/// LSP has no capability field for one, and the client knows it is available
-/// from `serverInfo` naming this server at all.
+/// Neither `nvs/redactions` nor `nvs/regions` appears in it, and that is not an
+/// omission: they are Novis's own requests
+/// (`rule:ide/redaction-ranges-come-from-the-server`,
+/// `rule:ide/a-template-region-gets-services-but-no-second-formatter`), LSP has
+/// no capability field for either, and the client knows both are available from
+/// `serverInfo` naming this server at all.
+///
+/// **No formatting provider appears either, and that absence is a decision.**
+/// `rule:tooling/fmt-is-never-a-diagnostic` gives a `.nvs` file exactly one
+/// formatter, `nvs fmt`, run by the client — so declaring one here, even one
+/// that answered with no edits, is what would put a second formatter inside the
+/// template region the request above reports. `tests/handshake.rs` pins it.
 #[must_use]
 pub fn initialize_result(params: &InitializeParams) -> (PositionEncodingKind, serde_json::Value) {
     let negotiated = negotiate_encoding(&params.capabilities);

@@ -29,8 +29,9 @@
 //! # What is answered
 //!
 //! The request set is closed: `rule:ide/the-request-set-is-closed` names every
-//! standard request answered here, two code actions and exactly one of Novis's
-//! own, and [`capabilities`] is the single place that declaration is written.
+//! standard request answered here, two code actions and two of Novis's own —
+//! [`redactions`] and [`regions`] — and [`capabilities`] is the single place
+//! that declaration is written.
 //! A request that is not on that list is a decision, not an addition — ADR 0099
 //! § 3 holds the test a candidate has to pass, and ADR 0171 § 2 is what it
 //! looks like applied to eight of them.
@@ -109,6 +110,7 @@ pub mod index;
 pub mod links;
 mod position;
 pub mod redactions;
+pub mod regions;
 mod render;
 pub mod selection;
 pub mod semantic;
@@ -131,6 +133,6 @@ pub use index::{
     CheckScope, DeclKind, Declaration, Occurrence, Site, SymbolIndex, Visibility, symbol_at,
 };
 pub use position::{encoding_of, offset_at, position_at, range_at, range_of};
-pub use render::{Action, Link, Place, Redaction, Response};
+pub use render::{Action, Link, Place, Redaction, Region, Response};
 pub use server::{ServerError, run, serve};
 pub use settings::{PhpNames, Settings};
