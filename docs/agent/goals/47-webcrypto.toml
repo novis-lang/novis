@@ -143,14 +143,17 @@ kind = "command"
 stage = "2 the record"
 name = "the interop tier is a rule"
 argv = ["python", "tools/rules.py", "--show", "core-classes/crypto-interop-tier"]
-want = ["rule:core-classes/crypto-interop-tier"]
+# The id without its `rule:` prefix, because `--citations` cannot tell a token asserted here from a
+# citation made here, and a check naming a rule that is this goal's own work to write would fail the
+# rulebook for every goal ahead of it. `--show` prints the token, so this still matches the line.
+want = ["core-classes/crypto-interop-tier"]
 
 [[check]]
 kind = "command"
 stage = "2 the record"
 name = "the JWE subset is a rule"
 argv = ["python", "tools/rules.py", "--show", "security/jwe-compact-subset"]
-want = ["rule:security/jwe-compact-subset"]
+want = ["security/jwe-compact-subset"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the primitives, each against the vectors its specification publishes. Goal prose stage 3.
