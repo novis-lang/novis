@@ -515,14 +515,14 @@ impl Ctx {
         // ceiling.
         let cpu_ordinary = self.cpu_limit;
         let cpu_reserve = self.fatal_reserve_time;
-        let stopped_for_cpu = self.safepoint.contains(SafepointFlags::CPU_LIMIT);
+        let stopped_for_cpu = self.safepoint_flags().contains(SafepointFlags::CPU_LIMIT);
         if cpu_ordinary != 0 {
             self.cpu_limit = cpu_ordinary.saturating_add(cpu_reserve);
             // Spent, not merely lent, for [`Self::fatal_reserve`]'s reason.
             self.fatal_reserve_time = 0;
         }
         if stopped_for_cpu {
-            self.safepoint.remove(SafepointFlags::CPU_LIMIT);
+            self.lower_safepoint(SafepointFlags::CPU_LIMIT);
         }
         // Built here rather than by either caller, and *after* the reserve is
         // in force: it allocates, and a report the ladder could not afford to
@@ -540,7 +540,7 @@ impl Ctx {
         self.cpu_limit = cpu_ordinary;
         self.fatal_reserve_time = cpu_reserve;
         if stopped_for_cpu {
-            self.safepoint.insert(SafepointFlags::CPU_LIMIT);
+            self.request_safepoint(SafepointFlags::CPU_LIMIT);
         }
         // SAFETY: the slot held one owned reference, which this frame now
         // holds; `call_closure` took its own of every slot for the callee to

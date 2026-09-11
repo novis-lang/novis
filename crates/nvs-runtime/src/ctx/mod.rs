@@ -11,10 +11,16 @@
 //! The hot words come first, in a `#[repr(C)]` struct, because compiled
 //! code loads them inline rather than calling anything:
 //!
-//! * [`SAFEPOINT_OFFSET`] — the safepoint poll `nvs-codegen` emits at every
-//!   function entry and loop back edge (`docs/adr/README.md`'s project-start
-//!   decisions). Load, test, predicted-not-taken branch to the
-//!   [`nvs_safepoint`] slow path.
+//! * [`SAFEPOINT_OFFSET`] — the *address* of the word the safepoint poll
+//!   `nvs-codegen` emits at every function entry and loop back edge reads
+//!   (`docs/adr/README.md`'s project-start decisions). The address is loaded
+//!   once in the ABI entry block, which dominates every block below it, so the
+//!   poll itself is a load of the word, a test, and a predicted-not-taken
+//!   branch to the [`nvs_safepoint`] slow path. The word is out of line
+//!   because the threads that raise a bit in it — a CPU sampler, a
+//!   cancellation, the allocator — are not the one running the request, and a
+//!   word inside this struct could only be written through the `&mut Ctx` a
+//!   helper body is already holding.
 //! * [`DEBUG_FLAGS_OFFSET`] — `rule:testing/debug-probes`'s probe check, at every statement boundary and every call site. Same
 //!   shape, same cost class, and present in every compiled unit whether or not
 //!   any request ever sets a bit — that is what makes coverage and tracing
@@ -183,13 +189,21 @@ bitflags::bitflags! {
     /// The word is checked, not the individual bits: compiled code branches on
     /// "is this non-zero", and only the [`nvs_safepoint`] slow path looks at
     /// which bit is set.
+    ///
+    /// **Every bit here is the request tree's.** The word lives outside [`Ctx`]
+    /// and a child polls the one its root does, so a bit raised in it is raised
+    /// for every context in the tree — which is what a ceiling the tree divides
+    /// needs, and what stops a runaway wherever in the tree it is running. A
+    /// cancellation is not one of those: cancelling one task is not stopping
+    /// the request, and `nvs_host::group` asks a child about its own
+    /// cancellation exactly to tell a child that *failed* from one that was
+    /// stopped. So it is [`Ctx::cancel`]'s own per-context flag, and bit 1 is
+    /// absent here rather than reused.
     #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
     #[repr(transparent)]
     pub struct SafepointFlags: u64 {
         /// The request has exceeded its CPU-time budget.
         const CPU_LIMIT = 1 << 0;
-        /// The client disconnected, or the request was cancelled.
-        const CANCEL = 1 << 1;
         /// The cycle collector wants to stop the world.
         const COLLECT = 1 << 2;
         /// A debugger wants to break here.
@@ -230,8 +244,21 @@ bitflags::bitflags! {
 #[repr(C)]
 #[derive(Debug)]
 pub struct Ctx {
-    /// Hot. Read inline by every safepoint poll; see the module docs.
-    safepoint: SafepointFlags,
+    /// Hot. The address of `safepoint_word`, loaded inline by every safepoint
+    /// poll; see the module docs. **Only compiled code follows it** — every
+    /// reader on this side goes through the handle beside it, which is why
+    /// nothing here is `unsafe`.
+    ///
+    /// A pointer is the eight bytes the flags word was, so the arrangement
+    /// `tests::the_hot_words_come_first_and_are_a_word_apart` pins is the one
+    /// it always was.
+    ///
+    /// **What it spends:** one allocation per request *tree* — [`Self::child`]
+    /// and [`Self::isolate`] share the root's — and one pointer hop, which the
+    /// poll does not pay: the address is fixed for the life of the context, so
+    /// `nvs-codegen` binds it once at function entry and a back edge keeps the
+    /// single load it always had.
+    safepoint: *const std::sync::atomic::AtomicU64,
     /// Hot. Read inline by every `rule:testing/debug-probes` probe site; see the module docs.
     debug: DebugFlags,
     /// Hot. Polled from inside a helper whose runtime scales with its input —
@@ -281,6 +308,38 @@ pub struct Ctx {
     /// slot index compiled code carries comes from `nvs_ir::Program::statics`,
     /// so there is an index only where there is a slot.
     statics: *mut Value,
+    /// The safepoint word itself, owned here and named by [`Self::safepoint`].
+    ///
+    /// Cold, and below `statics` for [`Self::memory_base`]'s reason: compiled
+    /// code loads the address above and never this field, and the hot line is
+    /// an arrangement this crate's tests pin by offset.
+    ///
+    /// **Shared with every context in the request tree.**
+    /// `rule:security/isolate-shares-nothing` gives a tree one ceiling to
+    /// divide, so it gives it one word to be stopped by: a child built after a
+    /// flag was raised must not be born clean, and the raiser holds the root
+    /// and has no registry of live children to walk. [`Self::child`] and
+    /// [`Self::isolate`] therefore clone the handle rather than copy the
+    /// word's value, through [`Self::share_safepoint_with`] — the one place
+    /// the handle and the address are written together.
+    safepoint_word: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    /// Whether this context has been cancelled, which [`Self::cancel`] is the
+    /// only writer of.
+    ///
+    /// Per context rather than a bit in the word above, because the word is the
+    /// whole tree's and a cancellation is one context's: a task cancelled by
+    /// its group has not stopped the request that spawned it, and the group
+    /// runner asks each child this to tell one that *failed* from one that was
+    /// stopped.
+    ///
+    /// It needs no poll to be delivered, which is why nothing is lost by
+    /// keeping it out of the word compiled code reads. [`Self::cancel`] takes
+    /// `&mut self`, so the only party that can raise it is one holding
+    /// exclusive access — and the thread running this context holds that for as
+    /// long as it runs, so a cancellation is always handed to a frame that is
+    /// parked or to the frame that asked for it, and that frame is the one that
+    /// stops.
+    cancelled: bool,
     /// The process status `exit`/`exit(n)` named, `0` until one runs.
     ///
     /// Cold: written once by `nvs_exit` on the way out, read once at the
@@ -1258,7 +1317,9 @@ impl Drop for Ctx {
     }
 }
 
-/// Byte offset of the safepoint word within [`Ctx`] — see the module docs.
+/// Byte offset of the handle to the safepoint word within [`Ctx`] — see the
+/// module docs, which own why the word itself is the request tree's and this
+/// line holds only the way to it.
 pub const SAFEPOINT_OFFSET: usize = std::mem::offset_of!(Ctx, safepoint);
 
 /// Byte offset of the debug-flags word within [`Ctx`] — see the module docs.

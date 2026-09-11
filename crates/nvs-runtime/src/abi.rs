@@ -312,7 +312,7 @@ pub const DEADLINE_POLL_BATCH: usize = 256;
 /// `rule:concurrency/cancellation-runs-no-user-code`
 /// settles that cancellation is not a `Throwable` and runs no user code — the
 /// same standing [`FATAL`] already gives a resource limit, and the same one
-/// [`crate::nvs_safepoint`] gives `SafepointFlags::CANCEL`.
+/// [`crate::nvs_safepoint`] gives a cancelled context.
 pub fn bounded_loop<I, F>(ctx: &mut Ctx, member: &str, items: I, mut body: F) -> Result<(), Fault>
 where
     I: IntoIterator,

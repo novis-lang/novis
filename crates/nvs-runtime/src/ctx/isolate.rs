@@ -290,6 +290,11 @@ impl Ctx {
         // The word, not its value: a task of this request is bounded by this
         // request's wall time and by no clock of its own. See the field doc.
         child.deadline = std::sync::Arc::clone(&self.deadline);
+        // The safepoint word the same way, and the same decision made twice: a
+        // task is part of this request, so a stop that reaches the request
+        // reaches the task whether it was spawned before the flag was raised or
+        // after it.
+        child.share_safepoint_with(self);
         // Sealed rather than empty: `rule:concurrency/after-response-outlives-the-connection`'s queue is the *request's*, and
         // one on a child would be drained by nobody and released when the child
         // ended. `crate::deferred` is the one home for that rule and for why a
@@ -320,13 +325,14 @@ impl Ctx {
     ///
     /// What crosses is what `rule:security/isolate-shares-nothing`'s table calls request-wide and immutable:
     /// the debug flags, the origin, the runtime error class table (compiled
-    /// code, shared by design) and the deadline word, since a budget is
-    /// accounted at the root of the request tree and never per isolate. The
-    /// deadline crosses as the *word* and not as its value — one store expires
-    /// the whole tree, whenever in the child's life the timer fires — and
-    /// [`Self::deadline`]'s field doc owns why a copy was the wrong half of
-    /// that. The output sink is the caller's, because `output: 'capture'` and
-    /// `output: 'inherit'` differ in nothing else.
+    /// code, shared by design), the deadline word and the safepoint word, since
+    /// a budget is accounted at the root of the request tree and never per
+    /// isolate. Both cross as the *word* and not as its value — one store stops
+    /// the whole tree, whenever in the child's life it happens — and
+    /// [`Self::deadline`]'s and [`Self::safepoint_word`]'s field docs own why a
+    /// copy was the wrong half of that. The output sink is the caller's,
+    /// because `output: 'capture'` and `output: 'inherit'` differ in nothing
+    /// else.
     ///
     /// **No ceiling crosses, and that is what makes the budget the tree's.**
     /// `rule:security/isolate-shares-nothing`'s table charges a child's memory and a child's output to the
@@ -367,6 +373,7 @@ impl Ctx {
         isolate.max_script_depth = self.max_script_depth;
         isolate.runtime_error_class = self.runtime_error_class.clone();
         isolate.deadline = std::sync::Arc::clone(&self.deadline);
+        isolate.share_safepoint_with(self);
         // **Not** sealed, unlike [`Self::child`], and the difference is the one
         // `rule:concurrency/after-response-outlives-the-connection` draws: an isolate runs a whole program, so the frame
         // that produced its answer returning is a trigger it has, where a

@@ -35,10 +35,27 @@ impl Ctx {
         (self.stack_limit, self.stack_floor)
     }
 
-    /// The pending safepoint requests.
+    /// The pending safepoint requests — one relaxed load of the word this
+    /// request tree shares, which is where every reader on this side goes.
+    /// Only compiled code follows [`Ctx`]'s raw address of it.
     #[must_use]
     pub fn safepoint_flags(&self) -> SafepointFlags {
-        self.safepoint
+        SafepointFlags::from_bits_retain(
+            self.safepoint_word
+                .load(std::sync::atomic::Ordering::Relaxed),
+        )
+    }
+
+    /// Joins `parent`'s request tree: from here on this context polls the word
+    /// `parent` polls, carrying whatever was already raised in it.
+    ///
+    /// The one place the handle and the address are written together, so the
+    /// hot slot can never name a word this context holds no share of.
+    /// `rule:security/isolate-shares-nothing` is why a child may not be born
+    /// clean, and [`Ctx::safepoint_word`]'s field doc owns the rest.
+    pub(super) fn share_safepoint_with(&mut self, parent: &Self) {
+        self.safepoint_word = std::sync::Arc::clone(&parent.safepoint_word);
+        self.safepoint = std::sync::Arc::as_ptr(&self.safepoint_word);
     }
 
     /// Whether this request's deadline has passed —
@@ -94,9 +111,27 @@ impl Ctx {
         self.yielder = yielder;
     }
 
-    /// Asks the next safepoint poll to act.
-    pub fn request_safepoint(&mut self, flags: SafepointFlags) {
-        self.safepoint |= flags;
+    /// Asks the next safepoint poll to act — this request's and every other
+    /// poll in its tree's, which read the one word.
+    ///
+    /// Takes `&self` rather than `&mut self` for [`Self::expire_deadline`]'s
+    /// reason, and it is the reason the word sits outside [`Ctx`] at all: the
+    /// callers this exists to serve are threads that do not own the request,
+    /// and the thread that does holds the `&mut` for as long as it is inside a
+    /// helper body.
+    pub fn request_safepoint(&self, flags: SafepointFlags) {
+        self.safepoint_word
+            .fetch_or(flags.bits(), std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Clears `flags`, leaving every other bit in the word alone.
+    ///
+    /// Read-modify-write rather than a store, because the word is the tree's:
+    /// a store would drop a bit another thread raised between this caller's
+    /// load and its write.
+    pub(super) fn lower_safepoint(&self, flags: SafepointFlags) {
+        self.safepoint_word
+            .fetch_and(!flags.bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Whether this request has been cancelled — the flag [`Ctx::cancel`] sets.
@@ -107,7 +142,7 @@ impl Ctx {
     /// exactly that question about a child.
     #[must_use]
     pub fn cancelled(&self) -> bool {
-        self.safepoint.contains(SafepointFlags::CANCEL)
+        self.cancelled
     }
 
     /// Stops this request for a cancellation, and answers the [`crate::Fault`]
@@ -122,13 +157,13 @@ impl Ctx {
     /// `rule:concurrency/cancellation-runs-no-user-code`
     /// 's teardown: no `catch`, no cleanup, no user code at all.
     ///
-    /// That is already exactly what [`SafepointFlags::CANCEL`] means, so this
-    /// sets the flag and asks [`nvs_safepoint`] for the answer rather than
+    /// That is already exactly what this context's cancellation flag means, so
+    /// this raises it and asks [`nvs_safepoint`] for the answer rather than
     /// inventing a second one — the status and its message keep one home, and
     /// what comes back is what the poll compiled code was going to make anyway
     /// would have said, only without the statements in between.
     pub fn cancel(&mut self) -> crate::Fault {
-        self.request_safepoint(SafepointFlags::CANCEL);
+        self.cancelled = true;
         #[expect(
             unsafe_code,
             reason = "the pointer is a reborrow of this `&mut self`, which is \
@@ -182,7 +217,7 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
     )]
     let ctx = unsafe { &mut *ctx };
 
-    if ctx.safepoint.contains(SafepointFlags::CPU_LIMIT) {
+    if ctx.safepoint_flags().contains(SafepointFlags::CPU_LIMIT) {
         // `rule:errors/on-limit` lists CPU time beside memory, so the ladder is the same
         // two lines the memory branch below carries, in the same order: the
         // handler runs before the breach becomes the pending message, and
@@ -236,11 +271,11 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.set_pending(message);
         return crate::FATAL;
     }
-    if ctx.safepoint.contains(SafepointFlags::CANCEL) {
+    if ctx.cancelled {
         ctx.set_pending("the request was cancelled");
         return crate::FATAL;
     }
-    if ctx.safepoint.contains(SafepointFlags::SHUTDOWN) {
+    if ctx.safepoint_flags().contains(SafepointFlags::SHUTDOWN) {
         // The one branch here that does not stop the request, and the reason
         // `Core\Signal`'s handler is Novis code rather than a signal handler:
         // the delivery raised this bit and returned, and *this* frame — between
@@ -255,11 +290,10 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         //
         // Lowered before the call, so a safepoint the handler's own back edges
         // reach does not find the request still asked to shut down.
-        ctx.safepoint.remove(SafepointFlags::SHUTDOWN);
+        ctx.lower_safepoint(SafepointFlags::SHUTDOWN);
         ctx.run_shutdown_handler();
     }
-    ctx.safepoint
-        .remove(SafepointFlags::COLLECT | SafepointFlags::DEBUG_BREAK);
+    ctx.lower_safepoint(SafepointFlags::COLLECT | SafepointFlags::DEBUG_BREAK);
     crate::OK
 }
 
@@ -331,21 +365,118 @@ mod tests {
     }
 
     #[test]
-    fn a_limit_or_cancel_safepoint_is_fatal_and_uncatchable() {
-        for (flag, message) in [
-            (
-                SafepointFlags::CPU_LIMIT,
-                "the request exceeded its CPU-time limit",
-            ),
-            (SafepointFlags::CANCEL, "the request was cancelled"),
-        ] {
-            let mut ctx = Ctx::buffered();
-            ctx.request_safepoint(flag);
-            #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
-            let status = unsafe { nvs_safepoint(&raw mut ctx) };
-            assert_eq!(status, crate::FATAL);
-            assert_eq!(ctx.pending().as_deref(), Some(message));
+    fn a_child_polls_the_same_word_its_root_does() {
+        // `rule:security/isolate-shares-nothing` gives the tree one ceiling to
+        // divide, so it gives it one word to be stopped by, whichever of the
+        // two constructors made the context.
+        let root = Ctx::buffered();
+        let isolate = root.isolate(OutputSink::Buffer(Vec::new()));
+        #[expect(
+            unsafe_code,
+            reason = "`root` is declared first and therefore outlives the child, \
+                      which is the obligation `Ctx::child` carries"
+        )]
+        let child = unsafe { root.child() };
+
+        for (kind, ctx) in [("an isolate", &isolate), ("a task child", &child)] {
+            assert!(
+                std::sync::Arc::ptr_eq(&root.safepoint_word, &ctx.safepoint_word),
+                "{kind} holds a word of its own"
+            );
+            assert!(
+                std::ptr::eq(root.safepoint, ctx.safepoint),
+                "{kind} polls a word of its own"
+            );
         }
+    }
+
+    #[test]
+    fn a_child_built_after_the_flag_was_set_is_not_born_clean() {
+        // The direction a copied flag cannot satisfy: whatever raises a stop
+        // holds the root and has no registry of live children to walk, so a
+        // child built a microsecond after it has to be born stopped.
+        let root = Ctx::buffered();
+        root.request_safepoint(SafepointFlags::CPU_LIMIT);
+        let born_stopped = root.isolate(OutputSink::Buffer(Vec::new()));
+        assert!(
+            born_stopped
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT)
+        );
+
+        // And the other direction, which is the one a copy satisfies only by
+        // accident: a child that started clean is stopped by a flag raised
+        // after it existed.
+        let born_clean = root.isolate(OutputSink::Buffer(Vec::new()));
+        root.lower_safepoint(SafepointFlags::CPU_LIMIT);
+        assert!(born_clean.safepoint_flags().is_empty());
+        root.request_safepoint(SafepointFlags::CPU_LIMIT);
+        assert!(
+            born_clean
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT)
+        );
+    }
+
+    #[test]
+    fn every_rust_side_read_goes_through_the_handle() {
+        // The address in the hot slot and the handle beside it name one word in
+        // every context this crate builds, so the two sides cannot read
+        // different answers — which is what lets every reader here take the
+        // handle and leaves the raw pointer to compiled code alone.
+        let root = Ctx::buffered();
+        let isolate = root.isolate(OutputSink::Buffer(Vec::new()));
+        #[expect(
+            unsafe_code,
+            reason = "`root` is declared first and therefore outlives the child, \
+                      which is the obligation `Ctx::child` carries"
+        )]
+        let child = unsafe { root.child() };
+
+        for (kind, ctx) in [
+            ("a request", &root),
+            ("an isolate", &isolate),
+            ("a task child", &child),
+        ] {
+            assert!(
+                std::ptr::eq(ctx.safepoint, std::sync::Arc::as_ptr(&ctx.safepoint_word)),
+                "{kind}'s hot slot does not name the word beside it"
+            );
+        }
+
+        root.request_safepoint(SafepointFlags::COLLECT);
+        #[expect(
+            unsafe_code,
+            reason = "the read compiled code makes, made here: the address names \
+                      a word this frame holds a share of for the whole read"
+        )]
+        let raw = unsafe { &*root.safepoint }.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            SafepointFlags::from_bits_retain(raw),
+            root.safepoint_flags()
+        );
+    }
+
+    #[test]
+    fn a_limit_or_cancel_safepoint_is_fatal_and_uncatchable() {
+        let mut ctx = Ctx::buffered();
+        ctx.request_safepoint(SafepointFlags::CPU_LIMIT);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        let status = unsafe { nvs_safepoint(&raw mut ctx) };
+        assert_eq!(status, crate::FATAL);
+        assert_eq!(
+            ctx.pending().as_deref(),
+            Some("the request exceeded its CPU-time limit")
+        );
+
+        // The cancellation half, which is this context's own and not the tree's
+        // — and which asks the same slow path for its answer.
+        let mut ctx = Ctx::buffered();
+        let crate::Fault::Pending(status) = ctx.cancel() else {
+            panic!("a cancellation is a pending stop");
+        };
+        assert_eq!(status, crate::FATAL);
+        assert_eq!(ctx.pending().as_deref(), Some("the request was cancelled"));
     }
 
     #[test]

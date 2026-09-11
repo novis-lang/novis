@@ -182,10 +182,12 @@ pub enum Outcome {
 /// cancelled while it waited. A cancelled task standing on script frames cannot
 /// be unwound where it parked ([`crate::HelperFrame`]), so its host resumes it
 /// instead, and this is what the resume says. The member's answer to
-/// [`Woken::Cancelled`] is [`crate::SafepointFlags::CANCEL`] and an ordinary
-/// return: the next safepoint poll is then
-/// `rule:concurrency/cancellation-runs-no-user-code`'s
-/// teardown, and because it is a poll rather than a throw, no `catch` sees it.
+/// [`Woken::Cancelled`] is [`crate::Ctx::cancel`] and an ordinary return: that
+/// call is `rule:concurrency/cancellation-runs-no-user-code`'s
+/// teardown, asked of the same slow path a safepoint poll asks, and because it
+/// is that rather than a throw, no `catch` sees it. The flag it raises is this
+/// context's own: the word a poll reads is the request tree's, and one task
+/// being cancelled is not the tree being stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Woken {
     /// The wait ran to the end of the duration asked for.

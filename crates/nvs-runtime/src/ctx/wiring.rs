@@ -91,13 +91,19 @@ impl Ctx {
         // it — the safe direction.
         let anchor = 0_u8;
         let base = std::ptr::from_ref(&anchor) as usize;
+        // The word before the struct that names it: what the hot slot holds is
+        // the address of this allocation, and moving the handle into the field
+        // below leaves the allocation exactly where it is.
+        let safepoint_word = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
         let mut ctx = Self {
-            safepoint: SafepointFlags::empty(),
+            safepoint: std::sync::Arc::as_ptr(&safepoint_word),
             debug: DebugFlags::empty(),
             deadline: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
             stack_limit: 0,
             stack_floor: 0,
             statics: std::ptr::null_mut(),
+            safepoint_word,
+            cancelled: false,
             exit_code: 0,
             memory_base: crate::budget::live_bytes(),
             memory_peak_saved: crate::budget::rebase_peak(),
