@@ -2,54 +2,51 @@
 
 ## State
 
-**Goal `event-streams` — stage 4 is landed, and door one waits.** A context now records *which*
-door opened the event stream it writes (`nvs_runtime::EventStreamDoor`,
-`crates/nvs-runtime/src/ctx/output.rs`), the hand-over marks `Connection`, and `Core\Topic`
-admits that mark beside a peer — so a stream's isolate subscribes like any connection.
-`Core\Sse->receive(): ?Core\Sse\Message` is registered and waits over topics alone: the queue
-carries its own wake (`nvs_runtime::Inbox::wake_on`), so a publish on this core wakes the wait
-where it stands, and an overflowed queue answers `null` and ends the body. All four stage-4
-`nvs-stdlib` tests pass; the stage's other two checks were already green.
+**Goal `event-streams` — stage 5 has opened, and the keep-alive is the first bound landed.** An event
+stream that sends nothing now writes `nvs_runtime::sse::KEEPALIVE` at
+`crate::bounds::heartbeat(write_idle)` — half the response wait, floored at a second wherever the wait
+leaves room, and strictly under it at every duration `nvs_config::server::waits_for` accepts. That
+last property is load-bearing rather than tidy: the beat is filed as the connection task's *one*
+deadline (`nvs_host::Timers`), so it is sound only because it always lands earlier than the socket's.
 
-**What the wait spends, per `rule:programs/memory-priority`:** one wake pointer per connection
-that ever subscribed, and one wakeup per idle stream per `CROSS_CORE_TICK`
-(`crates/nvs-stdlib/src/sse.rs`, 50 ms). The tick is there because the cross-core half is still
-**pull-based** — `deliver_from_other_cores` is called from inside the wait — and it goes away the
-day the bus wakes the core it hands a value to. Nothing schedules that.
+`crate::serve::Answer::Streaming` is now a struct variant carrying `Option<Heartbeat>`, `None` for a
+request-scoped stream — a streamed response is bounded by the request writing it, and quiet inside one
+is a fault where quiet on an event stream is the ordinary state. `event_stream`
+(`crates/nvs-server/src/serve.rs:1598`) is the one caller that arms it. The body publishes the next
+beat into `crate::bounds::NextBeat`; the drive loop files it, and the playbook bullet above is why.
 
-**`Core\Socket::receive` is still inside `Ctx::deliver`'s known gap**: it parks on its descriptor
-and registers nothing on the inbox, so a delivery queued while it waits is answered by the next
-call. The seam it would need now exists.
+**The rustdoc gate is green again** — `crates/nvs-runtime/src/peer.rs:226`'s `Waker` link was
+unqualified. `python tools/verify.py --doc` passes clean.
 
-**Record `docs/decisions/0176.md` is still open** with the stage 0 correction, and owes the
-framing's crate as well.
+**`Core\Socket::receive` is still inside `Ctx::deliver`'s known gap**, and record
+`docs/decisions/0176.md` is still open with the stage 0 correction and owes the framing's crate.
 
 ## Next group
 
 **Stage 5: the bounds, and the trap under them** — one file set: `crates/nvs-server/src/bounds.rs`,
-`crates/nvs-server/src/serve.rs` and `crates/nvs-config/src/server.rs`.
+`crates/nvs-server/src/serve.rs` and `crates/nvs-runtime/src/sse.rs`.
 
-- [ ] **The heartbeat is derived from the write wait and stays under it** — a stream that has sent
-      nothing still has to move a byte before `write_idle`
-      (`crates/nvs-config/src/server.rs:84`) closes it, so the heartbeat is half that wait and never
-      below one second, armed where the head is answered at `crates/nvs-server/src/serve.rs:1508`.
+- [ ] **The bound an event stream does not read, and the two it does** — `Connection::idle`
+      (`crates/nvs-server/src/bounds.rs:78`) closes a connection whose *peer* stopped speaking, and an
+      event stream's peer never speaks, so arming it would close every healthy stream; `lifetime` is
+      armed and closes one however busy it was, and `message` bounds one event rather than one frame.
+      Armed beside the heartbeat at `crates/nvs-server/src/serve.rs:1598`, refused where the event is
+      framed at `crates/nvs-runtime/src/sse.rs:112`.
       `rule:concurrency/connection-bounds-are-finite`.
-- [ ] **The bound an event stream does not read, and the two it does** — `idle` is not armed for a
-      stream (`crates/nvs-server/src/bounds.rs:81`), `lifetime` closes it however busy it was
-      (`crates/nvs-server/src/bounds.rs:83`), and an event past `message`
-      (`crates/nvs-server/src/bounds.rs:78`) is refused.
-      `rule:concurrency/connection-bounds-are-finite`.
-- [ ] **Every bound is finite with nothing configured, and the reconnect hint is drawn per stream**
-      — `Connection::default` at `crates/nvs-server/src/bounds.rs:99`, a `retry:` line written at
-      the open in `crates/nvs-server/src/serve.rs:1508` and not the same for two streams, and a
-      drain that ends the body cleanly rather than resetting.
-      `rule:concurrency/connection-bounds-are-finite`.
+- [ ] **Every bound is finite with nothing configured, and the reconnect hint is drawn per stream** —
+      `Connection::default`'s destructuring case (`crates/nvs-server/src/bounds.rs:78`) is the first
+      half and already stands; the second is `nvs_runtime::sse::reconnect_after`
+      (`crates/nvs-runtime/src/sse.rs:112`) written once at open with a jittered wait, so two streams
+      reconnecting do not return together, and a drain ends the body rather than resetting the
+      connection. `rule:concurrency/connection-bounds-are-finite`, `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`.
 
 ## Backlog
 
+- Door two gets no heartbeat: a `text/event-stream` opened through `Core\Response::stream` is a
+  streamed response, and `Answer::beating` is only reached from `event_stream`. Decide in stage 6.
 - Stage 6's rulebook and record: `docs/decisions/0176.md` is open and owes the framing's crate.
 - `Core\Socket::receive` could park over both sources now — `nvs_runtime::Ctx::deliver`'s known gap.
 - A pushing cross-core bus removes `CROSS_CORE_TICK` — that const's own doc in
   `crates/nvs-stdlib/src/sse.rs` is where the trade is written down.
-- `Core\Sse->receive` on a stream that subscribed to nothing parks until its lifetime bound; stage 5
-  is where that becomes observable.
+- `Core\Sse->receive` on a stream that subscribed to nothing parks until its lifetime bound; the item
+  above is where that becomes observable.

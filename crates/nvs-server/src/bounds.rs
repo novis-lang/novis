@@ -31,6 +31,11 @@
 //!   would be charged to nothing. The two numbers are the same magnitude for
 //!   the same reason — `rule:http-server/admission-is-arithmetic-not-a-number`'s arithmetic sizes a slot against what one
 //!   isolate may hold, and § 1 gives a connection isolate exactly that budget.
+//! - **An event stream's keep-alive** is [`Heartbeat`], derived rather than
+//!   configured: what closes an idle event stream is the response wait
+//!   `nvs_config::server::Waits::write_idle` and not any field here, so the
+//!   interval that keeps one open is read off that wait
+//!   ([`heartbeat`]) and is a number no operator writes twice.
 //! - **Connections per tenant** is not a bound of this server's at all, which
 //!   is what § 7's parenthetical says: `rule:core-classes/ratelimit-two-members`
 //!   applies to the upgrade request "like any other", so a per-tenant ceiling is
@@ -59,7 +64,9 @@
 //!
 //! — owner: unowned
 
-use std::time::Duration;
+use std::cell::Cell;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 /// `rule:concurrency/connection-bounds-are-finite`'s
 /// bounds on one open connection.
@@ -201,9 +208,159 @@ impl Drop for Slot {
     }
 }
 
+/// The shortest interval an idle event stream is written a keep-alive at.
+///
+/// A floor and not a target: the derivation below halves the response wait, and
+/// a deployment that shortened that wait for its own reasons would otherwise
+/// buy a stream that writes a comment several times a second for as long as it
+/// is open. What it costs where it binds is one three-byte frame a second on a
+/// stream that is saying nothing, which is `rule:programs/memory-priority`'s
+/// priority 3 spent on priority 1's behalf — the alternative is the connection
+/// closing under a program that is working correctly.
+pub const HEARTBEAT_FLOOR: Duration = Duration::from_secs(1);
+
+/// How often an event stream that has sent nothing writes
+/// `nvs_runtime::sse::KEEPALIVE`, read off the wait that would otherwise close
+/// it.
+///
+/// **Half the wait, and never below [`HEARTBEAT_FLOOR`] while the wait leaves
+/// room for it.** Halving is what makes the beat a bound rather than a race: a
+/// stream whose beat and whose wait were the same number would be writing its
+/// keep-alive at the instant the connection is already being closed for not
+/// having written one, and one scheduling delay either way decides which
+/// happens. The floor is the other direction, and it yields: where the wait is
+/// itself at or under a second there is no interval that is both a second and
+/// under the wait, and what an event stream needs is the second of those — a
+/// beat at or past the wait is not a beat at all.
+///
+/// So this is **strictly under `write_idle` at every duration the `[server]`
+/// parser can produce** (`nvs_config::server::waits_for`, which refuses zero
+/// and accepts every other magnitude), and that is the property
+/// [`wake_at`] rests on rather than a nicety.
+#[must_use]
+pub fn heartbeat(write_idle: Duration) -> Duration {
+    let half = write_idle / 2;
+    if half < HEARTBEAT_FLOOR && HEARTBEAT_FLOOR < write_idle {
+        HEARTBEAT_FLOOR
+    } else {
+        half
+    }
+}
+
+/// Where a connection loop reads the instant its event stream next owes a byte,
+/// and `None` for a connection writing no event stream.
+///
+/// A cell shared between the response body and the loop driving the connection,
+/// because the two halves of one beat are a `hyper` connection apart: the body
+/// is the only thing that knows a poll found nothing to send, and the loop is
+/// the only place a deadline can be filed *after* the whole poll pass. That
+/// ordering is the whole reason this is not a method on [`Heartbeat`] — see
+/// [`wake_at`].
+pub type NextBeat = Rc<Cell<Option<Instant>>>;
+
+/// One open event stream's keep-alive clock: how often it owes a byte, and when
+/// the next one falls due.
+///
+/// Held by the response body `crate::serve::Answer` an event stream is written
+/// through, because that is the one object that sees both halves — what the
+/// program sent and what the connection is about to answer `Pending` with. A
+/// beat is owed only where nothing else moved, so every chunk the program sends
+/// is a beat ([`Heartbeat::moved`]) and a stream under load never writes one.
+///
+/// **What it spends**, per `rule:programs/memory-priority`: one cell and two
+/// words per open event stream, and one clock read per poll of its body.
+/// Nothing per event, and nothing at all on a response that is not one.
+#[derive(Debug)]
+pub struct Heartbeat {
+    /// The interval, from [`heartbeat`] and fixed for this stream's life —
+    /// `[server]` is `Boot`-class, so a reload does not move it under a stream
+    /// already open.
+    every: Duration,
+    /// When the next beat falls due, pushed forward by every byte that goes out
+    /// for any reason, and published for the loop on every change.
+    due_at: NextBeat,
+}
+
+impl Heartbeat {
+    /// The clock an event stream opens with, derived from the wait its
+    /// connection writes responses under and published into the loop's cell.
+    #[must_use]
+    pub fn derived_from(write_idle: Duration, due_at: NextBeat) -> Self {
+        let every = heartbeat(write_idle);
+        due_at.set(Some(Instant::now() + every));
+        Self { every, due_at }
+    }
+
+    /// Whether a beat is owed now, starting the next interval where it is.
+    ///
+    /// Asked on the poll that would otherwise answer `Pending`, so a stream
+    /// with a chunk in hand never reaches it.
+    pub fn due(&mut self) -> bool {
+        let now = Instant::now();
+        if self.due_at.get().is_some_and(|at| now < at) {
+            return false;
+        }
+        self.due_at.set(Some(now + self.every));
+        true
+    }
+
+    /// A byte went out for its own reason, which is everything a beat would
+    /// have bought.
+    pub fn moved(&mut self) {
+        self.due_at.set(Some(Instant::now() + self.every));
+    }
+
+    /// The stream is over, so the loop stops waking for it.
+    ///
+    /// Left unsaid, the cell would keep asking for a wake every interval for as
+    /// long as the connection lives — a keep-alive for a response that ended.
+    pub fn ended(&mut self) {
+        self.due_at.set(None);
+    }
+}
+
+impl Drop for Heartbeat {
+    /// A peer that went away mid-stream ends the beat the same way the stream
+    /// ending does: this body is what was being kept alive.
+    fn drop(&mut self) {
+        self.ended();
+    }
+}
+
+/// Files `at` as this connection task's deadline, so the park that follows a
+/// `Pending` ends in time to write the beat that is due then.
+///
+/// **Called from the connection loop and after the whole poll pass**, which is
+/// the ordering the design rests on rather than a detail: the socket files its
+/// own deadline from inside a poll (`nvs_host::NvsStream::poll_read`), and
+/// `nvs_host::Timers` keeps one deadline per task, so a beat filed mid-pass
+/// would be replaced by whichever poll came after it. Filing last makes the
+/// beat the entry that survives.
+///
+/// **Replacing the socket's entry is sound for exactly one reason**:
+/// [`heartbeat`] is strictly under `write_idle`, so the beat is always the
+/// earlier instant and the wake it arranges always comes first. The response
+/// wait is still what closes the connection — the socket re-reads its own
+/// deadline on every poll and refuses one that has passed — and a peer that
+/// stopped reading is discovered by the write a beat itself is.
+///
+/// Nothing is disarmed when the stream ends: [`Heartbeat::ended`] empties the
+/// cell instead, so no further beat is filed, and the deadline already there
+/// costs one extra poll of a connection that is about to be polled anyway.
+/// Taking it back would take the socket's own entry with it, and that one is
+/// what bounds a park nothing else ends.
+pub fn wake_at(at: Instant) {
+    let Some(me) = nvs_host::current_task() else {
+        return;
+    };
+    let _ = nvs_host::reactor::with_current(|reactor| reactor.timers().arm(me, at));
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Connection, Slot};
+    use std::time::Duration;
+
+    use super::{Connection, HEARTBEAT_FLOOR, Slot, heartbeat};
 
     /// `rule:concurrency/connection-bounds-are-finite`'s first bullet, as the assertion it is: with nothing
     /// configured, every bound a connection is held inside is a finite number.
@@ -274,5 +431,77 @@ mod tests {
             Slot::take_from(&COUNT, 1).is_some(),
             "the place was not given back when the connection closed"
         );
+    }
+
+    /// [`heartbeat`]'s derivation, stated as the two clauses it is: half the
+    /// response wait, and not below [`HEARTBEAT_FLOOR`].
+    ///
+    /// Asserted over every wait the floor leaves room inside, which is every
+    /// one above a second — below that the two clauses cannot both hold and the
+    /// floor is the one that yields, which is what the test below is the whole
+    /// statement of. The default is read from `nvs_config::Waits` rather than
+    /// written here, so that a change to the response wait moves this case with
+    /// it instead of leaving it asserting a number nothing serves under.
+    #[test]
+    fn the_heartbeat_is_half_the_write_idle_wait_and_never_below_one_second() {
+        let served_under = nvs_config::Waits::default().write_idle;
+        assert_eq!(
+            heartbeat(served_under),
+            served_under / 2,
+            "the wait this server writes responses under does not halve"
+        );
+
+        for millis in [1_001_u64, 1_500, 1_999, 2_000, 2_001, 3_000, 10_000, 30_000] {
+            let wait = Duration::from_millis(millis);
+            assert_eq!(
+                heartbeat(wait),
+                (wait / 2).max(HEARTBEAT_FLOOR),
+                "a beat derived from {wait:?} is neither half of it nor the floor"
+            );
+            assert!(
+                heartbeat(wait) >= HEARTBEAT_FLOOR,
+                "a stream under {wait:?} beats more often than once a second"
+            );
+        }
+    }
+
+    /// The property [`Heartbeat::arm`](super::Heartbeat::arm) rests on: a beat
+    /// is strictly earlier than the wait it exists to stay inside, whatever the
+    /// `[server]` block wrote.
+    ///
+    /// A beat at or past the wait would be a connection closed for not writing
+    /// the byte it was about to write, and — because the beat is filed as the
+    /// connection task's one deadline — a wake arranged for after the instant
+    /// it was arranged to beat before. So the sweep runs the tight region a
+    /// nanosecond at a time, where the floor and the wait cross, and the whole
+    /// magnitude range by doubling: `waits_for` refuses zero and accepts every
+    /// other duration it can spell, so those are the values a server can be
+    /// serving under.
+    #[test]
+    fn the_heartbeat_is_strictly_under_the_write_idle_wait_for_every_accepted_value() {
+        let mut accepted: Vec<Duration> = (1..=5_000_u64).map(Duration::from_nanos).collect();
+        accepted.extend((1..=5_000_u64).map(Duration::from_millis));
+        let mut nanos = 1_u64;
+        while let Some(doubled) = nanos.checked_mul(2) {
+            accepted.push(Duration::from_nanos(nanos));
+            nanos = doubled;
+        }
+        accepted.push(Duration::from_nanos(u64::MAX));
+
+        for wait in accepted {
+            let beat = heartbeat(wait);
+            assert!(
+                beat < wait,
+                "a stream under {wait:?} beats every {beat:?}, which is not \
+                 inside the wait it has to move a byte before"
+            );
+            // Zero is reachable at exactly one wait — one nanosecond, where no
+            // non-zero interval is under it — and a connection written that is
+            // closed by its own deadline before a beat could matter.
+            assert!(
+                !beat.is_zero() || wait == Duration::from_nanos(1),
+                "a beat of no length at all, under a wait of {wait:?}"
+            );
+        }
     }
 }

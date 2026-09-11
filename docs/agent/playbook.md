@@ -6192,6 +6192,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   request answer before it ends has to move the supply onto the connection with it, which is what
   `Streamed::supply` and the pump at the top of the drive loop are.
   [until: reviewed 2026-09-11]
+- **A deadline filed from inside a `hyper` poll does not survive the pass.** `nvs_host::Timers` keeps
+  one per task, and any `NvsStream::poll_read` answering `Pending` files the socket's over whatever a
+  body just filed, so the connection wakes at the wait it was to act before. Publish the instant
+  through a shared cell and file it from `serve_connection`'s drive loop once the connection future
+  has answered `Pending` — `crate::bounds::wake_at`. [until: gone crates/nvs-host/src/timer.rs:one-timer-per-task]
 
 ## Divergences and refusals already pinned
 

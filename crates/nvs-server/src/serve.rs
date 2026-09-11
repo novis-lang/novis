@@ -126,7 +126,20 @@ pub enum Answer {
     /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
     /// two spellings, which differ in whose isolate holds the writing half and
     /// not in what this end does with it.
-    Streaming(stream::Drain),
+    Streaming {
+        /// Where the writing isolate's chunks arrive.
+        drain: stream::Drain,
+        /// The keep-alive clock, for a body whose silence is not allowed to
+        /// end the connection. `None` for a request-scoped stream, and that is
+        /// the line the two spellings differ on here: a streamed response is
+        /// bounded by the request writing it
+        /// (`rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`),
+        /// so a program that goes quiet inside one is a program the request's
+        /// own ceiling is already answering for. An event stream outlives
+        /// every ceiling but the connection's, and quiet is the state it is
+        /// designed to spend most of its life in.
+        beat: Option<crate::bounds::Heartbeat>,
+    },
 }
 
 impl Answer {
@@ -152,7 +165,35 @@ impl Answer {
     #[must_use]
     pub fn stream(bounds: &crate::bounds::Connection) -> (stream::Emit, Self) {
         let (emit, drain) = stream::open(bounds.send);
-        (emit, Self::Streaming(drain))
+        (emit, Self::Streaming { drain, beat: None })
+    }
+
+    /// The same body, keeping itself alive: a stream that has gone quiet writes
+    /// `nvs_runtime::sse::KEEPALIVE` rather than letting `write_idle` close the
+    /// connection under it.
+    ///
+    /// The wait is taken rather than the interval, because
+    /// `crate::bounds::heartbeat` is the one place the second is derived from
+    /// the first and a caller passing its own interval would be a second bound
+    /// beside `rule:concurrency/connection-bounds-are-finite`'s table. Taken
+    /// here rather than at [`Self::stream`] because the two halves of a stream
+    /// are opened before anything knows which door they are for, and the door
+    /// is what decides whether quiet is a fault: [`event_stream`] is the one
+    /// caller. A whole body has no silence to answer for and is handed back as
+    /// it is.
+    ///
+    /// `due_at` is the connection loop's half of the clock, and
+    /// `crate::bounds::wake_at` owns why the wake is arranged there rather than
+    /// from inside this poll.
+    #[must_use]
+    pub fn beating(self, write_idle: Duration, due_at: crate::bounds::NextBeat) -> Self {
+        match self {
+            Self::Streaming { drain, .. } => Self::Streaming {
+                drain,
+                beat: Some(crate::bounds::Heartbeat::derived_from(write_idle, due_at)),
+            },
+            whole => whole,
+        }
     }
 
     /// The bytes a whole body carries, empty where it carries none and empty
@@ -167,7 +208,7 @@ impl Answer {
     pub fn bytes(&self) -> &[u8] {
         match self {
             Self::Whole(bytes) => bytes.as_deref().unwrap_or_default(),
-            Self::Streaming(_) => &[],
+            Self::Streaming { .. } => &[],
         }
     }
 }
@@ -180,18 +221,41 @@ impl Body for Answer {
     /// whatever chunk the writing isolate has put in the cell, and
     /// [`Poll::Pending`] with this poll's waker left where the writer will fire
     /// it.
+    ///
+    /// **A stream carrying a heartbeat answers its own silence.** A poll that
+    /// would have been `Pending` past the beat's due instant writes
+    /// [`nvs_runtime::sse::KEEPALIVE`] instead, which is a comment line every
+    /// client discards and the only thing that makes an idle event stream
+    /// outlive `write_idle`. Every other answer is a byte that moved, so the
+    /// interval starts again from it and a stream under load never writes one.
     fn poll_frame(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match &mut *self {
             Self::Whole(bytes) => Poll::Ready(bytes.take().map(|bytes| Ok(Frame::data(bytes)))),
-            Self::Streaming(drain) => match drain.next_chunk(cx.waker()) {
+            Self::Streaming { drain, beat } => match drain.next_chunk(cx.waker()) {
                 stream::Drained::Chunk(chunk) => {
+                    if let Some(beat) = beat {
+                        beat.moved();
+                    }
                     Poll::Ready(Some(Ok(Frame::data(Bytes::from(chunk)))))
                 }
-                stream::Drained::Pending => Poll::Pending,
-                stream::Drained::Ended => Poll::Ready(None),
+                stream::Drained::Pending => {
+                    if beat.as_mut().is_some_and(crate::bounds::Heartbeat::due) {
+                        Poll::Ready(Some(Ok(Frame::data(Bytes::from_static(
+                            nvs_runtime::sse::KEEPALIVE,
+                        )))))
+                    } else {
+                        Poll::Pending
+                    }
+                }
+                stream::Drained::Ended => {
+                    if let Some(beat) = beat {
+                        beat.ended();
+                    }
+                    Poll::Ready(None)
+                }
             },
         }
     }
@@ -201,7 +265,7 @@ impl Body for Answer {
             Self::Whole(bytes) => bytes.is_none(),
             // Whether a stream is over is the cell's answer and it is given by
             // taking from it, so the honest answer before a poll is "no".
-            Self::Streaming(_) => false,
+            Self::Streaming { .. } => false,
         }
     }
 
@@ -215,7 +279,7 @@ impl Body for Answer {
                 SizeHint::with_exact(u64::try_from(len).unwrap_or(u64::MAX))
             }
             // No exact size, which is what leaves `hyper` chunking it.
-            Self::Streaming(_) => SizeHint::default(),
+            Self::Streaming { .. } => SizeHint::default(),
         }
     }
 }
@@ -791,6 +855,13 @@ where
     // what is here.
     let writing: RefCell<Option<Streamed<'_>>> = RefCell::new(None);
     let writing = &writing;
+    // When this connection's event stream, if it opened one, next owes a byte.
+    // Empty on every other connection and emptied again when the stream ends,
+    // so the loop below arms a wake for an event stream and for nothing else —
+    // `crate::bounds::wake_at` is why the arming is the loop's and not the
+    // body's.
+    let beat_due: crate::bounds::NextBeat = Rc::new(Cell::new(None));
+    let beat_due = &beat_due;
     let io = ConnectionIo::new(stream, waits);
     // Taken before the adapter is handed to `hyper`, because that is the last
     // moment anything on this side can reach it.
@@ -1164,7 +1235,7 @@ where
                 // left and the peer is owed the stream it asked for rather than
                 // a page it stopped reading for.
                 Ok(running) => {
-                    answered = event_stream(body);
+                    answered = event_stream(body, waits.write_idle, Rc::clone(beat_due));
                     *connection_isolate.borrow_mut() = Some(running);
                 }
                 // The *argument* had no meaning on the other side. Not
@@ -1224,6 +1295,15 @@ where
         // of this function would leave one request's isolate uncollected across
         // the whole of the next one's.
         joined_when_ended(writing, &mut ctx.borrow_mut());
+        // Last, and after the whole pass rather than inside it: an event stream
+        // that is about to park has to be woken in time to write its keep-alive,
+        // and `crate::bounds::wake_at` owns why this is the only place that
+        // deadline survives being filed.
+        if polled.is_pending()
+            && let Some(at) = beat_due.get()
+        {
+            crate::bounds::wake_at(at);
+        }
         polled
     }))
     .unwrap_or(Ok(()));
@@ -1380,7 +1460,10 @@ fn answer(mut done: Completion) -> Response<Answer> {
 fn streamed(head: stream::Opened) -> Response<Answer> {
     let content_type =
         HeaderValue::from_str(&head.content_type).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
-    let mut response = Response::new(Answer::Streaming(head.drain));
+    let mut response = Response::new(Answer::Streaming {
+        drain: head.drain,
+        beat: None,
+    });
     if let Some(code) = head.status {
         *response.status_mut() = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);
     }
@@ -1505,8 +1588,19 @@ fn switching(accept: &str) -> Response<Answer> {
 /// answered, which is [`overrides`]' own shape and unreachable here: these are
 /// constants, and a constant that could not be a header would fail the case
 /// below before it reached a peer.
-fn event_stream(body: Answer) -> Response<Answer> {
-    let mut response = Response::new(body);
+///
+/// **The keep-alive is armed here**, which is the first moment there is a
+/// response to arm it on: an event stream that sends nothing still has to move
+/// a byte before `nvs_config::server::Waits::write_idle` closes the connection
+/// it is being written over, and a stream saying nothing is the ordinary state
+/// of one rather than a fault. `crate::bounds::heartbeat` is the interval and
+/// owns why it is half that wait.
+fn event_stream(
+    body: Answer,
+    write_idle: Duration,
+    due_at: crate::bounds::NextBeat,
+) -> Response<Answer> {
+    let mut response = Response::new(body.beating(write_idle, due_at));
     let headers = response.headers_mut();
     headers.insert(
         header::CONTENT_TYPE,
@@ -2717,6 +2811,22 @@ mod tests {
     where
         H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
     {
+        upgrade_once_under(Waits::default(), handler, path, door)
+    }
+
+    /// [`upgrade_once`] with the waits named, for the one case whose claim is
+    /// about a wait rather than about a door: a case asserting that a stream
+    /// outlives `write_idle` has to name a `write_idle` it can outlive inside a
+    /// test's running time.
+    fn upgrade_once_under<H>(
+        waits: Waits,
+        handler: impl FnOnce() -> Rc<H> + 'static,
+        path: &'static str,
+        door: Door,
+    ) -> String
+    where
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+    {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
         let addr = listener
@@ -2740,7 +2850,7 @@ mod tests {
             serve_on_this_core(
                 &mut listener,
                 &handler(),
-                Waits::default(),
+                waits,
                 &wide_open(),
                 &Draining::detached(),
                 |_note| {},
@@ -3515,6 +3625,75 @@ mod tests {
             head.contains("cache-control: no-cache, no-transform")
                 && head.contains("x-accel-buffering: no"),
             "the head went out without what makes the stream arrive: {seen}"
+        );
+    }
+
+    /// A response wait short enough to be a test's running time and long enough
+    /// that a scheduling delay is not the reason a case passed.
+    const SHORT_WRITE_IDLE: Duration = Duration::from_millis(400);
+
+    /// How long the idle stream below stays open: several beats derived from
+    /// [`SHORT_WRITE_IDLE`], so the claim is that the wait is outlived over and
+    /// over rather than survived once.
+    const STAYS_OPEN: Duration = Duration::from_millis(1_400);
+
+    /// A connection isolate that opens an event stream and sends nothing at
+    /// all, which is the ordinary state of one rather than a fault.
+    fn say_nothing_for_a_while(_conn: &mut Ctx) -> String {
+        let _ = nvs_host::sleep(STAYS_OPEN);
+        "idled".to_owned()
+    }
+
+    /// `rule:concurrency/connection-bounds-are-finite` on the door that has no
+    /// frames: **an event stream that sends nothing outlives the wait that
+    /// would otherwise close it**.
+    ///
+    /// Without the keep-alive this is the case that fails by the peer's
+    /// connection being closed mid-body — `write_idle` bounds the response
+    /// phase, an event stream is a response being written, and a stream saying
+    /// nothing is what SSE is for. The reading is taken twice over: the body
+    /// ends with its terminating chunk, which it cannot do on a connection that
+    /// was closed under it, and the comment lines
+    /// [`nvs_runtime::sse::KEEPALIVE`] are there to say what moved the byte.
+    ///
+    /// **The count is the claim**, and it is derived rather than picked: enough
+    /// beats to cover [`SHORT_WRITE_IDLE`] and one more is a stream that was
+    /// still being written past the instant the wait would have closed it.
+    /// [`STAYS_OPEN`] buys several times that, so what a loaded machine can
+    /// cost this case is beats it does not need.
+    #[test]
+    fn an_idle_event_stream_outlives_the_write_idle_wait() {
+        let seen = upgrade_once_under(
+            Waits {
+                write_idle: SHORT_WRITE_IDLE,
+                ..Waits::default()
+            },
+            move || {
+                upgrade_leaving(
+                    Door::Sse,
+                    String::new(),
+                    Rc::new(RefCell::new(Vec::new())),
+                    say_nothing_for_a_while,
+                )
+            },
+            "/live",
+            Door::Sse,
+        );
+
+        let beat = crate::bounds::heartbeat(SHORT_WRITE_IDLE);
+        let past_the_wait = usize::try_from(SHORT_WRITE_IDLE.as_millis() / beat.as_millis())
+            .expect("the beats inside one wait are countable")
+            + 1;
+        let keepalives = seen
+            .matches(
+                std::str::from_utf8(nvs_runtime::sse::KEEPALIVE).expect("a comment line is text"),
+            )
+            .count();
+        assert!(
+            keepalives >= past_the_wait,
+            "a stream idle for {STAYS_OPEN:?} wrote {keepalives} keep-alive(s) \
+             at {beat:?}, which does not reach past the {SHORT_WRITE_IDLE:?} \
+             wait that closes one: {seen:?}"
         );
     }
 
