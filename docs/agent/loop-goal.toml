@@ -137,6 +137,8 @@ modules = [
   # The seam a `Core` member reaches its host through — one thread-local, one trait, and one
   # operation shaped like the promise it has to keep.
   "crates/nvs-runtime/src/host.rs",
+  # One thread's CPU time, sampled by a thread that is not it.
+  "crates/nvs-host/src/cpuclock.rs",
 ]
 
 # The rules every stage of this goal works inside.
