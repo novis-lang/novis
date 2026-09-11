@@ -215,20 +215,19 @@ fn an_exited_isolate_drains_its_exit_queue_as_an_exit() {
     );
 }
 
-/// Raises the marker `Core\Script::finish()` raises, from a [`Program`] written
-/// in Rust rather than compiled.
+/// Raises an instance of `class` as the pending failure of `ctx`, from a
+/// [`Program`] written in Rust rather than compiled.
 ///
-/// The lowering seals the calling block with a `Terminator::Throw` of an
-/// instance of this class (`nvs_ir::lower::exception`), and what reaches the
-/// completion path is the pending object that throw left — so a raise here is a
-/// faithful stand-in for the whole compiled half, and needs neither a front end
-/// nor a JIT in this crate.
+/// The table is the narrowest one that makes either raise legal: `Throwable`
+/// for the class `Ctx::set_runtime_error_class` installs, and the finish marker
+/// beside it with no parent and no slots, which is what `nvs_hir::errors::TREE`
+/// declares it as. It travels in the `Arc` the context now holds, which is what
+/// keeps the descriptor alive for as long as the object pointing at it.
 ///
-/// The table is the narrowest one that makes the raise legal: `Throwable` for
-/// the class `Ctx::set_runtime_error_class` installs, and the marker beside it
-/// with no parent and no slots, which is what `nvs_hir::errors::TREE` declares
-/// it as. Leaked for [`closure_of`]'s reason.
-fn raise_the_finish_marker(ctx: &mut Ctx) {
+/// The instance carries no message, and needs none: every `Thrown` accessor
+/// reads a null slot as the empty string, so the ladder below can climb this
+/// throw and the cases assert on the ending rather than on any text.
+fn raise_an_instance_of(ctx: &mut Ctx, class: &str) {
     const THROWABLE: [&str; 4] = ["message", "previous", "backtrace", "location"];
     let mut table = nvs_runtime::ClassTable::new();
     let root = table.define("Throwable", &THROWABLE, &[]);
@@ -238,17 +237,28 @@ fn raise_the_finish_marker(ctx: &mut Ctx) {
         root,
     ));
     let desc = ctx
-        .class_desc(nvs_runtime::FINISH_MARKER_NAME)
-        .expect("the table installed a line above declares it");
+        .class_desc(class)
+        .expect("the table installed a line above declares both classes");
     #[expect(
         unsafe_code,
         reason = "the descriptor comes out of the table this context now holds, \
                   so it outlives the object, whose one reference is handed to \
                   the `Thrown`"
     )]
-    let marker =
+    let thrown =
         unsafe { nvs_runtime::Thrown::from_raw(nvs_runtime::NvsObj::new(desc).into_raw()) };
-    ctx.raise(marker);
+    ctx.raise(thrown);
+}
+
+/// Raises the marker `Core\Script::finish()` raises.
+///
+/// The lowering seals the calling block with a `Terminator::Throw` of an
+/// instance of this class (`nvs_ir::lower::exception`), and what reaches the
+/// completion path is the pending object that throw left — so a raise here is a
+/// faithful stand-in for the whole compiled half, and needs neither a front end
+/// nor a JIT in this crate.
+fn raise_the_finish_marker(ctx: &mut Ctx) {
+    raise_an_instance_of(ctx, nvs_runtime::FINISH_MARKER_NAME);
 }
 
 /// Whether the registered closure ran, for the two tests below that ask
@@ -470,4 +480,422 @@ fn a_finished_request_is_not_answered_five_hundred() {
         },
     );
     sched.run();
+}
+
+/// What ran at the end of the request, in the order it ran in.
+///
+/// [`ORDER`]'s shape, on a static of its own for [`AFTER_A_FINISH`]'s reason:
+/// the cases in this file run concurrently in one binary, and a log two of them
+/// append to says nothing about either.
+static AT_THE_END_OF_A_SERVED_REQUEST: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+fn note_at_the_end(what: &'static str) {
+    AT_THE_END_OF_A_SERVED_REQUEST
+        .lock()
+        .expect("no test panics holding this")
+        .push(what);
+}
+
+/// [`records_the_ending`]'s twin for the ordering half: what the ending was is
+/// that seam's question, and this one answers only *when* the queue ran.
+fn records_that_the_queue_drained(
+    _ctx: &mut Ctx,
+    _outcome: Result<(), i32>,
+    _thrown: Option<&nvs_runtime::Thrown>,
+) {
+    note_at_the_end("the exit queue");
+}
+
+/// [`records_that_it_ran`]'s twin, writing to
+/// [`AT_THE_END_OF_A_SERVED_REQUEST`].
+#[expect(
+    unsafe_code,
+    reason = "`call_closure` passes one live value this callee owes a release, \
+              and the address of a live `Value` for the result; neither is \
+              expressible in the signature compiled code is called through"
+)]
+unsafe extern "C" fn records_that_the_after_response_work_ran(
+    _ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
+    note_at_the_end("the after-response work");
+    unsafe {
+        (*args).release();
+        *out = Value::null();
+    }
+    nvs_runtime::OK
+}
+
+/// `rule:observability/exit-hooks-run-after-the-ladder-before-teardown`'s last
+/// paragraph on the host that serves a request: the exit queue is ordinary
+/// request code and runs before the work that was registered to outlive the
+/// response.
+///
+/// The order is the whole assertion, and the two queues fail apart. A drain
+/// placed after `run_deferred` would leave both entries in the log the other
+/// way round — a hook then observing an end the request had already run work
+/// past — and a completion path that reached neither would leave the log empty,
+/// which is what this path did before the seam was filled.
+#[test]
+fn a_served_requests_exit_hooks_run_before_its_after_response_work() {
+    let mut sched = Scheduler::new();
+    sched.spawn(
+        Ctx::new(OutputSink::Sink),
+        TaskRoot::Request,
+        |connection: &mut Ctx| {
+            let program: Program = Box::new(|request: &mut Ctx, _args| {
+                request.set_exit_drain(records_that_the_queue_drained);
+                assert_eq!(
+                    request.defer(closure_of(records_that_the_after_response_work_ran), 0),
+                    Ok(()),
+                    "an isolate's queue refused a registration, so it is still sealed"
+                );
+                request.write_output(b"answered").expect("a buffer");
+                Value::null()
+            });
+            let running = Isolate::new(program, Value::null(), Output::Capture)
+                .start(connection)
+                .expect("the isolate was refused before it started");
+            let completion = running.join(connection);
+            assert!(completion.ok, "the request did not return ordinarily");
+            assert_eq!(
+                completion.output, b"answered",
+                "the answer the joiner took is not the one the request produced"
+            );
+        },
+    );
+    sched.run();
+
+    let order = AT_THE_END_OF_A_SERVED_REQUEST
+        .lock()
+        .expect("no test panics holding this")
+        .clone();
+    assert_eq!(
+        order,
+        ["the exit queue", "the after-response work"],
+        "a served request's exit queue did not run, or did not run before the \
+         work registered to outlive its response"
+    );
+}
+
+/// What ran at the end of the request that threw, in the order it ran in.
+static AFTER_AN_UNCAUGHT_THROW: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+/// `rule:errors/on-uncaught-throw`'s tier-2 handler, as the closure a request
+/// registers: the ladder's report, from the one tier a test can observe with no
+/// configuration in front of it.
+#[expect(
+    unsafe_code,
+    reason = "`call_closure` passes one live value this callee owes a release, \
+              and the address of a live `Value` for the result; neither is \
+              expressible in the signature compiled code is called through"
+)]
+unsafe extern "C" fn records_that_the_ladder_reported(
+    _ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
+    AFTER_AN_UNCAUGHT_THROW
+        .lock()
+        .expect("no test panics holding this")
+        .push("the ladder's handler");
+    unsafe {
+        (*args).release();
+        *out = Value::null();
+    }
+    nvs_runtime::OK
+}
+
+/// [`records_that_the_queue_drained`]'s twin for the throw path, whose label
+/// carries the ending as well as the order.
+///
+/// A queue that ran here having lost the throw is a different defect from one
+/// that ran in the wrong place — the report a hook receives names
+/// `UncaughtThrow` and carries the live `Throwable`
+/// (`rule:observability/three-endings-fire-the-exit-queue`) — and one log tells
+/// the two apart.
+fn records_the_drain_after_a_throw(
+    _ctx: &mut Ctx,
+    outcome: Result<(), i32>,
+    thrown: Option<&nvs_runtime::Thrown>,
+) {
+    AFTER_AN_UNCAUGHT_THROW
+        .lock()
+        .expect("no test panics holding this")
+        .push(match (outcome, thrown.is_some()) {
+            (Err(nvs_runtime::THROWN), true) => "the exit queue, told it was a throw",
+            _ => "the exit queue, told something else",
+        });
+}
+
+/// `rule:observability/exit-hooks-run-after-the-ladder-before-teardown`'s fixed
+/// order on the throw path, at the isolate root a served request ends at: the
+/// failure hooks first, then this queue.
+///
+/// The ordering is what the rule buys — a misbehaving queue cannot starve the
+/// failure report, because the report has already been made by the time a hook
+/// runs. The drain is reached on this path at all only because the ending the
+/// isolate hands the seam is read off the pending throw rather than off the
+/// status the program recorded, which a throw leaves unset.
+#[test]
+fn a_served_requests_exit_hooks_run_after_the_ladder_has_reported_a_throw() {
+    let mut sched = Scheduler::new();
+    sched.spawn(
+        Ctx::new(OutputSink::Sink),
+        TaskRoot::Request,
+        |connection: &mut Ctx| {
+            let program: Program = Box::new(|request: &mut Ctx, _args| {
+                request.set_uncaught_handler(closure_of(records_that_the_ladder_reported));
+                request.set_exit_drain(records_the_drain_after_a_throw);
+                raise_an_instance_of(request, "Throwable");
+                Value::null()
+            });
+            let running = Isolate::new(program, Value::null(), Output::Capture)
+                .start(connection)
+                .expect("the isolate was refused before it started");
+            let completion = running.join(connection);
+            assert!(
+                !completion.ok,
+                "an uncaught throw reached the root as an ordinary answer"
+            );
+        },
+    );
+    sched.run();
+
+    let order = AFTER_AN_UNCAUGHT_THROW
+        .lock()
+        .expect("no test panics holding this")
+        .clone();
+    assert_eq!(
+        order,
+        [
+            "the ladder's handler",
+            "the exit queue, told it was a throw"
+        ],
+        "the exit queue did not run after the ladder had reported the throw, \
+         or ran with an ending that is not the uncaught throw"
+    );
+}
+
+/// Which of the two requests below reached the seam.
+static DRAINS_ON_ONE_CONNECTION: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+/// [`records_that_the_queue_drained`]'s twin, writing to
+/// [`DRAINS_ON_ONE_CONNECTION`]: this case asks only *how many* requests
+/// drained.
+fn records_that_a_request_drained(
+    _ctx: &mut Ctx,
+    _outcome: Result<(), i32>,
+    _thrown: Option<&nvs_runtime::Thrown>,
+) {
+    DRAINS_ON_ONE_CONNECTION
+        .lock()
+        .expect("no test panics holding this")
+        .push("a drain");
+}
+
+/// `rule:observability/script-on-exit`'s registration is request-local, and a
+/// request that registered nothing runs nothing: the drain is what a
+/// registration filled, so it costs a request that made none no user code at
+/// all.
+///
+/// Two requests on one connection rather than one bare request, because a bare
+/// one asserts an empty log against a seam nothing could have filled. The
+/// registering request goes first, so a pointer that outlived the context it
+/// was written into — a seam kept on the host instead of on the request
+/// (`rule:security/isolate-shares-nothing`) — puts a second entry in the log,
+/// and the request that registered nothing is the one that would be running
+/// another request's hooks.
+#[test]
+fn a_served_request_that_registered_no_hook_pays_no_drain() {
+    let mut sched = Scheduler::new();
+    sched.spawn(
+        Ctx::new(OutputSink::Sink),
+        TaskRoot::Request,
+        |connection: &mut Ctx| {
+            let registers: Program = Box::new(|request: &mut Ctx, _args| {
+                request.set_exit_drain(records_that_a_request_drained);
+                Value::null()
+            });
+            let running = Isolate::new(registers, Value::null(), Output::Capture)
+                .start(connection)
+                .expect("the isolate was refused before it started");
+            assert!(
+                running.join(connection).ok,
+                "the registering request did not return ordinarily"
+            );
+
+            let registers_nothing: Program = Box::new(|request: &mut Ctx, _args| {
+                request.write_output(b"answered").expect("a buffer");
+                Value::null()
+            });
+            let running = Isolate::new(registers_nothing, Value::null(), Output::Capture)
+                .start(connection)
+                .expect("the isolate was refused before it started");
+            let completion = running.join(connection);
+            assert!(completion.ok, "the request did not return ordinarily");
+            assert_eq!(
+                completion.output, b"answered",
+                "the request that registered no hook lost its answer"
+            );
+        },
+    );
+    sched.run();
+
+    let drains = DRAINS_ON_ONE_CONNECTION
+        .lock()
+        .expect("no test panics holding this")
+        .clone();
+    assert_eq!(
+        drains,
+        ["a drain"],
+        "the request that registered no hook drained a queue anyway"
+    );
+}
+
+/// The ending the seam was told a breached request ended at, if it was reached
+/// at all.
+static AT_A_FATAL: Mutex<Vec<Result<(), i32>>> = Mutex::new(Vec::new());
+
+/// [`records_the_ending`]'s twin for the `FATAL` path, recording the ending
+/// alone: a breached request has no exit code to read beside it.
+fn records_the_fatal_ending(
+    _ctx: &mut Ctx,
+    outcome: Result<(), i32>,
+    _thrown: Option<&nvs_runtime::Thrown>,
+) {
+    AT_A_FATAL
+        .lock()
+        .expect("no test panics holding this")
+        .push(outcome);
+}
+
+/// `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`'s first
+/// ending, at the host's half of it: a request stopped for exceeding its budget
+/// reaches the seam as the `FATAL` it was, and that is the status
+/// `nvs_stdlib::script::run_exit_hooks` returns from without building a report.
+///
+/// **The refusal is not the host's**, which is why this asserts on the ending
+/// rather than on an empty log: `Ctx::drain_exit_hooks` owns why which endings
+/// fire is decided in one place, and it is the one that reads the rule's table.
+/// What can fail here is the half above it — an ending laundered into `Ok(())`
+/// or into a `THROWN` on the way out of the isolate would run every hook the
+/// breached request had registered, and the seam refusing `FATAL` would never
+/// see the case.
+///
+/// The program records the status its frame came back with, which is what
+/// `nvs-cli`'s own `Err(status)` arm does for every non-`OK` ending; a `FATAL`
+/// carries no pending `Throwable`, so there is nothing else to stand in for.
+#[test]
+fn a_fatal_on_the_served_path_runs_no_exit_hook() {
+    let mut sched = Scheduler::new();
+    sched.spawn(
+        Ctx::new(OutputSink::Sink),
+        TaskRoot::Request,
+        |connection: &mut Ctx| {
+            let program: Program = Box::new(|request: &mut Ctx, _args| {
+                request.set_exit_drain(records_the_fatal_ending);
+                request.set_ending(nvs_runtime::FATAL);
+                Value::null()
+            });
+            let running = Isolate::new(program, Value::null(), Output::Capture)
+                .start(connection)
+                .expect("the isolate was refused before it started");
+            // How a breach that left no message is classified for the peer is
+            // `crate::ladder`'s question and not this case's; the answer is
+            // taken so the joiner does the one thing a connection does with it.
+            drop(running.join(connection));
+        },
+    );
+    sched.run();
+
+    let told = AT_A_FATAL
+        .lock()
+        .expect("no test panics holding this")
+        .clone();
+    assert_eq!(
+        told,
+        [Err(nvs_runtime::FATAL)],
+        "the seam was told an ending that is not the breach, and every hook the \
+         request registered would have run"
+    );
+}
+
+/// What ran on the cancelled path, the request itself included.
+///
+/// The request's own entry is what keeps the assertion from holding for the
+/// wrong reason: an empty log is equally what an isolate that never started
+/// leaves behind, and then nothing was ever registered to not run.
+static AT_A_CANCELLATION: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+fn note_at_a_cancellation(what: &'static str) {
+    AT_A_CANCELLATION
+        .lock()
+        .expect("no test panics holding this")
+        .push(what);
+}
+
+/// [`records_the_fatal_ending`]'s twin for the cancelled path, writing to
+/// [`AT_A_CANCELLATION`].
+fn records_that_the_cancelled_request_drained(
+    _ctx: &mut Ctx,
+    _outcome: Result<(), i32>,
+    _thrown: Option<&nvs_runtime::Thrown>,
+) {
+    note_at_a_cancellation("the exit queue");
+}
+
+/// `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`'s second
+/// ending, and the one the host decides by itself:
+/// `rule:concurrency/cancellation-runs-no-user-code` means no user code runs on
+/// the way out, so the completion path does not reach the seam at all.
+///
+/// The two endings are guarded apart because they fail apart. A `FATAL` travels
+/// to the seam and is refused there; a cancellation must not travel, since the
+/// seam has no way to tell one from the ending the request would otherwise have
+/// had — the flag is on the context and never in the status.
+///
+/// `Ctx::cancel` is every producer's one door — a sibling throwing, a deadline
+/// landing, the parent dying, the peer going away at a safepoint all end here —
+/// so raising it from the program is the whole of what a cancelled request is
+/// from the completion path's side.
+#[test]
+fn a_cancelled_request_runs_no_exit_hook() {
+    let mut sched = Scheduler::new();
+    sched.spawn(
+        Ctx::new(OutputSink::Sink),
+        TaskRoot::Request,
+        |connection: &mut Ctx| {
+            let program: Program = Box::new(|request: &mut Ctx, _args| {
+                request.set_exit_drain(records_that_the_cancelled_request_drained);
+                note_at_a_cancellation("the request");
+                // The fault is what a parked `Core` member would have answered
+                // compiled code with; the flag beside it is what the completion
+                // path reads.
+                drop(request.cancel());
+                Value::null()
+            });
+            let running = Isolate::new(program, Value::null(), Output::Capture)
+                .start(connection)
+                .expect("the isolate was refused before it started");
+            let completion = running.join(connection);
+            assert!(
+                !completion.ok,
+                "a cancelled request answered its joiner as though it had run"
+            );
+        },
+    );
+    sched.run();
+
+    let ran = AT_A_CANCELLATION
+        .lock()
+        .expect("no test panics holding this")
+        .clone();
+    assert_eq!(
+        ran,
+        ["the request"],
+        "a cancelled request reached the exit queue, which is user code running \
+         on the way out of a cancellation"
+    );
 }
