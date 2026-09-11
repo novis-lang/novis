@@ -376,6 +376,8 @@ pub struct Extension {
 pub struct Debug {
     /// `[]` is off; any subset of `coverage`, `branch`, `trace`, `profile`. `RuntimeTighten`, so a
     /// request may narrow this and can never turn a bit on.
+    ///
+    /// [unread: the probes are compiled into every unit and `nvs_runtime`'s `DebugFlags` arms them, but nothing turns a bit on from the file and the directive registry carries no row for this key, so a value written here starts no coverage run and narrows nothing. owner: rule:testing/debug-mode-directive]
     pub mode: Option<Vec<String>>,
     /// `rule:core-classes/temporary-dir-sweep` — `true` and the end-of-script sweep logs each path it would have deleted
     /// instead of deleting it, so the absence of cleanup is deliberate and visible rather than a
@@ -872,8 +874,12 @@ pub struct Metrics {
     /// `false`, `prometheus` or `otlp`.
     pub exporter: Option<Setting>,
     /// The Prometheus scrape endpoint.
+    ///
+    /// [unread: no exporter is built, so nothing binds this; the per-core registry it would serve is `crates/nvs-server/src/metrics.rs`, which `rule:observability/a-registry-is-per-core-and-nothing-reads-it` keeps whole without one. owner: rule:observability/the-exporters-are-crates]
     pub listen: Option<String>,
     /// The OTLP collector URL.
+    ///
+    /// [unread: no exporter is built, so nothing pushes to this; the `opentelemetry-otlp` dependency that would is not in the workspace. owner: rule:observability/the-exporters-are-crates]
     pub endpoint: Option<String>,
     /// Per core (§ 7).
     pub max_series: Option<u64>,
@@ -886,6 +892,8 @@ pub struct Trace {
     /// `false` or `otlp`.
     pub exporter: Option<Setting>,
     /// The OTLP collector URL.
+    ///
+    /// [unread: no exporter is built, so no span leaves the process; the wiring from the runtime's event kinds to spans is ours and the transport is not. owner: rule:observability/the-exporters-are-crates]
     pub endpoint: Option<String>,
     /// Head-based, 0.0–1.0. An inbound sampled trace is always continued regardless.
     pub sample: Option<f64>,
@@ -903,6 +911,8 @@ pub struct Server {
     /// Unix-only; Windows listens on TCP loopback.
     pub listen: Option<Vec<String>>,
     /// Unix-socket entries only.
+    ///
+    /// [unread: nothing in the workspace binds a Unix socket, so there is no socket to set a mode on; what the mode decides is which accounts may connect and so forge a forwarded header, which is `rule:config/ownership-is-the-trust-boundary`'s question asked of a socket rather than of a file. owner: rule:http-server/a-unix-socket-listener]
     pub socket_mode: Option<String>,
     /// `entry` or `path`; the development default is `path` (`rule:config/a-startup-default-is-never-flipped`).
     pub dispatch: Option<String>,
@@ -953,18 +963,17 @@ pub struct Mount {
     pub origin: Option<String>,
 }
 
-/// `[cache]` — `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache, and under it the one block that is not about artifacts.
+/// `[cache]` — `Core\Cache`'s two tiers, and nothing else: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s compiled
+/// artifacts live in `[opcache]`, down to the directory they are read from, which is written
+/// `opcache.file_cache_dir` and is the only spelling of it (`docs/decisions/0175.md`).
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cache {
-    /// `System` **and** `Boot` — one of the directives `rule:config/reloadability-is-its-own-field` names as needing a restart,
-    /// because moving it re-creates the runtime's mapping of every cached unit.
-    pub dir: Option<String>,
     /// `[cache.local]` — `rule:concurrency/cache-memory-is-charged-to-the-core`'s bound on the per-core tier, for the reason `shared` below
     /// sits here: `Core\Cache` is one class, and its two tiers are looked for under its own name.
     pub local: Option<CacheLocal>,
-    /// `[cache.shared]` — `rule:core-api/two-cache-tiers`'s coherent tier, which is a *store* and not this block's
-    /// compiled artifacts. It sits here rather than in a block of its own because `Core\Cache` is
+    /// `[cache.shared]` — `rule:core-api/two-cache-tiers`'s coherent tier, a *store* a fleet dials rather than a map
+    /// in this core's memory. It sits here rather than in a block of its own because `Core\Cache` is
     /// one class and an operator looking for where its entries live looks under its own name;
     /// nothing else about the two halves is shared.
     pub shared: Option<CacheShared>,
@@ -1051,7 +1060,11 @@ pub struct Opcache {
     pub revalidate_freq: Option<Setting>,
     /// Whether the on-disk artifact cache is used at all.
     pub file_cache: Option<bool>,
-    /// Where it lives; root-owned, and defaulting to a fixed system location.
+    /// Where it lives; root-owned, and defaulting to the per-build location `nvs-cli`'s cache module
+    /// derives inside the account already running the compile. The only spelling of the artifact
+    /// cache's directory — `[cache]` is `Core\Cache`'s two tiers and holds none — and the one key in
+    /// this block that applies at boot rather than at reload, because moving it re-creates the
+    /// runtime's mapping of every cached unit.
     pub file_cache_dir: Option<String>,
     /// Its ceiling in bytes.
     pub file_cache_max_size: Option<Setting>,

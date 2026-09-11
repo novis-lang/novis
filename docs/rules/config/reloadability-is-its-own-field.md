@@ -12,7 +12,7 @@ since such a directive *is* a value read out of the snapshot. A registry that de
 from the other would re-create the conflation this field exists to end, so the census test fails if it
 ever does.
 
-`Boot` is the narrow set: `cache.dir`, `[server]`'s listen addresses, the thread-per-core count,
+`Boot` is the narrow set: `opcache.file_cache_dir`, `[server]`'s listen addresses, the thread-per-core count,
 `[control] socket` itself, and `[queue]`'s `connection` and `workers` — a worker is a spawned task, so
 applying a new count means starting or stopping tasks, and a connection swapped under running workers
 strands every claim in flight against a database nothing will report to. Everything else reloads,

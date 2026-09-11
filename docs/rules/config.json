@@ -250,7 +250,8 @@
       "title": "A relative path resolves against the directory of the file it is written in; a command-line path against the working directory",
       "status": "shipped",
       "because": [
-        "0103"
+        "0103",
+        "0175"
       ],
       "divergesFromPhp": "a relative path in `php.ini` resolves against whatever the process's working directory happens to be; here it resolves against the file that wrote it, so a config directory survives being copied whole",
       "seeAlso": [
@@ -469,7 +470,8 @@
       "because": [
         "0078",
         "0005",
-        "0154"
+        "0154",
+        "0175"
       ],
       "divergesFromPhp": "there is no `PHP_INI_SYSTEM` bundle meaning both \"the file only\" and \"read once at boot\"; the two questions are two fields",
       "seeAlso": [
@@ -513,7 +515,8 @@
       "status": "shipped",
       "because": [
         "0005",
-        "0078"
+        "0078",
+        "0175"
       ],
       "seeAlso": [
         "config/three-changeability-classes",
@@ -1279,7 +1282,8 @@
       "because": [
         "0042",
         "0005",
-        "0017"
+        "0017",
+        "0175"
       ],
       "divergesFromPhp": "`opcache.file_cache` and `opcache.file_cache_dir` cannot be moved by `ini_set` or `.user.ini`; only the root-owned file sets them",
       "seeAlso": [

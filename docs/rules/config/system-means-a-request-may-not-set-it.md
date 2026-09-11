@@ -1,7 +1,8 @@
 **A directive is `System` when changing it from inside a request would affect something other than
 that request.** That is the whole test, and it covers the `[[extension]]` entries and their hash
-pins, `cache.dir`, `opcache.validate` and its rate cap, the per-app blocks, `[limits.hard]` and
-`[mode] ceiling` themselves, every `[[schedule]]` key, `[deferred] max_concurrent` and both
+pins, `opcache.validate` and its rate cap, the `opcache.file_cache*` directives beside them, the
+per-app blocks, `[limits.hard]` and `[mode] ceiling` themselves, every `[[schedule]]` key,
+`[deferred] max_concurrent` and both
 observability blocks. A directive being `System` is what makes it a limit; there is no separate notion
 of a "locked" value.
 

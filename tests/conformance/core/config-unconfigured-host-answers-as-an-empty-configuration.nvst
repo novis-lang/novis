@@ -24,7 +24,7 @@ echo "after=", Core\Config::get("memory") ?? "unset", "\n";
 
 // A `System` directive is refused whatever the tree says, because the class
 // answers *who may set it* before any ceiling is consulted.
-if (Core\Config::set("cache.dir", "/tmp/nvs")) {
+if (Core\Config::set("opcache.file_cache_dir", "/tmp/nvs")) {
     echo "system=ok", "\n";
 } else {
     echo "system=refused", "\n";

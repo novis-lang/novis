@@ -22366,7 +22366,7 @@ accepts — anything else is `E0601`:
 | `[capabilities]` | capability grants (below) |
 | `[[app]]` | a per-application block: `root` or `entry`, `mode`, `origin`, `[app.limits]`, `[app.limits.hard]`, `[app.capabilities]` (below) |
 | `[[include]]` | `path`, `dir`, `optional` (below) |
-| `[cache]` | `dir` — the artifact cache directory (the `nvs` command chapter) |
+| `[cache.local]`, `[cache.shared]` | `Core\Cache`'s two tiers: `max_size`; `url`, `timeout`. The compiled-artifact cache is not here — it is `[opcache]`'s `file_cache_dir` (the `nvs` command chapter) |
 | `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `pool` |
 | `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
 | `[db] pool` | `pool = false` written beside the blocks rather than inside one, turning pooling off for every connection this process opens — including one `Core\Db::open` described for itself, which names no block. Bounds are not written here: they belong to the block they size |
@@ -22811,7 +22811,7 @@ use Core\Config;
 
 echo "256M: ", Config::set("memory", "256M") ? "ok" : "refused", "\n";
 echo "1G: ", Config::set("memory", "1G") ? "ok" : "refused", "\n";
-echo "cache.dir: ", Config::set("cache.dir", "/tmp/nvs") ? "ok" : "refused", "\n";
+echo "file_cache_dir: ", Config::set("opcache.file_cache_dir", "/tmp/nvs") ? "ok" : "refused", "\n";
 echo "unknown: ", Config::set("no.such.key", "1") ? "ok" : "refused", "\n";
 Config::set("log.level", "debug");
 
@@ -22825,7 +22825,7 @@ echo "restored: ", Config::get("memory"), "\n";
 ```output
 256M: ok
 1G: refused
-cache.dir: refused
+file_cache_dir: refused
 unknown: refused
 limits.hard.memory = 256M
 limits.memory = 256M
@@ -22856,7 +22856,6 @@ long-running host — at a reload, or only at boot.
 | `log.handler_reserve_memory` | operator only — a request cannot change it | at reload |
 | `log.handler_reserve_time` | operator only — a request cannot change it | at reload |
 | `log.target` | operator only — a request cannot change it | at reload |
-| `cache.dir` | operator only — a request cannot change it | at boot only |
 | `cache.shared` | operator only — a request cannot change it | at boot only |
 | `cache.local` | operator only — a request cannot change it | at reload |
 | `control.socket` | operator only — a request cannot change it | at boot only |
@@ -22864,6 +22863,7 @@ long-running host — at a reload, or only at boot.
 | `debug.keep_temporary` | operator only — a request cannot change it | at reload |
 | `server` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
+| `opcache.file_cache_dir` | operator only — a request cannot change it | at boot only |
 | `session` | operator only — a request cannot change it | at boot only |
 | `deferred.max_concurrent` | operator only — a request cannot change it | at reload |
 | `deferred.deadline` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |

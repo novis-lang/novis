@@ -360,7 +360,7 @@ A third array shape that fits neither half is the thing that would reopen this.
 
 `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`
 
-Every path-valued directive — `cache.dir`, `capabilities.script.spawn`, `debug.trace`,
+Every path-valued directive — `opcache.file_cache_dir`, `capabilities.script.spawn`, `debug.trace`,
 `[[extension]] path`, `[[server.mount]] root`, `[db.<name>] path`, `password_file`, an `[[app]]`
 block's `root` or `entry`, and `[[include]]`'s own `path` and `dir` — resolves relative to the
 directory of the file the value appears in. A path given on the **command line** resolves against the
@@ -381,7 +381,7 @@ being copied or relocated whole. The resolved absolute path is what the boot log
 print, so the rule never has to be applied in a reader's head — and a block in an included file names
 a database beside *that* file, not beside the running program.
 
-<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0175](../decisions/0175.md).</sub>
 
 <a id="config-any-file-in-the-tree-may-set-any-directive"></a>
 
@@ -668,7 +668,7 @@ since such a directive *is* a value read out of the snapshot. A registry that de
 from the other would re-create the conflation this field exists to end, so the census test fails if it
 ever does.
 
-`Boot` is the narrow set: `cache.dir`, `[server]`'s listen addresses, the thread-per-core count,
+`Boot` is the narrow set: `opcache.file_cache_dir`, `[server]`'s listen addresses, the thread-per-core count,
 `[control] socket` itself, and `[queue]`'s `connection` and `workers` — a worker is a spawned task, so
 applying a new count means starting or stopping tasks, and a connection swapped under running workers
 strands every claim in flight against a database nothing will report to. Everything else reloads,
@@ -681,7 +681,7 @@ set arms from the next tick. A changed `Boot` key **does not take effect**: the 
 carries the running value forward, and the reload names the key
 ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md).</sub>
 
 <a id="config-ceilings-are-their-own-directives"></a>
 
@@ -727,8 +727,9 @@ reader learns once; a third would need its own argument.
 
 **A directive is `System` when changing it from inside a request would affect something other than
 that request.** That is the whole test, and it covers the `[[extension]]` entries and their hash
-pins, `cache.dir`, `opcache.validate` and its rate cap, the per-app blocks, `[limits.hard]` and
-`[mode] ceiling` themselves, every `[[schedule]]` key, `[deferred] max_concurrent` and both
+pins, `opcache.validate` and its rate cap, the `opcache.file_cache*` directives beside them, the
+per-app blocks, `[limits.hard]` and `[mode] ceiling` themselves, every `[[schedule]]` key,
+`[deferred] max_concurrent` and both
 observability blocks. A directive being `System` is what makes it a limit; there is no separate notion
 of a "locked" value.
 
@@ -741,7 +742,7 @@ change needs a new snapshot or a restart is [`config/reloadability-is-its-own-fi
 held in a field of its own, and the registry's census test fails if either field is ever derived from
 the other. With that split, `System` means one thing again — a request may not set it.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0175](../decisions/0175.md).</sub>
 
 <a id="config-a-runtime-set-is-request-local"></a>
 
@@ -1832,6 +1833,12 @@ on), `file_cache_dir` (a path, root-owned, defaulting to a fixed per-build locat
 `session.gc_probability`/`gc_divisor` because eviction rides the cold-compile path at a small
 probability rather than costing a warm hit anything.
 
+`file_cache_dir` is the **only** spelling of where that cache lives. `[cache]` is `Core\Cache`'s two
+tiers and holds nothing about compiled artifacts, so `[cache] dir` is `E0601` like any other key the
+registry does not know (`docs/decisions/0175.md` § 4). It is also the one of the five that applies at
+boot rather than at reload, which is [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)'s second field
+answering a second question and not this rule's class.
+
 **All five are `System`-class**, for the identical reason `opcache.validate` is: a script that could
 redirect where the process reads "already-compiled, about-to-be-trusted" native code from would be
 handing itself a code-injection primitive, not a performance knob. A request cannot tighten them
@@ -1842,7 +1849,7 @@ started is not re-checked mid-run, consistent with every other `System` directiv
 looks like on disk, how an entry is verified before it is mapped executable, and the refusal of a
 world-writable directory are the packaging chapter's; this rule is only the roster and its class.
 
-<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0005](../decisions/0005.md), [0017](../decisions/0017.md).</sub>
+<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0005](../decisions/0005.md), [0017](../decisions/0017.md), [0175](../decisions/0175.md).</sub>
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 

@@ -57,7 +57,7 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[server]", "[server]\nroot = \"/www\"\nlisten = [\"127.0.0.1:8000\"]\nsocket_mode = \"0660\"\ndispatch = \"entry\"\nstatic = false\ntrusted_proxies = []\nhealth_path = \"\"\nmax_in_flight = 10000\nheader_timeout = \"10s\"\nbody_idle_timeout = \"30s\"\nwrite_idle_timeout = \"30s\"\nkeepalive_timeout = \"75s\"\n"),
     ("[[server.mount]]", "[[server.mount]]\nscan = \"*/public/index.nvs\"\nprefix = \"/{1}\"\norigin = \"https://{1}.example.com\"\n"),
     ("[[server.mount]] entry", "[[server.mount]]\nprefix = \"/admin\"\nentry = \"Backoffice/public/index.nvs\"\nhost = \"admin.example.com\"\n"),
-    ("[cache]", "[cache]\ndir = \"/var/cache/nvs\"\n"),
+    ("[cache]", "[cache.local]\nmax_size = \"32M\"\n[cache.shared]\nurl = \"redis://cache.internal\"\ntimeout = \"5s\"\n"),
     ("[control]", "[control]\nsocket = \"/run/nvs/control.sock\"\n"),
     ("[opcache]", "[opcache]\nvalidate = \"never\"\nrevalidate_freq = \"2s\"\nfile_cache = true\nfile_cache_dir = \"/var/cache/nvs\"\nfile_cache_max_size = \"1G\"\nfile_cache_gc_probability = 1\nfile_cache_gc_divisor = 100\n"),
 ];

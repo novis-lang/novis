@@ -303,11 +303,11 @@ fn a_request_that_started_before_a_swap_reads_the_old_value_to_completion() {
 fn a_changed_boot_key_is_reported_and_does_not_take_effect() {
     let before = Fake::with(&[(
         "nvs.toml",
-        "[cache]\ndir = \"/var/cache/nvs\"\n\n[limits]\nmemory = \"128M\"\n",
+        "[opcache]\nfile_cache_dir = \"/var/cache/nvs\"\n\n[limits]\nmemory = \"128M\"\n",
     )]);
     let after = Fake::with(&[(
         "nvs.toml",
-        "[cache]\ndir = \"/srv/cache\"\n\n[limits]\nmemory = \"512M\"\n",
+        "[opcache]\nfile_cache_dir = \"/srv/cache\"\n\n[limits]\nmemory = \"512M\"\n",
     )]);
     let current = Current::new(snapshot_of(&before, "nvs.toml"));
 
@@ -317,15 +317,15 @@ fn a_changed_boot_key_is_reported_and_does_not_take_effect() {
 
     assert_eq!(
         reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
-        vec!["cache.dir"]
+        vec!["opcache.file_cache_dir"]
     );
-    let cache = reload
+    let opcache = reload
         .snapshot
         .config
-        .cache
+        .opcache
         .as_ref()
-        .expect("the running `[cache]` block was carried forward");
-    assert_eq!(cache.dir.as_deref(), Some("/var/cache/nvs"));
+        .expect("the running `[opcache]` block was carried forward");
+    assert_eq!(opcache.file_cache_dir.as_deref(), Some("/var/cache/nvs"));
     // The `Reload` half of the same file did take effect, which is what makes the refusal above a
     // property of the directive and not of the reload.
     assert_eq!(limits(&reload.snapshot).memory, text("512M"));
@@ -417,11 +417,11 @@ fn a_reload_that_changes_workers_carries_the_running_value_and_names_the_key() {
 
 /// The bound's other side: a reload that *adds* a `Boot` key is a change like any other, and the
 /// snapshot goes back to having none of it rather than to an empty block the typed tree would read
-/// as a `[cache]` that was written.
+/// as an `[opcache]` that was written.
 #[test]
 fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
     let before = Fake::with(&[("nvs.toml", "[limits]\nmemory = \"128M\"\n")]);
-    let after = Fake::with(&[("nvs.toml", "[cache]\ndir = \"/srv/cache\"\n")]);
+    let after = Fake::with(&[("nvs.toml", "[opcache]\nfile_cache_dir = \"/srv/cache\"\n")]);
     let current = Current::new(snapshot_of(&before, "nvs.toml"));
 
     let reload = current
@@ -430,9 +430,9 @@ fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
 
     assert_eq!(
         reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
-        vec!["cache.dir"]
+        vec!["opcache.file_cache_dir"]
     );
-    assert_eq!(reload.snapshot.config.cache, None);
+    assert_eq!(reload.snapshot.config.opcache, None);
 }
 
 /// `rule:config/the-config-is-an-immutable-snapshot`'s validate-then-publish, and m6.md's *Verify*: a reload whose tree does not parse

@@ -54,7 +54,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
 
     // `rule:config/reloadability-is-its-own-field`'s own lists, key by key. `Boot` first — the narrow set.
     for key in [
-        "cache.dir",
+        "opcache.file_cache_dir",
         "control.socket",
         "server.listen",
         "queue.connection",

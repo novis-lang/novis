@@ -84,9 +84,9 @@ in it. Two keys matter more in a container than outside one:
 listen      = ["0.0.0.0:8000"]  # or pass --listen; see the warning above
 health_path = "/healthz"        # off by default, so no URL is silently reserved
 
-[cache]
-dir = "/var/cache/novis"        # optional; a writable volume here keeps compiled
-                                # artifacts across restarts (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`)
+[opcache]
+file_cache_dir = "/var/cache/novis"  # optional; a writable volume here keeps compiled
+                                     # artifacts across restarts (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`)
 ```
 
 **Capabilities are denied by default and that does not change in a container.** A program that

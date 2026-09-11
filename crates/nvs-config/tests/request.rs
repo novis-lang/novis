@@ -162,7 +162,7 @@ fn a_system_directive_is_not_settable_by_a_request() {
     let mut request = Request::new(snapshot_of(BOUNDED));
 
     assert!(!request.set("limits.hard.memory", "16M"));
-    assert!(!request.set("cache.dir", "/tmp"));
+    assert!(!request.set("opcache.file_cache_dir", "/tmp"));
     assert_eq!(request.get("limits.hard.memory").as_deref(), Some("512M"));
 }
 
