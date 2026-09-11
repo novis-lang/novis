@@ -2,45 +2,58 @@
 
 ## State
 
-**Goal `editor-surfaces` — milestone M10. Every stage is closed: 0, 2, 3, 5 and 6.** Stage 6's client
-half landed this session, which was the goal's last open check. `npm run test:headless` in
-`editors/vscode` is 213 passing, `python tools/reference.py --check` is current, and the two stage-6
-Rust checks were already green.
+**Goal `resource-ceilings` — every resource ceiling stops the request that breaks it — has just started; nothing of it
+has landed yet.** Goal `editor-surfaces`'s whole acceptance list is this goal's floor.
 
-**The forwarding is two files, split the way `redactions.ts`/`concealment.ts` is.**
-`editors/vscode/src/template.ts` holds the decisions and imports no `vscode`, so the headless tier
-runs them: which spelling maps to which service, whether a position is inside a region, and the
-virtual document a service is shown — the file with its regions where they are and whitespace
-everywhere else, so a position means the same thing in both and no range coming back needs mapping.
-`editors/vscode/src/regions.ts` is the half that asks `nvs/regions` and registers the four providers.
-The regions are asked for per request rather than held, which is the one place it departs from
-`redactions.ts` and the module doc says why.
+Three holes, all reproduced or read out of the tree rather than inferred, and the goal's stages are
+ordered by what an attacker reaches for first rather than by difficulty:
 
-**Two of the services the rule names do not arrive by forwarding.** Emmet expands from the language
-of the document the cursor is in and validation is published per document by the service that owns
-one, so neither is a provider that can be run over a virtual document. Nothing is half-registered for
-them; the decision is filed in `docs/agent/carried-gaps.md` § *Unowned*.
+**The cheapest attack is `while (true) {}`.** There is no CPU or wall-clock enforcement anywhere in
+the running system: `Ctx::cpu_limit`'s field doc says the flag is raised by tests alone, and every
+caller of `Ctx::expire_deadline` in the tree is in fact a test. The watchdog reads the reactor's timer
+wheel and a bare loop arms no timer; even on a report,
+`rule:http-server/a-wedged-core-is-shed-never-killed` sheds rather than kills, so the core is gone
+for the life of the process. N such requests retire N cores. Stage 3.
+
+**The memory half is the one that was audited first.** `while (true) { $a .= $a; }` ran to completion
+holding 268,450,240 bytes against a 16 MiB ceiling — the breach was reported by the `echo` after the
+loop — and unbounded it ends at `handle_alloc_error`, which aborts the worker. Stages 4 and 5.
+
+**And a request's ceiling is not its own.** `Ctx::memory_used` is a delta against a *thread* balance,
+so freeing what an earlier request allocated buys headroom. `Core\Cache::local` is a `thread_local`
+that outlives requests: fill it in one request, evict it from the next. Stage 6.
+
+**Stage 2 is already measured and is the keystone for two of them.** The out-of-line poll word with
+the handle hoisted into the ABI entry block was built and benchmarked before this goal was written —
+the poll drops from four instructions to three, the tightest loop from 23 to 22 per iteration, wall
+clock does not move, conformance is unchanged. It is what lets a *non-owning thread* publish, which
+is what stage 3's sampler and stage 4's allocator both need. Do not re-litigate the indirection; the
+standing decisions say why.
 
 ## Next group
 
-**The goal's checks are all green, so the driver switches to goal `resource-ceilings` and replaces
-this file with that goal's seed handoff.** If a check disagrees and this goal stays live, the one
-item below is what is left of stage 6 — one file set, `editors/vscode/src/`.
+**Stage 0 and stage 2 together.** Stage 0 is three `.nvst` cases and no Rust; stage 2 is one file set
+— `Ctx`, its accessors, and the poll's emit site — and every stage above it publishes into what it
+builds.
 
-- [ ] **Emmet and HTML validation reach a template region, or the tree says why not**, per
-      `rule:ide/a-template-region-gets-services-but-no-second-formatter`, which names both. The two
-      candidate shapes and the cost of each are in `editors/vscode/src/regions.ts:23`; the decision
-      is whether `emmet.includeLanguages` mapping `nvs` to `html` — which also turns abbreviation
-      expansion on in the Novis half of the file — is the trade, or whether the client grows a
-      second, real document the service can own beside `editors/vscode/src/template.ts:103`.
-- [x] **`nvs.template.services` joins the frozen roster** — `editors/vscode/package.json:133`, both
-      contributions rows, and the reference chapter's settings table.
-- [x] **The client forwards inside a region and nowhere else** — `editors/vscode/src/regions.ts:100`
-      registers completion, hover, linked editing and colours, and no formatter on either side.
-
-## Backlog
-
-- Emmet and HTML validation do not reach a region — `docs/agent/carried-gaps.md` § *Unowned*.
-- A markup literal's body is not a region: the lexer has no token for one — `crates/nvs-lsp/src/regions.rs` § *What is not a region yet*, goal `markup-literal`.
-- `nvs.lsp.debounce` is contributed and read by nothing — `docs/reference/tools/40-editor.md` § *What it does not do*.
-- Coverage in the Test Explorer waits on the Clover/lcov exporters — goal's § *Standing decisions*.
+- [ ] **Write stage 0's three cases** into `tests/conformance/error/`, copying the handler and reserve
+      shape from `a-limit-fatal-is-not-catchable.nvst`. All three run red. The memory-loop case must
+      assert that nothing printed *before* the breach — that is what distinguishes the loop being
+      stopped from the `echo` after it being stopped.
+- [ ] **The CPU case needs `[limits] cpu_time` and a body that allocates nothing.** It is the one case
+      that hangs if the stage it belongs to regresses, so give it a ceiling small enough that the
+      suite notices in seconds rather than minutes.
+- [ ] **Then move the poll word out of `Ctx`** — `crates/nvs-runtime/src/ctx/mod.rs:@Ctx`, the
+      accessors in `ctx/safepoint.rs`, and `Ctx::child`/`Ctx::isolate` cloning the handle so a tree
+      shares one word. `Self::deadline` is the worked example for every one of those decisions.
+- [ ] **Then hoist the handle** — `crates/nvs-codegen/src/emit.rs:@emit_safepoint` loads it from the
+      value bound beside `ctx_p` in the ABI entry block, not from `Ctx` at each poll. Confirm with
+      `nvs run --dump-asm` on a bare `while`: the back edge must hold one load, one test and one
+      branch, and no context re-materialization.
+- [ ] **Do not fold the word back into `Ctx`** however tempting one fewer indirection looks. The
+      allocator and the sampler writing into a live `&mut Ctx` is the aliasing problem the move exists
+      to solve, and it is invisible in a build that happens to work.
+- [ ] **Stage 3 is the next group after this one**, and it is the highest-severity stage in the goal.
+      It is a small addition on top of stage 2: `nvs_safepoint`'s CPU arm and `bounded_loop`'s
+      deadline poll are both already written and have only ever been reached by tests. What is new is
+      the per-thread clock on the watchdog thread that raises them.

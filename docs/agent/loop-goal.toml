@@ -1,16 +1,13 @@
-# Goal 39 -- The extension answers everything it contributes
+# Goal 40 -- Every resource ceiling stops the request that breaks it
 # The acceptance test, as data.
 #
-# `39-editor-surfaces.md` is the prose. One home each.
+# `40-resource-ceilings.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
-#
-# A `command` check is not a PROGRAM_KIND, so it runs ONCE between the legs rather than per leg.
-# That is right here for the same reason it was right for goals `editor` and `editor-install`: a TypeScript client has
-# no calling convention, and the WSL leg exists for the one thing that does.
 
 files = [
-  # carried from the previous goal by tools/goal-switch.py; this goal names none of its own.
+  # goal-switch.py unions the previous goal's list into this one. This goal's own cases are `.nvst`
+  # conformance cases rather than `examples/*.nvs` fixtures, so it names none of its own.
   # carried from the previous goal by tools/goal-switch.py
   "examples/queue.nvs",
   "examples/queue-sqlite.nvs",
@@ -97,84 +94,71 @@ files = [
 [context]
 
 modules = [
-  # The three unanswered ids at :62, and where stages 3-5 register their answers.
-  "editors/vscode/src/extension.ts",
-  # The frozen roster. Stage 3 adds `taskDefinitions` and `problemMatchers`; every id is added,
-  # never renamed.
-  "editors/vscode/package.json",
-  # How a new suite directory becomes a ledger line: discovery, and the `name:` it prints.
-  "editors/vscode/scripts/headless.mjs",
-  # The dependency allowlist -- the reason a Test Explorer parses JSON the CLI already emits
-  # rather than pulling a reporter library in.
-  "editors/vscode/test/contributions/contributions.test.ts",
-  # `json_document` at :1653 -- the schema stage 2 takes to version 2, and the two formats it
-  # must leave untouched.
-  "crates/nvs-cli/src/runner.rs",
-  # `Command::Check`'s flags, and the front end whose diagnostics stage 2 renders a second way.
-  "crates/nvs-cli/src/main.rs",
-  # `TestCase` at :243 -- the roster stage 2's listing mode enumerates. It carries no declaring
-  # span: `case_spans` at :423 has one and only diagnostics read it, so the file and line stage 2
-  # adds to each record start here rather than in `runner.rs`.
-  "crates/nvs-types/src/testing.rs",
-  # The `Diagnostic` record `--json` writes: code, span, severity, help, suggestions.
-  "crates/nvs-diagnostics/src/lib.rs",
-  # `ast::run` at :54 -- the frozen `--json` renderer stage 2's `check --json` is modelled on.
-  "crates/nvs-cli/src/ast.rs",
-  # `Settings::from_initialize` -- the server's reader for the `nvs` section the client forwards in
-  # `initializationOptions`, which is what answers a contributed setting the client never reads.
-  "crates/nvs-lsp/src/settings.rs",
-  # `TokenKind::InlineHtml` at :356 -- the span stage 6's regions request projects.
-  "crates/nvs-syntax/src/lexer.rs",
-  # The chapter stage 6 extends, and its § *What it does not do* this goal shortens.
-  "docs/reference/tools/40-editor.md",
-  # `nvs check --json` — every diagnostic the text renderer prints, as one document.
-  "crates/nvs-cli/src/check.rs",
-  # Parsing one `.nvst` file into a `Case`.
-  "crates/nvs-test/src/case.rs",
-  # TODO: why a session opens this.
-  "editors/vscode/src/binary.ts",
-  # TODO: why a session opens this.
-  "editors/vscode/src/tasks.ts",
-  # TODO: why a session opens this.
-  "editors/vscode/src/ast.ts",
-  # TODO: why a session opens this.
-  "editors/vscode/src/nodes.ts",
+  # `Ctx`'s hot line: which words compiled code loads inline, the offsets its own tests pin, and
+  # `deadline` -- the out-of-line word a non-owning thread writes, which stages 2 and 3 both copy.
+  "crates/nvs-runtime/src/ctx/mod.rs",
+  # The poll's slow path. Its CPU arm and its memory arm are both written and both unreachable.
+  "crates/nvs-runtime/src/ctx/safepoint.rs",
+  # The counters, and the module doc that already records the memory half as a known gap.
+  "crates/nvs-runtime/src/budget.rs",
+  # `refresh_limits` -- the one place a ceiling is computed, and so the one place stage 4 arms.
+  "crates/nvs-runtime/src/ctx/limits.rs",
+  # `run_helper`'s pre-body check, `bounded_loop`'s deadline poll, and `affordable`'s "not a budget"
+  # paragraph: the seams that work today, and the comment stage 4 rewrites.
+  "crates/nvs-runtime/src/abi.rs",
+  # `nvs_str_append`'s in-place and grow paths, `try_alloc_uninit`, `IMMORTAL_REFCOUNT`, and the
+  # block comment above the primitives that argues they cannot fail because allocation aborts.
+  "crates/nvs-runtime/src/string.rs",
+  # `nvs_array_next_slot`'s doc comment -- foreach walks a snapshot and a body write separates,
+  # which is the whole of why stage 5's refusal must be a complete no-op.
+  "crates/nvs-runtime/src/array.rs",
+  # One thread for the process, one entry per core, already waking on an interval: stage 3's sampler
+  # goes here rather than in a thread of its own.
+  "crates/nvs-host/src/watchdog.rs",
+  # The local tier: a `thread_local` that outlives a request, which is stage 6's first bracket.
+  "crates/nvs-stdlib/src/cache.rs",
+  # The poll's emit site, `ctx_p`'s binding in the ABI entry block, and the runtime signatures the
+  # ctx-less primitives share.
+  "crates/nvs-codegen/src/emit.rs",
+  # The `StrAppend`/`Concat` contracts: which operand is consumed, which is only read, and why
+  # neither carries a status check today.
+  "crates/nvs-ir/src/ir.rs",
+  # The ladder as a fixture -- the handler, the reserve, and the message shape stage 0 copies.
+  "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
 ]
 
-# The rules this goal implements. Every one of them is already landed; none is amended here.
+# The rules every stage of this goal works inside.
 rules = [
-  "ide/tasks-carry-a-problem-matcher",
-  "ide/contributions-are-frozen-and-only-ever-added",
-  "ide/the-ast-panel-shells-out-to-the-cli",
-  "ide/ast-json-schema-is-frozen",
-  "ide/check-json-is-the-diagnostic-record-as-a-document",
-  "ide/the-extension-builds-no-ui-the-editor-already-has",
-  "ide/a-template-region-gets-services-but-no-second-formatter",
-  "tooling/fmt-is-never-a-diagnostic",
-  "ide/every-feature-is-staged-behind-its-dependency",
-  "errors/renderings",
-  # Stage 5 runs the case tree through the same explorer; this is what says the corpus is a roster
-  # rather than a declaration.
-  "ide/lspt-coverage-is-inferred",
-  # `nvs.check.scope`'s two values, its default and why the expensive one is off -- the setting
-  # stage 0 adds to the manifest for the server that has read it since goal `workspace-index`.
-  "ide/check-scope-defaults-to-open-documents",
+  # What a resource-limit breach owes: a FATAL, tier 1's handler, and never a `catch`.
+  "errors/on-limit",
+  # Why an abort is the bug rather than the fallback, and what a change that spends memory owes.
+  "programs/memory-priority",
+  # One ceiling per tree, and why the poll word is the tree's rather than each context's.
+  "security/isolate-shares-nothing",
 ]
 
 adrs = []
 
-shapes = ["A commit message", "A decision record", "A rule fragment"]
+shapes = [
+  "A commit message",
+  "A decision record",
+  "A rule fragment",
+  "A `.nvst` test case",
+  "A code comment",
+]
 
-milestones = ["M10"]
+milestones = ["M6:verify"]
 
 playbook = [
-  # This goal's own file set. `verify.py runs` is the one that leads with
-  # `editors/vscode/package.json`, so there is no second selector for it.
-  'Tooling > tools/verify.py runs',
-  'Tooling > a textmate',
-  'Writing a test case > a -p nvs-cli test',
-  'Writing a test case > a test that asserts',
-  'Tooling > a cargo-named acceptance',
+  # This goal's own file set.
+  'Writing a test case > a memory-limit',
+  'Writing a test case > a [limits]',
+  'Writing a test case > a livebytes',
+  'Running things > a #[globalallocator]',
+  'Running things > a ctx',
+  'Writing Novis itself > one runtimesig',
+  'Writing a test case > a compiled function',
+  'Running things > tools/leak-check.sh greps',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -193,16 +177,29 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `39-editor-surfaces.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `40-resource-ceilings.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# `nvs ast --json`'s frozen schema is the shape both of stage 2's take.
-rules = ["ide/ast-json-schema-is-frozen"]
+# The poll's cost class, and why an instruction count is the headline and a timer is not.
+rules = ["testing/perf-two-mechanisms"]
 
-[context.stage.6]
-# The one home for what a region gets and what it must never get.
-rules = ["ide/a-template-region-gets-services-but-no-second-formatter"]
+[context.stage.3]
+# What a helper owes a deadline it cannot otherwise reach, and the two rules that own what happens to
+# a core that stops turning -- neither of which this stage changes.
+rules = [
+  "http-server/time-is-bounded-inside-a-helper",
+  "http-server/a-wedged-core-is-detected-by-its-deadline",
+  "http-server/a-wedged-core-is-shed-never-killed",
+]
+
+[context.stage.5]
+# Why a primitive may not unwind, which is what forces the degenerate return.
+rules = ["errors/helper-abi", "errors/propagation"]
+
+[context.stage.7]
+# The shape stage 7's new fragment copies: bound the input, not the output.
+rules = ["core-classes/regex-two-tiers"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
@@ -216,6 +213,12 @@ compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 540 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -7825,16 +7828,13 @@ tests = [
   "no_hint_is_produced_from_anything_the_type_phase_did_not_record",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- the contributed-and-unanswered set. This runs red the day it is written and is what
 # stops the next id being added and forgotten for a milestone. Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "0 the catch-up"
+stage = "1 floor"
 name = "every contributed command is registered, and every setting is read"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:headless"]
@@ -7848,10 +7848,9 @@ want = ["grammar:", "contributions:", "protocol:", "0 failing"]
 # Stage 2 -- the keystone: the two CLI surfaces. Rust checks, because both are the CLI's own output
 # and neither needs an editor to be wrong. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the cli surfaces"
+stage = "1 floor"
 name = "check --json is the diagnostic record, and the text renderer is unchanged"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -7862,7 +7861,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the cli surfaces"
+stage = "1 floor"
 name = "the test report locates every test, and can list without running"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -7876,10 +7875,9 @@ tests = [
 # `scripts/headless.mjs` discovers and prints as `surfaces:`. No editor: a Task's `problemMatcher` is
 # a regex over recorded output, and a region request is a protocol answer. Goal prose stages 3-6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "3 the tasks"
+stage = "1 floor"
 name = "vscode (headless, with the surfaces suite)"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:headless"]
@@ -7897,10 +7895,9 @@ want = ["grammar:", "contributions:", "protocol:", "surfaces:", "0 failing"]
 # stages were unbuilt. These two name the cases instead, so the gate is red until they exist. The
 # files are `editors/vscode/test/surfaces/tests.test.ts` and `regions.test.ts`. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "5 the test explorer"
+stage = "1 floor"
 name = "the explorer populates from the listing, runs through the json report, and holds the case corpus too"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:headless"]
@@ -7914,17 +7911,16 @@ want = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "6 the regions"
+stage = "1 floor"
 name = "the regions request is frozen as a case like every other answer"
 args = ["lsp-test", "tests/lsp/"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- and the formatter that must not appear. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 the regions"
+stage = "1 floor"
 name = "no formatting reaches a template region from either side"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -7935,10 +7931,9 @@ tests = [
 # Both of those are the server's side. The client's is the forwarding itself, and `surfaces:` is where
 # it is asserted -- behind `nvs.template.services`, which is a contributed setting and so is answered
 # or it is a failing test.
-
 [[check]]
 kind = "command"
-stage = "6 the regions"
+stage = "1 floor"
 name = "the region client forwards inside a span, and is off when the setting is"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:headless"]
@@ -7952,9 +7947,197 @@ want = [
 # ---------------------------------------------------------------------------------------------------
 # The reference chapter, which stops naming what this goal answered. Goal prose stages 3-6.
 # ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "command"
+stage = "1 floor"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- the three cases that say nothing notices. All red the day they are written; the CPU one
+# goes green at stage 3, the loop one at stage 4, the single-operation one at stage 5.
+# Goal prose stage 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "0 the catch-up"
+name = "a runaway is stopped whether it allocates, calls or does neither"
+args = ["test", "tests/conformance/error/"]
+cases = [
+  "tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst",
+  "tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst",
+  "tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the word moves out of `Ctx` and the handle is hoisted. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the poll word"
+name = "the poll word is the tree's, and the hot line is unchanged"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "the_hot_words_come_first_and_are_a_word_apart",
+  "a_child_polls_the_same_word_its_root_does",
+  "a_child_built_after_the_flag_was_set_is_not_born_clean",
+  "every_rust_side_read_goes_through_the_handle",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the poll word"
+name = "the handle is loaded once per call, not once per poll"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "the_safepoint_handle_is_loaded_in_the_abi_entry_block",
+  "a_loop_back_edge_polls_with_one_load",
+  "a_pending_safepoint_stops_the_script_before_it_writes_anything",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the clock. The sampler rides the watchdog thread; both halves of what it raises are
+# polled by code that already exists. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the clock"
+name = "a thread's own cpu time is sampled, and a slow wait is not a runaway"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_thread_cpu_clock_advances_with_work_and_not_with_waiting",
+  "a_core_past_its_cpu_ceiling_is_flagged_within_one_interval",
+  "a_core_parked_on_io_past_the_same_wall_time_is_not_flagged",
+  "a_platform_without_a_thread_clock_reports_no_cpu_ceiling_at_boot",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the clock"
+name = "both poll sites act on the flag the sampler raises"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_raised_cpu_flag_stops_compiled_code_at_its_next_back_edge",
+  "a_raised_cpu_flag_stops_a_bounded_loop_inside_a_member",
+  "the_limit_handler_runs_once_and_is_not_re_entered_when_it_overruns",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the clock"
+name = "a loop that allocates nothing is stopped by the cpu ceiling"
+args = ["test", "tests/conformance/error/"]
+cases = ["tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the allocator publishes, which bounds a loop. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the allocator publishes"
+name = "a growing allocation past the ceiling raises the flag, and an uncapped request arms nothing"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_growing_allocation_past_the_ceiling_sets_the_memory_bit",
+  "an_uncapped_request_arms_no_threshold_and_pays_one_compare",
+  "a_ceiling_raised_mid_request_rearms_the_threshold",
+  "an_isolate_restores_the_threshold_its_parent_armed",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the allocator publishes"
+name = "a loop that calls nothing is stopped at its own back edge"
+args = ["test", "tests/conformance/error/"]
+cases = ["tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the value allocators refuse, which bounds one operation. The cursor test is what says the
+# degenerate return is sound rather than merely cheap. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the refusal"
+name = "a refused allocation never happens, and every string path is fallible"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_single_operation_past_the_ceiling_never_allocates_what_it_asked_for",
+  "no_string_allocation_path_can_abort",
+  "an_append_past_the_ceiling_returns_its_target_unchanged",
+  "a_concat_past_the_ceiling_returns_the_immortal_empty_string",
+  "a_refused_operation_balances_every_reference_it_was_handed",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the refusal"
+name = "a refused array write neither writes nor separates, so a live cursor still walks its snapshot"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "an_array_set_past_the_ceiling_neither_writes_nor_separates",
+  "a_refused_write_leaves_a_live_foreach_cursor_on_its_own_snapshot",
+  "an_array_append_past_the_ceiling_refuses_through_the_status_it_already_has",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the budget is the request's own. The cross-request case is the one an attacker reaches
+# through `Core\Cache::local`. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 whose bytes they are"
+name = "freeing what an earlier request allocated buys no headroom"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_request_that_frees_inherited_memory_gains_no_ceiling",
+  "a_detached_bracket_moves_the_process_counter_and_not_the_request_reading",
+  "a_bracket_restores_on_unwind_as_well_as_on_return",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 whose bytes they are"
+name = "every cross-request store is bracketed, the local cache tier first"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_cache_write_is_charged_to_the_process_and_not_to_the_request",
+  "an_eviction_from_a_later_request_lowers_no_ceiling",
+  "a_cache_entry_still_counts_against_the_local_tier_max_size",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the records and the rulebook. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "7 the record"
+name = "all three stage 0 cases are green, and the tree still is"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst",
+  "tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst",
+  "tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst",
+  "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
+  "tests/conformance/error/a-limit-breach-inside-finally-is-a-clean-fatal.nvst",
+]
 
 [[check]]
 kind = "command"
-stage = "6 the regions"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
+stage = "7 the record"
+name = "the rulebook validates, including the fragment this goal adds"
+argv = ["python", "tools/rules.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "7 the record"
+name = "every record this goal opened is complete and cited"
+argv = ["python", "tools/decisions.py", "--gate"]
