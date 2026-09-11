@@ -131,11 +131,12 @@ fn kind_at(analysed: &Analysed, offset: BytePos) -> Option<&'static str> {
 /// as naming none would be a request whose row stopped growing without anything
 /// saying so.
 ///
-/// The variants that name nothing in the entry document say so rather than
-/// being left out. A `definition` and a `references` answer places that are
-/// often in another file, and a `completion` item carries no range at all —
-/// each of them is asked at a cursor, so its coverage comes from the cursor
-/// and this is never read for it.
+/// The variants that name nothing here say so rather than being left out. A
+/// `definition` and a `references` answer places that are often in another
+/// file, a `completion` item carries no range at all, and a `documentHighlight`
+/// answers places in this document that are every one of them a use of the name
+/// the cursor is already on — each of the four is asked at a cursor, so its
+/// coverage comes from the cursor and this is never read for it.
 fn named(response: &Response) -> Vec<Position> {
     match response {
         Response::Diagnostics(items) => items.iter().map(|item| item.range.start).collect(),
@@ -143,7 +144,10 @@ fn named(response: &Response) -> Vec<Position> {
             .iter()
             .filter_map(|hover| hover.range.map(|range| range.start))
             .collect(),
-        Response::Definition(_) | Response::Completion(_) | Response::References(_) => Vec::new(),
+        Response::Definition(_)
+        | Response::Completion(_)
+        | Response::References(_)
+        | Response::DocumentHighlight(_) => Vec::new(),
         Response::SemanticTokens(tokens) => render::absolute(tokens),
         Response::DocumentSymbol(symbols) => {
             let mut out = Vec::new();

@@ -80,6 +80,9 @@ pub enum Request {
     CodeLens,
     /// `textDocument/references`, asked with the declaration included.
     References,
+    /// `textDocument/documentHighlight`, which is [`Self::References`]'s query
+    /// narrowed to the file the cursor is in.
+    DocumentHighlight,
     /// `nvs/redactions`.
     Redactions,
 }
@@ -99,6 +102,7 @@ impl Request {
         Self::CodeAction,
         Self::CodeLens,
         Self::References,
+        Self::DocumentHighlight,
         Self::Redactions,
     ];
 
@@ -118,6 +122,7 @@ impl Request {
             Self::CodeAction => "codeAction",
             Self::CodeLens => "codeLens",
             Self::References => "references",
+            Self::DocumentHighlight => "documentHighlight",
             Self::Redactions => "redactions",
         }
     }
@@ -153,6 +158,7 @@ impl Request {
                 | Self::SelectionRange
                 | Self::CodeAction
                 | Self::References
+                | Self::DocumentHighlight
         )
     }
 }
@@ -721,19 +727,22 @@ lib/user.nvs:2:36
                 "completion",
                 "selectionRange",
                 "codeAction",
-                "references"
+                "references",
+                "documentHighlight"
             ]
         );
     }
 
     #[test]
     fn an_unknown_request_or_argument_fails_the_case() {
-        let refused = parse(&MEMBER_COMPLETION.replace("completion\n", "documentHighlight\n"))
+        // `moniker`, and not a request this catalog has merely not reached yet:
+        // it is a real LSP method that resolves a symbol to a cross-repository
+        // identifier, which is nothing a document's own sections could freeze,
+        // so the spelling stays unknown instead of turning into a fixture that
+        // becomes a pass the day an arm lands under it.
+        let refused = parse(&MEMBER_COMPLETION.replace("completion\n", "moniker\n"))
             .expect_err("the request set is closed");
-        assert!(
-            refused.to_string().contains("documentHighlight"),
-            "{refused}"
-        );
+        assert!(refused.to_string().contains("moniker"), "{refused}");
         assert!(refused.to_string().contains("completion"), "{refused}");
 
         // What each request takes is closed too, and the message says what it

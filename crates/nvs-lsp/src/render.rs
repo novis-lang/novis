@@ -169,6 +169,16 @@ pub enum Response {
     /// where a name is used, so it is pinned where it is visible: a `-p
     /// nvs-lsp` test reading the wire, in `tests/references.rs`.
     References(Vec<Place>),
+    /// `textDocument/documentHighlight`, as places and not as ranges.
+    ///
+    /// The same shape [`Response::References`] freezes, because the answer is
+    /// that query narrowed to one file and a case reads the two rows against
+    /// each other: what a highlight case pins is *which* of the uses stayed in
+    /// the list, and a second spelling would hide that behind a diff of
+    /// formats. The end of a hit is dropped for the same reason a place carries
+    /// no end anywhere else here — it is the name's own length, which the
+    /// document already shows.
+    DocumentHighlight(Vec<Place>),
     /// `nvs/redactions`.
     Redactions(Vec<Redaction>),
 }
@@ -190,6 +200,7 @@ impl Response {
             Self::CodeAction(_) => Request::CodeAction,
             Self::CodeLens(_) => Request::CodeLens,
             Self::References(_) => Request::References,
+            Self::DocumentHighlight(_) => Request::DocumentHighlight,
             Self::Redactions(_) => Request::Redactions,
         }
     }
@@ -214,6 +225,7 @@ impl Response {
             Self::CodeAction(items) => lines(sorted(items.iter().map(action))),
             Self::CodeLens(items) => lines(sorted(items.iter().map(lens))),
             Self::References(items) => lines(sorted(items.iter().map(reference))),
+            Self::DocumentHighlight(items) => lines(sorted(items.iter().map(reference))),
             Self::Redactions(items) => lines(items.iter().map(redaction).collect()),
         }
     }
@@ -679,6 +691,18 @@ mod tests {
                     position: at(6, 13),
                 },
             ]),
+            // One file, because that is the whole of what narrows this answer
+            // from the one above it.
+            Response::DocumentHighlight(vec![
+                Place {
+                    path: "case.nvs".to_owned(),
+                    position: at(6, 13),
+                },
+                Place {
+                    path: "case.nvs".to_owned(),
+                    position: at(1, 6),
+                },
+            ]),
             Response::Redactions(vec![Redaction {
                 range: span(3, 18, 30),
                 kind: "secretLiteral".to_owned(),
@@ -701,6 +725,7 @@ mod tests {
             Response::CodeAction(Vec::new()),
             Response::CodeLens(Vec::new()),
             Response::References(Vec::new()),
+            Response::DocumentHighlight(Vec::new()),
             Response::Redactions(Vec::new()),
         ]
     }
@@ -814,6 +839,24 @@ mod tests {
             }])
             .render(),
             "4:19-4:31 secretLiteral\n"
+        );
+
+        // A highlight list is spelled and sorted exactly as a reference list
+        // is, one file's worth of it, so the two rows of the matrix can be read
+        // against each other.
+        assert_eq!(
+            Response::DocumentHighlight(vec![
+                Place {
+                    path: "case.nvs".to_owned(),
+                    position: at(6, 13),
+                },
+                Place {
+                    path: "case.nvs".to_owned(),
+                    position: at(1, 6),
+                },
+            ])
+            .render(),
+            "case.nvs:2:7\ncase.nvs:7:14\n"
         );
 
         // Two actions at one cursor sort by where they edit, and a deletion is
