@@ -67,7 +67,7 @@ use crate::capabilities::initialize_result;
 use crate::completion;
 use crate::definition;
 use crate::diagnostics::{Phases, dimming, for_document};
-use crate::document::{Documents, analyse, path_of, uri_of};
+use crate::document::{Analysed, Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hover;
 use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_at};
@@ -467,12 +467,34 @@ fn references(
     let position = params.text_document_position.position;
     let analysed = analyse(documents, &params.text_document_position.text_document.uri)?;
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
-    let symbol = symbol_at(&analysed, offset)?;
+    uses_of(
+        documents,
+        index,
+        &analysed,
+        offset,
+        params.context.include_declaration,
+        encoding,
+    )
+}
+
+/// [`references`]' answer, from an analysis and an offset already in hand.
+///
+/// Split out for the `.lspt` runner, which asks this of a case it has already
+/// analysed ([`references_of_case`]). What the wire half adds is reading a
+/// position out of the parameters and converting it, so the index query itself
+/// stays written once.
+fn uses_of(
+    documents: &Documents,
+    index: &SymbolIndex,
+    analysed: &Analysed,
+    offset: BytePos,
+    include_declaration: bool,
+    encoding: PositionEncoding,
+) -> Option<Vec<Location>> {
+    let symbol = symbol_at(analysed, offset)?;
 
     let mut sites: Vec<&Site> = Vec::new();
-    if params.context.include_declaration
-        && let Some(declared) = index.declaration(&symbol)
-    {
+    if include_declaration && let Some(declared) = index.declaration(&symbol) {
         sites.push(&declared.site);
     }
     sites.extend(
@@ -784,6 +806,28 @@ pub(crate) fn lenses_of_case(
     let settings = case_settings(root);
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
     code_lens(documents, &index, &settings, encoding, uri)
+}
+
+/// [`references`] for one `.lspt` case, over an index built for that case
+/// alone and for [`lenses_of_case`]'s reason.
+///
+/// **The declaration is included**, because that is what "find all references"
+/// in an editor sends and a `--REQUEST--` line carries no argument to say
+/// otherwise (`rule:ide/a-request-line-is-closed`). It is also the reading
+/// that makes a case say something: the answer to "where is this name" is the
+/// same list whether the cursor sits on the declaration or on a use, and a
+/// corpus that left the declaration out would freeze two different lists for
+/// one question.
+pub(crate) fn references_of_case(
+    documents: &Documents,
+    analysed: &Analysed,
+    root: &Path,
+    offset: BytePos,
+    encoding: PositionEncoding,
+) -> Option<Vec<Location>> {
+    let settings = case_settings(root);
+    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    uses_of(documents, &index, analysed, offset, true, encoding)
 }
 
 /// What a lens says above a declaration `count` things refer to.

@@ -56,7 +56,7 @@ use crate::completion;
 use crate::coverage::{self, Matrix};
 use crate::definition;
 use crate::diagnostics::{Phases, for_document};
-use crate::document::{Analysed, Documents, analyse, uri_of};
+use crate::document::{Analysed, Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hover;
 use crate::links;
@@ -272,6 +272,7 @@ pub(crate) fn answer(case: &Case) -> Result<Answered, String> {
         Request::DocumentLink => document_link(&analysed, &files),
         Request::CodeAction => code_action(&analysed, at(case)),
         Request::CodeLens => code_lens(&documents, &files, &entry),
+        Request::References => references(&analysed, &documents, &files, at(case)),
         Request::Redactions => redactions(&analysed),
     };
     let covered = coverage::of(&analysed, cursor(case), &response, COLUMNS);
@@ -559,6 +560,36 @@ fn redactions(analysed: &Analysed) -> Response {
 fn code_lens(documents: &Documents, files: &Materialised, entry: &Uri) -> Response {
     Response::CodeLens(
         crate::server::lenses_of_case(documents, &files.dir, entry, COLUMNS).unwrap_or_default(),
+    )
+}
+
+/// `textDocument/references` — every use of the name under the case's cursor,
+/// with the declaration among them.
+///
+/// A hit is spelled the way [`definition`]'s place is: the server answers a
+/// `Location` naming the directory the case was materialised into, and turning
+/// that back into `case.nvs` or `lib/user.nvs` is this runner's job rather than
+/// [`crate::render`]'s. A URI that is no path is dropped, which is unreachable
+/// from a case's own sections and would be an absolute path in a frozen
+/// expectation if it were not.
+fn references(
+    analysed: &Analysed,
+    documents: &Documents,
+    files: &Materialised,
+    offset: BytePos,
+) -> Response {
+    let found = crate::server::references_of_case(documents, analysed, &files.dir, offset, COLUMNS)
+        .unwrap_or_default();
+    Response::References(
+        found
+            .iter()
+            .filter_map(|at| {
+                Some(Place {
+                    path: files.spelling(&path_of(&at.uri)?),
+                    position: at.range.start,
+                })
+            })
+            .collect(),
     )
 }
 

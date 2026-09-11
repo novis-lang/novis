@@ -160,6 +160,15 @@ pub enum Response {
     /// answer and not an empty list, and it is nothing this renders: no case
     /// can write a setting.
     CodeLens(Vec<CodeLens>),
+    /// `textDocument/references`, with the declaration among the uses.
+    ///
+    /// A list and not an option, so the two answers the server tells apart on
+    /// the wire — `null` for a cursor on no name it can follow, `[]` for a name
+    /// nothing uses — arrive here as the same empty list and freeze as `none`.
+    /// That difference is about which question was answerable and not about
+    /// where a name is used, so it is pinned where it is visible: a `-p
+    /// nvs-lsp` test reading the wire, in `tests/references.rs`.
+    References(Vec<Place>),
     /// `nvs/redactions`.
     Redactions(Vec<Redaction>),
 }
@@ -180,6 +189,7 @@ impl Response {
             Self::DocumentLink(_) => Request::DocumentLink,
             Self::CodeAction(_) => Request::CodeAction,
             Self::CodeLens(_) => Request::CodeLens,
+            Self::References(_) => Request::References,
             Self::Redactions(_) => Request::Redactions,
         }
     }
@@ -203,6 +213,7 @@ impl Response {
             Self::DocumentLink(items) => lines(items.iter().map(link).collect()),
             Self::CodeAction(items) => lines(sorted(items.iter().map(action))),
             Self::CodeLens(items) => lines(sorted(items.iter().map(lens))),
+            Self::References(items) => lines(sorted(items.iter().map(reference))),
             Self::Redactions(items) => lines(items.iter().map(redaction).collect()),
         }
     }
@@ -335,6 +346,20 @@ fn marked(piece: &MarkedString) -> String {
 /// `file:L:C`.
 fn place(at: &Place) -> String {
     format!("{}:{}", at.path, position(at.position))
+}
+
+/// `file:L:C`, keyed by the file and then the position in it.
+///
+/// Sorted where the one place a `definition` answers is not, because this
+/// answer is the index's declaration side and its occurrence side put end to
+/// end across every file that holds a use. The order it arrives in is the
+/// query's, and a case freezes *where* a name is used rather than in what
+/// order a walk reached it.
+fn reference(at: &Place) -> ((&str, u32, u32), String) {
+    (
+        (at.path.as_str(), at.position.line, at.position.character),
+        place(at),
+    )
 }
 
 /// `label kind detail`, keyed by label.
@@ -642,6 +667,18 @@ mod tests {
                 }),
                 data: None,
             }]),
+            // Out of order and across two files, so the sort the rendering
+            // applies is visible in what it produces.
+            Response::References(vec![
+                Place {
+                    path: "lib/user.nvs".to_owned(),
+                    position: at(1, 6),
+                },
+                Place {
+                    path: "case.nvs".to_owned(),
+                    position: at(6, 13),
+                },
+            ]),
             Response::Redactions(vec![Redaction {
                 range: span(3, 18, 30),
                 kind: "secretLiteral".to_owned(),
@@ -663,6 +700,7 @@ mod tests {
             Response::DocumentLink(Vec::new()),
             Response::CodeAction(Vec::new()),
             Response::CodeLens(Vec::new()),
+            Response::References(Vec::new()),
             Response::Redactions(Vec::new()),
         ]
     }

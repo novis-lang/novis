@@ -14,7 +14,7 @@
 //! what "no empty cell" can mean, and what it cannot*, and this file asserts
 //! that reading rather than restating it: the whole cross product is not
 //! achievable by any corpus, so the claim is split into a strong half over the
-//! five cursor rows and a weaker one over the document-wide rows, and
+//! cursor rows and a weaker one over the document-wide rows, and
 //! `Request::takes_cursor` is the only thing that decides which a request is in.
 
 use std::path::{Path, PathBuf};
@@ -64,7 +64,7 @@ fn every_request_answers_every_construct() {
 
     let mut missing = Vec::new();
 
-    // A cursor goes anywhere, so each of these five owes the whole vocabulary.
+    // A cursor goes anywhere, so each of these owes the whole vocabulary.
     for request in Request::ALL.iter().filter(|it| it.takes_cursor()) {
         for construct in &constructs {
             if matrix.count(*request, construct) == 0 {

@@ -56,7 +56,7 @@
 //! - **The vocabulary** is every construct any case reached — the corpus's
 //!   own, growing as it grows, never a roster kept here.
 //! - **A request asked at a cursor owes the whole vocabulary.** A cursor goes
-//!   anywhere, so an empty cell in one of those five rows is a case nobody
+//!   anywhere, so an empty cell in one of those rows is a case nobody
 //!   wrote rather than an answer that cannot exist. `codeAction` is in this
 //!   set and is not carved out: a case freezing that nothing is offered at a
 //!   construct is what pins
@@ -69,8 +69,8 @@
 //!   corpus only ever looks at through a cursor, which is the gap this half
 //!   closes.
 //!
-//! Adding a case at a construct nobody had reached therefore obliges the five
-//! cursor rows and one document-wide row, which is the ratchet: the corpus
+//! Adding a case at a construct nobody had reached therefore obliges every
+//! cursor row and one document-wide row, which is the ratchet: the corpus
 //! cannot grow deep in one place without growing wide.
 //!
 //! # Only a passing case covers anything
@@ -131,11 +131,11 @@ fn kind_at(analysed: &Analysed, offset: BytePos) -> Option<&'static str> {
 /// as naming none would be a request whose row stopped growing without anything
 /// saying so.
 ///
-/// Two variants name nothing in the entry document and say so rather than being
-/// left out. A `definition` answers a place that is usually in another file,
-/// and a `completion` item carries no range at all — both are asked at a
-/// cursor, so their coverage comes from the cursor and this is never read for
-/// them.
+/// The variants that name nothing in the entry document say so rather than
+/// being left out. A `definition` and a `references` answer places that are
+/// often in another file, and a `completion` item carries no range at all —
+/// each of them is asked at a cursor, so its coverage comes from the cursor
+/// and this is never read for it.
 fn named(response: &Response) -> Vec<Position> {
     match response {
         Response::Diagnostics(items) => items.iter().map(|item| item.range.start).collect(),
@@ -143,7 +143,7 @@ fn named(response: &Response) -> Vec<Position> {
             .iter()
             .filter_map(|hover| hover.range.map(|range| range.start))
             .collect(),
-        Response::Definition(_) | Response::Completion(_) => Vec::new(),
+        Response::Definition(_) | Response::Completion(_) | Response::References(_) => Vec::new(),
         Response::SemanticTokens(tokens) => render::absolute(tokens),
         Response::DocumentSymbol(symbols) => {
             let mut out = Vec::new();

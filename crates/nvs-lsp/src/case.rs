@@ -78,6 +78,8 @@ pub enum Request {
     /// `textDocument/codeLens`, asked with `nvs.codeLens.enable` at the
     /// roster's own default, which is on.
     CodeLens,
+    /// `textDocument/references`, asked with the declaration included.
+    References,
     /// `nvs/redactions`.
     Redactions,
 }
@@ -96,6 +98,7 @@ impl Request {
         Self::DocumentLink,
         Self::CodeAction,
         Self::CodeLens,
+        Self::References,
         Self::Redactions,
     ];
 
@@ -114,6 +117,7 @@ impl Request {
             Self::DocumentLink => "documentLink",
             Self::CodeAction => "codeAction",
             Self::CodeLens => "codeLens",
+            Self::References => "references",
             Self::Redactions => "redactions",
         }
     }
@@ -127,7 +131,7 @@ impl Request {
     /// Whether this request is asked *at* a position rather than of the whole
     /// document.
     ///
-    /// The five that are take exactly one `<|>` and the rest take none, which
+    /// The ones that are take exactly one `<|>` and the rest take none, which
     /// is `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`'s "exactly one per
     /// case, and none for a request that needs none". The split is structural
     /// rather than a convention: a document-wide request has no cursor to be
@@ -148,6 +152,7 @@ impl Request {
                 | Self::Completion
                 | Self::SelectionRange
                 | Self::CodeAction
+                | Self::References
         )
     }
 }
@@ -715,7 +720,8 @@ lib/user.nvs:2:36
                 "definition",
                 "completion",
                 "selectionRange",
-                "codeAction"
+                "codeAction",
+                "references"
             ]
         );
     }
