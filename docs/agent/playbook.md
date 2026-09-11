@@ -1620,6 +1620,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   is where that was written down, two crates from the item. Read the named anchor's own doc comment
   before designing around it: an item is written by a session that had the file open and is
   paraphrasing from memory, so it is a pointer and not a specification. [until: reviewed 2026-09-11]
+- **`peek.py --locate` takes symbol names only, and a path written after one is read as another
+  symbol to look up.** `--locate at members crates/nvs-lsp/src/completion.rs` searched the whole
+  tree for a symbol spelled like that path, and answered `at` with 250 definitions from every
+  crate — the scoping the call looked like it had was never there. Scope with a `re:` target
+  instead (`"crates/nvs-lsp/src/completion.rs:re:^fn "`), and put `--context N` ahead of every
+  positional target, because a flag written between two of them is an argparse error rather than a
+  flag applying to the rest. [until: reviewed 2026-09-11]
 
 ## Running things
 
