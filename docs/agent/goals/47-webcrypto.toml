@@ -1,4 +1,4 @@
-# Goal 47 -- a browser and a Novis server read each other's encrypted data
+# Goal 47 -- Novis reads what a browser encrypts and what an issuer signs
 # The acceptance test, as data.
 #
 # `47-webcrypto.md` is the prose. One home each.
@@ -6,7 +6,8 @@
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # Stage 6's example: seal, open, a tamper refused, a JWE round trip and a swapped header refused.
+  # Stage 7's example: seal, open, a tamper refused, a JWE round trip, a swapped header refused, an issued
+  # token verified and its `alg` swap refused.
   "examples/webcrypto.nvs",
 ]
 
@@ -16,7 +17,8 @@ modules = [
   # The one construction, its three seams (:103-113), the forgery and key-length errors (:68-74), and
   # the module doc stage 4 rewrites. Stages 3 and 4 live here.
   "crates/nvs-stdlib/src/crypto.rs",
-  # Compare-only header reading (:11-22) -- the shape JWE's `alg`/`enc` check copies.
+  # Compare-only header reading (:11-22) -- the shape JWE's `alg`/`enc` check copies, and the class
+  # stage 6 gives its asymmetric half.
   "crates/nvs-stdlib/src/jwt.rs",
   # `verify`'s key ring and its `tainted` payload answer -- the shape `Core\Jwe` decrypt copies.
   "crates/nvs-stdlib/src/signature.rs",
@@ -28,8 +30,15 @@ modules = [
   "crates/nvs-stdlib/src/hash.rs",
   # base64url, the JWE segment encoding, and hex for the vectors.
   "crates/nvs-stdlib/src/encoding.rs",
-  # Where `crypto::CLASS` (:1676) and `jwt::CLASS` (:1706) are registered; `Core\Jwe` joins them.
+  # Where `crypto::CLASS` (:1676) and `jwt::CLASS` (:1706) are registered; `Core\Jwe` and `Jwt\KeySet`
+  # join them.
   "crates/nvs-stdlib/src/registry.rs",
+  # `decodeAs`'s one walk (:82-103), which `Jwt::verifyIssued<T>` decodes its claims through. Stage 6.
+  "crates/nvs-stdlib/src/json.rs",
+  # The decode-site roster `verifyIssued<T>` joins beside `Core\Request::jsonAs` (:1517-1528). Stage 6.
+  "crates/nvs-types/src/expr/args.rs",
+  # `check_decode_sites` (:803-830) and `check_shape_decode_site` (:910), the qualifier check. Stage 6.
+  "crates/nvs-types/src/derive.rs",
 ]
 
 # Every stage works inside these three: the key picks the algorithm, the roster JWE joins, and how a
@@ -88,7 +97,8 @@ spec = ["01 §16"]
 shapes = ["A decision record", "A rule fragment", "Citing a document"]
 
 [context.stage.3]
-# Six crates enter the tree: what a dependency move proves, and the generated notice.
+# Six crates enter the tree and `ring` is taken directly: what a dependency move proves, the generated
+# notice, and the C-dependency answer `ring`'s widening restates.
 rules = [
   "packaging/a-dependency-move-proves-two-things",
   "packaging/the-third-party-notice-is-generated-never-written-by-hand",
@@ -107,11 +117,22 @@ rules = ["security/tainted-sources", "security/verification-does-not-launder"]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.6]
+# JWS: claims as a shape are held to the codec rule, a verified claim is still input, and expiry stays
+# mandatory under a key pair.
+rules = [
+  "security/derived-codec-qualifiers",
+  "security/tainted-qualifier",
+  "security/verification-does-not-launder",
+  "security/jwt-expiry-is-mandatory",
+]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.7]
 # The example is one of the four proofs a shipped feature owes.
 rules = ["testing/four-proofs"]
 shapes =["A feature's four proofs — an example, an attack, a bench, a `covers:` marker"]
 
-[context.stage.7]
+[context.stage.8]
 shapes = ["A rule fragment"]
 
 # Every buffer is a `Core` buffer charged through `nvs_runtime::budget`, and no member holds a
@@ -155,6 +176,13 @@ name = "the JWE subset is a rule"
 argv = ["python", "tools/rules.py", "--show", "security/jwe-compact-subset"]
 want = ["security/jwe-compact-subset"]
 
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the JWS subset is a rule"
+argv = ["python", "tools/rules.py", "--show", "security/jws-issued-subset"]
+want = ["security/jws-issued-subset"]
+
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the primitives, each against the vectors its specification publishes. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
@@ -172,6 +200,12 @@ tests = [
   "p256_ecdh_matches_rfc_5903_and_refuses_a_point_off_the_curve",
   "aes_key_wrap_matches_rfc_3394",
   "concat_kdf_matches_rfc_7518_appendix_c",
+  "rsa_pkcs1_sha256_matches_rfc_7515_appendix_a2",
+  "rsa_pss_sha256_verifies_rfc_7520_section_4_2",
+  "ecdsa_p256_matches_rfc_7515_appendix_a3_and_refuses_a_der_signature",
+  "ed25519_matches_rfc_8037_appendix_a4",
+  "jwk_thumbprint_matches_rfc_7638_section_3_1",
+  "rsa_keys_outside_2048_to_8192_bits_are_refused_before_any_signature_check",
   "every_interop_nonce_salt_and_private_key_is_drawn_through_core_random",
 ]
 
@@ -205,6 +239,11 @@ cases = [
   "tests/conformance/core/crypto-agree-refuses-a-public-key-that-is-not-on-its-curve.nvst",
   "tests/conformance/core/crypto-public-keys-read-raw-spki-and-jwk-and-write-them-back.nvst",
   "tests/conformance/core/crypto-a-key-pair-written-as-pkcs8-reads-back-and-agrees-the-same-secret.nvst",
+  # The two kinds JWS brings: RSA read and never generated, Ed25519, and PEM.
+  "tests/conformance/core/crypto-key-kinds-read-and-write-rsa-and-ed25519-keys-in-every-format.nvst",
+  "tests/conformance/core/crypto-a-pem-private-key-reads-back-as-the-pair-it-holds.nvst",
+  "tests/conformance/core/crypto-generate-key-pair-refuses-an-rsa-kind-and-names-read.nvst",
+  "tests/conformance/core/crypto-agree-refuses-an-ed25519-or-rsa-pair.nvst",
 ]
 
 [[check]]
@@ -237,13 +276,34 @@ cases = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 6 -- WebCrypto itself, both directions, and the example. Goal prose stage 6. Node's
+# Stage 6 -- JWS: `Core\Jwt` over a key pair, `Jwt\KeySet`, and claims as a shape. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 jws"
+name = "the algorithm is the key's, an issued token is checked whole, and its claims arrive as a tainted shape"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/jwt-sign-takes-its-algorithm-from-the-key-kind.nvst",
+  "tests/conformance/core/jwt-sign-embeds-the-public-key-for-a-proof-of-possession.nvst",
+  "tests/conformance/core/jwt-verify-issued-checks-issuer-audience-and-azp.nvst",
+  "tests/conformance/core/jwt-verify-issued-holds-expiry-and-not-before-under-a-bounded-leeway.nvst",
+  "tests/conformance/core/jwt-verify-issued-answers-list-and-object-claims-as-a-tainted-shape.nvst",
+  "tests/conformance/reject/jwt-verify-issued-into-an-unqualified-shape-is-refused.nvst",
+  "tests/conformance/core/jwt-verify-issued-refuses-none-hs256-confusion-and-every-header-that-brings-a-key.nvst",
+  "tests/conformance/core/jwt-key-set-selects-by-kid-skips-encryption-keys-and-refuses-private-members.nvst",
+  "tests/conformance/core/jwt-key-set-refuses-an-rsa-key-with-no-alg-unless-the-scheme-is-named.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- WebCrypto itself, both directions, and the example. Goal prose stage 7. Node's
 # `crypto.subtle` is the browser API; the script uses no package and no network.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "cargo-named"
-stage = "6 the browser"
+stage = "7 the browser"
 name = "every vector WebCrypto wrote is read by Novis, reproduced by Novis, or refused by Novis"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -254,11 +314,16 @@ tests = [
   "webcrypto_jwe_vectors_decrypt_to_their_payloads",
   "webcrypto_jwe_vectors_reencrypt_to_the_same_token_from_the_same_randomness",
   "webcrypto_jwe_refusal_vectors_are_all_refused_with_one_runtime_error",
+  "webcrypto_jws_keys_read_in_every_form_and_write_their_minimal_jwk_and_thumbprint",
+  "webcrypto_jws_key_sets_admit_or_refuse_as_recorded",
+  "webcrypto_jws_vectors_verify_to_their_claims",
+  "webcrypto_jws_signs_reproduce_every_deterministic_token_byte_for_byte",
+  "webcrypto_jws_refusals_are_each_refused_with_their_recorded_kind",
 ]
 
 [[check]]
 kind = "exact"
-stage = "6 the browser"
+stage = "7 the browser"
 file = "examples/webcrypto.nvs"
 want = [
   "sealed",
@@ -266,22 +331,31 @@ want = [
   "tamper refused",
   "jwe round trip",
   "header swap refused",
+  "id token verified",
+  "algorithm swap refused",
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 7 -- the rulebook. Goal prose stage 7.
+# Stage 8 -- the rulebook. Goal prose stage 8.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "command"
-stage = "7 the rulebook"
+stage = "8 the rulebook"
 name = "the interop tier is shipped"
 argv = ["python", "tools/rules.py", "--show", "core-classes/crypto-interop-tier"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "7 the rulebook"
+stage = "8 the rulebook"
 name = "the JWE subset is shipped"
 argv = ["python", "tools/rules.py", "--show", "security/jwe-compact-subset"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "8 the rulebook"
+name = "the JWS subset is shipped"
+argv = ["python", "tools/rules.py", "--show", "security/jws-issued-subset"]
 want = ["shipped"]
