@@ -1936,6 +1936,16 @@ fn run_run(
             // The returned value is discarded: the script frame answers with
             // null.
             let outcome = entry.call(ctx).map(|_| ());
+            // `Core\Script::finish()` reaches this root as a `THROWN`, because
+            // the throw path is the one every `finally` lives on, and it is an
+            // ordinary end all the same. Asked before anything is taken, so the
+            // arm below still has the real exception to climb the ladder with;
+            // `nvs_stdlib::script::is_finish` is the one home of the question.
+            let finished = outcome == Err(nvs_runtime::THROWN)
+                && ctx
+                    .pending_class()
+                    .as_deref()
+                    .is_some_and(nvs_stdlib::script::is_finish);
             // `rule:concurrency/after-response-outlives-the-connection`: a CLI run has no response, so the script's own
             // frame returning is when "after the response" is —
             // `nvs_runtime::deferred` owns that reading and why a request that
@@ -1949,6 +1959,16 @@ fn run_run(
                 // `rule:concurrency/after-response-outlives-the-connection`'s `afterResponse` is what runs after the
                 // response and this queue is what delays the end of one.
                 nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
+                nvs_runtime::deferred::run_deferred(ctx);
+            } else if finished {
+                // The fourth ending, and every tier the arm below climbs is
+                // skipped by it: a script that finished has not failed, so
+                // there is no uncaught handler to run, no ladder and no record.
+                // What is left is exactly the arm above — the queue, then the
+                // deferred work — with the marker handed on so the report names
+                // `Finish` rather than `Normal`.
+                let thrown = ctx.take_thrown();
+                nvs_stdlib::script::run_exit_hooks(ctx, outcome, Some(&thrown));
                 nvs_runtime::deferred::run_deferred(ctx);
             } else if outcome == Err(nvs_runtime::THROWN) {
                 // `rule:errors/handler-script` and `rule:errors/log-write`: nothing below caught this, so the ladder
@@ -2000,7 +2020,9 @@ fn run_run(
             // over the reactor this run installed, and the code below the spawn
             // does not run until that has been taken down.
             ctx.end_session();
-            status.set(Some(outcome));
+            // A finish is what the run reports, not what the frame answered:
+            // the marker travelled the failure path and the ending is a success.
+            status.set(Some(if finished { Ok(()) } else { outcome }));
             // The script is the run, so its end is the workers' end too — and
             // it is said from inside the task because that is where the end
             // actually is: the code below this spawn does not run until the
