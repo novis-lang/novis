@@ -94,3 +94,21 @@ pub use server::{Capacity, Waits};
 pub use snapshot::{Current, Reload, Snapshot};
 pub use tree::{Config, Setting};
 pub use value::{Quantity, Unit};
+
+/// The `nvs.toml` this project ships: every key [`mod@tree`] parses, commented out, under the prose
+/// that says what it does.
+///
+/// It is inert by construction, and that is the point of it. A file in which nothing is uncommented
+/// resolves to what a host with no file at all resolves to
+/// (`rule:config/no-configuration-file-is-a-complete-configuration`), so a project command can write
+/// it into a directory without changing the run that takes it, and a default this project later
+/// tightens still reaches the deployment that kept the file. What an operator gets is the roster:
+/// the keys exist to be read, and uncommenting one is how they take ownership of that value.
+///
+/// `python tools/directives.py --check-template` holds the file to the tree beside it — a key the
+/// parser gained and the file omits, a key spelled twice, and a key that parses and does nothing
+/// without saying so are each a failure there.
+#[must_use]
+pub fn default_file() -> &'static str {
+    include_str!("default.toml")
+}
