@@ -1117,17 +1117,21 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   first reader of it, which is why a `post()` reading the fields a walk buffered is ordinary rather than
   an exception
   (`rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, `rule:http-server/head-runs-as-get`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it` and `rule:http-server/the-body-is-read-on-demand-under-two-caps`).
-- `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the five body members
+- `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the body members
   `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,
-  `sendFile(…)` — replacing `header`, `headers_sent`, `setcookie`, `setrawcookie`, `http_response_code`.
+  `sendFile(…)`, `stream(string $contentType)` — replacing `header`, `headers_sent`, `setcookie`,
+  `setrawcookie`, `http_response_code`.
   `setHeader` is a header **sink** and overrides a policy-owned header on one response; `addCookie`'s
   options shape defaults every field from `[http.cookies]`, so a cookie written with no options is
   `Secure; HttpOnly; SameSite=Lax; Path=/` and `SameSite` is an enum, never a string
   (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`). **One body member per shape, each setting its
   own `Content-Type`**, replacing a single `write`: `json` serializes the value itself so a tainted one is
   safe, `text` accepts tainted because `nosniff` is on by default, and `bytes`' content type is a sink.
-  `echo` is the sixth, HTML-only path, and mixing it with any of the five on one response is a compile
-  error (`rule:security/response-body-is-one-typed-member`).
+  `stream` is the one that writes its body over time: it is told a media type, on `bytes`' terms and for
+  `bytes`' reason, and answers a `Core\Response\Stream` whose `write(bytes|string $chunk)` is a union
+  carrying no classification and so refuses a tainted argument outright. An event stream is
+  `Core\Sse::stream` (§ 16) and never this one. `echo` is the HTML-only path, and mixing it with any body
+  member on one response is a compile error (`rule:security/response-body-is-one-typed-member`).
 - `Core\Server`: the request's own environment — replacing `$_SERVER` — plus `traceId(): string`, which is
   present on every request whether or not the trace is sampled and is Novis's only request identifier
   (`rule:observability/the-runtime-exports-what-it-already-measures`), and `isDraining(): bool`, true once graceful shutdown
@@ -1169,6 +1173,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 | `Core\Metrics` | `increment(string $name, {by?, labels?})`, `observe(string $name, float $value, {labels?})`, `gauge(…)`. A `labels` **value** is a `tainted` sink with no launderer — label by an enum, an `as`-converted scalar or a route name | [0076](../decisions/0076.md) |
 | `Core\Task` | § 19 below — `all`, `map`, `afterResponse` | [0072](../decisions/0072.md) |
 | `Core\Net` | TCP/UDP/Unix sockets over the runtime's own reactor. Replaces `socket_*`, `stream_socket_*`, `fsockopen` — three PHP APIs for one job | [0051](../decisions/0051.md) |
+| `Core\Sse`, `Core\Sse\Message` | server-sent events, as two doors onto one type (`rule:concurrency/two-doors-one-isolate`). On the class: `upgrade(entry, args)` opens the connection isolate that outlives the request, `stream()` writes an event stream that ends with it, and `current()` answers whichever handle is open. On the handle: `send(mixed $data, ?string $event, ?string $id)` — a `string` goes out raw and anything else is JSON-encoded — `retry(Duration $after)`, and `receive(): ?Core\Sse\Message`, which waits on this stream's own subscriptions and throws a `LogicError` on the request-scoped door, there being no isolate for a wait to park in. `$data` accepts `tainted`; `$event` and `$id` are **sinks**, and a `\n`, `\r` or NUL in either is refused, as is an empty `$data` and a `setStatus` on a path that opens a stream. `Message` is `topic(): string` and `value(): mixed`. There is no replay buffer: resumption is the client's `Last-Event-ID`, read off the request by the handler and passed through `args` | [0083](../decisions/0083.md), [0177](../decisions/0177.md) |
 | `Core\Db` | the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs | [0067](../decisions/0067.md) |
 | `Core\Crypto` | AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string. Replaces `openssl_*`'s primitive half and `sodium_*` | [0051](../decisions/0051.md) |
 | `Core\Password` | `hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt` | [0063](../decisions/0063.md), [0129](../decisions/0129.md) |
