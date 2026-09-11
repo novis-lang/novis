@@ -242,24 +242,18 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
-kind = "command"
+kind = "cargo-named"
 stage = "6 the browser"
-name = "WebCrypto and Novis read each other's output in every mode"
-argv = ["node", "tools/webcrypto-interop.mjs"]
-want = [
-  "aes-256-gcm: webcrypto -> novis ok",
-  "aes-256-gcm: novis -> webcrypto ok",
-  "pbkdf2-sha256: same key",
-  "hkdf-sha256: same key",
-  "ecdh p-256: same secret",
-  "ecdh x25519: same secret",
-  "jwe dir: webcrypto -> novis ok",
-  "jwe dir: novis -> webcrypto ok",
-  "jwe ecdh-es: webcrypto -> novis ok",
-  "jwe ecdh-es: novis -> webcrypto ok",
-  "jwe pbes2: webcrypto -> novis ok",
-  "jwe pbes2: novis -> webcrypto ok",
-  "0 failed",
+name = "every vector WebCrypto wrote is read by Novis, reproduced by Novis, or refused by Novis"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "webcrypto_aes_gcm_vectors_open_and_reseal_byte_for_byte",
+  "webcrypto_pbkdf2_hkdf_and_aes_kw_vectors_derive_the_same_keys",
+  "webcrypto_ecdh_vectors_agree_the_same_secret_from_every_key_form",
+  "webcrypto_primitive_refusal_vectors_are_each_refused_by_the_member_that_owns_the_rule",
+  "webcrypto_jwe_vectors_decrypt_to_their_payloads",
+  "webcrypto_jwe_vectors_reencrypt_to_the_same_token_from_the_same_randomness",
+  "webcrypto_jwe_refusal_vectors_are_all_refused_with_one_runtime_error",
 ]
 
 [[check]]

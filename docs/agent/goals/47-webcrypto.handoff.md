@@ -43,7 +43,9 @@ per algorithm — and **no algorithm argument has a default**, for a cipher, a d
   `crypto.rs` with stage 3.
 - Stage 5 — `Core\Jwe`. New `crates/nvs-stdlib/src/jwe.rs`, `registry.rs`,
   `tests/conformance/core/jwe-*`. Its own session.
-- Stage 6 — the WebCrypto round trip and the example. `tools/webcrypto-interop.mjs` (new),
-  `examples/webcrypto.nvs` (new). Cheap.
+- Stage 6 — the frozen WebCrypto set replayed, and the example. The set is already on disk at
+  `crates/nvs-stdlib/tests/vectors/webcrypto.json` (its `about` array is the schema); the tests read it
+  with `include_str!` and `serde_json`, and `examples/webcrypto.nvs` (new) opens one of its tokens.
+  Never edit the set; `node tools/webcrypto-vectors.mjs` is the user's to run. Cheap.
 - Stage 7 — the flips. `docs/rules/` only.
 - When this goal's last check goes green the driver takes goal `gap-zero`.

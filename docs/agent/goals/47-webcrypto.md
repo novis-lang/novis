@@ -9,9 +9,10 @@ JavaScript crypto library on the browser side. **One streamlined API serves ever
 AES-256-GCM — the way `Core\Hash::of` takes a required `Core\Digest`. Beside them sit the members whose
 parameters genuinely differ: PBKDF2 and HKDF derivation, and ECDH over P-256 and X25519 through typed key
 objects. The protocol roster gains **`Core\Jwe`**, a closed subset of JSON Web Encryption (RFC 7516/7518)
-whose algorithm follows from the type of the key it is handed. What proves it is Node's own
-`crypto.subtle`, the W3C Web Cryptography API browsers expose, round-tripping every mode against the built
-`nvs` binary.
+whose algorithm follows from the type of the key it is handed. What proves it is a **frozen vector set
+WebCrypto itself wrote** — `crates/nvs-stdlib/tests/vectors/webcrypto.json`, by
+`tools/webcrypto-vectors.mjs` — which Novis must decrypt, and reproduce byte for byte from the same
+inputs. The loop never runs Node.
 
 Nothing is taken away: XChaCha20-Poly1305 stays and every `Core\Digest` case stays. Nothing has shipped
 publicly, so `seal` and `open` change signature, and **every existing call site moves in the same commit**
@@ -31,9 +32,9 @@ What it needs already built, all on disk: `Core\Crypto`'s one construction and i
 (`crates/nvs-stdlib/src/crypto.rs:115-121`), `Core\Hash::of`'s required-enum row
 (`crates/nvs-stdlib/src/hash.rs:304-312`), JWT's compare-only header reading that JWE copies
 (`crates/nvs-stdlib/src/jwt.rs:11-22`), `Core\Signature`'s key ring and `tainted` payload answer
-(`docs/spec/01-core-library.md:1175`), base64url in `crates/nvs-stdlib/src/encoding.rs`, and the
-RustCrypto base the lockfile already carries — `aead` 0.6, `cipher` 0.5, `hmac` 0.13, `sha2` 0.11, `pbkdf2`
-0.13 and `curve25519-dalek` 5.
+(`docs/spec/01-core-library.md:1175`), base64url in `crates/nvs-stdlib/src/encoding.rs`, the RustCrypto
+base the lockfile already carries — `aead` 0.6, `cipher` 0.5, `hmac` 0.13, `sha2` 0.11, `pbkdf2` 0.13 and
+`curve25519-dalek` 5 — and the vector set, landed ahead of the goal.
 
 ## Stage 0 — the catch-up
 
@@ -96,7 +97,9 @@ specification publishes before any `Core` member calls it:
 | Concat KDF, internal to ECDH-ES | RFC 7518 Appendix C |
 
 The vectors go in as test source with the section they came from named beside each one. Every key, nonce
-and salt a primitive draws comes from `crate::random::draw`, so a `#[Test(seed: …)]` reproduces it.
+and salt a primitive draws comes from `crate::random::draw`, so a `#[Test(seed: …)]` reproduces it, and
+every primitive that draws also takes its randomness as an argument at the crate-private level, because
+stage 6 reproduces WebCrypto's bytes from WebCrypto's inputs.
 
 ## Stage 4 — the `Core\Crypto` surface, and every call site with it
 
@@ -124,13 +127,29 @@ A new `crates/nvs-stdlib/src/jwe.rs`, registered in `crates/nvs-stdlib/src/regis
 `crate::jwt::CLASS` (`:1706`): compact serialization, `encrypt` and `decrypt`, the subset the standing
 decisions fix, over stage 4's crate-private functions — never a second copy of a primitive.
 
-## Stage 6 — the round trip with WebCrypto itself
+## Stage 6 — the frozen WebCrypto set, replayed
 
-`tools/webcrypto-interop.mjs`: a Node script using only `globalThis.crypto.subtle`, with no npm package
-and no network. For every mode it encrypts with WebCrypto and decrypts with the built `nvs` binary, then
-the other way round, and prints one line per direction. Node 24's WebCrypto does X25519 and P-256
-(checked while this goal was written). Then `examples/webcrypto.nvs`, the example
-`rule:testing/four-proofs` asks for, frozen by an `exact` check.
+`crates/nvs-stdlib/tests/vectors/webcrypto.json` is on disk before this goal starts. Its `about` array is
+the schema. Rust tests in `nvs-stdlib` read it with `include_str!` and `serde_json`, and for every entry:
+
+- **`aesGcm`, `pbkdf2`, `hkdf`, `aesKw`, `ecdh`** — the crate-private primitive answers the recorded
+  output from the recorded input, in both directions where there are two (`open` answers the plaintext,
+  `seal` given the nonce answers the sealed bytes). Every `ecdh` key is read in all three forms —
+  `raw`, `spki`, and `jwk` exactly as a browser exported it — and each agrees the same `secret`;
+  `write(KeyFormat::Jwk)` answers `jwkMinimal`.
+- **every `refusals` entry** — refused by the member that owns the rule: AES-GCM with the one forgery
+  `RuntimeError`, PBKDF2's bounds with a `LogicError` before any HMAC, a public key off its curve at
+  `read` and a low-order X25519 point at `agree`.
+- **`jwe.vectors`** — `Core\Jwe::decrypt` answers `payload`, and `encrypt` handed the recorded
+  `randomness` answers `token` byte for byte, which is what makes this the Novis → browser direction.
+- **`jwe.refusals`** — every one refused, `policy` and `authenticity` alike, with the one `RuntimeError`.
+
+Then `examples/webcrypto.nvs`, the example `rule:testing/four-proofs` asks for, frozen by an `exact` check.
+It opens one of the set's tokens, so the example is itself a browser's output being read.
+
+**The file is never edited by a session.** If a vector disagrees with Novis, Novis is presumed wrong until
+a published RFC vector says otherwise; a vector that is itself wrong is a finding for the handoff, and the
+user regenerates the set by running `node tools/webcrypto-vectors.mjs`.
 
 ## Stage 7 — the rulebook
 
@@ -190,33 +209,40 @@ filled from this goal's cases and tests, and `python tools/rules.py --render`.
 - **AES-GCM's sealed bytes are `nonce(12) ‖ ciphertext ‖ tag(16)`** — exactly what WebCrypto's `encrypt`
   answers with its IV put in front, so a browser splits at byte 12 and does nothing else. XChaCha's stay
   `nonce(24) ‖ ciphertext ‖ tag(16)`. The nonce is random and drawn through `crate::random::draw`, with no
-  nonce parameter; the record and `seal`'s doc state AES-GCM's 2^32-messages-per-key bound and name
-  XChaCha as the answer when that bound matters. No additional-data parameter in this goal; JWE uses AAD
-  internally.
+  nonce parameter on the member; the record and `seal`'s doc state AES-GCM's 2^32-messages-per-key bound
+  and name XChaCha as the answer when that bound matters. No additional-data parameter in this goal; JWE
+  uses AAD internally.
 - **Keys.** A symmetric key is `secret bytes`, length-checked: the wrong length is a `LogicError` naming
   the length wanted, never the bytes got (`crates/nvs-stdlib/src/crypto.rs:68-74`). A private key never
   leaves a `KeyPair` except as `secret bytes` through `write`. **Every public key is validated at
-  `read`**: on the curve for P-256, and an all-zero X25519 shared secret is refused at `agree`. A public
-  key off the wire that fails is a `RuntimeError` (a verdict); a malformed key the program built is a
-  `LogicError` (a bug). Two keys on different curves given to `agree` is a `LogicError`. JWK export of a
-  private key is out of scope.
+  `read`**: on the curve for P-256 — the set's off-curve point, the point at infinity and a short
+  encoding are all refused — and an all-zero X25519 shared secret is refused at `agree`. A public key off
+  the wire that fails is a `RuntimeError` (a verdict); a malformed key the program built is a
+  `LogicError` (a bug). Two keys on different curves given to `agree` is a `LogicError`. `read` of a JWK
+  accepts what a browser exports, `ext` and `key_ops` included, and ignores them; a JWK carrying `d` is
+  refused, because a private key handed over as a public one is a bug. `write` answers RFC 7638's
+  required members, sorted. JWK export of a private key is out of scope.
 - **PBKDF2 has a floor and a ceiling, and both are checked before the first HMAC.** The iteration count
   is a required parameter, because the other end chose it. It is refused below 100,000 and above
-  2,000,000, and a salt shorter than 16 octets is refused. The record may move either number with a
-  reason, never remove one. The ceiling is what makes PBES2 safe: `p2c` in a JWE header is
-  attacker-supplied, and without it one token buys unbounded CPU.
+  2,000,000, and a salt shorter than 16 octets is refused. The vector set holds the refusal at each edge,
+  so the record may not move either number without the user regenerating the set. The ceiling is what
+  makes PBES2 safe: `p2c` in a JWE header is attacker-supplied, and without it one token buys unbounded
+  CPU. PBES2's `p2c` and `p2s` are held to the same bounds.
 - **JWE, the subset.** Compact serialization only. `enc` is `A256GCM` and nothing else. **The algorithm
   comes from the key's type** (`rule:security/algorithm-comes-from-the-key`): `secret bytes` means `dir`,
-  a `PublicKey` or `KeyPair` means `ECDH-ES` (direct agreement, no key wrap), and a `secret string`
-  password means `PBES2-HS256+A128KW`. The header's `alg` and `enc` are read only to be **compared**, as
-  `crates/nvs-stdlib/src/jwt.rs:11-22` does, and a mismatch is a refusal. The allowed header parameters
-  are `alg`, `enc`, `epk`, `p2s`, `p2c`, `kid`, `typ` and `cty`. `zip`, `crit`, `jku`, `x5u`, `x5c`, a
-  `jwk` other than `epk`, and anything unknown are refused, because `zip` is a decompression bomb and the
-  URL-bearing ones are fetches. The protected header is length-capped before it is parsed.
+  a `PublicKey` or `KeyPair` means `ECDH-ES` (direct agreement, no key wrap, empty `apu` and `apv`), and a
+  `secret string` password means `PBES2-HS256+A128KW`. The header's `alg` and `enc` are read only to be
+  **compared**, as `crates/nvs-stdlib/src/jwt.rs:11-22` does, and a mismatch is a refusal. The allowed
+  header parameters are `alg`, `enc`, `epk`, `p2s`, `p2c`, `kid`, `typ` and `cty`. `zip`, `crit`, `jku`,
+  `x5u`, `x5c`, a `jwk` other than `epk`, and anything unknown are refused, because `zip` is a
+  decompression bomb and the URL-bearing ones are fetches. The protected header is length-capped before
+  it is parsed. **`encrypt` writes its header canonically** — members sorted, no whitespace, at every
+  level — which is the form the vector set's tokens are in and what lets `encrypt` be held to them byte
+  for byte.
 - **JWE answers like the rest of the roster.** The payload is `string` in and **`tainted string`** out,
-  as with `Core\Signature::verify`, and every failure of authenticity is one `RuntimeError` with one
-  sentence. Decrypt's key ring is tried in order, as `Core\Signature::verify`'s is, except that a
-  password is exactly one, because every try costs a full derivation.
+  as with `Core\Signature::verify`, and every refusal is one `RuntimeError` with one sentence. Decrypt's
+  key ring is tried in order, as `Core\Signature::verify`'s is, except that a password is exactly one,
+  because every try costs a full derivation.
 - **Dependencies, all pure Rust, all on the generation already locked**: `aes-gcm` 0.11 (brings `aes`
   0.9), `aes-kw` 0.3, `p256` 0.14 with its `ecdh` feature, `x25519-dalek` 3.0, `hkdf` 0.13, and `pbkdf2`
   0.13 as a direct dependency. Default features are off and no `getrandom` anywhere: randomness reaches
@@ -227,9 +253,12 @@ filled from this goal's cases and tests, and `python tools/rules.py --render`.
   regenerates `THIRD-PARTY-LICENSES.txt` in the same commit
   (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`). If a pinned version will
   not build against the locked base, take the nearest one that does and say so in the commit.
-- **The interop proof is WebCrypto itself, not a JS library.** Node's `crypto.subtle` is the W3C API
-  browsers ship, so the script needs no package and no network. If a mode fails in the script, the Novis
-  side is presumed wrong until a published vector says otherwise.
+- **The interop proof is WebCrypto's own output, frozen.** `tools/webcrypto-vectors.mjs` wrote the set
+  from Node's `crypto.subtle` — the W3C API a browser ships — with every input derived from a label, so a
+  rerun writes the same bytes and `--check` says whether the file is current. It reproduces RFC 7518
+  Appendix C's Concat KDF output before writing, and its JWE tokens were opened by `jose`, an independent
+  JOSE implementation, when the set was made. Node is needed only to regenerate the set, which the user
+  fires; no check and no session runs the script.
 - **What it spends**: per call, a few hundred bytes of cipher or curve state on the stack and one output
   buffer charged to the request through `nvs_runtime::budget`, passed through `nvs_runtime::affordable`
   first, as `seal` is today. A `KeyPair` holds its private scalar for as long as the program holds the
