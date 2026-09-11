@@ -17821,13 +17821,14 @@ Leaves `$topic`, so nothing published to it reaches this connection again.
 <a id="core-core-sse"></a>
 ### `Core\Sse`
 
-Keywords: upgrade, stream, current, send, retry
+Keywords: upgrade, stream, current, receive, send, retry
 
 | Member | Signature |
 |---|---|
 | [`Core\Sse::upgrade`](#core-core-sse-upgrade) | `upgrade(string $entry, mixed $args = null): void` |
 | [`Core\Sse::stream`](#core-core-sse-stream) | `stream(): Core\Sse` |
 | [`Core\Sse::current`](#core-core-sse-current) | `current(): Core\Sse` |
+| [`Core\Sse->receive`](#core-core-sse-receive) | `receive(): ?Core\Sse\Message` |
 | [`Core\Sse->send`](#core-core-sse-send) | `send(mixed $data, ?string $event = null, ?string $id = null): void` |
 | [`Core\Sse->retry`](#core-core-sse-retry) | `retry(Core\Time\Duration $after): void` |
 
@@ -17874,6 +17875,19 @@ The event stream this program is writing, whichever door opened it — the one t
 **Returns** `Core\Sse` — The handle to write events on, which is the same `Core\Sse` the member that opened the stream answered with — so a helper taking one is written once and called from either door.
 
 **Throws** `LogicError` — A program that is not writing an event stream, which is every command-line program, every `spawn script` child and every request answering with an ordinary body — including one streaming that body, a response body written over time not being an event stream.
+
+<a id="core-core-sse-receive"></a>
+#### `Core\Sse->receive`
+
+```nvs skip
+$sse->receive(): ?Core\Sse\Message
+```
+
+Waits for the next value published to a topic this stream subscribed to, and answers it as one message.
+
+**Returns** `?Core\Sse\Message` — The next message, or `null` once this stream is over — which is what ends the `while (var $msg = $sse->receive())` loop a stream's script is written as. A message carries the published value and the name of the topic it arrived on. `null` is also what a stream that fell too far behind its topics is answered: its queue overflowed, so this stream is closed rather than a publisher being made to wait for it.
+
+**Throws** `LogicError` — This program is a streaming response rather than the isolate a stream outlives its request on — it ends with its own events, so nothing published could reach it, and there is no wait to be had.
 
 <a id="core-core-sse-send"></a>
 #### `Core\Sse->send`
