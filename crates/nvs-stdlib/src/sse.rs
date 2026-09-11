@@ -55,13 +55,9 @@
 //! does: a helper taking one works from either side, which is the reason
 //! `rule:concurrency/two-doors-one-isolate` is one type and not two.
 //!
-//! Two headers go out with the head, and neither is a choice. `Cache-Control:
-//! no-cache, no-transform` is the protocol's. `X-Accel-Buffering: no` is an
-//! instruction *to* a proxy rather than a proxy feature implemented here:
-//! production is a proxied origin by definition
-//! (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`), nginx buffers
-//! a proxied response with nothing configured, and that one default breaks an
-//! event stream completely.
+//! [`nvs_runtime::sse::DECLARED_HEADERS`] goes out with the head, and none of
+//! it is a choice — that constant is where each line is argued, and door one
+//! writes the same list into a header map rather than declaring it.
 //!
 //! **A status declared on a path that opens an event stream is refused**, where
 //! `Core\Response::stream` takes any status the program set. An event stream is
@@ -91,15 +87,17 @@
 //!
 //! # What is not here yet
 //!
-//! Door one's far side. `Core\Sse->receive()` is unregistered, and so is the
-//! `200 text/event-stream` [`nvs_core_sse_upgrade`] would have to answer with in
-//! place of the handler's own response — an event stream prepared today opens a
-//! root isolate with nothing wired to a body, and so with nothing for
-//! [`nvs_core_sse_current`] to answer inside it. The method entry form throws
-//! for [`crate::socket`]'s reason, unchanged: a `callable` carries no parameter
-//! names and `rule:security/isolate-shares-nothing` binds `args:` by name.
+//! Door one's far side. `Core\Sse->receive()` is unregistered and so is
+//! `Core\Sse\Message`, so a connection isolate can write its events and cannot
+//! yet wait on a topic for the next one. The response half is landed:
+//! `nvs_server::serve_connection` answers a request that filled the cell with a
+//! `200 text/event-stream` and hands the isolate that body, which is what
+//! [`nvs_core_sse_current`] answers inside door one. The method entry form
+//! throws for [`crate::socket`]'s reason, unchanged: a `callable` carries no
+//! parameter names and `rule:security/isolate-shares-nothing` binds `args:` by
+//! name.
 
-use nvs_runtime::sse::Event;
+use nvs_runtime::sse::{DECLARED_HEADERS, Event, MEDIA_TYPE};
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Upgrade, Value, copy_graph};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
@@ -109,10 +107,6 @@ use crate::socket::{entry_program, release_crossed, retained};
 /// [`CoreTy::Instance`] its two doors answer with and every message quoting it
 /// cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Sse";
-
-/// What an event stream declares its body to be, and the only thing it may
-/// declare: a client reading anything else is not reading events.
-const MEDIA_TYPE: &str = "text/event-stream";
 
 /// `Core\Sse`'s registry rows — `rule:concurrency/two-doors-one-isolate`'s two
 /// doors, and the one member that writes onto whichever of them is open. See
@@ -459,11 +453,14 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
-        // Declared rather than appended, and before the head is taken: these two
-        // are what make the stream arrive at all, so a program that set either
-        // to something else set it for a response it no longer has.
-        ctx.declare_header(CACHE_CONTROL_HEADER, "no-cache, no-transform");
-        ctx.declare_header(ACCEL_BUFFERING_HEADER, "no");
+        // Declared rather than appended, and before the head is taken: these are
+        // what make the stream arrive at all, so a program that set one of them
+        // to something else set it for a response it no longer has. The list is
+        // `nvs_runtime::sse`'s, which is where door one reads the same names
+        // from.
+        for (name, value) in DECLARED_HEADERS {
+            ctx.declare_header(name, value);
+        }
         // Cloned rather than borrowed, for `upgrade`'s reason: the cell is a
         // shared handle by construction, so a clone is one refcount and no
         // borrow of the carrier held across the write below.
@@ -660,12 +657,6 @@ fn optional_field<'a>(value: &'a Value, field: &str) -> Result<Option<&'a [u8]>,
         ))
     })
 }
-
-/// The two headers an event stream declares for itself, named once — the module
-/// doc is where each is argued.
-const CACHE_CONTROL_HEADER: &str = "Cache-Control";
-/// See [`CACHE_CONTROL_HEADER`].
-const ACCEL_BUFFERING_HEADER: &str = "X-Accel-Buffering";
 
 #[cfg(test)]
 mod tests {

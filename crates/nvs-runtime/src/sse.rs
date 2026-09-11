@@ -61,6 +61,29 @@
 
 use std::time::Duration;
 
+/// The media type a response carrying events declares.
+///
+/// Here rather than beside either door for the module doc's reason: a request
+/// that streams its own events declares it on its context and a connection
+/// writes it into a header map, and one spelling read twice is what makes those
+/// the same response.
+pub const MEDIA_TYPE: &str = "text/event-stream";
+
+/// What an event stream's response declares besides its media type, in the
+/// order it declares them, and both doors declare all of it.
+///
+/// `Cache-Control: no-cache, no-transform` is the protocol's own: a cached
+/// event stream is a replay of somebody else's, and a transforming proxy that
+/// re-encoded the body would break the framing the client parses. The goal's
+/// § *Standing decisions* argues `X-Accel-Buffering` separately, because it is
+/// an instruction *to* a proxy rather than anything this server does — nginx
+/// buffers a proxied response by default and that one default holds every event
+/// until the stream ends, which is the whole of what SSE exists to avoid.
+pub const DECLARED_HEADERS: [(&str, &str); 2] = [
+    ("Cache-Control", "no-cache, no-transform"),
+    ("X-Accel-Buffering", "no"),
+];
+
 /// The keepalive: a comment line and the blank line after it.
 ///
 /// A comment carries no field, so a client parses it, resets its reconnection
