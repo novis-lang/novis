@@ -163,22 +163,66 @@ pub(crate) fn init_gate(project_command: bool, no_init: bool, environment: Optio
     }
 }
 
+/// Why step 3's write did not happen.
+///
+/// None of these is an error. The shipped defaults are a complete configuration
+/// (`rule:config/no-configuration-file-is-a-complete-configuration`), so a directory that would not
+/// take the file leaves the run exactly where it stood before this step existed — the artifact
+/// cache's discipline ([`crate::cache`] § 4), for its reason: a run that refused to start because it
+/// could not write a file nobody asked for would be a regression against every deployment that works
+/// today. What the reason buys is that the question can be *asked*: [`init`] renders it as the one
+/// line [`Self::note`] gives, because there an operator asked for the file and a silent failure
+/// would be the whole answer withheld. A run keeps it to itself until there is a boot line to carry
+/// it (`rule:config/the-resolved-root-is-announced-and-stored`).
+#[derive(Debug)]
+pub(crate) enum Declined {
+    /// The directory fails `rule:config/ownership-is-the-trust-boundary`, so a file created there
+    /// would be one another local account can rewrite before `nvs serve` reads it back.
+    Untrusted(nvs_config::trust::Untrusted),
+    /// The directory already holds one, and an operator's own file outranks a template. Reaching
+    /// this from a project command means a concurrent `nvs` won the race between step 2's look and
+    /// this write, and nothing is wrong either way: the directory holds a tree, and it is the one
+    /// the next run reads at step 2.
+    Exists,
+    /// The filesystem refused — a read-only working directory, a full disk, or whatever else it
+    /// answered with, in its own words.
+    Unwritable(String),
+}
+
+impl Declined {
+    /// The reason as the one line a run prints before carrying on, which is all a declined write
+    /// ever amounts to from outside the process.
+    ///
+    /// A breach carries the remedy and the explicit door with it, because that is the only one of
+    /// these an operator is expected to act on: the other two describe a machine's state rather than
+    /// a decision anybody made.
+    pub(crate) fn note(&self) -> String {
+        let file = nvs_config::resolve::LOCAL_FILE;
+        match self {
+            Self::Untrusted(why) => format!(
+                "no `{file}` was written: {}; {}, then `nvs init`",
+                why.message(),
+                nvs_config::trust::REMEDY,
+            ),
+            Self::Exists => format!(
+                "no `{file}` was written: this directory already holds one, and it is never \
+                 overwritten"
+            ),
+            Self::Unwritable(why) => format!("no `{file}` was written: {why}"),
+        }
+    }
+}
+
 /// Step 3's write: the shipped default file into `dir`, under the name step 2 looks for, and the
-/// path it now holds — or [`None`] for every reason it did not happen.
+/// path it now holds — or the [`Declined`] reason it does not.
 ///
 /// `rule:config/ownership-is-the-trust-boundary` is asked first and about the **directory**, because
 /// this is the one place in the binary that creates a file a later `nvs serve` will read as
 /// configuration: writing into a directory another local account can write manufactures exactly the
 /// surface that check exists to close, so refusing is the fail-closed direction and costs an
 /// operator one explicit write.
-///
-/// Nothing here reports a failure. A read-only working directory, a full disk or a race with a
-/// concurrent `nvs` leaves the run on the shipped defaults, which is what it ran on before this step
-/// existed — the artifact cache's discipline ([`crate::cache`] § 4), for its reason: a run that
-/// refused to start because it could not write a file nobody asked for would be a regression against
-/// every deployment that works today.
-fn write_default_file(dir: &Path) -> Option<PathBuf> {
-    let dir = nvs_config::trust::check(dir).ok()?;
+fn write_default_file(dir: &Path) -> Result<PathBuf, Declined> {
+    let dir = nvs_config::trust::check(dir).map_err(Declined::Untrusted)?;
     let path = dir.join(nvs_config::resolve::LOCAL_FILE);
     // `create_new` is the whole of never overwriting: the file is created by this call or it is not,
     // with no window between asking whether one exists and writing it, so a second `nvs` in the same
@@ -187,18 +231,53 @@ fn write_default_file(dir: &Path) -> Option<PathBuf> {
         .write(true)
         .create_new(true)
         .open(&path)
-        .ok()?;
-    if file
-        .write_all(nvs_config::default_file().as_bytes())
-        .is_err()
-    {
+        .map_err(|err| match err.kind() {
+            std::io::ErrorKind::AlreadyExists => Declined::Exists,
+            _ => Declined::Unwritable(err.to_string()),
+        })?;
+    if let Err(err) = file.write_all(nvs_config::default_file().as_bytes()) {
         // A half-written template is a tree that refuses to parse, which would turn a failed write
         // into a refusal to start. What this run had a moment ago is no file, so that is what it
         // gets back, and the leftovers are this process's own.
         drop(std::fs::remove_file(&path));
-        return None;
+        return Err(Declined::Unwritable(err.to_string()));
     }
-    Some(path)
+    Ok(path)
+}
+
+/// `nvs init` — the same file, written because an operator asked for it.
+///
+/// The write is [`write_default_file`]'s, so this is the file a project command would have created
+/// and the ownership check in front of it is the same check. **What differs is what a refusal
+/// means.** Nobody asked for the implicit write, so declining it is a note and the run carries on;
+/// this command exists only to produce the file, so a refusal is the answer to the question that was
+/// asked — an `error:` line and a non-zero exit, which is what a script that runs this can act on.
+///
+/// It is not a project command and is not in [`crate::initializes`]: it resolves no tree and runs
+/// nothing, so there is no step 3 to reach. It is instead where every refusal of the implicit write
+/// points, and the directory it writes into is this process's own working directory, which is the
+/// one directory `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2
+/// will look in next.
+pub(crate) fn init() -> ExitCode {
+    let cwd = match working_directory() {
+        Ok(cwd) => cwd,
+        Err(diagnostic) => {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &SourceMap::new());
+            return ExitCode::FAILURE;
+        }
+    };
+    match write_default_file(&cwd) {
+        Ok(written) => {
+            println!("wrote `{}`", written.display());
+            ExitCode::SUCCESS
+        }
+        Err(declined) => {
+            eprintln!("error: {}", declined.note());
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// The snapshot this run's request reads — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots, § 3's ordered
@@ -271,9 +350,16 @@ fn boot_in(
     // written, so what the run reads is what the directory now holds and what the next run will
     // find at step 2. A write that does not happen changes nothing — `roots` still says
     // `Defaults` and the run takes them.
+    //
+    // The [`Declined`] reason is dropped here rather than printed, and that is where
+    // `rule:config/the-resolved-root-is-announced-and-stored` lands once it ships: there is no boot
+    // line for this to join yet, and a run that printed one of its own would repeat it on every
+    // invocation in a directory that fails the ownership check — which is every checkout under a
+    // Windows drive root that grants `Authenticated Users` write. `nvs init` is where an operator
+    // asks this question, and it is where the answer is reported.
     if init == Init::Write
         && matches!(roots, nvs_config::Roots::Defaults)
-        && write_default_file(cwd).is_some()
+        && write_default_file(cwd).is_ok()
     {
         roots = nvs_config::resolve::roots(config, cwd, &files);
     }
@@ -608,7 +694,8 @@ mod tests {
 
     use nvs_diagnostics::SourceMap;
 
-    use super::{Init, boot_in, leaves};
+    use super::{Declined, Init, boot_in, leaves, write_default_file};
+    use crate::testing::{open_to_the_world, refuse_new_files};
 
     /// A directory of this test's own, under a per-process root.
     ///
@@ -718,6 +805,113 @@ mod tests {
             "and it is the file the run read: {:?}",
             snapshot.files
         );
+    }
+
+    /// A working directory any local account can write gets no file. Creating one there is what
+    /// `rule:config/ownership-is-the-trust-boundary` exists to stop — a `nvs serve` in that
+    /// directory reads its capability grants back out of a file anybody on the machine can rewrite
+    /// first — so [`super::write_default_file`] asks about the directory before it creates
+    /// anything, and refusing costs an operator one explicit `nvs init` instead.
+    ///
+    /// The run still starts, on step 3's shipped defaults, which reach no files at all
+    /// (`rule:config/no-configuration-file-is-a-complete-configuration`): a declined write is
+    /// silent, so an empty `files` list is what separates this from the directory that was written
+    /// to and read back.
+    #[test]
+    fn a_working_directory_that_fails_the_ownership_check_is_not_written_to() {
+        let dir = scratch("untrusted");
+        let entry = entry(&dir);
+        open_to_the_world(&dir);
+
+        let mut sources = SourceMap::new();
+        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Write)
+            .expect("a directory that may not be written into is still one to run in");
+
+        assert!(
+            !dir.join("nvs.toml").exists(),
+            "the directory another account can write is the one directory never written into"
+        );
+        assert!(
+            snapshot.files.is_empty(),
+            "and the run carries on with the shipped defaults: {:?}",
+            snapshot.files
+        );
+    }
+
+    /// A directory that will not take the file is not a failure to start. The goal's § 5: the run
+    /// keeps the shipped defaults it was about to take anyway — no diagnostic, no non-zero exit,
+    /// and nothing on stderr that a deployment which has always run read-only now has to expect.
+    ///
+    /// Ownership is untouched here on purpose, so what refuses is the filesystem rather than
+    /// `rule:config/ownership-is-the-trust-boundary`'s check in front of it — the two are different
+    /// reasons and the next case is the one that separates them.
+    #[test]
+    fn a_read_only_working_directory_leaves_the_run_green_on_the_shipped_defaults() {
+        let dir = scratch("read-only");
+        let entry = entry(&dir);
+        refuse_new_files(&dir);
+
+        let mut sources = SourceMap::new();
+        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Write)
+            .expect("a directory that will not take the file is still one to run in");
+
+        assert!(
+            !dir.join("nvs.toml").exists(),
+            "the write could not happen, and nothing pretended otherwise"
+        );
+        assert!(
+            snapshot.files.is_empty(),
+            "and the run has the shipped defaults, which is what it came in with: {:?}",
+            snapshot.files
+        );
+    }
+
+    /// The goal's § 7, as far as it can land: a declined write says **which** reason applied, so an
+    /// operator who expected a file and has none is not left comparing an empty directory against
+    /// the documentation. [`super::init`] is what reports it today; the boot line will carry it
+    /// once `rule:config/the-resolved-root-is-announced-and-stored` ships.
+    ///
+    /// The three reasons are the three things that can answer this call, and only the breach is
+    /// something anybody decided — so only its note carries the remedy and the explicit door.
+    #[test]
+    fn a_declined_write_says_which_reason_applied() {
+        let untrusted = scratch("reason-untrusted");
+        open_to_the_world(&untrusted);
+        let breach = write_default_file(&untrusted)
+            .expect_err("a directory any local account can write is refused");
+        assert!(
+            matches!(breach, Declined::Untrusted(_)),
+            "the ownership check answered first: {breach:?}"
+        );
+        assert!(
+            breach.note().contains("nvs init"),
+            "and it points at the one explicit door: {}",
+            breach.note()
+        );
+
+        let refusing = scratch("reason-unwritable");
+        refuse_new_files(&refusing);
+        let refused = write_default_file(&refusing)
+            .expect_err("a directory that takes no new file writes none");
+        assert!(
+            matches!(refused, Declined::Unwritable(_)),
+            "the filesystem's own answer, not the ownership check's: {refused:?}"
+        );
+
+        let occupied = scratch("reason-exists");
+        fs::write(occupied.join("nvs.toml"), "").expect("a scratch directory takes a file");
+        let already = write_default_file(&occupied).expect_err("the file is already there");
+        assert!(
+            matches!(already, Declined::Exists),
+            "a file that is already there is its own reason: {already:?}"
+        );
+
+        for note in [breach.note(), refused.note(), already.note()] {
+            assert!(
+                note.contains("nvs.toml"),
+                "every note names the file that is missing: {note}"
+            );
+        }
     }
 
     /// Step 1's precedent, carried to step 3: an operator who named files never gets a surprise

@@ -136,6 +136,8 @@ mod schema;
 mod script;
 mod serve;
 mod service;
+#[cfg(test)]
+mod testing;
 mod tmp;
 mod worker;
 
@@ -456,6 +458,17 @@ enum Command {
         #[command(subcommand)]
         command: ApiCommand,
     },
+    /// Write the shipped default `nvs.toml` into the working directory.
+    ///
+    /// The explicit door to the file a project command writes for itself when
+    /// it finds none, and where every refusal of that implicit write points: a
+    /// directory the ownership check rejects, or one an operator asked to be
+    /// left alone with `--no-init`. An existing file is never overwritten, and
+    /// asking for one that cannot be written is an error here rather than the
+    /// note it is on a run.
+    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+    // step 3; see [`config::init`].
+    Init,
     /// Audit the configuration tree without running anything.
     ///
     /// A namespace of its own rather than part of `nvs check`, which checks
@@ -1015,6 +1028,7 @@ fn main() -> ExitCode {
         Command::Api {
             command: ApiCommand::Diff { old, new },
         } => api_diff::run(&old, &new),
+        Command::Init => config::init(),
         Command::Config {
             command: ConfigCommand::Check { files },
         } => config::check(&cli.config, &files),
@@ -2301,6 +2315,9 @@ mod tests {
         assert!(!writes(&["nvs", "config", "check"]));
         assert!(!writes(&["nvs", "config", "dump"]));
         assert!(!writes(&["nvs", "lsp"]));
+        // The explicit door writes the file itself and resolves no tree, so it reaches no step 3
+        // to be a project command at.
+        assert!(!writes(&["nvs", "init"]));
 
         assert!(writes(&["nvs", "run", "app.nvs"]));
         assert!(writes(&["nvs", "serve", "app.nvs"]));

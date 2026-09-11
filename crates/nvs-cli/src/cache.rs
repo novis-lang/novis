@@ -1435,6 +1435,7 @@ mod tests {
     use nvs_config::cache::{artifact_key, content_hash, env_hash};
 
     use super::*;
+    use crate::testing::open_to_the_world;
 
     /// A private directory for one test, removed first so a crashed run does not poison the next.
     ///
@@ -1470,36 +1471,6 @@ mod tests {
                     .into_owned()
             })
             .collect()
-    }
-
-    /// Make `dir` writable by every local account — the state § 5 refuses — in the platform's own
-    /// spelling, because there is no portable one. Unix is a mode; Windows is an ACE for `Everyone`
-    /// (`S-1-1-0`), added through `icacls` rather than through `windows-sys` so that a test helper
-    /// does not cost this crate a dependency and an `unsafe` block. `icacls` is the same command
-    /// `nvs_config::trust::REMEDY` tells an operator to undo such a grant with.
-    fn open_to_the_world(dir: &Path) {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-
-            fs::set_permissions(dir, fs::Permissions::from_mode(0o777))
-                .expect("a world-writable mode");
-        }
-        #[cfg(windows)]
-        {
-            let granted = std::process::Command::new("icacls")
-                .arg(dir)
-                .arg("/grant")
-                .arg("*S-1-1-0:(OI)(CI)(M)")
-                .output()
-                .expect("`icacls` ships with every supported Windows");
-            assert!(
-                granted.status.success(),
-                "`Everyone` could not be granted write on {}: {}",
-                dir.display(),
-                String::from_utf8_lossy(&granted.stderr),
-            );
-        }
     }
 
     /// Backdate `path` by `seconds`, which is the only way a case can say which entry is oldest:
