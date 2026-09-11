@@ -1667,6 +1667,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   gate on a change that touched no Rust. Add the table row in the same slice and then run `python
   tools/reference.py`, because that chapter is one of `docs/novis.md`'s sources and `--check` over it
   is an acceptance check of its own. [until: gone crates/nvs-lsp/tests/extension_reference.rs]
+- **A `@symbol` target names the member alone, so `@Shared::sweep` and `@SafepointView::request`
+  answer *no definition or mention* — which reads like the symbol has been deleted.** `peek.py`
+  matches a Rust definition by its own name, and a method's name does not carry its type; the
+  qualified spelling is the one a `Core` member and a `.nvst` case take. Ask for `@sweep`, or
+  `--locate sweep request`, and read the `impl` the hit lands in. [until: reviewed 2026-09-11]
 
 ## Running things
 

@@ -3,77 +3,61 @@
 ## State
 
 **Goal `resource-ceilings` — every resource ceiling stops the request that breaks it. Stages 0 and 2
-are landed; stage 3 has its two halves that are not the sampler.** Goal `editor-surfaces`'s whole
+are landed, and stage 3's three items are now on disk: a core publishes what a request can be charged
+against, the watchdog's own walk samples it, and a breach raises both polls.** Goal `editor-surfaces`'s
 acceptance list is still this goal's floor and is untouched.
 
-The tree's safepoint word is now publishable. `Ctx::safepoint_view`
-(`crates/nvs-runtime/src/ctx/safepoint.rs:151`) hands out a `SafepointView` (`:222`) — the tree
-root's `Arc<AtomicU64>`, `Send` where `Ctx` is not, with `request`/`flags` on it — and a watched
-core holds one in `Watched` (`crates/nvs-host/src/watchdog.rs:137`), written by
-`Registration::publish_safepoint` (`:355`) and read back by `Watchdog::running` (`:311`). It rides
-the watched set's own `Mutex` rather than a second atomic beside the deadline, because a core
-already takes that lock to register and deregister; `crates/nvs-host/src/timer.rs`'s reason for not
-publishing a *deadline* that way is in the watchdog's module doc.
+`RunningRequest` (`crates/nvs-host/src/watchdog.rs:174`) is what a core publishes — the tree's
+`SafepointView`, the `cpu_limit` nanoseconds, and the `ThreadClock::burned` reading at that instant.
+`RunningRequest::new` answers `None`, meaning publish nothing and sample nothing, for a request under no
+cap and for a platform with no per-thread clock. `Shared::sweep`
+(`crates/nvs-host/src/watchdog.rs:507`) reads the charge on the walk it already makes, one clock read
+per core that published, and a request at its ceiling gets both polls raised under the lock — a store
+into a word cannot block a core the way the stall sink can.
 
-The clock is `crates/nvs-host/src/cpuclock.rs`: `ThreadClock::current()` taken on the core's own
-thread, `ThreadClock::burned()` readable from any. `pthread_getcpuclockid` + `clock_gettime` on
-Linux, the thread id reopened per sample for `GetThreadTimes` on Windows, `None` elsewhere — both
-legs run green (Windows `cargo test`, WSL `cargo test -p nvs-host --lib cpuclock`). macOS is the
-`None` arm and gets no CPU ceiling, which is the standing decision's own answer.
+`SafepointView` (`crates/nvs-runtime/src/ctx/safepoint.rs:233`) carries both of the tree's words for
+that reason: the flag compiled code reads between calls, and the deadline `bounded_loop` reads from
+inside one long call. `deadline_passed` (`crates/nvs-runtime/src/abi.rs:345`) reads the flags to name
+which ceiling stopped a walk, so a CPU breach inside a member no longer reports a deadline that never
+passed.
 
-**Nothing samples it yet, and what a core publishes is not yet enough to charge one.**
-`publish_safepoint` carries the handle alone; a sampler also needs `Ctx::cpu_limit`
-(`crates/nvs-runtime/src/ctx/limits.rs:351`, nanoseconds, `0` for no cap) and the `ThreadClock`
-reading at the moment that request was published. The next group widens it.
+**Nothing publishes outside the watchdog's own tests, which is why stage 0's three cases are still
+red** — the sampler walks an empty set. Stage 3's remaining work is the publisher, and the handoff's
+next group is it.
 
-One thing not to re-derive: a core's thread clock measures the *thread*, and a core runs many tasks,
-so a window's delta over-charges the published request whenever a neighbour ran in it. The window
-that is safe to charge is one in which the core did **not** republish — which is exactly the runaway
-case, because a request that never yields is a core that never changes what it is running.
-
-The three stage-0 cases are still red, which is what stage 0 is for, so `python tools/verify.py`'s
-conformance step and CI's conformance job carry exactly those three failures until stages 3, 4 and 5
-land, and every run of that tree costs an extra 60 s for the CPU case
-(`docs/agent/goals/40-resource-ceilings.md` § *Stage 0*). Nothing is blocked.
-
-`[context] modules` still does not print `crates/nvs-host/src/timer.rs`, and it does not print
-`crates/nvs-host/src/lib.rs` either — the crate doc is where a new module's one-paragraph entry goes.
+Known gap, written where it bites in `crates/nvs-runtime/src/ctx/safepoint.rs`'s CPU arm: a publication
+carries the ceiling that stood before `Ctx::run_limit_handler` widened it by `fatal_reserve_time`, so a
+tier-1 handler is bounded by the next sweep rather than by its reserve. What fixes it is what the
+publisher hands over.
 
 ## Next group
 
-**Stage 3: the sampler in the watchdog's own loop** — one file set, `crates/nvs-host/src/watchdog.rs`
-and `crates/nvs-host/src/cpuclock.rs`, reading the ceiling through `nvs-runtime`'s
-`crates/nvs-runtime/src/ctx/limits.rs:351`. The goal's § *Stage 3* is its items 5 to 7, and the
-standing decision above them is that this is CPU time and never wall clock.
+**Stage 3: the publisher — a core publishes the request it takes up** — one file set,
+`crates/nvs-cli/src/serve.rs` with `crates/nvs-host/src/watchdog.rs` for the type it publishes.
+`rule:errors/on-limit` is the ceiling all three serve.
 
-- [ ] **Widen what a core publishes to what a request can be charged against** — the handle alone
-      cannot be. `Registration::publish_safepoint` at `crates/nvs-host/src/watchdog.rs:355` takes a
-      `SafepointView`; give it the `cpu_limit` nanoseconds from
-      `crates/nvs-runtime/src/ctx/limits.rs:351` and the `ThreadClock::burned`
-      (`crates/nvs-host/src/cpuclock.rs:69`) reading at that instant, so `Watched`
-      (`crates/nvs-host/src/watchdog.rs:137`) holds a baseline rather than a bare handle. A request
-      under no cap publishes nothing and is sampled not at all. `rule:errors/on-limit` is the ceiling
-      this serves.
-- [ ] **Sample it in the sweep** — `Shared::sweep` at `crates/nvs-host/src/watchdog.rs:384` already
-      walks every entry once per interval with the lock held and the reporting done outside it; the
-      clock read belongs on that walk. Charge only a window in which the core did not republish, per
-      `## State` above. `rule:http-server/a-wedged-core-is-detected-by-its-deadline` owns the walk's
-      cost argument, which this must not break: one clock read per core per interval.
-- [ ] **Raise both halves** — `SafepointFlags::CPU_LIMIT` through `SafepointView::request`
-      (`crates/nvs-runtime/src/ctx/safepoint.rs:227`), which is what compiled code polls, and
-      `Ctx::expire_deadline`, which is what `rule:http-server/time-is-bounded-inside-a-helper`'s
-      `bounded_loop` polls inside a member whose runtime scales with its input. The second needs a
-      second view: `expire_deadline` writes `Ctx::deadline`, which `publish_safepoint` does not carry
-      either. Neither branch is new — `nvs_safepoint`'s CPU arm is written and has only ever been
-      reached by a test.
+- [ ] **Settle which run paths get a watchdog at all** — `crates/nvs-cli/src/serve.rs:383` builds the
+      process's `Watchdog` and `crates/nvs-cli/src/serve.rs:793` is the only production `register`, so
+      `nvs serve` has one and it is not established that `nvs run` or `nvs test` does. Stage 0's case
+      `tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst` runs
+      under the test runner, not the server, so the answer decides this group's file set. One
+      `grep -rn "Watchdog" crates/nvs-cli/src` settles it before anything is written.
+- [ ] **Hold the `Registration` and the core's own `ThreadClock` where a request's `Ctx` is reachable**
+      — `crates/nvs-cli/src/serve.rs:793` makes the registration on the worker's own thread, which is
+      the one thread `ThreadClock::current()` (`crates/nvs-host/src/cpuclock.rs:58`) may be called on,
+      and `Host::isolate` at `crates/nvs-cli/src/serve.rs:902` is where a request's `Ctx` exists.
+- [ ] **Publish on take-up and clear on completion** —
+      `RunningRequest::new(ctx.safepoint_view(), clock, ctx.cpu_limit())` into
+      `Registration::publish_safepoint` (`crates/nvs-host/src/watchdog.rs:463`), cleared where
+      `Host::ran` (`crates/nvs-cli/src/serve.rs:928`) finishes one, so the next request on that core is
+      never charged the last one's window.
 
 ## Backlog
 
-- Stage 4's flag path and stage 5's pre-check, both untouched — `docs/agent/goals/40-resource-ceilings.md`.
-- macOS has no per-thread clock here and so no CPU ceiling; `thread_info` on a mach port is the
-  answer nothing reaches yet — `crates/nvs-host/src/cpuclock.rs` module doc.
-- Saying at boot which platforms got no CPU ceiling, per the goal's standing decision — no home yet.
-- `Watchdog::register` still has no production caller; `nvs-server` does not start a watchdog —
-  `crates/nvs-host/src/watchdog.rs` module doc § *Registering a core*.
-- The goal's one new record is unwritten; take the next free number when the slice lands —
-  `docs/agent/goals/40-resource-ceilings.md` § *Standing decisions*.
+- A publication carries the pre-handler ceiling, so a tier-1 handler is bounded by the sweep rather
+  than by its reserve — `crates/nvs-runtime/src/ctx/safepoint.rs`'s CPU arm.
+- `[context] modules` does not print `crates/nvs-cli/src/serve.rs`, which the next group needs, nor
+  `crates/nvs-host/src/timer.rs` or `crates/nvs-host/src/lib.rs`.
+- Stage 4 (the allocating loop) and stage 5 (the single operation past the ceiling) are untouched —
+  `docs/agent/goals/40-resource-ceilings.md`.
+- Every conformance run still costs an extra 60 s for the red CPU case, until the publisher lands.
