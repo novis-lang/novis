@@ -149,6 +149,8 @@ modules = [
   # reaches by name. Stage 3's marker class is a row here, and `ROOT`'s doc (:93-95) says every
   # other row descends from `Throwable` -- which a second root makes false.
   "crates/nvs-hir/src/errors.rs",
+  # The pending failure, the class it names, and the assertions a test records.
+  "crates/nvs-runtime/src/ctx/error.rs",
 ]
 
 # The three every stage works inside: the queue this ending joins, the queue it makes drain, and the
