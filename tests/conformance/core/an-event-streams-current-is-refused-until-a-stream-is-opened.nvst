@@ -1,0 +1,29 @@
+--TEST--
+`Core\Sse::current` is refused in a program that is not writing an event stream and answers a handle in one that is, the call that opens the stream being the bound — `rule:concurrency/two-doors-one-isolate` and `rule:errors/ambiguous-input-refused`
+--FILE--
+<?nvs
+// Before anything opened one this is an ordinary program, which is every
+// command-line program and every `spawn script` child as well. The refusal is a
+// `LogicError` a program catches and names the member it called, because what
+// was wrong is the call and not the program: there is no arrangement under which
+// asking a program with no stream for its stream is the right thing to do.
+var $before = "";
+try {
+    Core\Sse::current();
+} catch (LogicError $refused) {
+    $before = $refused->message;
+}
+echo $before, "\n";
+
+// After, the same program answers, and the events reach the stream rather than
+// a second one — off a connection there is no cell to open, so they arrive in
+// this program's own output.
+var $after = Core\Out::capture(fn (): void => {
+    Core\Sse::stream();
+    Core\Sse::current()->send("open");
+});
+echo $after;
+--EXPECT--
+`Core\Sse::current` needs a program writing an event stream and this is not one: a stream is opened by `Core\Sse::stream` for the request that answers with it and by `Core\Sse::upgrade` for the isolate that outlives it, and a response writing an ordinary body over time is neither
+data: open
+

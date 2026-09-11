@@ -74,6 +74,25 @@ use std::time::Duration;
 /// where it is written and not a preference.
 pub const KEEPALIVE: &[u8] = b":\n\n";
 
+/// The reconnection block: a `retry:` line and the blank line after it, with no
+/// `data:` line and so nothing for a client to dispatch.
+///
+/// A block of its own rather than the field [`Event`] also carries, because what
+/// a program says with it is "do not come back for an hour" ahead of a drain it
+/// can see coming — and an event it had to attach that to would be an event it
+/// did not otherwise want to send.
+///
+/// The wire spells the wait in milliseconds, so a wait shorter than one is `0`.
+/// That is the client's floor rather than a refusal: a program asking for less
+/// than the wire can say is asking for the least the wire can say.
+#[must_use]
+pub fn reconnect_after(wait: Duration) -> Vec<u8> {
+    let mut out = Vec::with_capacity(24);
+    field(&mut out, b"retry", wait.as_millis().to_string().as_bytes());
+    out.push(b'\n');
+    out
+}
+
 /// One event, before anything has framed it.
 ///
 /// The payload is required and the other three fields are the wire's optional
@@ -388,6 +407,30 @@ mod tests {
         assert!(
             digits.iter().all(u8::is_ascii_digit),
             "the milliseconds are not ASCII digits"
+        );
+    }
+
+    #[test]
+    fn a_reconnect_block_carries_the_wait_alone_and_dispatches_nothing() {
+        // The block is the `retry:` line and the blank line after it, so a
+        // client takes the new wait and dispatches nothing — which is the whole
+        // of what a program saying "do not come back for an hour" needs, and an
+        // event with a payload attached to it would not be.
+        assert_eq!(
+            super::reconnect_after(Duration::from_secs(3600)),
+            b"retry: 3600000\n\n".to_vec(),
+            "the reconnection block is not one `retry:` line and the blank line after it"
+        );
+        assert!(
+            !super::reconnect_after(Duration::from_secs(1))
+                .windows(5)
+                .any(|run| run == b"data:"),
+            "the reconnection block carries a payload a client would dispatch"
+        );
+        assert_eq!(
+            super::reconnect_after(Duration::from_micros(10)),
+            b"retry: 0\n\n".to_vec(),
+            "a wait shorter than the wire can spell is not the floor the wire can spell"
         );
     }
 

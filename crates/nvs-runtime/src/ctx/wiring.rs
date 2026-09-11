@@ -153,6 +153,7 @@ impl Ctx {
             captures: Vec::new(),
             content_type: None,
             body_stream: None,
+            event_stream: false,
             status: None,
             headers: Vec::new(),
             inbound: None,

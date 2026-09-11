@@ -531,6 +531,31 @@ impl Ctx {
         self.body_stream.as_mut()
     }
 
+    /// Records that what this context writes is an event stream —
+    /// `Core\Sse::stream` for the request that opened one for itself, and the
+    /// connection for one that outlives its request.
+    ///
+    /// Not beside [`Self::set_body_stream`] in what it takes, because it is not
+    /// the same kind of fact: that one is handed the half the bytes go through
+    /// and this one is told what they *are*, which is why a program off a
+    /// connection — writing its events to its own output — still marks.
+    /// Idempotent, and there is no undoing it.
+    pub fn mark_event_stream(&mut self) {
+        self.event_stream = true;
+    }
+
+    /// Whether an event stream was opened on this context.
+    ///
+    /// `false` everywhere else, and that is what makes `Core\Sse::current()` a
+    /// refusal outside one rather than a rule to remember: a command-line
+    /// program, a `spawn script` child and a request answering with an ordinary
+    /// body each answer it — including one streaming that body, a response body
+    /// written over time not being an event stream.
+    #[must_use]
+    pub fn has_event_stream(&self) -> bool {
+        self.event_stream
+    }
+
     /// Declares what this request's response *means* — spec § 15's status,
     /// set by `Core\Response::setStatus`.
     ///
