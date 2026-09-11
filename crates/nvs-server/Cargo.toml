@@ -40,6 +40,12 @@ jiff.workspace = true
 # above this crate's name is where the choice is argued, including why a
 # synchronous codec is the one that fits a parking stream.
 tungstenite.workspace = true
+# One draw per open event stream: `src/bounds.rs` spreads the reconnection hint
+# a stream is opened with, so a drained fleet does not come back in lockstep.
+# Not a new crate in the graph and no question reopened under
+# `rule:packaging/a-c-dependency-answers-two-questions` — `nvs-runtime`,
+# `nvs-stdlib` and `nvs-cli` all already draw from it.
+rand.workspace = true
 
 [dev-dependencies]
 # Test-only, and it stays that way: `src/control.rs`'s reload case builds the two snapshots a swap

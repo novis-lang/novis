@@ -14,9 +14,14 @@
 //!
 //! # Which of the bounds are here
 //!
-//! The ones the framing layer arms: [`crate::socket::Framed`]
-//! reads this struct once at the `101` and every wait, every frame and every
-//! message on that descriptor is inside it from there.
+//! The ones a door arms. [`crate::socket::Framed`] reads this struct once at
+//! the `101` and every wait, every frame and every message on that descriptor
+//! is inside it from there. [`EventStream`] reads the same struct on the other
+//! door, where there is no codec and no peer speaking: a lifetime, a drain
+//! period and a reconnection hint, and — one layer down, at
+//! `nvs_runtime::stream::open` — a message, which on that door is one event.
+//! Which field each door leaves alone is stated where it is left alone, because
+//! an absent bound is the one thing a list of bounds cannot show.
 //! [`Connection::drain`] is a field here without belonging to that bullet — it
 //! is § 7's *third* bullet, the period after which a draining server closes a
 //! connection, and it lives here because it is one more instant the same
@@ -68,6 +73,10 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use rand::RngExt;
+
+use crate::serve::Draining;
+
 /// `rule:concurrency/connection-bounds-are-finite`'s
 /// bounds on one open connection.
 ///
@@ -101,6 +110,14 @@ pub struct Connection {
     /// [`nvs_runtime::INBOX_CAP`]'s and this field is a copy of it, because the
     /// queue is the runtime's and the bound is § 7's.
     pub subscriber_queue: usize,
+    /// How long a client is told to wait before reconnecting an event stream,
+    /// before the draw — [`reconnect_hint`] is what a stream is actually
+    /// opened with, and owns why it is drawn at all.
+    ///
+    /// A bound on the *client* rather than on this process, and the only field
+    /// here that is: what it holds down is the rate a drained fleet comes back
+    /// at, which is a number no connection of this server's is open to read.
+    pub reconnect: Duration,
 }
 
 impl Default for Connection {
@@ -134,6 +151,11 @@ impl Default for Connection {
     /// open for clients that are going to reconnect to the next instance
     /// anyway, and the connection is served normally throughout it, so the cost
     /// of the second is a second of shutdown and nothing else.
+    /// [`reconnect`](Connection::reconnect) is the third number no ADR writes,
+    /// and three seconds is taken from the client rather than picked: it is
+    /// what a browser's `EventSource` waits with no `retry:` field at all, so
+    /// emitting it changes how a fleet is *spread* without changing how long
+    /// any one client is away. The spreading is [`reconnect_hint`]'s.
     fn default() -> Self {
         Self {
             max_open: 10_000,
@@ -144,6 +166,7 @@ impl Default for Connection {
             send: Duration::from_secs(30),
             drain: Duration::from_secs(1),
             subscriber_queue: nvs_runtime::INBOX_CAP,
+            reconnect: Duration::from_secs(3),
         }
     }
 }
@@ -247,6 +270,46 @@ pub fn heartbeat(write_idle: Duration) -> Duration {
     }
 }
 
+/// How far either side of [`Connection::reconnect`] a stream's own hint may be
+/// drawn: a third of it.
+///
+/// Wide enough that a fleet reconnecting over a two-second band is no longer a
+/// fleet arriving at one instant, and narrow enough that the hint still reads
+/// as the number an operator wrote. Full jitter — uniform from zero — is
+/// `crate::db`'s shape one repository over and the wrong one here: this wait is
+/// not a backoff retried against a contended resource but the single gap before
+/// a client comes back, and a client drawn near zero reconnects into the
+/// restart it was told to wait out.
+const RECONNECT_SPREAD: u32 = 3;
+
+/// The reconnection wait one event stream is opened with: `base`, spread by up
+/// to a third either way.
+///
+/// **Drawn per stream, and that is the whole point.** Every client of a drained
+/// instance is told to come back at the same moment by a constant, so the
+/// instance that replaces it takes the whole fleet in one arrival —
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed` is the same argument
+/// on the outbound side, and § 7's drain is what makes it reachable here: a
+/// deploy drains every connection this process holds at once.
+///
+/// **What it spends**, per `rule:programs/memory-priority`: one draw from
+/// `rand::rng()` per open event stream, at priority 3 and on priority 1's
+/// behalf — a self-inflicted arrival spike is an availability failure and not a
+/// latency one.
+#[must_use]
+pub fn reconnect_hint(base: Duration) -> Duration {
+    let spread = base / RECONNECT_SPREAD;
+    let Some(most) = base.checked_add(spread) else {
+        return base;
+    };
+    // Nanoseconds rather than the `Duration` range `rand` could sample
+    // directly, because the band is small by construction and the cast is what
+    // keeps the draw one integer wide.
+    let low = u64::try_from((base - spread).as_nanos()).unwrap_or(u64::MAX);
+    let high = u64::try_from(most.as_nanos()).unwrap_or(u64::MAX);
+    Duration::from_nanos(rand::rng().random_range(low..=high))
+}
+
 /// Where a connection loop reads the instant its event stream next owes a byte,
 /// and `None` for a connection writing no event stream.
 ///
@@ -317,6 +380,20 @@ impl Heartbeat {
     pub fn ended(&mut self) {
         self.due_at.set(None);
     }
+
+    /// Brings the next wake forward to `at`, and leaves it where it is
+    /// otherwise.
+    ///
+    /// A bound closer than the beat is one the loop still has to be woken for,
+    /// and this cell is the only wake an event stream has: filing a second
+    /// deadline would replace it ([`wake_at`]). Never pushes one back, because
+    /// the beat is what keeps the connection open and a wake later than it is
+    /// the connection closing.
+    pub fn no_later_than(&mut self, at: Instant) {
+        if self.due_at.get().is_none_or(|due| at < due) {
+            self.due_at.set(Some(at));
+        }
+    }
 }
 
 impl Drop for Heartbeat {
@@ -324,6 +401,134 @@ impl Drop for Heartbeat {
     /// ending does: this body is what was being kept alive.
     fn drop(&mut self) {
         self.ended();
+    }
+}
+
+/// One open event stream's bounds: the keep-alive it writes where nothing else
+/// moved, and the instant it is closed at however busy it was.
+///
+/// Held by the response body `crate::serve::Answer` an event stream is written
+/// through and absent from every other response, which is where the two
+/// spellings of `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
+/// part here: a streamed response is bounded by the request writing it, and an
+/// event stream outlives every ceiling but the connection's, so it is the one
+/// body that needs a table of its own to be held inside.
+///
+/// **What it reads, and the one field it must not.**
+/// [`Connection::lifetime`], [`Connection::drain`] and
+/// [`Connection::reconnect`] are this struct's; [`Connection::message`] and
+/// [`Connection::send`] are read one layer down where the bytes cross
+/// (`nvs_runtime::stream::open`). [`Connection::idle`] is **not armed**, and
+/// that absence is the design rather
+/// than an omission: it closes a connection whose *peer* stopped speaking, and
+/// an event stream's peer never speaks — the hand-over took nothing from it
+/// (`rule:concurrency/two-doors-one-isolate`) and there is no frame it could
+/// send — so arming it would close every healthy stream at the first window.
+/// What bounds the quiet on this door is `nvs_config::server::Waits::write_idle`
+/// instead, and [`Heartbeat`] is the answer to it.
+///
+/// **What it spends**, per `rule:programs/memory-priority`: [`Heartbeat`]'s cell
+/// and two words, and one instant beside them, per open event stream.
+#[derive(Debug)]
+pub struct EventStream {
+    /// What keeps the connection open under a stream that is saying nothing.
+    beat: Heartbeat,
+    /// When this stream is closed however busy it has been, which is
+    /// [`Connection::lifetime`] from the moment it opened.
+    expires_at: Instant,
+    /// The reconnection block this stream opens with, held until the first
+    /// poll of the body takes it. Drawn once, at [`Self::opened`], because a
+    /// hint redrawn per poll would be a different wait every time the client
+    /// read one.
+    opening: Option<Vec<u8>>,
+    /// The drain of the server this stream is being written by — § 7's third
+    /// bullet, read on every poll because a bit is the whole of what
+    /// `nvs_runtime::Drain` carries.
+    draining: Draining,
+    /// The drain period this stream is given once it has seen the drain, and
+    /// when that period ends. `crate::socket`'s own `drain_deadline` is this
+    /// field one door over, and owns why the period starts when the connection
+    /// first *sees* the drain rather than when the drain began.
+    drain: Duration,
+    closing_at: Option<Instant>,
+}
+
+impl EventStream {
+    /// The bounds a stream opens under: `bounds`' lifetime from now, the beat
+    /// derived from the wait its connection writes responses under, and the
+    /// reconnection hint drawn for this stream alone.
+    #[must_use]
+    pub fn opened(
+        bounds: &Connection,
+        draining: &Draining,
+        write_idle: Duration,
+        due_at: NextBeat,
+    ) -> Self {
+        Self {
+            beat: Heartbeat::derived_from(write_idle, due_at),
+            expires_at: Instant::now() + bounds.lifetime,
+            opening: Some(nvs_runtime::sse::reconnect_after(reconnect_hint(
+                bounds.reconnect,
+            ))),
+            draining: draining.clone(),
+            drain: bounds.drain,
+            closing_at: None,
+        }
+    }
+
+    /// The bytes this stream owes before any event, taken once.
+    ///
+    /// A byte that moved like any other, so the beat starts again from it: a
+    /// stream that has just written its hint does not owe a keep-alive as well.
+    pub fn opening(&mut self) -> Option<Vec<u8>> {
+        let opening = self.opening.take()?;
+        self.beat.moved();
+        Some(opening)
+    }
+
+    /// Whether this stream has met a bound that ends it — its lifetime, or the
+    /// drain period of a server that has begun shutting down.
+    ///
+    /// Asked on each poll of the body rather than filed as a deadline of its
+    /// own, because [`wake_at`] keeps one instant per connection task and the
+    /// beat is already it — a second entry would replace the one the stream is
+    /// being kept alive by. Asking is enough for the lifetime on its own: a
+    /// stream with nothing to send is polled every beat, and one with something
+    /// to send is polled for every chunk. The drain is the case where that is
+    /// not enough, since a shutdown waiting a beat for each stream is a
+    /// shutdown taking as long as the slowest wait a deployment configured — so
+    /// seeing the drain brings the next wake forward to the close it schedules.
+    #[must_use]
+    pub fn over(&mut self) -> bool {
+        Instant::now() >= self.expires_at || self.drained()
+    }
+
+    /// Whether the drain period this stream was given has run out, starting it
+    /// the first time the drain is seen.
+    fn drained(&mut self) -> bool {
+        if self.closing_at.is_none() && self.draining.is_draining() {
+            let closing_at = Instant::now() + self.drain;
+            self.closing_at = Some(closing_at);
+            self.beat.no_later_than(closing_at);
+        }
+        self.closing_at
+            .is_some_and(|closing_at| Instant::now() >= closing_at)
+    }
+
+    /// Whether a keep-alive is owed now — [`Heartbeat::due`].
+    pub fn due(&mut self) -> bool {
+        self.beat.due()
+    }
+
+    /// A byte went out for its own reason — [`Heartbeat::moved`].
+    pub fn moved(&mut self) {
+        self.beat.moved();
+    }
+
+    /// The stream is over, so the loop stops waking for it —
+    /// [`Heartbeat::ended`].
+    pub fn ended(&mut self) {
+        self.beat.ended();
     }
 }
 
@@ -360,7 +565,7 @@ pub fn wake_at(at: Instant) {
 mod tests {
     use std::time::Duration;
 
-    use super::{Connection, HEARTBEAT_FLOOR, Slot, heartbeat};
+    use super::{Connection, HEARTBEAT_FLOOR, Slot, heartbeat, reconnect_hint};
 
     /// `rule:concurrency/connection-bounds-are-finite`'s first bullet, as the assertion it is: with nothing
     /// configured, every bound a connection is held inside is a finite number.
@@ -384,9 +589,14 @@ mod tests {
             send,
             drain,
             subscriber_queue,
+            reconnect,
         } = Connection::default();
 
         assert!(max_open > 0, "a process that may hold no connection");
+        assert!(
+            !reconnect.is_zero(),
+            "a client told to reconnect immediately is a client told to flood"
+        );
         assert!(frame > 0, "a frame bound of zero accepts nothing");
         assert!(
             message >= frame,
@@ -433,6 +643,87 @@ mod tests {
         );
     }
 
+    /// The same table read for the *other* half of finite: **no default is a
+    /// number standing in for "no ceiling"**, and neither is anything derived
+    /// from one.
+    ///
+    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` refuses
+    /// `0` as a spelling for an absent bound, which the case above is; a bound
+    /// spelled as the largest number its type can hold is the same defect
+    /// written the other way, and it reads in a dump exactly like a bound that
+    /// binds. Each field is asserted against what would make it unreachable
+    /// rather than against a literal, so a number deliberately changed does not
+    /// drag this case along with it — and the two numbers *derived* from the
+    /// defaults are read here too, because a field inside its ceiling whose
+    /// derivation is not is a bound nothing meets either.
+    #[test]
+    fn connection_defaults_are_finite_for_every_field() {
+        // Longer than any bound here may be and still be one a running process
+        // meets: a wait past this is a wait a deployment restarts before it
+        // reaches.
+        const REACHABLE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+
+        let Connection {
+            max_open,
+            frame,
+            message,
+            idle,
+            lifetime,
+            send,
+            drain,
+            subscriber_queue,
+            reconnect,
+        } = Connection::default();
+
+        // Counted through `try_from` rather than a cast, which is the lint
+        // policy's shape and not a worry about the numbers: a bound that will
+        // not fit a `u64` is one this assertion would have failed anyway.
+        let counted = |bound: usize| u64::try_from(bound).unwrap_or(u64::MAX);
+        for (named, bound) in [
+            ("max_open", max_open),
+            ("frame", counted(frame)),
+            ("message", counted(message)),
+            ("subscriber_queue", counted(subscriber_queue)),
+        ] {
+            assert!(
+                bound < u64::from(u32::MAX),
+                "`{named}` is {bound}, which is a ceiling nothing reaches rather than one that binds"
+            );
+        }
+        for (named, wait) in [
+            ("idle", idle),
+            ("lifetime", lifetime),
+            ("send", send),
+            ("drain", drain),
+            ("reconnect", reconnect),
+        ] {
+            assert!(
+                wait < REACHABLE,
+                "`{named}` is {wait:?}, which is longer than a process runs"
+            );
+        }
+
+        // The keep-alive, which is derived from a wait rather than written, and
+        // the reconnection hint, which is drawn from a field rather than sent
+        // as it stands. `heartbeat`'s own cases sweep every wait a parser
+        // accepts; what is read here is the pair a deployment gets with nothing
+        // configured.
+        let served_under = nvs_config::Waits::default().write_idle;
+        let beat = heartbeat(served_under);
+        assert!(
+            !beat.is_zero() && beat < served_under,
+            "a beat of {beat:?} is not inside the {served_under:?} wait it exists to stay under"
+        );
+        let spread = reconnect / 3;
+        for _ in 0..64 {
+            let hint = reconnect_hint(reconnect);
+            assert!(
+                hint >= reconnect - spread && hint <= reconnect + spread,
+                "a hint of {hint:?} is outside the band around {reconnect:?}"
+            );
+        }
+    }
+
     /// [`heartbeat`]'s derivation, stated as the two clauses it is: half the
     /// response wait, and not below [`HEARTBEAT_FLOOR`].
     ///
@@ -465,7 +756,7 @@ mod tests {
         }
     }
 
-    /// The property [`Heartbeat::arm`](super::Heartbeat::arm) rests on: a beat
+    /// The property [`wake_at`](super::wake_at) rests on: a beat
     /// is strictly earlier than the wait it exists to stay inside, whatever the
     /// `[server]` block wrote.
     ///

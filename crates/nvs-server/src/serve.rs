@@ -129,8 +129,8 @@ pub enum Answer {
     Streaming {
         /// Where the writing isolate's chunks arrive.
         drain: stream::Drain,
-        /// The keep-alive clock, for a body whose silence is not allowed to
-        /// end the connection. `None` for a request-scoped stream, and that is
+        /// The bounds an event stream is held inside — its keep-alive clock
+        /// and its lifetime. `None` for a request-scoped stream, and that is
         /// the line the two spellings differ on here: a streamed response is
         /// bounded by the request writing it
         /// (`rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`),
@@ -138,7 +138,7 @@ pub enum Answer {
         /// own ceiling is already answering for. An event stream outlives
         /// every ceiling but the connection's, and quiet is the state it is
         /// designed to spend most of its life in.
-        beat: Option<crate::bounds::Heartbeat>,
+        alive: Option<crate::bounds::EventStream>,
     },
 }
 
@@ -157,20 +157,23 @@ impl Answer {
 
     /// A body an isolate writes over time, and the writing half to hand it.
     ///
-    /// The send timeout comes from the connection's own bounds and is read
-    /// here, which is the only place it is read: a cell that chose its own
-    /// would be a second bound beside
+    /// The send timeout and the message bound both come from the connection's
+    /// own bounds and are read here, which is the only place either is read: a
+    /// cell that chose its own would be a second bound beside
     /// `rule:concurrency/connection-bounds-are-finite`'s table, invisible to
-    /// the operator reading that one.
+    /// the operator reading that one. `message` rather than `frame` because
+    /// nothing between a program and this cell is framed — what crosses whole
+    /// is the chunk, which on an event stream is one event.
     #[must_use]
     pub fn stream(bounds: &crate::bounds::Connection) -> (stream::Emit, Self) {
-        let (emit, drain) = stream::open(bounds.send);
-        (emit, Self::Streaming { drain, beat: None })
+        let (emit, drain) = stream::open(bounds.send, bounds.message);
+        (emit, Self::Streaming { drain, alive: None })
     }
 
-    /// The same body, keeping itself alive: a stream that has gone quiet writes
-    /// `nvs_runtime::sse::KEEPALIVE` rather than letting `write_idle` close the
-    /// connection under it.
+    /// The same body, held inside the bounds an event stream has of its own: it
+    /// writes `nvs_runtime::sse::KEEPALIVE` rather than letting `write_idle`
+    /// close the connection under it, and it ends at the connection's lifetime
+    /// however busy it was.
     ///
     /// The wait is taken rather than the interval, because
     /// `crate::bounds::heartbeat` is the one place the second is derived from
@@ -186,11 +189,19 @@ impl Answer {
     /// `crate::bounds::wake_at` owns why the wake is arranged there rather than
     /// from inside this poll.
     #[must_use]
-    pub fn beating(self, write_idle: Duration, due_at: crate::bounds::NextBeat) -> Self {
+    pub fn as_an_event_stream(
+        self,
+        bounds: &crate::bounds::Connection,
+        draining: &Draining,
+        write_idle: Duration,
+        due_at: crate::bounds::NextBeat,
+    ) -> Self {
         match self {
             Self::Streaming { drain, .. } => Self::Streaming {
                 drain,
-                beat: Some(crate::bounds::Heartbeat::derived_from(write_idle, due_at)),
+                alive: Some(crate::bounds::EventStream::opened(
+                    bounds, draining, write_idle, due_at,
+                )),
             },
             whole => whole,
         }
@@ -228,35 +239,61 @@ impl Body for Answer {
     /// client discards and the only thing that makes an idle event stream
     /// outlive `write_idle`. Every other answer is a byte that moved, so the
     /// interval starts again from it and a stream under load never writes one.
+    ///
+    /// **An event stream's first frame is its reconnection hint**, before any
+    /// event and before the cell is read at all: it is a `retry:` block with no
+    /// `data:` line, so a client takes the wait and dispatches nothing, and the
+    /// wait is drawn for this stream alone (`crate::bounds::reconnect_hint`).
+    ///
+    /// **And an event stream past a bound that ends it ends here** — its
+    /// lifetime, or the drain period of a server shutting down — ahead of the
+    /// cell rather than after it: a bound that let one more chunk out would be
+    /// a bound the busiest stream is never held by, which is the half of
+    /// `rule:concurrency/connection-bounds-are-finite` the word *however* is
+    /// doing. Ending the body is the whole close on this door, which has no
+    /// close frame and needs none: `hyper` writes the terminating chunk, the
+    /// peer reads a stream that finished rather than a connection that was
+    /// reset, and the hint above is what paces its way back.
     fn poll_frame(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match &mut *self {
             Self::Whole(bytes) => Poll::Ready(bytes.take().map(|bytes| Ok(Frame::data(bytes)))),
-            Self::Streaming { drain, beat } => match drain.next_chunk(cx.waker()) {
-                stream::Drained::Chunk(chunk) => {
-                    if let Some(beat) = beat {
-                        beat.moved();
+            Self::Streaming { drain, alive } => {
+                if let Some(alive) = alive {
+                    if let Some(opening) = alive.opening() {
+                        return Poll::Ready(Some(Ok(Frame::data(Bytes::from(opening)))));
                     }
-                    Poll::Ready(Some(Ok(Frame::data(Bytes::from(chunk)))))
-                }
-                stream::Drained::Pending => {
-                    if beat.as_mut().is_some_and(crate::bounds::Heartbeat::due) {
-                        Poll::Ready(Some(Ok(Frame::data(Bytes::from_static(
-                            nvs_runtime::sse::KEEPALIVE,
-                        )))))
-                    } else {
-                        Poll::Pending
+                    if alive.over() {
+                        alive.ended();
+                        return Poll::Ready(None);
                     }
                 }
-                stream::Drained::Ended => {
-                    if let Some(beat) = beat {
-                        beat.ended();
+                match drain.next_chunk(cx.waker()) {
+                    stream::Drained::Chunk(chunk) => {
+                        if let Some(alive) = alive {
+                            alive.moved();
+                        }
+                        Poll::Ready(Some(Ok(Frame::data(Bytes::from(chunk)))))
                     }
-                    Poll::Ready(None)
+                    stream::Drained::Pending => {
+                        if alive.as_mut().is_some_and(crate::bounds::EventStream::due) {
+                            Poll::Ready(Some(Ok(Frame::data(Bytes::from_static(
+                                nvs_runtime::sse::KEEPALIVE,
+                            )))))
+                        } else {
+                            Poll::Pending
+                        }
+                    }
+                    stream::Drained::Ended => {
+                        if let Some(alive) = alive {
+                            alive.ended();
+                        }
+                        Poll::Ready(None)
+                    }
                 }
-            },
+            }
         }
     }
 
@@ -997,11 +1034,12 @@ where
         // The other stream, and the cell is made on the same terms for a
         // sharper version of the same reason: a body written over time takes
         // nothing of this connection at all, being the response this request
-        // already has, written in pieces. It carries the send bound above
-        // because that is the one number of this connection's a streamed body
-        // meets — a peer that stops reading is what it bounds, and nothing else
-        // in `crate::bounds` is a request's to be held inside.
-        let opening = stream::BodySlot::new(send_timeout);
+        // already has, written in pieces. It carries the send bound above and
+        // the message bound beside it, which are the two numbers of this
+        // connection's a streamed body meets — a peer that stops reading, and a
+        // chunk larger than the connection may hold — and nothing else in
+        // `crate::bounds` is a request's to be held inside.
+        let opening = stream::BodySlot::new(send_timeout, bounds.message);
         let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -1235,7 +1273,13 @@ where
                 // left and the peer is owed the stream it asked for rather than
                 // a page it stopped reading for.
                 Ok(running) => {
-                    answered = event_stream(body, waits.write_idle, Rc::clone(beat_due));
+                    answered = event_stream(
+                        body,
+                        &bounds,
+                        draining,
+                        waits.write_idle,
+                        Rc::clone(beat_due),
+                    );
                     *connection_isolate.borrow_mut() = Some(running);
                 }
                 // The *argument* had no meaning on the other side. Not
@@ -1462,7 +1506,7 @@ fn streamed(head: stream::Opened) -> Response<Answer> {
         HeaderValue::from_str(&head.content_type).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
     let mut response = Response::new(Answer::Streaming {
         drain: head.drain,
-        beat: None,
+        alive: None,
     });
     if let Some(code) = head.status {
         *response.status_mut() = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);
@@ -1589,18 +1633,22 @@ fn switching(accept: &str) -> Response<Answer> {
 /// constants, and a constant that could not be a header would fail the case
 /// below before it reached a peer.
 ///
-/// **The keep-alive is armed here**, which is the first moment there is a
-/// response to arm it on: an event stream that sends nothing still has to move
-/// a byte before `nvs_config::server::Waits::write_idle` closes the connection
-/// it is being written over, and a stream saying nothing is the ordinary state
-/// of one rather than a fault. `crate::bounds::heartbeat` is the interval and
-/// owns why it is half that wait.
+/// **The stream's own bounds are armed here**, which is the first moment there
+/// is a response to arm them on, and `crate::bounds::EventStream` is what they
+/// are. An event stream that sends nothing still has to move a byte before
+/// `nvs_config::server::Waits::write_idle` closes the connection it is being
+/// written over, and a stream saying nothing is the ordinary state of one
+/// rather than a fault; and a stream that never goes quiet is closed at the
+/// connection's lifetime regardless. Which of `crate::bounds::Connection`'s
+/// fields an event stream reads, and which one it must not, is that type's.
 fn event_stream(
     body: Answer,
+    bounds: &crate::bounds::Connection,
+    draining: &Draining,
     write_idle: Duration,
     due_at: crate::bounds::NextBeat,
 ) -> Response<Answer> {
-    let mut response = Response::new(body.beating(write_idle, due_at));
+    let mut response = Response::new(body.as_an_event_stream(bounds, draining, write_idle, due_at));
     let headers = response.headers_mut();
     headers.insert(
         header::CONTENT_TYPE,
@@ -8511,5 +8559,239 @@ mod tests {
             Some(nvs_runtime::stream::SEND_TIMED_OUT),
             "a write nothing was reading did not end as the bound it met"
         );
+    }
+
+    /// The bounds an event stream opens under, at the wait a server actually
+    /// serves under: every case below asserts a bound of `bounds` and never the
+    /// keep-alive, so the beat is derived from the default and is far away.
+    fn an_event_stream_over(bounds: &crate::bounds::Connection) -> (stream::Emit, Answer) {
+        an_event_stream_draining(bounds, &Draining::detached())
+    }
+
+    /// [`an_event_stream_over`], on a named drain rather than one nothing ever
+    /// begins — a server draining beside the process's own is
+    /// [`Draining::detached`]'s whole case.
+    fn an_event_stream_draining(
+        bounds: &crate::bounds::Connection,
+        draining: &Draining,
+    ) -> (stream::Emit, Answer) {
+        let (emit, body) = Answer::stream(bounds);
+        let body = body.as_an_event_stream(
+            bounds,
+            draining,
+            Waits::default().write_idle,
+            Rc::new(Cell::new(None)),
+        );
+        (emit, body)
+    }
+
+    /// The frames one poll pass takes off a body, until it parks or ends.
+    ///
+    /// A pass and not a loop, because every case below asserts what a *poll*
+    /// answered: the keep-alive, the opening hint and both closes are decided
+    /// there, so a helper that drove the body to exhaustion would be asserting
+    /// the sum of several polls.
+    /// Takes the reconnection block an event stream opens with, so that a case
+    /// about a bound is not also a case about the hint.
+    fn past_the_opening(body: &mut Answer) {
+        let Poll::Ready(Some(hint)) = polled(body) else {
+            panic!("an event stream's first frame is its reconnection hint")
+        };
+        assert!(
+            hint.starts_with(b"retry: "),
+            "a stream opened with something other than its hint: {hint:?}"
+        );
+    }
+
+    fn polled(body: &mut Answer) -> Poll<Option<Bytes>> {
+        let mut cx = Context::from_waker(std::task::Waker::noop());
+        Pin::new(body).poll_frame(&mut cx).map(|frame| {
+            frame.map(|frame| {
+                frame
+                    .expect("this body never fails")
+                    .into_data()
+                    .expect("a response body carries data frames and no trailers")
+            })
+        })
+    }
+
+    /// `rule:concurrency/connection-bounds-are-finite`'s table read for what is
+    /// *not* in it: **`Connection::idle` is the one bound an event stream does
+    /// not arm**, and a stream whose idle window is long past goes on being
+    /// written.
+    ///
+    /// The window here is nothing at all, so anything that armed it would have
+    /// met it before this first poll. What the body answers instead is
+    /// `Pending` — nothing to send, and no beat owed for half a response wait —
+    /// which is a stream still open. `crate::bounds::EventStream` owns why the
+    /// absence is the design: that bound closes a connection whose peer stopped
+    /// speaking, and this door's peer never speaks, so arming it would close
+    /// every healthy stream at the first window.
+    #[test]
+    fn the_idle_bound_is_not_armed_for_an_event_stream() {
+        let (_emit, mut body) = an_event_stream_over(&crate::bounds::Connection {
+            idle: Duration::ZERO,
+            ..crate::bounds::Connection::default()
+        });
+        past_the_opening(&mut body);
+
+        assert!(
+            matches!(polled(&mut body), Poll::Pending),
+            "a stream ended on the bound its peer would have had to speak to meet"
+        );
+    }
+
+    /// The other half of the same table: **`Connection::lifetime` is armed, and
+    /// it closes a stream however busy it was.**
+    ///
+    /// The word *however* is the claim, so the body has a chunk waiting on the
+    /// poll that ends it: a lifetime read after the cell would be a bound the
+    /// busiest stream never meets, one chunk at a time. What ends is the body
+    /// and not the connection — `Poll::Ready(None)` is what leaves `hyper`
+    /// writing the terminating chunk, so the peer reads a stream that finished
+    /// rather than a reset, and reconnects to a server that is still serving.
+    #[test]
+    fn an_event_stream_is_closed_at_its_lifetime_however_busy_it_was() {
+        let (mut emit, mut body) = an_event_stream_over(&crate::bounds::Connection {
+            // A lifetime of nothing at all is one already met, which is the
+            // state this case needs and which no default ever is.
+            lifetime: Duration::ZERO,
+            ..crate::bounds::Connection::default()
+        });
+        emit.send(
+            nvs_runtime::sse::Event::carrying(b"still sending")
+                .frame()
+                .expect("a payload with nothing in it to refuse"),
+        )
+        .expect("the cell is empty");
+        // Even a stream whose lifetime was over before it opened tells the
+        // client when to come back, which is the order `poll_frame` reads its
+        // two cases in.
+        past_the_opening(&mut body);
+
+        assert!(
+            matches!(polled(&mut body), Poll::Ready(None)),
+            "a stream past its lifetime wrote the chunk it was holding"
+        );
+    }
+
+    /// § 7's third bullet on the door with no close frame: **a drained server
+    /// ends an event stream's body**, and a client reading a stream that
+    /// finished reconnects where one reading a reset has nothing to go on.
+    ///
+    /// Three readings in order, because the period is the claim and not the
+    /// bit: a stream on a server still serving is open, a stream that has just
+    /// seen the drain is still open — the period starts when the connection
+    /// sees it, which is `crate::socket`'s own rule one door over — and the
+    /// stream ends once the period has run out.
+    #[test]
+    fn a_drain_ends_the_body_cleanly_rather_than_resetting_the_connection() {
+        const PERIOD: Duration = Duration::from_millis(20);
+        let draining = Draining::detached();
+        let (_emit, mut body) = an_event_stream_draining(
+            &crate::bounds::Connection {
+                drain: PERIOD,
+                ..crate::bounds::Connection::default()
+            },
+            &draining,
+        );
+        past_the_opening(&mut body);
+        assert!(
+            matches!(polled(&mut body), Poll::Pending),
+            "a stream was ended by a server that had not begun draining"
+        );
+
+        draining.begin();
+        assert!(
+            matches!(polled(&mut body), Poll::Pending),
+            "the drain closed a stream at the bit rather than after the period"
+        );
+
+        std::thread::sleep(PERIOD * 2);
+        assert!(
+            matches!(polled(&mut body), Poll::Ready(None)),
+            "a drained stream was still being written past its period"
+        );
+    }
+
+    /// `rule:concurrency/connection-bounds-are-finite`'s reconnection hint:
+    /// **every event stream opens with a `retry:` block, and no two streams are
+    /// told the same wait.**
+    ///
+    /// The second half is what the draw is for — a constant hands a drained
+    /// fleet one instant to come back at — so it is asserted over a handful of
+    /// streams rather than over two: two draws from a band a couple of thousand
+    /// milliseconds wide collide once in a couple of thousand runs, and a case
+    /// that flakes that often is one a later session deletes. Every draw is
+    /// also read against the band itself, since a spread wider than the field
+    /// is a wait an operator did not write.
+    #[test]
+    fn a_retry_line_is_written_at_open_and_is_not_the_same_for_two_streams() {
+        const STREAMS: usize = 12;
+        let bounds = crate::bounds::Connection::default();
+        let spread = bounds.reconnect / 3;
+        let band =
+            (bounds.reconnect - spread).as_millis()..=(bounds.reconnect + spread).as_millis();
+
+        let mut drawn = std::collections::BTreeSet::new();
+        for _ in 0..STREAMS {
+            let (_emit, mut body) = an_event_stream_over(&bounds);
+            let Poll::Ready(Some(hint)) = polled(&mut body) else {
+                panic!("an event stream's first frame is its reconnection hint")
+            };
+            let millis = std::str::from_utf8(&hint)
+                .ok()
+                .and_then(|block| block.strip_prefix("retry: "))
+                .and_then(|block| block.strip_suffix("\n\n"))
+                .and_then(|wait| wait.parse::<u128>().ok())
+                .unwrap_or_else(|| panic!("a reconnection block spells one wait: {hint:?}"));
+            assert!(
+                band.contains(&millis),
+                "a stream was told to come back in {millis}ms, outside {band:?}"
+            );
+            drawn.insert(millis);
+        }
+
+        assert!(
+            drawn.len() > 1,
+            "{STREAMS} streams were all told the same wait: {drawn:?}"
+        );
+    }
+
+    /// The same table's message bound, on the door that has no frames:
+    /// **one event is the whole message**, so an event over the bound never
+    /// reaches the cell the connection frames from.
+    ///
+    /// Read twice, because a bound that refused everything would pass the first
+    /// half alone: the event inside it goes through on the same half afterwards.
+    /// That second reading is also the one that says a refusal leaves the stream
+    /// writable — nothing arrived from a peer and no event was half-written, so
+    /// this is a program handing over too much and not a connection to close.
+    #[test]
+    fn an_event_larger_than_the_message_bound_is_refused() {
+        const MESSAGE: usize = 64;
+        let (mut emit, _body) = Answer::stream(&crate::bounds::Connection {
+            frame: MESSAGE,
+            message: MESSAGE,
+            ..crate::bounds::Connection::default()
+        });
+
+        let oversized = nvs_runtime::sse::Event::carrying(&[b'x'; MESSAGE * 2])
+            .frame()
+            .expect("a payload with nothing in it to refuse");
+        let refused = emit
+            .send(oversized)
+            .expect_err("an event twice the connection's message bound");
+        assert!(
+            refused.contains(nvs_runtime::stream::CHUNK_TOO_LARGE),
+            "an event over the bound was refused as something else: {refused}"
+        );
+
+        emit.send(
+            nvs_runtime::sse::Event::carrying(b"small enough")
+                .frame()
+                .expect("a payload with nothing in it to refuse"),
+        )
+        .expect("an event inside the bound, on a stream the refusal did not close");
     }
 }
