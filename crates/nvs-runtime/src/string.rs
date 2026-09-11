@@ -1092,14 +1092,26 @@ impl std::borrow::Borrow<[u8]> for NvsStr {
 //
 // These are `extern "C"` but deliberately *not* `rule:errors/propagation`'s checked-return
 // helper shape, and deliberately not written through `nvs_helper!`. That shape
-// exists to carry a failure back to the caller; none of these can fail — they
-// take no Novis value, allocate at most once, and produce no status — so giving
-// them an unused `*const Value`/`*mut Value` pair and a `catch_unwind` would
-// cost the hottest operations in the runtime an ABI they never use. They are
-// panic-free by construction instead: the only fallible step is allocation,
-// which `handle_alloc_error` turns into an abort rather than an unwind. Every
-// one is still `extern "C"` and never `extern "C-unwind"`, so nothing can
-// unwind through a JIT frame either way.
+// exists to carry a failure back to a caller that can act on one, and these
+// have no such caller: they take no `Ctx`, so giving the hottest operations in
+// the runtime an unused `*const Value`/`*mut Value` pair and a `catch_unwind`
+// would cost every call an ABI it never uses.
+//
+// An allocation here can be **refused**. `rule:errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`
+// asks the memory ceiling in front of the allocation rather than behind it, and
+// `NvsStr::alloc_or_refusal` is the seam every primitive below allocates
+// through. A refusal is answered with a degenerate return chosen so that the
+// reference it yields balances the references it consumed — each one's own doc
+// comment names which value that is — and never with a status. It is sound
+// because the refusal has already published the breach into the word compiled
+// code polls: the program reaches its next poll and, in between, no `Core`
+// member, no output and nothing durable.
+//
+// They are panic-free by construction. The abort that remains is the failure no
+// ceiling explains — the platform heap saying no — which `handle_alloc_error`
+// turns into an abort rather than an unwind; and every one of these is
+// `extern "C"` and never `extern "C-unwind"`, so nothing can unwind through a
+// JIT frame either way.
 
 /// Allocates a fresh string from `len` bytes at `ptr`, with a reference count
 /// of one — `nvs_ir::InstKind::ConstStr`'s entry point.
