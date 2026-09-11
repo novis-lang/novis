@@ -4356,6 +4356,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   early. Measure an elapsed interval with `Core\Time::monotonic()->minus($mark)->toMilliseconds()`,
   and read `rule:http-server/every-deadline-is-monotonic` for why the two clocks are not
   interchangeable. [until: reviewed 2026-09-11]
+- **A `Core` member's refusal *message* is not on the `Err` that `nvs_runtime::call` answers with.**
+  That `Err` is a status code — `nvs_runtime::THROWN` — so destructuring it as a `Fault` is an
+  `E0308` against `&i32`, and there is no message on it to read. The throw is on the context:
+  `ctx.pending_class()` is the `catch` name, `ctx.pending()` is the sentence, and `ctx.take_pending()`
+  clears it so a later assertion on the same context is not reading the first refusal.
+  [until: reviewed 2026-12-11]
 
 ## Splitting a file that got too big
 

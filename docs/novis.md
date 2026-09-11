@@ -17820,13 +17820,15 @@ Leaves `$topic`, so nothing published to it reaches this connection again.
 <a id="core-core-sse"></a>
 ### `Core\Sse`
 
-Keywords: upgrade, stream, send
+Keywords: upgrade, stream, current, send, retry
 
 | Member | Signature |
 |---|---|
 | [`Core\Sse::upgrade`](#core-core-sse-upgrade) | `upgrade(string $entry, mixed $args = null): void` |
 | [`Core\Sse::stream`](#core-core-sse-stream) | `stream(): Core\Sse` |
+| [`Core\Sse::current`](#core-core-sse-current) | `current(): Core\Sse` |
 | [`Core\Sse->send`](#core-core-sse-send) | `send(mixed $data, ?string $event = null, ?string $id = null): void` |
+| [`Core\Sse->retry`](#core-core-sse-retry) | `retry(Core\Time\Duration $after): void` |
 
 <a id="core-core-sse-upgrade"></a>
 #### `Core\Sse::upgrade`
@@ -17859,6 +17861,19 @@ Answers this request with an event stream that ends when the request does — th
 
 **Throws** `LogicError` — A status was set on this request before the stream was opened — an event stream is `200` by protocol; or this response already has a body being written over time, a response having one body.
 
+<a id="core-core-sse-current"></a>
+#### `Core\Sse::current`
+
+```nvs skip
+Core\Sse::current(): Core\Sse
+```
+
+The event stream this program is writing, whichever door opened it — the one that outlives the request that upgraded it, or the one this request opened for itself.
+
+**Returns** `Core\Sse` — The handle to write events on, which is the same `Core\Sse` the member that opened the stream answered with — so a helper taking one is written once and called from either door.
+
+**Throws** `LogicError` — A program that is not writing an event stream, which is every command-line program, every `spawn script` child and every request answering with an ordinary body — including one streaming that body, a response body written over time not being an event stream.
+
 <a id="core-core-sse-send"></a>
 #### `Core\Sse->send`
 
@@ -17877,6 +17892,23 @@ Writes one event to the client: the payload, and the optional name it dispatches
 **Returns** `void` — Nothing, once the event is framed and handed to the body being written.
 
 **Throws** `LogicError` — An `$event` or `$id` carrying a line break or a NUL, either of which would end the event early and change what the client acts on; or an empty `$data`, which a client provably does not dispatch.
+
+<a id="core-core-sse-retry"></a>
+#### `Core\Sse->retry`
+
+```nvs skip
+$sse->retry(Core\Time\Duration $after): void
+```
+
+Tells the client how long to wait before it reconnects, as a block of its own that dispatches no event.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$after` | `Core\Time\Duration` | How long the client waits before it comes back. It reaches the wire in milliseconds, so a wait shorter than one arrives as `0` — the least the wire can say rather than a refusal. |
+
+**Returns** `void` — Nothing, once the block is handed to the body being written.
+
+**Throws** `LogicError` — A negative `$after`: a client waits this long before coming back, and there is no wait shorter than none.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
