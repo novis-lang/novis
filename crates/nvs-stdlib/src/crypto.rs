@@ -3663,6 +3663,90 @@ mod tests {
     use super::*;
     use crate::tests::vectors as webcrypto;
 
+    /// Every nonce, salt and private key the interop path draws comes through
+    /// [`crate::random::draw`], which is the seam a second CSPRNG anywhere in
+    /// this module would break while failing nothing else: fresh octets pass a
+    /// round trip exactly as well as seeded ones.
+    ///
+    /// **Behavioural where the draw sits in a function a test can reach.** With
+    /// a context's state armed as `#[Test(seed: …)]` arms it, two runs produce
+    /// the same nonce and the same private key of every kind that is drawn at
+    /// all, and a different seed produces different ones. Only a draw that goes
+    /// through the seam does that — one taken from an entropy source directly
+    /// answers different octets under either seed.
+    ///
+    /// **Structural for the draws that sit inside a member's own body**, here
+    /// and in `Core\Jwe`, where the PBES2 salt and the content key are: the
+    /// shipped half of both modules names no generator but the seam, so a draw
+    /// added later to a member is caught as well. `ring`'s `SystemRandom` is
+    /// named here and is the module doc's *signing is the one thing that draws
+    /// outside* exception, so what is asserted of it is that no octet is ever
+    /// taken **out** of it — `SecureRandom` is the trait that would have to be
+    /// in scope to do that, and it is in neither module.
+    #[test]
+    fn every_interop_nonce_salt_and_private_key_is_drawn_through_core_random() {
+        let drawn = |seed: u64| {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            ctx.set_random_state(seed);
+            let cipher = XChaCha20Poly1305::new_from_slice(&[5_u8; KEY_LEN])
+                .expect("the construction's own key length");
+            let sealed = seal_under(&mut ctx, &cipher, b"one message", "Core\\Crypto::seal")
+                .expect("a short message seals");
+            let keys: Vec<Vec<u8>> = [KeyKind::X25519, KeyKind::Ed25519, KeyKind::P256]
+                .into_iter()
+                .map(|kind| {
+                    generated_pkcs8(&mut ctx, kind, "Core\\Crypto::generateKeyPair")
+                        .expect("every kind but the two RSA ones is drawn here")
+                })
+                .collect();
+            (sealed, keys)
+        };
+
+        assert_eq!(
+            drawn(0x0005_eed1),
+            drawn(0x0005_eed1),
+            "a seeded context reproduces the nonce and every drawn key, which nothing outside \
+             `crate::random::draw` can do"
+        );
+        assert_ne!(
+            drawn(0x0005_eed1),
+            drawn(0x0005_eed2),
+            "and each of them is drawn rather than derived from the key or the message"
+        );
+
+        let shipped = |source: &'static str| {
+            source
+                .lines()
+                .take_while(|line| line.trim_start() != "#[cfg(test)]")
+                .filter(|line| !line.trim_start().starts_with("//"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        for (module, source) in [
+            ("crypto.rs", shipped(include_str!("crypto.rs"))),
+            ("jwe.rs", shipped(include_str!("jwe.rs"))),
+        ] {
+            for generator in [
+                "rand::rng",
+                "OsRng",
+                "thread_rng",
+                "getrandom",
+                "from_entropy",
+                "SecureRandom",
+            ] {
+                assert!(
+                    !source.contains(generator),
+                    "`{module}` reaches `{generator}`; every nonce, salt and private key on this \
+                     path is drawn through `crate::random::draw`"
+                );
+            }
+            assert!(
+                source.contains("crate::random::draw("),
+                "`{module}` draws what it needs, through the seam"
+            );
+        }
+    }
+
     /// Every cipher this class can reach is authenticated — stage 4's first
     /// named check, asked of the construction rather than of a roster, because
     /// the roster is one entry and the claim is about what that entry does.
