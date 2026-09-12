@@ -111,6 +111,8 @@ modules = [
   "crates/nvs-cli/src/ast.rs",
   # The printer: a parsed file written back out, one run at a time.
   "crates/nvs-fmt/src/print.rs",
+  # How deep a line sits: four spaces per enclosing `{ … }` body.
+  "crates/nvs-fmt/src/indent.rs",
 ]
 
 # The rules every stage works inside: what the formatter is, what it may not do to a line break, the
