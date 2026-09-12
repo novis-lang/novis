@@ -1,0 +1,38 @@
+--TEST--
+Core\Crypto::expandKey takes an empty salt as the zero-filled one RFC 5869 defaults to, takes an empty info as a context of its own, and answers a key under both — `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// Edges: the two arguments this derivation lets be empty, and what each empty
+// one means. An empty salt is neither refused nor a special case in the member
+// — HMAC pads a key shorter than its block with zeros, so extracting under no
+// salt is extracting under a zero-filled one, which is the default RFC 5869
+// writes for itself. That equality is the one part of the construction a
+// program can see from outside, and a member that had special-cased the empty
+// salt into something of its own would still answer 32 plausible octets.
+secret bytes $material = Core\Crypto::generateKey();
+
+secret bytes $noSalt = Core\Crypto::expandKey($material, "" as bytes, "encryption");
+secret bytes $zeroSalt = Core\Crypto::expandKey($material, Core\Bytes::fill(32, 0), "encryption");
+if ($noSalt == $zeroSalt) {
+    echo "an empty salt is the zero-filled one", "\n";
+}
+
+// An empty `$info` is a context like any other rather than an absent one: it
+// separates from every named context, so a program that leaves it empty at one
+// call site and names it at another gets two keys and not one.
+secret bytes $noInfo = Core\Crypto::expandKey($material, "" as bytes, "");
+if ($noInfo != $noSalt) {
+    echo "an empty info is not the context named encryption", "\n";
+}
+
+// And both edges at once still answer a key, read back the only way a
+// `secret bytes` can be: by keying the ciphers that have a bound on its width.
+bytes $message = "attack at dawn" as bytes;
+bytes $sealed = Core\Crypto::seal($message, $noInfo, Core\Crypto\Cipher::Aes256Gcm);
+if (Core\Crypto::open($sealed, $noInfo, Core\Crypto\Cipher::Aes256Gcm) == $message) {
+    echo "no salt and no info: a key", "\n";
+}
+--EXPECT--
+an empty salt is the zero-filled one
+an empty info is not the context named encryption
+no salt and no info: a key

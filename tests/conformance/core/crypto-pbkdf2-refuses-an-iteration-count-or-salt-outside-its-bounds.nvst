@@ -1,0 +1,55 @@
+--TEST--
+Core\Crypto::deriveKey names its iteration floor on both sides and its salt floor on both sides, and refuses a count past the ceiling with the same sentence — `rule:core-api/tier-roster`, `rule:security/jwe-compact-subset`
+--FILE--
+<?nvs
+// A bound asserted on both sides. A member that stopped one iteration early or
+// one octet late prints plausibly against either half alone, so the last
+// refused value and the first accepted one are named together — and the
+// refusal's own sentence carries both numbers, which is what stops either of
+// them being widened quietly. `Core\Jwe`'s PBES2 reads its `p2c` out of a
+// token an attacker wrote and reaches this same check, which is why the
+// ceiling is here at all.
+bytes $salt = Core\Bytes::fill(16, 65);
+secret string $password = "correct horse battery staple";
+
+try {
+    secret bytes $tooFew = Core\Crypto::deriveKey($password, $salt, 99999);
+    echo "one under the floor was accepted", "\n";
+} catch (LogicError $under) {
+    echo $under->message, "\n";
+}
+
+// The ceiling is asserted from below only, and deliberately: a derivation at
+// 2,000,000 rounds costs seconds of CPU, which is the very cost the ceiling
+// exists to bound, so running one here would spend it in every suite forever
+// to learn what the sentence below already says. The number itself is frozen
+// as text, so moving it moves this case.
+try {
+    secret bytes $tooMany = Core\Crypto::deriveKey($password, $salt, 2000001);
+    echo "one over the ceiling was accepted", "\n";
+} catch (LogicError $over) {
+    echo $over->message, "\n";
+}
+
+try {
+    secret bytes $thin = Core\Crypto::deriveKey($password, Core\Bytes::fill(15, 65), 100000);
+    echo "one octet short of a salt was accepted", "\n";
+} catch (LogicError $short) {
+    echo $short->message, "\n";
+}
+
+// The other side of both floors at once: the lowest count this runs and the
+// shortest salt it takes. A key rather than a printed value, because a
+// `secret bytes` is not something a case can look at — it is asked to seal and
+// open instead, which no answer of the wrong width could do.
+secret bytes $accepted = Core\Crypto::deriveKey($password, $salt, 100000);
+bytes $message = "attack at dawn" as bytes;
+bytes $sealed = Core\Crypto::seal($message, $accepted, Core\Crypto\Cipher::XChaCha20Poly1305);
+if (Core\Crypto::open($sealed, $accepted, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+    echo "and at 100000 rounds over a 16-octet salt: a key", "\n";
+}
+--EXPECT--
+Core\Crypto::deriveKey(): $iterations is 99999, and this derivation runs 100000 to 2000000 — under the floor the answer is cheap to attack, and over the ceiling one call is a denial of service against the process that made it
+Core\Crypto::deriveKey(): $iterations is 2000001, and this derivation runs 100000 to 2000000 — under the floor the answer is cheap to attack, and over the ceiling one call is a denial of service against the process that made it
+Core\Crypto::deriveKey(): $salt is 15 octets, and a salt is at least 16 — Core\Random::bytes(16) answers one, and it is stored beside the derived key rather than kept secret
+and at 100000 rounds over a 16-octet salt: a key

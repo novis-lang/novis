@@ -1,0 +1,63 @@
+--TEST--
+Core\Crypto::generateKey, ::deriveKey and ::expandKey agree on what a key is — each answer seals and opens under both Core\Crypto\Cipher cases, and none of them opens a message sealed under another — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// Agreement: one question asked of every member that answers a key, asserting
+// that the three *agree* rather than what each of them answered. A member that
+// grew a width of its own — a derivation answering the 64 octets its
+// specification's vector was written at, a draw padded to a block — still
+// round-trips nothing and prints plausibly on its own line, and fails here. A
+// `secret bytes` cannot be measured (`rule:security/secret-qualifier`), so the
+// width is read back through the one member that has a bound on it, which is
+// what `crypto-names-the-key-length-bound-on-both-sides.nvst` names.
+bytes $message = "attack at dawn" as bytes;
+bytes $salt = Core\Bytes::fill(16, 65);
+
+array<secret bytes> $keys = [
+    Core\Crypto::generateKey(),
+    Core\Crypto::deriveKey("correct horse battery staple", $salt, 100000),
+    Core\Crypto::expandKey(Core\Crypto::generateKey(), $salt, "encryption"),
+];
+
+int $round = 0;
+int $crossed = 0;
+int $refused = 0;
+foreach (Core\Arr::range(0, 2) as int $i) {
+    secret bytes $key = $keys[$i];
+
+    // Both constructions under every key, because a key is a key for either:
+    // 32 octets is XChaCha20-Poly1305's only width and AES-256's, which is why
+    // no member that answers one takes a cipher argument.
+    bytes $extended = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $interop = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
+    if (Core\Crypto::open($extended, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+        $round += 1;
+    }
+    if (Core\Crypto::open($interop, $key, Core\Crypto\Cipher::Aes256Gcm) == $message) {
+        $round += 1;
+    }
+
+    // The stronger half: three keys from three members are three *different*
+    // keys, and a member that answered a constant would round-trip above and
+    // open its neighbour's message here.
+    foreach (Core\Arr::range(0, 2) as int $j) {
+        if ($i != $j) {
+            $crossed += 1;
+            try {
+                bytes $opened = Core\Crypto::open(
+                    $extended,
+                    $keys[$j],
+                    Core\Crypto\Cipher::XChaCha20Poly1305
+                );
+                echo "one member's key opened another's message", "\n";
+            } catch (RuntimeError $notThisKey) {
+                $refused += 1;
+            }
+        }
+    }
+}
+echo "round trips ", $round, " of 6", "\n";
+echo "cross-opens refused ", $refused, " of ", $crossed, "\n";
+--EXPECT--
+round trips 6 of 6
+cross-opens refused 6 of 6
