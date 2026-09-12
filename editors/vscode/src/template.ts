@@ -2,7 +2,7 @@
 // asked about, and what a format request leaves in the buffer.
 //
 // The boundaries are the server's answer to `nvs/regions` and nothing here derives one
-// (`rule:ide/a-template-region-gets-services-but-no-second-formatter`): a client that read a
+// (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`): a client that read a
 // TextMate grammar to find where markup starts would be a second implementation of the lexer, which
 // is `crates/nvs-lsp/src/regions.rs` § *the lexer is asked, never a grammar in the client*. What is
 // decided here is the half the server deliberately left open — which spelling maps to which service,
@@ -167,7 +167,7 @@ const STANDINS = new RegExp(`${STANDIN}+`, "g");
  * else — a markup run beginning in the first column of its line is one the lexer reached by eating
  * the newline after a close tag, which is exactly a `?>` that ends its line. Nothing here goes
  * looking for a `<?`: that is the second lexer
- * `rule:ide/a-template-region-gets-services-but-no-second-formatter` keeps out of this client.
+ * `rule:ide/a-template-region-gets-the-editors-services-and-formatter` keeps out of this client.
  *
  * The base is the indentation of that `?>` line, which `rule:tooling/fmt-novis-constructs` has put
  * at the depth of the block it sits in, so the markup nests from the code around it and the file

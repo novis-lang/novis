@@ -113,7 +113,7 @@ modules = [
 # The three every stage works inside: the rule this goal ships, the `?>` layout it reads the base
 # from, and what a thin client may and may not hold.
 rules = [
-  "ide/a-template-region-gets-services-but-no-second-formatter",
+  "ide/a-template-region-gets-the-editors-services-and-formatter",
   "tooling/fmt-novis-constructs",
   "ide/one-server-two-thin-clients",
 ]

@@ -1,5 +1,5 @@
 --TEST--
-everything after `?>` is markup, and the server is what says so — the lexer already knows where code mode ended, and a client deriving the same boundary from a grammar of its own would be a second implementation of it, `rule:ide/a-template-region-gets-services-but-no-second-formatter`
+everything after `?>` is markup, and the server is what says so — the lexer already knows where code mode ended, and a client deriving the same boundary from a grammar of its own would be a second implementation of it, `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
 --FILE--
 <?nvs
 var $name = "world";

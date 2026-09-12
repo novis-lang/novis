@@ -1,5 +1,5 @@
 --TEST--
-a Novis identifier list inside markup would insert text that is not Novis at all — the completion a developer wants here is the editor's own tag and attribute list, which the client forwards inside the region `nvs/regions` reported, `rule:ide/a-template-region-gets-services-but-no-second-formatter`
+a Novis identifier list inside markup would insert text that is not Novis at all — the completion a developer wants here is the editor's own tag and attribute list, which the client forwards inside the region `nvs/regions` reported, `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
 --FILE--
 <?nvs
 var $name = "world";

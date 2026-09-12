@@ -9,7 +9,7 @@ markup nested inside the Novis block it belongs to, and nothing jumps left and r
 modes. `nvs.template.format` turns the markup half off.
 
 [ADR 0173](../decisions/0173.md) decided all of it and
-`rule:ide/a-template-region-gets-services-but-no-second-formatter` states it. This goal is the
+`rule:ide/a-template-region-gets-the-editors-services-and-formatter` states it. This goal is the
 implementation, and its last stage renames that rule — whose id still names the half the record
 removed — and flips it to `shipped`.
 

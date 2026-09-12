@@ -323,7 +323,7 @@ fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
     // list offered there inserts text the page would render rather than run.
     // The editor's own HTML service answers here instead, inside the region
     // `crate::regions` reports
-    // (`rule:ide/a-template-region-gets-services-but-no-second-formatter`) —
+    // (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`) —
     // which is what makes this an answer rather than a gap, and what separates
     // markup from the other three spellings in `NOT_CODE`: a cursor in a string
     // has nothing else to ask.

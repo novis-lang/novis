@@ -120,7 +120,7 @@ generated reference, which picks up `join` on its own.
   `{Money::format($c)}` is text; that is PHP's limitation, kept deliberately, and "it would be nicer if
   a static call worked" is not a reason to grow a second interpolation grammar. ADR 0169 § 3.
 - **`nvs fmt`, the LSP region and `nvs convert` are rules, not code, in this goal.**
-  `rule:tooling/fmt-novis-constructs`, `rule:ide/a-template-region-gets-services-but-no-second-formatter`
+  `rule:tooling/fmt-novis-constructs`, `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
   and the record's *Verification* already say what each must do, and all three tools are unbuilt —
   there is no `fmt.rs`, no `regions.rs` and no `convert.rs` to edit. Landing those sentences is what
   closes the gap; do not scaffold a tool to satisfy them, and do not open a gap-register entry for

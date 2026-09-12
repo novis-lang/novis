@@ -5,7 +5,7 @@
 //! walk: the shape the client reads is the JSON `crate::regions::wire` builds,
 //! and a field that reached an editor without passing through this file would
 //! be a field nothing held to
-//! `rule:ide/a-template-region-gets-services-but-no-second-formatter`. The
+//! `rule:ide/a-template-region-gets-the-editors-services-and-formatter`. The
 //! boundaries themselves are the lexer's and are tested where the lexer is.
 //!
 //! The expectations are `nvs_lsp::render`'s spelling
@@ -60,7 +60,7 @@ fn asked(buffer: &str, text: Option<&str>) -> String {
 /// The answer is a span and a language, and there is nowhere in it for a
 /// formatter to be named.
 ///
-/// `rule:ide/a-template-region-gets-services-but-no-second-formatter` excludes
+/// `rule:ide/a-template-region-gets-the-editors-services-and-formatter` excludes
 /// formatting from what an embedded service is registered for, and the client
 /// is where that registration happens — but a *server* that shipped a third
 /// field would be where the pressure to honour one came from. Two keys, checked

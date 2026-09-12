@@ -1,5 +1,5 @@
 --TEST--
-every action this server offers is a translation of a diagnostic's own suggestion, and markup produces no diagnostic — nothing here reformats the region either, which is the half `rule:ide/a-template-region-gets-services-but-no-second-formatter` turns on
+every action this server offers is a translation of a diagnostic's own suggestion, and markup produces no diagnostic — nothing here reformats the region either, which is the half `rule:ide/a-template-region-gets-the-editors-services-and-formatter` turns on
 --FILE--
 <?nvs
 var $name = "world";

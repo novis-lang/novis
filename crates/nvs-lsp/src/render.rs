@@ -104,7 +104,7 @@ pub struct Redaction {
 /// the editor's own service — HTML, and the CSS and JavaScript it embeds — and
 /// says nothing about what that service may then be asked for. Formatting is
 /// what it may not be asked for
-/// (`rule:ide/a-template-region-gets-services-but-no-second-formatter`), and
+/// (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`), and
 /// that is the client's registration rather than a field here: a region that
 /// could carry a formatter is a `.nvs` file with two of them.
 #[derive(Debug, Clone, PartialEq, Eq)]

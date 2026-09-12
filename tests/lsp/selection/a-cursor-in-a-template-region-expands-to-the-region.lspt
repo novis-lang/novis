@@ -1,5 +1,5 @@
 --TEST--
-the run of markup is one production, so expanding from inside it selects the whole region and stops — the tag structure within it is the editor's HTML service's, `rule:ide/a-template-region-gets-services-but-no-second-formatter`
+the run of markup is one production, so expanding from inside it selects the whole region and stops — the tag structure within it is the editor's HTML service's, `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
 --FILE--
 <?nvs
 var $name = "world";

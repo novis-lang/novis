@@ -4,7 +4,7 @@
 // Neither half is a layout decision of this client's (`rule:ide/one-server-two-thin-clients`).
 // `nvs fmt` is the only formatter of Novis there is and its layout is unconfigurable by decision
 // (`rule:tooling/fmt-is-one-canonical-style`); the markup bytes are the editor's own formatter's
-// (`rule:ide/a-template-region-gets-services-but-no-second-formatter`). What this file decides is
+// (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`). What this file decides is
 // the order, and the order is ADR 0173 § 1's: `nvs fmt` over the whole buffer, `nvs/regions` over
 // what it answered, then one chunk of that markup at a time.
 //

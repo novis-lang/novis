@@ -11,7 +11,7 @@ formatted output for one file only holds while there is one implementation to ag
 
 **Markup is the one exception, and it belongs to the editor rather than to the client.** Inside an
 inline-HTML region the services and the formatter are the editor's own HTML ones
-(`rule:ide/a-template-region-gets-services-but-no-second-formatter`): the client forwards to them on
+(`rule:ide/a-template-region-gets-the-editors-services-and-formatter`): the client forwards to them on
 boundaries the server reports and implements neither. So byte-identical formatted output across the two
 editors holds for the Novis bytes of a file; its markup bytes are each editor's HTML formatter's.
 

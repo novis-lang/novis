@@ -98,7 +98,7 @@ export async function activate(context: ExtensionContext): Promise<void> {
   redactions.install(context);
   // The embedded services, likewise installed once and asking only while a server is answering.
   // The providers are registered from activation because a document with markup in it is often the
-  // one the window opened on (`rule:ide/a-template-region-gets-services-but-no-second-formatter`).
+  // one the window opened on (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`).
   regions.install(context);
   // The formatter, which is a process rather than a request: it starts `nvs fmt` and needs no
   // server, so it is installed here beside the rest and not in `start`.

@@ -663,7 +663,7 @@ where taking it is the work and the code that follows it is not.
   picker and tag renaming do. Forwarding runs a *provider* over a virtual document, and neither of
   those two is one: Emmet expands from the language of the document the cursor is in, and validation
   is published by the HTML service for the documents it owns.
-  `rule:ide/a-template-region-gets-services-but-no-second-formatter` names both, so what has to be
+  `rule:ide/a-template-region-gets-the-editors-services-and-formatter` names both, so what has to be
   decided is whether `emmet.includeLanguages` mapping `nvs` to `html` — which turns abbreviation
   expansion on in the Novis half of the file too — is the trade, or whether the client grows a
   second, real document the service can own. `editors/vscode/src/regions.ts` § *What forwarding does

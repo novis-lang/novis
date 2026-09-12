@@ -725,7 +725,7 @@ Each construct with no PER precedent has one layout, chosen once:
   backticks survive formatting unchanged and `nvs fmt` stays idempotent over a template.
 - A `?>` that begins its line is indented to the depth of the block it sits in — the column a statement
   there would start at — so the markup after it can start from the code around it
-  ([`ide/a-template-region-gets-services-but-no-second-formatter`](ide.md#ide-a-template-region-gets-services-but-no-second-formatter)). Only its leading whitespace
+  ([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)). Only its leading whitespace
   moves, and that whitespace is code, so nothing the program prints changes: a `?>` is never moved onto
   or off a line, and the markup after it is the editor's to lay out, never `nvs fmt`'s.
 - Attributes need no rule, since Novis has no annotation syntax.

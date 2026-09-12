@@ -1,5 +1,5 @@
 --TEST--
-a tag name resolves to no Novis declaration, and answering one would be this server guessing at markup it deliberately does not read — the region belongs to the editor's HTML service, `rule:ide/a-template-region-gets-services-but-no-second-formatter`
+a tag name resolves to no Novis declaration, and answering one would be this server guessing at markup it deliberately does not read — the region belongs to the editor's HTML service, `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
 --FILE--
 <?nvs
 var $name = "world";

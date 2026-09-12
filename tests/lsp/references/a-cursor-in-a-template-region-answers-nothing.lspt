@@ -1,5 +1,5 @@
 --TEST--
-markup names nothing the symbol index holds, so there is no use to find — a tag is not a declaration, and the region it sits in is the HTML service's, `rule:ide/a-template-region-gets-services-but-no-second-formatter`
+markup names nothing the symbol index holds, so there is no use to find — a tag is not a declaration, and the region it sits in is the HTML service's, `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
 --FILE--
 <?nvs
 var $name = "world";

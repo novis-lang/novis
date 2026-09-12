@@ -243,7 +243,7 @@
         "tooling/fmt-is-one-canonical-style",
         "ide/five-features-are-one-reference-index",
         "ide/completion-offers-only-what-the-compiler-derived",
-        "ide/a-template-region-gets-services-but-no-second-formatter",
+        "ide/a-template-region-gets-the-editors-services-and-formatter",
         "ide/ast-json-schema-is-frozen"
       ],
       "guardedBy": []
@@ -593,9 +593,9 @@
       "guardedBy": []
     },
     {
-      "id": "ide/a-template-region-gets-services-but-no-second-formatter",
+      "id": "ide/a-template-region-gets-the-editors-services-and-formatter",
       "title": "An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after `nvs fmt`, indented from the Novis code around it",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0108",
         "0169",
@@ -609,7 +609,11 @@
         "ide/one-server-two-thin-clients",
         "ide/contributions-are-frozen-and-only-ever-added"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-lsp/tests/regions.rs",
+        "editors/vscode/test/contributions/contributions.test.ts",
+        "editors/vscode/test/surfaces/template.test.ts"
+      ]
     },
     {
       "id": "ide/case-files-have-their-own-grammar",

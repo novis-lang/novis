@@ -3,7 +3,7 @@
 
 # The editor
 
-*65 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*64 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -271,7 +271,7 @@ that stopped moving and no others, a `var` declaration's inferred type and a bar
 parameter name, both read out of the type phase's own tables and never re-derived.
 
 M10's own second non-standard request is `nvs/regions`
-([`ide/a-template-region-gets-services-but-no-second-formatter`](ide.md#ide-a-template-region-gets-services-but-no-second-formatter)), and it passes the same test the
+([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)), and it passes the same test the
 eight do: the lexer already knows where a mode ends, so the boundary list is a projection of a walk the
 milestone runs anyway. It is non-standard because LSP has no shape for "these bytes are another
 language's" — a client deriving them from a grammar of its own would be a second implementation of the
@@ -345,7 +345,7 @@ offered only where the compiler already derives the value for another reason, ne
 scan or an annotation dialect. That closed rule is the whole answer to "framework support", and why no
 per-framework module enters `nvs-lsp`.
 
-<sub>See also [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-services-but-no-second-formatter`](ide.md#ide-a-template-region-gets-services-but-no-second-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0016](../decisions/0016.md), [0099](../decisions/0099.md), [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0016](../decisions/0016.md), [0099](../decisions/0099.md), [0108](../decisions/0108.md).</sub>
 
 <a id="ide-diagnostics-are-phase-gated"></a>
 
@@ -853,11 +853,11 @@ reaches a file, which is what [`statements/nothing-gets-a-second-name`](statemen
 
 <sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting). Decided in [0111](../decisions/0111.md), [0108](../decisions/0108.md).</sub>
 
-<a id="ide-a-template-region-gets-services-but-no-second-formatter"></a>
+<a id="ide-a-template-region-gets-the-editors-services-and-formatter"></a>
 
-## An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after `nvs fmt`, indented from the Novis code around it  *(designed — not yet in the compiler)*
+## An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after `nvs fmt`, indented from the Novis code around it
 
-`rule:ide/a-template-region-gets-services-but-no-second-formatter`
+`rule:ide/a-template-region-gets-the-editors-services-and-formatter`
 
 The extension forwards requests inside an inline-HTML region to VS Code's built-in HTML, CSS and
 JavaScript language services, so the half of a `.nvs` file that is markup gets Emmet expansion, tag
@@ -878,23 +878,25 @@ and then answers for that text rather than the open buffer.
 
 **Formatting is `nvs fmt` first, then the editor's own HTML formatter over the markup, starting where the
 Novis code is.** A format request runs `nvs fmt` over the whole file, asks `nvs/regions` for the regions
-of the result, and hands the editor's HTML formatter each chunk: the markup between a `?>` that ends its
-line and the `<?nvs` that reopens code, `<?= … ?>` holes included. A chunk's lines start at the
+of the result, and hands the editor's HTML formatter one chunk at a time: the markup between a `?>` that
+ends its line and the `<?nvs` that reopens code, `<?= … ?>` holes included. A chunk's lines start at the
 indentation of its `?>` line, which [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs) puts at the depth of its block,
 so markup nests from the Novis code around it and the file does not jump between the two; the line
 holding the closing `<?nvs` starts there too. Nesting inside a chunk is the HTML formatter's, in
-`nvs fmt`'s four-space unit. A hole's bytes are Novis's and are never edited: a chunk whose formatting
-would change one is left as written.
+`nvs fmt`'s four-space unit whatever the editor's own `tabSize` is, because a chunk and the code around
+it have to agree on what one level is. A hole's bytes are Novis's and are never edited: a chunk whose
+formatting would change one is left as written, and a regions request nothing answers leaves every chunk
+as `nvs fmt` wrote it.
 
 **`nvs fmt` stays the only formatter of Novis and never touches markup**, so `nvs fmt --check` passes over
 a file this pass formatted. What is given up is a canonical layout for markup: it reads the user's
 `html.format.*` settings, and it re-indents bytes a program prints — which a browser ignores and a
 program printing text through inline HTML does not.
 
-`nvs.template.services` (default `true`) disables the forwarding and `nvs.template.format` (default
-`true`) the markup pass, because a user with their own HTML tooling, or with markup whose whitespace is
-output, has to be able to get out of the way of ours. With the second off, format-on-save is `nvs fmt`
-and nothing else.
+Each half is turned off by a setting of its own, both of them `true` by default: `nvs.template.services`
+off stops the forwarding, `nvs.template.format` off stops the markup pass. A user with their own HTML
+tooling, or with markup whose whitespace is output, has to be able to get out of the way of ours. With
+the second off, format-on-save is `nvs fmt` and nothing else.
 
 <sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
 
@@ -1049,7 +1051,7 @@ formatted output for one file only holds while there is one implementation to ag
 
 **Markup is the one exception, and it belongs to the editor rather than to the client.** Inside an
 inline-HTML region the services and the formatter are the editor's own HTML ones
-([`ide/a-template-region-gets-services-but-no-second-formatter`](ide.md#ide-a-template-region-gets-services-but-no-second-formatter)): the client forwards to them on
+([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)): the client forwards to them on
 boundaries the server reports and implements neither. So byte-identical formatted output across the two
 editors holds for the Novis bytes of a file; its markup bytes are each editor's HTML formatter's.
 

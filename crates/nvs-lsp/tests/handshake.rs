@@ -183,7 +183,7 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
 #[test]
 fn the_server_declares_no_formatting_provider() {
     // The load-bearing half of
-    // `rule:ide/a-template-region-gets-services-but-no-second-formatter`, asked
+    // `rule:ide/a-template-region-gets-the-editors-services-and-formatter`, asked
     // of the server rather than of the client: a `.nvs` file has exactly one
     // formatter and it is `nvs fmt`, run by the extension over the whole file
     // (`rule:tooling/fmt-is-never-a-diagnostic`). A provider declared here

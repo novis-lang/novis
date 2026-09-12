@@ -10,7 +10,7 @@
 //!
 //! # Decision: the lexer is asked, never a grammar in the client
 //!
-//! `rule:ide/a-template-region-gets-services-but-no-second-formatter` puts the
+//! `rule:ide/a-template-region-gets-the-editors-services-and-formatter` puts the
 //! list on the server because the lexer already knows where a mode ends:
 //! [`TokenKind::InlineHtml`] is one run of text outside any `<?…` tag and its
 //! span is exactly the bytes an HTML service may have. A client deriving the

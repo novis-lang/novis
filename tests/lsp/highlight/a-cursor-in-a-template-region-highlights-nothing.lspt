@@ -1,5 +1,5 @@
 --TEST--
-the other occurrences of a tag are a question about markup, and this server reads none of it — matching an open tag to its close is the editor's HTML service's job inside the region `nvs/regions` reported, `rule:ide/a-template-region-gets-services-but-no-second-formatter`
+the other occurrences of a tag are a question about markup, and this server reads none of it — matching an open tag to its close is the editor's HTML service's job inside the region `nvs/regions` reported, `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
 --FILE--
 <?nvs
 var $name = "world";

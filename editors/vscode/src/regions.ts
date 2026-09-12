@@ -1,6 +1,6 @@
 // The half of a `.nvs` file that is markup, answered by the editor's own services.
 //
-// `rule:ide/a-template-region-gets-services-but-no-second-formatter` is what this file implements.
+// `rule:ide/a-template-region-gets-the-editors-services-and-formatter` is what this file implements.
 // Inline HTML is the template engine (`rule:programs/first-party-framework`), so the markup in a
 // `.nvs` file is where a web application's pages are written, and it gets the HTML service's
 // completion, hover and colour picker rather than nothing. The boundaries come from the server as
@@ -127,7 +127,7 @@ export function install(context: ExtensionContext): void {
  *
  * A server that stops takes the embedded services with it, which is the direction that cannot be
  * wrong: without an answer there is no boundary, and forwarding on a guess is the second lexer
- * `rule:ide/a-template-region-gets-services-but-no-second-formatter` refuses.
+ * `rule:ide/a-template-region-gets-the-editors-services-and-formatter` refuses.
  */
 export function serve(client: LanguageClient | undefined): void {
   serving = client;

@@ -5,7 +5,7 @@
 **Goal 46 — format-on-save formats the markup too, from where the Novis code is — has just started; nothing of it has landed yet.** Goal `fmt`'s whole list is this goal's Stage 1 floor.
 
 **The design is already decided and landed.** [ADR 0173](../../decisions/0173.md) holds all of it and
-`rule:ide/a-template-region-gets-services-but-no-second-formatter` states it at `designed`; no session
+`rule:ide/a-template-region-gets-the-editors-services-and-formatter` states it at `designed`; no session
 writes a record for this goal. The one thing not to re-decide: **the client computes no boundary** —
 chunks come from the server's regions, and a failure anywhere degrades to less formatting, never to an
 edited hole.

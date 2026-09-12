@@ -1,6 +1,6 @@
 // The template regions and the format pass, as the decisions the client makes about them.
 //
-// `rule:ide/a-template-region-gets-services-but-no-second-formatter` puts the boundaries on the
+// `rule:ide/a-template-region-gets-the-editors-services-and-formatter` puts the boundaries on the
 // server, so what is left here is the client's own half: whether a position is inside a region,
 // whether the user asked for any of this, what the editor's service is shown, and what a format
 // request leaves in the buffer. Those live in `src/template.ts`, which imports no `vscode` — the
@@ -240,7 +240,7 @@ describe("the template format", () => {
     // would lay out the whitespace standing in for the Novis half as though it were markup.
     //
     // The editor's own HTML formatter over a chunk of markup is not on this list: those bytes are
-    // the editor's (`rule:ide/a-template-region-gets-services-but-no-second-formatter`), and what
+    // the editor's (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`), and what
     // is refused here is a second formatter of Novis.
     for (const api of [
       "registerDocumentRangeFormattingEditProvider",

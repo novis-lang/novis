@@ -1,5 +1,5 @@
 --TEST--
-markup is not Novis, so there is nothing here for this server to describe — the editor's own HTML service hovers a tag, inside the region `nvs/regions` reported, `rule:ide/a-template-region-gets-services-but-no-second-formatter`
+markup is not Novis, so there is nothing here for this server to describe — the editor's own HTML service hovers a tag, inside the region `nvs/regions` reported, `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
 --FILE--
 <?nvs
 var $name = "world";

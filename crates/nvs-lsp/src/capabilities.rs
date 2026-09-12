@@ -287,7 +287,7 @@ pub fn declared_capabilities(encoding: PositionEncodingKind) -> serde_json::Valu
 /// Neither `nvs/redactions` nor `nvs/regions` appears in it, and that is not an
 /// omission: they are Novis's own requests
 /// (`rule:ide/redaction-ranges-come-from-the-server`,
-/// `rule:ide/a-template-region-gets-services-but-no-second-formatter`), LSP has
+/// `rule:ide/a-template-region-gets-the-editors-services-and-formatter`), LSP has
 /// no capability field for either, and the client knows both are available from
 /// `serverInfo` naming this server at all.
 ///

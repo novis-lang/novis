@@ -31,7 +31,7 @@ that stopped moving and no others, a `var` declaration's inferred type and a bar
 parameter name, both read out of the type phase's own tables and never re-derived.
 
 M10's own second non-standard request is `nvs/regions`
-(`rule:ide/a-template-region-gets-services-but-no-second-formatter`), and it passes the same test the
+(`rule:ide/a-template-region-gets-the-editors-services-and-formatter`), and it passes the same test the
 eight do: the lexer already knows where a mode ends, so the boundary list is a projection of a walk the
 milestone runs anyway. It is non-standard because LSP has no shape for "these bytes are another
 language's" — a client deriving them from a grammar of its own would be a second implementation of the
