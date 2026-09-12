@@ -1746,6 +1746,15 @@ pub const CLASSES: &[CoreClass] = &[
     // expiry is a positional `Duration` rather than a claim, and why a claim
     // comes back as `tainted string` when the cookie above launders.
     crate::jwt::CLASS,
+    // The keys the class above verifies another party's token against, beside
+    // it for `crate::jwe::KEY`'s reason: it is the value that member takes and
+    // nothing else produces one. Every rule about which keys a document may
+    // publish is applied at its one member, so a verification is a lookup by
+    // `kid` and a signature check — `rule:security/algorithm-comes-from-the-key`
+    // is why that is a lookup and never a try, and [`crate::jwt`]'s own module
+    // doc is the home of why a key this roster has no use for is skipped where
+    // a document that is wrong is refused whole.
+    crate::jwt::KEY_SET,
     // The roster's encryption entry, beside `Core\Jwt` because the two read one
     // wire format from opposite ends: a JWS proves who wrote a payload and this
     // hides one. `rule:security/jwe-compact-subset` is the subset — compact
@@ -5124,6 +5133,7 @@ mod tests {
             crate::request::FILES_NAME,
             crate::request::PART_CONTENT_NAME,
             crate::jwe::KEY_NAME,
+            crate::jwt::KEY_SET_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

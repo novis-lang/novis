@@ -1,0 +1,81 @@
+--TEST--
+Core\Jwt\KeySet::read refuses a whole document that is wrong about its own keys and says which way, where a key it merely has no use for is skipped — `rule:security/protocol-roster`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// The other half of the answer. A key this roster does not serve is skipped; a
+// document that is *wrong* is refused whole, because it means the program is
+// pointed at something it should not be reading keys from at all. The refusal
+// names which way, unlike a token's: a document is one this program fetched, so
+// the reader of the message is whoever configured the URL and not a forger.
+Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+string $sig = Core\Encoding::decodeText(
+    $signing->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    Core\Charset::Utf8
+);
+string $named = Core\Str::replace($sig, "{", "{\"kid\":\"ec-1\",");
+
+try {
+    Core\Jwt\KeySet $truncated = Core\Jwt\KeySet::read("{\"keys\":[");
+    echo "half a document is a set", "\n";
+} catch (RuntimeError $verdict) {
+    echo $verdict->message, "\n";
+}
+
+try {
+    Core\Jwt\KeySet $bare = Core\Jwt\KeySet::read("{}");
+    echo "a document with no keys member is a set", "\n";
+} catch (RuntimeError $verdict) {
+    echo $verdict->message, "\n";
+}
+
+// A private key published as a public one, which is a mistake at the issuer
+// and never a key to go on using.
+string $private = Core\Str::replace($named, "{", "{\"d\":\"AA\",");
+try {
+    Core\Jwt\KeySet $half = Core\Jwt\KeySet::read("{\"keys\":[" . $private . "]}");
+    echo "a private half is a public key", "\n";
+} catch (RuntimeError $verdict) {
+    echo $verdict->message, "\n";
+}
+
+// Two keys under one name: a token asking for that key names two, and which of
+// them signed it is not a question a verifier may answer by trying both.
+try {
+    Core\Jwt\KeySet $twice = Core\Jwt\KeySet::read(
+        "{\"keys\":[" . $named . "," . $named . "]}"
+    );
+    echo "one name names two keys", "\n";
+} catch (RuntimeError $verdict) {
+    echo $verdict->message, "\n";
+}
+
+// An algorithm this roster *has*, on a kind that cannot carry it: the document
+// disagrees with itself, where an algorithm it does not have would have been a
+// key for something else and a skip.
+string $foreign = Core\Str::replace($sig, "{", "{\"kid\":\"ec-2\",\"alg\":\"RS256\",");
+try {
+    Core\Jwt\KeySet $mismatched = Core\Jwt\KeySet::read("{\"keys\":[" . $foreign . "]}");
+    echo "a kind carries an algorithm it does not have", "\n";
+} catch (RuntimeError $verdict) {
+    echo $verdict->message, "\n";
+}
+
+// And the one refusal that is a bug rather than a verdict: the scheme option
+// is which of RS256 and PS256 an RSA key without an `alg` was issued for, and
+// every other kind names its own algorithm.
+try {
+    Core\Jwt\KeySet $wrongOption = Core\Jwt\KeySet::read(
+        "{\"keys\":[" . $named . "]}",
+        {rsaScheme: Core\Crypto\KeyKind::Ed25519}
+    );
+    echo "a kind with one algorithm has a scheme", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+--EXPECT--
+Core\Jwt\KeySet::read(): $jwks is not a document to read keys from — it is not JSON. A key this roster has no use for is skipped instead, so what is refused here is the document rather than a key in it.
+Core\Jwt\KeySet::read(): $jwks is not a document to read keys from — it carries no `keys` array, which is the one member a JWKS document has (RFC 7517 § 5). A key this roster has no use for is skipped instead, so what is refused here is the document rather than a key in it.
+Core\Jwt\KeySet::read(): $jwks is not a document to read keys from — a key in it carries `d`, which is a private key published as a public one. A key this roster has no use for is skipped instead, so what is refused here is the document rather than a key in it.
+Core\Jwt\KeySet::read(): $jwks is not a document to read keys from — two of its keys are named `ec-1`, so a token asking for that key names two, and which one signed it is not a question a verifier may answer by trying both. A key this roster has no use for is skipped instead, so what is refused here is the document rather than a key in it.
+Core\Jwt\KeySet::read(): $jwks is not a document to read keys from — a key in it is marked `RS256`, which is not the algorithm its own kind carries. A key this roster has no use for is skipped instead, so what is refused here is the document rather than a key in it.
+Core\Jwt\KeySet::read(): {rsaScheme: …} names a kind that is not an RSA one, and it is the scheme an RSA key carrying no `alg` is read under — RS256 and PS256 being the two one key type carries. Every other kind names its own algorithm, so there is nothing here for it to choose.

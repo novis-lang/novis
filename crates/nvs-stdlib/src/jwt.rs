@@ -129,6 +129,43 @@
 //! accepts is not this module's to promise — the claims are still
 //! `array<string>`, so the agreement holds in the one direction it is about.
 //!
+//! # A key set is an admission, and the two ways a document fails are not one
+//!
+//! [`KEY_SET`] is the second class here: the keys another party publishes, read
+//! once out of a JWKS document and held so a token can be checked against the
+//! one key its `kid` names. Reading it is where every decision about those keys
+//! is made, so nothing downstream ever asks a question about a key again.
+//!
+//! A document fails in two ways that are deliberately different answers. A key
+//! this roster has no use for — one marked for encryption, one of a kind or
+//! under an algorithm outside `rule:security/protocol-roster`'s closed set — is
+//! **skipped**, because a real JWKS carries keys for purposes we do not serve
+//! and refusing the set over one of them would make every rotation an outage. A
+//! document that is *wrong* — a private member where a public key goes, an RSA
+//! key under [`crypto::MIN_RSA_BITS`], two keys under one name, an algorithm a
+//! key's kind cannot carry — is **refused whole**, because it means the program
+//! is pointed at something it should not be reading keys from at all.
+//!
+//! That refusal names what was wrong, where [`refused`] names nothing. The
+//! reader of one is the operator who configured the URL, not a forger: a
+//! document is fetched by this program, so there is no attacker on the other
+//! end of the message to learn which check failed.
+//!
+//! **An RSA key is the one kind whose algorithm the key does not carry.** RS256
+//! and PS256 are one key type under two schemes, so a key with no `alg` is read
+//! under the `rsaScheme` option or refused — never guessed, which is
+//! `rule:security/algorithm-comes-from-the-key` at the one place a kind is
+//! genuinely ambiguous. A key's own `alg` always wins over the option.
+//!
+//! **What a set holds** is one slot, and a slot holds one value, so the
+//! admitted keys are written into a single `bytes` in [`framed`]'s layout and
+//! read back by [`keys_in`]. What is stored is each key's
+//! `SubjectPublicKeyInfo` — a little over a kilobyte for RSA at
+//! [`crypto::MAX_RSA_BITS`] and under a hundred octets for a curve — under the
+//! `kid` the document gave it, so at [`MAX_KEYS`] keys a set is a few kilobytes
+//! held for as long as the program holds the object, and nothing is held
+//! between calls.
+//!
 //! # Constant time
 //!
 //! The signature comparison is `subtle::ConstantTimeEq` over the whole tag, on
@@ -136,13 +173,15 @@
 //! hands back a tag, a key or a signing input, which is `rule:security/algorithm-comes-from-the-key`'s "no API
 //! exposes the raw value for the caller to compare themselves" for this entry.
 
+use std::collections::BTreeSet;
+
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use subtle::ConstantTimeEq as _;
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
-use crate::crypto::{self, KeyFormat, KeyKind, PrivateKey};
+use crate::crypto::{self, KeyFormat, KeyKind, PrivateKey, PublicKey};
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
@@ -383,12 +422,101 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// The second class this module registers: the keys another party publishes.
+pub(crate) const KEY_SET_NAME: &str = r"Core\Jwt\KeySet";
+
+/// The most keys one set holds, which is what keeps a verification's cost a
+/// property of this program rather than of the document it fetched.
+const MAX_KEYS: usize = 16;
+
+/// The members a *public* key never carries, any one of which means the
+/// document handed over a private one.
+///
+/// `k` is the symmetric case and the rest are RSA's and EC's private halves.
+/// Checked by presence alone, before anything reads the key: what makes it a
+/// refusal is that the document is publishing them, whatever else is true of
+/// them.
+const PRIVATE_MEMBERS: &[&str] = &["d", "p", "q", "dp", "dq", "qi", "k"];
+
+/// `read`'s trailing bag, which is one option wide: the scheme an RSA key
+/// carrying no `alg` is read under.
+const READ_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "rsaScheme",
+    ty: CoreTy::Enum(crypto::KEY_KIND_NAME),
+    default: Const::Null,
+}];
+
+/// The set a token is verified against, as one row.
+pub(crate) const KEY_SET: CoreClass = CoreClass {
+    name: KEY_SET_NAME,
+    methods: &[CoreMethod {
+        name: "read",
+        names: &["jwks"],
+        // `Text` rather than `CoreTy::TaintedStr`, which in parameter position
+        // demands nothing: what this row needs is to *accept* a `tainted`
+        // argument, since a JWKS document is a fetch, and that is a
+        // classification. `Neutral` because what crosses back out is an
+        // object, which carries no qualifier at all.
+        params: &[CoreTy::Text(Qual::Neutral), CoreTy::Options(READ_OPTIONS)],
+        defaults: &[],
+        return_ty: CoreTy::Instance(KEY_SET_NAME),
+        symbol: "nvs_core_jwt_key_set_read",
+        doc: Some(&KEY_SET_READ_DOC),
+    }],
+    instance: &[],
+    slots: &["keys"],
+    constants: &[],
+};
+
+/// `Core\Jwt\KeySet::read`'s reference card — `rule:core-api/reference-card`.
+const KEY_SET_READ_DOC: MethodDoc = MethodDoc {
+    short: "Admits the signing keys a JWKS document publishes, so a token can be checked against \
+            the one key its `kid` names. A key this roster has no use for is skipped and a \
+            document that is wrong is refused whole, which are different answers to different \
+            questions.",
+    params: &[
+        ParamDoc {
+            name: "jwks",
+            desc: "The document as the issuer served it. It is read here and nowhere else: \
+                   fetching it, caching it and rotating it are a package's job, and this member \
+                   is stateless over the text it is handed.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "rsaScheme",
+            desc: "Which scheme an RSA key carrying no `alg` is read under — `RsaPkcs1` for \
+                   RS256 or `RsaPss` for PS256. A key's own `alg` always wins, and an RSA key \
+                   with neither is refused rather than guessed. Every other kind names its own \
+                   algorithm, so this reaches nothing else.",
+            shape: &[],
+        },
+    ],
+    ret: "A set of at most 16 public keys, each under the name the document gave it, ready for a \
+          lookup by `kid` and never for a try of every key.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`{rsaScheme: …}` names a kind that is not one of the two RSA ones, and no \
+                   other kind has two schemes to choose between.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$jwks` is not a document to read keys from: it is not JSON, it carries no \
+                   `keys` array, one of its keys carries a private member or a `kid` that is not \
+                   text, a key is not a key of the kind it claims — an RSA modulus outside \
+                   2048–8192 bits included — an `alg` is one its key's kind cannot carry, two \
+                   keys share a `kid`, or more than 16 keys are admitted.",
+        },
+    ],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_jwt_sign" => (nvs_core_jwt_sign as *const ()).cast(),
         "nvs_core_jwt_verify" => (nvs_core_jwt_verify as *const ()).cast(),
+        "nvs_core_jwt_key_set_read" => (nvs_core_jwt_key_set_read as *const ()).cast(),
         _ => return None,
     })
 }
@@ -866,9 +994,380 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// One key a document offered and this class admitted.
+struct Admitted {
+    /// The name the document gave it, and `None` for a key carrying none —
+    /// which is only ever found in a set holding exactly one key.
+    kid: Option<String>,
+    /// The kind it was read as, which is the whole of its algorithm.
+    kind: KeyKind,
+    /// Its `SubjectPublicKeyInfo`, which is what a set stores.
+    spki: Vec<u8>,
+}
+
+/// The refusal a whole document gets, saying what is wrong with it.
+///
+/// Not [`refused`]'s one sentence, and the module doc's *a key set is an
+/// admission* section is the home of why the two differ: a forged token is an
+/// attacker's, so telling one forgery from another is an oracle, while a JWKS
+/// document is one this program went and fetched.
+fn not_a_key_set(said: &str) -> Fault {
+    Fault::thrown(format!(
+        "{KEY_SET_NAME}::read(): $jwks is not a document to read keys from — {said}. A key this \
+         roster has no use for is skipped instead, so what is refused here is the document \
+         rather than a key in it."
+    ))
+}
+
+/// Whether `alg` is one of the four algorithms this roster signs with,
+/// whatever key carries it.
+///
+/// Read off [`pair_alg`] rather than listed a second time, so the set of
+/// algorithms a document may name and the set a key may be read under cannot
+/// drift apart.
+fn ours(alg: &str) -> bool {
+    [
+        KeyKind::P256,
+        KeyKind::Ed25519,
+        KeyKind::RsaPkcs1,
+        KeyKind::RsaPss,
+    ]
+    .into_iter()
+    .any(|kind| pair_alg(kind) == Some(alg))
+}
+
+/// One entry of a document's `keys` array: the key it is, `None` for a key this
+/// roster has no use for, or the refusal that ends the whole document.
+///
+/// The order is what the two answers are worth. A private member is checked
+/// before anything else, because a document publishing one is wrong whatever
+/// the rest of the key says; the purpose and the kind come next, and both of
+/// them only ever *skip*; and the material is read last, through
+/// `Core\Crypto\PublicKey`'s own JWK reader, so a key admitted here is exactly
+/// as validated as one the program read itself.
+///
+/// # Errors
+///
+/// A [`not_a_key_set`] for each of the document-wide refusals, and a
+/// [`Fault::fatal`] for a key that parsed and will not write back out, which is
+/// this crate's own codec rather than anything in the document.
+fn admitted_key(
+    entry: &serde_json::Value,
+    scheme: Option<KeyKind>,
+) -> Result<Option<Admitted>, Fault> {
+    let members = entry
+        .as_object()
+        .ok_or_else(|| not_a_key_set("its `keys` array holds something that is not a key"))?;
+    if let Some(name) = PRIVATE_MEMBERS
+        .iter()
+        .find(|name| members.contains_key(**name))
+    {
+        return Err(not_a_key_set(&format!(
+            "a key in it carries `{name}`, which is a private key published as a public one"
+        )));
+    }
+
+    let text = |name: &str| members.get(name).and_then(serde_json::Value::as_str);
+    // A key marked for anything other than signing is one this class has no
+    // use for. `enc` is the case a real document carries and the reasoning is
+    // the same for any other: a purpose nothing here reads is a purpose
+    // nothing here should be reading a key for.
+    if members.contains_key("use") && text("use") != Some("sig") {
+        return Ok(None);
+    }
+
+    let alg = text("alg");
+    let kind = if text("kty") == Some("RSA") && text("crv").is_none() {
+        match alg {
+            Some("RS256") => KeyKind::RsaPkcs1,
+            Some("PS256") => KeyKind::RsaPss,
+            Some(alg) if ours(alg) => return Err(carries_a_foreign_alg(alg)),
+            Some(_) => return Ok(None),
+            None => scheme.ok_or_else(|| {
+                not_a_key_set(
+                    "an RSA key in it carries no `alg`, and RS256 and PS256 are one key type \
+                     under two schemes — name one as `{rsaScheme: …}`, because a key read under \
+                     the scheme it was not issued for verifies nothing and says nothing about \
+                     why",
+                )
+            })?,
+        }
+    } else {
+        let served = match (text("kty"), text("crv")) {
+            (Some("EC"), Some("P-256")) => KeyKind::P256,
+            (Some("OKP"), Some("Ed25519")) => KeyKind::Ed25519,
+            // Every other kind — P-384, X25519, an `oct` secret — is one this
+            // roster does not sign with, and the document keeps its other
+            // keys.
+            _ => return Ok(None),
+        };
+        match alg {
+            None => served,
+            Some(alg) if pair_alg(served) == Some(alg) => served,
+            Some(alg) if ours(alg) => return Err(carries_a_foreign_alg(alg)),
+            Some(_) => return Ok(None),
+        }
+    };
+
+    let kid = match members.get("kid") {
+        None => None,
+        Some(serde_json::Value::String(kid)) => Some(kid.clone()),
+        Some(_) => {
+            return Err(not_a_key_set(
+                "a key in it carries a `kid` that is not text, and a `kid` is the name a token \
+                 asks for a key by",
+            ));
+        }
+    };
+
+    // Written back out and read through the one JWK reader this crate has,
+    // rather than picked apart here: the curve check, the coordinate widths
+    // and the RSA modulus bounds are that reader's, so a key in a set is
+    // validated by the same code as a key a program read itself.
+    let octets = serde_json::to_vec(entry).map_err(|_| {
+        Fault::fatal(format!(
+            "{KEY_SET_NAME}::read could not write back a key it had just parsed"
+        ))
+    })?;
+    let key = PublicKey::read(&octets, kind, KeyFormat::Jwk).map_err(|_| {
+        not_a_key_set(
+            "a key in it is not a key of the kind it says it is — a point off the curve, a \
+             coordinate of the wrong width, or an RSA modulus outside the 2048 to 8192 bits \
+             this roster admits",
+        )
+    })?;
+    let spki = key.write(KeyFormat::Spki).map_err(|_| {
+        Fault::fatal(format!(
+            "{KEY_SET_NAME}::read could not write the SPKI of a key it had just read"
+        ))
+    })?;
+    Ok(Some(Admitted { kid, kind, spki }))
+}
+
+/// The refusal for a key marked with one of this roster's algorithms that its
+/// own kind cannot carry.
+///
+/// A document disagreeing with itself, and the one `alg` reading that is not a
+/// skip: an algorithm we do not have says the key is for something else, while
+/// one we do have on a kind that cannot carry it says the document is wrong
+/// about its own key.
+fn carries_a_foreign_alg(alg: &str) -> Fault {
+    not_a_key_set(&format!(
+        "a key in it is marked `{alg}`, which is not the algorithm its own kind carries"
+    ))
+}
+
+/// Every key a document offers, admitted, in the order it offered them.
+///
+/// # Errors
+///
+/// A [`not_a_key_set`] for a document that is not one, for any of
+/// [`admitted_key`]'s refusals, and for the two the set as a whole has: two
+/// keys under one name, and more keys than [`MAX_KEYS`].
+fn admitted_set(jwks: &str, scheme: Option<KeyKind>) -> Result<Vec<Admitted>, Fault> {
+    let document: serde_json::Value =
+        serde_json::from_str(jwks).map_err(|_| not_a_key_set("it is not JSON"))?;
+    let keys = document
+        .get("keys")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            not_a_key_set(
+                "it carries no `keys` array, which is the one member a JWKS document has (RFC \
+                 7517 § 5)",
+            )
+        })?;
+
+    let mut admitted: Vec<Admitted> = Vec::new();
+    let mut named: BTreeSet<String> = BTreeSet::new();
+    for entry in keys {
+        let Some(key) = admitted_key(entry, scheme)? else {
+            continue;
+        };
+        if let Some(kid) = &key.kid
+            && !named.insert(kid.clone())
+        {
+            return Err(not_a_key_set(&format!(
+                "two of its keys are named `{kid}`, so a token asking for that key names two, and \
+                 which one signed it is not a question a verifier may answer by trying both"
+            )));
+        }
+        if admitted.len() == MAX_KEYS {
+            return Err(not_a_key_set(&format!(
+                "it offers more than {MAX_KEYS} keys this class can use, and a set is capped \
+                 there so that a token costs one signature check whatever the document holds"
+            )));
+        }
+        admitted.push(key);
+    }
+    Ok(admitted)
+}
+
+/// The `kid` length no key has, which is how a key carrying none is written.
+const NO_KID: u32 = u32::MAX;
+
+/// A kind as the one octet the frame carries.
+///
+/// The frame's own spelling rather than [`KeyKind::tag`]'s, paired with
+/// [`kind_of_octet`]: the ABI tag is what compiled code writes into an argument
+/// slot, and a private encoding that borrowed it would be a second reason that
+/// number can never change.
+const fn kind_octet(kind: KeyKind) -> u8 {
+    match kind {
+        KeyKind::P256 => 0,
+        KeyKind::X25519 => 1,
+        KeyKind::Ed25519 => 2,
+        KeyKind::RsaPkcs1 => 3,
+        KeyKind::RsaPss => 4,
+    }
+}
+
+/// [`kind_octet`]'s inverse, and `None` for an octet it never wrote.
+const fn kind_of_octet(octet: u8) -> Option<KeyKind> {
+    Some(match octet {
+        0 => KeyKind::P256,
+        1 => KeyKind::X25519,
+        2 => KeyKind::Ed25519,
+        3 => KeyKind::RsaPkcs1,
+        4 => KeyKind::RsaPss,
+        _ => return None,
+    })
+}
+
+/// The admitted keys as the one `bytes` a set's slot holds, or `None` for a
+/// `kid` or a key longer than a four-octet length can name.
+///
+/// Per key: [`kind_octet`], then the `kid` and the SPKI, each behind a
+/// four-octet big-endian length, with an absent `kid` written as [`NO_KID`].
+/// A slot holds one value and a set holds several keys, so they are written
+/// into one rather than built as an array of objects nothing would be allowed
+/// to read back out.
+fn framed(keys: &[Admitted]) -> Option<Vec<u8>> {
+    let mut blob = Vec::new();
+    for key in keys {
+        blob.push(kind_octet(key.kind));
+        match &key.kid {
+            Some(kid) => {
+                let len = u32::try_from(kid.len()).ok().filter(|len| *len != NO_KID)?;
+                blob.extend_from_slice(&len.to_be_bytes());
+                blob.extend_from_slice(kid.as_bytes());
+            }
+            None => blob.extend_from_slice(&NO_KID.to_be_bytes()),
+        }
+        blob.extend_from_slice(&u32::try_from(key.spki.len()).ok()?.to_be_bytes());
+        blob.extend_from_slice(&key.spki);
+    }
+    Some(blob)
+}
+
+/// The four-octet length at `at`, or `None` for a blob that ends inside it.
+fn length_at(blob: &[u8], at: usize) -> Option<u32> {
+    let four: [u8; 4] = blob.get(at..at.checked_add(4)?)?.try_into().ok()?;
+    Some(u32::from_be_bytes(four))
+}
+
+/// One key as a set holds it: the name the document gave it, the kind it was
+/// read as and its material, borrowed out of the frame rather than copied.
+type Held<'a> = (Option<&'a str>, KeyKind, &'a [u8]);
+
+/// The keys a set holds, as [`framed`] wrote them, and `None` for a blob it did
+/// not write.
+///
+/// Borrowing rather than owning: a lookup reads one key out of a set and the
+/// set outlives the call, so nothing here is copied to answer a question about
+/// it.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "`verifyIssued` is this frame's reader")
+)]
+fn keys_in(blob: &[u8]) -> Option<Vec<Held<'_>>> {
+    let mut out = Vec::new();
+    let mut at = 0_usize;
+    while at < blob.len() {
+        let kind = kind_of_octet(*blob.get(at)?)?;
+        at = at.checked_add(1)?;
+        let named = length_at(blob, at)?;
+        at = at.checked_add(4)?;
+        let kid = if named == NO_KID {
+            None
+        } else {
+            let len = usize::try_from(named).ok()?;
+            let kid = std::str::from_utf8(blob.get(at..at.checked_add(len)?)?).ok()?;
+            at = at.checked_add(len)?;
+            Some(kid)
+        };
+        let len = usize::try_from(length_at(blob, at)?).ok()?;
+        at = at.checked_add(4)?;
+        let spki = blob.get(at..at.checked_add(len)?)?;
+        at = at.checked_add(len)?;
+        out.push((kid, kind, spki));
+    }
+    Some(out)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Jwt\KeySet::read(tainted string $jwks, {rsaScheme?}): Jwt\KeySet`
+    /// — the admission, and the only place this class decides anything about a
+    /// key.
+    ///
+    /// Every rule about what may be in the set is applied here, so a
+    /// verification is a lookup and a signature check and nothing else. The
+    /// module doc's *a key set is an admission* section is the home of why a
+    /// key is skipped where a document is refused, and of what a set spends.
+    fn nvs_core_jwt_key_set_read(_ctx, args: [2]) {
+        // Unreachable from source: the row declares a `string`, so `nvs_types`
+        // refuses another tag at `E0401`.
+        let jwks = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{KEY_SET_NAME}::read expected a `string` for $jwks, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+
+        let scheme = match args[1].as_int() {
+            None => None,
+            Some(tag) => {
+                // Unreachable from source for the reason above: the option is
+                // a closed enum, so an argument is one of its cases.
+                let kind = KeyKind::from_tag(tag).ok_or_else(|| {
+                    Fault::fatal(format!(
+                        "{KEY_SET_NAME}::read expected a `{}` case for $rsaScheme, got tag {tag}",
+                        crypto::KEY_KIND_NAME
+                    ))
+                })?;
+                if !matches!(kind, KeyKind::RsaPkcs1 | KeyKind::RsaPss) {
+                    return Err(Fault::thrown_as(
+                        ThrownClass::Logic,
+                        format!(
+                            "{KEY_SET_NAME}::read(): {{rsaScheme: …}} names a kind that is not \
+                             an RSA one, and it is the scheme an RSA key carrying no `alg` is \
+                             read under — RS256 and PS256 being the two one key type carries. \
+                             Every other kind names its own algorithm, so there is nothing \
+                             here for it to choose."
+                        ),
+                    ));
+                }
+                Some(kind)
+            }
+        };
+
+        let admitted = admitted_set(jwks, scheme)?;
+        let blob = framed(&admitted).ok_or_else(|| {
+            Fault::fatal(format!(
+                "{KEY_SET_NAME}::read admitted a key whose `kid` or SPKI is longer than a set \
+                 can name"
+            ))
+        })?;
+        // Asked once with the real number, as `sign` does: the set's size is
+        // known exactly here, and it is what the object goes on holding.
+        nvs_runtime::affordable(Some(blob.len()), "Core\\Jwt\\KeySet::read")?;
+        Ok(crate::instance::build(&KEY_SET, [Value::bytes(NvsStr::new(&blob))]))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::vectors as webcrypto;
 
     /// A token signed under `key`, with `payload` verbatim and `header`
     /// verbatim — the shape an attacker gets to build, so the test can build
@@ -1014,6 +1513,134 @@ mod tests {
         assert_eq!(
             header_of("EdDSA", None, Some(r#"a"},"alg":"none"#), TYP),
             r#"{"alg":"EdDSA","kid":"a\"},\"alg\":\"none","typ":"JWT"}"#
+        );
+    }
+
+    /// Every key set the frozen vector file carries is admitted or refused
+    /// exactly as the script that wrote it judged, and an admitted one holds
+    /// exactly the keys it names, in order.
+    ///
+    /// The file is the proof rather than a table here, for
+    /// [`crate::tests::vectors`]'s reason: the set's JWKS documents are the
+    /// ones a browser's own exports assemble into, and its `kids` are what an
+    /// independent reading of the same rules admitted from them.
+    #[test]
+    fn every_frozen_key_set_is_admitted_or_refused_as_the_set_says() {
+        let sets = webcrypto::node("/jws/keySets")
+            .as_array()
+            .expect("the vector set writes /jws/keySets as an array");
+        assert!(!sets.is_empty(), "the set carries key-set cases at all");
+
+        for case in sets {
+            let name = webcrypto::text(case, "/name");
+            let scheme = case
+                .pointer("/rsaScheme")
+                .and_then(serde_json::Value::as_str)
+                .map(|alg| match alg {
+                    "RS256" => KeyKind::RsaPkcs1,
+                    "PS256" => KeyKind::RsaPss,
+                    other => {
+                        panic!("{name} names an rsaScheme this roster has no kind for: {other}")
+                    }
+                });
+            let read = admitted_set(webcrypto::text(case, "/jwks"), scheme);
+
+            if webcrypto::text(case, "/outcome") == "refused" {
+                assert!(read.is_err(), "{name} is refused whole");
+                continue;
+            }
+
+            let admitted = read.unwrap_or_else(|_| panic!("{name} is admitted"));
+            let wanted: Vec<Option<&str>> = case
+                .pointer("/kids")
+                .and_then(serde_json::Value::as_array)
+                .expect("an admitted case names the kids it admits")
+                .iter()
+                .map(serde_json::Value::as_str)
+                .collect();
+            let named: Vec<Option<&str>> = admitted.iter().map(|key| key.kid.as_deref()).collect();
+            assert_eq!(named, wanted, "{name} admits exactly the keys it names");
+        }
+    }
+
+    /// A set writes every key it admitted and reads all of them back — the
+    /// `kid`, the kind and the material of each, and nothing between two keys
+    /// that the frame cannot tell apart.
+    #[test]
+    fn a_set_reads_back_every_key_it_framed() {
+        let case = webcrypto::node("/jws/keySets")
+            .as_array()
+            .and_then(|sets| sets.first())
+            .expect("the first key-set case is the wide one");
+        let admitted = admitted_set(webcrypto::text(case, "/jwks"), Some(KeyKind::RsaPss))
+            .expect("the wide case is admitted");
+        assert!(
+            admitted.len() > 1,
+            "the wide case holds several keys, so the frame is asked to separate them"
+        );
+
+        let blob = framed(&admitted).expect("a key set of this size frames");
+        let read = keys_in(&blob).expect("what this module framed, this module reads");
+        assert_eq!(read.len(), admitted.len(), "every key comes back");
+        for (held, (kid, kind, spki)) in admitted.iter().zip(read) {
+            assert_eq!(kid, held.kid.as_deref(), "the kid comes back as it went in");
+            assert_eq!(kind, held.kind, "the kind comes back as it went in");
+            assert_eq!(spki, held.spki, "the material comes back as it went in");
+            // And it is still a key, read under the kind the frame carried:
+            // storing an encoding nothing reads back would be a set that
+            // admits keys it cannot use.
+            assert!(
+                PublicKey::read(spki, kind, KeyFormat::Spki).is_ok(),
+                "a framed key is a key of its own kind"
+            );
+        }
+
+        // A key carrying no `kid` is written as one, rather than as an empty
+        // name a token could ask for.
+        let none = framed(&[Admitted {
+            kid: None,
+            kind: KeyKind::P256,
+            spki: vec![7, 7, 7],
+        }])
+        .expect("one key frames");
+        let empty = framed(&[Admitted {
+            kid: Some(String::new()),
+            kind: KeyKind::P256,
+            spki: vec![7, 7, 7],
+        }])
+        .expect("one key frames");
+        assert_ne!(none, empty, "no kid and an empty kid are different keys");
+        assert_eq!(keys_in(&none).expect("it reads back")[0].0, None);
+        assert_eq!(keys_in(&empty).expect("it reads back")[0].0, Some(""));
+    }
+
+    /// The frame's octet and the kind it stands for are one relation, read in
+    /// both directions, and no octet outside it reads as a kind.
+    #[test]
+    fn every_kind_survives_the_frames_own_octet() {
+        let kinds = [
+            KeyKind::P256,
+            KeyKind::X25519,
+            KeyKind::Ed25519,
+            KeyKind::RsaPkcs1,
+            KeyKind::RsaPss,
+        ];
+        let written: Vec<u8> = kinds.iter().copied().map(kind_octet).collect();
+        let back: Vec<Option<KeyKind>> = written.iter().copied().map(kind_of_octet).collect();
+        assert_eq!(
+            back,
+            kinds.map(Some).to_vec(),
+            "every kind reads back as itself"
+        );
+        assert_eq!(
+            written.iter().collect::<BTreeSet<_>>().len(),
+            kinds.len(),
+            "no two kinds share an octet"
+        );
+        assert_eq!(
+            kind_of_octet(u8::MAX),
+            None,
+            "an octet it never wrote is not a kind"
         );
     }
 

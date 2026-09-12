@@ -1,0 +1,50 @@
+--TEST--
+Core\Jwt\KeySet::read admits a set of sixteen keys and refuses the seventeenth, so a verification's cost is this program's own and not the document's — `rule:security/protocol-roster`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// The bound named on both sides: the last set admitted and the first refused.
+// A cap that stopped one key early would still print plausibly against either
+// half alone. What it buys is that a token costs one signature check whatever
+// the document holds — a set whoever serves the document can lengthen is the
+// no-try rule defeated one layer up.
+string $sixteen = "";
+string $last = "";
+foreach (Core\Arr::range(1, 17) as int $slot) {
+    Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+    string $jwk = Core\Encoding::decodeText(
+        $pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+        Core\Charset::Utf8
+    );
+    string $entry = Core\Str::replace($jwk, "{", "{\"kid\":\"k" . $slot . "\",");
+    if ($slot <= 16) {
+        $sixteen = $sixteen == "" ? $entry : ($sixteen . "," . $entry);
+    } else {
+        $last = $entry;
+    }
+}
+
+Core\Jwt\KeySet $full = Core\Jwt\KeySet::read("{\"keys\":[" . $sixteen . "]}");
+echo "sixteen keys is a set", "\n";
+
+try {
+    Core\Jwt\KeySet $over = Core\Jwt\KeySet::read(
+        "{\"keys\":[" . $sixteen . "," . $last . "]}"
+    );
+    echo "seventeen keys is a set", "\n";
+} catch (RuntimeError $verdict) {
+    echo $verdict->message, "\n";
+}
+
+// The cap is on the keys admitted rather than on the entries offered: a
+// document holding the same seventeen with one of them marked for encryption
+// is a set of sixteen, which is what keeps the cap from making a rotation an
+// outage the moment an issuer publishes an encryption key.
+string $skipped = Core\Str::replace($last, "{", "{\"use\":\"enc\",");
+Core\Jwt\KeySet $still = Core\Jwt\KeySet::read(
+    "{\"keys\":[" . $sixteen . "," . $skipped . "]}"
+);
+echo "a skipped key does not fill the set", "\n";
+--EXPECT--
+sixteen keys is a set
+Core\Jwt\KeySet::read(): $jwks is not a document to read keys from — it offers more than 16 keys this class can use, and a set is capped there so that a token costs one signature check whatever the document holds. A key this roster has no use for is skipped instead, so what is refused here is the document rather than a key in it.
+a skipped key does not fill the set

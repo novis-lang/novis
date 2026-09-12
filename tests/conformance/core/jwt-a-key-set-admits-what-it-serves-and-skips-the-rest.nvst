@@ -1,0 +1,57 @@
+--TEST--
+Core\Jwt\KeySet::read admits the signing keys a JWKS publishes and skips every key this roster does not serve, leaving the document a set — `rule:security/protocol-roster`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// A JWKS is a document somebody else maintains. It carries keys for purposes
+// this roster does not serve, and refusing the whole set over one of them would
+// make every rotation an outage — so a key marked for encryption, a key of a
+// kind this class does not sign with, and a key under an algorithm it does not
+// have are each *skipped*, and the document is still a set.
+Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+Core\Crypto\KeyPair $agreeing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+
+string $sig = Core\Encoding::decodeText(
+    $signing->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    Core\Charset::Utf8
+);
+string $agree = Core\Encoding::decodeText(
+    $agreeing->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    Core\Charset::Utf8
+);
+
+// A JWK this class writes is one flat object, so a document's own members go in
+// front of the ones the key itself carries.
+string $named = Core\Str::replace($sig, "{", "{\"kid\":\"sign-1\",\"use\":\"sig\",");
+string $forEncryption = Core\Str::replace($sig, "{", "{\"kid\":\"enc-1\",\"use\":\"enc\",");
+string $notOurCurve = Core\Str::replace($agree, "{", "{\"kid\":\"x-1\",");
+string $wideCurve = Core\Str::replace($sig, "{", "{\"kid\":\"es384-1\",\"alg\":\"ES384\",");
+
+Core\Jwt\KeySet $mixed = Core\Jwt\KeySet::read(
+    "{\"keys\":[" . $named . "," . $forEncryption . "," . $notOurCurve . "," . $wideCurve . "]}"
+);
+echo "a document of four keys is a set", "\n";
+
+// A document carrying nothing this class can use is still a document. What is
+// wrong with it is not that it cannot be trusted, and an issuer that has not
+// published its signing key yet is the ordinary way to reach this.
+Core\Jwt\KeySet $none = Core\Jwt\KeySet::read("{\"keys\":[" . $forEncryption . "]}");
+echo "a document of skipped keys is a set", "\n";
+
+// The sole key of a set is the one that may carry no name at all, which is the
+// shape a token with no `kid` is verified against.
+Core\Jwt\KeySet $sole = Core\Jwt\KeySet::read("{\"keys\":[" . $sig . "]}");
+echo "a sole key needs no name", "\n";
+
+// An RSA key carries no algorithm in its kind — RS256 and PS256 are one key
+// type under two schemes — so the option names the one it was issued for, and
+// reaches nothing else in the document.
+Core\Jwt\KeySet $scheme = Core\Jwt\KeySet::read(
+    "{\"keys\":[" . $named . "]}",
+    {rsaScheme: Core\Crypto\KeyKind::RsaPss}
+);
+echo "a scheme named for RSA keys leaves the others alone", "\n";
+--EXPECT--
+a document of four keys is a set
+a document of skipped keys is a set
+a sole key needs no name
+a scheme named for RSA keys leaves the others alone
