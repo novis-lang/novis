@@ -3089,10 +3089,9 @@ pub struct IdempotentRetry {
 ///
 /// Asked by name for [`implements_comparable`]'s reason: a `Core` row has no
 /// cell for a rule this narrow, and a flag on [`CoreMethod`] would be a column
-/// six hundred rows wide to say one thing about one of them. `patch` is named
-/// though `Core\Http\Client` has no such row yet — § 7's roster is the two
-/// verbs that repeat an effect, and stating half of it here would leave the
-/// other half to be rediscovered by whoever lands the row.
+/// six hundred rows wide to say one thing about one of them. The roster is
+/// § 7's: the verbs that repeat an effect rather than restate a question, which
+/// is `post` and `patch` and nothing else `Core\Http\Client` offers.
 #[must_use]
 pub fn idempotent_retry_rule(class: &str, member: &str) -> Option<IdempotentRetry> {
     (class == crate::http::CLIENT_NAME && matches!(member, "post" | "patch")).then_some(
@@ -3131,10 +3130,19 @@ pub struct RequestBody {
 /// has no body for, and a rule that answered `None` for them would read as "this
 /// member is outside the rule" where what is meant is "this member's answer is
 /// no".
+///
+/// `request` is in the roster and is `bodyless: false`, which is the half of
+/// the rule a call site can still be held to when the verb is an argument: two
+/// keys written at once, or a `contentType` typing octets that are not there,
+/// are wrong under every verb. Whether *that* verb carries a body at all is
+/// asked at the call instead, by `crate::http`'s `judge_verb`.
 #[must_use]
 pub fn request_body_rule(class: &str, member: &str) -> Option<RequestBody> {
     (class == crate::http::CLIENT_NAME
-        && matches!(member, "get" | "post" | "put" | "patch" | "delete" | "head"))
+        && matches!(
+            member,
+            "get" | "post" | "put" | "patch" | "delete" | "head" | "request"
+        ))
     .then_some(RequestBody {
         keys: crate::http::BODY_OPTIONS,
         raw: crate::http::BODY_OPTION,

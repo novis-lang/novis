@@ -207,8 +207,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_http_client_get" => (nvs_core_http_client_get as *const ()).cast(),
         "nvs_core_http_client_post" => (nvs_core_http_client_post as *const ()).cast(),
         "nvs_core_http_client_put" => (nvs_core_http_client_put as *const ()).cast(),
+        "nvs_core_http_client_patch" => (nvs_core_http_client_patch as *const ()).cast(),
         "nvs_core_http_client_delete" => (nvs_core_http_client_delete as *const ()).cast(),
         "nvs_core_http_client_head" => (nvs_core_http_client_head as *const ()).cast(),
+        "nvs_core_http_client_request" => (nvs_core_http_client_request as *const ()).cast(),
         "nvs_core_http_part_file" => (nvs_core_http_part_file as *const ()).cast(),
         "nvs_core_http_part_bytes" => (nvs_core_http_part_bytes as *const ()).cast(),
         "nvs_core_http_response_status" => (nvs_core_http_response_status as *const ()).cast(),
@@ -377,13 +379,16 @@ const OPTIONS: &[CoreOption] = &[
         ty: DURATION,
         default: Const::Null,
     },
-    // Unqualified for the URL's reason and by the same mechanism: a header value
-    // is copied verbatim into the request this member makes, and until `rule:security/sink-predicate`'s
-    // classification is read at the call it is assignability that refuses
-    // `array<tainted string>` here.
+    // `secret` on one axis and unqualified on the other, which is the type
+    // saying what this position is: `rule:security/secret-sinks-refuse` names an
+    // outbound request's headers as one of the three places a credential has to
+    // be able to reach, and an `Authorization` header is why. A `tainted` value
+    // is still refused, by assignability rather than by a check — a header value
+    // is copied verbatim into the request, and one from outside chooses what is
+    // sent alongside it.
     CoreOption {
         name: "headers",
-        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        ty: CoreTy::Array(&CoreTy::SecretText(Qual::Neutral)),
         default: Const::EmptyArray,
     },
     // A count rather than a `bool`: `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned` turns redirects off by default,
@@ -792,11 +797,13 @@ const DEFAULT_BACKOFF: Duration = Duration::from_millis(100);
 
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, over `rule:security/outbound-url-is-a-sink`'s sink.
 ///
-/// Five rows and one shape: the verb is the member's own name, which is what
-/// makes § 7's idempotency question answerable while compiling. `patch`,
-/// `options` and `trace` are the verbs `Core\Http\Method` has that this class
-/// does not — the spec's own `send(Core\Http\Request)` row is where a method
-/// chosen at run time belongs, and it lands with the transport.
+/// One shape, and one row per verb: the verb is the member's own name, which
+/// is what makes § 7's idempotency question answerable while compiling.
+/// `request` is the row for a verb that is not known until it runs — it takes a
+/// `Core\Http\Method` case at slot 0, which is also how `Options` and `Trace`
+/// are sent, and pays for it by answering that question at the call instead.
+/// There is no request object anywhere in this: the bag is the whole of what a
+/// call says, and it is the same bag under every row.
 pub(crate) const CLIENT: CoreClass = CoreClass {
     name: CLIENT_NAME,
     methods: &[
@@ -828,6 +835,15 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
             doc: Some(&PUT_DOC),
         },
         CoreMethod {
+            name: "patch",
+            names: &["url"],
+            params: &[URL, CoreTy::Options(OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(RESPONSE_NAME),
+            symbol: "nvs_core_http_client_patch",
+            doc: Some(&PATCH_DOC),
+        },
+        CoreMethod {
             name: "delete",
             names: &["url"],
             params: &[URL, CoreTy::Options(OPTIONS)],
@@ -844,6 +860,19 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(RESPONSE_NAME),
             symbol: "nvs_core_http_client_head",
             doc: Some(&HEAD_DOC),
+        },
+        CoreMethod {
+            name: "request",
+            names: &["method", "url"],
+            params: &[
+                CoreTy::Enum(crate::router::METHOD_NAME),
+                URL,
+                CoreTy::Options(OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(RESPONSE_NAME),
+            symbol: "nvs_core_http_client_request",
+            doc: Some(&REQUEST_DOC),
         },
     ],
     instance: &[],
@@ -913,10 +942,21 @@ const TEXT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// The parameters every row of [`CLIENT`] documents — one bag, so the seven
-/// options are described once rather than five times, and a reader comparing
-/// two members finds no difference because there is none.
-const REQUEST_PARAMS: &[ParamDoc] = &[
+/// The parameters every row of [`CLIENT`] documents — one bag, so the options
+/// are described once rather than once per verb, and a reader comparing two
+/// members finds no difference because there is none.
+///
+/// A macro rather than a slice because a card's `params` begins with its own
+/// row's `names` — `a_documented_rows_param_docs_agree_with_its_names` holds
+/// it there — and `request` names a verb ahead of the URL, so one card's list
+/// is the other's with an entry in front. A `const` slice cannot be extended,
+/// and a second copy of the options would say the same thing until it did not.
+// The entries a card names ahead of the shared ones — `request`'s verb, or
+// nothing at all — then the list itself, at the indentation it had as a slice,
+// because rustfmt does not reach inside a macro's body.
+macro_rules! request_params {
+    ($($leading:expr),* $(,)?) => { &[
+    $($leading,)*
     ParamDoc {
         name: "url",
         desc: "Where the request goes: a URL the program itself authored, or the \
@@ -938,7 +978,9 @@ const REQUEST_PARAMS: &[ParamDoc] = &[
     },
     ParamDoc {
         name: "headers",
-        desc: "Extra request headers, by name. The runtime's own headers are added around these.",
+        desc: "Extra request headers, by name. A `secret` is admitted here — a credential has to \
+               reach the API it authenticates to — and a `tainted` value is not. The runtime's \
+               own headers are added around these.",
         shape: &[],
     },
     ParamDoc {
@@ -962,8 +1004,8 @@ const REQUEST_PARAMS: &[ParamDoc] = &[
     },
     ParamDoc {
         name: "retryIdempotencyKey",
-        desc: "Sent as `Idempotency-Key`, identical across attempts. Required for `post` when \
-               `retryAttempts` is given, and accepted by every other member.",
+        desc: "Sent as `Idempotency-Key`, identical across attempts. Required for `post` and \
+               `patch` when `retryAttempts` is given, and accepted by every other member.",
         shape: &[],
     },
     ParamDoc {
@@ -996,7 +1038,23 @@ const REQUEST_PARAMS: &[ParamDoc] = &[
         desc: "The parts to send as `multipart/form-data`, by name.",
         shape: &[],
     },
-];
+    ] };
+}
+
+/// Every row but `request`'s: the URL, then the bag — see [`request_params`].
+const REQUEST_PARAMS: &[ParamDoc] = request_params!();
+
+/// `request`'s: the verb it is handed, ahead of what every other row documents.
+const DYNAMIC_PARAMS: &[ParamDoc] = request_params!(METHOD_PARAM);
+
+/// The verb `request` carries — see [`DYNAMIC_PARAMS`].
+const METHOD_PARAM: ParamDoc = ParamDoc {
+    name: "method",
+    desc: "The verb to send, as a `Core\\Http\\Method` case. A `Post` or a `Patch` retried without \
+           `retryIdempotencyKey` throws before the first attempt, which the member whose verb is \
+           its own name refuses while compiling instead.",
+    shape: &[],
+};
 
 /// What every request member answers, once — see [`REQUEST_PARAMS`].
 const REQUEST_RET: &str = "A `Core\\Http\\Response` carrying the status and the body of the reply. \
@@ -1017,7 +1075,10 @@ const REQUEST_ERRORS: &[ErrorDoc] = &[
                byte, which would end the line early. An `https` host presented a certificate that \
                does not verify against the authorities Novis carries, or one that is not valid for \
                that name. Or the reply is not HTTP, is larger than one request may hold, \
-               or has a body that is not valid UTF-8.",
+               or has a body that is not valid UTF-8. Where the verb is handed in rather than \
+               named — `request` — the two questions the other rows answer while compiling are \
+               asked before the first attempt instead: a `Get` or a `Head` given a body key, and \
+               a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.",
     },
     ErrorDoc {
         error: "TimeoutError",
@@ -1042,7 +1103,7 @@ const GET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\Client::post`'s reference card — `rule:core-api/reference-card`.
 const POST_DOC: MethodDoc = MethodDoc {
-    short: "Sends a `POST` to `$url` under a finite budget. The one member whose retries need \
+    short: "Sends a `POST` to `$url` under a finite budget. Its retries need \
             `retryIdempotencyKey`, because a repeated `POST` is a second effect rather than a \
             second question.",
     params: REQUEST_PARAMS,
@@ -1054,6 +1115,15 @@ const POST_DOC: MethodDoc = MethodDoc {
 const PUT_DOC: MethodDoc = MethodDoc {
     short: "Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its \
             retries need no key.",
+    params: REQUEST_PARAMS,
+    ret: REQUEST_RET,
+    errors: REQUEST_ERRORS,
+};
+
+/// `Core\Http\Client::patch`'s reference card — `rule:core-api/reference-card`.
+const PATCH_DOC: MethodDoc = MethodDoc {
+    short: "Sends a `PATCH` to `$url` under a finite budget. A partial update repeated is a second \
+            effect, so its retries need `retryIdempotencyKey` exactly as `post`'s do.",
     params: REQUEST_PARAMS,
     ret: REQUEST_RET,
     errors: REQUEST_ERRORS,
@@ -1071,6 +1141,16 @@ const DELETE_DOC: MethodDoc = MethodDoc {
 const HEAD_DOC: MethodDoc = MethodDoc {
     short: "Asks `$url` for its headers alone, under the same budget a `get` would have.",
     params: REQUEST_PARAMS,
+    ret: REQUEST_RET,
+    errors: REQUEST_ERRORS,
+};
+
+/// `Core\Http\Client::request`'s reference card — `rule:core-api/reference-card`.
+const REQUEST_DOC: MethodDoc = MethodDoc {
+    short: "Sends `$method` to `$url` under a finite budget — the row for a verb chosen at run \
+            time, where every other one is a verb of its own. There is no request object: the \
+            same bag the named rows take is the whole of what a call says.",
+    params: DYNAMIC_PARAMS,
     ret: REQUEST_RET,
     errors: REQUEST_ERRORS,
 };
@@ -1094,6 +1174,67 @@ fn judge_bound(args: &[Value], at: usize, option: &str, member: &str) -> Result<
         )));
     }
     Ok(())
+}
+
+/// The two questions the verb decides, asked of the verb a call actually
+/// carries: a body on a verb that carries none, and a retried effect with no
+/// key to recognise it by.
+///
+/// Dead on every row whose verb is its own name, because the checker answers
+/// both while compiling from `registry::request_body_rule` and
+/// `registry::idempotent_retry_rule` — the same two spellings, read once. It is
+/// `request` that reaches here, where the verb arrives as an argument and
+/// neither question can be put to a call site: asked before the first attempt,
+/// so a test run finds it rather than production finding it on the one retry
+/// that matters (`rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`).
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` naming the key for a body written under a `GET` or a
+/// `HEAD`, and one naming `retryIdempotencyKey` for a `POST` or a `PATCH` that
+/// asked for retries without it.
+fn judge_verb(args: &[Value], verb: &str, member: &str) -> Result<(), Fault> {
+    if matches!(verb, "GET" | "HEAD")
+        && let Some(key) = written_body_key(args)
+    {
+        return Err(Fault::thrown(format!(
+            "{member}: a `{verb}` sends no body, and `{key}` is one — put the value in the URL's \
+             query, or send it under a verb that carries a body"
+        )));
+    }
+    if matches!(verb, "POST" | "PATCH")
+        && !matches!(args[RETRY_ATTEMPTS].tag(), Some(Tag::Null))
+        && args[RETRY_KEY].as_text().is_none()
+    {
+        return Err(Fault::thrown(format!(
+            "{member}: a repeated `{verb}` is a second effect rather than a second question, so \
+             retrying one needs `retryIdempotencyKey` in the same bag, sent as `Idempotency-Key` \
+             and identical across attempts"
+        )));
+    }
+    Ok(())
+}
+
+/// Which of [`BODY_OPTIONS`] this call wrote, in [`body_of`]'s own order, or
+/// `None` for a call that wrote none.
+///
+/// The order is that function's because the two answer one question — which key
+/// frames this body — and a second reading free to pick a different one would
+/// report a key that is not the key being sent.
+fn written_body_key(args: &[Value]) -> Option<&'static str> {
+    if !matches!(args[JSON].tag(), Some(Tag::Unset)) {
+        return Some(JSON_OPTION);
+    }
+    if args[FORM].array_ptr().is_some() {
+        return Some(FORM_OPTION);
+    }
+    if args[MULTIPART].array_ptr().is_some() {
+        return Some(MULTIPART_OPTION);
+    }
+    if matches!(args[BODY].tag(), Some(Tag::Object)) || octets_of(&args[BODY]).is_some() {
+        return Some(BODY_OPTION);
+    }
+    None
 }
 
 /// § 6's attempt count, judged: at least one, or left out.
@@ -1615,12 +1756,12 @@ fn fields_of(
 ///
 /// # Errors
 ///
-/// [`pin`]'s four, [`judge_bound`]'s and [`judge_attempts`]', and then
-/// [`transport::send`]'s.
-fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> {
+/// [`pin`]'s four, [`judge_bound`]'s, [`judge_attempts`]' and [`judge_verb`]',
+/// and then [`transport::send`]'s.
+fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Value, Fault> {
     let named = format!("{CLIENT_NAME}::{member}");
     if ctx.faked_http().is_armed() {
-        return faked(ctx, args, &named, member);
+        return faked(ctx, args, &named, verb);
     }
     let (url, address) = approved(ctx, args, &named)?;
 
@@ -1628,18 +1769,16 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
     judge_bound(args, CONNECT_TIMEOUT, "connectTimeout", &named)?;
     judge_bound(args, RETRY_BACKOFF, "retryBackoff", &named)?;
     judge_attempts(args, &named)?;
+    judge_verb(args, verb, &named)?;
 
     // Framed before the clock below starts: the encode and the open are this
     // end's work, and a budget spent on them is not a budget the other end was
     // given.
     let body = body_of(ctx, args, &named)?;
 
-    // The verb is the row's own name, which is what makes § 7's idempotency
-    // question answerable while compiling.
-    let verb = member.to_ascii_uppercase();
     let call = transport::Call {
         member: &named,
-        verb: &verb,
+        verb,
         url,
         address,
         deadline: Instant::now()
@@ -1717,15 +1856,16 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
 ///
 /// # Errors
 ///
-/// [`judged_host`]'s three, [`judge_bound`]'s and [`judge_attempts`]', and a
-/// `LogicError` naming a URL the table does not answer.
-fn faked(ctx: &mut Ctx, args: &[Value], named: &str, member: &str) -> Result<Value, Fault> {
+/// [`judged_host`]'s three, [`judge_bound`]'s, [`judge_attempts`]' and
+/// [`judge_verb`]', and a `LogicError` naming a URL the table does not answer.
+fn faked(ctx: &mut Ctx, args: &[Value], named: &str, verb: &str) -> Result<Value, Fault> {
     let url = given_url(args, named)?;
     judged_host(&url, named)?;
     judge_bound(args, DEADLINE, "deadline", named)?;
     judge_bound(args, CONNECT_TIMEOUT, "connectTimeout", named)?;
     judge_bound(args, RETRY_BACKOFF, "retryBackoff", named)?;
     judge_attempts(args, named)?;
+    judge_verb(args, verb, named)?;
 
     let mut headers: Vec<(String, String)> = headers_of(args, HEADERS, named)?
         .into_iter()
@@ -1750,7 +1890,7 @@ fn faked(ctx: &mut Ctx, args: &[Value], named: &str, member: &str) -> Result<Val
         None => Vec::new(),
     };
     ctx.faked_http_mut().record(nvs_runtime::HttpSent {
-        verb: member.to_ascii_uppercase(),
+        verb: verb.to_owned(),
         url: url.clone(),
         headers,
         body: octets,
@@ -1823,7 +1963,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::get(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. [`request`] is the body; the verb is this row's own name.
     fn nvs_core_http_client_get(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "get")
+        request(ctx, args, "get", "GET")
     }
 }
 
@@ -1831,7 +1971,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::post(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`. See [`nvs_core_http_client_get`].
     fn nvs_core_http_client_post(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "post")
+        request(ctx, args, "post", "POST")
     }
 }
 
@@ -1839,7 +1979,15 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::put(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
     fn nvs_core_http_client_put(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "put")
+        request(ctx, args, "put", "PUT")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Client::patch(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
+    /// — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`. See [`nvs_core_http_client_get`].
+    fn nvs_core_http_client_patch(ctx, args: [REQUEST_ARITY]) {
+        request(ctx, args, "patch", "PATCH")
     }
 }
 
@@ -1847,7 +1995,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::delete(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
     fn nvs_core_http_client_delete(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "delete")
+        request(ctx, args, "delete", "DELETE")
     }
 }
 
@@ -1855,7 +2003,22 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::head(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
     fn nvs_core_http_client_head(ctx, args: [REQUEST_ARITY]) {
-        request(ctx, args, "head")
+        request(ctx, args, "head", "HEAD")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Client::request(Core\Http\Method $method, string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
+    /// — `rule:http-server/no-spelling-for-an-unbounded-wait`, for a verb chosen at run time.
+    ///
+    /// The verb arrives at slot 0 and every option sits one slot further on, so
+    /// the rest of the row is [`request`]'s under a slice of its own arguments
+    /// rather than a second copy of the same reading. What the named rows
+    /// answer while compiling, [`judge_verb`] answers here.
+    fn nvs_core_http_client_request(ctx, args: [REQUEST_ARITY + 1]) {
+        let verb = crate::router::method_verb(&args[0], "Core\\Http\\Client::request")?
+            .to_ascii_uppercase();
+        request(ctx, &args[1..], "request", &verb)
     }
 }
 
@@ -2070,8 +2233,8 @@ mod tests {
     /// very same error, having already announced this process to the address the
     /// deployment denied.
     ///
-    /// Driven through [`super::request`], the body all five client rows share,
-    /// so what is pinned is the order the *member* runs in and not the order
+    /// Driven through [`super::request`], the body every client row shares, so
+    /// what is pinned is the order the *member* runs in and not the order
     /// [`super::pin`] alone does.
     #[test]
     fn a_denied_address_range_fails_before_a_connection_is_made() {
@@ -2085,9 +2248,9 @@ mod tests {
         ctx.set_config(granting(GRANTED));
 
         let url = Value::str(NvsStr::new(format!("http://{at}/ok").as_bytes()));
-        let mut args = [Value::null(); 8];
+        let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = url;
-        let refused = super::request(&mut ctx, &args, "get")
+        let refused = super::request(&mut ctx, &args, "get", "GET")
             .expect_err("loopback, which `net.internal` does not except");
         #[expect(
             unsafe_code,

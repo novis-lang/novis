@@ -1429,7 +1429,8 @@ pub(crate) fn method_case(verb: &str) -> Option<i64> {
         .map(|(_, ordinal)| *ordinal)
 }
 
-/// The [`METHOD`] case in `value` as the verb a table row spells, or a fatal.
+/// The [`METHOD`] case in `value` as the verb a table row spells, or a fatal
+/// naming `member`, which is every row that reads a verb out of an argument.
 ///
 /// The inverse of [`method_case`], and its mirror image in what it may assume:
 /// a case crosses as its ordinal (`rule:enums/closed-integer-type`), so what arrives is one of this
@@ -1442,7 +1443,7 @@ pub(crate) fn method_case(verb: &str) -> Option<i64> {
 /// parameter is a [`CoreTy::Enum`], so `E0401` refuses anything that is not a
 /// case of it at the call, and an ordinal outside the roster is a lowering bug
 /// rather than something a `catch` could answer.
-fn method_verb(value: &Value) -> Result<&'static str, Fault> {
+pub(crate) fn method_verb(value: &Value, member: &str) -> Result<&'static str, Fault> {
     value
         .as_int()
         .and_then(|ordinal| {
@@ -1458,7 +1459,7 @@ fn method_verb(value: &Value) -> Result<&'static str, Fault> {
             // that is not a case of it before this body runs, and a case
             // crosses as one of this roster's own ordinals.
             Fault::fatal(format!(
-                "Core\\Router::match expected a `{METHOD_NAME}` case, got tag {} value {:?}",
+                "{member} expected a `{METHOD_NAME}` case, got tag {} value {:?}",
                 value.tag_byte(),
                 value.as_int()
             ))
@@ -1486,7 +1487,7 @@ nvs_runtime::nvs_helper! {
     /// with the served-request reader and [`capture_value`] owns that rule for
     /// both.
     fn nvs_core_router_match(ctx, args: [2]) {
-        let verb = method_verb(&args[0])?;
+        let verb = method_verb(&args[0], "Core\\Router::match")?;
         // Unreachable from source for the reason `methodsFor`'s own read
         // states: the row's parameter is `CoreTy::Text(Qual::Neutral)`, so
         // `E0401` refuses anything but a `string` before this body runs.
