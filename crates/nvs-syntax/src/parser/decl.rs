@@ -100,9 +100,16 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// a class header, a property, a constant, a method and a parameter all
     /// call this one loop. Which modifiers make sense in which position is
     /// a later check, not a grammar rule (see [`Modifier`]'s docs).
+    ///
+    /// Being the one loop is also what makes a file's modifier lists
+    /// collectable without a second walk over the grammar: a parse that keeps
+    /// positions ([`Parser::with_trivia`]) records each list here, in source
+    /// order, and no other production writes one.
     pub(super) fn parse_modifiers(&mut self) -> Vec<Modifier> {
         let mut modifiers = Vec::new();
+        let mut written = Vec::new();
         loop {
+            let at = self.peek().span;
             let m = match self.peek().kind {
                 TokenKind::Keyword(Keyword::Public) => {
                     self.parse_visibility_modifier(Visibility::Public)
@@ -135,7 +142,19 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
                 _ => break,
             };
+            if self.modifiers.is_some() {
+                written.push(WrittenModifier {
+                    modifier: m,
+                    span: at.to(self.last_span),
+                });
+            }
             modifiers.push(m);
+        }
+        let Some(runs) = self.modifiers.as_mut() else {
+            return modifiers;
+        };
+        if !written.is_empty() {
+            runs.push(written);
         }
         modifiers
     }

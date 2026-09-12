@@ -62,7 +62,7 @@ use crate::ast::{
     InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name, NamespaceDecl, NewTarget,
     ObjectLiteralField, Param, PropertyHook, PropertyHookBody, PropertyHookKind, PropertyMember,
     ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase,
-    Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,
+    Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility, WrittenModifier,
 };
 use crate::index::SyntaxIndex;
 use crate::lexer::Lexer;
@@ -146,6 +146,12 @@ pub struct Parser<'src, 'd> {
     /// `rule:php-migration/no-return-leaves-a-finally` refuses; the count means
     /// nothing unless [`Self::in_finally`] is set.
     finally_breakables: u32,
+    /// Every modifier list parsed so far, in source order and each in the
+    /// order it was written — what [`Parsed`]'s own `modifiers` ends up
+    /// holding. [`None`] on a compile path, which reads
+    /// [`Modifier`](crate::ast::Modifier) alone and would otherwise pay an
+    /// allocation per declaration for positions it never asks about.
+    modifiers: Option<Vec<Vec<WrittenModifier>>>,
 }
 
 /// How deep [`Parser::enter_recursive`] lets recursive-descent parsing go
@@ -190,6 +196,11 @@ struct Checkpoint<'src> {
     /// How much trivia had been collected when this was taken. The vector
     /// itself stays with the live lexer — see [`Parser::checkpoint`].
     trivia_len: usize,
+    /// How many modifier lists had been collected when this was taken, so a
+    /// speculative parse that reached a declaration — a `new class { ... }`
+    /// inside an expression — leaves none of its members' modifiers behind
+    /// when it is undone.
+    modifiers_len: usize,
 }
 
 impl<'src, 'd> Parser<'src, 'd> {
@@ -213,17 +224,21 @@ impl<'src, 'd> Parser<'src, 'd> {
             in_constructor: false,
             in_finally: false,
             finally_breakables: 0,
+            modifiers: None,
         }
     }
 
-    /// Starts parsing `file` exactly as [`Self::new`] does, and keeps every run
-    /// the grammar skips over — see [`Lexer::with_trivia`]. The statements are
-    /// the same either way: this is the one grammar, with a side channel
-    /// (`rule:ide/one-grammar-one-tree`).
+    /// Starts parsing `file` exactly as [`Self::new`] does, and keeps the two
+    /// things a caller putting the file back together needs and a compile path
+    /// never asks for: every run the grammar skips over (see
+    /// [`Lexer::with_trivia`]) and where each modifier was written. The
+    /// statements are the same either way: this is the one grammar, with a side
+    /// channel (`rule:ide/one-grammar-one-tree`).
     #[must_use]
     pub fn with_trivia(file: &'src SourceFile, diags: &'d mut Diagnostics) -> Self {
         Self {
             lexer: Lexer::with_trivia(file),
+            modifiers: Some(Vec::new()),
             ..Self::new(file, diags)
         }
     }
@@ -232,6 +247,15 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// more. Empty unless this parser came from [`Self::with_trivia`].
     pub fn take_trivia(&mut self) -> Vec<Trivia> {
         self.lexer.take_trivia()
+    }
+
+    /// Takes the modifier lists collected so far, leaving this parser able to
+    /// collect more. Empty unless this parser came from [`Self::with_trivia`].
+    pub fn take_modifiers(&mut self) -> Vec<Vec<WrittenModifier>> {
+        self.modifiers
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
     }
 
     /// The `///` run attached to a declaration that starts at `at`, if there is
@@ -516,6 +540,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             last_span: self.last_span,
             diags_len: self.diags.len(),
             trivia_len,
+            modifiers_len: self.modifiers.as_ref().map_or(0, Vec::len),
         }
     }
 
@@ -529,6 +554,9 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.lookahead = cp.lookahead;
         self.last_span = cp.last_span;
         self.diags.truncate(cp.diags_len);
+        if let Some(runs) = self.modifiers.as_mut() {
+            runs.truncate(cp.modifiers_len);
+        }
     }
 
     // --- cursor -------------------------------------------------------------
@@ -852,11 +880,12 @@ pub fn parse_expression(file: &SourceFile, diags: &mut Diagnostics) -> Expr {
 }
 
 /// A whole file, parsed: its statements, the runs between them that the
-/// grammar skipped, and where each node of it is.
+/// grammar skipped, where each modifier of it was written, and where each node
+/// of it is.
 ///
-/// The three fields `rule:ide/one-grammar-one-tree` names, and no second tree:
-/// the index holds spans and kinds, and every node it points at is a [`Stmt`]
-/// in `stmts`.
+/// The fields `rule:ide/one-grammar-one-tree` names, and no second tree: the
+/// index holds spans and kinds, every node it points at is a [`Stmt`] in
+/// `stmts`, and `modifiers` points into the same text those spans do.
 #[derive(Debug)]
 pub struct Parsed {
     /// Every top-level statement, in source order — exactly what
@@ -865,6 +894,12 @@ pub struct Parsed {
     /// Every whitespace run and every comment, in source order
     /// (`rule:ide/tokens-plus-trivia-reproduce-the-file`).
     pub trivia: Vec<Trivia>,
+    /// Every modifier list the file wrote, in source order, each list in the
+    /// order its author wrote it and each modifier carrying the span it was
+    /// written at. A [`Modifier`](crate::ast::Modifier) says what a
+    /// declaration is; this says where the word is, which is what a formatter
+    /// ordering a list needs and what a compile path never asks for.
+    pub modifiers: Vec<Vec<WrittenModifier>>,
     /// Which node a byte offset is inside, and what that node is inside
     /// (`rule:ide/the-index-answers-the-cursor`). Built here rather than on
     /// demand because it is rebuilt per analysis either way, and a `Parsed`
@@ -887,6 +922,7 @@ pub fn parse(file: &SourceFile, diags: &mut Diagnostics) -> Parsed {
     Parsed {
         stmts,
         trivia: parser.take_trivia(),
+        modifiers: parser.take_modifiers(),
         index,
     }
 }

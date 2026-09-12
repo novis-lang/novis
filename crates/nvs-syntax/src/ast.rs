@@ -545,6 +545,24 @@ pub enum Visibility {
     Private,
 }
 
+/// A modifier, and where it was written.
+///
+/// A declaration's own `modifiers` list answers what a checker asks — is this
+/// one `static`? — and needs no positions to do it. A tool that writes the
+/// source back out needs the other half: `nvs fmt` puts a list into
+/// `rule:tooling/fmt-base-style-is-per`'s one canonical order by writing each
+/// keyword where one of the others was written, so the parse has to say where
+/// those places are. [`crate::Parsed`]'s `modifiers` is where a file's lists
+/// are collected, and no compile path builds them.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct WrittenModifier {
+    /// Which modifier this is.
+    pub modifier: Modifier,
+    /// The keyword, `(set)` suffix and all: `private(set)` is one modifier and
+    /// one span.
+    pub span: Span,
+}
+
 /// One parameter of a function, method or closure.
 ///
 /// A declaration's parameter names its type (`rule:types/declaration`), and one

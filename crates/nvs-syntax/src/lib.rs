@@ -9,9 +9,12 @@
 //!   statement and declaration grammar M1's plan names.
 //! - [`parser`] — the recursive-descent parser covering that whole grammar.
 //!   [`parse_file`] is the whole-file entry point every compile path calls (the
-//!   `nvs-cli` crate's `nvs ast` uses it); [`parse`] is the same parse plus the
-//!   trivia between the statements ([`Parsed`]), for a caller that has to
-//!   reproduce the file rather than compile it (`rule:ide/one-grammar-one-tree`);
+//!   `nvs-cli` crate's `nvs ast` uses it); [`parse`] is the same parse plus what
+//!   a caller reproducing the file rather than compiling it needs and a compile
+//!   path never asks for ([`Parsed`]): the trivia between the statements, and
+//!   the span each modifier was written at, which is how `nvs fmt` puts a
+//!   modifier list in one canonical order without a second walk over the
+//!   grammar (`rule:ide/one-grammar-one-tree`);
 //!   [`Parser`] and [`parse_expression`] are for callers that want less than a
 //!   whole file. A `///` run is not part of that side channel — both whole-file
 //!   entry points attach one to the declaration below it and refuse one that

@@ -410,12 +410,15 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
     // The entry takes the lossless entry point and every required file keeps
     // the strict one: same grammar, same statements and same diagnostics either
     // way (`rule:ide/one-grammar-one-tree`), so this costs the trivia and the
-    // index of one file and changes nothing else about the walk. A cursor is
-    // only ever in the open document, so a required file has no question to
-    // answer that its statements do not already.
+    // index of one file and changes nothing else about the walk. Where each
+    // modifier was written is dropped here: `nvs fmt` is what reads it, and a
+    // server that reformats a document calls that. A cursor is only ever in the
+    // open document, so a required file has no question to answer that its
+    // statements do not already.
     let nvs_syntax::Parsed {
         stmts,
         trivia,
+        modifiers: _,
         index,
     } = parse(map.file(entry), &mut diags);
     check_declarations(&stmts, map.file(entry), &mut diags);
