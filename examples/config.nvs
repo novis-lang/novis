@@ -21,22 +21,22 @@
 // (stage 3); the source is not.
 
 // The operator's default, before this request has touched anything.
-echo "memory=" . (Core\Config::get("memory") ?? "unset") . "\n";
+echo 'memory=' . (Core\Config::get('memory') ?? 'unset') . "\n";
 
 // Up to the ceiling: accepted, and it takes effect.
-if (Core\Config::set("memory", "512M")) {
-    echo "set ok", "\n";
+if (Core\Config::set('memory', '512M')) {
+    echo 'set ok', "\n";
 } else {
-    echo "set failed", "\n";
+    echo 'set failed', "\n";
 }
 
 // Past it: refused. No throw, no `catch`, just `false`.
-if (Core\Config::set("memory", "1G")) {
-    echo "set accepted", "\n";
+if (Core\Config::set('memory', '1G')) {
+    echo 'set accepted', "\n";
 } else {
-    echo "set refused", "\n";
+    echo 'set refused', "\n";
 }
 
 // And the half a bare `false` would not prove: the refusal left the value
 // the accepted call put there, not the one it rejected and not the default.
-echo "still=" . (Core\Config::get("memory") ?? "unset") . "\n";
+echo 'still=' . (Core\Config::get('memory') ?? 'unset') . "\n";

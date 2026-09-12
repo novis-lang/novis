@@ -7,15 +7,15 @@ class Loader
 {
     public static function load(string $key): string
     {
-        if ($key == "bad") {
-            throw new ConfigError("bad key");
+        if ($key == 'bad') {
+            throw new ConfigError('bad key');
         }
 
-        if ($key == "missing") {
-            throw new LogicError("no such key: " . $key);
+        if ($key == 'missing') {
+            throw new LogicError('no such key: ' . $key);
         }
 
-        return "value-of-" . $key;
+        return 'value-of-' . $key;
     }
 
     public static function guarded(string $key): string
@@ -23,29 +23,29 @@ class Loader
         try {
             return Loader::load($key);
         } finally {
-            echo "checked " . $key . "\n";
+            echo 'checked ' . $key . "\n";
         }
     }
 }
 
-echo Loader::guarded("host") . "\n";
+echo Loader::guarded('host') . "\n";
 
 try {
-    Loader::guarded("bad");
+    Loader::guarded('bad');
     echo "not reached\n";
 } catch (LogicError $notThisClause) {
     echo "wrong clause\n";
 } catch (ConfigError $configError) {
-    echo "config: " . $configError->message . "\n";
+    echo 'config: ' . $configError->message . "\n";
 }
 
 try {
-    Loader::guarded("missing");
+    Loader::guarded('missing');
     echo "not reached\n";
 } catch (ConfigError $alsoNotThisClause) {
     echo "wrong clause\n";
 } catch (Throwable $failure) {
-    echo "logic: " . $failure->message . "\n";
+    echo 'logic: ' . $failure->message . "\n";
 
     if (!Core\Arr::isEmpty($failure->backtrace)) {
         echo "backtrace present\n";

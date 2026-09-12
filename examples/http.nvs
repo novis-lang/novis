@@ -28,28 +28,28 @@
 // The five lines this prints are frozen in `docs/agent/loop-goal.toml`
 // (stage 5); the source is not.
 
-string $origin = "http://127.0.0.1:8099";
+string $origin = 'http://127.0.0.1:8099';
 
 // Allowed: laundered, pinned, and then fetched.
-Core\Http\Target $url = Core\Http::allowUrl($origin . "/ok");
+Core\Http\Target $url = Core\Http::allowUrl($origin . '/ok');
 var $response = Core\Http\Client::get($url);
 // `status` is a member and not a property: a `Core` instance has no property a
 // program can reach, so this is `->status()` and `crate::http`'s module doc is
 // where that decision is written down.
-echo "status=", $response->status() as string, "\n";
-echo "body=", Core\Str::trim($response->text()), "\n";
+echo 'status=', $response->status() as string, "\n";
+echo 'body=', Core\Str::trim($response->text()), "\n";
 
 // Refused at the door: a URL that arrived from outside the process. The
 // value is `tainted`, and `allowUrl` is where that is decided rather than
 // asserted — a host the operator never named does not become trusted by
 // having been read from the environment.
-?tainted string $configured = Core\Env::get("NVS_EXAMPLE_ORIGIN");
+?tainted string $configured = Core\Env::get('NVS_EXAMPLE_ORIGIN');
 try {
-    Core\Http\Target $laundered = Core\Http::allowUrl($configured ?? "http://elsewhere.invalid/");
+    Core\Http\Target $laundered = Core\Http::allowUrl($configured ?? 'http://elsewhere.invalid/');
     var $unreachable = Core\Http\Client::get($laundered);
-    echo "accepted: tainted url", "\n";
+    echo 'accepted: tainted url', "\n";
 } catch (RuntimeError $refused) {
-    echo "refused: tainted url", "\n";
+    echo 'refused: tainted url', "\n";
 }
 
 // Refused on the address rather than on the name: the cloud metadata
@@ -57,18 +57,18 @@ try {
 // grant reaches. Pinning is what makes this checkable at all — a policy
 // applied to the hostname would be re-resolved out from under itself.
 try {
-    Core\Http\Target $metadata = Core\Http::allowUrl("http://169.254.169.254/latest/meta-data/");
+    Core\Http\Target $metadata = Core\Http::allowUrl('http://169.254.169.254/latest/meta-data/');
     var $leak = Core\Http\Client::get($metadata);
-    echo "accepted: denied range", "\n";
+    echo 'accepted: denied range', "\n";
 } catch (RuntimeError $refused) {
-    echo "refused: denied range", "\n";
+    echo 'refused: denied range', "\n";
 }
 
 // Finite by construction. The budget covers the whole call, so the only
 // question a caller has is how long, never whether.
 try {
     var $slow = Core\Http\Client::get($url, {deadline: 1ms});
-    echo "no deadline", "\n";
+    echo 'no deadline', "\n";
 } catch (RuntimeError $expired) {
-    echo "deadline hit", "\n";
+    echo 'deadline hit', "\n";
 }

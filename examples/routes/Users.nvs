@@ -30,7 +30,7 @@ class Users
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
-        return "user " . $id;
+        return 'user ' . $id;
     }
 
     // § 2: precedence is structural, not declaration-ordered — a literal
@@ -41,7 +41,7 @@ class Users
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
-        return "every user";
+        return 'every user';
     }
 
     // The same path under a different verb is a different route, not a
@@ -51,6 +51,6 @@ class Users
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {
-        return "created";
+        return 'created';
     }
 }

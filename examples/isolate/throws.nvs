@@ -4,4 +4,4 @@
 // boundary as a throw. The parent's `await` answers with a `ScriptResult`
 // whose `ok` is false and whose `error` carries the message — which is what
 // keeps a child's failure from being able to end the parent.
-throw new RuntimeError("child could not finish");
+throw new RuntimeError('child could not finish');

@@ -8,6 +8,6 @@ abstract class Base implements Module
 {
     public function name(): string
     {
-        return "base";
+        return 'base';
     }
 }

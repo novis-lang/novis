@@ -40,31 +40,31 @@ use Core\Db\Schema;
 use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 
-var $db = Db::connect("schema");
+var $db = Db::connect('schema');
 
 // What an earlier version of this application left behind.
-$db->execute("create table if not exists schema_legacy (id integer not null)", []);
+$db->execute('create table if not exists schema_legacy (id integer not null)', []);
 
 var $schema = Schema::fromArray([
-    "tables" => [
+    'tables' => [
         [
-            "name" => "notes",
-            "columns" => [
-                ["name" => "id", "type" => "int64", "identity" => true],
-                ["name" => "title", "type" => "text(200)"],
-                ["name" => "body", "type" => "text", "null" => true],
-                ["name" => "created_at", "type" => "instant", "default" => ["now" => true]],
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text(200)'],
+                ['name' => 'body', 'type' => 'text', 'null' => true],
+                ['name' => 'created_at', 'type' => 'instant', 'default' => ['now' => true]],
             ],
-            "primary_key" => ["id"],
-            "unique" => [["name" => "notes_title", "columns" => ["title"]]],
+            'primary_key' => ['id'],
+            'unique' => [['name' => 'notes_title', 'columns' => ['title']]],
         ],
         [
-            "name" => "tags",
-            "columns" => [
-                ["name" => "note_id", "type" => "int64"],
-                ["name" => "tag", "type" => "text(40)"],
+            'name' => 'tags',
+            'columns' => [
+                ['name' => 'note_id', 'type' => 'int64'],
+                ['name' => 'tag', 'type' => 'text(40)'],
             ],
-            "primary_key" => ["note_id", "tag"],
+            'primary_key' => ['note_id', 'tag'],
         ],
     ],
 ]);
@@ -87,15 +87,15 @@ foreach ($plan->steps() as Step $step) {
         $destructive = $destructive + 1;
     }
 }
-echo "planned ", $total, " steps", "\n";
-echo "safe ", $safe, ", locking ", $locking, ", destructive ", $destructive, "\n";
+echo 'planned ', $total, ' steps', "\n";
+echo 'safe ', $safe, ', locking ', $locking, ', destructive ', $destructive, "\n";
 
 // Applying is not a read: § 9 gates it behind the deny-by-default `db.schema`
 // capability, and the two entry points are named for what they risk at the
 // call site. This one refuses the whole plan if a step it would run is not
 // `Safe`; the reported drop is not one of those, so it stays where it is.
 $schema->applySafe($db);
-echo "applied the safe half", "\n";
+echo 'applied the safe half', "\n";
 
 // § 7's escape hatch, and the only place in this program a table is dropped:
 // the SQL the plan already carried, run by the program that decided it wanted
@@ -115,13 +115,13 @@ foreach ($schema->planAgainst($db)->steps() as Step $step) {
     $left = $left + 1;
 }
 if ($left == 0) {
-    echo "second plan is empty", "\n";
+    echo 'second plan is empty', "\n";
 } else {
-    echo "second plan still holds ", $left, " step(s)", "\n";
+    echo 'second plan still holds ', $left, ' step(s)', "\n";
 }
 
 // The fixture leaves the database as it found it: the acceptance sweep runs
 // this program on two legs and under valgrind, and every one of those runs
 // plans the same three steps as the first.
-$db->execute("drop table tags", []);
-$db->execute("drop table notes", []);
+$db->execute('drop table tags', []);
+$db->execute('drop table notes', []);

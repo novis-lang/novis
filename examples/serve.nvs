@@ -25,10 +25,10 @@
 // A body is text this program built. [ADR 0012](/docs/decisions/0012.md)
 // leaves no variable populated by the host, so there is nothing here that
 // arrived without being asked for and nothing to interpolate from outside.
-string $body = "novis" . " " . "serves this file";
+string $body = 'novis' . ' ' . 'serves this file';
 echo $body, "\n";
 
 // One entry answers whatever its mount was given, which is why Stage 3's mount
 // table is a table of prefixes and not a table of files: the second line is the
 // same line for every path this mount matched.
-echo "entry=examples/serve.nvs", "\n";
+echo 'entry=examples/serve.nvs', "\n";

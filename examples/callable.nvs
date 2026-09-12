@@ -18,9 +18,9 @@ class Apply
         return $sum;
     }
 
-    public static function label(string $name, string $suffix = "!", int $times = 1): string
+    public static function label(string $name, string $suffix = '!', int $times = 1): string
     {
-        var $out = "";
+        var $out = '';
         var $i = 0;
         while ($i < $times) {
             $out .= $name . $suffix;
@@ -40,18 +40,18 @@ class Apply
 
 var $inc = fn(int $n) => $n + 3;
 
-echo "twice=" . Apply::twice($inc, 4) . "\n";
-echo "direct=" . $inc(10) . "\n";
+echo 'twice=' . Apply::twice($inc, 4) . "\n";
+echo 'direct=' . $inc(10) . "\n";
 
 array<int> $extra = [2, 3, 4];
-echo "spread=" . Apply::total(1, ...$extra) . "\n";
-echo "named=" . Apply::label("hi", times: 2) . "\n";
+echo 'spread=' . Apply::total(1, ...$extra) . "\n";
+echo 'named=' . Apply::label('hi', times: 2) . "\n";
 
 array<int> $joined = [1, ...$extra];
-echo "elements=" . Core\Arr::count($joined) . "\n";
+echo 'elements=' . Core\Arr::count($joined) . "\n";
 
 int $slot = 5;
-echo "byref=" . Apply::bump(inout $slot, 2) . " then " . $slot . "\n";
+echo 'byref=' . Apply::bump(inout $slot, 2) . ' then ' . $slot . "\n";
 
 array<int> $nums = [1, 2, 3];
 foreach ($nums as inout int $each) {
@@ -63,4 +63,4 @@ foreach ($nums as int $one) {
     $total += $one;
 }
 
-echo "scaled=" . $total . "\n";
+echo 'scaled=' . $total . "\n";

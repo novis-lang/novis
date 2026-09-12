@@ -5,6 +5,16 @@
 //! every file in it, and these are that proof turned into a program — the
 //! bytes `nvs fmt` answers today are the bytes it was given, and every layout
 //! rule that lands later is a departure from this baseline it has to state.
+//!
+//! A rule that lands is therefore a corpus edit in the same session, and
+//! `NVS_FMT_ACCEPT=1 cargo test -p nvs-fmt --test identity` is how that edit is
+//! made: with it set, every file the printer would change is written back
+//! instead of reported, and the run then fails naming what it wrote. The
+//! `nvs fmt` command is the tool a person uses; this exists because the
+//! corpus has to absorb a rule in the session that lands it, and the whole
+//! command is not always there yet to do it. Reading the diff before committing
+//! it is the whole review, which is why the accepting run is never a passing
+//! one.
 
 use std::path::{Path, PathBuf};
 
@@ -40,6 +50,7 @@ fn the_identity_printer_reproduces_every_corpus_file() {
     collect(&root.join("tests"), &mut corpus);
     corpus.sort();
 
+    let accepting = std::env::var_os("NVS_FMT_ACCEPT").is_some();
     let mut changed = Vec::new();
     let mut formatted = 0_usize;
     for path in &corpus {
@@ -55,6 +66,9 @@ fn the_identity_printer_reproduces_every_corpus_file() {
         };
         formatted += 1;
         if output != text {
+            if accepting {
+                std::fs::write(path, &output).expect("a corpus file is writable");
+            }
             changed.push(path.display().to_string());
         }
     }
@@ -63,9 +77,15 @@ fn the_identity_printer_reproduces_every_corpus_file() {
         formatted > 50,
         "only {formatted} corpus file(s) were formatted — this test is measuring nothing"
     );
+    let verb = if accepting {
+        "were rewritten"
+    } else {
+        "came back changed"
+    };
     assert!(
         changed.is_empty(),
-        "{} corpus file(s) came back changed:\n{}",
+        "{} corpus file(s) {verb} — a layout rule that lands is a corpus edit in \
+         the same session, and `NVS_FMT_ACCEPT=1` makes it:\n{}",
         changed.len(),
         changed.join("\n")
     );

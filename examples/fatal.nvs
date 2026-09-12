@@ -3,7 +3,7 @@ class Fatal
 {
     public static function trigger(): string
     {
-        return "value: " . 42;
+        return 'value: ' . 42;
     }
 }
 

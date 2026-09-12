@@ -14,16 +14,16 @@
 use Core\Db;
 use Core\Db\Row;
 
-var $db = Db::connect("main");
+var $db = Db::connect('main');
 
 // Ten thousand rows the server generates, walked to the end. `stream` never
 // answers a `Rows`, so there is no `count()` to read and the tally below is the
 // walk's own evidence that it reached the last row.
-var $stream = $db->stream("select generate_series(1, 10000) as n", []);
+var $stream = $db->stream('select generate_series(1, 10000) as n', []);
 
 var $seen = 0;
 var $peak = 0;
-var $busy = "allowed";
+var $busy = 'allowed';
 
 foreach ($stream as Row $row) {
     // What line 2 counts is what *this program* holds, and it says so rather
@@ -39,7 +39,7 @@ foreach ($stream as Row $row) {
         $peak = $alive;
     }
 
-    var $n = $row->int("n");
+    var $n = $row->int('n');
     if ($n != null) {
         $seen = $seen + 1;
     }
@@ -56,13 +56,13 @@ foreach ($stream as Row $row) {
     // it, which is the next 9,999 rows below.
     if ($seen == 1) {
         try {
-            $db->query("select 1 as one", []);
+            $db->query('select 1 as one', []);
         } catch (LogicError $refused) {
-            $busy = "LogicError";
+            $busy = 'LogicError';
         }
     }
 }
 
-echo "streamed ", $seen, " rows", "\n";
-echo "rows held at once: ", $peak, "\n";
-echo "a second statement on a streaming connection: ", $busy, "\n";
+echo 'streamed ', $seen, ' rows', "\n";
+echo 'rows held at once: ', $peak, "\n";
+echo 'a second statement on a streaming connection: ', $busy, "\n";

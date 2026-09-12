@@ -15,7 +15,7 @@
 // What a comment form might arrive with: formatting worth keeping, a script
 // element, an inline handler, and a `javascript:` link.
 tainted string $submitted =
-    "<p>Great post! <b>Really</b> useful.</p>" .
+    '<p>Great post! <b>Really</b> useful.</p>' .
     "<script>fetch('/steal?c=' + document.cookie)</script>" .
     "<p onclick=\"boom()\">Click <a href=\"javascript:alert(1)\">here</a>," .
     " or <a href=\"/docs\">the docs</a>.</p>";
@@ -24,7 +24,7 @@ Core\Html\Markup $clean = Core\Html::sanitize($submitted);
 
 // `toSource` is the one way out of the carrier and takes a written reason, so
 // printing the markup is a decision that reads as one (`rule:core-classes/html-to-source`).
-echo Core\Html::toSource($clean, "showing the rebuilt document to a reader of this example"), "\n";
+echo Core\Html::toSource($clean, 'showing the rebuilt document to a reader of this example'), "\n";
 
 // The three things that happened, each a different rule. `<script>` went with
 // its content, because its character data was never text. `onclick` was not
@@ -37,7 +37,7 @@ echo "\n";
 // operation rather than a pass over text. Everything inside `<listing>` reads
 // as text to a text scanner and as *markup* to a browser, so a sanitizer that
 // approved the source would approve a document it never saw.
-tainted string $mutating = "<listing>&lt;img src=x onerror=alert(1)&gt;</listing>";
+tainted string $mutating = '<listing>&lt;img src=x onerror=alert(1)&gt;</listing>';
 Core\Html\Markup $once = Core\Html::sanitize($mutating);
 string $source = Core\Html::toSource($once, "comparing the answer with the answer's own answer");
 echo $source, "\n";
@@ -46,20 +46,20 @@ echo $source, "\n";
 // first answer is what a browser will actually build — if the two ever
 // differed, the document approved would not be the document that renders.
 Core\Html\Markup $twice = Core\Html::sanitize($source);
-string $again = Core\Html::toSource($twice, "the same, for the comparison this line prints");
-echo "fixed point: ", $source == $again ? "yes" : "no", "\n";
+string $again = Core\Html::toSource($twice, 'the same, for the comparison this line prints');
+echo 'fixed point: ', $source == $again ? 'yes' : 'no', "\n";
 echo "\n";
 
 // The other launderer, for contrast. `escape` is for a value that must arrive
 // as text: it writes the five characters as references and the markup shows up
 // as markup, which is what a reader of a bug report wants to see.
-tainted string $quoted = "<img src=x onerror=alert(1)>";
+tainted string $quoted = '<img src=x onerror=alert(1)>';
 Core\Html\Markup $asText = Core\Html::escape($quoted);
-echo Core\Html::toSource($asText, "showing what the text launderer does with the same bytes"), "\n";
+echo Core\Html::toSource($asText, 'showing what the text launderer does with the same bytes'), "\n";
 
 // And the parse both of them are built over is reachable on its own, answering
 // the same node family `Core\Xml::parse` builds — one tree, two front doors
 // (`rule:core-classes/html-parsing`). This parse has no failure mode at all:
 // the tags below are never closed and the document is still a document.
-Core\Xml\Node $tree = Core\Html::parse("<p>one<p>two");
-echo "kinds under the root: ", Core\Arr::count($tree->children()), "\n";
+Core\Xml\Node $tree = Core\Html::parse('<p>one<p>two');
+echo 'kinds under the root: ', Core\Arr::count($tree->children()), "\n";

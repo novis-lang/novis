@@ -15,18 +15,18 @@ class User
     }
 }
 
-var $ada = new User("ada", 36, true);
+var $ada = new User('ada', 36, true);
 echo Core\Json::encode($ada) . "\n";
 
 var $grace = Core\Json::decodeAs<User>("{\"name\":\"grace\",\"age\":45,\"is_admin\":false}");
-echo "decoded=" . $grace->name . "/" . $grace->age . "\n";
+echo 'decoded=' . $grace->name . '/' . $grace->age . "\n";
 
-echo Core\Json::encode(["a" => 1, "b" => 2]) . "\n";
+echo Core\Json::encode(['a' => 1, 'b' => 2]) . "\n";
 echo Core\Json::encode([1, 2, 3]) . "\n";
-echo "valid=" . (Core\Json::isValid("{\"k\":1}") ? "yes" : "no") . "\n";
+echo 'valid=' . (Core\Json::isValid("{\"k\":1}") ? 'yes' : 'no') . "\n";
 
 try {
-    Core\Json::decode("{oops}");
+    Core\Json::decode('{oops}');
     echo "not reached\n";
 } catch (ParseError $malformed) {
     echo "malformed rejected\n";
@@ -36,5 +36,5 @@ try {
     Core\Json::decodeAs<User>("{\"name\":1,\"age\":\"x\",\"is_admin\":\"y\"}");
     echo "not reached\n";
 } catch (ParseError $bad) {
-    echo "issues=" . Core\Arr::count($bad->issues) . "\n";
+    echo 'issues=' . Core\Arr::count($bad->issues) . "\n";
 }

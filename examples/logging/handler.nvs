@@ -9,4 +9,4 @@
 // Anything it wants to know about the failure arrives through
 // `Core\Fatal`, whose `onUncaughtThrow` receives the real `Throwable`
 // rather than a rendering of it.
-echo "handler ran", "\n";
+echo 'handler ran', "\n";

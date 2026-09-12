@@ -12,39 +12,39 @@ callable(string, bool): void $claim = fn (string $text, bool $held): void => {
     if ($held) {
         echo $text, "\n";
     } else {
-        echo "FAILED: ", $text, "\n";
+        echo 'FAILED: ', $text, "\n";
     }
 };
 
 // The call is checked where it is written, so its result arrives as the
 // declared `string` rather than as one more `mixed` needing an `as`.
-callable(int): string $label = fn (int $n): string => "n=" . $n;
+callable(int): string $label = fn (int $n): string => 'n=' . $n;
 string $labelled = $label(7);
-$claim("a typed callback runs and returns its declared type", $labelled == "n=7");
+$claim('a typed callback runs and returns its declared type', $labelled == 'n=7');
 
 // `rule:types/callable-arity`: `Core\Arr::map` offers every callback
 // ($value, $key) and a callback may declare fewer, matched from the left.
 // Neither literal writes a parameter type — the position names them
 // (`rule:types/callable-literal-inference`).
-array<int> $scores = ["ana" => 2, "bo" => 3];
+array<int> $scores = ['ana' => 2, 'bo' => 3];
 array<int> $doubled = Core\Arr::map($scores, fn ($v) => $v * 2);
 array<string> $named = Core\Arr::map($scores, fn ($v, $k) => $k . $v);
-$claim("a shorter callback receives only what it declares", $doubled["ana"] == 4 && $named["bo"] == "bo3");
+$claim('a shorter callback receives only what it declares', $doubled['ana'] == 4 && $named['bo'] == 'bo3');
 
 // A `callable`-typed *variable* carries everything a written literal does, so
 // `map` binds its result type from the variable's own signature.
-callable(int, string): string $render = fn (int $v, string $k): string => $k . "=" . $v;
+callable(int, string): string $render = fn (int $v, string $k): string => $k . '=' . $v;
 array<string> $rendered = Core\Arr::map($scores, $render);
-$claim("a callable-typed variable reaches Core\\Arr::map", $rendered["ana"] == "ana=2");
+$claim("a callable-typed variable reaches Core\\Arr::map", $rendered['ana'] == 'ana=2');
 
 // `rule:concurrency/all-answers-a-typed-shape`: every field answers what its
 // own callable declares, whether that callable was written at the call or is
 // held in a variable.
-callable(): string $who = fn (): string => "novis";
+callable(): string $who = fn (): string => 'novis';
 var $page = Core\Task::all({
     count: fn (): uint => Core\Arr::count($scores),
     name: $who,
 });
 uint $count = $page->count;
 string $name = $page->name;
-$claim("Task::all answers a shape of its callbacks' return types", $count == 2 && $name == "novis");
+$claim("Task::all answers a shape of its callbacks' return types", $count == 2 && $name == 'novis');

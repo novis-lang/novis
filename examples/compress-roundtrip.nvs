@@ -37,7 +37,7 @@ foreach ($codecs as Core\Codec $codec) {
         $exact = $exact + 1;
     }
 }
-echo "codecs round-tripping exactly: ", $exact, "\n";
+echo 'codecs round-tripping exactly: ', $exact, "\n";
 
 // The three deflate-based cases are one algorithm under three headers, which is
 // why PHP needed `gzencode`, `gzcompress` and `gzdeflate` for it. Here the
@@ -56,10 +56,10 @@ try {
 // value for either that means "no bound". A decompression that would pass one
 // throws — it never answers the prefix it had reached, because a truncated
 // decompression that looks like success is the bug this class exists to stop.
-bytes $compressible = Core\Str::repeat("A", 65536) as bytes;
+bytes $compressible = Core\Str::repeat('A', 65536) as bytes;
 bytes $bomb = Core\Compress::compress($compressible, Core\Codec::Gzip);
-echo "a 64 KiB run compresses to under 512 octets: ",
-    Core\Bytes::length($bomb) < 512 ? "yes" : "no",
+echo 'a 64 KiB run compresses to under 512 octets: ',
+    Core\Bytes::length($bomb) < 512 ? 'yes' : 'no',
     "\n";
 
 try {
@@ -71,6 +71,6 @@ try {
 
 // And the same frame under a bound that fits reads whole. The refusal above is
 // the policy, not the decoder failing.
-echo "under a bound that fits: ",
+echo 'under a bound that fits: ',
     Core\Bytes::length(Core\Compress::decompress($bomb, Core\Codec::Gzip, 65536)),
     " octets\n";

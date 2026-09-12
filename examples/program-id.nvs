@@ -30,7 +30,7 @@ string $id = Core\Program::id();
 // and a truncated one would still be entirely lower case.
 int $hex = 0;
 foreach (Core\Str::graphemes($id) as string $ch) {
-    if (Core\Str::contains("0123456789abcdef", $ch)) {
+    if (Core\Str::contains('0123456789abcdef', $ch)) {
         $hex = $hex + 1;
     }
 }
@@ -40,9 +40,9 @@ foreach (Core\Str::graphemes($id) as string $ch) {
 // back. Lower case is part of the formula and not a rendering choice — two
 // spellings of one digest would be two cache keys.
 bool $shaped = Core\Str::length($id) == 64 && $hex == 64 && $id == Core\Str::lower($id);
-echo $shaped ? "id is 64 lowercase hex characters" : "id was not 64 lowercase hex: " . $id, "\n";
+echo $shaped ? 'id is 64 lowercase hex characters' : 'id was not 64 lowercase hex: ' . $id, "\n";
 
 // Constant within a run by construction rather than by memoization: the host
 // wrote it onto the context before this file started, so there is nothing
 // left for a second call to compute differently.
-echo Core\Program::id() == $id ? "two reads within one run agree" : "two reads disagreed", "\n";
+echo Core\Program::id() == $id ? 'two reads within one run agree' : 'two reads disagreed', "\n";

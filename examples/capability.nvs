@@ -25,20 +25,20 @@
 
 // Granted: a read under the root the operator named.
 try {
-    string $greeting = Core\IO::read("examples/capability/greeting.txt");
-    echo "granted: " . Core\Str::trim($greeting) . "\n";
+    string $greeting = Core\IO::read('examples/capability/greeting.txt');
+    echo 'granted: ' . Core\Str::trim($greeting) . "\n";
 } catch (RuntimeError $refused) {
-    echo "granted: refused", "\n";
+    echo 'granted: refused', "\n";
 }
 
 // Denied: the same directory, the other verb. The path is inside the
 // granted root on purpose — what is missing is the capability, not the
 // prefix, so a tree that checked only the path would pass the wrong half.
 try {
-    Core\IO::write("examples/capability/denied.txt", "unreachable");
-    echo "allowed: fs.write", "\n";
+    Core\IO::write('examples/capability/denied.txt', 'unreachable');
+    echo 'allowed: fs.write', "\n";
 } catch (RuntimeError $refused) {
-    echo "denied: fs.write", "\n";
+    echo 'denied: fs.write', "\n";
 }
 
 // Denied: `spawn script` without `script.spawn`. This throws *here*,
@@ -53,7 +53,7 @@ try {
         output: 'capture',
     );
     var $done = await $child;
-    echo "allowed: script.spawn", "\n";
+    echo 'allowed: script.spawn', "\n";
 } catch (RuntimeError $refused) {
-    echo "denied: script.spawn", "\n";
+    echo 'denied: script.spawn', "\n";
 }

@@ -18,11 +18,11 @@ class Kind
     public static function name(Core\Xml\NodeKind $kind): string
     {
         return match ($kind) {
-            Core\Xml\NodeKind::Document => "document",
-            Core\Xml\NodeKind::Element => "element",
-            Core\Xml\NodeKind::Text => "text",
-            Core\Xml\NodeKind::Comment => "comment",
-            Core\Xml\NodeKind::ProcessingInstruction => "instruction",
+            Core\Xml\NodeKind::Document => 'document',
+            Core\Xml\NodeKind::Element => 'element',
+            Core\Xml\NodeKind::Text => 'text',
+            Core\Xml\NodeKind::Comment => 'comment',
+            Core\Xml\NodeKind::ProcessingInstruction => 'instruction',
         };
     }
 }
@@ -36,9 +36,9 @@ class Outline
     {
         echo $indent, Kind::name($node->kind());
         if ($node->kind() == Core\Xml\NodeKind::Element) {
-            echo " ", $node->name();
+            echo ' ', $node->name();
             foreach ($node->attributes() as string $name => tainted string $value) {
-                echo " ", $name, "=\"", $value, "\"";
+                echo ' ', $name, "=\"", $value, "\"";
             }
         }
         if ($node->kind() != Core\Xml\NodeKind::Element) {
@@ -46,7 +46,7 @@ class Outline
         }
         echo "\n";
         foreach ($node->children() as Core\Xml\Node $child) {
-            Outline::show($child, $indent . "  ");
+            Outline::show($child, $indent . '  ');
         }
     }
 }
@@ -60,9 +60,9 @@ class Outline
 Core\Xml\Node $document = Core\Xml::parse(
     "<?render fast?><order id=\"7\" zone='west'>" .
     "<!--the customer wrote this--><item sku=\"a &amp; b\">two</item>" .
-    "<note><![CDATA[<raw>]]></note></order>"
+    '<note><![CDATA[<raw>]]></note></order>'
 );
-Outline::show($document, "");
+Outline::show($document, '');
 
 // The document node is the one a program is handed rather than one it reaches,
 // so the root element is found by its kind: the prolog's instruction is a child
@@ -81,11 +81,11 @@ class Root
 }
 
 Core\Xml\Node $order = Root::of($document);
-echo "root: ", $order->name(), ", children: ", Core\Arr::count($order->children()), "\n";
+echo 'root: ', $order->name(), ', children: ', Core\Arr::count($order->children()), "\n";
 
 // The same question asked twice answers the same way, because the tree is
 // materialised and nothing behind it is a cursor.
-echo "again: ", Core\Arr::count($order->children()), "\n";
+echo 'again: ', Core\Arr::count($order->children()), "\n";
 
 // The other half of the contract: this parser refuses rather than repairs, so
 // input that is not well-formed produces nothing at all — never as much of a
@@ -93,7 +93,7 @@ echo "again: ", Core\Arr::count($order->children()), "\n";
 // opposite of `Core\Html::parse`, whose WHATWG algorithm has no failure mode,
 // and the reason the two are separate doors rather than one flag.
 try {
-    Core\Xml::parse("<order><item></order>");
+    Core\Xml::parse('<order><item></order>');
     echo "an unclosed element was repaired\n";
 } catch (ParseError $malformed) {
     echo "malformed: refused\n";

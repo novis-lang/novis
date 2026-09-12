@@ -20,43 +20,43 @@
 // The six lines this prints are frozen in `docs/agent/loop-goal.toml`
 // (stage 4); the source is not.
 
-secret string $password = "correct horse battery staple";
+secret string $password = 'correct horse battery staple';
 
 // Stored, not kept. A freshly made hash is by definition current, so
 // `needsRehash` answering `false` is the assertion rather than a non-empty
 // string would be.
 string $stored = Core\Password::hash($password);
 if (Core\Password::needsRehash($stored)) {
-    echo "hash stale on the day it was made", "\n";
+    echo 'hash stale on the day it was made', "\n";
 } else {
-    echo "hash ok", "\n";
+    echo 'hash ok', "\n";
 }
 
 // The bound, named on both sides: the password that made it, and one that
 // did not.
 if (Core\Password::verify($password, $stored)) {
-    echo "verify ok", "\n";
+    echo 'verify ok', "\n";
 } else {
-    echo "verify refused the right password", "\n";
+    echo 'verify refused the right password', "\n";
 }
 
-secret string $wrong = "hunter2";
+secret string $wrong = 'hunter2';
 if (Core\Password::verify($wrong, $stored)) {
-    echo "verify accepted the wrong password", "\n";
+    echo 'verify accepted the wrong password', "\n";
 } else {
-    echo "verify failed", "\n";
+    echo 'verify failed', "\n";
 }
 
 // AEAD, both directions.
 secret bytes $key = Core\Crypto::generateKey();
-bytes $message = "attack at dawn" as bytes;
+bytes $message = 'attack at dawn' as bytes;
 bytes $sealed = Core\Crypto::seal($message, $key);
-echo "sealed", "\n";
+echo 'sealed', "\n";
 
 if (Core\Crypto::open($sealed, $key) == $message) {
-    echo "opened", "\n";
+    echo 'opened', "\n";
 } else {
-    echo "opened the wrong plaintext", "\n";
+    echo 'opened the wrong plaintext', "\n";
 }
 
 // One byte short is a forgery, and an authenticated mode says so rather
@@ -64,7 +64,7 @@ if (Core\Crypto::open($sealed, $key) == $message) {
 bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
 try {
     bytes $forged = Core\Crypto::open($tampered, $key);
-    echo "tamper accepted", "\n";
+    echo 'tamper accepted', "\n";
 } catch (RuntimeError $refused) {
-    echo "tamper refused", "\n";
+    echo 'tamper refused', "\n";
 }

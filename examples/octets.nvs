@@ -25,10 +25,10 @@ class Pages
 // 1. `%ff%fe%fd` is three octets and is not text: no `string` answer could have
 // carried it, which is why `decodeComponent` answers `bytes`. Sliced a byte at
 // a time so the answer is read as the buffer it is rather than rendered.
-bytes $octets = Core\Uri::decodeComponent("%ff%fe%fd");
-echo "decoded octets: ",
-    Core\Encoding::toHex(Core\Bytes::slice($octets, 0, 1)), " ",
-    Core\Encoding::toHex(Core\Bytes::slice($octets, 1, 1)), " ",
+bytes $octets = Core\Uri::decodeComponent('%ff%fe%fd');
+echo 'decoded octets: ',
+    Core\Encoding::toHex(Core\Bytes::slice($octets, 0, 1)), ' ',
+    Core\Encoding::toHex(Core\Bytes::slice($octets, 1, 1)), ' ',
     Core\Encoding::toHex(Core\Bytes::slice($octets, 2, 1)), "\n";
 
 // 2. The same decoder reached through a query string. `na%6de` is the *name*
@@ -37,10 +37,10 @@ echo "decoded octets: ",
 // guarantee the moment a program iterated the array. The value has no such
 // constraint, so it arrives as the octets themselves — identical to the buffer
 // above, which is what the comparison asserts.
-array<mixed> $query = Core\Uri::parseQuery("na%6de=%ff%fe%fd");
-bytes $value = $query["name"] as bytes;
+array<mixed> $query = Core\Uri::parseQuery('na%6de=%ff%fe%fd');
+bytes $value = $query['name'] as bytes;
 if (Core\Bytes::compare($value, $octets) == 0) {
-    echo "query name and value decode as octets too", "\n";
+    echo 'query name and value decode as octets too', "\n";
 }
 
 // 3. A route capture, decoded once where it crosses into the program: the
@@ -51,7 +51,7 @@ if (Core\Bytes::compare($value, $octets) == 0) {
 // which is why one decode serves both. A capture whose escapes spell octets
 // outside UTF-8 has no `tainted string` to become and throws instead; that is
 // the boundary line 1 does not have.
-?Core\Router\Match $matched = Core\Router::match(Core\Http\Method::Get, "/pages/hello%20world");
+?Core\Router\Match $matched = Core\Router::match(Core\Http\Method::Get, '/pages/hello%20world');
 if ($matched != null) {
-    echo "capture: ", $matched->param("slug") as string, "\n";
+    echo 'capture: ', $matched->param('slug') as string, "\n";
 }

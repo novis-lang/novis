@@ -13,16 +13,16 @@ var $deep = ((((((((((((7))))))))))));
 
 // Nesting the other way: a literal whose walk is recursive whatever walks it,
 // and whose innermost element is what an index lookup has to reach.
-array<array<array<array<array<string>>>>> $tree = [[[[["leaf"]]]]];
+array<array<array<array<array<string>>>>> $tree = [[[[['leaf']]]]];
 
 // A sixty-term chain: one left-leaning tree the type checker types at every
 // step, and the shape a half-typed line grows into as somebody keeps typing.
-var $chain = "a" . "b" . "c" . "d" . "e" . "f" . "g" . "h" . "i" . "j"
-    . "k" . "l" . "m" . "n" . "o" . "p" . "q" . "r" . "s" . "t"
-    . "u" . "v" . "w" . "x" . "y" . "z" . "0" . "1" . "2" . "3"
-    . "4" . "5" . "6" . "7" . "8" . "9" . "A" . "B" . "C" . "D"
-    . "E" . "F" . "G" . "H" . "I" . "J" . "K" . "L" . "M" . "N"
-    . "O" . "P" . "Q" . "R" . "S" . "T" . "U" . "V" . "W" . "X";
+var $chain = 'a' . 'b' . 'c' . 'd' . 'e' . 'f' . 'g' . 'h' . 'i' . 'j'
+    . 'k' . 'l' . 'm' . 'n' . 'o' . 'p' . 'q' . 'r' . 's' . 't'
+    . 'u' . 'v' . 'w' . 'x' . 'y' . 'z' . '0' . '1' . '2' . '3'
+    . '4' . '5' . '6' . '7' . '8' . '9' . 'A' . 'B' . 'C' . 'D'
+    . 'E' . 'F' . 'G' . 'H' . 'I' . 'J' . 'K' . 'L' . 'M' . 'N'
+    . 'O' . 'P' . 'Q' . 'R' . 'S' . 'T' . 'U' . 'V' . 'W' . 'X';
 
 echo $deep, "\n";
 echo Core\Str::length($chain), "\n";

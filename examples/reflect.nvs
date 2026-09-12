@@ -31,19 +31,19 @@ class Point
 
 var $point = new Point();
 var $described = Core\Reflect::forObject($point);
-echo "class=", $described->name(), "\n";
+echo 'class=', $described->name(), "\n";
 
 // The visibility-respecting walk: two of the three, seen from out here.
-echo "members=", Core\Arr::count($described->properties()), "\n";
+echo 'members=', Core\Arr::count($described->properties()), "\n";
 
 // And the third, asked for by name. The clause is `RuntimeError` rather
 // than `Throwable`, so a misspelled member would not have been counted as
 // a visibility refusal.
 try {
-    var $hidden = $described->get($point, "scratch");
-    echo "private read", "\n";
+    var $hidden = $described->get($point, 'scratch');
+    echo 'private read', "\n";
 } catch (RuntimeError $refused) {
-    echo "private refused", "\n";
+    echo 'private refused', "\n";
 }
 
 // `typeOf` is the single replacement for PHP's fourteen `is_*` predicates
@@ -52,13 +52,13 @@ try {
 // constant.
 mixed $value = 7;
 string $kind = match (Core\Reflect::typeOf($value)) {
-    Core\Reflect\TypeKind::Int => "int",
-    Core\Reflect\TypeKind::Float => "float",
-    Core\Reflect\TypeKind::Text => "string",
-    default => "other",
+    Core\Reflect\TypeKind::Int => 'int',
+    Core\Reflect\TypeKind::Float => 'float',
+    Core\Reflect\TypeKind::Text => 'string',
+    default => 'other',
 };
-echo "kind=", $kind, "\n";
+echo 'kind=', $kind, "\n";
 
 // Source as data. Nothing below runs the program it just read.
-var $tree = Core\Ast::parse("<?nvs echo 1 + 2;");
-echo "parsed ", Core\Arr::count($tree->nodes()), " nodes\n";
+var $tree = Core\Ast::parse('<?nvs echo 1 + 2;');
+echo 'parsed ', Core\Arr::count($tree->nodes()), " nodes\n";

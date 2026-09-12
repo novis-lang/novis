@@ -3,29 +3,29 @@ class Ordered
 {
     public static function render(array<int> $a): string
     {
-        var $out = "";
+        var $out = '';
         foreach ($a as string $k => int $v) {
-            $out = $out . $k . "=" . $v . ";";
+            $out = $out . $k . '=' . $v . ';';
         }
         return $out;
     }
 }
 
-array<int> $scores = ["alpha" => 1, "beta" => 2, "gamma" => 3];
+array<int> $scores = ['alpha' => 1, 'beta' => 2, 'gamma' => 3];
 echo Ordered::render($scores) . "\n";
 
-unset($scores["beta"]);
+unset($scores['beta']);
 echo Ordered::render($scores) . "\n";
 
-$scores["beta"] = 20;
+$scores['beta'] = 20;
 echo Ordered::render($scores) . "\n";
 
 var $copy = $scores;
-$copy["alpha"] = 99;
+$copy['alpha'] = 99;
 echo Ordered::render($scores) . "\n";
 echo Ordered::render($copy) . "\n";
 
-echo "count=" . Core\Arr::count($scores) . "\n";
+echo 'count=' . Core\Arr::count($scores) . "\n";
 
 array<array<int>> $grid = [[1, 2], [3, 4]];
 var $total = 0;
@@ -35,4 +35,4 @@ foreach ($grid as array<int> $cells) {
     }
 }
 
-echo "total=" . $total . "\n";
+echo 'total=' . $total . "\n";

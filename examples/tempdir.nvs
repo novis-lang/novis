@@ -25,10 +25,10 @@
 // the source is not.
 
 string $dir = Core\IO::temporaryDir();
-string $note = Core\Path::join($dir, "note.txt");
+string $note = Core\Path::join($dir, 'note.txt');
 
 Core\IO::write($note, "hello from a temporary\n");
-echo "wrote and read: ", Core\Str::trim(Core\IO::readText($note)), "\n";
+echo 'wrote and read: ', Core\Str::trim(Core\IO::readText($note)), "\n";
 
 // And that is the end of the program. `$dir` still exists as this line runs;
 // it does not exist by the time the process is gone.

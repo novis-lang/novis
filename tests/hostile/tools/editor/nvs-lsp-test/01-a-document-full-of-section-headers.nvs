@@ -8,8 +8,8 @@
 // What it hopes to break is a lexer that finds a header anywhere but at the
 // start of a line of the case itself, or a cursor marker inside a string.
 
-var $header = "--EXPECT--";
-var $cursor = "<|>";
+var $header = '--EXPECT--';
+var $cursor = '<|>';
 
 // A whole case, written inside a string that spans lines. Every header here
 // starts its own line, which is the only thing the section lexer looks for.
@@ -31,5 +31,5 @@ owned
 // --REQUEST--
 // --EXPECT--
 
-echo Core\Str::length($header), " ", Core\Str::length($cursor), "\n";
-echo Core\Str::countOf($smuggled, "--"), "\n";
+echo Core\Str::length($header), ' ', Core\Str::length($cursor), "\n";
+echo Core\Str::countOf($smuggled, '--'), "\n";

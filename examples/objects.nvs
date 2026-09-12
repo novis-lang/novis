@@ -5,7 +5,7 @@ interface Greets
 
     public function greet(): string
     {
-        return "Hello, " . $this->name() . "!";
+        return 'Hello, ' . $this->name() . '!';
     }
 }
 
@@ -27,7 +27,7 @@ class Animal implements Greets
 
     public function describe(): string
     {
-        return $this->animalName . " has " . $this->legs . " legs";
+        return $this->animalName . ' has ' . $this->legs . ' legs';
     }
 }
 
@@ -35,7 +35,7 @@ class Dog extends Animal
 {
     public function describe(): string
     {
-        return parent::describe() . ", and barks";
+        return parent::describe() . ', and barks';
     }
 }
 
@@ -43,7 +43,7 @@ class Registry
 {
     public static function tag(): string
     {
-        return "base";
+        return 'base';
     }
 
     public static function make(): static
@@ -61,7 +61,7 @@ class MidRegistry extends Registry
 {
     public static function tag(): string
     {
-        return "mid";
+        return 'mid';
     }
 }
 
@@ -69,12 +69,12 @@ class LeafRegistry extends MidRegistry
 {
     public static function tag(): string
     {
-        return "leaf";
+        return 'leaf';
     }
 }
 
-var $a = new Animal("cat", 4);
-var $d = new Dog("rex", 4);
+var $a = new Animal('cat', 4);
+var $d = new Dog('rex', 4);
 
 echo $a->describe() . "\n";
 echo $d->describe() . "\n";

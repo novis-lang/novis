@@ -26,7 +26,7 @@
 // because the assignability rule that already stands refuses it.
 class Slug implements Parses
 {
-    public tainted string $text = "";
+    public tainted string $text = '';
 
     public function constructor(tainted string $text)
     {
@@ -43,7 +43,7 @@ class Slug implements Parses
     public static function parse(tainted string $s): static
     {
         if ($s != Core\Str::lower($s)) {
-            throw new ParseError("a slug is written in lower case");
+            throw new ParseError('a slug is written in lower case');
         }
         return new static($s);
     }
@@ -57,7 +57,7 @@ class Posts
     // class-typed `#[Query]` cannot carry one; the *text* is defaulted and the
     // class builds the value out of it, which is what the two `tag` lines
     // below spell.
-    public const string TAG_DEFAULT = "absent";
+    public const string TAG_DEFAULT = 'absent';
 
     // `Slug` stands in the capture and in the `#[Query]` alike: a query
     // parameter is declared with a capture's type list
@@ -68,7 +68,7 @@ class Posts
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(Slug $slug, #[Core\Query] Slug $tag): string
     {
-        return "one post";
+        return 'one post';
     }
 
     // The engine's own class built from text, at the same site, for the
@@ -78,7 +78,7 @@ class Posts
     #[Core\Access(allow: Core\Audience::Public)]
     public function byId(Core\Uuid $id): string
     {
-        return "one post";
+        return 'one post';
     }
 }
 
@@ -88,10 +88,10 @@ class Posts
 // class the route declared before anything reads it.
 ?Core\Router\Match $matched = Core\Router::match(Core\Request::method(), Core\Request::path());
 if ($matched != null) {
-    var $capture = $matched->param("slug");
+    var $capture = $matched->param('slug');
     if ($capture != null) {
         Slug $slug = $capture as Slug;
-        echo "slug is ", $slug->text, "\n";
+        echo 'slug is ', $slug->text, "\n";
     }
 }
 
@@ -99,18 +99,18 @@ if ($matched != null) {
 // declared one yet, so both readings go through the same `parse` the binding
 // will call — the fallback text for a key the request did not send, then the
 // text this request did send.
-echo "tag is ", Slug::parse(Posts::TAG_DEFAULT)->text, "\n";
-echo "tag is ", Slug::parse(Core\Request::query("tag") as string)->text, "\n";
+echo 'tag is ', Slug::parse(Posts::TAG_DEFAULT)->text, "\n";
+echo 'tag is ', Slug::parse(Core\Request::query('tag') as string)->text, "\n";
 
 // A segment the class refuses fails over a route that *did* match, so it is a
 // `400` and never a `404`: the shape claimed the row, and the refusal happened
 // one layer above the walk, where a served request is already past everything
 // that rate-limits it.
 try {
-    ?Core\Router\Match $shouty = Core\Router::match(Core\Http\Method::Get, "/posts/Hello-World");
-    echo "unreachable: the class refused nothing", "\n";
+    ?Core\Router\Match $shouty = Core\Router::match(Core\Http\Method::Get, '/posts/Hello-World');
+    echo 'unreachable: the class refused nothing', "\n";
 } catch (ParseError $refusal) {
-    echo "a segment the class refuses is a 400", "\n";
+    echo 'a segment the class refuses is a 400', "\n";
 }
 
 // And the other half of that sentence. A `Core\Uuid` capture is converted by
@@ -118,7 +118,7 @@ try {
 // walk carries on, and nothing else claiming this path means a `404`. Two
 // captures spelled the same way therefore fail two ways, and what decides
 // which is who runs at the door.
-?Core\Router\Match $refused = Core\Router::match(Core\Http\Method::Get, "/posts/by-id/not-a-uuid");
+?Core\Router\Match $refused = Core\Router::match(Core\Http\Method::Get, '/posts/by-id/not-a-uuid');
 if ($refused == null) {
     echo "and a Core\\Uuid segment the router refuses is no match", "\n";
 }

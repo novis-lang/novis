@@ -26,4 +26,4 @@ foreach ($commands as App\Command $command) {
     echo $command->usage(), "\n";
 }
 
-echo "commands=", Core\Arr::count($commands), "\n";
+echo 'commands=', Core\Arr::count($commands), "\n";

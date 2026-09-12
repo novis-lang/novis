@@ -24,14 +24,14 @@
 // (`rule:errors/a-record-names-where-it-was-produced`) — so moving a write
 // below moves what that check expects.
 
-Core\Log::write(Core\Log\Level::Info, "started");
+Core\Log::write(Core\Log\Level::Info, 'started');
 
 // An ordinary failure, caught and reported. Nothing has escalated: this is
 // the rung a program handles itself.
 try {
-    throw new RuntimeError("boom");
+    throw new RuntimeError('boom');
 } catch (RuntimeError $failure) {
-    Core\Log::write(Core\Log\Level::Error, "boom");
+    Core\Log::write(Core\Log\Level::Error, 'boom');
 }
 
 // And the rung above it, where the program no longer gets a say.

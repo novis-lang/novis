@@ -7,4 +7,4 @@
 // There is deliberately no `try` here. A `catch` would make this a program
 // that handles its own failure, which is the rung `examples/logging.nvs`
 // already shows on its own.
-throw new RuntimeError("the child gave up");
+throw new RuntimeError('the child gave up');

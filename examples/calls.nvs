@@ -12,4 +12,4 @@ class Math
     }
 }
 
-echo "quadruple(5) = " . Math::quadruple(5) . "\n";
+echo 'quadruple(5) = ' . Math::quadruple(5) . "\n";

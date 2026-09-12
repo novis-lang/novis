@@ -30,31 +30,31 @@
 var $local = Core\Cache::local();
 
 // Cold, on this core, in this process. Nothing has written it yet.
-var $before = $local->get("greeting");
+var $before = $local->get('greeting');
 if ($before == null) {
-    echo "local miss", "\n";
+    echo 'local miss', "\n";
 } else {
-    echo "local hit before any write", "\n";
+    echo 'local hit before any write', "\n";
 }
 
 // Warm, immediately after our own write — which is the strongest thing the
 // local tier promises and the only one worth asserting.
-$local->put("greeting", "hello");
-var $after = $local->get("greeting");
+$local->put('greeting', 'hello');
+var $after = $local->get('greeting');
 if ($after == null) {
-    echo "local miss after a write", "\n";
+    echo 'local miss after a write', "\n";
 } else {
-    echo "local hit", "\n";
+    echo 'local hit', "\n";
 }
 
 // The other tier, over the network, and coherent.
 var $shared = Core\Cache::shared();
-$shared->put("greeting", "hello");
-var $seen = $shared->get("greeting");
+$shared->put('greeting', 'hello');
+var $seen = $shared->get('greeting');
 if ($seen == null) {
-    echo "shared miss", "\n";
+    echo 'shared miss', "\n";
 } else {
-    echo "shared hit", "\n";
+    echo 'shared hit', "\n";
 }
 
 // An account nothing has charged yet — and the reason it is drawn rather than
@@ -63,21 +63,21 @@ if ($seen == null) {
 // run's arrival and refuse the line below; the acceptance sweep runs this
 // program three times in a few seconds. That is the whole difference from the
 // tier above, stated as a line that would fail without it.
-var $account = "account:" . Core\Random::token(6);
+var $account = 'account:' . Core\Random::token(6);
 
 // One request per two seconds, for this key. The first is inside the limit.
 var $first = Core\RateLimit::consume($account, 1, 2s);
 if ($first->allowed()) {
-    echo "allowed=true", "\n";
+    echo 'allowed=true', "\n";
 } else {
-    echo "allowed=false", "\n";
+    echo 'allowed=false', "\n";
 }
 
 // The second is not, and the decision carries the wait rather than leaving
 // the caller to invent one.
 var $second = Core\RateLimit::consume($account, 1, 2s);
 if ($second->allowed()) {
-    echo "allowed=true unexpectedly", "\n";
+    echo 'allowed=true unexpectedly', "\n";
 } else {
     // Rounded **up**, because a `Retry-After` rounded down tells the client to
     // come back before the store will admit it — and the wait here is a whisker
@@ -91,5 +91,5 @@ if ($second->allowed()) {
             $seconds = $seconds + 1;
         }
     }
-    echo "allowed=false retryAfter=", $seconds, "\n";
+    echo 'allowed=false retryAfter=', $seconds, "\n";
 }

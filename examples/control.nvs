@@ -3,7 +3,7 @@ class Walk
 {
     public static function digits(): string
     {
-        var $out = "";
+        var $out = '';
         var $n = 0;
         do {
             $out .= $n;
@@ -15,7 +15,7 @@ class Walk
 
     public static function scan(array<int> $rows): string
     {
-        var $seen = "";
+        var $seen = '';
         foreach ($rows as int $row) {
             var $inner = 0;
             while ($inner < 3) {
@@ -34,15 +34,15 @@ class Walk
     public static function guarded(string $mode): string
     {
         try {
-            throw new LogicError("first");
+            throw new LogicError('first');
         } catch (LogicError $caught) {
-            if ($mode == "rethrow") {
-                throw new RuntimeError("second");
+            if ($mode == 'rethrow') {
+                throw new RuntimeError('second');
             }
 
-            return "handled";
+            return 'handled';
         } finally {
-            echo "cleanup " . $mode . "\n";
+            echo 'cleanup ' . $mode . "\n";
         }
     }
 }
@@ -61,21 +61,21 @@ class Source
     }
 }
 
-echo "digits=" . Walk::digits() . "\n";
+echo 'digits=' . Walk::digits() . "\n";
 
 array<int> $rows = [1, 5];
-echo "scan=" . Walk::scan($rows) . "\n";
+echo 'scan=' . Walk::scan($rows) . "\n";
 
-var $label = Core\Arr::count($rows) > 5 ? "big" : 0;
-echo "label=" . $label . "\n";
+var $label = Core\Arr::count($rows) > 5 ? 'big' : 0;
+echo 'label=' . $label . "\n";
 
-echo "handled=" . Walk::guarded("return") . "\n";
+echo 'handled=' . Walk::guarded('return') . "\n";
 
 try {
-    Walk::guarded("rethrow");
+    Walk::guarded('rethrow');
     echo "not reached\n";
 } catch (RuntimeError $second) {
-    echo "rethrown=" . $second->message . "\n";
+    echo 'rethrown=' . $second->message . "\n";
 }
 
 var $taken = 0;
@@ -86,4 +86,4 @@ foreach (Source::counting() as int $v) {
     }
 }
 
-echo "taken=" . $taken . "\n";
+echo 'taken=' . $taken . "\n";

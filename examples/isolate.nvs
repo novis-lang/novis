@@ -22,9 +22,9 @@ var $hello = spawn script 'examples/isolate/hello.nvs' with(
 );
 var $greeting = await $hello;
 if ($greeting->ok) {
-    echo "ok=true", "\n";
+    echo 'ok=true', "\n";
 } else {
-    echo "ok=false", "\n";
+    echo 'ok=false', "\n";
 }
 
 // `output: 'capture'` — the same child machinery with the other sink. What
@@ -33,7 +33,7 @@ var $capture = spawn script 'examples/isolate/capture.nvs' with(
     output: 'capture',
 );
 var $captured = await $capture;
-echo "captured=", $captured->output, "\n";
+echo 'captured=', $captured->output, "\n";
 
 // Item 22: a child's uncaught throw is a *value* on this side. It does not
 // propagate as a throw — there is no `catch` around this call and none is
@@ -45,10 +45,10 @@ var $bad = spawn script 'examples/isolate/throws.nvs' with(
 );
 var $failed = await $bad;
 if ($failed->ok) {
-    echo "ok=true", "\n";
+    echo 'ok=true', "\n";
 } else {
-    echo "ok=false", "\n";
+    echo 'ok=false', "\n";
 }
 
 // And the line the three above are all in service of.
-echo "parent still running", "\n";
+echo 'parent still running', "\n";

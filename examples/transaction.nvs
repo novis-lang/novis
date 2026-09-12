@@ -28,11 +28,11 @@ class Accounts
     // this program prints one.
     public static function count(Core\Db\Connection $db): int
     {
-        var $row = $db->query("select count(*) as n from accounts", [])->first();
+        var $row = $db->query('select count(*) as n from accounts', [])->first();
         if ($row == null) {
             return -1;
         }
-        var $n = $row->int("n");
+        var $n = $row->int('n');
         if ($n == null) {
             return -1;
         }
@@ -40,9 +40,9 @@ class Accounts
     }
 }
 
-var $db = Db::connect("main");
-$db->execute("drop table if exists accounts", []);
-$db->execute("create table accounts (id integer primary key, owner text not null)", []);
+var $db = Db::connect('main');
+$db->execute('drop table if exists accounts', []);
+$db->execute('create table accounts (id integer primary key, owner text not null)', []);
 
 // The rolling-back half. `rollBack` sets the rollback-only flag and throws
 // `Db\RolledBack`, which propagates out of the owning `transaction()` call —
@@ -51,12 +51,12 @@ $db->execute("create table accounts (id integer primary key, owner text not null
 // and carry on inside the same transaction.
 try {
     $db->transaction(fn (Transaction $tx): void => {
-        $tx->executeMany("insert into accounts (id, owner) values (?, ?)", [
-            [1, "ada"],
-            [2, "grace"],
+        $tx->executeMany('insert into accounts (id, owner) values (?, ?)', [
+            [1, 'ada'],
+            [2, 'grace'],
         ]);
-        echo "inserted 2", "\n";
-        $tx->rollBack("this fixture keeps nothing from the first attempt");
+        echo 'inserted 2', "\n";
+        $tx->rollBack('this fixture keeps nothing from the first attempt');
     });
 // The class is written out here rather than imported: a `use` alias reaches a
 // `new` and a parameter type, and does not yet reach a `catch` — `nvs-ir`
@@ -66,20 +66,20 @@ try {
     // caller that catches it can say *why* the work was abandoned without the
     // closure needing a second channel out — a transaction that returns nothing
     // has no other way to report the decision it made.
-    echo "rolled back: ", $rolled->reason, "\n";
+    echo 'rolled back: ', $rolled->reason, "\n";
 }
 
 // Nothing survived it. This is the line the whole design is for: the two rows
 // were written and are gone, and no `commit` was ever reachable.
-echo "count=", Accounts::count($db), "\n";
+echo 'count=', Accounts::count($db), "\n";
 
 // The committing half — the same closure without the refusal at the end.
 // There is no `commit` member to call: returning is the commit.
 $db->transaction(fn (Transaction $tx): void => {
-    $tx->executeMany("insert into accounts (id, owner) values (?, ?)", [
-        [1, "ada"],
-        [2, "grace"],
+    $tx->executeMany('insert into accounts (id, owner) values (?, ?)', [
+        [1, 'ada'],
+        [2, 'grace'],
     ]);
 });
-echo "committed", "\n";
-echo "count=", Accounts::count($db), "\n";
+echo 'committed', "\n";
+echo 'count=', Accounts::count($db), "\n";

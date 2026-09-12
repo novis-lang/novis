@@ -2,9 +2,9 @@
 // A child isolate of `examples/isolate.nvs`, run with `output: 'inherit'` —
 // so this line lands on the parent's stdout, in the parent's order, rather
 // than in a buffer the parent reads back.
-echo "child said hello", "\n";
+echo 'child said hello', "\n";
 
 // ADR 0006 § *Failure is a value, not an exception*: a child answers with a
 // top-level `return`, which is what `require` already means in PHP. The
 // parent sees it as the value half of a `ScriptResult` whose `ok` is true.
-return ["greeted" => true];
+return ['greeted' => true];

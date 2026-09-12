@@ -27,9 +27,9 @@ uint $pid = Core\Os::pid();
 string $host = Core\Os::hostname();
 uint $cores = Core\Os::cpuCount();
 
-echo $pid > 0 ? "pid is a number" : "pid answered nothing", "\n";
-echo Core\Str::length($host) > 0 ? "hostname is a name" : "hostname answered nothing", "\n";
-echo $cores > 0 ? "cpuCount is at least one core" : "cpuCount answered nothing", "\n";
+echo $pid > 0 ? 'pid is a number' : 'pid answered nothing', "\n";
+echo Core\Str::length($host) > 0 ? 'hostname is a name' : 'hostname answered nothing', "\n";
+echo $cores > 0 ? 'cpuCount is at least one core' : 'cpuCount answered nothing', "\n";
 
 // The *process's* resident set, and never the request's held bytes — those are
 // `Core\Budget::memoryHeld`, measured against a ceiling this figure has nothing
@@ -38,7 +38,7 @@ echo $cores > 0 ? "cpuCount is at least one core" : "cpuCount answered nothing",
 // and the second is never the smaller.
 uint $before = Core\Os::residentBytes();
 uint $after = Core\Os::residentBytes();
-echo $after >= $before ? "residentBytes only grows" : "residentBytes fell", "\n";
+echo $after >= $before ? 'residentBytes only grows' : 'residentBytes fell', "\n";
 
 // The one fact a platform can keep none of. Windows has no load average, and
 // the processor-time percentage suggested in its place answers a different
@@ -48,10 +48,10 @@ echo $after >= $before ? "residentBytes only grows" : "residentBytes fell", "\n"
 try {
     var $load = Core\Os::loadAverage();
     echo Core\Arr::count($load) == 3
-        ? "loadAverage is one, five and fifteen minutes"
-        : "loadAverage answered the wrong number of figures", "\n";
+        ? 'loadAverage is one, five and fifteen minutes'
+        : 'loadAverage answered the wrong number of figures', "\n";
 } catch (RuntimeError $refused) {
-    echo Core\Str::contains($refused->message, "keeps no load average")
-        ? "loadAverage has no answer on this platform, and says so"
-        : "loadAverage refused for another reason: " . $refused->message, "\n";
+    echo Core\Str::contains($refused->message, 'keeps no load average')
+        ? 'loadAverage has no answer on this platform, and says so'
+        : 'loadAverage refused for another reason: ' . $refused->message, "\n";
 }

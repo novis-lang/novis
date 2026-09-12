@@ -3,7 +3,7 @@ class Deep
 {
     public static function level3(): void
     {
-        throw new LogicError("boom");
+        throw new LogicError('boom');
     }
 
     public static function level2(): void
@@ -21,5 +21,5 @@ try {
     Deep::level1();
     echo "not reached\n";
 } catch (Throwable $e) {
-    echo "caught: " . $e->message . "\n";
+    echo 'caught: ' . $e->message . "\n";
 }

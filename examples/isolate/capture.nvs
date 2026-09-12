@@ -5,6 +5,6 @@
 //
 // No newline: the parent supplies the line ending, so what is captured is
 // exactly what this file wrote.
-echo "child stdout";
+echo 'child stdout';
 
-return ["captured" => true];
+return ['captured' => true];

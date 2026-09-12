@@ -18,11 +18,11 @@ class Greet implements Command
         // refusal and contagion is something an author writes. `echo` binds to
         // the terminal sink, which takes one and substitutes visibly (§ 1), so
         // the raw argument reaches output and reaches nothing else.
-        echo $name, $loud ? "!" : "", "\n";
+        echo $name, $loud ? '!' : '', "\n";
     }
 
     public function usage(): string
     {
-        return "greet <name> [--loud]";
+        return 'greet <name> [--loud]';
     }
 }

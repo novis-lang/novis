@@ -10,39 +10,39 @@ class Ops
     {
         try {
             int $doubled = $n * 2;
-            return "no throw: " . $doubled;
+            return 'no throw: ' . $doubled;
         } catch (ArithmeticError $overflow) {
-            return "overflow";
+            return 'overflow';
         }
     }
 }
 
-echo "mixed=" . Ops::widen(1, 1.5) . "\n";
+echo 'mixed=' . Ops::widen(1, 1.5) . "\n";
 
 var $avg = 7 / 2;
-echo "avg=" . $avg . "\n";
+echo 'avg=' . $avg . "\n";
 
 var $whole = 6 / 3;
-echo "whole=" . ($whole == 2 ? "two" : "other") . "\n";
+echo 'whole=' . ($whole == 2 ? 'two' : 'other') . "\n";
 
-echo "guarded=" . Ops::overflows(4611686018427387904) . "\n";
+echo 'guarded=' . Ops::overflows(4611686018427387904) . "\n";
 
 var $i = 4;
 $i++;
 ++$i;
 $i--;
-echo "counted=" . $i . "\n";
+echo 'counted=' . $i . "\n";
 
 int $bits = 6 & 3;
 $bits |= 8;
 $bits ^= 1;
 $bits <<= 2;
 $bits >>= 1;
-echo "bits=" . $bits . "\n";
-echo "not=" . (~0) . "\n";
+echo 'bits=' . $bits . "\n";
+echo 'not=' . (~0) . "\n";
 
 int $pow = 2 ** 10;
 $pow **= 2;
-echo "pow=" . $pow . "\n";
+echo 'pow=' . $pow . "\n";
 
-echo "cmp=" . (1 <=> 2) . "," . (2 <=> 2) . "," . (3 <=> 2) . "\n";
+echo 'cmp=' . (1 <=> 2) . ',' . (2 <=> 2) . ',' . (3 <=> 2) . "\n";

@@ -2,4 +2,4 @@
 // The child `examples/process.nvs` runs. It exists to have an exit status
 // and one line of standard output, and it is deliberately the smallest
 // program that has both.
-echo "hello", "\n";
+echo 'hello', "\n";

@@ -23,16 +23,16 @@
 // stdout, exit status and stderr for this program are frozen in
 // `docs/agent/loop-goal.toml` (stage 4); the source is not.
 
-echo "before the cap", "\n";
+echo 'before the cap', "\n";
 
 array<string> $ballast = [];
 int $slabs = 0;
 
 while ($slabs < 512) {
-    $ballast[] = Core\Str::repeat("x", 1048576);
+    $ballast[] = Core\Str::repeat('x', 1048576);
     $slabs++;
 }
 
 // Only reachable in a tree that is not enforcing the cap, which is what
 // makes the check's `exit = "nonzero"` half worth asserting.
-echo "held " . Core\Arr::count($ballast) . " slabs, uncapped", "\n";
+echo 'held ' . Core\Arr::count($ballast) . ' slabs, uncapped', "\n";

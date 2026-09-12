@@ -24,17 +24,17 @@ if (Core\Request::method() == Core\Http\Method::Post) {
 // The path with the matched mount's prefix already removed, so an application
 // reads the same paths wherever it is mounted; the query is read by name and
 // never decoded twice.
-echo "path is ", Core\Request::path(), "\n";
-echo "query id is ", Core\Request::query("id") as string, "\n";
+echo 'path is ', Core\Request::path(), "\n";
+echo 'query id is ', Core\Request::query('id') as string, "\n";
 
 // A field is matched without regard to case, as RFC 9110 § 5.1 compares one,
 // and a cookie is one pair out of the single `Cookie` line a peer sent.
-echo "header accept is ", Core\Request::header("accept") ?? "none", "\n";
-echo "cookie session is ", Core\Request::cookie("session") ?? "none", "\n";
+echo 'header accept is ', Core\Request::header('accept') ?? 'none', "\n";
+echo 'cookie session is ', Core\Request::cookie('session') ?? 'none', "\n";
 
 // The submitted form, read out of the body's octets under the same bracket
 // convention `query()` uses.
-echo "field name is ", Core\Request::post("name") as string, "\n";
+echo 'field name is ', Core\Request::post('name') as string, "\n";
 
 // The three facts the request arrived *on* rather than in. None of them is
 // derived here: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
@@ -47,6 +47,6 @@ echo "field name is ", Core\Request::post("name") as string, "\n";
 // address to report; `scheme()` is not, because every request arrived over one.
 // `host()` is the `Host` line folded the way the server compares a host mount,
 // which is what a host-mounted deployment looks its tenant up by.
-echo "client ip is ", Core\Request::clientIp() ?? "none", "\n";
-echo "scheme is ", Core\Request::scheme(), "\n";
-echo "host is ", Core\Request::host() ?? "none", "\n";
+echo 'client ip is ', Core\Request::clientIp() ?? 'none', "\n";
+echo 'scheme is ', Core\Request::scheme(), "\n";
+echo 'host is ', Core\Request::host() ?? 'none', "\n";

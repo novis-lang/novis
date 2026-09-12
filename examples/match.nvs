@@ -4,23 +4,23 @@ class Grade
     public static function letter(int $score): string
     {
         return match (true) {
-            $score >= 90 => "A",
-            $score >= 80 => "B",
-            $score >= 70 => "C",
-            default => "F",
+            $score >= 90 => 'A',
+            $score >= 80 => 'B',
+            $score >= 70 => 'C',
+            default => 'F',
         };
     }
 
     public static function tier(string $letter): string
     {
         switch ($letter) {
-            case "A":
-            case "B":
-                return "pass";
-            case "C":
-                return "marginal";
+            case 'A':
+            case 'B':
+                return 'pass';
+            case 'C':
+                return 'marginal';
             default:
-                return "fail";
+                return 'fail';
         }
     }
 }
@@ -28,21 +28,21 @@ class Grade
 array<int> $scores = [95, 83, 71, 40];
 int $count = Core\Arr::count($scores) as int;
 
-var $line = "";
+var $line = '';
 for (int $i = 0; $i < $count; $i += 1) {
     $line .= Grade::letter($scores[$i]);
 }
 
-echo "letters=" . $line . "\n";
+echo 'letters=' . $line . "\n";
 
 var $passes = 0;
 foreach ($scores as int $score) {
-    if (Grade::tier(Grade::letter($score)) == "pass") {
+    if (Grade::tier(Grade::letter($score)) == 'pass') {
         $passes += 1;
     }
 }
 
-echo "passes=" . $passes . "\n";
+echo 'passes=' . $passes . "\n";
 
 var $sum = 0;
 var $seen = 0;
@@ -51,5 +51,5 @@ while ($seen < $count) {
     $seen += 1;
 }
 
-echo "sum=" . $sum . "\n";
-echo "tier=" . Grade::tier("C") . "\n";
+echo 'sum=' . $sum . "\n";
+echo 'tier=' . Grade::tier('C') . "\n";

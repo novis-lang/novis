@@ -14,13 +14,13 @@
 // Characters outside the basic plane, before a secret on the same line. Each is
 // two UTF-16 code units and four UTF-8 bytes, so a client that converted with
 // the wrong unit puts the bar well to the left of the value it is hiding.
-string $flag = "🏴🇦🇶🧑🚀🛰️";
-secret string $afterAstral = "sk-live-astral";
+string $flag = '🏴🇦🇶🧑🚀🛰️';
+secret string $afterAstral = 'sk-live-astral';
 
 // Combining marks and a zero-width joiner: one grapheme, several code points,
 // and a column count that disagrees with all of them.
 string $marks = "é🇳🇴👩‍💻e\u{0301}";
-secret string $afterMarks = "sk-live-combining";
+secret string $afterMarks = 'sk-live-combining';
 
 // A right-to-left override inside the value. The bytes are concealed either
 // way; what this asks is whether a client that renders the revealed text back
@@ -29,22 +29,22 @@ secret string $override = "sk-live-\u{202E}gnitset";
 
 // Two secrets on one line, touching. Revealing one must uncover exactly one:
 // the ranges are adjacent, so an off-by-one at either edge reveals both.
-secret string $left = "sk-live-left"; secret string $right = "sk-live-right";
+secret string $left = 'sk-live-left'; secret string $right = 'sk-live-right';
 
 // The empty literal: a range whose start is its end, which is a decoration with
 // no width and the shape most likely to be dropped, doubled, or drawn at the
 // beginning of the document instead.
-secret string $empty = "";
+secret string $empty = '';
 
 // A single line far past any editor's viewport, with the value at the end of
 // it. A client that only converts the visible region hides nothing here.
-secret string $long = "sk-live-0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffff";
+secret string $long = 'sk-live-0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffff';
 
 // A value written across several physical lines. One logical range, and the
 // only one in the file whose start line and end line differ.
-secret string $wrapped = "sk-live-first"
-    . "-second"
-    . "-third";
+secret string $wrapped = 'sk-live-first'
+    . '-second'
+    . '-third';
 
 // Concealment is per document, and these declarations are inside a class rather
 // than at the top level: the client tracks which document each revealed range
@@ -52,11 +52,11 @@ secret string $wrapped = "sk-live-first"
 // different file that happens to be open beside it.
 final class Credentials
 {
-    public secret string $token = "unset";
+    public secret string $token = 'unset';
 
     public function rotate(): void
     {
-        $this->token = "sk-live-rotated";
+        $this->token = 'sk-live-rotated';
     }
 }
 
@@ -66,5 +66,5 @@ $credentials->rotate();
 // Nothing above prints a secret: the checker refuses that, and this file is an
 // attack on the editor rather than on the type system. What it prints is the
 // count of things it declared, so a run that came apart is visibly shorter.
-echo Core\Str::length($flag), " ", Core\Str::length($marks), "\n";
+echo Core\Str::length($flag), ' ', Core\Str::length($marks), "\n";
 echo "credentials rotated\n";

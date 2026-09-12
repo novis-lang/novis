@@ -14,7 +14,7 @@ class Counter implements Stringable
 
     public function toString(): string
     {
-        return "Counter(" . $this->hits . ")";
+        return 'Counter(' . $this->hits . ')';
     }
 }
 
@@ -35,4 +35,4 @@ echo $c->toString() . "\n";
 
 int $n = 1;
 Adder::bump(inout $n);
-echo "n=" . $n . "\n";
+echo 'n=' . $n . "\n";

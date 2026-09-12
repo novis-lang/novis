@@ -21,4 +21,4 @@
 // for the fixture.
 Core\Time::sleep(150ms);
 
-return ["receipted" => true];
+return ['receipted' => true];

@@ -71,7 +71,7 @@ class Attack
     /// nothing here can be folded away.
     public static function bigStringsThroughAChain(uint $mib, uint $rounds): uint
     {
-        var $chunk = Core\Str::repeat("a b ", 262144);
+        var $chunk = Core\Str::repeat('a b ', 262144);
         var $s = Core\Str::repeat($chunk, $mib);
         uint $total = 0;
         uint $i = 0;
@@ -90,12 +90,12 @@ class Attack
     /// rewritten while the pipeline that read it is still in flight.
     public static function pipedElementReplaced(uint $rounds): uint
     {
-        array<string> $held = ["one", "two", "three"];
+        array<string> $held = ['one', 'two', 'three'];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             $total = $total + ($held[$total % 3] |> Core\Str::upper($_) |> Core\Str::length($_));
-            $held[$total % 3] = Core\Str::repeat("x", $total % 7 + 1);
+            $held[$total % 3] = Core\Str::repeat('x', $total % 7 + 1);
             $i = $i + 1;
         }
         return $total;

@@ -44,15 +44,15 @@ class Ceiling
     public static function verdict(int $waited, bool $acquire, bool $ceiling): string
     {
         if ($waited < 500) {
-            return "refused after only " . $waited . "ms, which is inside `acquire`";
+            return 'refused after only ' . $waited . 'ms, which is inside `acquire`';
         }
         if (!$acquire) {
-            return "waited, and then refused without naming `acquire`";
+            return 'waited, and then refused without naming `acquire`';
         }
         if (!$ceiling) {
-            return "waited, and then refused without naming the ceiling it reached";
+            return 'waited, and then refused without naming the ceiling it reached';
         }
-        return "waited `acquire` out, and named it";
+        return 'waited `acquire` out, and named it';
     }
 
     // The park half's verdict, on the same one-line principle. `$beside` is how
@@ -62,19 +62,19 @@ class Ceiling
     // overlaps and a spin adds up.
     public static function park(int $elapsed, string $blocked, int $beside): string
     {
-        if ($blocked != "refused") {
-            return "a child opened a second connection, which `max = 1` forbids";
+        if ($blocked != 'refused') {
+            return 'a child opened a second connection, which `max = 1` forbids';
         }
         if ($beside != 3) {
-            return "the sibling task did not finish beside the wait";
+            return 'the sibling task did not finish beside the wait';
         }
         if ($elapsed < 500) {
-            return "the child was refused inside `acquire`, so nothing waited";
+            return 'the child was refused inside `acquire`, so nothing waited';
         }
         if ($elapsed >= 800) {
-            return "the wait held the core: " . $elapsed . "ms is 500 then 300, not both at once";
+            return 'the wait held the core: ' . $elapsed . 'ms is 500 then 300, not both at once';
         }
-        return "the core ran a sibling task while the request waited";
+        return 'the core ran a sibling task while the request waited';
     }
 
     // The first column of the first row, or -1. The shape
@@ -86,7 +86,7 @@ class Ceiling
         if ($row == null) {
             return -1;
         }
-        var $n = $row->int("n");
+        var $n = $row->int('n');
         if ($n == null) {
             return -1;
         }
@@ -97,8 +97,8 @@ class Ceiling
 // This request's own connection, and the block's only one. It is memoized
 // (§ 2) and it holds its pool slot until the request ends, so the ceiling
 // below is reached and never merely approached.
-var $db = Db::connect("tight");
-echo "opened=", Ceiling::one($db, "select 1 as n"), "\n";
+var $db = Db::connect('tight');
+echo 'opened=', Ceiling::one($db, 'select 1 as n'), "\n";
 
 // `{shared: false}` is what makes this a *second* connection rather than the
 // one above handed back: § 2's memoization is per request, and opting out of it
@@ -110,14 +110,14 @@ echo "opened=", Ceiling::one($db, "select 1 as n"), "\n";
 // words, and the refusal this fixture is about is the one `acquire` produces.
 var $asked = Core\Time::monotonic();
 try {
-    Db::connect("tight", {shared: false});
-    echo "refused: nothing — a second connection opened, which `max = 1` forbids", "\n";
+    Db::connect('tight', {shared: false});
+    echo 'refused: nothing — a second connection opened, which `max = 1` forbids', "\n";
 } catch (IOError $full) {
     var $waited = Core\Time::monotonic()->minus($asked)->toMilliseconds();
-    echo "refused: ", Ceiling::verdict(
+    echo 'refused: ', Ceiling::verdict(
         $waited,
-        Core\Str::contains($full->message, "`acquire` was up"),
-        Core\Str::contains($full->message, "`max` of 1")
+        Core\Str::contains($full->message, '`acquire` was up'),
+        Core\Str::contains($full->message, '`max` of 1')
     ), "\n";
 }
 
@@ -125,7 +125,7 @@ try {
 // is given back by its own `Drop` on every path between the ask and the request
 // ending, so a refusal that had taken this one's slot with it would show up
 // here as a connection that no longer answers.
-echo "usable=", Ceiling::one($db, "select 1 as n"), "\n";
+echo 'usable=', Ceiling::one($db, 'select 1 as n'), "\n";
 
 // § 13's wait is a **park**: the core is handed back while a request queues for
 // a slot, so it runs other work in the meantime rather than standing still.
@@ -139,13 +139,13 @@ var $started = Core\Time::monotonic();
 var $race = Core\Task::all({
     blocked: fn(): string => {
         try {
-            Db::connect("tight", {shared: false});
-            return "opened";
+            Db::connect('tight', {shared: false});
+            return 'opened';
         // `$busy` and not `$full`: a `catch` binding inside a closure that
         // spells a name the enclosing frame also binds is lowered as a capture
         // of that name (`docs/agent/playbook.md`).
         } catch (IOError $busy) {
-            return "refused";
+            return 'refused';
         }
     },
     // Three sleeps rather than one, so the count it returns is evidence the
@@ -159,7 +159,7 @@ var $race = Core\Task::all({
         return $done;
     },
 });
-echo "parked: ", Ceiling::park(
+echo 'parked: ', Ceiling::park(
     Core\Time::monotonic()->minus($started)->toMilliseconds(),
     $race->blocked,
     $race->beside

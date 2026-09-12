@@ -12,7 +12,7 @@ class Attack
     /// character in it, so this is the allocator and the segmenter at once.
     public static function big(uint $mib): uint
     {
-        var $chunk = Core\Str::repeat("a", 1048576);
+        var $chunk = Core\Str::repeat('a', 1048576);
         var $s = Core\Str::repeat($chunk, $mib);
         return Core\Str::length($s);
     }
@@ -22,7 +22,7 @@ class Attack
     /// buffers a cluster is least happy about.
     public static function oneHugeCluster(uint $marks): uint
     {
-        var $s = "a" . Core\Str::repeat("\u{301}", $marks);
+        var $s = 'a' . Core\Str::repeat("\u{301}", $marks);
         return Core\Str::length($s);
     }
 
@@ -50,4 +50,4 @@ class Attack
 echo Attack::big(64), "\n";
 echo Attack::oneHugeCluster(200000), "\n";
 echo Attack::repeatedlyOnHardInput(100000), "\n";
-echo Core\Str::length(""), "\n";
+echo Core\Str::length(''), "\n";

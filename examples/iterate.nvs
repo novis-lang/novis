@@ -28,11 +28,11 @@ foreach (Counter::upTo(5) as int $n) {
     $fromGenerator = $fromGenerator + $n;
 }
 
-echo "generator=" . $fromGenerator . "\n";
+echo 'generator=' . $fromGenerator . "\n";
 
 var $fromIterable = 0;
 foreach (new Counter(4) as int $m) {
     $fromIterable = $fromIterable + $m;
 }
 
-echo "iterable=" . $fromIterable . "\n";
+echo 'iterable=' . $fromIterable . "\n";

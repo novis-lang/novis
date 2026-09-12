@@ -47,7 +47,7 @@ if (Core\Request::method() == Core\Http\Method::Post) {
 // document, every declared field read out of it, and nothing kept afterwards.
 // `echo` escapes what it is handed, which is what a `tainted` field is for.
 Author $author = Core\Request::jsonAs<Author>();
-echo "name is ", $author->name, "\n";
+echo 'name is ', $author->name, "\n";
 
 // `json()` keeps what it decoded, so the second call is not a second reading of
 // the wire; `body()` is a third reader on the same held octets and answers them
@@ -75,7 +75,7 @@ try {
 // cannot tell "no body" from a body holding the document `null` --
 // `rule:errors/ambiguous-input-refused` is what refuses to guess between them.
 try {
-    Core\Json::decode("");
+    Core\Json::decode('');
     echo "not reached\n";
 } catch (ParseError $empty) {
     echo "an empty body is a ParseError\n";
@@ -85,7 +85,7 @@ try {
 // as a document regardless: a header is what a peer wrote, not what a body is.
 // A member that gated on the type would have thrown at the first reading, and
 // the mislabelled-but-valid document is exactly the case `post()` already reads.
-string $declared = Core\Request::header("content-type") as string;
-if ($declared == "text/plain") {
+string $declared = Core\Request::header('content-type') as string;
+if ($declared == 'text/plain') {
     echo "the declared content type is not consulted\n";
 }

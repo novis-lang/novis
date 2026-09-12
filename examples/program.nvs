@@ -22,4 +22,4 @@ foreach ($modules as App\Module $module) {
     echo $module->name(), "\n";
 }
 
-echo "count=", Core\Arr::count($modules), "\n";
+echo 'count=', Core\Arr::count($modules), "\n";

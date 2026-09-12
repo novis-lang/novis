@@ -28,11 +28,11 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // There is deliberately no case for a `FATAL` or a cancellation: neither
     // runs a hook, so neither has a reason to report.
     string $reason = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => "Normal",
-        Core\Script\ExitReason::ExitCall => "ExitCall",
-        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReason::Normal => 'Normal',
+        Core\Script\ExitReason::ExitCall => 'ExitCall',
+        Core\Script\ExitReason::UncaughtThrow => 'UncaughtThrow',
     };
-    echo "onExit: ", $reason, " ", $report->status(), "\n";
+    echo 'onExit: ', $reason, ' ', $report->status(), "\n";
 });
 
 // Registering twice registers twice — this is a queue and not a slot, which is

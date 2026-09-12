@@ -77,32 +77,32 @@ class Poll
 // rows it finds are the ones the last run left.
 var $queue = Core\Uuid::v4()->toString();
 
-var $receipt = Queue::push("examples/queue/receipt.nvs", {args: {order: 7}, queue: $queue});
-echo "enqueued", "\n";
+var $receipt = Queue::push('examples/queue/receipt.nvs', {args: {order: 7}, queue: $queue});
+echo 'enqueued', "\n";
 
 // One job and two workers, and the count is `1` rather than a race: the claim
 // is one transaction the database arbitrates, so the worker that arrives second
 // waits for the write lock and by the time it proceeds the row is no longer
 // due.
-echo "claimed ", Poll::counted(fn (): uint => { return Queue::stats($queue)->claimed(); }), "\n";
+echo 'claimed ', Poll::counted(fn (): uint => { return Queue::stats($queue)->claimed(); }), "\n";
 
 // § 6's write-back, read as the state it leaves behind rather than as a
 // callback: delivery is at-least-once, so "it ran" is something a row says.
 Poll::until(fn (): bool => { return Queue::status($receipt) == State::Succeeded; });
-echo "ran", "\n";
+echo 'ran', "\n";
 
 // Two jobs now, against the same single writer. Neither worker can be inside
 // the other's transaction, so the two claims happen in some order and both jobs
 // still run — a busy timeout is a wait, and the thing this line would fail on
 // is a claim that reported contention as an error instead of waiting for it.
-var $first = Queue::push("examples/queue/receipt.nvs", {queue: $queue});
-var $second = Queue::push("examples/queue/receipt.nvs", {queue: $queue});
+var $first = Queue::push('examples/queue/receipt.nvs', {queue: $queue});
+var $second = Queue::push('examples/queue/receipt.nvs', {queue: $queue});
 Poll::until(fn (): bool => {
     return Queue::status($first) == State::Succeeded
         && Queue::status($second) == State::Succeeded;
 });
-echo "both ran", "\n";
+echo 'both ran', "\n";
 
 // And the counter the operator watches, from the same instant the three rows
 // reached: nothing is left waiting on a queue whose every job has been run.
-echo "pending=", Queue::stats($queue)->pending(), "\n";
+echo 'pending=', Queue::stats($queue)->pending(), "\n";

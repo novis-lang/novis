@@ -3,7 +3,7 @@ class Boom
 {
     public static function inner(): void
     {
-        throw new LogicError("unhandled");
+        throw new LogicError('unhandled');
     }
 
     public static function outer(): void

@@ -16,10 +16,10 @@
 // plan parsed at compile time.
 var $utc = Core\Time\Zone::UTC;
 var $when = Core\Time::at(2026, 8, 28, $utc);
-var $datePattern = "yyyy-MM-dd";
-var $foldedDate = $when->format("yyyy-MM-dd");
+var $datePattern = 'yyyy-MM-dd';
+var $foldedDate = $when->format('yyyy-MM-dd');
 var $runtimeDate = $when->format($datePattern);
-echo $foldedDate == $runtimeDate ? $foldedDate : "diverged", "\n";
+echo $foldedDate == $runtimeDate ? $foldedDate : 'diverged', "\n";
 
 // `Core\Regex::compile` — the pattern's syntax and its engine tier
 // (ADR 0056 § 3) are decided while checking, and the compiled program is what
@@ -28,22 +28,22 @@ echo $foldedDate == $runtimeDate ? $foldedDate : "diverged", "\n";
 // member that *reads* the pattern, so the handle is what each path builds and
 // the match below is the shared question asked of both.
 var $regexSource = "^order-\\d+$";
-var $foldedHit = Core\Regex::matches("order-4711", Core\Regex::compile("^order-\\d+$"));
-var $runtimeHit = Core\Regex::matches("order-4711", Core\Regex::compile($regexSource));
-echo ($foldedHit == $runtimeHit) && $foldedHit ? "matched" : "diverged", "\n";
+var $foldedHit = Core\Regex::matches('order-4711', Core\Regex::compile("^order-\\d+$"));
+var $runtimeHit = Core\Regex::matches('order-4711', Core\Regex::compile($regexSource));
+echo ($foldedHit == $runtimeHit) && $foldedHit ? 'matched' : 'diverged', "\n";
 
 // `Core\Str::format` — the one entry whose check is over the *call* and not
 // just the literal: the placeholder count and types are checked against the
 // argument list, which turns a whole family of PHP `printf` bugs into compile
 // errors.
-var $template = "total: %d";
-var $foldedText = Core\Str::format("total: %d", 42);
+var $template = 'total: %d';
+var $foldedText = Core\Str::format('total: %d', 42);
 var $runtimeText = Core\Str::format($template, 42);
-echo $foldedText == $runtimeText ? $foldedText : "diverged", "\n";
+echo $foldedText == $runtimeText ? $foldedText : 'diverged', "\n";
 
 // `Core\Uri::parse` — well-formedness at compile time, the parsed components
 // as the prepared artifact.
-var $source = "https://example.test/users/7?page=2";
-var $foldedHost = Core\Uri::parse("https://example.test/users/7?page=2")->host() ?? "absent";
-var $runtimeHost = Core\Uri::parse($source)->host() ?? "absent";
-echo "host=", $foldedHost == $runtimeHost ? $foldedHost : "diverged", "\n";
+var $source = 'https://example.test/users/7?page=2';
+var $foldedHost = Core\Uri::parse('https://example.test/users/7?page=2')->host() ?? 'absent';
+var $runtimeHost = Core\Uri::parse($source)->host() ?? 'absent';
+echo 'host=', $foldedHost == $runtimeHost ? $foldedHost : 'diverged', "\n";

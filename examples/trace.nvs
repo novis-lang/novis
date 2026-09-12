@@ -3,7 +3,7 @@ class Deep
 {
     public static function inner(): void
     {
-        throw new LogicError("traced");
+        throw new LogicError('traced');
     }
 
     public static function outer(): void
@@ -17,7 +17,7 @@ try {
 } catch (Throwable $e) {
     int $depth = 0;
     foreach ($e->backtrace as string $frame) {
-        echo "#" . $depth . " " . $frame . "\n";
+        echo '#' . $depth . ' ' . $frame . "\n";
         $depth = $depth + 1;
     }
 }

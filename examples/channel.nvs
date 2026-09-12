@@ -51,11 +51,11 @@ Core\Task::all({
     },
 });
 
-echo "produced=", Meter::$produced, "\n";
-echo "consumed=", Meter::$consumed, "\n";
+echo 'produced=', Meter::$produced, "\n";
+echo 'consumed=', Meter::$consumed, "\n";
 
 if (Meter::$suspended) {
-    echo "sender suspended", "\n";
+    echo 'sender suspended', "\n";
 } else {
-    echo "sender never waited", "\n";
+    echo 'sender never waited', "\n";
 }

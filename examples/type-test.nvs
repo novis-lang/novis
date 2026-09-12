@@ -22,55 +22,55 @@ class Animal
 
 // A scalar row is one masked comparison against the tag the value carries.
 mixed $count = 1;
-echo "int=", $count is int, "\n";
+echo 'int=', $count is int, "\n";
 
 uint $id = 7;
 mixed $key = $id;
-echo "uint=", $key is uint, "\n";
+echo 'uint=', $key is uint, "\n";
 
 // `rule:types/uint`: `int` and `uint` are separate tags, so this is the row a
 // mechanical `is_int($id)` rewrite gets wrong. `is int|uint` asks PHP's
 // question.
-echo "int-of-uint=", $key is int, "\n";
+echo 'int-of-uint=', $key is int, "\n";
 
 decimal $price = 19.99;
 mixed $amount = $price;
-echo "decimal=", $amount is decimal, "\n";
+echo 'decimal=', $amount is decimal, "\n";
 
-mixed $greeting = "yay";
-echo "string=", $greeting is string, "\n";
+mixed $greeting = 'yay';
+echo 'string=', $greeting is string, "\n";
 
 // `rule:types/bytes`: the same split one type over — binary data answers
 // `is bytes` where PHP's `is_string()` was true for it.
-echo "bytes-of-string=", $greeting is bytes, "\n";
+echo 'bytes-of-string=', $greeting is bytes, "\n";
 
 // The hole this operator closes: `as` asks what a value can *become*, `is`
 // asks what it already holds, and a numeric string is the pair that shows the
 // difference.
-mixed $seven = "7";
-echo "seven-is-int=", $seven is int, "\n";
-echo "seven-as-int=", $seven as ?int, "\n";
+mixed $seven = '7';
+echo 'seven-is-int=', $seven is int, "\n";
+echo 'seven-as-int=', $seven as ?int, "\n";
 
 // `rule:types/narrowing`: the true edge narrows the subject, so the branch
 // reads it with no `as` and no throw path.
 mixed $answer = 42;
 if ($answer is int) {
-    echo "narrowed=", $answer, "\n";
+    echo 'narrowed=', $answer, "\n";
 }
 
 // A class is the descriptor walk `instanceof` already pays for.
-mixed $pet = new Animal("rex");
-echo "class=", $pet is Animal, "\n";
+mixed $pet = new Animal('rex');
+echo 'class=', $pet is Animal, "\n";
 
 // An enum case is one tag comparison and one payload compare, on the integer
 // `rule:enums/representation` makes the case.
 Rank $rank = Rank::Silver;
-echo "enum-case=", $rank is Rank::Silver, "\n";
+echo 'enum-case=', $rank is Rank::Silver, "\n";
 
 // A literal type is that same pair, against the one value the type is.
-echo "literal=", $greeting is 'yay', "\n";
+echo 'literal=', $greeting is 'yay', "\n";
 
 // `array<T>` with a named element type is the O(n) walk `as array<T>` already
 // performs, in the spelling that answers instead of throwing.
 mixed $numbers = [1, 2, 3];
-echo "array-of-int=", $numbers is array<int>, "\n";
+echo 'array-of-int=', $numbers is array<int>, "\n";

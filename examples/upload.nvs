@@ -35,13 +35,13 @@ string $dir = Core\IO::temporaryDir();
 // removed: ambient state the host left lying about.
 try {
     foreach (Core\Request::files() as Core\Request\Part $part) {
-        string $dest = Core\IO::within($dir, "upload.bin");
+        string $dest = Core\IO::within($dir, 'upload.bin');
         $part->saveTo($dest, {max: 4096, overwrite: true});
-        echo "saved ", Core\IO::size($dest), " bytes\n";
+        echo 'saved ', Core\IO::size($dest), " bytes\n";
     }
     echo "a program answered a request\n";
 } catch (LogicError $none) {
-    echo "no request", "\n";
+    echo 'no request', "\n";
 }
 
 // And the member `saveTo` delegates to, which a program *can* run: the chunks
@@ -51,12 +51,12 @@ try {
 array<bytes> $chunks = [];
 int $i = 0;
 while ($i < 1024) {
-    $chunks[] = "0123456789" as bytes;
+    $chunks[] = '0123456789' as bytes;
     $i = $i + 1;
 }
-string $blob = Core\Path::join($dir, "payload.bin");
+string $blob = Core\Path::join($dir, 'payload.bin');
 Core\IO::writeStream($blob, $chunks, {overwrite: true});
-echo "streamed ", Core\IO::size($blob), " bytes\n";
+echo 'streamed ', Core\IO::size($blob), " bytes\n";
 
 // The destination is a name this program built with `Core\Path::join` from a
 // directory it owns -- never one derived from what arrived. ADR 0105 leaves the
@@ -64,14 +64,14 @@ echo "streamed ", Core\IO::size($blob), " bytes\n";
 // launderer standing between it and a path, exactly as `examples/files.nvs`
 // shows it and exactly as the walk above spells it.
 try {
-    string $escape = Core\IO::within($dir, "../../etc/passwd");
+    string $escape = Core\IO::within($dir, '../../etc/passwd');
     echo "a claimed filename escaped the destination\n";
 } catch (RuntimeError $refused) {
-    echo "escape refused", "\n";
+    echo 'escape refused', "\n";
 }
 
 // And back to nothing. No temp file outlives the program, because none was ever
 // made on its behalf.
 Core\IO::remove($blob);
 Core\IO::removeDir($dir);
-echo "removed", "\n";
+echo 'removed', "\n";

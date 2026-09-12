@@ -13,4 +13,4 @@ class Bench
     }
 }
 
-echo "sum = " . Bench::sum(1000) . "\n";
+echo 'sum = ' . Bench::sum(1000) . "\n";

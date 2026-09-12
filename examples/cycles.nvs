@@ -19,7 +19,7 @@
 
 class Node
 {
-    public string $label = "";
+    public string $label = '';
     public ?Node $peer;
 
     public function constructor(string $label)
@@ -32,9 +32,9 @@ class Node
 var $built = 0;
 
 for (int $i = 0; $i < 1000; $i += 1) {
-    var $first = new Node("first");
-    var $second = new Node("second");
-    var $third = new Node("third");
+    var $first = new Node('first');
+    var $second = new Node('second');
+    var $third = new Node('third');
 
     $first->peer = $second;
     $second->peer = $third;
@@ -74,10 +74,10 @@ for (int $round = 0; $round < 1000; $round += 1) {
 // A node that points at itself, held to the end of the program: the cycle the
 // sweep meets while the rest of the request is still being taken apart around
 // it, rather than one abandoned a thousand iterations ago.
-var $loop = new Node("loop");
+var $loop = new Node('loop');
 $loop->peer = $loop;
 
-echo "built=", $built, "\n";
+echo 'built=', $built, "\n";
 
 // The crossing, which is the half a single context cannot exercise: a fresh
 // `Node` is the argument, so it crosses into the isolate at refcount one — a
@@ -93,19 +93,19 @@ echo "built=", $built, "\n";
 // itself is pinned in Rust, by `nvs-runtime`'s
 // `an_adopted_object_moves_to_the_destinations_live_list`.
 var $child = spawn script 'examples/cycles/child.nvs' with(
-    args: new Node("crossed"),
+    args: new Node('crossed'),
     output: 'capture',
 );
 var $crossed = await $child;
 if ($crossed->ok) {
     var $back = $crossed->value as Node;
-    if ($back->label == "crossed") {
-        echo "crossed=ok", "\n";
+    if ($back->label == 'crossed') {
+        echo 'crossed=ok', "\n";
     } else {
-        echo "crossed=", $back->label, "\n";
+        echo 'crossed=', $back->label, "\n";
     }
 } else {
-    echo "crossed=", $crossed->error?->message, "\n";
+    echo 'crossed=', $crossed->error?->message, "\n";
 }
 
-echo "done", "\n";
+echo 'done', "\n";

@@ -6,12 +6,12 @@
 // difference from `exit`, which runs none of the three.
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $reason = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => "Normal",
-        Core\Script\ExitReason::ExitCall => "ExitCall",
-        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
-        Core\Script\ExitReason::Finish => "Finish",
+        Core\Script\ExitReason::Normal => 'Normal',
+        Core\Script\ExitReason::ExitCall => 'ExitCall',
+        Core\Script\ExitReason::UncaughtThrow => 'UncaughtThrow',
+        Core\Script\ExitReason::Finish => 'Finish',
     };
-    echo "exit hook: ", $reason, "\n";
+    echo 'exit hook: ', $reason, "\n";
 });
 
 Core\Task::afterResponse(fn (): void => {

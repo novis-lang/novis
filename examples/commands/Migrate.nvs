@@ -28,6 +28,6 @@ class Migrate implements Command
 
     public function usage(): string
     {
-        return "migrate [--pretend]";
+        return 'migrate [--pretend]';
     }
 }

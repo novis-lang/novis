@@ -33,28 +33,28 @@ class Greeter
     #[Core\Command(name: "greet", about: "Greet somebody by name")]
     public static function greet(string $name, #[Core\Option] bool $loud = false): uint
     {
-        string $greeting = "Hello, " . $name . "!";
+        string $greeting = 'Hello, ' . $name . '!';
         if ($loud) {
             $greeting = Core\Str::upper($greeting);
         }
-        echo "greet: ", $greeting, "\n";
+        echo 'greet: ', $greeting, "\n";
         return 0;
     }
 }
 
-var $status = Greeter::greet("ada");
+var $status = Greeter::greet('ada');
 
 // The generated page, of which the usage line is the first. `Cli\Text`
 // renders as the bytes it already holds (ADR 0088 § 5), so concatenating it
 // is how a program reads what the terminal would have been sent.
-array<string> $page = Core\Str::lines("" . Core\Command::help("greet"));
-echo Core\Arr::first($page) ?? "", "\n";
+array<string> $page = Core\Str::lines('' . Core\Command::help('greet'));
+echo Core\Arr::first($page) ?? '', "\n";
 
 // Resolved once per process: asked twice, answered identically.
 uint $first = Core\Cli::width();
 uint $second = Core\Cli::width();
 if ($first == $second) {
-    echo "width resolved once", "\n";
+    echo 'width resolved once', "\n";
 } else {
-    echo "width changed between calls", "\n";
+    echo 'width changed between calls', "\n";
 }

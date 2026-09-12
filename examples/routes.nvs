@@ -20,17 +20,17 @@ autoload 'App' from './routes';
 // route's captures, compile errors. If `Users::show` were not in the table,
 // or its `{id}` did not bind to a `uint $id` parameter, this program would
 // not build.
-echo "GET /users/{id} -> Users::show", "\n";
-echo "GET /users -> Users::index", "\n";
-echo "POST /users -> Users::create", "\n";
+echo 'GET /users/{id} -> Users::show', "\n";
+echo 'GET /users -> Users::index', "\n";
+echo 'POST /users -> Users::create', "\n";
 
 // § 4: `url` is the launderer for the URL-path sink — it percent-encodes each
 // substituted value and prepends the mount prefix, which is why a link is
 // built through this member and never by concatenating a declared path.
-echo "url=", Core\Router::url("Users::show", ["id" => 7]), "\n";
+echo 'url=', Core\Router::url('Users::show', ['id' => 7]), "\n";
 
 // ADR 0102 § 6: the origin is configured, never sniffed from `Host` or
 // `X-Forwarded-Host`, so `urlAbsolute` reads `[app] origin` (or the mount's
 // own) and a unit that resolves none is a boot error rather than a link with
 // an attacker's hostname in it.
-echo "absolute=", Core\Router::urlAbsolute("Users::show", ["id" => 7]), "\n";
+echo 'absolute=', Core\Router::urlAbsolute('Users::show', ['id' => 7]), "\n";

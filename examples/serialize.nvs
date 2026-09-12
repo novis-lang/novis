@@ -38,9 +38,9 @@ class Ring
 var $blob = Core\Serialize::encode(new Slot(7));
 Slot $back = Core\Serialize::decode($blob) as Slot;
 if ($back->n == 7) {
-    echo "round-trip ok", "\n";
+    echo 'round-trip ok', "\n";
 } else {
-    echo "round-trip lost the value", "\n";
+    echo 'round-trip lost the value', "\n";
 }
 
 // The cycle. `$ring->self` points at `$ring`, so a walk that does not
@@ -50,9 +50,9 @@ var $ring = new Ring(1);
 $ring->self = $ring;
 Ring $copy = Core\Serialize::decode(Core\Serialize::encode($ring)) as Ring;
 if (($copy->self?->id ?? 0) == 1) {
-    echo "cycle ok", "\n";
+    echo 'cycle ok', "\n";
 } else {
-    echo "cycle was not preserved", "\n";
+    echo 'cycle was not preserved', "\n";
 }
 
 // § 3 and goal item 19: the format is Novis's own, closed and versioned, and
@@ -60,10 +60,10 @@ if (($copy->self?->id ?? 0) == 1) {
 // confusion `decode` is a `tainted` sink for (01-core-library.md § 13), so
 // the refusal is the assertion — not what any field of the result holds.
 try {
-    Core\Serialize::decode("not novis bytes" as bytes);
-    echo "garbage was accepted", "\n";
+    Core\Serialize::decode('not novis bytes' as bytes);
+    echo 'garbage was accepted', "\n";
 } catch (ParseError $e) {
-    echo "refused: not our format", "\n";
+    echo 'refused: not our format', "\n";
 }
 
 // Item 19's other half: bytes naming a class whose declared properties no
@@ -79,9 +79,9 @@ try {
 var $stale = "NVS\x1b\x01\x09\x04Slot\x02\x01n\x05extra\x02\x07\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00" as bytes;
 try {
     Core\Serialize::decode($stale);
-    echo "a changed shape was accepted", "\n";
+    echo 'a changed shape was accepted', "\n";
 } catch (ParseError $e) {
-    echo "refused: shape changed", "\n";
+    echo 'refused: shape changed', "\n";
 }
 
 // The fixture's own cleanup, and not a property of `Core\Serialize`: Novis

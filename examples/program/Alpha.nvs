@@ -8,6 +8,6 @@ class Alpha implements Module
 {
     public function name(): string
     {
-        return "alpha";
+        return 'alpha';
     }
 }
