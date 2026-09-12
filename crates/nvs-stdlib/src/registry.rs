@@ -1887,6 +1887,11 @@ pub const CLASSES: &[CoreClass] = &[
     // approved address back out is the one operation that would make pinning
     // decorative.
     crate::http::TARGET,
+    // Who *this* end is, where the target above is who the other end must be:
+    // the certificate chain a call presents when a server asks for one, over
+    // goal `webcrypto`'s key pair. One static and no members, since reading the
+    // key back out is not what an identity is for.
+    crate::http::IDENTITY,
     // `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, whose URL parameter is the sink `rule:security/outbound-url-is-a-sink`
     // makes it and whose one trailing shape has no spelling for an
     // unbounded wait. Five rows over one bag: the verb is the member's own
@@ -5261,6 +5266,7 @@ mod tests {
             crate::io::LINES_NAME,
             crate::io::WALK_NAME,
             crate::http::TARGET_NAME,
+            crate::http::IDENTITY_NAME,
             crate::http::PART_NAME,
             crate::http::stream::EVENTS_NAME,
             crate::http::stream::LINES_NAME,

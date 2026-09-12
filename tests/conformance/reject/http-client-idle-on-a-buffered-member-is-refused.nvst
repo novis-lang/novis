@@ -26,11 +26,11 @@ var $b = Core\Http\Client::request(Core\Http\Method::Get, $url, {maxDuration: 2m
 error[E0454]: `idle` is not an option of this member
    --> case.nvs:18:39
 %A
-   = help: the options are: deadline, connectTimeout, headers, followRedirects, retryAttempts, retryBackoff, retryIdempotencyKey, json, form, body, contentType, multipart
+   = help: the options are: deadline, connectTimeout, headers, followRedirects, retryAttempts, retryBackoff, retryIdempotencyKey, json, form, body, contentType, multipart, identity
 %A
 error[E0454]: `maxDuration` is not an option of this member
    --> case.nvs:19:66
 %A
-   = help: the options are: deadline, connectTimeout, headers, followRedirects, retryAttempts, retryBackoff, retryIdempotencyKey, json, form, body, contentType, multipart
+   = help: the options are: deadline, connectTimeout, headers, followRedirects, retryAttempts, retryBackoff, retryIdempotencyKey, json, form, body, contentType, multipart, identity
 %A
 error: aborting due to 2 errors

@@ -201,11 +201,108 @@ pub(crate) const TARGET: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// [`IDENTITY`]'s name, written once — see [`NAME`].
+pub(crate) const IDENTITY_NAME: &str = r"Core\Http\Identity";
+
+/// [`IDENTITY`]'s first slot: the certificate chain as the PEM it was read
+/// from, leaf first.
+pub(crate) const IDENTITY_CHAIN_SLOT: usize = 0;
+
+/// [`IDENTITY`]'s second slot: the key's PKCS#8, copied out of the
+/// `Core\Crypto\KeyPair` the read was given.
+pub(crate) const IDENTITY_PKCS8_SLOT: usize = 1;
+
+/// [`IDENTITY`]'s third slot: the leaf certificate's SHA-256, lower-case hex —
+/// the identity's public name, and what a pool key carries.
+pub(crate) const IDENTITY_FINGERPRINT_SLOT: usize = 2;
+
+/// A client identity: the certificate chain a call presents when a server asks
+/// the client for one, over the key pair that proves the leaf is this client's.
+///
+/// **No members**, for [`TARGET`]'s reason and a second one of its own. A
+/// program reads an identity and names it in a request's bag; reading the key
+/// back out is not an operation an identity is for, and there is no answer a
+/// member could give about the chain that the server's own verdict does not
+/// give better.
+///
+/// **The chain and the key are what the slots hold, not the session state.**
+/// [`nvs_host::tls::NvsIdentity`] is the built `ClientConfig`, and it is built
+/// where a connection is opened rather than kept in a table here: a
+/// process-lifetime map keyed by private key material is priority 1 spent to
+/// buy priority 3, which is the trade
+/// [`crate::crypto::KEY_PAIR`]'s own doc already turned down for the same
+/// material. The pool is what makes that cheap — a reused connection has its
+/// identity in its key and handshakes not at all.
+///
+/// The read still builds one and throws it away, exactly as
+/// `Core\Crypto\KeyPair::read` parses a key to refuse it rather than to keep
+/// it: a mismatched chain and key are refused where the program can still act
+/// on it, not during a handshake against a live server.
+///
+/// **What it spends:** the chain's PEM, the key's PKCS#8 and 64 octets of hex
+/// per identity, held as long as the value is and released with it.
+pub(crate) const IDENTITY: CoreClass = CoreClass {
+    name: IDENTITY_NAME,
+    methods: &[CoreMethod {
+        name: "read",
+        // The chain is `bytes` and unqualified: a certificate is public, and
+        // it is deployment material the program was handed rather than
+        // anything off a wire. The key arrives as the object that already
+        // refused everything a private key can be refused for, so this row
+        // asks no question `Core\Crypto\KeyPair::read` has answered.
+        names: &["chainPem", "key"],
+        params: &[
+            CoreTy::Blob(Qual::Neutral),
+            CoreTy::Instance(crate::crypto::KEY_PAIR_NAME),
+        ],
+        defaults: &[],
+        return_ty: CoreTy::Instance(IDENTITY_NAME),
+        symbol: "nvs_core_http_identity_read",
+        doc: Some(&IDENTITY_READ_DOC),
+    }],
+    instance: &[],
+    slots: &["chain", "pkcs8", "fingerprint"],
+    constants: &[],
+};
+
+/// `Core\Http\Identity::read`'s reference card — `rule:core-api/reference-card`.
+const IDENTITY_READ_DOC: MethodDoc = MethodDoc {
+    short: "Reads the certificate chain a request presents when a server asks the client for \
+            one, over the key pair that goes with it. The leaf is checked against the key here, \
+            so a chain and a key that are not each other's are refused before any connection is \
+            opened.",
+    params: &[
+        ParamDoc {
+            name: "chainPem",
+            desc: "The chain as PEM, the leaf first and then whatever intermediates the server \
+                   needs to build a path — the order every other client takes one in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "key",
+            desc: "The leaf's private key. Its kind is what the handshake is signed with, so a \
+                   key that only agrees — `X25519` — is refused here.",
+            shape: &[],
+        },
+    ],
+    ret: "The identity, to name as a request's `identity` option. It is presented only when the \
+          server asks for it, and two identities never share a pooled connection.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$chainPem` is not a PEM certificate chain or holds no certificate, `$key` is not \
+               a key a TLS handshake can be signed with, or the chain's leaf carries a different \
+               public key than `$key`. A client identity is the program's own deployment \
+               material, so every refusal is a mistake in what it was deployed with rather than \
+               a verdict on anyone.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_http_allow_url" => (nvs_core_http_allow_url as *const ()).cast(),
+        "nvs_core_http_identity_read" => (nvs_core_http_identity_read as *const ()).cast(),
         "nvs_core_http_client_get" => (nvs_core_http_client_get as *const ()).cast(),
         "nvs_core_http_client_post" => (nvs_core_http_client_post as *const ()).cast(),
         "nvs_core_http_client_put" => (nvs_core_http_client_put as *const ()).cast(),
@@ -331,6 +428,130 @@ nvs_runtime::nvs_helper! {
             ],
         ))
     }
+}
+
+/// The identity a call's `identity` option names, built out of the chain and
+/// the key that option's [`IDENTITY`] holds — or `None` where it named none.
+///
+/// The session is built here, once per call and released with it, rather than
+/// being kept behind the identity value: [`IDENTITY`]'s own doc argues why, and
+/// the pool is what makes it cheap, since a reused connection handshakes not at
+/// all.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver or a slot of the wrong tag, and for a chain
+/// and a key [`nvs_host::tls::NvsIdentity::read`] refuses. Neither is reachable
+/// from source: the option's declared type is checked while compiling, and
+/// those slots were written by a read of the same two octet strings that had
+/// already been accepted.
+fn identity_option(args: &[Value], member: &str) -> Result<Option<transport::Identity>, Fault> {
+    if matches!(args[IDENTITY_AT].tag(), Some(Tag::Null | Tag::Unset)) {
+        return Ok(None);
+    }
+
+    let receiver = crate::instance::receiver(args[IDENTITY_AT], &IDENTITY, member)?;
+    let chain_slot = crate::instance::slot(receiver, IDENTITY_CHAIN_SLOT);
+    let pkcs8_slot = crate::instance::slot(receiver, IDENTITY_PKCS8_SLOT);
+    let print_slot = crate::instance::slot(receiver, IDENTITY_FINGERPRINT_SLOT);
+    let chain = identity_octets(&chain_slot, IDENTITY_CHAIN_SLOT, member)?;
+    let pkcs8 = identity_octets(&pkcs8_slot, IDENTITY_PKCS8_SLOT, member)?;
+    let fingerprint = identity_octets(&print_slot, IDENTITY_FINGERPRINT_SLOT, member)?;
+
+    let session = nvs_host::tls::NvsIdentity::read(chain, pkcs8).map_err(|why| {
+        Fault::fatal(format!(
+            "{member}: an identity that had already been read was refused the second time: {why}"
+        ))
+    })?;
+    Ok(Some(transport::Identity {
+        session,
+        fingerprint: String::from_utf8_lossy(fingerprint).into_owned(),
+    }))
+}
+
+/// The octets an [`IDENTITY`] slot holds.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the slot: every one of them is written by
+/// [`nvs_core_http_identity_read`] and by nothing else, so another tag is a
+/// compiled-code bug rather than anything a program can write.
+fn identity_octets<'a>(held: &'a Value, at: usize, member: &str) -> Result<&'a [u8], Fault> {
+    held.as_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{IDENTITY_NAME}::{member} expected a `bytes` in its `{}` slot",
+            IDENTITY.slots[at]
+        ))
+    })
+}
+
+/// The refusal both halves of a client identity share —
+/// [`crate::crypto::KEY_PAIR`]'s reading of the same question, over a
+/// certificate as well as a key.
+///
+/// A `LogicError` and not a `RuntimeError`: a client identity is what the
+/// deployment handed this program to prove *itself* with, so there is nobody a
+/// verdict could be about and every way of failing is a mistake in the files.
+/// `why` is [`nvs_host::tls::NvsIdentity::read`]'s own sentence, which names
+/// which half did not hold.
+fn identity_refused(why: &std::io::Error) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!("{IDENTITY_NAME}::read(): {why}."),
+    )
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Identity::read(bytes $chainPem, Crypto\KeyPair $key): Core\Http\Identity`
+    /// — the chain a request presents when a server asks the client for one.
+    ///
+    /// The chain and the key are parsed here to be refused, not to be kept, for
+    /// `Core\Crypto\KeyPair::read`'s reason: what the object holds is the octets
+    /// that were validated, and [`identity_of`] reads them back where a
+    /// connection is opened. The fingerprint is the third slot because it is the
+    /// only one a pool key may carry — a leaf certificate is public, and the two
+    /// beside it are not.
+    fn nvs_core_http_identity_read(_ctx, args: [2]) {
+        let chain = args[0].as_bytes().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{IDENTITY_NAME}::read expected a `bytes`, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let (held, _) = crate::crypto::stored_key(args, 1, &crate::crypto::KEY_PAIR, "read")?;
+        let pkcs8 = held.as_bytes().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{IDENTITY_NAME}::read expected a `bytes` in the key pair's first slot"
+            ))
+        })?;
+
+        let identity =
+            nvs_host::tls::NvsIdentity::read(chain, pkcs8).map_err(|why| identity_refused(&why))?;
+        let fingerprint = fingerprint_of(identity.leaf());
+        nvs_runtime::affordable(Some(chain.len() + pkcs8.len()), "Core\\Http\\Identity::read")?;
+
+        Ok(crate::instance::build(
+            &IDENTITY,
+            [
+                Value::bytes(NvsStr::new(chain)),
+                Value::bytes(NvsStr::new(pkcs8)),
+                Value::str(NvsStr::new(fingerprint.as_bytes())),
+            ],
+        ))
+    }
+}
+
+/// A leaf certificate's SHA-256 as lower-case hex, which is what names an
+/// identity everywhere one is named at all.
+///
+/// The leaf rather than the whole chain: the key matched *it*, so two identities
+/// with the same leaf are the same client however their intermediates were
+/// written. The digest rather than the certificate: a pool key is a string that
+/// is compared on every draw, and 64 octets compare faster than a kilobyte of
+/// DER while saying exactly as much.
+fn fingerprint_of(leaf: &[u8]) -> String {
+    use sha2::Digest as _;
+    data_encoding::HEXLOWER.encode(&sha2::Sha256::digest(leaf))
 }
 
 // ------------------------------------------------------------------- the client
@@ -490,6 +711,17 @@ macro_rules! request_options {
         ty: CoreTy::Array(&MULTIPART_FIELD),
         default: Const::Null,
     },
+    // Last of the shared keys, and the only one that is about the connection
+    // rather than about what goes over it: who this end is when the server asks.
+    // An object rather than two `bytes` keys, because a chain and a key that
+    // have not been checked against each other are exactly what
+    // [`IDENTITY`]'s read exists to refuse — and because the pool is keyed on
+    // the identity, which needs one value to name.
+    CoreOption {
+        name: IDENTITY_OPTION,
+        ty: CoreTy::Instance(IDENTITY_NAME),
+        default: Const::Null,
+    },
     $($trailing,)*
 ] };
 }
@@ -545,6 +777,9 @@ pub(crate) const MULTIPART_OPTION: &str = "multipart";
 /// The key that types [`BODY_OPTION`]'s octets and means nothing without them —
 /// see [`JSON_OPTION`].
 pub(crate) const CONTENT_TYPE_OPTION: &str = "contentType";
+
+/// The key a call names an [`IDENTITY`] under, spelled once.
+pub(crate) const IDENTITY_OPTION: &str = "identity";
 /// The header the framing writes that key into, lower-cased as a record's names
 /// are — see [`faked`].
 const CONTENT_TYPE_HEADER: &str = "content-type";
@@ -822,11 +1057,13 @@ const BODY: usize = 10;
 const CONTENT_TYPE: usize = 11;
 /// See [`JSON`].
 const MULTIPART: usize = 12;
+/// The client identity's slot, last of the shared keys — see [`DEADLINE`].
+const IDENTITY_AT: usize = 13;
 /// [`STREAM_OPTIONS`]' own two slots, after every shared key's, and reachable
 /// only from the one row that declares them — see [`DEADLINE`].
-const IDLE: usize = 13;
+const IDLE: usize = 14;
 /// See [`IDLE`].
-const MAX_DURATION: usize = 14;
+const MAX_DURATION: usize = 15;
 
 /// How many arguments a request member takes: the URL plus one per option, which
 /// is what every `nvs_helper!` row below writes as its arity. Derived rather
@@ -1280,6 +1517,14 @@ macro_rules! request_params {
     ParamDoc {
         name: "multipart",
         desc: "The parts to send as `multipart/form-data`, by name.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "identity",
+        desc: "The client certificate to present when the server asks for one, read by \
+               `Core\\Http\\Identity::read`. Nothing is presented to a server that does not ask. \
+               Two identities never share a pooled connection, and neither does a call that \
+               names none.",
         shape: &[],
     },
     $($trailing,)*
@@ -2148,6 +2393,7 @@ fn exchanged(
         body,
         pool: pool_of(ctx),
         compress: crate::compress::Bound::ceiling(ctx),
+        identity: identity_option(args, &named)?,
         traceparent: traceparent_of(ctx),
     };
 

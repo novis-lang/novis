@@ -44,6 +44,6 @@ error[E0401]: expected `Core\Time\Duration`, found `null`
 error[E0454]: `timeout` is not an option of this member
    --> case.nvs:22:39
 %A
-   = help: the options are: deadline, connectTimeout, headers, followRedirects, retryAttempts, retryBackoff, retryIdempotencyKey, json, form, body, contentType, multipart
+   = help: the options are: deadline, connectTimeout, headers, followRedirects, retryAttempts, retryBackoff, retryIdempotencyKey, json, form, body, contentType, multipart, identity
 %A
 error: aborting due to 6 errors

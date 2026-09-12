@@ -1,0 +1,57 @@
+--TEST--
+Core\Http\Identity::read matches the key against the chain's leaf and against no other certificate in it, so a chain carrying its issuer is read and an issuer's own key is refused — `rule:core-api/failure-throws`
+--FILE--
+<?nvs
+// A real client chain is the leaf and then whatever intermediates the server
+// needs to build a path, and the key belongs to exactly one of them: the first.
+// A read that accepted a key matching *any* certificate in the chain would take
+// the issuer's key and then fail during a handshake, because what a server asks
+// the client to sign with is the leaf's key and nothing else in the file.
+string $leaf = "-----BEGIN CERTIFICATE-----\nMIIBZzCCAQ6gAwIBAgIBAjAKBggqhkjOPQQDAjAYMRYwFAYDVQQDDA1ub3ZpcyB0\nZXN0IGNhMCAXDTI2MDkxMjIzNDMyMloYDzIxMjYwODE5MjM0MzIyWjAdMRswGQYD\nVQQDDBJsZWFmLm5vdmlzLmV4YW1wbGUwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC\nAARsn8jTlvalvY27GIy5MEAhedk0hTduuei+6w3oC+YGT6Oo/R0MxoMtmUvhJLqW\nwY841Jo0D0ncfN+RfqQumQgWo0IwQDAdBgNVHQ4EFgQU4YjxNI3Zm79IaJTjEAsd\nZ33g5NgwHwYDVR0jBBgwFoAUYXHdOcSvHEpU6eRt6uCGrm/kckEwCgYIKoZIzj0E\nAwIDRwAwRAIgU7u+n0wo8NXFiu4+xaVKNc3nkN18o3GFgjuLmJkvLRQCICGQuFac\ngtWeQVkGYL2V+BnVrdR9QaThMcoIojXmgY6Q\n-----END CERTIFICATE-----\n";
+string $issuer = "-----BEGIN CERTIFICATE-----\nMIIBhjCCAS2gAwIBAgIUV0uykyi92cy1XbXyftDdAZt6jL0wCgYIKoZIzj0EAwIw\nGDEWMBQGA1UEAwwNbm92aXMgdGVzdCBjYTAgFw0yNjA5MTIyMzQzMjJaGA8yMTI2\nMDgxOTIzNDMyMlowGDEWMBQGA1UEAwwNbm92aXMgdGVzdCBjYTBZMBMGByqGSM49\nAgEGCCqGSM49AwEHA0IABBbbsFmglrXdizZZ5GVhBN1uQOBg93SUc/deqOO5ZPMn\nTVDw2JDzW4uCnCeBlRTvu+xJG2srdROAdmchqKfz12ijUzBRMB0GA1UdDgQWBBRh\ncd05xK8cSlTp5G3q4Iaub+RyQTAfBgNVHSMEGDAWgBRhcd05xK8cSlTp5G3q4Iau\nb+RyQTAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0cAMEQCIDXK5Gwryalq\ntQsX3awNpXAZJ8e0tYVGlMF1WQf14CK6AiALVkvZIJbooDOaBEhlpJC26/S+ArGm\njO0pIW15iNfuGQ==\n-----END CERTIFICATE-----\n";
+
+secret bytes $leafKey = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgNfM2JpNIZ3eTXvRd\n5pkBv32iz2fY5Nto/tlQ5IS9n36hRANCAARsn8jTlvalvY27GIy5MEAhedk0hTdu\nuei+6w3oC+YGT6Oo/R0MxoMtmUvhJLqWwY841Jo0D0ncfN+RfqQumQgW\n-----END PRIVATE KEY-----\n" as bytes;
+secret bytes $issuerKey = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQge4bIsc4PmELo2CVS\ntvkEVY7KDqvUT529mhxe+FepsvahRANCAAQW27BZoJa13Ys2WeRlYQTdbkDgYPd0\nlHP3XqjjuWTzJ01Q8NiQ81uLgpwngZUU77vsSRtrK3UTgHZnIain89do\n-----END PRIVATE KEY-----\n" as bytes;
+
+Core\Crypto\KeyPair $mine = Core\Crypto\KeyPair::read($leafKey, Core\Crypto\KeyKind::P256);
+Core\Crypto\KeyPair $ca = Core\Crypto\KeyPair::read($issuerKey, Core\Crypto\KeyKind::P256);
+
+// Two certificates in one file, which is the shape a deployment is handed: the
+// chain is read whole and the leaf is the one the key has to be.
+string $chain = $leaf . $issuer;
+Core\Http\Identity::read($chain as bytes, $mine);
+echo "a chain carrying its issuer is read as the leaf's identity\n";
+
+// The leaf alone is the same identity: the intermediates are what the server
+// needs to build a path and say nothing about which key this end signs with.
+Core\Http\Identity::read($leaf as bytes, $mine);
+echo "the leaf alone is the same identity\n";
+
+// The issuer's key matches the second certificate of the chain and not the
+// first, so it is refused — the whole point of checking the leaf rather than
+// the file.
+try {
+    Core\Http\Identity::read($chain as bytes, $ca);
+    echo "a key matching a certificate other than the leaf was accepted\n";
+} catch (LogicError $refused) {
+    echo "a key matching the issuer rather than the leaf is refused\n";
+}
+
+// And the order is the file's, not a search: the same two certificates written
+// issuer first make the issuer the leaf, so it is that key which is now the
+// matching one and the leaf's key which is not.
+string $reversed = $issuer . $leaf;
+Core\Http\Identity::read($reversed as bytes, $ca);
+echo "the first certificate in the file is the leaf\n";
+try {
+    Core\Http\Identity::read($reversed as bytes, $mine);
+    echo "the leaf's key still matched a reversed chain\n";
+} catch (LogicError $refused) {
+    echo "so reversing the chain reverses which key belongs to it\n";
+}
+--EXPECT--
+a chain carrying its issuer is read as the leaf's identity
+the leaf alone is the same identity
+a key matching the issuer rather than the leaf is refused
+the first certificate in the file is the leaf
+so reversing the chain reverses which key belongs to it
