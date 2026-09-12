@@ -2,43 +2,35 @@
 
 ## State
 
-**Goal `fmt` (M10) is closed: both stage-7 checks pass.** The whole corpus is a fixed point and
-parses to the same tree after formatting (`crates/nvs-fmt/tests/corpus.rs`), a comment in every
-position the grammar allows survives where it started (`crates/nvs-fmt/tests/fixtures.rs`, over the
-new `tests/fmt/{input,formatted}/comments.nvs` pair), and every `tooling/fmt-*` rule is `shipped`
-with its `guardedBy` filled. Nothing is blocked.
+**Goal 46 — format-on-save formats the markup too, from where the Novis code is — has just started; nothing of it has landed yet.** Goal `fmt`'s whole list is this goal's Stage 1 floor.
 
-**The floor's eight red example fixtures were a dead container stack, not the tree.** The host had
-rebooted and `[docker] memoize_on` skipped the bring-up, so `examples/cache.nvs` reported a `W1008`
-warning over a redis nothing was listening on; after `docker compose -f tests/db/compose.yaml up -d`
-it exits 0 with all five of its `want` lines. The playbook bullet is the standing note.
+**The design is already decided and landed.** [ADR 0173](../decisions/0173.md) holds all of it and
+`rule:ide/a-template-region-gets-services-but-no-second-formatter` states it at `designed`; no session
+writes a record for this goal. The one thing not to re-decide: **the client computes no boundary** —
+chunks come from the server's regions, and a failure anywhere degrades to less formatting, never to an
+edited hole.
 
-**What the formatter still leaves to the author is `crates/nvs-fmt/src/lib.rs`'s `# Known gaps`.**
-That list now names a comment-only line: the index answers at no node for one, so it keeps the
-indentation its author wrote — except inside a `match`, where the arm it precedes places it.
+`nvs fmt` never touches markup and puts a `?>` that begins its line at its block's depth (goal `fmt`), so
+the base column of every chunk is already in the text `nvs fmt --stdin` answers. What the server lacks
+is a way to be asked about that text before the buffer holds it, which is this goal's keystone.
 
 ## Next group
 
-**Stage 7 is closed, so what is left is `nvs-fmt`'s own gap list** — one file set:
-`crates/nvs-fmt/src/indent.rs`, `crates/nvs-fmt/src/print.rs` and `crates/nvs-fmt/src/tokens.rs`.
+**Stage 2: `nvs/regions` answers for a text it is given** — one file set: `crates/nvs-lsp/`.
 
-- [ ] **A comment-only line is indented like the code it precedes** —
-      `rule:tooling/fmt-base-style-is-per`, whose four-spaces-per-body claim reaches every line and
-      today skips this one. `crates/nvs-fmt/src/indent.rs:116`'s `of_line` answers `None` for an
-      offset that begins no node, and the arm-list branch above it is the one case that already
-      answers; gap 2 of `crates/nvs-fmt/src/lib.rs:72` is the statement of what is missing.
-- [ ] **A rewrite landing inside a trivium refuses rather than corrupts** —
-      `crates/nvs-fmt/src/print.rs:183` is a `debug_assert`, so the release binary writes the bytes
-      anyway and the file it was handed comes back mangled. A formatter may panic; it may not
-      silently change a program.
-- [ ] **A literal inside an attribute is respelled like any other** — gap 4 of
-      `crates/nvs-fmt/src/lib.rs:86`. `crates/nvs-fmt/src/tokens.rs:209` respells a literal the
-      index has a node for, and `crates/nvs-syntax/src/walk.rs` builds none for an attribute's
-      argument list, so `#[Core\Command(name: "greet")]` keeps its double quotes.
+- [ ] **The params** — `crates/nvs-lsp/src/server.rs:474`: `{textDocument, text?}`; with `text`,
+      `regions::for_source` (`crates/nvs-lsp/src/regions.rs:96`) over it and not the buffer.
+- [ ] **The guard tests** — `crates/nvs-lsp/tests/regions.rs`:
+      `a_regions_request_carrying_text_answers_for_that_text_and_not_the_buffer` and
+      `a_regions_request_without_text_answers_for_the_open_document`.
+- [ ] **The module doc** — `crates/nvs-lsp/src/regions.rs:1-65`: the request's new param, and
+      § *Anything at all about formatting* rewritten (stage 0's second sentence).
 
 ## Backlog
 
-- The `guardedBy` of `ide/tokens-plus-trivia-reproduce-the-file` is still empty though
-  `crates/nvs-syntax/tests/lossless.rs` holds it — `docs/rules/ide.json`.
-- `tests/fmt/` holds four pairs; a pair per landed rule is what makes one readable in isolation —
-  `crates/nvs-fmt/tests/fixtures.rs`'s own doc says how to add one without Rust.
+- Stages 3 and 4 — `editors/vscode/src/format.ts` (new), `template.ts`, `extension.ts` and
+  `test/surfaces/`. One file set; stage 4 is the larger.
+- Stage 5 — `editors/vscode/package.json` and the roster test. Cheap beside stage 4.
+- Stage 6 — the rename across every citation, then the flip. Its own session: it touches every file that
+  cites the id.
+- When this goal's last check goes green the driver takes goal `gap-zero`.

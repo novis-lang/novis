@@ -1,101 +1,127 @@
 ---
 milestone: M10
 ---
-# Loop goal 45 — nvs fmt rewrites a file into its one canonical layout
+# Loop goal 46 — format-on-save formats the markup too, from where the Novis code is
 
-`nvs fmt` exists, and every rule under `tooling/fmt-*` goes from `designed` to `shipped`: one canonical
-layout with no configuration, idempotent over the whole corpus, every comment kept where it was, and
-inline HTML and markup-literal bodies byte-identical. `nvs fmt <paths>`, `--check`, `--diff` and
-`--stdin` are its whole surface, and an editor client has one formatter to start.
+Format-on-save in a `.nvs` file runs `nvs fmt`, then the editor's own HTML formatter over each markup
+chunk, and each chunk starts at the indentation of the `?>` line that opened it. A template reads with its
+markup nested inside the Novis block it belongs to, and nothing jumps left and right between the two
+modes. `nvs.template.format` turns the markup half off.
 
-[ADR 0039](../decisions/0039.md) decided the style and [ADR 0173](../decisions/0173.md) added the
-one rule the editor's template pass needs — a `?>` that begins its line sits at its block's depth. This
-goal is the implementation.
+[ADR 0173](../decisions/0173.md) decided all of it and
+`rule:ide/a-template-region-gets-services-but-no-second-formatter` states it. This goal is the
+implementation, and its last stage renames that rule — whose id still names the half the record
+removed — and flips it to `shipped`.
 
 ## Why here
 
-After goal `markup-literal`, because that goal adds the last construct `rule:tooling/fmt-novis-constructs`
-lays out — a markup literal, whose body the formatter must leave byte-identical — and a formatter
-written before the lexer knows the literal would have to learn it twice.
+After goal `fmt`, because the pass's first step is `nvs fmt --stdin` and
+`rule:ide/every-feature-is-staged-behind-its-dependency` makes format-on-save wait for the formatter. The
+base column is read off the `?>` layout that goal ships (`rule:tooling/fmt-novis-constructs`), so the
+two goals cannot swap.
 
-Before goal `template-format`, which is format-on-save in the editor and whose first step is this
-binary: `rule:ide/every-feature-is-staged-behind-its-dependency` makes format-on-save wait for the
-formatter. Before goal `gap-zero`, for that goal's standing reason: it can only be emptied once
-everything that would add to it has run.
+Before goal `gap-zero`, for that goal's standing reason.
 
-What it needs already built: the lossless parse, `nvs_syntax::parse`
-(`crates/nvs-syntax/src/parser/mod.rs:883`) — the same tree `parse_file` builds, with the trivia as a
-side channel (goal `resilient-tree`) — and its corpus walk, `crates/nvs-syntax/tests/lossless.rs:140-168`,
-which already proves every corpus file is reproduced by its tokens and trivia.
+What it needs already built: `nvs/regions` and the client's forwarding (goal `editor-surfaces`) —
+`regions::for_source` (`crates/nvs-lsp/src/regions.rs:96`), the request's arm
+(`crates/nvs-lsp/src/server.rs:474`), `virtual` (`editors/vscode/src/template.ts:103`) and
+`install` (`editors/vscode/src/regions.ts:101`).
+
+## Stage 0 — the catch-up
+
+Sentences on disk that say no formatter reaches markup. Each is corrected in the stage that makes it
+wrong — stage 3 for the first three, stage 6 for the id. Re-grep before editing: these are anchors, and
+files move.
+
+- `editors/vscode/src/regions.ts:10-15` — *"Nothing is registered as a formatting provider, and that
+  absence is the rule's load-bearing half."*
+- `crates/nvs-lsp/src/regions.rs:53-59` — § *Anything at all about formatting*.
+- `editors/vscode/test/surfaces/template.test.ts:38-` — the assertion that no module under `src/`
+  registers a formatting provider. It narrows to: `format.ts` registers exactly one, and nothing else
+  does.
+- The rule id. `ide/a-template-region-gets-services-but-no-second-formatter` becomes
+  `ide/a-template-region-gets-the-editors-services-and-formatter`, with every citation
+  `python tools/rules.py --citations` lists — code comments, `.lspt` cases, `docs/`, `website/`.
+  `rules.py --check` refuses a dangling one, so the rename is one commit.
+
+`the_server_declares_no_formatting_provider` stays true and is not touched: the server still declares
+none, and the client's provider starts `nvs fmt`.
 
 ## Stage 1 — the floor
 
-Goal `markup-literal`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `fmt`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
-## Stage 2 — the keystone: the identity printer
+## Stage 2 — the keystone: `nvs/regions` answers for a text it is given
 
-A new crate, `crates/nvs-fmt`, the name `rule:ide/one-server-two-thin-clients` already gives it. It reads
-`nvs_syntax::parse` and prints the file back, and the first printer changes nothing: every token and
-every trivia item is written as it was read, so over the whole corpus the output is the input. Once that
-holds, each style rule is a local change to what the printer writes between two tokens, and a rule that
-breaks a file is caught by a test that already walks every file.
+The request's params become `{textDocument, text?}` at `crates/nvs-lsp/src/server.rs:474`. With `text`,
+`regions::for_source` runs over a `SourceFile` built from it and the open buffer is not read; without
+it, the answer is the buffer's, as today. The answer's shape does not change (`regions::wire`,
+`crates/nvs-lsp/src/regions.rs:123`), so
+`a_region_answer_carries_a_span_and_a_language_and_nothing_else` stands. ADR 0173 § 4 is why the
+server and not the client.
 
-A file whose parse reports an error is refused — left as written and named — never formatted.
+## Stage 3 — the Novis half: format-on-save starts `nvs fmt`
 
-## Stage 3 — the base style
+A new `editors/vscode/src/format.ts`: a document formatting provider for `nvs` that runs
+`nvs fmt --stdin` through `binary()` (`editors/vscode/src/binary.ts:15`) and answers one whole-document
+edit, or no edit when `nvs fmt` refuses. It is installed beside `regions.install`
+(`editors/vscode/src/extension.ts:101`). The extension still formats nothing itself: it starts the
+formatter (`rule:ide/one-server-two-thin-clients`).
 
-`rule:tooling/fmt-base-style-is-per`: four spaces per block depth, K&R braces on control structures,
-Allman on declarations, one modifier order, PER's blank lines. `rule:tooling/fmt-never-reflows`: an
-author's line break inside an expression is kept, and only indentation and the space around tokens are
-normalized.
+## Stage 4 — the markup half: chunks, the base, and the holes
 
-## Stage 4 — the token rules
+The decisions go in `editors/vscode/src/template.ts`, which imports no `vscode`, so the headless tier
+runs them (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`):
 
-`rule:tooling/fmt-quotes`, `rule:tooling/fmt-trailing-commas`, `rule:tooling/fmt-sorts-the-use-block` and
-`rule:tooling/fmt-normalizes-only-reserved-spellings`, and the two things it never does:
-`rule:tooling/fmt-never-inserts-visibility` and `rule:tooling/fmt-never-reorders-members`.
+- **The chunks** — built from the formatted text and its regions: the markup between a `?>` that ends
+  its line and the `<?nvs` that reopens code, the holes inside it included (ADR 0173 § 2).
+- **The base** — the indentation of the line holding the chunk's opening `?>`, column zero before a
+  file's first open tag, and the line holding the closing `<?nvs` at the base too (§ 3).
+- **The stand-in** — what the formatter is shown in a hole's place, the same length, so every position
+  maps back unchanged. Which stand-in is this stage's choice; the guard is that no hole byte is ever
+  edited.
+- **The merge** — the formatter's output re-based onto the chunk's base, whatever column the formatter
+  started at, so the result does not depend on how the HTML service treats a range's first line; and a
+  chunk refused whole when an edit reaches a hole.
 
-## Stage 5 — Novis's own constructs, and the two modes
+`format.ts` is the `vscode` half. It asks `nvs/regions` with the formatted text, runs the editor's `html`
+range formatter over a virtual document per chunk with `{ tabSize: 4, insertSpaces: true }`, and hands the
+results to `template.ts`. The formatter is injected into the pure half, so every case runs headless
+against a stub.
 
-`rule:tooling/fmt-novis-constructs`, every bullet. Two are about where the file stops being Novis: an
-inline-HTML region and a markup literal's body are byte-identical after formatting, and a `?>` that
-begins its line is indented to its block's depth. Only that `?>`'s leading whitespace moves, which is
-code and so prints nothing. The markup after it is goal `template-format`'s, in the editor.
+## Stage 5 — the setting
 
-## Stage 6 — the command
+`nvs.template.format`, boolean, default `true`, added to the manifest's frozen roster
+(`rule:ide/contributions-are-frozen-and-only-ever-added`) and read. The floor's "every contributed command
+is registered, and every setting is read" check fails until it is. `false` leaves stage 3 alone.
 
-`nvs fmt <paths>` rewrites in place, `--check` writes nothing and exits non-zero naming each file that
-would change, `--diff` prints the diff instead, and `--stdin` reads one file and writes it formatted to
-standard output — the form goal `template-format`'s editor half starts. `Command::Fmt` goes beside
-`Command::Ast` (`crates/nvs-cli/src/main.rs:195`). No compiler command runs it
-(`rule:tooling/fmt-is-never-a-diagnostic`). `crates/nvs-cli/src/service.rs:790` lists `fmt` among the
-subcommands the installer refuses; that stays true.
+## Stage 6 — the rulebook
 
-## Stage 7 — the corpus, and the rulebook
-
-`rule:tooling/fmt-is-idempotent`: formatting the corpus twice changes nothing the second time, every
-comment survives attached where it started, and every formatted file parses to the same tree as its
-input, trivia aside. Then every `tooling/fmt-*` rule flips to `shipped` with its `guardedBy` filled, and
-`python tools/rules.py --render`.
+Rename the rule id (stage 0's last item), flip it to `shipped` with `guardedBy` filled from this goal's
+tests and goal `editor-surfaces`'s, and `python tools/rules.py --render`. Correct any of stage 0's
+sentences stage 3 did not.
 
 ## Standing decisions
 
-- **The style is decided; this goal implements it.** ADR 0039 and the fragments under
-  `docs/rules/tooling/fmt-*` are the spec. A layout question they do not answer is decided under the
-  closest rule's reasoning and written into that fragment, never `BLOCKED`. No configuration file, no flag
-  that changes output and no line-width limit — `rule:tooling/fmt-is-one-canonical-style` refuses each.
-- **The printer reads `nvs_syntax::parse` and nothing else.** Never `parse_file`, which drops comments,
-  and never a second lexer. If the tree lacks something a rule needs, the fix is in `nvs-syntax` and is
-  recorded in its module doc.
-- **A file with a syntax error is refused, not formatted.** The safe direction: an editor saving a
-  half-written file gets it back unchanged. The refusal names the file and exits non-zero, and `--stdin`
-  writes nothing to standard output.
-- **Never a semantic change.** The formatted file parses to the same tree, and stage 7 holds it. Bytes a
-  program prints — inline HTML, a heredoc body, a markup literal's body — are never touched; if a rule
-  seems to require touching one, the rule is being misread.
-- **Fixtures are pairs, and the expected half is frozen.** `tests/fmt/input/<name>.nvs` beside
-  `tests/fmt/formatted/<name>.nvs`, walked by one `nvs-fmt` test. Every file under `formatted/` is a fixed
-  point, which is what the command check runs `--check` over.
-- **No new ADR.** ADR 0039 and ADR 0173 are the design.
-- **What it spends.** A command-line tool: one file's tree and output text at a time, released per file.
-  Nothing on the request path and nothing in the runtime.
+- **The design is ADR 0173's and is not re-opened**: the order — `nvs fmt`, then the regions, then the
+  HTML formatter — on by default, the base from the `?>` line, and holes never edited. Do not add an
+  option that changes the base or the unit.
+- **The client computes no boundary.** Chunks are built from the server's regions and the text's line
+  starts, never from a grammar, a regex over `<?` or a re-lex. If a chunk cannot be built from the
+  regions alone, the fix is in the server's answer, recorded in `crates/nvs-lsp/src/regions.rs`'s module
+  doc.
+- **Refuse, never guess.** `nvs fmt` refusing leaves the buffer unchanged; the regions request failing
+  leaves the markup as `nvs fmt` wrote it; an edit reaching a hole leaves that chunk as written. Every
+  failure degrades to less formatting, never to an edited hole or a changed Novis byte.
+- **The unit is four spaces**, passed to the HTML formatter whatever the editor's `tabSize` is, because a
+  chunk's nesting and the code around it must agree on what a level is (ADR 0173 § 3).
+- **Markup-literal bodies are out of this goal.** A chunk is markup between `?>` and `<?nvs`; a markup
+  literal's body is not one, and it stays exactly as `nvs fmt` leaves it. Making it a region for the
+  services is `crates/nvs-lsp/src/regions.rs` § *What is not a region yet*, not this goal.
+- **PhpStorm is not touched.** ADR 0173 § 6: markup bytes are each editor's own.
+- **The real formatter is the host run's.** VS Code's HTML formatter does not exist headless. Every loop
+  check injects a stub, and a real template round-trips in the milestone's host run, not here.
+- **No new ADR.** ADR 0173 is the design.
+- **What it spends**: per format request, one `nvs fmt` process, one regions round trip carrying the
+  file's text once more, and one HTML format per chunk. Nothing is held between requests, and the server
+  does nothing beyond the one lex it already does.

@@ -1,13 +1,13 @@
-# Goal 45 -- nvs fmt rewrites a file into its one canonical layout
+# Goal 46 -- format-on-save formats the markup too, from where the Novis code is
 # The acceptance test, as data.
 #
-# `45-fmt.md` is the prose. One home each.
+# `46-template-format.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # None of this goal's own. A formatter's output is text, not a program run, so every shape is proven
-  # from Rust and by `nvs fmt --check` over the frozen `tests/fmt/formatted/` tree.
+  # None of this goal's own. The pass is proven from Rust for the server's half and by the headless
+  # suite for the client's, with the HTML formatter injected.
   # carried from the previous goal by tools/goal-switch.py
   "examples/finish.nvs",
   "examples/queue.nvs",
@@ -94,58 +94,28 @@ files = [
 [context]
 
 modules = [
-  # `parse` (:883) is the lossless entry point the printer reads, and `Parsed` is what it answers: the
-  # statements, the trivia side channel and the index. `parse_file` (:905) is the strict half, never read.
-  "crates/nvs-syntax/src/parser/mod.rs",
-  # Every token kind the printer writes back, `InlineHtml` and the open and close tags among them.
-  "crates/nvs-syntax/src/token.rs",
-  # Where a comment's kind and the trivia items are produced -- the bytes the identity printer must
-  # write back unchanged.
-  "crates/nvs-syntax/src/lexer.rs",
-  # The tree whose nesting is a block's depth, and the visitor over it.
-  "crates/nvs-syntax/src/ast.rs",
-  "crates/nvs-syntax/src/walk.rs",
-  # `Command` (:193) -- `Fmt` goes beside `Ast` (:195).
-  "crates/nvs-cli/src/main.rs",
-  # A subcommand that already reads the lossless tree (:66), which is the shape `fmt`'s takes.
-  "crates/nvs-cli/src/ast.rs",
-  # The printer: a parsed file written back out, one run at a time.
-  "crates/nvs-fmt/src/print.rs",
-  # How deep a line sits: four spaces per enclosing `{ … }` body.
-  "crates/nvs-fmt/src/indent.rs",
-  # Modifier order: one canonical sequence, whichever one the author wrote.
-  "crates/nvs-fmt/src/modifiers.rs",
-  # The open documents, and the buffers that shadow the files under them.
-  "crates/nvs-lsp/src/document.rs",
-  # Declarations: classes, interfaces and enums with their members, attributes, and the file-scope
-  # forms that sit alongside a statement without being one.
-  "crates/nvs-syntax/src/parser/decl.rs",
-  # Where a brace sits: on its own line after a declaration, on the keyword's line after a control
-  # structure.
-  "crates/nvs-fmt/src/brace.rs",
-  # The rules that rewrite a token rather than the whitespace around it.
-  "crates/nvs-fmt/src/tokens.rs",
-  # The `use` block: consecutive imports, written back in path order.
-  "crates/nvs-fmt/src/imports.rs",
-  # Expression lowering — `Lowering::lower_expr`'s dispatch itself, and the shapes with nowhere
-  # more specific to be: member access, the nullsafe chain, `match`, the literals and the array
-  # forms.
-  "crates/nvs-ir/src/lower/expr.rs",
-  # The space a construct of Novis's own requires: one in front of a qualified type, one inside
-  # each brace of a one-line object literal.
-  "crates/nvs-fmt/src/space.rs",
-  # `nvs fmt` — the formatter as a command: which files it reads, and where the text it produces
-  # goes.
-  "crates/nvs-cli/src/fmt.rs",
+  # `for_source` (:96) is the lex stage 2 runs over a given text, `wire` (:123) the answer's one shape,
+  # and the module doc's § Anything at all about formatting is stage 0's second sentence.
+  "crates/nvs-lsp/src/regions.rs",
+  # The `nvs/regions` arm (:474) whose params grow a `text`, and `template_regions` (:1380).
+  "crates/nvs-lsp/src/server.rs",
+  # `virtual` (:103) and the rest of the pure half stage 4 extends; imports no `vscode`.
+  "editors/vscode/src/template.ts",
+  # `install` (:101), the request and the virtual document's scheme; its header is stage 0's first
+  # sentence.
+  "editors/vscode/src/regions.ts",
+  # Activation, where `format.install` goes beside `regions.install` (:101).
+  "editors/vscode/src/extension.ts",
+  # `binary()` (:15) -- the resolved `nvs` stage 3 starts `fmt --stdin` with.
+  "editors/vscode/src/binary.ts",
 ]
 
-# The rules every stage works inside: what the formatter is, what it may not do to a line break, the
-# one tree it reads, and the tiling property the printer walks a file as.
+# The three every stage works inside: the rule this goal ships, the `?>` layout it reads the base
+# from, and what a thin client may and may not hold.
 rules = [
-  "tooling/fmt-is-one-canonical-style",
-  "tooling/fmt-never-reflows",
-  "ide/one-grammar-one-tree",
-  "ide/tokens-plus-trivia-reproduce-the-file",
+  "ide/a-template-region-gets-services-but-no-second-formatter",
+  "tooling/fmt-novis-constructs",
+  "ide/one-server-two-thin-clients",
 ]
 
 adrs = []
@@ -158,10 +128,6 @@ shapes = [
 milestones = ["M10:verify"]
 
 playbook = [
-  # This goal's own file set and tools.
-  'Tooling > A moved module takes',
-  'Tooling > Making a type `pub`',
-
   # The process traps, by hand.
   'Tooling > the end',
   'Tooling > one call reads',
@@ -179,7 +145,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `45-fmt.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `46-template-format.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -187,55 +153,53 @@ plan = ["Open now", "Blocking"]
 # of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
 #
 # These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
-# the `[[check]]` blocks' `stage = "2 the identity printer"` labels, which may group several prose
+# the `[[check]]` blocks' `stage = "2 regions of a text"` labels, which may group several prose
 # stages under one acceptance line. loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The crate's name and its one job, and the property the identity printer is the first half of.
-rules = ["ide/one-server-two-thin-clients", "tooling/fmt-is-idempotent"]
+# The request set the param joins, and how an answer is frozen.
+rules = ["ide/the-request-set-is-closed", "ide/an-lsp-answer-is-frozen-as-an-lspt-case"]
+adrs = ["0173 § 4"]
 
 [context.stage.3]
-rules = ["tooling/fmt-base-style-is-per"]
+rules = ["tooling/fmt-check-writes-nothing"]
+adrs = ["0173 § 1"]
 
 [context.stage.4]
-rules = [
-  "tooling/fmt-quotes",
-  "tooling/fmt-trailing-commas",
-  "tooling/fmt-sorts-the-use-block",
-  "tooling/fmt-normalizes-only-reserved-spellings",
-  "tooling/fmt-never-inserts-visibility",
-  "tooling/fmt-never-reorders-members",
-]
+# The chunk, the base and the hole, and why every case runs against a stub.
+rules = ["ide/headless-gates-the-loop-the-host-run-gates-the-milestone"]
+adrs = ["0173 § 2", "0173 § 3"]
 
 [context.stage.5]
-# Every construct PER never saw, the `?>` rule among them, and the literal whose body is left alone.
-rules = ["tooling/fmt-novis-constructs", "core-classes/html-literal"]
-adrs = ["0173 § 3"]
+rules = ["ide/contributions-are-frozen-and-only-ever-added"]
+adrs = ["0173 § 5"]
 
 [context.stage.6]
-rules = ["tooling/fmt-check-writes-nothing", "tooling/fmt-is-never-a-diagnostic"]
-
-[context.stage.7]
-# The rules flip to shipped and their `guardedBy` fills.
-rules = ["tooling/fmt-is-idempotent"]
+# The rename and the flip.
 shapes = ["A rule fragment"]
 
-# `nvs fmt` is a command-line tool with no runtime values: nothing it allocates is refcounted, so there
-# is no cycle shape to add to the skip list.
+# The pass runs in the editor process and allocates nothing in the runtime; the server's half is one
+# lex over a string it drops with the answer. No cycle shape, so nothing is added to the skip list.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor is goal `markup-literal`'s whole list, which carries goal `finish-response`'s served-path
-# and queue checks. The daemons are theirs; nothing below needs one.
+# The floor is goal `fmt`'s whole list, which carries goal `finish-response`'s served-path and queue
+# checks. The daemons are theirs; nothing below needs one.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 617 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -8798,15 +8762,12 @@ cases = [
   "tests/conformance/reject/a-secret-value-in-a-markup-hole-is-refused.nvst",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the identity printer. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the identity printer"
+stage = "1 floor"
 name = "printing the lossless tree back changes no byte of any corpus file, and a broken file is refused"
 args = ["test", "-p", "nvs-fmt"]
 tests = [
@@ -8817,10 +8778,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stages 3 and 4 -- the base style and the token rules. Goal prose stages 3 and 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the base style"
+stage = "1 floor"
 name = "PER's indentation, braces and modifier order, and an author's line break kept"
 args = ["test", "-p", "nvs-fmt"]
 tests = [
@@ -8832,7 +8792,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the token rules"
+stage = "1 floor"
 name = "quotes, trailing commas, the use block and reserved spellings, and the two things never done"
 args = ["test", "-p", "nvs-fmt"]
 tests = [
@@ -8848,10 +8808,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- Novis's own constructs, and the two modes. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 the two modes"
+stage = "1 floor"
 name = "a close tag on its own line sits at its block's depth, and markup is byte-identical"
 args = ["test", "-p", "nvs-fmt"]
 tests = [
@@ -8863,7 +8822,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the two modes"
+stage = "1 floor"
 name = "every construct PER never saw has its one layout"
 args = ["test", "-p", "nvs-fmt"]
 tests = [
@@ -8876,10 +8835,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the command. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 the command"
+stage = "1 floor"
 name = "in place, --check, --diff and --stdin, and no compiler command formats anything"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -8894,17 +8852,16 @@ tests = [
 # Every expected file is a fixed point: `--check` over the frozen tree exits 0.
 [[check]]
 kind = "command"
-stage = "6 the command"
+stage = "1 floor"
 name = "the frozen formatted tree is already formatted"
 argv = ["{nvs}", "fmt", "--check", "tests/fmt/formatted"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- the corpus, and the rulebook. Goal prose stage 7.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "7 the corpus"
+stage = "1 floor"
 name = "the whole corpus is a fixed point, keeps every comment, and parses to the same tree"
 args = ["test", "-p", "nvs-fmt"]
 tests = [
@@ -8915,7 +8872,59 @@ tests = [
 
 [[check]]
 kind = "command"
-stage = "7 the corpus"
+stage = "1 floor"
 name = "the formatter's rules are shipped"
 argv = ["python", "tools/rules.py", "--show", "tooling/fmt-is-one-canonical-style"]
+want = ["shipped"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- `nvs/regions` answers for a text it is given. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 regions of a text"
+name = "a regions request carrying text answers for that text, and one without answers for the buffer"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "a_regions_request_carrying_text_answers_for_that_text_and_not_the_buffer",
+  "a_regions_request_without_text_answers_for_the_open_document",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stages 3 and 4 -- the Novis half and the markup half, in the headless suite with the HTML formatter
+# injected. The titles are matched in order, so the suite declares its cases in this order. Goal prose
+# stages 3 and 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the format pass"
+name = "a chunk starts from its close tag's line, nests from there, and never touches a hole"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:headless"]
+want = [
+  "the template format",
+  "leaves the buffer unchanged when nvs fmt refuses",
+  "formats only the Novis half when nvs.template.format is false",
+  "starts a chunk after a close tag at that line's indentation",
+  "indents a chunk inside a loop body one level deeper than the loop",
+  "puts the open tag that ends a chunk at the chunk's base",
+  "never edits a byte of a hole",
+  "leaves a chunk as written when formatting it would reach a hole",
+  "changes no byte outside a region",
+  "0 failing",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the rulebook. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 the rulebook"
+name = "the rule is renamed for what it now says, and shipped"
+argv = ["python", "tools/rules.py", "--show", "ide/a-template-region-gets-the-editors-services-and-formatter"]
 want = ["shipped"]
