@@ -1821,6 +1821,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   and corrupts the file in release. Mask the trivia out with `indent.rs`'s `commented` before
   searching a gap, the way `arm_starts` and `imports.rs` both do.
   [until: gone crates/nvs-fmt/src/indent.rs:arm_starts]
+- **Changing what a request's params are breaks the extension silently.** `regions()` in
+  `editors/vscode/src/regions.ts` wraps its `sendRequest` in a `try`/`catch` returning `[]`, so params
+  the server refuses read as "this file has no markup" and the HTML services stop forwarding, with
+  neither `cargo test` nor `npm run compile` seeing it. Grep `editors/vscode/src` for the `METHOD`
+  constant of any request whose dispatch arm in `crates/nvs-lsp/src/server.rs` you retype, and land
+  both sides together. [until: gone editors/vscode/src/regions.ts:} catch {]
 
 ## Running things
 
