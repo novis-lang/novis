@@ -113,6 +113,13 @@ modules = [
   "crates/nvs-fmt/src/print.rs",
   # How deep a line sits: four spaces per enclosing `{ … }` body.
   "crates/nvs-fmt/src/indent.rs",
+  # Modifier order: one canonical sequence, whichever one the author wrote.
+  "crates/nvs-fmt/src/modifiers.rs",
+  # The open documents, and the buffers that shadow the files under them.
+  "crates/nvs-lsp/src/document.rs",
+  # Declarations: classes, interfaces and enums with their members, attributes, and the file-scope
+  # forms that sit alongside a statement without being one.
+  "crates/nvs-syntax/src/parser/decl.rs",
 ]
 
 # The rules every stage works inside: what the formatter is, what it may not do to a line break, the
