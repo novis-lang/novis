@@ -550,11 +550,12 @@ python tools/disk.py --clean          # reclaim it
 python tools/disk.py --clean -n       # say what --clean would delete; delete nothing
 ```
 
-**`--clean` is fired by a person, never automatically**, because it costs a rebuild and only a person
-knows whether now is the time to pay one. Nothing about it touches the session path: a session runs no
-extra call, and `tools/loop.py` calls only the two cheap prunes (`.loop/logs`, `.agent-tmp`) once per
-*run*, plus one free-space check that refuses to start a run below 10 GB. That refusal is the point — a
-run that fills the disk dies inside a session with the tree half-edited, which is how one run went.
+**The loop runs `--clean` itself, at the end of every goal it reaches** — between sessions, after the
+acceptance check, when nothing is building and the build is warm. Nothing about it touches the session
+path. By hand it refuses while `.loop/running` exists, because a person cannot see whether a session is
+mid-build. The driver's one other disk call is a free-space check that refuses to start a run below
+10 GB. That refusal is the point — a run that fills the disk dies inside a session with the tree
+half-edited, which is how one run went.
 
 What fills the disk is **build generations**. A crate's artifacts are named `<name>-<metadata-hash>`, and
 that hash covers the dependency graph — so every `Cargo.toml` or `Cargo.lock` edit mints a fresh set for
@@ -563,12 +564,14 @@ Editing *source* costs nothing, because a source-only rebuild reuses every hash.
 dependency most sessions therefore adds a whole generation most sessions. One generation of this
 workspace was ~6 GB when this was found, and nine of them were on disk at once.
 
-`--clean` does not ask how *old* an artifact is, the way `cargo-sweep` does — cargo never rewrites an
-artifact it considers fresh, so a superseded generation and a live one carry the same date, and 20 GB of
-`target/` measured as "0 bytes older than 14 days". It asks cargo instead: one warm
-`cargo build --all-targets --message-format=json` names every file the current graph uses, and everything
-else beside it in `deps/` is an orphan. Nothing it does can produce a wrong build — cargo re-checks every
-fingerprint against what is really on disk, so a mistake costs a rebuild and nothing else.
+`--clean` never deletes a `deps/` file for being *old*, the way `cargo-sweep` does — cargo never rewrites
+an artifact it considers fresh, so a superseded generation and a live one can carry the same date. It asks
+cargo instead: warm `--message-format=json` runs of the commands `verify.py` builds with name every file
+the current graph uses. Age only ever *keeps*: anything written in the last `GRACE_HOURS` survives
+whatever cargo said, which is what protects the `-p`, feature and `--test` variants a goal's checks build
+and no fixed list can name; `release/deps` is never swept. Nothing it does can produce a wrong build —
+cargo re-checks every fingerprint against what is really on disk, so a mistake costs a rebuild and nothing
+else.
 
 `[profile.dev.package."*"] debug = 0` in `Cargo.toml` is the other half, and it is why a generation now
 holds 1.7 GB of debug info rather than 3.9 GB: on windows-msvc the linker copies the debug info of every

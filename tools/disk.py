@@ -6,10 +6,11 @@
     python tools/disk.py --clean -n    # say what --clean would delete; delete nothing
     python tools/disk.py --deep        # also size the four places outside this repository
 
-Nothing here runs on the session path. `tools/loop.py` calls `prune_logs` and `prune_scratch`
-once per *run* -- each is one directory listing, so a run pays milliseconds and a session pays
-nothing at all. The expensive sweep (`target/`) is fired by a person and never automatically:
-it costs a rebuild, and only a person knows whether now is the moment to pay one.
+Nothing here runs on the session path. `tools/loop.py` runs `clean` -- the whole of `--clean` --
+at the end of every goal it reaches: between sessions, after the acceptance check, which is the
+one moment the driver knows nothing is building and the build is warm. A person runs the same
+`--clean` by hand, and it refuses while a driver holds `.loop/running`, because a person cannot
+see whether a session is mid-build.
 
 Why this exists. Cargo never garbage-collects `target/`: every dependency bump, feature change
 or toolchain bump leaves the previous crate hash's rlib, rmeta, PDB and incremental directory
@@ -26,14 +27,19 @@ does not: a source-only rebuild reuses every hash and adds nothing. Measured her
 2026-08-25, one generation of this workspace is ~6 GB and nine of them were on disk at once,
 because the loop had added a dependency in most of its recent sessions.
 
-Which is why the sweep does *not* use modification time for `deps/`, the way `cargo-sweep`
-does. Cargo never rewrites an artifact it has decided is still fresh, so a superseded
-generation and a live one carry the same date -- both were last written by the build that
-needed them, and 20 GB of target/ measured "0 bytes older than 14 days". The live set is
-*asked for* instead: one warm `cargo build --all-targets --message-format=json` names every
-file the current graph actually uses, and everything else beside it in `deps/` is an orphan.
-`incremental/` does answer to age, because it is a cache each build rewrites, so age is the
-question asked there.
+Which is why age alone never condemns anything in `deps/`, the way `cargo-sweep` would have it.
+Cargo never rewrites an artifact it has decided is still fresh, so a superseded generation and a
+live one can carry the same date -- both were last written by the build that needed them. The
+live set is *asked for* instead: the cargo commands in `LIVE_QUERIES`, each warm and with
+`--message-format=json`, name every file the graph `tools/verify.py` builds actually uses.
+
+Age is the second key, and only ever as a reason to *keep*. A `-p` run, a feature or a `--test`
+from a goal's acceptance list each resolve the graph their own way and mint their own hashes,
+which no fixed list of commands can name. So nothing written in the last `GRACE_HOURS` is swept
+whatever the list says, and a variant idle for longer costs one rebuild the next time something
+asks for it. `incremental/` is a cache with no artifact list to ask, so there age and the newest
+`KEEP_INCREMENTAL` per crate are the whole rule. `release/deps` is never swept: its live set can
+only be asked for with a release build, the slowest build here.
 
 Nothing here can produce a wrong build. Cargo re-checks every fingerprint against the files
 that are really on disk, so the worst a mistake costs is rebuilding something that was still
@@ -69,6 +75,7 @@ KEEP_RUNS = 5  # .loop/logs: how many loop runs keep their session logs
 SCRATCH_DAYS = 2  # .agent-tmp: older than this belongs to no session that is still running
 KEEP_INCREMENTAL = 2  # target/*/incremental: cache generations kept per crate
 MIN_FREE_GB = 10  # below this, tools/loop.py will not start a run
+GRACE_HOURS = 24  # target/: nothing written more recently than this is swept, whatever cargo says
 
 # `libnvs_stdlib-2a3f7eaa9f84477e.rlib` -> `libnvs_stdlib`. Cargo's metadata hash is 16 hex
 # digits and always the last dash-separated component of the stem.
@@ -195,20 +202,20 @@ def prune_logs(keep=KEEP_RUNS, dry_run=False):
 
 
 def prune_scratch(days=SCRATCH_DAYS, dry_run=False):
-    """Delete .agent-tmp entries older than `days`. Returns bytes freed.
+    """Delete .agent-tmp entries nothing has written for `days`. Returns bytes freed.
 
-    By age and not wholesale: the driver prunes between sessions, but a person may be reading a
-    verify log the session that just exited wrote, and that log is minutes old, not days."""
+    By age and not wholesale: the driver sweeps between sessions, but a person may be reading a
+    verify log the session that just exited wrote, and that log is minutes old, not days. A
+    directory is as old as its newest file (`newest`), so a `proof/` run still being written is
+    kept for as long as anything in it is."""
     if not SCRATCH.is_dir():
         return 0
     cutoff = time.time() - days * 86400
     freed = 0
     for p in list(SCRATCH.iterdir()):
-        try:
-            if p.stat().st_mtime < cutoff:
-                freed += rm(p, dry_run)
-        except OSError:
-            continue
+        seen = newest(p)
+        if seen and seen < cutoff:
+            freed += rm(p, dry_run)
     return freed
 
 
@@ -217,57 +224,77 @@ def key(path):
     return os.path.normcase(os.path.abspath(path))
 
 
+#: What `tools/verify.py` builds, as the cargo commands its `build`, `test` and `clippy` steps
+#: run, plus `build --workspace --all-targets` for every target kind whether verify compiles it
+#: or not. A step whose arguments change there changes here, or what it builds stops counting as
+#: live and is kept only by `GRACE_HOURS`.
+LIVE_QUERIES = [
+    ["build"],
+    ["test", "--no-run"],
+    ["clippy", "--all-targets", "--", "-D", "warnings"],
+    ["build", "--workspace", "--all-targets"],
+]
+
+
 def live_artifacts():
-    """Every file the current dependency graph actually uses, as cargo reports it.
+    """Every file the graph `LIVE_QUERIES` builds actually uses, as cargo reports it.
 
     Asked rather than inferred -- see the module docstring on why age cannot answer this. A
     warm call is a no-op build that still emits a `compiler-artifact` line per unit, fresh or
-    not. Returns None if cargo cannot answer at all, and the caller then leaves `deps/`
-    untouched rather than deleting on a guess."""
-    try:
-        p = subprocess.run(
-            ["cargo", "build", "--workspace", "--all-targets", "--message-format=json"],
-            cwd=ROOT,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except OSError:
-        return None
-    if p.returncode != 0:
-        return None
+    not. Returns None if any query fails, and the caller then leaves `deps/` untouched rather
+    than deleting on a partial answer."""
     live = set()
-    for line in (p.stdout or "").splitlines():
+    for query in LIVE_QUERIES:
+        # `--message-format` is cargo's, so it goes ahead of the `--` that hands the rest to clippy.
+        argv = ["cargo", query[0], "--message-format=json", *query[1:]]
         try:
-            msg = json.loads(line)
-        except ValueError:
-            continue
-        if msg.get("reason") != "compiler-artifact":
-            continue
-        for name in (msg.get("filenames") or []) + [msg.get("executable")]:
-            if not name:
+            p = subprocess.run(argv, cwd=ROOT, capture_output=True, encoding="utf-8",
+                               errors="replace")
+        except OSError:
+            return None
+        if p.returncode != 0:
+            return None
+        for line in (p.stdout or "").splitlines():
+            try:
+                msg = json.loads(line)
+            except ValueError:
                 continue
-            live.add(key(name))
-            # On windows-msvc the debug info, the import library and the dep-info file sit
-            # beside the artifact under the same stem, and cargo lists none of them.
-            for ext in (".pdb", ".d", ".exp", ".lib"):
-                live.add(key(Path(name).with_suffix(ext)))
+            if msg.get("reason") != "compiler-artifact":
+                continue
+            for name in (msg.get("filenames") or []) + [msg.get("executable")]:
+                if not name:
+                    continue
+                live.add(key(name))
+                # On windows-msvc the debug info, the import library and the dep-info file sit
+                # beside the artifact under the same stem, and cargo lists none of them.
+                for ext in (".pdb", ".d", ".exp", ".lib"):
+                    live.add(key(Path(name).with_suffix(ext)))
     return live
 
 
-def dead_deps(live):
-    """Files in target/*/{deps,examples} that no live unit claims. [] if `live` is None."""
+def dead_deps(live, grace_hours=GRACE_HOURS):
+    """Files in target/debug/{deps,examples} that no live unit claims and nothing has written
+    for `grace_hours`. [] if `live` is None.
+
+    `debug` only: the live set is asked of the debug profile, so under any other profile every
+    file would read as dead."""
     if live is None:
         return []
+    cutoff = time.time() - grace_hours * 3600
     doomed = []
     for sub in ("deps", "examples"):
-        for d in TARGET.glob(f"*/{sub}"):
-            for p in d.iterdir():
-                if p.is_file() and key(p) not in live:
-                    try:
-                        doomed.append((p, p.stat().st_size))
-                    except OSError:
-                        pass
+        d = TARGET / "debug" / sub
+        if not d.is_dir():
+            continue
+        for p in d.iterdir():
+            if not p.is_file() or key(p) in live:
+                continue
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            if st.st_mtime < cutoff:
+                doomed.append((p, st.st_size))
     return doomed
 
 
@@ -295,16 +322,29 @@ def mtime(path):
         return 0.0
 
 
-def stale_incremental(keep=KEEP_INCREMENTAL):
-    """Cache directories in target/*/incremental past the newest `keep` for their crate.
+def newest(path):
+    """The latest mtime of `path` and of every file under it; 0.0 if it cannot be read.
 
-    The same generation pile-up as `deps/` -- `nvs_stdlib-034481himi0e6` is one dependency
-    graph's cache and `nvs_stdlib-0fcvo7f0ezdf2` is another's, and 588 directories stood for 59
-    crates when this was written. Decided by name and age rather than by asking cargo, because
-    the hash here is an incremental session id that no artifact list ever mentions -- and it can
-    afford to be, since nothing under this directory is an output. Deleting a live entry costs
-    its crate one non-incremental compile and nothing else, which is also why `keep` is 2 and
-    not 1: a crate's lib unit and its test unit are both current and hash differently."""
+    A directory's own mtime moves only when an entry directly inside it is added or removed, so
+    a directory whose files are still being rewritten reads as old as the day it was made."""
+    latest = mtime(path)
+    if latest and path.is_dir():
+        latest = max([latest, *(m for _, _, m in walk(path)[1])])
+    return latest
+
+
+def stale_incremental(keep=KEEP_INCREMENTAL, grace_hours=GRACE_HOURS):
+    """Cache directories in target/*/incremental past the newest `keep` for their crate that no
+    build has written for `grace_hours`.
+
+    The same generation pile-up as `deps/`: `nvs_stdlib-034481himi0e6` is one unit's cache and
+    `nvs_stdlib-0fcvo7f0ezdf2` another's. Decided by name and age rather than by asking cargo,
+    because the hash here is an incremental session id that no artifact list ever mentions. Age
+    carries it because a crate is built several ways at once -- lib, test, clippy, each `-p` and
+    feature set, each with its own entry -- and a compile rewrites the entry it used, so the
+    newest `keep` alone would condemn caches still in use. Deleting one costs its crate one
+    non-incremental compile and nothing else, since nothing under this directory is an output."""
+    cutoff = time.time() - grace_hours * 3600
     doomed = []
     for d in TARGET.glob("*/incremental"):
         groups = {}
@@ -312,17 +352,37 @@ def stale_incremental(keep=KEEP_INCREMENTAL):
             groups.setdefault(entry.name.rsplit("-", 1)[0], []).append(entry)
         for entries in groups.values():
             entries.sort(key=mtime, reverse=True)
-            doomed.extend(entries[keep:])
+            doomed.extend(e for e in entries[keep:] if mtime(e) < cutoff)
     return doomed
 
 
-def sweep_target(keep_incremental=KEEP_INCREMENTAL, dry_run=False):
-    """Orphaned generations out of deps/, superseded cache generations out of incremental/.
+def clean(keep_runs=KEEP_RUNS, scratch_days=SCRATCH_DAYS, keep_incremental=KEEP_INCREMENTAL,
+          grace_hours=GRACE_HOURS, dry_run=False):
+    """The whole of `--clean`, as {part: bytes freed}. `target/deps` is None when cargo could not
+    name the live set, and `deps/` was then left alone.
 
-    Manual only -- this costs a rebuild of anything it turns out cargo still wanted."""
-    freed = sum(rm(p, dry_run) for p, _ in dead_deps(live_artifacts()))
-    freed += sum(rm(p, dry_run) for p in stale_incremental(keep_incremental))
-    return freed
+    One entry point, so the command a person types and the sweep `tools/loop.py` runs at the end
+    of every goal are the same code under the same policy."""
+    live = live_artifacts()
+    return {
+        ".loop/logs": prune_logs(keep_runs, dry_run),
+        ".agent-tmp": prune_scratch(scratch_days, dry_run),
+        "target/deps": (None if live is None
+                        else sum(rm(p, dry_run) for p, _ in dead_deps(live, grace_hours))),
+        "target/incremental": sum(rm(p, dry_run)
+                                  for p in stale_incremental(keep_incremental, grace_hours)),
+    }
+
+
+def total(freed):
+    """The bytes a `clean` result freed, a part it left alone counting as none."""
+    return sum(n for n in freed.values() if n)
+
+
+def freed_lines(freed, verb="freed"):
+    """One line per part of a `clean` result, printed alike by `--clean` and by the driver."""
+    return [f"{name:<19} left alone -- cargo could not name the live set; does the tree build?"
+            if n is None else f"{name:<19} {verb} {human(n)}" for name, n in freed.items()]
 
 
 # -------------------------------------------------------------------------------- report
@@ -345,13 +405,13 @@ def report(deep=False):
     print(f"  target/       {human(target_total):>8}   deps/: {files} files for {names} artifacts"
           f"{f' -- about {files / names:.1f} generations' if names else ''}")
     print(f"  {'':<12} {'':>8}   incremental/: {human(inc)}, of which {human(stale_inc)} "
-          f"is superseded")
-    print(f"  {'':<12} {'':>8}   `--clean` keeps the live generation, at the price of "
-          f"rebuilding anything it was still using")
+          f"is past the newest {KEEP_INCREMENTAL} per crate and idle {GRACE_HOURS}h")
+    print(f"  {'':<12} {'':>8}   `--clean` keeps what verify builds and anything written in the "
+          f"last {GRACE_HOURS}h; release/deps is never swept")
     print(f"  .loop/logs    {human(log_total):>8}   "
-          f"kept: newest {KEEP_RUNS} runs -- the driver prunes this at every run start")
+          f"kept: newest {KEEP_RUNS} runs -- swept at the end of every goal the loop reaches")
     print(f"  .agent-tmp    {human(scratch_total):>8}   "
-          f"kept: newer than {SCRATCH_DAYS}d -- the driver prunes this at every run start")
+          f"kept: written within {SCRATCH_DAYS}d -- swept at the end of every goal the loop reaches")
     print()
 
     print("outside this repository -- reported, never touched by this script")
@@ -380,6 +440,9 @@ def main():
     ap.add_argument("--keep-runs", type=int, default=KEEP_RUNS)
     ap.add_argument("--scratch-days", type=int, default=SCRATCH_DAYS)
     ap.add_argument("--keep-incremental", type=int, default=KEEP_INCREMENTAL)
+    ap.add_argument("--grace-hours", type=float, default=GRACE_HOURS,
+                    help="keep anything in target/ written this recently, whatever cargo says; "
+                         "0 sweeps everything cargo calls dead")
     opts = ap.parse_args()
 
     try:
@@ -393,23 +456,22 @@ def main():
 
     # A driver is mid-run, so cargo may be writing target/ right now. Sweeping under a live
     # build is the one way this script could break something rather than merely cost a rebuild.
+    # The driver runs this same `clean` itself at the end of every goal, where it knows none is.
     if RUNNING.exists():
         print(f"a loop driver holds {RUNNING.relative_to(ROOT).as_posix()} -- stop it first.")
-        print("Sweeping target/ under a running build is the one thing here that is not safe.")
+        print("Sweeping target/ under a running build is the one thing here that is not safe;")
+        print("the driver sweeps on its own at the end of every goal it reaches.")
         return 2
 
     before = free_gb()
-    freed = {
-        ".loop/logs": prune_logs(opts.keep_runs, opts.dry_run),
-        ".agent-tmp": prune_scratch(opts.scratch_days, opts.dry_run),
-        "target/": sweep_target(opts.keep_incremental, opts.dry_run),
-    }
+    freed = clean(opts.keep_runs, opts.scratch_days, opts.keep_incremental, opts.grace_hours,
+                  opts.dry_run)
     verb = "would free" if opts.dry_run else "freed"
-    for name, n in freed.items():
-        print(f"  {name:<14} {verb} {human(n)}")
-    print(f"  {'total':<14} {verb} {human(sum(freed.values()))}"
+    for line in freed_lines(freed, verb):
+        print(f"  {line}")
+    print(f"  {'total':<19} {verb} {human(total(freed))}"
           + ("" if opts.dry_run else f"; {before:.1f}G -> {free_gb():.1f}G free"))
-    if not opts.dry_run and freed["target/"]:
+    if not opts.dry_run and (freed["target/deps"] or freed["target/incremental"]):
         print("\nThe next build is slower by whatever it has to make again. That is the whole cost.")
     return 0
 

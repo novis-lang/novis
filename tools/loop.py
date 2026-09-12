@@ -4406,19 +4406,15 @@ def collect_subagents(session_id, run_id, index):
 # wrong here would be worse than a stale marker a human deletes.
 
 
-def make_room(opts):
-    """Prune what previous runs left behind, then refuse to start with too little disk.
-
-    Once per *run*, never once per session: both prunes are a single directory listing of a few
-    dozen entries, so a run pays milliseconds and a session pays nothing at all.
+def enough_disk(opts):
+    """Refuse to start a run with too little disk.
 
     The refusal is the point. A run that fills the disk does not stop cleanly -- it dies inside
     a session with the tree half-edited and the next session inheriting the mess, which is
-    exactly what happened on 2026-08-25. Failing at the door instead costs one line.
+    exactly what happened on 2026-08-25. Failing at the door instead costs one line. Nothing is
+    reclaimed here: `clean_disk` does that at the end of every goal, and at the door, before the
+    claim on `.loop/running`, there is no telling whether another run is mid-build.
     `tools/disk.py` owns the policy, the numbers and the explanation."""
-    freed = disk.prune_logs(opts.keep_runs) + disk.prune_scratch()
-    if freed:
-        say(f"pruned {disk.human(freed)} of earlier runs' logs and scratch", C.GRAY)
     free = disk.free_gb(ROOT)
     if opts.min_free_gb and free < opts.min_free_gb:
         say(f"{free:.1f}G free on {ROOT.drive or '/'}; a run needs {opts.min_free_gb:g}G.", C.RED)
@@ -4430,6 +4426,33 @@ def make_room(opts):
         )
         return False
     return True
+
+
+def clean_disk(opts):
+    """`python tools/disk.py --clean`, run in-process at the end of every goal the run reaches.
+
+    In-process because the command refuses while `.loop/running` exists -- a person cannot see
+    whether a session is mid-build, and the driver can. A goal is only reached between sessions,
+    after the acceptance check, so nothing is building and that check has just left the build
+    warm, which makes the cargo queries `disk.clean` asks no-op builds. `PREBUILD_LOCK` is taken
+    anyway, for a release build the sweep started that may still be running. Hygiene, so a
+    failure is printed and the run goes on."""
+    TICKER.set(phase="cleaning disk", detail="tools/disk.py --clean")
+    before = disk.free_gb(ROOT)
+    try:
+        with PREBUILD_LOCK:
+            freed = disk.clean(keep_runs=opts.keep_runs)
+    except OSError as e:
+        say(f"disk: the sweep failed -- {e}", C.YELLOW)
+        return
+    after = disk.free_gb(ROOT)
+    summary = f"disk: freed {disk.human(disk.total(freed))}, {before:.1f}G -> {after:.1f}G free"
+    say(summary, C.GRAY)
+    for line in disk.freed_lines(freed):
+        say(f"  {line}", C.GRAY)
+    if freed["target/deps"] is None:
+        summary += "; deps/ left alone, cargo could not name the live set"
+    ledger(f"       {summary}")
 
 
 def claim_run(opts):
@@ -4555,8 +4578,8 @@ def run_cli():
     )
     ap.add_argument(
         "--keep-runs", type=int, default=disk.KEEP_RUNS, metavar="N",
-        help="how many earlier runs' session logs survive the prune at start-up. The prune is "
-             "once per run and never once per leg, so this counts what loop-stats.py counts"
+        help="how many runs' session logs survive the disk sweep at the end of every goal. "
+             "Whole runs, because loop-stats.py reads a run as a unit"
     )
     # The run's own. § *the run* at the foot of this file owns what they mean and the numbers.
     ap.add_argument(
@@ -4681,9 +4704,8 @@ def run_cli():
         LEDGER.write_text("# Loop ledger\n", encoding="utf-8", newline="\n")
 
     # The chain. Always `GOALS_DIR` and never a flag: there is one, every goal is in it, and a run
-    # that walked none would stop at the first goal to go green. Built before `make_room` so a goal
-    # file with a typo in it costs a line rather than a log prune, and before `claim_run` so it
-    # cannot leave `.loop/running` behind on a refusal.
+    # that walked none would stop at the first goal to go green. Built before `claim_run` so a goal
+    # file with a typo in it costs a line and cannot leave `.loop/running` behind on a refusal.
     try:
         chain = Chain()
     except ChainError as e:
@@ -4741,15 +4763,14 @@ def run_cli():
     if not opts.leg:
         # The run. It holds `.loop/running` for the whole of its length -- across every leg
         # boundary, which is precisely where a checkpoint may be running an optimization session
-        # against this tree -- and it is the only process here that prunes. `brief.py` and
-        # `disk.py` read that marker, and one dropped and retaken per leg told them no loop was
-        # running at the moments one was editing hardest.
+        # against this tree. `brief.py` and `disk.py` read that marker, and one dropped and
+        # retaken per leg told them no loop was running at the moments one was editing hardest.
         if not opts.no_optimize and not OPT_PROMPT.exists():
             say(f"missing {rel_to_root(OPT_PROMPT)} -- restore it, or run with --no-optimize",
                 C.RED)
             return 2
-        TICKER.set(phase="making room", detail="pruning earlier runs' logs and scratch")
-        if not make_room(opts):
+        TICKER.set(phase="checking disk", detail="free space against --min-free-gb")
+        if not enough_disk(opts):
             return 2
         if not claim_run(opts):
             return 2
@@ -5228,6 +5249,10 @@ def drive(opts, goal, chain):
             done = chain.current.slug
             ledger(f"## goal reached: {done} -- every check in its acceptance list passes")
             say(f"GOAL REACHED: {done}", C.GREEN)
+            # The one moment a run knows nothing is building: between sessions, after a green
+            # acceptance check that left the build warm. Before the switch, so the last goal of a
+            # chain is swept too.
+            clean_disk(opts)
             # The goal that just passed may have been the one that writes the rest of the chain.
             grew = chain.refresh()
             if grew:
@@ -5898,20 +5923,6 @@ def checkpoint(opts, since):
     say("")
     say(f"== checkpoint: {since} session(s) since the last pass", C.MAGENTA)
     TICKER.set(scope="checkpoint", phase="looking for drift", detail="")
-    # Scratch is free to drop; `sweep_target` is not -- it costs a full rebuild of whatever cargo
-    # still wanted, which the next session then pays for inside its acceptance check. So it runs
-    # only where the alternative is worse: below the floor a run refuses to start at.
-    freed = disk.prune_scratch()
-    free = disk.free_gb(ROOT)
-    if free < disk.MIN_FREE_GB:
-        say(f"{free:.1f}G free, below the {disk.MIN_FREE_GB}G a run needs -- sweeping target/, "
-            "which costs a rebuild", C.YELLOW)
-        freed += disk.sweep_target()
-    elif free < 2 * disk.MIN_FREE_GB:
-        say(f"{free:.1f}G free; `python tools/disk.py --clean` is what reclaims the rest", C.YELLOW)
-    if freed:
-        say(f"reclaimed {disk.human(freed)}", C.GRAY)
-
     fired, ev = gather_signals(state)
     due = since >= opts.optimize_every
     early = since >= opts.min_pass_gap and any(s.startswith(PACK_SIGNAL) for s in fired)
