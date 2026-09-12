@@ -74,7 +74,8 @@
 //! [`MARKUP`] is registered *and* reachable: every way
 //! `rule:core-classes/html-auto-escape` and `rule:core-classes/html-literal`
 //! give a program to obtain one is here — [`MARKUP_SYMBOL`] for `as Markup` on
-//! a source literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`, the escape
+//! a source literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`,
+//! [`nvs_core_html_join`] for a list of fragments and one separator, the escape
 //! itself, which `rule:security/launderer-answers-a-carrier` turned from the
 //! first two's poor relation into the ordinary one, and the pair a markup
 //! literal's own lowering reaches, [`ESCAPE_TEXT_SYMBOL`] and
@@ -155,6 +156,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&ESCAPE_DOC),
         },
         CoreMethod {
+            name: "join",
+            names: &["parts", "separator"],
+            // A `Markup` per element rather than a `string`: the answer is the
+            // carrier the HTML sink writes raw, so a `string` element would be
+            // a way to put unescaped computed text inside one — which is the
+            // bypass `rule:core-classes/html-auto-escape` closes. Every part
+            // arrives having already passed whichever rule made it markup.
+            params: &[
+                CoreTy::Array(&CoreTy::Instance(MARKUP_NAME)),
+                CoreTy::Instance(MARKUP_NAME),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(MARKUP_NAME),
+            symbol: "nvs_core_html_join",
+            doc: Some(&JOIN_DOC),
+        },
+        CoreMethod {
             name: "toSource",
             names: &["markup", "reason"],
             params: &[CoreTy::Instance(MARKUP_NAME), CoreTy::Text(Qual::Neutral)],
@@ -199,12 +217,14 @@ pub const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
 /// `rule:core-classes/html-auto-escape`'s `Core\Html\Markup` — the HTML sink's only raw-write bypass.
 ///
 /// **Memberless, and that is the design rather than an unfinished roster.**
-/// § 5 gives three ways to obtain one and every one of them is a language
-/// construct: `as Markup` on a *source literal*, which is the trust level the
-/// literal already carried; `Markup + Markup`, which composes two trusted
-/// fragments; and the sink's own escape-and-lift of everything else, which
-/// runs [`CLASS`]'s `escape` and wraps the answer. A constructor member would
-/// be a fourth, and it would take a runtime `string` — which is exactly the
+/// Every way of obtaining one either writes the trust in the source or is a
+/// member of [`CLASS`] that takes trusted operands: a markup literal, whose
+/// segments are what the author typed; `as Markup` on a *source literal*,
+/// which is the trust level that literal already carried; `Markup + Markup`
+/// and `Core\Html::join`, which compose fragments already trusted; the
+/// launderer, which earns the carrier by escaping; and the sink's own
+/// escape-and-lift of everything else. A constructor member *here* would be
+/// none of those — it would take a runtime `string`, which is exactly the
 /// bypass § 5's first bullet closes ("compute the escape-defeating payload at
 /// runtime, then cast it"). `Core\Cli\Text::plain` is the same shape one sink
 /// over and *does* have that member, because its argument is laundered on the
@@ -297,6 +317,30 @@ const ESCAPE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Html::join`'s reference card — `rule:core-api/reference-card`.
+const JOIN_DOC: MethodDoc = MethodDoc {
+    short: "Concatenates a list of `Core\\Html\\Markup` fragments in order, writing `$separator` \
+            between each pair — the list form of `Markup + Markup`, which is what a page composed \
+            from fragments writes instead of folding the operator over them.",
+    params: &[
+        ParamDoc {
+            name: "parts",
+            desc: "The fragments to write out, in the order they are held.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "separator",
+            desc: "The markup written between each pair of parts — never before the first or \
+                   after the last. An empty markup joins the parts with nothing between them.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Html\\Markup` carrying every part's bytes in order, and empty markup for an \
+          empty list. Nothing is escaped on the way: each part and the separator are already \
+          carriers, so re-escaping one would corrupt the markup it was built for.",
+    errors: &[],
+};
+
 /// `Core\Html::toSource`'s reference card — `rule:core-api/reference-card`.
 const TO_SOURCE_DOC: MethodDoc = MethodDoc {
     short: "Hands back the source text a `Core\\Html\\Markup` carries — the one way out of the \
@@ -373,6 +417,7 @@ const SANITIZE_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_html_escape" => (nvs_core_html_escape as *const ()).cast(),
+        "nvs_core_html_join" => (nvs_core_html_join as *const ()).cast(),
         "nvs_core_html_parse" => (nvs_core_html_parse as *const ()).cast(),
         "nvs_core_html_sanitize" => (nvs_core_html_sanitize as *const ()).cast(),
         "nvs_core_html_to_source" => (nvs_core_html_to_source as *const ()).cast(),
@@ -635,6 +680,53 @@ nvs_runtime::nvs_helper! {
         let mut out = String::with_capacity(left.len() + right.len());
         out.push_str(left);
         out.push_str(right);
+        Ok(crate::instance::build(
+            &MARKUP,
+            [Value::str(NvsStr::new(out.as_bytes()))],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup`
+    /// — `rule:core-classes/html-literal`'s composition over a list.
+    ///
+    /// **Nothing is escaped and nothing is trusted here**, which is the rule
+    /// rather than an omission, and it is [`nvs_core_html_markup_concat`]'s
+    /// argument over a list instead of a pair: every element is already a
+    /// carrier, so each one passed whichever rule made it markup, and
+    /// re-escaping a fragment would corrupt the markup it was lifted for. What
+    /// the list buys over folding `+` is the separator and the walk — `n`
+    /// fragments composed with the operator allocate `n - 1` intermediate
+    /// carriers, and this allocates one.
+    ///
+    /// **What it spends:** one string allocation and one object allocation per
+    /// call, both charged to the request, whatever the list holds. No element
+    /// is touched: a `Markup` is a value type, so every part and the separator
+    /// read back exactly as they were passed.
+    fn nvs_core_html_join(_ctx, args: [2]) {
+        // Unreachable from source: parameter 0 is `array<Core\Html\Markup>` in
+        // [`CLASS`] above, so a non-container subject is `E0401` at the
+        // checker. `crate::arr`'s `nvs_core_arr_count` states that judgement in
+        // full.
+        let parts = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Html::join expected {:?} for the parts, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let separator = markup_slot(args[1], r"`Core\Html::join`'s `$separator`")?;
+        let separator = text(&separator, r"`Core\Html::join`'s `$separator`")?;
+
+        let mut out = String::new();
+        for (at, part) in crate::str::Elements::of(parts).enumerate() {
+            if at > 0 {
+                out.push_str(separator);
+            }
+            let held = markup_slot(part, r"`Core\Html::join`'s `$parts` element")?;
+            out.push_str(text(&held, r"`Core\Html::join`'s `$parts` element")?);
+        }
         Ok(crate::instance::build(
             &MARKUP,
             [Value::str(NvsStr::new(out.as_bytes()))],
@@ -1631,8 +1723,140 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use nvs_runtime::{Ctx, NvsArray, OutputSink, call};
+
     use super::*;
     use crate::registry::CLASSES;
+
+    /// A `Core\Html\Markup` over `source`, built the way every member that
+    /// answers one builds it — the carrier's one slot holding the bytes.
+    fn markup(source: &[u8]) -> Value {
+        crate::instance::build(&MARKUP, [Value::str(NvsStr::new(source))])
+    }
+
+    /// The bytes a `Core\Html\Markup` carries, read back out of that slot.
+    ///
+    /// It asserts what it reads: a value this fails on is not a carrier at
+    /// all, which is the half of "answers a `Markup`" a byte comparison alone
+    /// would miss.
+    fn carried(value: Value) -> String {
+        let held =
+            markup_slot(value, "a test's markup").expect("the value is a `Core\\Html\\Markup`");
+        text(&held, "a test's markup")
+            .expect("a carrier's slot holds text")
+            .to_owned()
+    }
+
+    /// `Core\Html::join`, end to end through the `rule:errors/propagation`
+    /// boundary compiled code reaches it at: the parts land in the order the
+    /// list holds them, and the separator lands between each pair and nowhere
+    /// else — not before the first part and not after the last.
+    #[test]
+    fn html_join_writes_every_part_in_order_with_its_separator_between() {
+        let mut list = NvsArray::new();
+        list.append(markup(b"<li>one</li>"));
+        list.append(markup(b"<li>two</li>"));
+        list.append(markup(b"<li>three</li>"));
+        let parts = Value::array(list);
+        let separator = markup(b"<br>");
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let joined = call(super::nvs_core_html_join, &mut ctx, &[parts, separator])
+            .expect("joining carriers never fails");
+        assert_eq!(
+            carried(joined),
+            "<li>one</li><br><li>two</li><br><li>three</li>"
+        );
+
+        // A `Markup` is a value type, so the composition left every operand
+        // where it was — the same claim `Markup + Markup` makes of its pair.
+        assert_eq!(carried(separator), "<br>");
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the references it built above, and the \
+                      helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            joined.release();
+            separator.release();
+            parts.release();
+        }
+    }
+
+    /// The boundary the walk has to get right on its own: with no part to
+    /// write, there is no pair for the separator to go between, so the answer
+    /// is a carrier holding nothing rather than the separator by itself.
+    #[test]
+    fn html_join_over_an_empty_list_answers_an_empty_markup() {
+        let parts = Value::array(NvsArray::new());
+        let separator = markup(b"<br>");
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let joined = call(super::nvs_core_html_join, &mut ctx, &[parts, separator])
+            .expect("joining nothing never fails");
+        // [`carried`] is what asserts the answer is a `Markup` and not a
+        // `null` standing in for "there was nothing to build".
+        assert_eq!(carried(joined), "");
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the references it built above, and the \
+                      helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            joined.release();
+            separator.release();
+            parts.release();
+        }
+    }
+
+    /// `rule:core-classes/html-literal`'s "it neither trusts nor escapes
+    /// anything", in the five characters that would show it: every part and
+    /// the separator arrive as carriers, so each one's bytes come back exactly
+    /// as they were written.
+    ///
+    /// The contrast is the assertion worth having. `Core\Html::escape` over
+    /// the same text writes the references, so a `join` that escaped would be
+    /// escaping a fragment a second time — which is what
+    /// `rule:security/launderer-answers-a-carrier` says the carrier exists to
+    /// make unreachable.
+    #[test]
+    fn html_join_escapes_nothing_because_every_part_is_already_a_carrier() {
+        let mut list = NvsArray::new();
+        list.append(markup(b"<b>a & b</b>"));
+        list.append(markup(b"<i>'q' > \"p\"</i>"));
+        let parts = Value::array(list);
+        let separator = markup(b" & ");
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let joined = call(super::nvs_core_html_join, &mut ctx, &[parts, separator])
+            .expect("joining carriers never fails");
+        assert_eq!(carried(joined), "<b>a & b</b> & <i>'q' > \"p\"</i>");
+
+        let text = Value::str(NvsStr::new(b"a & b"));
+        let escaped = call(super::nvs_core_html_escape, &mut ctx, &[text])
+            .expect("escaping text never fails");
+        assert_eq!(
+            carried(escaped),
+            "a &amp; b",
+            "the member that does write the references is the launderer, and \
+             it is the only one"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the references it built above, and the \
+                      helpers borrowed rather than consumed them"
+        )]
+        unsafe {
+            escaped.release();
+            text.release();
+            joined.release();
+            separator.release();
+            parts.release();
+        }
+    }
 
     /// `rule:core-classes/html-auto-escape`'s carrier, in the two facts neither crate that acts on it
     /// can check for itself: `nvs_runtime::CARRIER_TEXT_SLOT` is the index
@@ -1642,8 +1866,9 @@ mod tests {
     /// special case.
     ///
     /// The third assertion is § 5's own shape: the class is **memberless**,
-    /// because every way of obtaining a `Markup` is a language construct and a
-    /// constructor member would be a fourth that took a runtime string. The
+    /// because a `Markup` is obtained where the trust is written or from a
+    /// member of [`CLASS`] over operands that already carry it, and a
+    /// constructor *on the carrier* would take a runtime string instead. The
     /// const's doc comment is the home of that argument; this fails on the day
     /// a member is added to it, which is the day the bypass is being widened.
     #[test]
@@ -1657,8 +1882,10 @@ mod tests {
         assert_eq!(
             MARKUP.members().count(),
             0,
-            "a `Markup` is obtained by `as` on a literal, by `+`, or by the sink's own \
-             escape-and-lift — never by a call"
+            "a `Markup` is obtained from a markup literal, from `as` on a source literal, \
+             from `+` or `Core\\Html::join` over fragments already trusted, from the \
+             launderer, or from the sink's own escape-and-lift — never from a member on \
+             the carrier itself"
         );
     }
 
