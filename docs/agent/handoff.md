@@ -2,40 +2,35 @@
 
 ## State
 
-**Goal `markup-literal` is complete: every stage is on disk and `python tools/verify.py` is green
-across the tree.** `Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator)` is
-a row on `Core\Html` with its reference card, its helper and its `address()` arm
-(`crates/nvs-stdlib/src/html.rs:157`), and it neither trusts nor escapes — one string allocation and
-one object allocation per call whatever the list holds.
+**Goal 45 — nvs fmt rewrites a file into its one canonical layout — has just started; nothing of it has landed yet.** Goal `markup-literal`'s whole list is this goal's Stage 1 floor.
 
-`rule:core-classes/html-literal` is now **shipped** and its `guardedBy` names the ten cases this goal
-added; `docs/novis.md` was regenerated and picks `join` up on its own. The carrier's four
-enumerating sentences — the module doc, `MARKUP`'s own doc, the memberless test's doc and its
-assertion message — now name the literal and `join` rather than a count.
+**The style is decided and landed.** [ADR 0039](../decisions/0039.md) and the fragments under
+`docs/rules/tooling/fmt-*` are the spec, and [ADR 0173](../decisions/0173.md) added the `?>` bullet
+to `rule:tooling/fmt-novis-constructs`. No session writes a record for this goal. The one thing not to
+re-decide: `nvs fmt` has no configuration and never touches a byte a program prints.
 
-Nothing is blocked. The conformance corpus is 1756 cases.
+The printer reads `nvs_syntax::parse` (`crates/nvs-syntax/src/parser/mod.rs:883`), which already keeps
+every comment and whitespace run as trivia, and `crates/nvs-syntax/tests/lossless.rs:140-168` already
+proves the tokens and trivia reproduce every corpus file. The identity printer is that proof turned
+into a program.
 
 ## Next group
 
-**Stage 6 tail: the rosters outside the rulebook** — one file set: `docs/spec/01-core-library.md`
-with `tests/differential/` for the twin.
+**Stage 2: the identity printer** — one file set: the new `crates/nvs-fmt/` and the workspace
+`Cargo.toml`.
 
-- [ ] **The spec's `Core\Html` cell names neither `join` nor the literal** — it reads "`escape` (the
-      auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser" at
-      `docs/spec/01-core-library.md:1196`, which is the one file `spec_registry_coverage.rs` reads
-      spec-side. Add the member and the literal to that cell; a spec edit owes
-      `python tools/check-migration.py`. `rule:core-classes/html-literal`.
-- [ ] **A differential twin for the literal** — `rule:core-classes/html-literal`'s
-      `divergesFromPhp` says the nearest PHP is `<?= ?>` with `htmlspecialchars`, so the oracle case
-      is that concatenation against `` html`…` `` over the same data, as a new case under
-      `tests/differential/core/` — the tree holds no HTML twin today. A
-      `tests/conformance/` case may not carry `--ORACLE--`
-      (`docs/agent/conventions.md:110`), which is why this is a second file.
+- [ ] **The crate** — `crates/nvs-fmt/`, a library whose one entry takes a `SourceFile` and answers the
+      formatted text or a refusal, added to the workspace members.
+- [ ] **The identity printer** — reads `nvs_syntax::parse` and writes every token and trivia item back;
+      `the_identity_printer_reproduces_every_corpus_file` walks the corpus `lossless.rs:140-168` walks.
+- [ ] **The refusal** — a parse that reports an error answers a refusal and no text;
+      `a_file_with_a_syntax_error_is_refused_and_left_unchanged`.
 
 ## Backlog
 
-- `Core\Html::toSource`'s `$reason` is not yet required to be a source literal — both type bands are
-  full (`E0499`, `E0799`); `crates/nvs-stdlib/src/html.rs`'s *Known gaps* owns it.
-- The HTML sink's automatic lift waits on the HTTP response existing — same module doc.
-- `nvs fmt`, the LSP template region and `nvs convert` are rules with no code yet, by this goal's
-  own standing decisions; goal `fmt` is the next chain entry and carries the first of them.
+- Stages 3 to 5, the style — `crates/nvs-fmt/` only, with pairs under `tests/fmt/input/` and
+  `tests/fmt/formatted/`. One rule family per session is the expected size.
+- Stage 6, the command — `crates/nvs-cli/src/main.rs:193` and a new `crates/nvs-cli/tests/fmt.rs`. Its
+  own file set.
+- Stage 7, the corpus and the rulebook — `crates/nvs-fmt/tests/` and `docs/rules/tooling.json`.
+- When this goal's last check goes green the driver takes goal `template-format`.

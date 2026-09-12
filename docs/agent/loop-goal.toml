@@ -1,15 +1,13 @@
-# Goal 44 -- markup is written as a literal, not composed with an operator.
+# Goal 45 -- nvs fmt rewrites a file into its one canonical layout
 # The acceptance test, as data.
 #
-# `44-markup-literal.md` is the prose. One home each.
+# `45-fmt.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # None of this goal's own. The HTML sink is not `nvs run`'s -- `echo` there writes to the terminal
-  # (`rule:tooling/echo-always-has-a-sink`), so a CLI fixture cannot show an escaping sink at all.
-  # Every shape is proven by a `.nvst` case and from Rust, which is how the carrier's existing three
-  # guard cases already prove theirs.
+  # None of this goal's own. A formatter's output is text, not a program run, so every shape is proven
+  # from Rust and by `nvs fmt --check` over the frozen `tests/fmt/formatted/` tree.
   # carried from the previous goal by tools/goal-switch.py
   "examples/finish.nvs",
   "examples/queue.nvs",
@@ -96,72 +94,29 @@ files = [
 [context]
 
 modules = [
-  # The mode stack and every frame it pushes. `:1260-1264` opens a `{$` hole, `:1064-1090` counts brace
-  # depth so a closure inside one does not close it, and `:210-232` is the unterminated-mode report the
-  # literal adds one arm to. Stage 2 is almost entirely here.
-  "crates/nvs-syntax/src/lexer.rs",
-  # `parse_string_body` (:2505-2527) turns the lexer's parts into a `Vec<StringPart>`, and
-  # `parse_simple_interp_variable` (:2529-2560) is PHP's simple syntax. Stage 2 reuses both unchanged.
-  "crates/nvs-syntax/src/parser/expr.rs",
-  # Where the delimiter and closer tokens join `DoubleQuoteOpen`/`ComplexInterpOpen` and their siblings.
+  # `parse` (:883) is the lossless entry point the printer reads, and `Parsed` is what it answers: the
+  # statements, the trivia side channel and the index. `parse_file` (:905) is the strict half, never read.
+  "crates/nvs-syntax/src/parser/mod.rs",
+  # Every token kind the printer writes back, `InlineHtml` and the open and close tags among them.
   "crates/nvs-syntax/src/token.rs",
-  # `StringPart` and the interpolated-string node the new one is shaped after. One node, not a tree.
+  # Where a comment's kind and the trivia items are produced -- the bytes the identity printer must
+  # write back unchanged.
+  "crates/nvs-syntax/src/lexer.rs",
+  # The tree whose nesting is a block's depth, and the visitor over it.
   "crates/nvs-syntax/src/ast.rs",
-  # `MARKUP` (:195-222, memberless, one slot), both lift symbols (:224-249), `escape`'s body and its
-  # no-allocation fast path (:396-470). Stage 5 adds `join` here; stage 0's four sentences are here too.
-  "crates/nvs-stdlib/src/html.rs",
-  # `lower_echo` (:539-600) -- the per-operand branch on static type that stage 4's sink-position
-  # lowering is recognised in. Read the doc comment before the code.
-  "crates/nvs-ir/src/lower/expr.rs",
-  # `lower_markup_lift` (:1238-1281) -- the `CoreCall` shape stage 4's value-position case is a sibling
-  # of, ownership rows included.
-  "crates/nvs-ir/src/lower/convert.rs",
-  # The member registry rows and what a parameter mark means. Stage 5 is one row; `Qual` and `CoreTy`
-  # are read here, and `qual_of`'s union note (:395-410) is why a mark on a union arm is not read back.
-  "crates/nvs-types/src/core_lib.rs",
-  # `CARRIER_HTML_MARKUP` and `CARRIER_TEXT_SLOT` (:38-48) -- the one string and the one slot index the
-  # sink renders a carrier through, shared with `Core\Cli\Text`.
-  "crates/nvs-runtime/src/ctx/output.rs",
-  # `E_UNTERMINATED` is `E0002` (:69). Read this to confirm stage 2 needs no new code, not to allocate
-  # one -- ADR 0169 § Diagnostics is why.
-  "crates/nvs-diagnostics/src/lib.rs",
-  # The declaration checks that need only the AST: identifier casing
-  # (`rule:core-api/identifier-casing`, tightened by
-  # `rule:classes/no-leading-underscore-identifiers`) and the visibility
-  # `rule:core-api/written-visibility` requires at every member declaration.
-  "crates/nvs-syntax/src/casing.rs",
-  # The parse tree as a walkable shape: one entry per node, its production's name and the nodes it
-  # contains — what `rule:core-classes/ast-is-inert`'s `Core\Ast::parse` hands a running program.
   "crates/nvs-syntax/src/walk.rs",
-  # How a literal takes its type from the position it appears in, and what its own text has to
-  # survive first.
-  "crates/nvs-types/src/expr/literals.rs",
-  # A minimal bidirectional expression checker: the dispatch, and the modules each rule lives in.
-  "crates/nvs-types/src/expr/mod.rs",
-  # Control flow — `if`, `while`, `for`, both `foreach` shapes, `switch`, `break`/`continue`, and
-  # the env merge every join needs.
-  "crates/nvs-ir/src/lower/control.rs",
-  # Cooks the double-quoted escape grammar shared by a `"…"` string literal and an
-  # interpolated-heredoc's own text runs — `nvs_syntax::ast::ExprKind`'s `Str` (double-quoted case
-  # only) and each `Text` piece of `Interpolated`'s `nvs_syntax::ast::StringPart` vector — into
-  # the runtime bytes they name.
-  "crates/nvs-types/src/string_lit.rs",
-  # Novis's class instance: one heap allocation, a four-word header, and the object's fields
-  # inline behind it — plus the `ClassDesc` every instance points back at.
-  "crates/nvs-runtime/src/object.rs",
-  # The value behind `registry::CoreTy::Instance`: what a native member returns when the spec
-  # writes a `Core`-owned object, and how another member reads one back.
-  "crates/nvs-stdlib/src/instance.rs",
+  # `Command` (:193) -- `Fmt` goes beside `Ast` (:195).
+  "crates/nvs-cli/src/main.rs",
+  # A subcommand that already reads the lossless tree (:66), which is the shape `fmt`'s takes.
+  "crates/nvs-cli/src/ast.rs",
 ]
 
-# The two every stage works inside: the rule this goal ships, and the sink it is written against.
+# The three every stage works inside: what the formatter is, what it may not do to a line break, and
+# the one tree it reads.
 rules = [
-  "core-classes/html-literal",
-  "core-classes/html-auto-escape",
-  # What a hole is measured against when its operand is qualified, and the ordering the goal's one
-  # tradeoff is stated under.
-  "security/secret-sinks-refuse",
-  "programs/memory-priority",
+  "tooling/fmt-is-one-canonical-style",
+  "tooling/fmt-never-reflows",
+  "ide/one-grammar-one-tree",
 ]
 
 adrs = []
@@ -171,13 +126,12 @@ shapes = [
   "A code comment",
 ]
 
-milestones = ["M8:verify"]
+milestones = ["M10:verify"]
 
 playbook = [
   # This goal's own file set and tools.
   'Tooling > A moved module takes',
   'Tooling > Making a type `pub`',
-  'Tooling > A full diagnostic band',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -196,7 +150,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `44-markup-literal.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `45-fmt.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -204,50 +158,61 @@ plan = ["Open now", "Blocking"]
 # of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
 #
 # These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
-# the `[[check]]` blocks' `stage = "2 the literal"` labels, which may group several prose stages under
-# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# the `[[check]]` blocks' `stage = "2 the identity printer"` labels, which may group several prose
+# stages under one acceptance line. loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The delimiter and the escapes, and the one constraint the whole stage is written under.
-adrs = ["0169 § 2", "0169 § 3", "0169 § 4"]
+# The crate's name and its one job, and the property the identity printer is the first half of.
+rules = ["ide/one-server-two-thin-clients", "tooling/fmt-is-idempotent"]
+
+[context.stage.3]
+rules = ["tooling/fmt-base-style-is-per"]
 
 [context.stage.4]
-# The two shapes that allocate nothing, and the folding precedent they are argued from.
-rules = ["types/duration-literal", "security/tainted-qualifier"]
-adrs = ["0169 § 4"]
-
-[context.stage.5]
-# One `Core` member, written to the five-edit shape.
-shapes = ["A `Core` member — the five edits"]
-rules = ["core-api/reference-card"]
-
-[context.stage.6]
-# The rule flips to shipped and its `guardedBy` fills; the record is already landed and is not edited.
-# The other two are what § Standing decisions means by "rules, not code": both already say what their
-# tool must do, both tools are unbuilt, and landing those sentences is the whole of the obligation.
-shapes = ["A rule fragment"]
 rules = [
-  "tooling/fmt-novis-constructs",
-  "ide/a-template-region-gets-services-but-no-second-formatter",
+  "tooling/fmt-quotes",
+  "tooling/fmt-trailing-commas",
+  "tooling/fmt-sorts-the-use-block",
+  "tooling/fmt-normalizes-only-reserved-spellings",
+  "tooling/fmt-never-inserts-visibility",
+  "tooling/fmt-never-reorders-members",
 ]
 
-# Nothing this goal allocates outlives the expression that built it: a folded literal is constant-pool
-# data with no refcount, and a materialised `Markup` is the carrier the sink already releases. No new
-# cycle shape, so nothing is added to the skip list.
+[context.stage.5]
+# Every construct PER never saw, the `?>` rule among them, and the literal whose body is left alone.
+rules = ["tooling/fmt-novis-constructs", "core-classes/html-literal"]
+adrs = ["0173 § 3"]
+
+[context.stage.6]
+rules = ["tooling/fmt-check-writes-nothing", "tooling/fmt-is-never-a-diagnostic"]
+
+[context.stage.7]
+# The rules flip to shipped and their `guardedBy` fills.
+rules = ["tooling/fmt-is-idempotent"]
+shapes = ["A rule fragment"]
+
+# `nvs fmt` is a command-line tool with no runtime values: nothing it allocates is refcounted, so there
+# is no cycle shape to add to the skip list.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor is goal `finish-response`'s whole list, and that goal's checks reach the served path and
-# the queue. The daemons are its, not this goal's -- nothing below needs one.
+# The floor is goal `markup-literal`'s whole list, which carries goal `finish-response`'s served-path
+# and queue checks. The daemons are theirs; nothing below needs one.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 608 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -8707,15 +8672,12 @@ stage = "1 floor"
 name = "the generated reference carries the new member and its report case"
 argv = ["python", "tools/reference.py", "--check"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the literal is the string lexer's frames. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the literal lexes"
+stage = "1 floor"
 name = "the literal lexes as segments and holes, and a hole is ordinary code to its matching brace"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -8727,7 +8689,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the literal lexes"
+stage = "1 floor"
 name = "the two escapes, and the one report an unterminated literal reaches"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -8739,10 +8701,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the type, and what a hole admits. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the type"
+stage = "1 floor"
 name = "the literal is a Markup, and a hole faces exactly an interpolation's checks"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -8755,10 +8716,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the lowering, and the two shapes that pay nothing. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the lowering"
+stage = "1 floor"
 name = "a hole-free literal is constant-pool data and allocates nothing per execution"
 args = ["test", "-p", "nvs-codegen"]
 tests = [
@@ -8768,7 +8728,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the lowering"
+stage = "1 floor"
 name = "a literal in a sink position writes through and materialises no carrier"
 args = ["test", "-p", "nvs-codegen"]
 tests = [
@@ -8780,10 +8740,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- `Core\Html::join`. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 join"
+stage = "1 floor"
 name = "join concatenates carriers and escapes nothing on the way"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -8795,10 +8754,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # The whole thing, from source. Goal prose stages 2 through 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "5 the document"
+stage = "1 floor"
 name = "conformance (segments trusted, holes escaped, and the shapes that must not double-escape)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -8810,3 +8768,125 @@ cases = [
   "tests/conformance/reject/an-unterminated-markup-literal-is-named-where-it-opened.nvst",
   "tests/conformance/reject/a-secret-value-in-a-markup-hole-is-refused.nvst",
 ]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the identity printer. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the identity printer"
+name = "printing the lossless tree back changes no byte of any corpus file, and a broken file is refused"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "the_identity_printer_reproduces_every_corpus_file",
+  "a_file_with_a_syntax_error_is_refused_and_left_unchanged",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stages 3 and 4 -- the base style and the token rules. Goal prose stages 3 and 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the base style"
+name = "PER's indentation, braces and modifier order, and an author's line break kept"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "indentation_is_four_spaces_per_block_depth",
+  "a_declaration_brace_is_allman_and_a_control_brace_is_k_and_r",
+  "modifiers_are_written_in_the_canonical_order",
+  "an_authors_line_break_inside_an_expression_is_kept",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the token rules"
+name = "quotes, trailing commas, the use block and reserved spellings, and the two things never done"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "a_plain_string_is_rewritten_to_single_quotes",
+  "a_heredoc_body_and_a_comment_are_never_touched",
+  "a_multi_line_list_gains_a_trailing_comma_and_a_one_line_list_has_none",
+  "consecutive_use_declarations_are_sorted_by_full_path",
+  "a_mis_cased_open_tag_and_duration_unit_are_lower_cased",
+  "no_visibility_keyword_is_ever_inserted",
+  "class_members_keep_their_declaration_order",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- Novis's own constructs, and the two modes. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the two modes"
+name = "a close tag on its own line sits at its block's depth, and markup is byte-identical"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "a_close_tag_that_begins_its_line_sits_at_the_depth_of_its_block",
+  "a_close_tag_is_never_moved_onto_or_off_a_line",
+  "an_inline_html_region_is_byte_identical_after_formatting",
+  "a_markup_literal_body_is_byte_identical_after_formatting",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the two modes"
+name = "every construct PER never saw has its one layout"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "a_qualifier_sits_one_space_before_its_type",
+  "a_fn_closure_body_brace_stays_on_its_signature_line",
+  "a_match_arm_list_written_across_lines_is_one_arm_per_line",
+  "an_object_literal_on_one_line_has_one_space_inside_each_brace",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the command. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the command"
+name = "in place, --check, --diff and --stdin, and no compiler command formats anything"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "fmt_rewrites_each_named_file_in_place",
+  "fmt_check_writes_nothing_and_exits_non_zero_naming_each_file",
+  "fmt_diff_prints_the_diff_and_writes_nothing",
+  "fmt_stdin_writes_the_formatted_file_to_stdout",
+  "fmt_stdin_writes_nothing_to_stdout_for_a_file_with_a_syntax_error",
+  "nvs_check_never_reports_an_unformatted_file",
+]
+
+# Every expected file is a fixed point: `--check` over the frozen tree exits 0.
+[[check]]
+kind = "command"
+stage = "6 the command"
+name = "the frozen formatted tree is already formatted"
+argv = ["{nvs}", "fmt", "--check", "tests/fmt/formatted"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the corpus, and the rulebook. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the corpus"
+name = "the whole corpus is a fixed point, keeps every comment, and parses to the same tree"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "formatting_the_whole_corpus_twice_changes_nothing_the_second_time",
+  "every_formatted_corpus_file_parses_to_the_same_tree_as_its_input",
+  "a_comment_in_every_position_the_grammar_allows_survives_where_it_started",
+]
+
+[[check]]
+kind = "command"
+stage = "7 the corpus"
+name = "the formatter's rules are shipped"
+argv = ["python", "tools/rules.py", "--show", "tooling/fmt-is-one-canonical-style"]
+want = ["shipped"]
