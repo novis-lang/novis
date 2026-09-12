@@ -110,6 +110,12 @@ modules = [
   "editors/vscode/src/binary.ts",
   # TODO: why a session opens this.
   "editors/vscode/src/format.ts",
+  # What `initialize` declares, and the one encoding negotiation behind it.
+  "crates/nvs-lsp/src/capabilities.rs",
+  # What may be written where the cursor is.
+  "crates/nvs-lsp/src/completion.rs",
+  # Rendering one answer as the text a `.lspt` case freezes.
+  "crates/nvs-lsp/src/render.rs",
 ]
 
 # The three every stage works inside: the rule this goal ships, the `?>` layout it reads the base
