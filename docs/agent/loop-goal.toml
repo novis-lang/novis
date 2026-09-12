@@ -138,6 +138,14 @@ modules = [
   "crates/nvs-types/src/expr/literals.rs",
   # A minimal bidirectional expression checker: the dispatch, and the modules each rule lives in.
   "crates/nvs-types/src/expr/mod.rs",
+  # Control flow — `if`, `while`, `for`, both `foreach` shapes, `switch`, `break`/`continue`, and
+  # the env merge every join needs.
+  "crates/nvs-ir/src/lower/control.rs",
+  # Cooks the double-quoted escape grammar shared by a `"…"` string literal and an
+  # interpolated-heredoc's own text runs — `nvs_syntax::ast::ExprKind`'s `Str` (double-quoted case
+  # only) and each `Text` piece of `Interpolated`'s `nvs_syntax::ast::StringPart` vector — into
+  # the runtime bytes they name.
+  "crates/nvs-types/src/string_lit.rs",
 ]
 
 # The two every stage works inside: the rule this goal ships, and the sink it is written against.
