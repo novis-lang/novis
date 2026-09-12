@@ -1,0 +1,52 @@
+--TEST--
+`Core\Http\Response::jsonAs<T>()` refuses every reply that is not the document it was asked for — one that carried no body, one whose octets are not text, and one nested past the call's own `maxDepth` — while `array<T>` reads a JSON array as one `T` per element — `rule:errors/ambiguous-input-refused`, `rule:core-classes/derive-field-list`
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Point {
+    public int $x;
+
+    public function constructor(int $x) {
+        $this->x = $x;
+    }
+}
+
+// A reply that carried no body is not the document `null`: nothing arrived,
+// and a program that asked for a `Point` is told so rather than handed an
+// instance built out of nothing.
+Core\Test::answerHttp("https://api.example.com/empty", 204, {body: ""});
+var $empty = Core\Http\Client::get("https://api.example.com/empty");
+try {
+    $empty->jsonAs<Point>();
+} catch (ParseError $noBody) {
+    echo "no body: refused\n";
+}
+
+// The octets `text` refuses for not being UTF-8 reach the same refusal here by
+// a shorter route: JSON is text, so bytes that are not text spell no document
+// at all, and that is this member's `ParseError` rather than `text`'s
+// `RuntimeError`.
+Core\Test::answerHttp("https://api.example.com/blob", 200, {body: Core\Encoding::fromHex("ff00")});
+var $blob = Core\Http\Client::get("https://api.example.com/blob");
+try {
+    $blob->jsonAs<Point>();
+} catch (ParseError $notText) {
+    echo "not text: refused\n";
+}
+
+// `array<T>` is the same decode run once per element, and the `maxDepth` that
+// refuses it is the call's own bound — nothing the reply declared can raise or
+// lower it.
+Core\Test::answerHttp("https://api.example.com/points", 200, {body: "[{\"x\":1},{\"x\":2}]"});
+var $points = Core\Http\Client::get("https://api.example.com/points");
+echo Core\Arr::count($points->jsonAs<array<Point>>()), "\n";
+try {
+    $points->jsonAs<array<Point>>({maxDepth: 2});
+} catch (ParseError $tooDeep) {
+    echo "too deep: refused\n";
+}
+--EXPECT--
+no body: refused
+not text: refused
+2
+too deep: refused

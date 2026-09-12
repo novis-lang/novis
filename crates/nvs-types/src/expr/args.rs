@@ -1638,8 +1638,11 @@ pub(crate) fn written_class_of(
         // qualifier rather than for a type map — see
         // [`crate::derive::check_decode_sites`] — and it is recorded for a
         // member whose document is a peer's whatever the argument carrying it
-        // was typed as: `Core\Request::jsonAs` reads the request body, and
-        // `Core\Jwt::verifyIssued` reads a payload another party wrote, which
+        // was typed as: `Core\Request::jsonAs` reads the request body,
+        // `Core\Http\Response::jsonAs` reads the reply another host sent back
+        // — a pinned address settles which host wrote the octets and nothing
+        // about what is in them — and `Core\Jwt::verifyIssued` reads a payload
+        // another party wrote, which
         // `rule:security/verification-does-not-launder` keeps `tainted` because
         // a signature proves origin and not safety.
         // `Core\Json::decodeAs` gets neither: it takes its own document through
@@ -1675,17 +1678,25 @@ pub(crate) fn written_class_of(
         let names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
         let label = crate::derive::shape_class_label(&names);
         let span = type_args.first().map_or(call_span, |ty| ty.span);
-        // Every `Core\Request` member on this roster reads the request —
+        // A shape's site is keyed on the **owner** where a class's is keyed on
+        // the member, because what a shape asks is whether these octets came
+        // from outside and every member of these owners answers alike: every
+        // `Core\Request` member on this roster reads the request —
         // `rule:security/tainted-sources` makes the body and the query alike a
-        // peer's octets — and `Core\Jwt::verifyIssued` reads a payload another
-        // party wrote, which `rule:security/verification-does-not-launder`
-        // keeps `tainted`. The other owners do not: `Core\Json::decodeAs` takes
-        // its document through a plain `string` parameter, so a tainted one is
-        // refused where it is passed; `Core\Arr::shapeAs` converts an array the
-        // program already holds, whose taint it carries in already; and a
-        // `Core\Db` row is not a taint source at all.
+        // peer's octets — `Core\Http\Response::jsonAs` reads the reply another
+        // host sent back, which that rule makes input in the same sense, and
+        // `Core\Jwt::verifyIssued` reads a payload another party wrote, which
+        // `rule:security/verification-does-not-launder` keeps `tainted`. The
+        // other owners do not: `Core\Json::decodeAs` takes its document through
+        // a plain `string` parameter, so a tainted one is refused where it is
+        // passed; `Core\Arr::shapeAs` converts an array the program already
+        // holds, whose taint it carries in already; and a `Core\Db` row is not
+        // a taint source at all.
         let owner_name = owner.to_string();
-        if owner_name == r"Core\Request" || owner_name == r"Core\Jwt" {
+        if owner_name == r"Core\Request"
+            || owner_name == r"Core\Http\Response"
+            || owner_name == r"Core\Jwt"
+        {
             crate::derive::check_shape_decode_site(
                 element,
                 &format!("{owner}::{method}"),

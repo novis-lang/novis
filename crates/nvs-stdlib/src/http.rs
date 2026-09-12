@@ -216,6 +216,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_http_response_status" => (nvs_core_http_response_status as *const ()).cast(),
         "nvs_core_http_response_text" => (nvs_core_http_response_text as *const ()).cast(),
         "nvs_core_http_response_bytes" => (nvs_core_http_response_bytes as *const ()).cast(),
+        "nvs_core_http_response_json_as" => (nvs_core_http_response_json_as as *const ()).cast(),
         "nvs_core_http_response_header" => (nvs_core_http_response_header as *const ()).cast(),
         "nvs_core_http_response_headers" => (nvs_core_http_response_headers as *const ()).cast(),
         _ => return None,
@@ -895,6 +896,12 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
 /// `a_class_with_slots_has_instance_members_and_the_reverse` is that rule — so
 /// the header map is a slot because `header` and `headers` are members.
 ///
+/// **One slot carries three readers**, because what a program does with a body
+/// is not a property of the body: `bytes` asks nothing of the octets, `text`
+/// asks whether they are UTF-8, and `jsonAs<T>` reads them as one JSON
+/// document and hands back the `T` it spells. None of the three keeps anything,
+/// so any of them may follow any other over the one slot the transport filled.
+///
 /// **The header pair is two members and not one**, because a field the origin
 /// sent twice is two values: `header` joins them the way RFC 9110 § 5.3 makes
 /// them equivalent, and `headers` is the reading that answer cannot be
@@ -931,6 +938,15 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
             return_ty: CoreTy::TaintedBytes,
             symbol: "nvs_core_http_response_bytes",
             doc: Some(&BYTES_DOC),
+        },
+        CoreMethod {
+            name: "jsonAs",
+            names: &[],
+            params: &[CoreTy::Options(crate::json::DECODE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Written("T"),
+            symbol: "nvs_core_http_response_json_as",
+            doc: Some(&JSON_AS_DOC),
         },
         CoreMethod {
             name: "header",
@@ -1007,6 +1023,37 @@ const BYTES_DOC: MethodDoc = MethodDoc {
           reply that is not UTF-8 is read here and refused there, so which of the two a program \
           calls is what decides whether the question is asked.",
     errors: &[],
+};
+
+/// `Core\Http\Response::jsonAs`'s reference card — `rule:core-api/reference-card`.
+const JSON_AS_DOC: MethodDoc = MethodDoc {
+    short: "The reply's body hydrated into an instance of `T` — `Core\\Json::decodeAs` over the \
+            octets `bytes` answers, carrying the same `{maxDepth?}` bag; write `array<T>` to read \
+            a JSON array as one instance per element.",
+    params: &[ParamDoc {
+        name: "maxDepth",
+        desc: "How deep the document may nest before it is refused, counted PHP's way: a scalar \
+               document is depth 1.",
+        shape: &[],
+    }],
+    ret: "A new `T` built from the document's fields, or one `T` per element for an `array<T>`. \
+          Every text field of `T` has to declare `tainted`, because these are octets another host \
+          chose and the field is where they land.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`T` carries no `#[Json\\Derive]` codec to decode into, or a `maxDepth` outside \
+                   1..=1024 was asked for.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The body is not one whole JSON document at that depth — which includes a reply \
+                   with no body at all and one that is not UTF-8 — or it is not the object `T` \
+                   decodes from, or its fields are missing or of the wrong type. Every failed \
+                   field is one issue on the error, at its own path. What the reply declared as \
+                   its `Content-Type` is not consulted either way.",
+        },
+    ],
 };
 
 /// `Core\Http\Response::header`'s reference card — `rule:core-api/reference-card`.
@@ -2297,6 +2344,99 @@ nvs_runtime::nvs_helper! {
             body.retain();
         }
         Ok(body)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Response::jsonAs<T>({maxDepth?: uint}): T` — the reply's body
+    /// hydrated into `T`, which is `Core\Json::decodeAs` over the octets
+    /// [`nvs_core_http_response_bytes`] answers, carrying that member's
+    /// `{maxDepth?}` bag and its default.
+    ///
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
+    /// not values: `crate::registry::WRITTEN_CLASS_MEMBERS` puts this member on
+    /// the roster whose helper is handed a `nvs_runtime::ClassDesc`, the
+    /// `array<...>` flag and an inline shape's wire contract ahead of
+    /// *everything*, receiver included, and that roster's docs own why. So the
+    /// receiver is argument 3 and the arity here is three more than the
+    /// registry row's.
+    ///
+    /// The octets are read where they lie. The slot holds the whole body and
+    /// this member keeps nothing of what it built, so `bytes`, `text` and a
+    /// second `jsonAs<T>` may each follow it and read the same reply — which is
+    /// what makes the qualifier the only thing separating the three readings.
+    ///
+    /// **What it spends:** one parse of the body and the instances it hands
+    /// back, both released with the call and neither kept on the reply, so both
+    /// are O(in-flight).
+    ///
+    /// # Errors
+    ///
+    /// `LogicError` for a `T` carrying no codec and for a `maxDepth` outside the
+    /// bag's range, `ParseError` for a body that is not the document `T` decodes
+    /// from. A [`Fault::fatal`] naming the member if the receiver is not a
+    /// `Core\Http\Response` or its `body` slot holds no `bytes` — both
+    /// unreachable from source, exactly as in
+    /// [`nvs_core_http_response_status`].
+    fn nvs_core_http_response_json_as(ctx, args: [5]) {
+        // Unreachable from source, because arguments 0 to 2 are not a program's
+        // values: `nvs_ir::lower` writes all three out of the type argument at
+        // the call site, and a call naming none is `E0442` — `takes 1 type
+        // argument(s)` — before any of this runs.
+        let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Http\\Response::jsonAs` was called with no class in argument 0",
+        ))?;
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Http\\Response::jsonAs` was called with no list flag in \
+             argument 1",
+        ))?;
+        // Slot 2 is an inline shape's wire contract, and a written *class* gets
+        // the zero word there — `crate::json::decode_as`'s own reading, since
+        // this member is that member over the reply's octets.
+        let shape = args[2].as_shape_codec();
+        let object = crate::instance::receiver(args[3], &RESPONSE, "jsonAs")?;
+        // Before the body is touched, on `Core\Request::jsonAs`'s reasoning: a
+        // `maxDepth` this member will refuse is a defect in the program, and
+        // saying so must not spend a reading of the reply.
+        let max = crate::json::max_depth(&args[4], "Core\\Http\\Response::jsonAs")?;
+        let body = crate::instance::slot(object, BODY_SLOT);
+        let octets = body.as_bytes().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{RESPONSE_NAME}::jsonAs found a non-`bytes` `body` slot"
+            ))
+        })?;
+        // The UTF-8 question is `text`'s to throw a `RuntimeError` over and this
+        // member's to call a malformed document: what arrived is being read as
+        // JSON, and JSON is text, so bytes that are not are one more way for the
+        // body not to be the document it was asked for.
+        let text = std::str::from_utf8(octets).map_err(|_| {
+            let message = format!(
+                "{RESPONSE_NAME}::jsonAs(): the reply's body is not UTF-8, so it is not a JSON \
+                 document"
+            );
+            let issues = crate::issue::list([("", message.as_str())]);
+            Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+        })?;
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor and the contract came out of the constants a \
+                      compiled unit owns, so both outlive this call and every \
+                      object made from it"
+        )]
+        unsafe {
+            crate::json::decode_as(
+                ctx,
+                class,
+                shape,
+                text,
+                max,
+                list,
+                "Core\\Http\\Response::jsonAs",
+            )
+        }
     }
 }
 

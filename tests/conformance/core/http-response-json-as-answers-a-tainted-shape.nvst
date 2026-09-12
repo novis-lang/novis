@@ -1,0 +1,38 @@
+--TEST--
+`Core\Http\Response::jsonAs<T>()` hydrates the reply's body into the shape the call site wrote, whose text fields declare the qualifier those octets carry, and leaves the body to the readers after it — `rule:security/derived-codec-qualifiers`, `rule:security/tainted-sources`
+--FILE--
+<?nvs
+// A reply is another host's bytes in exactly the sense a request body is
+// (`rule:security/tainted-sources`): pinning an address settles which host
+// wrote them and says nothing about what is in them. So the shape they land in
+// is what declares the qualifier, and `tainted {…}` distributes to every field
+// that carries text — the `int` beside them needs nothing, because a number
+// holds no octets a sink could misread.
+Core\Test::answerHttp("https://api.example.com/v1/me", 200, {body: "{\"name\":\"ada\",\"id\":42}", headers: ["Content-Type" => "application/json"]});
+
+var $reply = Core\Http\Client::get("https://api.example.com/v1/me");
+var $me = $reply->jsonAs<tainted {name: string, id: int}>();
+echo $me->name, " is ", $me->id, "\n";
+
+// The member keeps nothing of what it built, so a second call hydrates the
+// held octets again rather than handing back the first instance.
+var $again = $reply->jsonAs<tainted {name: string, id: int}>();
+echo $again->name, " ", $again->id, "\n";
+
+// One slot, three readers, and none of them consumes it: the octets are still
+// there after the hydration, and `bytes` and `text` answer the body whole.
+echo Core\Bytes::length($reply->bytes()), "\n";
+echo $reply->text(), "\n";
+
+// What the reply declared as its `Content-Type` is not consulted either way —
+// the member reads the octets it was given, and a `text/plain` document that
+// parses is still the document.
+Core\Test::answerHttp("https://api.example.com/v1/plain", 200, {body: "{\"name\":\"bob\",\"id\":7}", headers: ["Content-Type" => "text/plain"]});
+var $plain = Core\Http\Client::get("https://api.example.com/v1/plain");
+echo $plain->jsonAs<tainted {name: string, id: int}>()->name, "\n";
+--EXPECT--
+ada is 42
+ada 42
+22
+{"name":"ada","id":42}
+bob

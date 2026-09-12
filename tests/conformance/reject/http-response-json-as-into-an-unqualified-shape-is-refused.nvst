@@ -1,0 +1,29 @@
+--TEST--
+an unqualified shape written at `Core\Http\Response::jsonAs` is refused where it is written, and the reply's decode site reads exactly as the request's — `rule:security/derived-codec-qualifiers`, `rule:security/tainted-sources`
+--FILE--
+<?nvs
+Core\Test::answerHttp("https://api.example.com/v1/me", 200, {body: "{\"name\":\"ada\"}"});
+var $reply = Core\Http\Client::get("https://api.example.com/v1/me");
+
+// `rule:security/tainted-sources` makes a reply's body a peer's octets in the
+// same sense a request's is, so the shape written here is the declaration they
+// land in. An unqualified text field is a promise nothing is making, and it is
+// refused where the shape is written: there is no declaration further down the
+// file to carry the qualifier instead.
+var $me = $reply->jsonAs<{name: string}>();
+
+// A field carrying no text is not in the diagnosis at all -- a number holds no
+// octets a sink could read -- so this line is silent.
+var $id = $reply->jsonAs<{id: int}>();
+
+// `tainted {…}` is the answer to the verbosity rather than an opt-out, and it
+// distributes to every text-carrying field, so one word answers a shape of two
+// and this line is silent as well.
+var $ok = $reply->jsonAs<tainted {name: string, note: string}>();
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0810]: `name` is declared `string` in `{name: string}`, and `Core\Http\Response::jsonAs` answers a peer's octets
+%A
+error: aborting due to 1 error
