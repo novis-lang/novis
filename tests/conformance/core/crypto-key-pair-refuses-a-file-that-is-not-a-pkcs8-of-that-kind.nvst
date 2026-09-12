@@ -1,0 +1,110 @@
+--TEST--
+Core\Crypto\KeyPair::read refuses every file that is not a PKCS#8 private key of the kind named, each with the one LogicError sentence, and reads one RSA file under either scheme into two pairs that differ only in the scheme — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// A private key is the program's own and never a peer's, so there is nobody a
+// verdict could be about: every refusal here is a `LogicError`, a bug in what
+// the program was deployed with. The sentence names what is accepted rather
+// than what was wrong with these octets, so it is the same sentence for all of
+// them and a case can assert that.
+array<string> $notPairs = [
+    // An Ed25519 key read as P-256: the file is a key, and not this kind of one.
+    "302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf",
+    // The two Curve25519 kinds share a wrapper up to one octet of OID, which is
+    // the octet that says an X25519 pair agrees and an Ed25519 pair signs.
+    "302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf",
+    // A P-256 key read as RSA.
+    "3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042033172cfd4cb8e906b35b1dd8753ac6b12b8c760281d124bf635dbf5c5f15c49a",
+    // A `SubjectPublicKeyInfo` — the public half, handed where the private one
+    // goes. It parses as DER and is still not a private key.
+    "302a300506032b6570032100fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac",
+    // A 1024-bit RSA key, which is a well-formed PKCS#8 outside the roster's
+    // 2048 to 8192 bits. The floor is at the read, so no later member has to
+    // ask how wide a key it was handed.
+    "30820277020100300d06092a864886f70d0101010500048202613082025d02010002818100d0c2a934825d2fa1372f78ca36bf1cf0b04b356238c3157f46897dbbf733fa3b7324fcd300f77556d801183740887915d578c052c4c007a93622607e16b308372a97b42127ade49bd6e0f2a7cf75a40869bdb9ac7095bf6ccd9a129ff39893ef47153d8f065a37153f814d8645a801b0454dbcd70134172d5fad87e70f687ce9020301000102818046737b30ea51d27220b2979bfe8fce8f779f59fbb4d6395a038f00ecbf473e4a73d866ae3ae448282fab66e5b69497f0836345dc68e3b972247fc37aa9e46f7fba09cf4879ac0fdc0387160aab6834c0b1d0ad7f7f4218bde5f9773e3f847341caab2066676e336ec128e5f8a5adc81167b57417748c4c76fbcfc7d67ec0a225024100fa78fe52dd7bc809feb022ec43a1c15465cf0763d881240db39ec68bcf375f40c842012de78099401f581efec11a8a8669814bf9e297f33918e7fdc56f19228f024100d55e05496665b7aeccd8a0c3ce2ffefb4954a4c90ae25668aa627bebb0e0d215a99b484e8e757c05e51f2dfaa21f0b7530a4c0cfdedeccb336156004de184507024100ce20b0bc2545eef43ac35d9a2e767a1228ceddf80f7f07dab6cd9dfc05063ebfa38e9e45d6d50049c301d450373ece6d9b7a2aba74fe33cdf36f486b28e8f885024045970fc45bd86b2b60f67aa0c25c171ee050f219fc29cc2301077401704433610b5b711ee609dd7492c1339ede479fd60e127e2c8e353eb068c059fbdc702ffb024100f7a40d5d336cb659a791f7a42e313a2e8d1887bf700959bb0a8165d7f42746e65b8c35d50d85defffe3475b50bfdb3c977bac41b27e9c7aa43e66063615b4063",
+    // Octets that are not DER at all.
+    "0102030405",
+];
+array<Core\Crypto\KeyKind> $asKind = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyKind::Ed25519,
+];
+
+array<string> $said = [];
+foreach ($notPairs as string $slot => string $hex) {
+    try {
+        Core\Crypto\KeyPair $no = Core\Crypto\KeyPair::read(
+            Core\Encoding::fromHex($hex),
+            $asKind[$slot]
+        );
+        echo "slot ", $slot, " was accepted", "\n";
+    } catch (LogicError $bug) {
+        $said = Core\Arr::append($said, $bug->message);
+    }
+}
+
+// The armour is the refusal for the two labels next to `PRIVATE KEY`: PKCS#1 is
+// a body this member does not read, and an encrypted PKCS#8 has a password
+// there is no argument for. Neither is unwrapped, so neither reaches a parser.
+array<string> $armoured = [
+    "-----BEGIN RSA PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIDbnkTx1/12Juk9GUmMg9UfPdTaaVgoWj2q1uxePvqrf\n-----END RSA PRIVATE KEY-----\n",
+    "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIDbnkTx1/12Juk9GUmMg9UfPdTaaVgoWj2q1uxePvqrf\n-----END ENCRYPTED PRIVATE KEY-----\n",
+];
+foreach ($armoured as string $block) {
+    try {
+        Core\Crypto\KeyPair $notUnwrapped = Core\Crypto\KeyPair::read(
+            $block as bytes,
+            Core\Crypto\KeyKind::Ed25519
+        );
+        echo "an armour this does not read was accepted", "\n";
+    } catch (LogicError $bug) {
+        $said = Core\Arr::append($said, $bug->message);
+    }
+}
+
+uint $expected = Core\Arr::count($notPairs) + Core\Arr::count($armoured);
+echo "refused ", Core\Arr::count($said), " of ", $expected, "\n";
+
+int $oneSentence = 0;
+foreach ($said as string $message) {
+    if ($message == $said[0]) {
+        $oneSentence += 1;
+    }
+}
+echo "one sentence ", $oneSentence, " of ", Core\Arr::count($said), "\n";
+echo $said[0], "\n";
+
+// The one pairing that is not a mistake: an RSA file is a key of both RSA
+// kinds, because PKCS#8 says *RSA* and never which of `RS256` and `PS256` the
+// key is for. So the same octets read twice are two pairs holding one file and
+// one public key, differing only in the scheme they are bound to — which is the
+// single place `rule:security/algorithm-comes-from-the-key` leaves a choice,
+// and it is made here and nowhere later.
+string $rsa = "308204be020100300d06092a864886f70d0101010500048204a8308204a40201000282010100cfaa61932d8fd9e7858fa521617621f05bcb3411e174995d1fab033995201d0d9d72e5e8e133d88e8bec27e75068fb7c715eb712cae5750396d50af9ad2b5c45f0a7ab16bcf2cde4566873349a2407fa9452913e433b1d7f1ea74bda50d3f5d0ec2b0b50a4ea3023a2ae3ad4975390cd3b000d8020a578469f4bffa3e9864eb989e67a804a2cf08be53bba1bb0e9071f24156b0383730779d42efbf1daada62835a8e5e1891845cc782c322f9dc7f9eb6ff1c628c925f26ba29978a96cd10b2f61f03f361250261f860927632b6167bcba71f2e4d8df93e142c904a2515cd06af13c856bde1872ee30f3a19d8292cd2ce4b39c9788a0d3c5e3f33fe784c4e033020301000102820101008db4d56aaa4f9c41699990f44b5e6260733321b005ea1bf138f7e87675b5793dde301685288fc979d42f6d37625e9125e4f2ddf87bedc24095bf8102c9516a60eb8c6eaa507b5b5632448a40dde23273a29d0931b48cf55ed65b10dec4032f9dc65ac518ddc054e32c52ba2071b6fb7ba08433b23814d21357067446b4c70a9644ad5bbf4076288b3332e618359816eda4fc66b044df2159eba31feeb3929ddbaf2213c976c7af75f32a40ea862bdcd24eb61c0a6fa9226d96c1c992a474e8fec365eed79eaef543ad7e2c2e95d499df1516c4201c23829934cdfa834896a9bcb35aa82876f8e490f1c4d06d5626ef3630903d613a92111c53db60e7a876289102818100eb88f67fa78c0e41ac9859bf94e15607dcb4fe7daeeef9c36fca87f107299aa95b26fd35552385eaeebad6773498b0a65e4a3c1f9911c44d4f7dcda8b93bb60cd240201166b77001a11acc8674ee248bf229c40d2e56e554eca0d041a3e9e82dde0112a8ce9f5815b6228e9f6092590b83cdd16db5a0256dda4215c4468c8f6902818100e1b5839c174fd69078e934d921b95e285ae9e880d74bac412e088e707d2388fd4841b2ef4ff5782c7d03964c98ef6e485cf7bd3b4b862287361e1f319956f0a0d259a1703c1ddc5b936ab0b938b22cd3c4627081ecc464f392ccd19b91c2a55bcaa80f4b5fd5e94199b08d889d1bd644b8dc99bf72c7a5276d364aca1109db3b02818072cb25006063654b62d839dda2ad1465ee8e93fe23753b6ba21f7e93dd5ecc8f3feac7bbe78bd1a807c42de49950d5bfaff2d44cbe28a798da664106bb88bb98921c48c4d2601309e8400c7077aadd4b0bb28967b72f08c49433686ca57bc9fa18da4302dcf9524ffa9deb0f085d2b62ee5130821ce43979c9c72d9ea497bb09028180644a02f0986b212b908e0ead6c0eb187bcddb2318d785251a3e2a967d232b7ebd2ef5e527774dab0e9db6e2d1ac748795ed5b57f634f76881dc3c4988549dc219955ba25e490601950a7575ef59235d8e2a9dad3e02063bad6bfab6334a1085880f3abd811fd3a67aba28740ec8e31e6d73d2e13a32c9275b2512d6a1ba80581028181008ee45b866f4b33f26d50a78c930ffaabe8e773a2044cfd07127479b6b36c635e19f0a7284ce242bf28f9a498a54705aede4b8728d54f7c81f7731a69e6f8593aece62f2493e9a49ac00d12ccfe2ccc229f28a4d9c6d01ce60035414d4fe8807fb9613054c3226d4cb15613747a77ab566acb4987613db2e6fba64d67f89cd8d5";
+Core\Crypto\KeyPair $underPkcs1 = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex($rsa),
+    Core\Crypto\KeyKind::RsaPkcs1
+);
+Core\Crypto\KeyPair $underPss = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex($rsa),
+    Core\Crypto\KeyKind::RsaPss
+);
+echo $underPkcs1->write() == $underPss->write() ? "one file\n" : "two files\n";
+echo Core\Encoding::toHex($underPkcs1->publicKey()->write(Core\Crypto\KeyFormat::Spki))
+    == Core\Encoding::toHex($underPss->publicKey()->write(Core\Crypto\KeyFormat::Spki))
+    ? "one public key\n"
+    : "two public keys\n";
+echo $underPkcs1->publicKey()->kind() == Core\Crypto\KeyKind::RsaPkcs1 ? "RsaPkcs1\n" : "another kind\n";
+echo $underPss->publicKey()->kind() == Core\Crypto\KeyKind::RsaPss ? "RsaPss\n" : "another kind\n";
+--EXPECT--
+refused 8 of 8
+one sentence 8 of 8
+Core\Crypto\KeyPair::read(): these octets are not a PKCS#8 private key of the kind this call named — DER or one PEM `PRIVATE KEY` block, never a PKCS#1 body and never an encrypted PKCS#8.
+one file
+one public key
+RsaPkcs1
+RsaPss

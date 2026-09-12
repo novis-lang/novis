@@ -1,0 +1,65 @@
+--TEST--
+Core\Crypto\KeyPair::read takes one PEM `PRIVATE KEY` block as the same pair its DER is, and ->write answers DER whichever of the two arrived — `rule:core-classes/crypto-interop-tier`
+--FILE--
+<?nvs
+// A key file is handed out in both spellings — a service-account file is PEM,
+// and what `write` answers is DER — so both are read and one is stored. The
+// question here is that the *transport* is not part of the key: the two
+// spellings of one key have to reach the same pair, and the pair may not
+// remember which of them it came from.
+array<Core\Crypto\KeyKind> $kinds = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::Ed25519,
+];
+array<string> $pem = [
+    "-----BEGIN PRIVATE KEY-----\nMEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCAzFyz9TLjpBrNbHdh1\nOsaxK4x2AoHRJL9jXb9cXxXEmg==\n-----END PRIVATE KEY-----\n",
+    "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIDbnkTx1/12Juk9GUmMg9UfPdTaaVgoWj2q1uxePvqrf\n-----END PRIVATE KEY-----\n",
+];
+array<string> $der = [
+    "3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042033172cfd4cb8e906b35b1dd8753ac6b12b8c760281d124bf635dbf5c5f15c49a",
+    "302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf",
+];
+
+int $sameFile = 0;
+int $sameKey = 0;
+foreach ($pem as string $slot => string $block) {
+    Core\Crypto\KeyPair $armoured = Core\Crypto\KeyPair::read($block as bytes, $kinds[$slot]);
+    Core\Crypto\KeyPair $plain = Core\Crypto\KeyPair::read(
+        Core\Encoding::fromHex($der[$slot]),
+        $kinds[$slot]
+    );
+
+    // The armour is unwrapped at the read and the DER is what is kept, so a
+    // pair read from a block answers the same file a pair read from the DER
+    // does — and a program that stores what `write` gave it stores DER.
+    secret bytes $stored = Core\Encoding::fromHex($der[$slot]);
+    if ($armoured->write() == $stored && $plain->write() == $stored) {
+        $sameFile += 1;
+    }
+
+    // And the same public half, which is the half that says the two are one
+    // key rather than two files that both happened to parse.
+    if (
+        Core\Encoding::toHex($armoured->publicKey()->write(Core\Crypto\KeyFormat::Spki))
+        == Core\Encoding::toHex($plain->publicKey()->write(Core\Crypto\KeyFormat::Spki))
+    ) {
+        $sameKey += 1;
+    }
+}
+echo "pem and der are one file ", $sameFile, " of ", Core\Arr::count($pem), "\n";
+echo "pem and der are one key ", $sameKey, " of ", Core\Arr::count($pem), "\n";
+
+// The line folding is the armour's and not the key's: a block whose base64 is
+// on one line is the same key as the same block folded at 64 columns, because
+// what is read is the octets and never the layout.
+string $folded = "-----BEGIN PRIVATE KEY-----\nMEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCAzFyz9TLjpBrNbHdh1\nOsaxK4x2AoHRJL9jXb9cXxXEmg==\n-----END PRIVATE KEY-----\n";
+string $flat = "-----BEGIN PRIVATE KEY-----\nMEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCAzFyz9TLjpBrNbHdh1OsaxK4x2AoHRJL9jXb9cXxXEmg==\n-----END PRIVATE KEY-----\n";
+Core\Crypto\KeyPair $atSixtyFour = Core\Crypto\KeyPair::read($folded as bytes, Core\Crypto\KeyKind::P256);
+Core\Crypto\KeyPair $atOneLine = Core\Crypto\KeyPair::read($flat as bytes, Core\Crypto\KeyKind::P256);
+echo $atSixtyFour->write() == $atOneLine->write() ? "one key\n" : "two keys\n";
+echo $atOneLine->publicKey()->kind() == Core\Crypto\KeyKind::P256 ? "P256\n" : "another kind\n";
+--EXPECT--
+pem and der are one file 2 of 2
+pem and der are one key 2 of 2
+one key
+P256

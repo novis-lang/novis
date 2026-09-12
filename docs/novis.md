@@ -140,6 +140,7 @@ Conventions the whole file uses:
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core\Crypto`](#core-core-crypto) | authenticated encryption under a cipher named by a closed enum, with no mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted |
 | [`Core\Crypto\PublicKey`](#core-core-crypto-publickey) |  |
+| [`Core\Crypto\KeyPair`](#core-core-crypto-keypair) |  |
 | [`Core\SignedCookie`](#core-core-signedcookie) |  |
 | [`Core\Csrf`](#core-core-csrf) |  |
 | [`Core\Totp`](#core-core-totp) |  |
@@ -18803,6 +18804,57 @@ $publicKey->kind(): Core\Crypto\KeyKind
 Reports which of `Core\Crypto\KeyKind`'s cases this key is, which is the kind its read was given and never a second reading of the material.
 
 **Returns** `Core\Crypto\KeyKind` — The case the key was read as. For an RSA key that is `RsaPkcs1` or `RsaPss` — the scheme the key is bound to, settled at the read and not afterwards.
+
+<a id="core-core-crypto-keypair"></a>
+### `Core\Crypto\KeyPair`
+
+Keywords: read, write, publicKey
+
+| Member | Signature |
+|---|---|
+| [`Core\Crypto\KeyPair::read`](#core-core-crypto-keypair-read) | `read(secret bytes $pkcs8, Core\Crypto\KeyKind $kind): Core\Crypto\KeyPair` |
+| [`Core\Crypto\KeyPair->write`](#core-core-crypto-keypair-write) | `write(): secret bytes` |
+| [`Core\Crypto\KeyPair->publicKey`](#core-core-crypto-keypair-publickey) | `publicKey(): Core\Crypto\PublicKey` |
+
+<a id="core-core-crypto-keypair-read"></a>
+#### `Core\Crypto\KeyPair::read`
+
+```nvs skip
+Core\Crypto\KeyPair::read(secret bytes $pkcs8, Core\Crypto\KeyKind $kind): Core\Crypto\KeyPair
+```
+
+Reads a stored private key back, as DER PKCS#8 or as one PEM `PRIVATE KEY` block — which is what a service-account file carries. The key is parsed here, so a pair that was read is a pair every later member can use without looking at it again.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$pkcs8` | `secret bytes` (neutral) | The key's own octets, as `write` answered them or as whoever issued the key wrote them. |
+| `$kind` | `Core\Crypto\KeyKind` | Which key this is. It is named for `Core\Crypto\PublicKey::read`'s reason: a PKCS#8 says the key is RSA and never which of `RS256` and `PS256` it is for. |
+
+**Returns** `Core\Crypto\KeyPair` — The pair, ready to sign or to agree with, and answering `publicKey` with the half that is sent.
+
+**Throws** `LogicError` — `$pkcs8` is not a PKCS#8 private key of that kind: a key of another kind, a PKCS#1 body, an encrypted PKCS#8 — which has a password this member takes no argument for — an RSA key outside the roster's 2048 to 8192 bits, or anything malformed. A private key is the program's own and never a peer's, so there is no verdict here to pass on anyone and every refusal is a bug in what the program was handed.
+
+<a id="core-core-crypto-keypair-write"></a>
+#### `Core\Crypto\KeyPair->write`
+
+```nvs skip
+$keyPair->write(): secret bytes
+```
+
+Answers this pair as DER PKCS#8, so a server can keep its key across requests and read it back with `read`. It is `secret bytes`, which is the only way a private key leaves a pair.
+
+**Returns** `secret bytes` — The PKCS#8, as DER whichever of the two spellings the pair was read from.
+
+<a id="core-core-crypto-keypair-publickey"></a>
+#### `Core\Crypto\KeyPair->publicKey`
+
+```nvs skip
+$keyPair->publicKey(): Core\Crypto\PublicKey
+```
+
+Answers the half of this pair that is sent — derived from the private key rather than stored beside it, so it is this pair's public key and cannot be a different key that arrived with it.
+
+**Returns** `Core\Crypto\PublicKey` — The public key, of the same kind as the pair, and the same value `Core\Crypto\PublicKey::read` answers for the key material a peer would receive.
 
 <a id="core-core-signedcookie"></a>
 ### `Core\SignedCookie`

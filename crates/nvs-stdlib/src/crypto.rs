@@ -264,7 +264,7 @@
 use aes_gcm::Aes256Gcm;
 use aes_kw::{KwAes128, KwAes256};
 use base64::Engine as _;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use chacha20poly1305::aead::{Aead, Nonce};
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
 use hkdf::Hkdf;
@@ -272,7 +272,7 @@ use p256::PublicKey as P256PublicKey;
 use p256::SecretKey as P256SecretKey;
 use p256::ecdh::diffie_hellman;
 use p256::elliptic_curve::sec1::ToSec1Point;
-use p256::pkcs8::der::asn1::{AnyRef, BitStringRef, UintRef};
+use p256::pkcs8::der::asn1::{AnyRef, BitStringRef, OctetStringRef, UintRef};
 use p256::pkcs8::der::{
     Decode, DecodeValue, Encode, EncodeValue, Error as DerError, Header, Length, Reader, Sequence,
     Writer,
@@ -280,13 +280,14 @@ use p256::pkcs8::der::{
 use p256::pkcs8::spki::{
     AlgorithmIdentifierRef, ObjectIdentifier, SubjectPublicKeyInfo, SubjectPublicKeyInfoRef,
 };
-use p256::pkcs8::{DecodePrivateKey, DecodePublicKey};
+use p256::pkcs8::{DecodePrivateKey, DecodePublicKey, PrivateKeyInfoRef};
 use rand::Rng;
 use ring::rand::SystemRandom;
 use ring::signature::{
     ECDSA_P256_SHA256_FIXED, ECDSA_P256_SHA256_FIXED_SIGNING, ED25519, EcdsaKeyPair,
-    Ed25519KeyPair, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256, RSA_PSS_2048_8192_SHA256,
-    RSA_PSS_SHA256, RsaEncoding, RsaKeyPair, RsaPublicKeyComponents, UnparsedPublicKey,
+    Ed25519KeyPair, KeyPair as _, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256,
+    RSA_PSS_2048_8192_SHA256, RSA_PSS_SHA256, RsaEncoding, RsaKeyPair, RsaPublicKeyComponents,
+    UnparsedPublicKey,
 };
 // The 0.11 line of `sha2`, because `hkdf` and `pbkdf2` are generic over the
 // digest family's 0.11 traits and `Core\Hash`'s `sha2` is the 0.10 one. The
@@ -327,6 +328,18 @@ const PUBLIC_KEY_SPKI_SLOT: usize = 0;
 /// `rule:security/algorithm-comes-from-the-key` held for the one key type two
 /// JWS algorithms share.
 const PUBLIC_KEY_KIND_SLOT: usize = 1;
+
+/// The key-pair class's name, once, for its own refusals and for the row that
+/// answers one.
+pub(crate) const KEY_PAIR_NAME: &str = r"Core\Crypto\KeyPair";
+
+/// [`KEY_PAIR`]'s first slot: the pair's PKCS#8, as DER whichever spelling it
+/// was read from.
+const KEY_PAIR_PKCS8_SLOT: usize = 0;
+
+/// [`KEY_PAIR`]'s second slot: [`KEY_KIND`]'s constant for the kind the read was
+/// given, which a PKCS#8 no more carries than a `SubjectPublicKeyInfo` does.
+const KEY_PAIR_KIND_SLOT: usize = 1;
 
 /// A key's length in octets — XChaCha20-Poly1305's only key size and AES-256's,
 /// so this is the constructions' number rather than a choice of ours, and one
@@ -499,9 +512,9 @@ const CIPHER_DOC: EnumDoc = EnumDoc {
 /// `rule:security/algorithm-comes-from-the-key` held at the only door where the
 /// key itself cannot settle the question: PKCS#8 and SPKI both say *RSA* and
 /// neither says `RS256` or `PS256`, so the scheme is fixed when the key is read
-/// and is read back off the kind everywhere after. [`SignatureKind`] is that
-/// same choice inside the crate, which is why it has four variants where this
-/// has five: X25519 signs nothing and so reaches no signer.
+/// and is read back off the kind everywhere after. [`SigningKey`] is that same
+/// choice inside the crate, which is why it has four variants where this has
+/// five: X25519 signs nothing and so reaches no signer.
 ///
 /// The integers are each case's own constant, written out rather than
 /// auto-incremented, per [`CoreEnum::cases`]. They are ABI: a member reads them
@@ -1002,6 +1015,127 @@ const PUBLIC_KEY_KIND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// The private half, as the object `rule:core-api/shape-rules` R14 asks for:
+/// read once, kept for as long as the program holds it, and handed to whichever
+/// member needs the half of it that member needs.
+///
+/// **Its slots are the PKCS#8 and the kind**, for [`PUBLIC_KEY`]'s reason and
+/// with one difference. The reason is the same: a slot holds a value Novis can
+/// already hold, so a parsed key is not what an object keeps, and reading the
+/// stored octets back through [`PrivateKey::read`] leaves every member's key
+/// exactly as validated as the first read left it. The difference is that a
+/// PKCS#8 is stored as it arrived rather than re-encoded — one PEM block
+/// becomes its DER and nothing else moves — because `write`'s whole job is to
+/// hand a program back the key file it deployed, and because this module reads
+/// RSA's private components rather than writing them.
+///
+/// **The rejected alternative was a per-core cache of parsed keys**, the way
+/// [`crate::regex`] keeps compiled patterns behind their source text. It buys
+/// the parse back on a server that signs many tokens under one key, and it
+/// costs a table of private key material keyed by that material, living past
+/// the request that read it — O(keys seen) rather than O(in-flight), and a
+/// second place a secret exists. That is priority 1 spent to buy priority 3,
+/// which is the one direction [AGENTS.md](/AGENTS.md)'s ordering does not go.
+///
+/// **What it spends:** two slots per pair, the wider of them the key's DER — a
+/// little over a kilobyte for RSA at [`MAX_RSA_BITS`] and under a hundred
+/// octets on every curve — plus one PKCS#8 parse per member call that needs the
+/// key. `write` needs none: it answers the slot.
+pub(crate) const KEY_PAIR: CoreClass = CoreClass {
+    name: KEY_PAIR_NAME,
+    methods: &[CoreMethod {
+        name: "read",
+        // `$pkcs8` is `secret bytes` because that is what a private key is, and
+        // neutral on the `tainted` axis because nothing it carries reaches the
+        // answer: what crosses out is an object, which carries no qualifier at
+        // all.
+        names: &["pkcs8", "kind"],
+        params: &[
+            CoreTy::SecretBlob(Qual::Neutral),
+            CoreTy::Enum(KEY_KIND_NAME),
+        ],
+        defaults: &[],
+        return_ty: CoreTy::Instance(KEY_PAIR_NAME),
+        symbol: "nvs_core_crypto_key_pair_read",
+        doc: Some(&KEY_PAIR_READ_DOC),
+    }],
+    instance: &[
+        CoreMethod {
+            name: "write",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::SecretBytes,
+            symbol: "nvs_core_crypto_key_pair_write",
+            doc: Some(&KEY_PAIR_WRITE_DOC),
+        },
+        CoreMethod {
+            name: "publicKey",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(PUBLIC_KEY_NAME),
+            symbol: "nvs_core_crypto_key_pair_public_key",
+            doc: Some(&KEY_PAIR_PUBLIC_KEY_DOC),
+        },
+    ],
+    slots: &["pkcs8", "kind"],
+    constants: &[],
+};
+
+/// `Core\Crypto\KeyPair::read`'s reference card — `rule:core-api/reference-card`.
+const KEY_PAIR_READ_DOC: MethodDoc = MethodDoc {
+    short: "Reads a stored private key back, as DER PKCS#8 or as one PEM `PRIVATE KEY` block — \
+            which is what a service-account file carries. The key is parsed here, so a pair that \
+            was read is a pair every later member can use without looking at it again.",
+    params: &[
+        ParamDoc {
+            name: "pkcs8",
+            desc: "The key's own octets, as `write` answered them or as whoever issued the key \
+                   wrote them.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "kind",
+            desc: "Which key this is. It is named for `Core\\Crypto\\PublicKey::read`'s reason: a \
+                   PKCS#8 says the key is RSA and never which of `RS256` and `PS256` it is for.",
+            shape: &[],
+        },
+    ],
+    ret: "The pair, ready to sign or to agree with, and answering `publicKey` with the half that \
+          is sent.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$pkcs8` is not a PKCS#8 private key of that kind: a key of another kind, a \
+               PKCS#1 body, an encrypted PKCS#8 — which has a password this member takes no \
+               argument for — an RSA key outside the roster's 2048 to 8192 bits, or anything \
+               malformed. A private key is the program's own and never a peer's, so there is no \
+               verdict here to pass on anyone and every refusal is a bug in what the program was \
+               handed.",
+    }],
+};
+
+/// `Core\Crypto\KeyPair::write`'s reference card — `rule:core-api/reference-card`.
+const KEY_PAIR_WRITE_DOC: MethodDoc = MethodDoc {
+    short: "Answers this pair as DER PKCS#8, so a server can keep its key across requests and \
+            read it back with `read`. It is `secret bytes`, which is the only way a private key \
+            leaves a pair.",
+    params: &[],
+    ret: "The PKCS#8, as DER whichever of the two spellings the pair was read from.",
+    errors: &[],
+};
+
+/// `Core\Crypto\KeyPair::publicKey`'s reference card — `rule:core-api/reference-card`.
+const KEY_PAIR_PUBLIC_KEY_DOC: MethodDoc = MethodDoc {
+    short: "Answers the half of this pair that is sent — derived from the private key rather \
+            than stored beside it, so it is this pair's public key and cannot be a different \
+            key that arrived with it.",
+    params: &[],
+    ret: "The public key, of the same kind as the pair, and the same value \
+          `Core\\Crypto\\PublicKey::read` answers for the key material a peer would receive.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -1016,6 +1150,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_crypto_public_key_write as *const ()).cast()
         }
         "nvs_core_crypto_public_key_kind" => (nvs_core_crypto_public_key_kind as *const ()).cast(),
+        "nvs_core_crypto_key_pair_read" => (nvs_core_crypto_key_pair_read as *const ()).cast(),
+        "nvs_core_crypto_key_pair_write" => (nvs_core_crypto_key_pair_write as *const ()).cast(),
+        "nvs_core_crypto_key_pair_public_key" => {
+            (nvs_core_crypto_key_pair_public_key as *const ()).cast()
+        }
         _ => return None,
     })
 }
@@ -1407,10 +1546,10 @@ pub(crate) fn agree_p256(mine: &[u8], theirs: &P256PublicKey) -> Option<[u8; SHA
 
 /// Which asymmetric key a member is naming, as the Rust side of [`KEY_KIND`].
 ///
-/// [`SignatureKind`]'s cases are these minus `X25519`, and the two types do not
+/// [`SigningKey`]'s variants are these minus `X25519`, and the two types do not
 /// collapse into one: this is what a program can *name*, that one is what a
-/// signer can be *built from*, and keeping them apart is what stops a kind that
-/// signs nothing from reaching a signer at all.
+/// signature can be *made with*, and keeping them apart is what stops a kind
+/// that signs nothing from reaching a signer at all.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum KeyKind {
     /// [`KEY_KIND`]'s `P256`: NIST P-256, for agreement and for ECDSA.
@@ -1630,12 +1769,10 @@ impl PublicKey {
     ///
     /// `Core\Crypto\PublicKey::kind` does not reach this: the kind is one of
     /// [`PUBLIC_KEY`]'s slots, so the member answers it without a parse. What
-    /// reaches it is a member holding a key it has already read — a signature
-    /// check picking its scheme, an agreement refusing two different curves.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "a later stage registers the member")
-    )]
+    /// reaches it is a member holding a key it has already read —
+    /// [`public_key_instance`] filling that slot for a key derived from a pair,
+    /// and later a signature check picking its scheme or an agreement refusing
+    /// two different curves.
     pub(crate) fn kind(&self) -> KeyKind {
         match self {
             Self::P256 { .. } => KeyKind::P256,
@@ -2226,34 +2363,137 @@ pub(crate) fn verify_signature(
     verified.ok()
 }
 
-/// Which of the four a key signs with, and so what reading the key settles.
+/// The private half of an asymmetric key, parsed out of its PKCS#8, in the
+/// variant naming its kind.
 ///
-/// It is an argument to [`read_signing_key`] and to nothing after it, which is
-/// `rule:security/algorithm-comes-from-the-key` at the only door where a choice
-/// is left: PKCS#8 says whether a key is RSA, EC or Ed25519, but `RS256` and
-/// `PS256` are one key type and two algorithms, so the read is the last place
-/// they can be told apart and the program doing it is the only one that knows.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
-#[derive(Clone, Copy)]
-pub(crate) enum SignatureKind {
-    /// RSASSA-PKCS1-v1_5 over SHA-256.
-    RsaPkcs1,
-    /// RSASSA-PSS over SHA-256.
-    RsaPss,
-    /// ECDSA over P-256 and SHA-256.
-    P256,
-    /// Ed25519.
-    Ed25519,
+/// [`PublicKey`]'s counterpart over the same five kinds, and the one reader a
+/// `Crypto\KeyPair` has: every kind of the roster is read here, including the
+/// one that signs nothing, because a pair is read before anybody knows what it
+/// will be asked for. What each variant holds is what its own later use needs —
+/// a scalar for the two kinds that agree, `ring`'s own pair for the two RSA
+/// cases and Ed25519, where the parse is the validation.
+///
+/// [`SigningKey`] is this narrowed to the four kinds that sign, reachable only
+/// through [`Self::signing`], so an X25519 pair reaches no signer at all rather
+/// than reaching one and being refused there.
+pub(crate) enum PrivateKey {
+    /// NIST P-256, as the scalar both ECDSA and ECDH start from.
+    P256(P256SecretKey),
+    /// X25519's scalar, which agrees and signs nothing.
+    X25519(StaticSecret),
+    /// Ed25519, as `ring`'s pair: the seed and the point it derives, together.
+    Ed25519(Ed25519KeyPair),
+    /// An RSA key bound to RSASSA-PKCS1-v1_5 over SHA-256.
+    RsaPkcs1(RsaKeyPair),
+    /// The same key type bound to RSASSA-PSS over SHA-256.
+    RsaPss(RsaKeyPair),
 }
 
-/// A private key parsed once out of its PKCS#8, in the variant naming what it
-/// signs with.
+impl PrivateKey {
+    /// The key `der` is, read as `kind`, or `None` when those octets are not a
+    /// PKCS#8 private key of that kind.
+    ///
+    /// The refusal covers a key of another kind, a PKCS#1 body, an encrypted
+    /// PKCS#8 and anything malformed. `kind` is named rather than read out of
+    /// the file for [`PublicKey::read`]'s reason: PKCS#8 says *RSA* and never
+    /// which of `RS256` and `PS256` the key is for.
+    ///
+    /// **P-256 is read the long way round on purpose.** `ring`'s own PKCS#8
+    /// reader requires the optional public key that RFC 5958 leaves out, and
+    /// what WebCrypto exports leaves it out, so the scalar is read with `p256`
+    /// and the point is derived from it where one is needed. Ed25519 has the
+    /// same file and `from_pkcs8_maybe_unchecked` is `ring`'s door onto it.
+    pub(crate) fn read(der: &[u8], kind: KeyKind) -> Option<Self> {
+        Some(match kind {
+            KeyKind::P256 => Self::P256(P256SecretKey::from_pkcs8_der(der).ok()?),
+            KeyKind::X25519 => Self::X25519(StaticSecret::from(x25519_scalar(der)?)),
+            KeyKind::Ed25519 => {
+                Self::Ed25519(Ed25519KeyPair::from_pkcs8_maybe_unchecked(der).ok()?)
+            }
+            KeyKind::RsaPkcs1 => Self::RsaPkcs1(RsaKeyPair::from_pkcs8(der).ok()?),
+            KeyKind::RsaPss => Self::RsaPss(RsaKeyPair::from_pkcs8(der).ok()?),
+        })
+    }
+
+    /// The public half, derived from the private one, and `None` where that
+    /// derivation could not be a key this module reads.
+    ///
+    /// `None` is not reachable from a program: every branch derives its point
+    /// or its components from material that has already been parsed as a key of
+    /// that kind, and `ring` holds an RSA pair to the same 2048–8192 bits
+    /// [`PublicKey::rsa`] does. The answer goes through this module's own
+    /// constructors rather than being assembled, so a public key derived here
+    /// and the same key read off the wire are one value.
+    pub(crate) fn public(&self) -> Option<PublicKey> {
+        /// `n` and `e` out of the PKCS#1 `RSAPublicKey` `ring` serializes,
+        /// which is the same body a `SubjectPublicKeyInfo` carries.
+        fn rsa(pair: &RsaKeyPair, kind: KeyKind) -> Option<PublicKey> {
+            let components = RsaComponents::from_der(pair.public().as_ref()).ok()?;
+            PublicKey::rsa(
+                components.modulus.as_bytes(),
+                components.exponent.as_bytes(),
+                kind,
+            )
+            .ok()
+        }
+
+        match self {
+            Self::P256(secret) => PublicKey::p256_from(secret.public_key()).ok(),
+            Self::X25519(secret) => Some(PublicKey::X25519 {
+                point: X25519PublicKey::from(secret).to_bytes(),
+            }),
+            Self::Ed25519(pair) => Some(PublicKey::Ed25519 {
+                point: curve25519_point(pair.public_key().as_ref()).ok()?,
+            }),
+            Self::RsaPkcs1(pair) => rsa(pair, KeyKind::RsaPkcs1),
+            Self::RsaPss(pair) => rsa(pair, KeyKind::RsaPss),
+        }
+    }
+
+    /// This key as the shape [`sign`] takes, and `None` for the one kind that
+    /// signs nothing.
+    ///
+    /// The signer is assembled here rather than at the read because P-256 needs
+    /// both halves to build one and only a signature wants it;
+    /// `rule:security/algorithm-comes-from-the-key` crosses from the read to the
+    /// signature as a type, exactly as [`PublicKey::verifying`] carries it to a
+    /// check.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "a later stage registers the member")
+    )]
+    pub(crate) fn signing(self) -> Option<SigningKey> {
+        Some(match self {
+            Self::RsaPkcs1(pair) => SigningKey::RsaPkcs1(pair),
+            Self::RsaPss(pair) => SigningKey::RsaPss(pair),
+            Self::Ed25519(pair) => SigningKey::Ed25519(pair),
+            Self::P256(secret) => {
+                let point = secret.public_key().to_sec1_point(false);
+                SigningKey::P256(
+                    EcdsaKeyPair::from_private_key_and_public_key(
+                        &ECDSA_P256_SHA256_FIXED_SIGNING,
+                        &secret.to_bytes(),
+                        point.as_bytes(),
+                        &SystemRandom::new(),
+                    )
+                    .ok()?,
+                )
+            }
+            Self::X25519(_) => return None,
+        })
+    }
+}
+
+/// A signing key, in the variant naming what it signs with.
 ///
-/// [`VerifyingKey`]'s counterpart, and parsed rather than borrowed because the
-/// parse is the expensive half for RSA and a server signs many tokens under one
-/// key: a `Crypto\KeyPair` holds one of these for as long as the program holds
-/// the object, and every signature after the first is arithmetic alone.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+/// [`VerifyingKey`]'s owning counterpart, built by [`PrivateKey::signing`] and
+/// by nothing else, so the four variants here are exactly the kinds of the
+/// roster that sign: a key that signs nothing cannot be spelled as one of
+/// these.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "a later stage registers the member")
+)]
 pub(crate) enum SigningKey {
     /// RSASSA-PKCS1-v1_5 over SHA-256.
     RsaPkcs1(RsaKeyPair),
@@ -2265,46 +2505,67 @@ pub(crate) enum SigningKey {
     Ed25519(Ed25519KeyPair),
 }
 
-/// A signing key read out of DER PKCS#8, or `None` when those octets are not a
-/// key of `kind`.
-///
-/// The refusal covers a key of another kind, a PKCS#1 body, an encrypted
-/// PKCS#8 and anything malformed, which the member above it reports by where
-/// the octets came from rather than by what was wrong with them.
-///
-/// **P-256 is read the long way round on purpose.** `ring`'s own PKCS#8 reader
-/// requires the optional public key that RFC 5958 leaves out, and what WebCrypto
-/// exports leaves it out, so the scalar is read with `p256`, the point is
-/// derived from it, and the pair is assembled from both. The point is written
-/// uncompressed because that is the encoding the rest of this module reads and
-/// writes.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
-pub(crate) fn read_signing_key(pkcs8: &[u8], kind: SignatureKind) -> Option<SigningKey> {
-    let rng = SystemRandom::new();
+/// X25519's private-key OID, 1.3.101.110 — RFC 8410's, which fixes the whole
+/// algorithm identifier and leaves no parameters.
+const X25519_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.101.110");
 
-    Some(match kind {
-        SignatureKind::RsaPkcs1 => SigningKey::RsaPkcs1(RsaKeyPair::from_pkcs8(pkcs8).ok()?),
-        SignatureKind::RsaPss => SigningKey::RsaPss(RsaKeyPair::from_pkcs8(pkcs8).ok()?),
-        SignatureKind::P256 => {
-            let secret = P256SecretKey::from_pkcs8_der(pkcs8).ok()?;
-            let point = secret.public_key().to_sec1_point(false);
-            SigningKey::P256(
-                EcdsaKeyPair::from_private_key_and_public_key(
-                    &ECDSA_P256_SHA256_FIXED_SIGNING,
-                    &secret.to_bytes(),
-                    point.as_bytes(),
-                    &rng,
-                )
-                .ok()?,
-            )
-        }
-        // WebCrypto exports PKCS#8 v1, which carries no public key beside the
-        // seed, and `from_pkcs8` requires one; this reader derives the point
-        // from the seed instead of refusing the file every browser writes.
-        SignatureKind::Ed25519 => {
-            SigningKey::Ed25519(Ed25519KeyPair::from_pkcs8_maybe_unchecked(pkcs8).ok()?)
-        }
-    })
+/// The 32-octet scalar inside an RFC 8410 X25519 PKCS#8, or `None` when those
+/// octets are not one.
+///
+/// The one kind of the roster nothing else in this graph reads a private key
+/// for: `p256` and `ring` each bring their own PKCS#8 reader and
+/// `x25519-dalek` brings none, so the structure is walked here. It is walked
+/// rather than compared against a constant prefix — which is what the two
+/// `SubjectPublicKeyInfo` readers above do — because a private key file has
+/// fields a producer chooses: RFC 5958's version 2 attaches the public key, and
+/// a reader that had frozen the prefix would refuse it.
+fn x25519_scalar(der: &[u8]) -> Option<[u8; KEY_LEN]> {
+    let info = PrivateKeyInfoRef::from_der(der).ok()?;
+    if info.algorithm.oid != X25519_OID || info.algorithm.parameters.is_some() {
+        return None;
+    }
+
+    // RFC 8410's `CurvePrivateKey` is an `OCTET STRING` inside the `OCTET
+    // STRING` every PKCS#8 private key sits in, so the scalar is one layer
+    // further down than the field.
+    let scalar = <&OctetStringRef>::from_der(info.private_key.as_bytes()).ok()?;
+    <[u8; KEY_LEN]>::try_from(scalar.as_bytes()).ok()
+}
+
+/// `octets` as DER PKCS#8: themselves when they already are, or the body of one
+/// PEM `PRIVATE KEY` block when they are that.
+///
+/// A service-account file is handed out in either spelling, so both are read and
+/// one is stored — which makes `write` answer DER whichever arrived, rather than
+/// making a pair remember a transport. **The label is the refusal**: `RSA
+/// PRIVATE KEY` is PKCS#1 and `ENCRYPTED PRIVATE KEY` is a file with a password
+/// this member takes no argument for, and neither matches, so both fall through
+/// to a DER read that cannot succeed either.
+///
+/// The base64 is decoded here rather than with a PEM reader because this graph
+/// carries none this crate can reach: `nvs_host::tls`'s is `rustls`'s, and
+/// `der`'s own is behind a feature nothing turns on.
+fn pkcs8_der(octets: &[u8]) -> Option<Vec<u8>> {
+    /// One PEM block's armour, which is also the whole of what is checked.
+    const HEADER: &str = "-----BEGIN PRIVATE KEY-----";
+    /// Its closing half.
+    const FOOTER: &str = "-----END PRIVATE KEY-----";
+
+    let text = str::from_utf8(octets)
+        .ok()
+        .map(str::trim)
+        .filter(|text| text.starts_with(HEADER));
+    let Some(text) = text else {
+        return Some(octets.to_vec());
+    };
+
+    let body: String = text
+        .strip_prefix(HEADER)?
+        .strip_suffix(FOOTER)?
+        .chars()
+        .filter(|character| !character.is_ascii_whitespace())
+        .collect();
+    STANDARD.decode(body).ok()
 }
 
 /// The signature `key` writes over `message`, or `None` when it could not be
@@ -2532,16 +2793,22 @@ fn key_refused(refusal: &KeyRefusal) -> Fault {
     }
 }
 
-/// The `bytes` in slot `index`, named for this class rather than for [`CLASS`].
+/// The `bytes` in slot `index`, named for `class` rather than for [`CLASS`] —
+/// the two key classes share every reader here.
 ///
 /// # Errors
 ///
 /// A [`Fault::fatal`], on [`bytes_of`]'s reading: the slot's type is written in
 /// the row above, so a value of another tag is a compiled-code bug.
-fn key_octets<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8], Fault> {
+fn key_octets<'a>(
+    args: &'a [Value],
+    index: usize,
+    class: &str,
+    member: &str,
+) -> Result<&'a [u8], Fault> {
     args[index].as_bytes().ok_or_else(|| {
         Fault::fatal(format!(
-            "{PUBLIC_KEY_NAME}::{member} expected a `bytes`, got tag {}",
+            "{class}::{member} expected a `bytes`, got tag {}",
             args[index].tag_byte()
         ))
     })
@@ -2553,13 +2820,13 @@ fn key_octets<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [
 ///
 /// A [`Fault::fatal`] for [`key_octets`]'s reason: an argument of a closed enum
 /// type is one of its cases before any of this runs.
-fn key_kind_of(args: &[Value], index: usize, member: &str) -> Result<KeyKind, Fault> {
+fn key_kind_of(args: &[Value], index: usize, class: &str, member: &str) -> Result<KeyKind, Fault> {
     args[index]
         .as_int()
         .and_then(KeyKind::from_tag)
         .ok_or_else(|| {
             Fault::fatal(format!(
-                "{PUBLIC_KEY_NAME}::{member} expected a `{KEY_KIND_NAME}` case, got tag {}",
+                "{class}::{member} expected a `{KEY_KIND_NAME}` case, got tag {}",
                 args[index].tag_byte()
             ))
         })
@@ -2632,25 +2899,42 @@ nvs_runtime::nvs_helper! {
     /// its DER are one value down to the slot. [`PUBLIC_KEY`]'s own doc owns the
     /// layout and what it spends.
     fn nvs_core_crypto_public_key_read(_ctx, args: [3]) {
-        let encoded = key_octets(args, 0, "read")?;
-        let kind = key_kind_of(args, 1, "read")?;
+        let encoded = key_octets(args, 0, PUBLIC_KEY_NAME, "read")?;
+        let kind = key_kind_of(args, 1, PUBLIC_KEY_NAME, "read")?;
         let format = key_format_of(args, 2, "read")?;
         let key = PublicKey::read(encoded, kind, format).map_err(|refusal| key_refused(&refusal))?;
-        // Unreachable from source: writing a `SubjectPublicKeyInfo` refuses only
-        // where the DER encoder does, over a modulus the read above has already
-        // held inside the roster's range, and the curve kinds' branches are a
-        // constant prefix in front of a fixed-width key.
-        let spki = key.write(KeyFormat::Spki).map_err(|_| {
-            Fault::fatal(format!(
-                "{PUBLIC_KEY_NAME}::read could not write the key it had just read"
-            ))
-        })?;
-        nvs_runtime::affordable(Some(spki.len()), "Core\\Crypto\\PublicKey::read")?;
-        Ok(crate::instance::build(
-            &PUBLIC_KEY,
-            [Value::bytes(NvsStr::new(&spki)), Value::int(kind.tag())],
-        ))
+        public_key_instance(&key, "Core\\Crypto\\PublicKey::read")
     }
+}
+
+/// A `Core\Crypto\PublicKey` over `key`, which is the one place [`PUBLIC_KEY`]'s
+/// two slots are written.
+///
+/// Both members that answer a public key come through here — the read of one a
+/// peer sent and the derivation of one from a pair — so a key is one value
+/// whichever way a program reached it, down to the slot.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the key cannot be written as a
+/// `SubjectPublicKeyInfo`, and whatever `nvs_runtime::affordable` answers for a
+/// request at its ceiling.
+fn public_key_instance(key: &PublicKey, site: &str) -> Result<Value, Fault> {
+    // Unreachable from source: writing a `SubjectPublicKeyInfo` refuses only
+    // where the DER encoder does, over a modulus its reader has already held
+    // inside the roster's range, and the curve kinds' branches are a constant
+    // prefix in front of a fixed-width key.
+    let spki = key
+        .write(KeyFormat::Spki)
+        .map_err(|_| Fault::fatal(format!("{site}() could not write the key it had just read")))?;
+    nvs_runtime::affordable(Some(spki.len()), site)?;
+    Ok(crate::instance::build(
+        &PUBLIC_KEY,
+        [
+            Value::bytes(NvsStr::new(&spki)),
+            Value::int(key.kind().tag()),
+        ],
+    ))
 }
 
 nvs_runtime::nvs_helper! {
@@ -2688,6 +2972,115 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_crypto_public_key_kind(_ctx, args: [1]) {
         let held = crate::instance::read_slot(args, &PUBLIC_KEY, PUBLIC_KEY_KIND_SLOT, "kind")?;
         Ok(held)
+    }
+}
+
+/// The one refusal `Core\Crypto\KeyPair::read` has.
+///
+/// A `LogicError` rather than [`key_refused`]'s two-way split, and not because
+/// the reasons could not be told apart: a private key is the program's own, so
+/// there is nobody a verdict could be about, and every way of failing is a
+/// mistake in what the program was deployed with. The sentence names what is
+/// accepted rather than what was wrong with these octets, which is what makes
+/// it actionable without being a report on a file this member will not read
+/// twice.
+fn pair_refused() -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        "Core\\Crypto\\KeyPair::read(): these octets are not a PKCS#8 private key of the kind \
+         this call named — DER or one PEM `PRIVATE KEY` block, never a PKCS#1 body and never an \
+         encrypted PKCS#8."
+            .to_owned(),
+    )
+}
+
+/// The pair the receiver in `args[0]` holds, read back out of its slots.
+///
+/// The re-read is [`KEY_PAIR`]'s decision rather than this reader's
+/// convenience, and that doc owns it: a slot holds a Novis value, so the parsed
+/// key is not what the object keeps.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] on a receiver or a slot holding something else, which
+/// compiled code cannot produce: both slots are written by
+/// [`nvs_core_crypto_key_pair_read`] and by nothing else.
+fn pair_of(args: &[Value], member: &str) -> Result<PrivateKey, Fault> {
+    let receiver = crate::instance::receiver(args[0], &KEY_PAIR, member)?;
+    let slot_fault = |slot: usize, wanted: &str| {
+        Fault::fatal(format!(
+            "{KEY_PAIR_NAME}::{member} expected {wanted} in its `{}` slot",
+            KEY_PAIR.slots[slot]
+        ))
+    };
+
+    let held = crate::instance::slot(receiver, KEY_PAIR_PKCS8_SLOT);
+    let der = held
+        .as_bytes()
+        .ok_or_else(|| slot_fault(KEY_PAIR_PKCS8_SLOT, "a `bytes`"))?;
+    let kind = crate::instance::slot(receiver, KEY_PAIR_KIND_SLOT)
+        .as_int()
+        .and_then(KeyKind::from_tag)
+        .ok_or_else(|| slot_fault(KEY_PAIR_KIND_SLOT, &format!("a `{KEY_KIND_NAME}` case")))?;
+
+    // Unreachable from source: the slot holds the DER the read above stored,
+    // after a parse that had already succeeded over the same kind.
+    PrivateKey::read(der, kind).ok_or_else(|| slot_fault(KEY_PAIR_PKCS8_SLOT, "a private key"))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Crypto\KeyPair::read(secret bytes $pkcs8, Crypto\KeyKind $kind): Crypto\KeyPair`
+    /// — the one door onto [`PrivateKey::read`].
+    ///
+    /// The key is parsed to be refused, not to be kept: what the object holds is
+    /// the DER, so a pair read from a PEM block and the same pair read from its
+    /// DER are one value down to the slot. [`KEY_PAIR`]'s own doc owns the
+    /// layout, what it spends, and the cache it turned down.
+    fn nvs_core_crypto_key_pair_read(_ctx, args: [2]) {
+        let stored = key_octets(args, 0, KEY_PAIR_NAME, "read")?;
+        let kind = key_kind_of(args, 1, KEY_PAIR_NAME, "read")?;
+        let der = pkcs8_der(stored).ok_or_else(pair_refused)?;
+        PrivateKey::read(&der, kind).ok_or_else(pair_refused)?;
+        nvs_runtime::affordable(Some(der.len()), "Core\\Crypto\\KeyPair::read")?;
+        Ok(crate::instance::build(
+            &KEY_PAIR,
+            [Value::bytes(NvsStr::new(&der)), Value::int(kind.tag())],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$keyPair->write(): secret bytes` — this pair's PKCS#8, so a server keeps
+    /// its key across requests.
+    ///
+    /// The one member of either key class that answers its slot rather than the
+    /// key: a PKCS#8 is what was stored, and re-encoding one would mean writing
+    /// RSA's private components, which this module reads and never writes.
+    fn nvs_core_crypto_key_pair_write(_ctx, args: [1]) {
+        let held = crate::instance::read_slot(args, &KEY_PAIR, KEY_PAIR_PKCS8_SLOT, "write")?;
+        Ok(held)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$keyPair->publicKey(): Crypto\PublicKey` — the half of this pair that is
+    /// sent.
+    ///
+    /// Derived from the private key rather than stored beside it, so a program
+    /// cannot hold a pair whose public half is a different key: the two cannot
+    /// disagree if only one of them is kept.
+    fn nvs_core_crypto_key_pair_public_key(_ctx, args: [1]) {
+        let pair = pair_of(args, "publicKey")?;
+        // Unreachable from source: every branch derives its point or its
+        // components from material already parsed as a key of that kind, and
+        // `ring` holds an RSA pair to the same width `PublicKey::rsa` does.
+        let public = pair.public().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{KEY_PAIR_NAME}::publicKey could not derive the public half of a key it had \
+                 just read"
+            ))
+        })?;
+        public_key_instance(&public, "Core\\Crypto\\KeyPair::publicKey")
     }
 }
 
@@ -3248,15 +3641,17 @@ mod tests {
     fn signing(id: &str) -> SigningKey {
         let key = webcrypto::node(&format!("/jws/keys/{id}"));
         let kind = match webcrypto::text(key, "/alg") {
-            "RS256" => SignatureKind::RsaPkcs1,
-            "PS256" => SignatureKind::RsaPss,
-            "ES256" => SignatureKind::P256,
-            "EdDSA" => SignatureKind::Ed25519,
+            "RS256" => KeyKind::RsaPkcs1,
+            "PS256" => KeyKind::RsaPss,
+            "ES256" => KeyKind::P256,
+            "EdDSA" => KeyKind::Ed25519,
             alg => panic!("the set carries {alg}, which this module does not sign with"),
         };
 
-        read_signing_key(&webcrypto::octets(key, "/pkcs8"), kind)
+        PrivateKey::read(&webcrypto::octets(key, "/pkcs8"), kind)
             .expect("the set writes every private key as DER PKCS#8")
+            .signing()
+            .expect("every key the set signs with is a kind that signs")
     }
 
     /// Every signature the frozen WebCrypto set holds, verified from the public
@@ -3347,15 +3742,94 @@ mod tests {
         let pkcs8 =
             |id: &str| webcrypto::octets(webcrypto::node(&format!("/jws/keys/{id}")), "/pkcs8");
 
-        assert!(read_signing_key(&pkcs8("ed-1"), SignatureKind::RsaPkcs1).is_none());
-        assert!(read_signing_key(&pkcs8("ed-1"), SignatureKind::P256).is_none());
-        assert!(read_signing_key(&pkcs8("rsa-1"), SignatureKind::Ed25519).is_none());
-        assert!(read_signing_key(&pkcs8("ec-1"), SignatureKind::RsaPss).is_none());
-        assert!(read_signing_key(&pkcs8("ec-1"), SignatureKind::Ed25519).is_none());
+        assert!(PrivateKey::read(&pkcs8("ed-1"), KeyKind::RsaPkcs1).is_none());
+        assert!(PrivateKey::read(&pkcs8("ed-1"), KeyKind::P256).is_none());
+        assert!(PrivateKey::read(&pkcs8("ed-1"), KeyKind::X25519).is_none());
+        assert!(PrivateKey::read(&pkcs8("rsa-1"), KeyKind::Ed25519).is_none());
+        assert!(PrivateKey::read(&pkcs8("ec-1"), KeyKind::RsaPss).is_none());
+        assert!(PrivateKey::read(&pkcs8("ec-1"), KeyKind::Ed25519).is_none());
         assert!(
-            read_signing_key(&pkcs8("rsa-1"), SignatureKind::RsaPss).is_some(),
+            PrivateKey::read(&pkcs8("rsa-1"), KeyKind::RsaPss).is_some(),
             "one key type carries both RSA algorithms, and the reader is where that is settled"
         );
+    }
+
+    /// The private half of every kind of the roster reads, answers the public
+    /// half the set holds beside it, and signs only where the kind signs.
+    ///
+    /// The agreement shape: one question asked of all five kinds, counted, so a
+    /// reader that carried the four signing kinds and lost X25519 — the shape
+    /// the codec had before a `Crypto\KeyPair` needed all five — fails here
+    /// while every line it does print still looks right.
+    #[test]
+    fn every_kind_of_the_roster_reads_a_private_key_and_derives_its_public_half() {
+        let pairs = [
+            ("/jws/keys/rsa-1", KeyKind::RsaPkcs1, true),
+            ("/jws/keys/rsa-2", KeyKind::RsaPss, true),
+            ("/jws/keys/ec-1", KeyKind::P256, true),
+            ("/jws/keys/ed-1", KeyKind::Ed25519, true),
+            ("/ecdh/vectors/1/a", KeyKind::X25519, false),
+        ];
+
+        let mut derived = 0;
+        let mut signs = 0;
+        for (path, kind, is_a_signer) in pairs {
+            let node = webcrypto::node(path);
+            let pair = PrivateKey::read(&webcrypto::octets(node, "/pkcs8"), kind)
+                .expect("the set writes every private key as DER PKCS#8");
+            let public = pair.public().expect("a pair that read has a public half");
+
+            assert_eq!(public.kind(), kind, "{path}");
+            if public
+                .write(KeyFormat::Spki)
+                .expect("every kind has a `SubjectPublicKeyInfo`")
+                == webcrypto::octets(node, "/spki")
+            {
+                derived += 1;
+            }
+            if pair.signing().is_some() == is_a_signer {
+                signs += 1;
+            }
+        }
+
+        assert_eq!(
+            derived,
+            pairs.len(),
+            "public halves derived from the private"
+        );
+        assert_eq!(signs, pairs.len(), "kinds that reach a signer");
+    }
+
+    /// One PEM `PRIVATE KEY` block is the same key its DER is, and neither a
+    /// PKCS#1 body nor an encrypted PKCS#8 is read at all.
+    ///
+    /// The bound asserted on both sides: what `Core\Crypto\KeyPair::read`
+    /// accepts is exactly one armour, so the case that is taken is named beside
+    /// the two nearest ones that are refused.
+    #[test]
+    fn a_pem_private_key_block_reads_and_its_two_neighbours_do_not() {
+        for id in ["rsa-1", "ec-1", "ed-1"] {
+            let key = webcrypto::node(&format!("/jws/keys/{id}"));
+            assert_eq!(
+                pkcs8_der(webcrypto::text(key, "/pem").as_bytes()).as_deref(),
+                Some(webcrypto::octets(key, "/pkcs8").as_slice()),
+                "{id}'s PEM block carries its DER"
+            );
+        }
+
+        let pkcs1 =
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAK==\n-----END RSA PRIVATE KEY-----\n";
+        let encrypted = "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIBOgIBAAJBAK==\n-----END ENCRYPTED PRIVATE KEY-----\n";
+        for armoured in [pkcs1, encrypted] {
+            assert!(
+                PrivateKey::read(
+                    &pkcs8_der(armoured.as_bytes()).expect("an unrecognised label reads as DER"),
+                    KeyKind::RsaPkcs1
+                )
+                .is_none(),
+                "neither neighbour of `PRIVATE KEY` is a file this reads"
+            );
+        }
     }
 
     /// The kind the set's own label for a key names, so no case here picks one

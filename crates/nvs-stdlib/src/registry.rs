@@ -1710,6 +1710,12 @@ pub const CLASSES: &[CoreClass] = &[
     // re-validate. Its own doc owns why its slots are a canonical SPKI and a
     // kind rather than the octets the program was handed.
     crate::crypto::PUBLIC_KEY,
+    // The private half, and a class for the same R14 reason with a second one
+    // beside it: a pair is the only thing in the language a `secret bytes`
+    // leaves rather than enters, and an object is what makes `write` the one
+    // door it leaves through. Its own doc owns why its slots are the PKCS#8 and
+    // the kind, and why there is no cache of parsed keys behind them.
+    crate::crypto::KEY_PAIR,
     // `rule:security/protocol-roster`'s first roster entry, and beside `Core\Crypto` because it
     // *is* `Core\Crypto` — [`crate::signed_cookie`] keys the same construction
     // through the same three helpers, with a key ring over it and a
