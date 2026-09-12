@@ -6466,6 +6466,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   anything in its own file. Add its `NAME`, made `pub(crate)`, to the test's `HANDLES` list in the
   slice that registers the class.
   [until: gone crates/nvs-stdlib/src/registry.rs:const HANDLES]
+- **A `Qual::Contagious` text parameter refuses a `tainted` argument when the member already answers
+  `tainted`.** `admits_tainted_argument` (`crates/nvs-types/src/expr/quals.rs:299-308`) admits one
+  only where the qualifier has somewhere new to go, so `Core\Jwe::decrypt`'s row refuses the token a
+  request hands in, as `expected 'string', found 'tainted string'`. Mark such a parameter
+  `Qual::Neutral`, which is what `Core\Jwt::verify` (`crates/nvs-stdlib/src/jwt.rs:466-472`) does.
+  [until: gone crates/nvs-stdlib/src/jwe.rs:CoreTy::Text(Qual::Contagious), CoreTy::Array(&KEY_TY)]
 
 ## Divergences and refusals already pinned
 

@@ -120,6 +120,10 @@ modules = [
   "crates/nvs-types/src/expr/args.rs",
   # `check_decode_sites` (:803-830) and `check_shape_decode_site` (:910), the qualifier check. Stage 6.
   "crates/nvs-types/src/derive.rs",
+  # `admits_tainted_argument` (:299-308): a `Qual::Contagious` text parameter takes a `tainted`
+  # argument only where the return type can carry the bit back out, so a member already answering
+  # `tainted` refuses one. That is what a `Core\Jwe` or `Core\Jwt` row is choosing between.
+  "crates/nvs-types/src/expr/quals.rs",
   # `Core\Ast` — `rule:core-classes/ast-is-inert`'s door onto the compiler's own parser, and the
   # inert tree it answers with.
   "crates/nvs-stdlib/src/ast.rs",
@@ -226,8 +230,9 @@ shapes = ["A `Core` member", "A `.nvst` test case"]
 # The frozen set and the one door onto it are named in `[context] modules`, which is the only list
 # `orient.py` reads a path out of.
 #
-# The example is one of the four proofs a shipped feature owes.
-rules = ["testing/four-proofs"]
+# The example is one of the four proofs a shipped feature owes, and a token arriving from a request
+# is the call a qualifier row decides.
+rules = ["testing/four-proofs", "security/verification-does-not-launder"]
 shapes =["A feature's four proofs — an example, an attack, a bench, a `covers:` marker"]
 
 [context.stage.8]

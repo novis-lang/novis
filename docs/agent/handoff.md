@@ -2,48 +2,55 @@
 
 ## State
 
-**Goal `webcrypto`, stage 7: every test name stage 7's `cargo-named` check lists now runs and is
-green.** All fourteen at `docs/agent/loop-goal.toml:9145-9160` appear in `cargo test -p nvs-stdlib`'s
-output, and `python tools/verify.py` is 11 of 11 green.
+**Goal `webcrypto`, stage 7 is complete.** `examples/webcrypto.nvs` prints the seven lines the
+`exact` check at `docs/agent/loop-goal.toml:9162-9174` freezes, in order, at exit 0, and the
+fourteen stage 7 test names are all green. Stage 8 — the rulebook — is what is left of the goal.
 
-Two of them were not renames. `Core\Jwe::decrypt`'s verdict is now `plaintext`
-(`crates/nvs-stdlib/src/jwe.rs:1134`), which leaves the member one `refused()` call site and gives
-Rust a door onto the read direction: the set's payloads (`crates/nvs-stdlib/src/jwe.rs:1262`) and all
-of its refusals (`:1473`) are now asserted through the member's own path, where before only the
-`.nvst` side ever opened a token. The ECDH replay (`crates/nvs-stdlib/src/crypto.rs:4175`) gained the
-every-key-form agreement its name claims and the goal's § *Stage 7* asks for — `raw`, `spki` and
-`jwk` read and agreed through `agree`.
+**The example signs the ID token it verifies, under the set's own issuer key.** The frozen set's ID
+tokens all carry `exp` 1767229200, `verifyIssued` takes no clock at the Novis level and its `leeway`
+is capped at five minutes (`crates/nvs-stdlib/src/jwt.rs:380-395`), so the goal's § *Stage 7* ask —
+verify one of the set's ID tokens — is not reachable from a program running at the wall clock. What
+the example does instead is read the set's `ed-1` pair from its frozen PKCS#8, publish the JWK
+WebCrypto exported for it as a one-key JWKS, sign at this clock and verify through that set — then
+swap `EdDSA` for `HS256` in the header of that same token and be refused. The JWE half does open one
+of the set's own tokens.
 
-**`examples/webcrypto.nvs` is stage 7's last item**, and it is what the driver's acceptance sweep
-dies on, so no `[[check]]` after it has run yet. Stage 8 — the rulebook — is behind it.
+**`Core\Jwe::decrypt` cannot be handed a token that arrived in a request.** Its `$token` is
+`CoreTy::Text(Qual::Contagious)` over a `TaintedStr` return (`crates/nvs-stdlib/src/jwe.rs:185-194`),
+and `admits_tainted_argument` (`crates/nvs-types/src/expr/quals.rs:299-308`) refuses a `tainted`
+argument at a `Contagious` parameter whose answer is already `tainted`. `Core\Jwt::verify` and
+`verifyIssued` are `Qual::Neutral` for exactly this reason and say so
+(`crates/nvs-stdlib/src/jwt.rs:466-494`). That is the next group.
 
-`nvs-host`'s two CPU-charging watchdog tests are the known flake (`crates/nvs-host/src/watchdog.rs:1051`
-and `:1103`): one of them fails per run under load and passes alone, a different one each time. This
-session's run was green, so a red one there is not evidence of a change in `nvs-stdlib`.
+`nvs-host`'s two CPU-charging watchdog tests stay the known flake
+(`crates/nvs-host/src/watchdog.rs:1051` and `:1103`): one fails per run under load, a different one
+each time, and each passes alone.
 
 ## Next group
 
-**Stage 7: the example, which is the stage's last item** — one file set: `examples/webcrypto.nvs`,
-new, with `docs/agent/loop-goal.toml:9162-9175`,
-`tests/conformance/core/jwe-opens-every-token-webcrypto-sealed.nvst:1` and `examples/crypto.nvs:1`
-read-only. `rule:testing/four-proofs`, and `docs/examples/README.md` owns what an example is.
+**Stage 7: the token a request hands in** — one file set: `crates/nvs-stdlib/src/jwe.rs`, with
+`crates/nvs-types/src/expr/quals.rs:299` and `crates/nvs-stdlib/src/jwt.rs:466` read-only.
+`rule:security/verification-does-not-launder`, and the goal's § *Standing decisions* paragraph
+beginning "JWE answers like the rest of the roster".
 
-- [ ] **Write `examples/webcrypto.nvs`.** The `exact` check freezes seven lines in order —
-      `sealed`, `opened`, `tamper refused`, `jwe round trip`, `header swap refused`,
-      `id token verified`, `algorithm swap refused` — at `docs/agent/loop-goal.toml:9166-9174`. The
-      goal's § *Stage 7* says it opens one of the frozen set's own tokens and verifies one of its ID
-      tokens, then refuses that same token with its `alg` swapped, so the example is itself a
-      browser's output being read. `tests/conformance/core/jwe-opens-every-token-webcrypto-sealed.nvst:1`
-      is where a frozen token is already inlined in Novis source to copy one from, and
-      `examples/crypto.nvs:1` is the shape and comment register an example in this tree has. Nothing
-      in `examples/` carries an `.out`, so there is nothing to bless — run it with
-      `target/debug/nvs.exe examples/webcrypto.nvs` and read the seven lines back.
-- [ ] **Then stage 8, the rulebook** — `rule:core-classes/crypto-interop-tier` still reads
-      `designed` (`docs/agent/loop-goal.toml:9180`), which is a separate file set and its own group.
+- [ ] **Mark `Core\Jwe::decrypt`'s `$token` `Qual::Neutral`** at
+      `crates/nvs-stdlib/src/jwe.rs:188`, rewriting the row's comment the way
+      `crates/nvs-stdlib/src/jwt.rs:468-471` writes its own: the token is neutral on the way in
+      because the payload is `tainted` on the way out whatever it was, so contagion has nothing
+      left to carry and only refuses the ordinary call. Check whether `encrypt`'s payload
+      (`crates/nvs-stdlib/src/jwe.rs:179`) is in the same position — its return is plain `Str`, so
+      it is not — and whether `crates/nvs-types/src/core_lib.rs:940-990`'s qualifier audit counts
+      the row.
+- [ ] **Write the case that only compiles under it**:
+      `tests/conformance/core/jwe-opens-a-token-that-arrived-tainted.nvst`, shaped like
+      `tests/conformance/core/jwe-opens-every-token-webcrypto-sealed.nvst:1` — open one of the
+      frozen `dir` tokens, hand the `tainted` payload back to `encrypt`, and open the `tainted`
+      token that comes out. Add the Rust-side half beside the set's replays in
+      `crates/nvs-stdlib/src/jwe.rs:1262` if the member's own tests do not already reach it.
 
 ## Backlog
 
-- The `structured` signing case as a `.nvst` case at a fixed clock — `docs/agent/loop-goal.md` §
-  *Stage 7*, `jws.signs`; `object_payload_of` takes a Novis object, so no `#[test]` reaches it.
-- `nvs-host`'s two CPU-charging watchdog tests need a measurement they own —
-  `crates/nvs-host/src/watchdog.rs:1051` and `:1103`, outside this goal.
+- **Stage 8, the rulebook** — `rule:core-classes/crypto-interop-tier` and the goal's § *Stage 8*.
+- **The set's ID tokens verify only at a clock nothing hands in** — a `.nvst` case cannot reach
+  `verifyIssued` over a frozen token at all; `docs/agent/loop-goal.md` § *Stage 7*.
+- What stays out of this goal is its own § *Standing decisions* last bullet, not this list.
