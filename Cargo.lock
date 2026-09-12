@@ -2411,6 +2411,7 @@ dependencies = [
  "p256",
  "pbkdf2",
  "rand",
+ "rcgen",
  "regex",
  "ring",
  "ruzstd",
