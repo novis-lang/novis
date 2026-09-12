@@ -163,6 +163,11 @@ Conventions the whole file uses:
 | [`Core\Http\Target`](#core-core-http-target) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
 | [`Core\Http\Response`](#core-core-http-response) |  |
+| [`Core\Http\Stream`](#core-core-http-stream) |  |
+| [`Core\Http\Event`](#core-core-http-event) |  |
+| [`Core\Http\Events`](#core-core-http-events) |  |
+| [`Core\Http\Lines`](#core-core-http-lines) |  |
+| [`Core\Http\Chunks`](#core-core-http-chunks) |  |
 | [`Core\Http\Part`](#core-core-http-part) |  |
 | [`Core\Net`](#core-core-net) |  |
 | [`Core\Net\Stream`](#core-core-net-stream) |  |
@@ -20187,7 +20192,7 @@ Keywords:
 <a id="core-core-http-client"></a>
 ### `Core\Http\Client`
 
-Keywords: get, post, put, patch, delete, head, request
+Keywords: get, post, put, patch, delete, head, request, stream
 
 | Member | Signature |
 |---|---|
@@ -20198,6 +20203,7 @@ Keywords: get, post, put, patch, delete, head, request
 | [`Core\Http\Client::delete`](#core-core-http-client-delete) | `delete(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
 | [`Core\Http\Client::head`](#core-core-http-client-head) | `head(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
 | [`Core\Http\Client::request`](#core-core-http-client-request) | `request(Core\Http\Method $method, string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
+| [`Core\Http\Client::stream`](#core-core-http-client-stream) | `stream(Core\Http\Method $method, string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Stream` |
 
 <a id="core-core-http-client-get"></a>
 #### `Core\Http\Client::get`
@@ -20403,6 +20409,36 @@ Sends `$method` to `$url` under a finite budget — the row for a verb chosen at
 
 **Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
+<a id="core-core-http-client-stream"></a>
+#### `Core\Http\Client::stream`
+
+```nvs skip
+Core\Http\Client::stream(Core\Http\Method $method, string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>}): Core\Http\Stream
+```
+
+Sends `$method` to `$url` and answers once the head has arrived, leaving the body to be read as it comes — the row for a reply a program works through rather than holds, such as a server-sent event stream or a result set a line at a time.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$method` | `Core\Http\Method` | The verb to send, as a `Core\Http\Method` case. A `Post` or a `Patch` retried without `retryIdempotencyKey` throws before the first attempt, which the member whose verb is its own name refuses while compiling instead. |
+| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
+| `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
+| `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
+| `{followRedirects: …}` | `uint` (default `null`) | How many redirect hops to follow. Omitted, the runtime's `[http.client] max_redirects` applies, and that is `0` with nothing configured: each hop is re-checked and re-pinned against the outbound policy. |
+| `{retryAttempts: …}` | `uint` (default `null`) | The total number of attempts including the first, so `1` is the default behaviour written out and `0` is refused. Retries are jittered and share the one deadline. |
+| `{retryBackoff: …}` | `Core\Time\Duration` (default `null`) | The base delay retries grow from, exponentially and with full jitter. Omitted, it is `100ms`; the jitter is not configurable. |
+| `{retryIdempotencyKey: …}` | `string` (default `null`, neutral) | Sent as `Idempotency-Key`, identical across attempts. Required for `post` and `patch` when `retryAttempts` is given, and accepted by every other member. |
+| `{json: …}` | `mixed` (default `(omitted)`) | The value to send as `application/json`, encoded once for the whole call. A `secret` inside it is sent, as it is at a header, and a written `null` is the document `null` rather than no body. |
+| `{form: …}` | `array<secret tainted string>` (default `null`) | The fields to send as `application/x-www-form-urlencoded`, by name. |
+| `{body: …}` | `secret tainted string\|secret tainted bytes\|Core\Http\Part` (default `null`) | The octets to send exactly as given, under `contentType`. At most one of `json`, `form`, `body` and `multipart` may be written, and none of them on `get` or `head`; both refusals are made while compiling. |
+| `{contentType: …}` | `string` (default `null`, neutral) | The media type `body`'s octets are sent under. It means nothing without `body`, and writing it alone is refused while compiling. |
+| `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
+
+**Returns** `Core\Http\Stream` — A `Core\Http\Stream` whose `status()`, `header()` and `headers()` answer the head, and whose body is read by exactly one of `events()`, `lines()`, `chunks()` and `saveTo()`.
+
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+
 <a id="core-core-http-response"></a>
 ### `Core\Http\Response`
 
@@ -20500,6 +20536,189 @@ Every line the reply carried under one name, kept apart — the reading a joined
 | `$name` | `string` (neutral) | The field name, matched case-insensitively exactly as `header` matches it. |
 
 **Returns** `array<tainted string>` — One `tainted` entry per line, in arrival order, and an empty array where the reply carried no such field — so a field that arrived once answers a list of one rather than anything a caller has to tell apart.
+
+<a id="core-core-http-stream"></a>
+### `Core\Http\Stream`
+
+Keywords: status, header, headers, events, lines, chunks, saveTo
+
+| Member | Signature |
+|---|---|
+| [`Core\Http\Stream->status`](#core-core-http-stream-status) | `status(): int` |
+| [`Core\Http\Stream->header`](#core-core-http-stream-header) | `header(string $name): ?tainted string` |
+| [`Core\Http\Stream->headers`](#core-core-http-stream-headers) | `headers(string $name): array<tainted string>` |
+| [`Core\Http\Stream->events`](#core-core-http-stream-events) | `events(): Core\Http\Events` |
+| [`Core\Http\Stream->lines`](#core-core-http-stream-lines) | `lines(): Core\Http\Lines` |
+| [`Core\Http\Stream->chunks`](#core-core-http-stream-chunks) | `chunks(): Core\Http\Chunks` |
+| [`Core\Http\Stream->saveTo`](#core-core-http-stream-saveto) | `saveTo(string $path, uint $max): void` |
+
+<a id="core-core-http-stream-status"></a>
+#### `Core\Http\Stream->status`
+
+```nvs skip
+$stream->status(): int
+```
+
+The status code of the reply whose head has arrived, read before the body is.
+
+**Returns** `int` — The three-digit code, as an `int`. A `4xx` or a `5xx` is an answer like any other and is reported here rather than thrown.
+
+<a id="core-core-http-stream-header"></a>
+#### `Core\Http\Stream->header`
+
+```nvs skip
+$stream->header(string $name): ?tainted string
+```
+
+One header field of the reply, by name, with a field the origin sent twice joined as RFC 9110 § 5.3 makes the two lines equivalent.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The field name, matched without regard to case. |
+
+**Returns** `?tainted string` — The field's value, `tainted` as every byte of a reply is, or `null` where the reply carried no such field.
+
+**Throws** `LogicError` — The name is `Set-Cookie`, which is not part of that equivalence — `headers` is the reading for it.
+
+<a id="core-core-http-stream-headers"></a>
+#### `Core\Http\Stream->headers`
+
+```nvs skip
+$stream->headers(string $name): array<tainted string>
+```
+
+Every line the reply carried under one field name, kept apart where `header` joins them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The field name, matched without regard to case. |
+
+**Returns** `array<tainted string>` — The lines in arrival order, each `tainted`. A field that arrived once answers a list of one and a field that never arrived an empty list.
+
+<a id="core-core-http-stream-events"></a>
+#### `Core\Http\Stream->events`
+
+```nvs skip
+$stream->events(): Core\Http\Events
+```
+
+The body read as a walk over server-sent events, parsed as the WHATWG EventSource format defines them — the reading for a `text/event-stream` reply.
+
+**Returns** `Core\Http\Events` — An `Iterable<Core\Http\Event>` a `foreach` walks once. An event is dispatched at the blank line that ends it; a comment line is skipped, and `retry` is read and ignored, because reconnecting is the program's decision.
+
+**Throws** `LogicError` — This stream's body has already been read. It is read one way and once, and the refusal names the member that read it.; `RuntimeError` — A line of the reply is longer than a streamed line may be, or one event's accumulated `data` is longer than one event may be. Both caps are constants: the bytes are the origin's choice and the footprint is this process's.
+
+<a id="core-core-http-stream-lines"></a>
+#### `Core\Http\Stream->lines`
+
+```nvs skip
+$stream->lines(): Core\Http\Lines
+```
+
+The body read as a walk over its lines — the reading for a reply that arrives as text a line at a time, such as JSON Lines.
+
+**Returns** `Core\Http\Lines` — An `Iterable<tainted string>` a `foreach` walks once. A line ends at `\n` and a trailing `\r` is stripped; the last line needs no terminator.
+
+**Throws** `LogicError` — This stream's body has already been read, and the refusal names the member that read it.; `RuntimeError` — A line of the reply is longer than a streamed line may be.
+
+<a id="core-core-http-stream-chunks"></a>
+#### `Core\Http\Stream->chunks`
+
+```nvs skip
+$stream->chunks(): Core\Http\Chunks
+```
+
+The body read as a walk over its octets, framed by nothing — the reading for a reply whose bytes carry their own structure.
+
+**Returns** `Core\Http\Chunks` — An `Iterable<tainted bytes>` a `foreach` walks once. A chunk boundary is the transport's and carries no meaning, so there is no size to ask for: a reader that needs fixed blocks is doing its own framing and buffers for it.
+
+**Throws** `LogicError` — This stream's body has already been read, and the refusal names the member that read it.
+
+<a id="core-core-http-stream-saveto"></a>
+#### `Core\Http\Stream->saveTo`
+
+```nvs skip
+$stream->saveTo(string $path, uint $max): void
+```
+
+Writes the body straight to `$path`, holding one chunk at a time. Needs the `fs.write` capability for the path, and delegates to `Core\IO::writeStream`, which is where every stream in the language reaches disk.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | Where the body is to land. Nothing may already be there: replacing a file is `Core\IO::writeStream`'s `overwrite`, and this member does not take one. |
+| `$max` | `uint` | The most bytes to accept. It is required rather than optional, because the length of a reply is the origin's choice and disk is what it would spend. |
+
+**Returns** `void` — Nothing. A failure part-way through removes the partial file before it throws, so no later reader finds a truncated body the program believes it received whole.
+
+**Throws** `LogicError` — This stream's body has already been read, and the refusal names the member that read it.; `RuntimeError` — The configuration does not grant `fs.write` for this path, or the body ran past `max` bytes.; `IOError` — Something is already at the path, or the operating system refused the create or a write.
+
+<a id="core-core-http-event"></a>
+### `Core\Http\Event`
+
+Keywords: data, name, id
+
+| Member | Signature |
+|---|---|
+| [`Core\Http\Event->data`](#core-core-http-event-data) | `data(): tainted string` |
+| [`Core\Http\Event->name`](#core-core-http-event-name) | `name(): ?tainted string` |
+| [`Core\Http\Event->id`](#core-core-http-event-id) | `id(): ?tainted string` |
+
+<a id="core-core-http-event-data"></a>
+#### `Core\Http\Event->data`
+
+```nvs skip
+$event->data(): tainted string
+```
+
+This event's payload: every `data` line it carried, joined by a newline, with the trailing one removed.
+
+**Returns** `tainted string` — The payload, `tainted` as every byte of a reply is. An event with no `data` is never dispatched, so this is never empty for a reason a program has to tell apart.
+
+<a id="core-core-http-event-name"></a>
+#### `Core\Http\Event->name`
+
+```nvs skip
+$event->name(): ?tainted string
+```
+
+The event type the origin named, which the format writes as an `event` line.
+
+**Returns** `?tainted string` — The name, `tainted`, or `null` where the event carried no `event` line — which the format calls a `message`.
+
+<a id="core-core-http-event-id"></a>
+#### `Core\Http\Event->id`
+
+```nvs skip
+$event->id(): ?tainted string
+```
+
+The last event id the origin set, which a program resuming a stream sends back as `Last-Event-ID`.
+
+**Returns** `?tainted string` — The id, `tainted`, or `null` where none was set. An id containing a NUL is ignored by the format and answers `null` here.
+
+<a id="core-core-http-events"></a>
+### `Core\Http\Events`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
+
+<a id="core-core-http-lines"></a>
+### `Core\Http\Lines`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
+
+<a id="core-core-http-chunks"></a>
+### `Core\Http\Chunks`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-core-http-part"></a>
 ### `Core\Http\Part`
