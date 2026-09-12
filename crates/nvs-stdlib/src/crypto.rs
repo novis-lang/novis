@@ -235,9 +235,36 @@
 //! time — `RS256` and `EdDSA` — are the ones pinned to the frozen set octet for
 //! octet, and the two that do not are held to the property that survives being
 //! randomized.
+//!
+//! # One key, three encodings, and a thumbprint over the third
+//!
+//! [`PublicKey`] is the public half of any of [`KEY_KIND`]'s five kinds, read
+//! out of and written back into [`KEY_FORMAT`]'s three encodings — the three a
+//! browser's `SubtleCrypto.exportKey` writes. **Every check a public key gets
+//! happens at the read**, which is
+//! `rule:core-classes/crypto-interop-tier`'s *validated where it is read*: a
+//! P-256 point goes through [`read_p256_point`] whichever encoding carried it,
+//! an RSA modulus is held to the roster's width, and the kind a key is bound to
+//! is the kind the call named. Nothing downstream re-checks any of it, because
+//! a [`PublicKey`] that exists is a key.
+//!
+//! [`KeyRefusal`] is the one distinction the codec can draw and the member
+//! above it cannot: an encoding a kind does not have is a bug in the program,
+//! while octets that are not a key are a verdict on whoever sent them, and
+//! which of those the second is depends on where the octets came from.
+//!
+//! The JWK written here is RFC 7638's — the members that kind requires, sorted,
+//! no whitespace, nothing else — so [`PublicKey::thumbprint`] is a digest over
+//! exactly what `write` answers rather than over a second canonicalization
+//! nothing else uses. A browser's own export carries `ext`, `key_ops` and `alg`
+//! beside the required members; those are read and ignored, and a `d` is
+//! refused, a private key handed over as a public one being a bug rather than a
+//! bad key.
 
 use aes_gcm::Aes256Gcm;
 use aes_kw::{KwAes128, KwAes256};
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chacha20poly1305::aead::{Aead, Nonce};
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
 use hkdf::Hkdf;
@@ -245,7 +272,15 @@ use p256::PublicKey as P256PublicKey;
 use p256::SecretKey as P256SecretKey;
 use p256::ecdh::diffie_hellman;
 use p256::elliptic_curve::sec1::ToSec1Point;
-use p256::pkcs8::DecodePrivateKey;
+use p256::pkcs8::der::asn1::{AnyRef, BitStringRef, UintRef};
+use p256::pkcs8::der::{
+    Decode, DecodeValue, Encode, EncodeValue, Error as DerError, Header, Length, Reader, Sequence,
+    Writer,
+};
+use p256::pkcs8::spki::{
+    AlgorithmIdentifierRef, ObjectIdentifier, SubjectPublicKeyInfo, SubjectPublicKeyInfoRef,
+};
+use p256::pkcs8::{DecodePrivateKey, DecodePublicKey};
 use rand::Rng;
 use ring::rand::SystemRandom;
 use ring::signature::{
@@ -356,6 +391,46 @@ pub(crate) const KW_128_KEY_LEN: usize = 16;
 /// 64-bit semiblock, which is the integrity check an unwrap verifies.
 #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const WRAPPED_LEN: usize = KEY_LEN + 8;
+
+/// A P-256 point's length in octets in the uncompressed SEC1 encoding: the
+/// [`SEC1_UNCOMPRESSED`] tag and the two coordinates after it.
+///
+/// It is the one encoding this module hands anything a point in — a browser's
+/// raw export, what a JWK's two coordinates assemble into, and what
+/// [`VerifyingKey::P256`] reads — so a key holds these octets rather than
+/// re-deriving them per call.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const P256_POINT_LEN: usize = 1 + 2 * P256_COORDINATE_LEN;
+
+/// A P-256 coordinate's length in octets, which is the width a JWK's `x` and
+/// `y` are each held to: two members that concatenate to a point of the right
+/// length are still not a point unless each is its own field element wide.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const P256_COORDINATE_LEN: usize = 32;
+
+/// The tag an uncompressed SEC1 point carries in front of its coordinates.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+const SEC1_UNCOMPRESSED: u8 = 0x04;
+
+/// A Curve25519 public key's length in octets, X25519's and Ed25519's alike:
+/// each is one field element and neither curve has a second encoding.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const CURVE25519_POINT_LEN: usize = 32;
+
+/// The narrowest RSA modulus the roster admits, in bits.
+///
+/// `rule:core-classes/crypto-interop-tier` fixes this and [`MAX_RSA_BITS`], and
+/// both are checked where a key is read: below the floor is a key nobody should
+/// still be verifying with, and above the ceiling is a modulus whose
+/// verification is a CPU bill an attacker chose.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const MIN_RSA_BITS: u32 = 2048;
+
+/// The widest RSA modulus the roster admits, in bits — [`MIN_RSA_BITS`]'s other
+/// end, and the reason `ring`'s `2048_8192` verifiers are the ones this module
+/// names.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const MAX_RSA_BITS: u32 = 8192;
 
 /// The cipher a `seal` or an `open` names, and the argument that stands where
 /// `openssl_encrypt`'s mode string stood.
@@ -1172,6 +1247,619 @@ pub(crate) fn agree_p256(mine: &[u8], theirs: &P256PublicKey) -> Option<[u8; SHA
     Some(agreed)
 }
 
+/// Which asymmetric key a member is naming, as the Rust side of [`KEY_KIND`].
+///
+/// [`SignatureKind`]'s cases are these minus `X25519`, and the two types do not
+/// collapse into one: this is what a program can *name*, that one is what a
+/// signer can be *built from*, and keeping them apart is what stops a kind that
+/// signs nothing from reaching a signer at all.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum KeyKind {
+    /// [`KEY_KIND`]'s `P256`: NIST P-256, for agreement and for ECDSA.
+    P256,
+    /// [`KEY_KIND`]'s `X25519`: agreement and nothing else.
+    X25519,
+    /// [`KEY_KIND`]'s `Ed25519`: signatures and nothing else.
+    Ed25519,
+    /// [`KEY_KIND`]'s `RsaPkcs1`: an RSA key bound to `RS256`.
+    RsaPkcs1,
+    /// [`KEY_KIND`]'s `RsaPss`: the same key type bound to `PS256`.
+    RsaPss,
+}
+
+impl KeyKind {
+    /// The case an argument slot's integer names, or `None` for an integer
+    /// naming no case.
+    ///
+    /// [`KEY_KIND`]'s written-out constants are the ABI this reads back, so the
+    /// two lists are one list in two places and
+    /// `the_key_enums_cover_exactly_the_registry_enums_cases` is what holds
+    /// them together. `None` is not reachable from a compiled program — an
+    /// argument of a closed enum type is one of its cases — so the member above
+    /// reports it as a [`Fault::fatal`], exactly as [`keyed`] reports a cipher
+    /// slot holding something else.
+    #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+    pub(crate) fn from_tag(tag: i64) -> Option<Self> {
+        Some(match tag {
+            0 => Self::P256,
+            1 => Self::X25519,
+            2 => Self::Ed25519,
+            3 => Self::RsaPkcs1,
+            4 => Self::RsaPss,
+            _ => return None,
+        })
+    }
+
+    /// The `kty` a JWK of this kind carries.
+    #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+    fn key_type(self) -> &'static str {
+        match self {
+            Self::P256 => "EC",
+            Self::X25519 | Self::Ed25519 => "OKP",
+            Self::RsaPkcs1 | Self::RsaPss => "RSA",
+        }
+    }
+
+    /// The `crv` a JWK of this kind carries, and `None` for the kinds whose JWK
+    /// names no curve — which is both RSA cases, one key type wearing two
+    /// schemes that a document cannot tell apart.
+    #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+    fn curve(self) -> Option<&'static str> {
+        Some(match self {
+            Self::P256 => "P-256",
+            Self::X25519 => "X25519",
+            Self::Ed25519 => "Ed25519",
+            Self::RsaPkcs1 | Self::RsaPss => return None,
+        })
+    }
+}
+
+/// Which encoding a public key crosses in, as the Rust side of [`KEY_FORMAT`].
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum KeyFormat {
+    /// [`KEY_FORMAT`]'s `Raw`: the key material with nothing around it.
+    Raw,
+    /// [`KEY_FORMAT`]'s `Spki`: X.509's `SubjectPublicKeyInfo`, in DER.
+    Spki,
+    /// [`KEY_FORMAT`]'s `Jwk`: RFC 7517's JSON object, as its UTF-8 octets.
+    Jwk,
+}
+
+impl KeyFormat {
+    /// The case an argument slot's integer names, read the way
+    /// [`KeyKind::from_tag`] reads [`KEY_KIND`]'s.
+    #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+    pub(crate) fn from_tag(tag: i64) -> Option<Self> {
+        Some(match tag {
+            0 => Self::Raw,
+            1 => Self::Spki,
+            2 => Self::Jwk,
+            _ => return None,
+        })
+    }
+}
+
+/// Why a public key was not read, in the one distinction the codec can draw and
+/// the member above it cannot.
+///
+/// `rule:core-classes/crypto-interop-tier`'s last paragraph is the split: a key
+/// off the wire that fails is a `RuntimeError`, a verdict on whoever sent it,
+/// and a malformed key the program built is a `LogicError`, a bug. Which of
+/// those [`Octets`] becomes depends on where the octets came from, which only
+/// the member knows. [`Bug`] never does, because it is the *call* that is
+/// wrong rather than anything in the key, so no call site can be handed a
+/// choice it could get wrong.
+///
+/// [`Bug`]: KeyRefusal::Bug
+/// [`Octets`]: KeyRefusal::Octets
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+#[derive(Debug)]
+pub(crate) enum KeyRefusal {
+    /// The call is wrong however sound the octets are: an encoding the kind
+    /// does not have, which is `Raw` against either RSA case, or a JWK carrying
+    /// a private key's `d`.
+    Bug,
+    /// The octets are not a public key of that kind in that encoding — a point
+    /// off the curve, a coordinate of the wrong width, a modulus outside the
+    /// roster's range, a DER body that does not parse, a JWK naming another
+    /// key type.
+    Octets,
+}
+
+/// The public half of an asymmetric key, validated, in the variant naming its
+/// kind.
+///
+/// [`VerifyingKey`]'s owning counterpart, with the one kind that signs nothing
+/// beside the ones that do: a `Crypto\PublicKey` holds one of these for as long
+/// as the program holds the object, and every later use of it — a signature
+/// check, an agreement, an export — reads material that was checked once, when
+/// it was read.
+///
+/// P-256 keeps both halves of itself because both get read: the parsed point is
+/// what an agreement multiplies by, and the uncompressed encoding is what a
+/// signature check and all three exports are over. Neither is derivable from
+/// the other without arithmetic, so the [`P256_POINT_LEN`] octets are held
+/// rather than recomputed. An RSA key's two components are stored the way a
+/// JWK writes them — big-endian, no leading zero — so a key read from a DER
+/// `INTEGER` and the same key read from a JWK are the same key, down to the
+/// thumbprint.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) enum PublicKey {
+    /// NIST P-256.
+    P256 {
+        /// The point, parsed — what [`agree_p256`] multiplies by.
+        point: P256PublicKey,
+        /// The same point as `04 ‖ x ‖ y`.
+        uncompressed: [u8; P256_POINT_LEN],
+    },
+    /// X25519, as the 32 octets of a Montgomery u-coordinate. Nothing about
+    /// them is checkable at a read: the refusal that matters is an all-zero
+    /// shared secret, and [`agree_x25519`] is where it happens.
+    X25519 {
+        /// The u-coordinate.
+        point: [u8; CURVE25519_POINT_LEN],
+    },
+    /// Ed25519, as the 32 octets a JWK carries as `x`. A point that is not on
+    /// the curve fails inside [`verify_signature`], which is the only thing
+    /// this kind reaches.
+    Ed25519 {
+        /// The compressed point.
+        point: [u8; CURVE25519_POINT_LEN],
+    },
+    /// An RSA key bound to RSASSA-PKCS1-v1_5 over SHA-256.
+    RsaPkcs1 {
+        /// The modulus, `n`.
+        modulus: Vec<u8>,
+        /// The public exponent, `e`.
+        exponent: Vec<u8>,
+    },
+    /// The same key type bound to RSASSA-PSS over SHA-256.
+    RsaPss {
+        /// The modulus, `n`.
+        modulus: Vec<u8>,
+        /// The public exponent, `e`.
+        exponent: Vec<u8>,
+    },
+}
+
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+impl PublicKey {
+    /// The key `encoded` is, read as `kind` out of `format`, or why it is not
+    /// one.
+    ///
+    /// `kind` is an argument rather than something read out of the octets, for
+    /// `rule:security/algorithm-comes-from-the-key`'s reason carried to a key
+    /// file: an RSA `SubjectPublicKeyInfo` says `rsaEncryption` whichever of
+    /// `RS256` and `PS256` the key is for, so the program that was handed the
+    /// key is the only party that can say, and this is the last place it is
+    /// asked.
+    pub(crate) fn read(
+        encoded: &[u8],
+        kind: KeyKind,
+        format: KeyFormat,
+    ) -> Result<Self, KeyRefusal> {
+        match format {
+            KeyFormat::Raw => Self::read_raw(encoded, kind),
+            KeyFormat::Spki => Self::read_spki(encoded, kind),
+            KeyFormat::Jwk => Self::read_jwk(encoded, kind),
+        }
+    }
+
+    /// This key in `format`, or [`KeyRefusal::Bug`] for an encoding its kind
+    /// does not have.
+    ///
+    /// The three curve kinds are written by putting a constant
+    /// `SubjectPublicKeyInfo` prefix in front of a fixed-width key, so nothing
+    /// in those branches can fail. RSA's wrapper is assembled by the DER
+    /// encoder, whose own refusal is unreachable for a modulus the read bounded
+    /// at [`MAX_RSA_BITS`]; it is reported as a bug rather than as a verdict,
+    /// because the octets it would be a verdict on are this program's own.
+    pub(crate) fn write(&self, format: KeyFormat) -> Result<Vec<u8>, KeyRefusal> {
+        match format {
+            KeyFormat::Raw => self.raw().ok_or(KeyRefusal::Bug),
+            KeyFormat::Spki => self.spki(),
+            KeyFormat::Jwk => Ok(self.jwk().into_bytes()),
+        }
+    }
+
+    /// Which of [`KEY_KIND`]'s cases this key is, which is the kind its read
+    /// was given and never a second reading of the material.
+    pub(crate) fn kind(&self) -> KeyKind {
+        match self {
+            Self::P256 { .. } => KeyKind::P256,
+            Self::X25519 { .. } => KeyKind::X25519,
+            Self::Ed25519 { .. } => KeyKind::Ed25519,
+            Self::RsaPkcs1 { .. } => KeyKind::RsaPkcs1,
+            Self::RsaPss { .. } => KeyKind::RsaPss,
+        }
+    }
+
+    /// RFC 7638's thumbprint: the base64url of SHA-256 over [`Self::jwk`].
+    ///
+    /// It is what a `kid` is when nobody assigned one, and it is the same
+    /// string whichever encoding the key arrived in, because it is taken over
+    /// the key's members rather than over the octets that carried them.
+    pub(crate) fn thumbprint(&self) -> String {
+        let mut digest = Sha256::new();
+        digest.update(self.jwk().as_bytes());
+        URL_SAFE_NO_PAD.encode(digest.finalize())
+    }
+
+    /// This key as the borrowed shape [`verify_signature`] takes, and `None`
+    /// for the one kind that signs nothing.
+    ///
+    /// The variant is this key's own, settled when it was read, so a check
+    /// cannot be asked to run an algorithm the key is not bound to:
+    /// `rule:security/algorithm-comes-from-the-key` crosses from the read to
+    /// the check as a type rather than as an argument.
+    pub(crate) fn verifying(&self) -> Option<VerifyingKey<'_>> {
+        Some(match self {
+            Self::P256 { uncompressed, .. } => VerifyingKey::P256 {
+                point: uncompressed,
+            },
+            Self::Ed25519 { point } => VerifyingKey::Ed25519 { point },
+            Self::RsaPkcs1 { modulus, exponent } => VerifyingKey::RsaPkcs1 { modulus, exponent },
+            Self::RsaPss { modulus, exponent } => VerifyingKey::RsaPss { modulus, exponent },
+            Self::X25519 { .. } => return None,
+        })
+    }
+
+    /// The key material with nothing around it, which is defined for the three
+    /// curve kinds and for neither RSA case.
+    fn read_raw(encoded: &[u8], kind: KeyKind) -> Result<Self, KeyRefusal> {
+        match kind {
+            KeyKind::P256 => Self::p256(encoded),
+            KeyKind::X25519 => Ok(Self::X25519 {
+                point: curve25519_point(encoded)?,
+            }),
+            KeyKind::Ed25519 => Ok(Self::Ed25519 {
+                point: curve25519_point(encoded)?,
+            }),
+            KeyKind::RsaPkcs1 | KeyKind::RsaPss => Err(KeyRefusal::Bug),
+        }
+    }
+
+    /// X.509's `SubjectPublicKeyInfo`, in DER.
+    ///
+    /// The two 25519 kinds have a wrapper that is constant up to their 32
+    /// octets of key, so [`X25519_SPKI_PREFIX`] and [`ED25519_SPKI_PREFIX`] are
+    /// compared rather than parsed — there is no field in either a producer
+    /// could have chosen. P-256 goes through `p256`'s own reader, which asserts
+    /// both OIDs and ends in [`read_p256_point`]'s validation, and which
+    /// accepts the compressed point a peer is entitled to export. Only RSA is
+    /// walked here: its wrapper is variable-width and its `BIT STRING` carries
+    /// a second layer, PKCS#1's own [`RsaComponents`].
+    fn read_spki(encoded: &[u8], kind: KeyKind) -> Result<Self, KeyRefusal> {
+        match kind {
+            KeyKind::P256 => Self::p256_from(
+                P256PublicKey::from_public_key_der(encoded).map_err(|_| KeyRefusal::Octets)?,
+            ),
+            KeyKind::X25519 => Ok(Self::X25519 {
+                point: curve25519_point(spki_body(encoded, &X25519_SPKI_PREFIX)?)?,
+            }),
+            KeyKind::Ed25519 => Ok(Self::Ed25519 {
+                point: curve25519_point(spki_body(encoded, &ED25519_SPKI_PREFIX)?)?,
+            }),
+            KeyKind::RsaPkcs1 | KeyKind::RsaPss => {
+                let spki =
+                    SubjectPublicKeyInfoRef::from_der(encoded).map_err(|_| KeyRefusal::Octets)?;
+                let described = spki.algorithm.oid == RSA_OID
+                    && spki
+                        .algorithm
+                        .parameters
+                        .is_none_or(|parameters| parameters.is_null());
+                if !described {
+                    return Err(KeyRefusal::Octets);
+                }
+
+                let body = spki
+                    .subject_public_key
+                    .as_bytes()
+                    .ok_or(KeyRefusal::Octets)?;
+                let components = RsaComponents::from_der(body).map_err(|_| KeyRefusal::Octets)?;
+                Self::rsa(
+                    components.modulus.as_bytes(),
+                    components.exponent.as_bytes(),
+                    kind,
+                )
+            }
+        }
+    }
+
+    /// RFC 7517's JSON object, as its UTF-8 octets.
+    ///
+    /// What a browser's `exportKey` writes is accepted whole: `ext`, `key_ops`,
+    /// `alg`, `use` and `kid` are read and ignored, because the algorithm a key
+    /// is under is the kind the call named and never a member of the document.
+    /// `kty` and `crv` are the two that are *compared* — a document describing
+    /// another key type is not this key in another encoding.
+    ///
+    /// **A coordinate is held to its own width**, not merely to the length of
+    /// the point they assemble into: a 31-octet `x` beside a 33-octet `y`
+    /// concatenates to exactly the octets of some valid point, so a reader
+    /// checking only the total would read one key as another.
+    fn read_jwk(encoded: &[u8], kind: KeyKind) -> Result<Self, KeyRefusal> {
+        let document: serde_json::Value =
+            serde_json::from_slice(encoded).map_err(|_| KeyRefusal::Octets)?;
+        let members = document.as_object().ok_or(KeyRefusal::Octets)?;
+        if members.contains_key("d") {
+            return Err(KeyRefusal::Bug);
+        }
+
+        let text = |name: &str| members.get(name).and_then(serde_json::Value::as_str);
+        if text("kty") != Some(kind.key_type()) || text("crv") != kind.curve() {
+            return Err(KeyRefusal::Octets);
+        }
+
+        let member = |name: &str| {
+            text(name)
+                .and_then(|value| URL_SAFE_NO_PAD.decode(value).ok())
+                .ok_or(KeyRefusal::Octets)
+        };
+
+        match kind {
+            KeyKind::P256 => {
+                let (x, y) = (member("x")?, member("y")?);
+                if x.len() != P256_COORDINATE_LEN || y.len() != P256_COORDINATE_LEN {
+                    return Err(KeyRefusal::Octets);
+                }
+
+                let mut point = Vec::with_capacity(P256_POINT_LEN);
+                point.push(SEC1_UNCOMPRESSED);
+                point.extend_from_slice(&x);
+                point.extend_from_slice(&y);
+                Self::p256(&point)
+            }
+            KeyKind::X25519 => Ok(Self::X25519 {
+                point: curve25519_point(&member("x")?)?,
+            }),
+            KeyKind::Ed25519 => Ok(Self::Ed25519 {
+                point: curve25519_point(&member("x")?)?,
+            }),
+            KeyKind::RsaPkcs1 | KeyKind::RsaPss => Self::rsa(&member("n")?, &member("e")?, kind),
+        }
+    }
+
+    /// The parsed point an agreement multiplies by, and `None` for every kind
+    /// that is not P-256.
+    ///
+    /// It is handed out already on the curve, because this is where that was
+    /// checked: `rule:core-classes/crypto-interop-tier`'s *validated where it
+    /// is read* is what lets [`agree_p256`] take a point and no length, and the
+    /// invalid-curve attack is closed by there being no other way to get one.
+    pub(crate) fn p256_point(&self) -> Option<&P256PublicKey> {
+        match self {
+            Self::P256 { point, .. } => Some(point),
+            Self::X25519 { .. }
+            | Self::Ed25519 { .. }
+            | Self::RsaPkcs1 { .. }
+            | Self::RsaPss { .. } => None,
+        }
+    }
+
+    /// A P-256 key out of whichever SEC1 encoding carried it, validated.
+    fn p256(encoded: &[u8]) -> Result<Self, KeyRefusal> {
+        Self::p256_from(read_p256_point(encoded).ok_or(KeyRefusal::Octets)?)
+    }
+
+    /// A P-256 key from a point already read, with the uncompressed encoding
+    /// taken once here rather than at every export.
+    fn p256_from(point: P256PublicKey) -> Result<Self, KeyRefusal> {
+        let sec1 = point.to_sec1_point(false);
+        let uncompressed =
+            <[u8; P256_POINT_LEN]>::try_from(sec1.as_bytes()).map_err(|_| KeyRefusal::Octets)?;
+        Ok(Self::P256 {
+            point,
+            uncompressed,
+        })
+    }
+
+    /// An RSA key of `kind` from its two components, held to the roster's
+    /// width.
+    ///
+    /// Both components are trimmed first, because one number arrives with a
+    /// leading zero from a DER `INTEGER` whose top bit is set and without one
+    /// from a JWK. The stored form is the JWK's, which is what makes the same
+    /// key read from either encoding write the same JWK and answer the same
+    /// thumbprint. The width is checked here and nowhere later.
+    fn rsa(modulus: &[u8], exponent: &[u8], kind: KeyKind) -> Result<Self, KeyRefusal> {
+        let modulus = trimmed(modulus);
+        let exponent = trimmed(exponent);
+        let top = *modulus.first().ok_or(KeyRefusal::Octets)?;
+        let bits = u32::try_from(modulus.len())
+            .ok()
+            .and_then(|octets| octets.checked_mul(8))
+            .and_then(|whole| whole.checked_sub(top.leading_zeros()))
+            .ok_or(KeyRefusal::Octets)?;
+        if !(MIN_RSA_BITS..=MAX_RSA_BITS).contains(&bits) || exponent.is_empty() {
+            return Err(KeyRefusal::Octets);
+        }
+
+        let (modulus, exponent) = (modulus.to_vec(), exponent.to_vec());
+        match kind {
+            KeyKind::RsaPkcs1 => Ok(Self::RsaPkcs1 { modulus, exponent }),
+            KeyKind::RsaPss => Ok(Self::RsaPss { modulus, exponent }),
+            KeyKind::P256 | KeyKind::X25519 | KeyKind::Ed25519 => Err(KeyRefusal::Bug),
+        }
+    }
+
+    /// The key material with nothing around it, and `None` for the RSA cases,
+    /// which have no such encoding to write.
+    fn raw(&self) -> Option<Vec<u8>> {
+        Some(match self {
+            Self::P256 { uncompressed, .. } => uncompressed.to_vec(),
+            Self::X25519 { point } | Self::Ed25519 { point } => point.to_vec(),
+            Self::RsaPkcs1 { .. } | Self::RsaPss { .. } => return None,
+        })
+    }
+
+    /// This key's `SubjectPublicKeyInfo`, in DER.
+    fn spki(&self) -> Result<Vec<u8>, KeyRefusal> {
+        match self {
+            Self::P256 { uncompressed, .. } => Ok(spki_over(&P256_SPKI_PREFIX, uncompressed)),
+            Self::X25519 { point } => Ok(spki_over(&X25519_SPKI_PREFIX, point)),
+            Self::Ed25519 { point } => Ok(spki_over(&ED25519_SPKI_PREFIX, point)),
+            Self::RsaPkcs1 { modulus, exponent } | Self::RsaPss { modulus, exponent } => {
+                let components = RsaComponents {
+                    modulus: UintRef::new(modulus).map_err(|_| KeyRefusal::Bug)?,
+                    exponent: UintRef::new(exponent).map_err(|_| KeyRefusal::Bug)?,
+                };
+                let body = components.to_der().map_err(|_| KeyRefusal::Bug)?;
+
+                SubjectPublicKeyInfo {
+                    algorithm: AlgorithmIdentifierRef {
+                        oid: RSA_OID,
+                        parameters: Some(AnyRef::NULL),
+                    },
+                    subject_public_key: BitStringRef::new(0, &body).map_err(|_| KeyRefusal::Bug)?,
+                }
+                .to_der()
+                .map_err(|_| KeyRefusal::Bug)
+            }
+        }
+    }
+
+    /// This key as RFC 7638's JWK: the members its kind requires, sorted, with
+    /// no whitespace and nothing else.
+    ///
+    /// It is both [`Self::write`]'s answer and [`Self::thumbprint`]'s input, so
+    /// the thumbprint is a digest of something a program can see rather than of
+    /// a canonicalization only this function knows.
+    fn jwk(&self) -> String {
+        let spelled = |octets: &[u8]| URL_SAFE_NO_PAD.encode(octets);
+        match self {
+            Self::P256 { uncompressed, .. } => {
+                let (x, y) = uncompressed[1..].split_at(P256_COORDINATE_LEN);
+                format!(
+                    r#"{{"crv":"P-256","kty":"EC","x":"{}","y":"{}"}}"#,
+                    spelled(x),
+                    spelled(y)
+                )
+            }
+            Self::X25519 { point } => {
+                format!(r#"{{"crv":"X25519","kty":"OKP","x":"{}"}}"#, spelled(point))
+            }
+            Self::Ed25519 { point } => {
+                format!(
+                    r#"{{"crv":"Ed25519","kty":"OKP","x":"{}"}}"#,
+                    spelled(point)
+                )
+            }
+            Self::RsaPkcs1 { modulus, exponent } | Self::RsaPss { modulus, exponent } => format!(
+                r#"{{"e":"{}","kty":"RSA","n":"{}"}}"#,
+                spelled(exponent),
+                spelled(modulus)
+            ),
+        }
+    }
+}
+
+/// PKCS#1's `RSAPublicKey ::= SEQUENCE { modulus INTEGER, publicExponent
+/// INTEGER }`, which is the one DER layer nothing in this graph walks for us.
+///
+/// It is borrowed on the way in and on the way out both, because a modulus is
+/// the largest thing this module copies and neither direction needs a second
+/// one: [`UintRef`] is the canonical form — leading zeros stripped on the way
+/// in, the sign octet put back on the way out — so the stored components are a
+/// JWK's members whichever encoding they were read from.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+struct RsaComponents<'a> {
+    /// The modulus, `n`.
+    modulus: UintRef<'a>,
+    /// The public exponent, `e`.
+    exponent: UintRef<'a>,
+}
+
+impl<'a> DecodeValue<'a> for RsaComponents<'a> {
+    type Error = DerError;
+
+    fn decode_value<R: Reader<'a>>(reader: &mut R, header: Header) -> Result<Self, DerError> {
+        reader.read_nested(header.length(), |reader| {
+            Ok(Self {
+                modulus: reader.decode()?,
+                exponent: reader.decode()?,
+            })
+        })
+    }
+}
+
+impl EncodeValue for RsaComponents<'_> {
+    fn value_len(&self) -> Result<Length, DerError> {
+        self.modulus.encoded_len()? + self.exponent.encoded_len()?
+    }
+
+    fn encode_value(&self, writer: &mut impl Writer) -> Result<(), DerError> {
+        self.modulus.encode(writer)?;
+        self.exponent.encode(writer)
+    }
+}
+
+impl<'a> Sequence<'a> for RsaComponents<'a> {}
+
+/// PKCS#1's `rsaEncryption`, 1.2.840.113549.1.1.1 — the one algorithm
+/// identifier an RSA `SubjectPublicKeyInfo` carries, whatever the key signs
+/// with, which is why a kind is an argument to a read rather than something
+/// read out of the file.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+const RSA_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.1");
+
+/// A P-256 key's whole `SubjectPublicKeyInfo` up to its point: the outer
+/// `SEQUENCE`, `id-ecPublicKey` with `prime256v1` as its parameter, and the
+/// `BIT STRING` header. Every octet of it is fixed because the point's width
+/// is, so writing one is a prefix and never an encoder's decision.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+const P256_SPKI_PREFIX: [u8; 26] = [
+    0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a,
+    0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00,
+];
+
+/// X25519's, which RFC 8410 fixes at OID 1.3.101.110 with no parameters.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+const X25519_SPKI_PREFIX: [u8; 12] = [
+    0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x03, 0x21, 0x00,
+];
+
+/// Ed25519's, which is X25519's with the other of RFC 8410's two OIDs —
+/// 1.3.101.112 — and the one octet of difference between them.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+const ED25519_SPKI_PREFIX: [u8; 12] = [
+    0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
+];
+
+/// `prefix` then `key`, which is the whole of writing a `SubjectPublicKeyInfo`
+/// whose every other octet is constant.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+fn spki_over(prefix: &[u8], key: &[u8]) -> Vec<u8> {
+    let mut der = Vec::with_capacity(prefix.len() + key.len());
+    der.extend_from_slice(prefix);
+    der.extend_from_slice(key);
+    der
+}
+
+/// The key inside a `SubjectPublicKeyInfo` that is `prefix` and then a key, or
+/// a refusal when those octets are not that wrapper.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+fn spki_body<'a>(encoded: &'a [u8], prefix: &[u8]) -> Result<&'a [u8], KeyRefusal> {
+    encoded.strip_prefix(prefix).ok_or(KeyRefusal::Octets)
+}
+
+/// The 32 octets X25519 and Ed25519 both carry, or a refusal for any other
+/// width.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+fn curve25519_point(encoded: &[u8]) -> Result<[u8; CURVE25519_POINT_LEN], KeyRefusal> {
+    <[u8; CURVE25519_POINT_LEN]>::try_from(encoded).map_err(|_| KeyRefusal::Octets)
+}
+
+/// `octets` without the leading zeros a DER `INTEGER` carries and a JWK member
+/// does not, so one number has one stored form here.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+fn trimmed(octets: &[u8]) -> &[u8] {
+    let leading = octets.iter().take_while(|octet| **octet == 0).count();
+    &octets[leading..]
+}
+
 /// A content key wrapped under a key-encryption key, or `None` when the wrapping
 /// key is neither [`KW_128_KEY_LEN`] nor [`KEY_LEN`] octets.
 ///
@@ -1650,9 +2338,6 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use base64::Engine as _;
-    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-
     use super::*;
     use crate::tests::vectors as webcrypto;
 
@@ -2316,5 +3001,375 @@ mod tests {
             read_signing_key(&pkcs8("rsa-1"), SignatureKind::RsaPss).is_some(),
             "one key type carries both RSA algorithms, and the reader is where that is settled"
         );
+    }
+
+    /// The kind the set's own label for a key names, so no case here picks one
+    /// for itself — the JWS keys are labelled by `alg` and the agreement pairs
+    /// by `curve`.
+    fn kind_of(label: &str) -> KeyKind {
+        match label {
+            "RS256" => KeyKind::RsaPkcs1,
+            "PS256" => KeyKind::RsaPss,
+            "ES256" | "P-256" => KeyKind::P256,
+            "EdDSA" | "Ed25519" => KeyKind::Ed25519,
+            "X25519" => KeyKind::X25519,
+            other => panic!("the set labels a key {other}, which this module does not read"),
+        }
+    }
+
+    /// Every public key the frozen set carries, as the node holding its
+    /// encodings and the kind its label names.
+    fn public_keys() -> Vec<(&'static serde_json::Value, KeyKind)> {
+        let mut keys = Vec::new();
+        for id in ["rsa-1", "rsa-2", "ec-1", "ed-1"] {
+            let key = webcrypto::node(&format!("/jws/keys/{id}"));
+            keys.push((key, kind_of(webcrypto::text(key, "/alg"))));
+        }
+
+        for vector in webcrypto::vectors("ecdh") {
+            let kind = kind_of(webcrypto::text(vector, "/curve"));
+            for side in ["/a", "/b"] {
+                let party = vector
+                    .pointer(side)
+                    .expect("the set nests a key pair under each party");
+                keys.push((party, kind));
+            }
+        }
+
+        keys
+    }
+
+    /// Every encoding of every public key the frozen set holds, read and
+    /// written back, against WebCrypto's own octets rather than against this
+    /// codec's.
+    ///
+    /// The shape is agreement: one key arrives in two or three encodings and
+    /// has to become *one* key, so a reader that dropped a coordinate or kept a
+    /// DER sign octet still looks right on its own line and fails here. The
+    /// thumbprint is asserted twice on purpose — against RFC 7638's digest over
+    /// the set's own canonical members, and against the value Node computed for
+    /// the keys the set carries one for — because the first pins the digest and
+    /// the second pins the canonicalization it is taken over.
+    #[test]
+    fn every_public_key_encoding_round_trips_the_frozen_sets_own_bytes() {
+        for (key, kind) in public_keys() {
+            let minimal = webcrypto::text(key, "/jwkMinimal");
+            let spki = webcrypto::octets(key, "/spki");
+            let from_spki = PublicKey::read(&spki, kind, KeyFormat::Spki)
+                .expect("the set writes every public key as SPKI");
+            let from_jwk = PublicKey::read(
+                webcrypto::text(key, "/jwk").as_bytes(),
+                kind,
+                KeyFormat::Jwk,
+            )
+            .expect("the set writes what a browser's own exportKey wrote");
+            let mut held = vec![from_spki, from_jwk];
+
+            if key.pointer("/raw").is_some() {
+                let raw = webcrypto::octets(key, "/raw");
+                let from_raw = PublicKey::read(&raw, kind, KeyFormat::Raw)
+                    .expect("the set's raw export is the key material");
+                assert_eq!(
+                    from_raw
+                        .write(KeyFormat::Raw)
+                        .expect("a curve kind has a raw form"),
+                    raw,
+                    "{minimal}"
+                );
+                held.push(from_raw);
+            }
+
+            let mut expected = Sha256::new();
+            expected.update(minimal.as_bytes());
+            let thumbprint = URL_SAFE_NO_PAD.encode(expected.finalize());
+
+            for key_read in &held {
+                assert_eq!(key_read.kind(), kind, "{minimal}");
+                assert_eq!(
+                    key_read.p256_point().is_some(),
+                    kind == KeyKind::P256,
+                    "the point an agreement takes is P-256's alone: {minimal}"
+                );
+                assert_eq!(
+                    key_read
+                        .write(KeyFormat::Spki)
+                        .expect("every kind has a SubjectPublicKeyInfo"),
+                    spki,
+                    "{minimal}"
+                );
+                assert_eq!(
+                    String::from_utf8(
+                        key_read
+                            .write(KeyFormat::Jwk)
+                            .expect("every kind has a JWK")
+                    )
+                    .expect("a JWK is text"),
+                    minimal,
+                    "{minimal}"
+                );
+                assert_eq!(key_read.thumbprint(), thumbprint, "{minimal}");
+            }
+
+            if key.pointer("/thumbprint").is_some() {
+                assert_eq!(
+                    thumbprint,
+                    webcrypto::text(key, "/thumbprint"),
+                    "RFC 7638's thumbprint, as Node computed it for {minimal}"
+                );
+            }
+        }
+    }
+
+    /// The roster's RSA width, asserted at the last modulus admitted and the
+    /// first refused at each end.
+    ///
+    /// A member that stops one octet early prints plausibly against either half
+    /// alone, which is why both edges are named together, and the widths come
+    /// from [`MIN_RSA_BITS`] and [`MAX_RSA_BITS`] rather than from digits here.
+    /// The set's own 1024-bit key is the witness that the bound is checked in
+    /// both encodings and not just in the one a test happened to use.
+    #[test]
+    fn the_rsa_width_bound_is_asserted_on_both_sides() {
+        let read = |octets: usize| {
+            let jwk = format!(
+                r#"{{"kty":"RSA","n":"{}","e":"AQAB"}}"#,
+                URL_SAFE_NO_PAD.encode(vec![0xff_u8; octets])
+            );
+            PublicKey::read(jwk.as_bytes(), KeyKind::RsaPkcs1, KeyFormat::Jwk).is_ok()
+        };
+
+        let narrowest = usize::try_from(MIN_RSA_BITS / 8).expect("a width in octets");
+        let widest = usize::try_from(MAX_RSA_BITS / 8).expect("a width in octets");
+        for (octets, admitted) in [
+            (narrowest - 1, false),
+            (narrowest, true),
+            (widest, true),
+            (widest + 1, false),
+        ] {
+            assert_eq!(read(octets), admitted, "a modulus of {octets} octets");
+        }
+
+        let weak = webcrypto::node("/jws/keys/rsa-weak");
+        assert!(
+            PublicKey::read(
+                &webcrypto::octets(weak, "/spki"),
+                KeyKind::RsaPkcs1,
+                KeyFormat::Spki,
+            )
+            .is_err(),
+            "the set's own 1024-bit key is refused at the read, from its SPKI"
+        );
+        assert!(
+            PublicKey::read(
+                webcrypto::text(weak, "/jwk").as_bytes(),
+                KeyKind::RsaPkcs1,
+                KeyFormat::Jwk,
+            )
+            .is_err(),
+            "and from its JWK, so neither door is the lenient one"
+        );
+    }
+
+    /// Every refusal the codec makes, split the way
+    /// `rule:core-classes/crypto-interop-tier` splits them: an encoding a kind
+    /// does not have is a bug in the program, and octets that are not a key are
+    /// a verdict on whoever sent them.
+    ///
+    /// The skewed-coordinate case is the one a total-length check would pass: a
+    /// 31-octet `x` beside a 33-octet `y` concatenates to the very octets of
+    /// this key's own point, so a reader checking only the point's width would
+    /// read one JWK as a key it does not describe.
+    #[test]
+    fn an_encoding_a_kind_does_not_have_is_a_bug_and_bad_octets_are_a_verdict() {
+        let ec = webcrypto::node("/jws/keys/ec-1");
+        let rsa = webcrypto::node("/jws/keys/rsa-1");
+        let montgomery = webcrypto::node("/ecdh/vectors/1/a");
+        let point = webcrypto::octets(webcrypto::node("/ecdh/vectors/0/a"), "/raw");
+
+        for kind in [KeyKind::RsaPkcs1, KeyKind::RsaPss] {
+            assert!(
+                matches!(
+                    PublicKey::read(&point, kind, KeyFormat::Raw),
+                    Err(KeyRefusal::Bug)
+                ),
+                "an RSA key has no raw form, and asking for one is a bug rather than a bad key"
+            );
+        }
+
+        let rsa_key = PublicKey::read(
+            webcrypto::text(rsa, "/jwk").as_bytes(),
+            KeyKind::RsaPkcs1,
+            KeyFormat::Jwk,
+        )
+        .expect("the set's RSA key reads from its own JWK");
+        assert!(
+            matches!(rsa_key.write(KeyFormat::Raw), Err(KeyRefusal::Bug)),
+            "and writing one is the same bug at the other door"
+        );
+        assert!(
+            rsa_key.verifying().is_some(),
+            "the kinds that have no raw form are still the kinds that verify"
+        );
+
+        let x25519 = PublicKey::read(
+            &webcrypto::octets(montgomery, "/raw"),
+            KeyKind::X25519,
+            KeyFormat::Raw,
+        )
+        .expect("the set's X25519 export is 32 octets of u-coordinate");
+        assert!(
+            x25519.verifying().is_none(),
+            "the one kind that signs nothing reaches no verifier"
+        );
+
+        let private = format!(
+            "{},\"d\":\"AA\"}}",
+            webcrypto::text(montgomery, "/jwkMinimal").trim_end_matches('}')
+        );
+        assert!(
+            matches!(
+                PublicKey::read(private.as_bytes(), KeyKind::X25519, KeyFormat::Jwk),
+                Err(KeyRefusal::Bug)
+            ),
+            "a JWK carrying `d` is a private key handed over as a public one"
+        );
+
+        let minimal: serde_json::Value = serde_json::from_str(webcrypto::text(ec, "/jwkMinimal"))
+            .expect("the set writes a minimal JWK as JSON text");
+        let coordinate = |name: &str| {
+            URL_SAFE_NO_PAD
+                .decode(
+                    minimal[name]
+                        .as_str()
+                        .expect("an EC JWK carries this member"),
+                )
+                .expect("a JWK member is base64url")
+        };
+        let (x, y) = (coordinate("x"), coordinate("y"));
+        let mut shifted = vec![x[0]];
+        shifted.extend_from_slice(&y);
+        let skewed = format!(
+            r#"{{"crv":"P-256","kty":"EC","x":"{}","y":"{}"}}"#,
+            URL_SAFE_NO_PAD.encode(&x[1..]),
+            URL_SAFE_NO_PAD.encode(&shifted)
+        );
+        assert!(
+            matches!(
+                PublicKey::read(skewed.as_bytes(), KeyKind::P256, KeyFormat::Jwk),
+                Err(KeyRefusal::Octets)
+            ),
+            "two coordinates that concatenate to this key's own point are still not this key"
+        );
+
+        assert!(
+            matches!(
+                PublicKey::read(
+                    webcrypto::text(ec, "/jwk").as_bytes(),
+                    KeyKind::Ed25519,
+                    KeyFormat::Jwk,
+                ),
+                Err(KeyRefusal::Octets)
+            ),
+            "a document naming another key type is not this key in another encoding"
+        );
+
+        for refusal in webcrypto::refusals("ecdh") {
+            let name = webcrypto::text(refusal, "/name");
+            let kind = kind_of(webcrypto::text(refusal, "/curve"));
+            if kind != KeyKind::P256 {
+                continue;
+            }
+            assert!(
+                PublicKey::read(&webcrypto::octets(refusal, "/theirs"), kind, KeyFormat::Raw)
+                    .is_err(),
+                "{name}"
+            );
+        }
+
+        assert!(
+            PublicKey::read(&point[..P256_POINT_LEN - 1], KeyKind::P256, KeyFormat::Raw).is_err(),
+            "a point one octet short is refused before anything multiplies by it"
+        );
+        assert!(
+            PublicKey::read(
+                &webcrypto::octets(montgomery, "/raw")[..CURVE25519_POINT_LEN - 1],
+                KeyKind::X25519,
+                KeyFormat::Raw,
+            )
+            .is_err(),
+            "and so is a u-coordinate one octet short"
+        );
+        assert!(
+            PublicKey::read(
+                &webcrypto::octets(ec, "/spki"),
+                KeyKind::RsaPkcs1,
+                KeyFormat::Spki
+            )
+            .is_err(),
+            "an EC key's SubjectPublicKeyInfo read as RSA is refused on its algorithm identifier"
+        );
+    }
+
+    /// A key this codec read verifies what WebCrypto signed, which is the two
+    /// ways of assembling a [`VerifyingKey`] asserted to be one key.
+    ///
+    /// [`verifying`] builds one from the JWK's members by hand; this builds one
+    /// through [`PublicKey::read`] and hands both the same frozen signatures.
+    /// A codec that reordered an RSA component or dropped a point's tag would
+    /// still round-trip its own encodings and fail every line of this.
+    #[test]
+    fn a_key_the_codec_read_verifies_what_webcrypto_signed() {
+        for vector in webcrypto::vectors("signatures") {
+            let name = webcrypto::text(vector, "/name");
+            let key = webcrypto::node(&format!("/jws/keys/{}", webcrypto::text(vector, "/key")));
+            let kind = kind_of(webcrypto::text(key, "/alg"));
+            let held = PublicKey::read(&webcrypto::octets(key, "/spki"), kind, KeyFormat::Spki)
+                .expect("every signing key of the set reads from its own SPKI");
+
+            assert_eq!(
+                verify_signature(
+                    &held.verifying().expect("a signing kind lends a verifier"),
+                    &webcrypto::octets(vector, "/message"),
+                    &webcrypto::octets(vector, "/signature"),
+                ),
+                Some(()),
+                "{name}"
+            );
+        }
+    }
+
+    /// The two Rust enums cover exactly the registry enums' cases, which is the
+    /// only thing holding [`KeyKind::from_tag`]'s integers to [`KEY_KIND`]'s.
+    ///
+    /// A case added to one list and not the other is a program that compiles
+    /// and then reads a tag nothing answers, so what is asserted is the whole
+    /// list rather than a spelling of it.
+    #[test]
+    fn the_key_enums_cover_exactly_the_registry_enums_cases() {
+        for (name, tag) in KEY_KIND.cases {
+            assert!(
+                KeyKind::from_tag(*tag).is_some(),
+                "`{name}` is a case no Rust kind answers"
+            );
+        }
+        for (name, tag) in KEY_FORMAT.cases {
+            assert!(
+                KeyFormat::from_tag(*tag).is_some(),
+                "`{name}` is a case no Rust format answers"
+            );
+        }
+
+        let kinds = i64::try_from(KEY_KIND.cases.len()).expect("a case count");
+        let formats = i64::try_from(KEY_FORMAT.cases.len()).expect("a case count");
+        assert!(
+            KeyKind::from_tag(kinds).is_none() && KeyKind::from_tag(-1).is_none(),
+            "the tags run 0 to one less than the count, and nothing outside them is a kind"
+        );
+        assert!(
+            KeyFormat::from_tag(formats).is_none() && KeyFormat::from_tag(-1).is_none(),
+            "and the same for the three encodings"
+        );
+        assert_eq!(KeyKind::from_tag(1), Some(KeyKind::X25519));
+        assert_eq!(KeyFormat::from_tag(2), Some(KeyFormat::Jwk));
     }
 }
