@@ -980,59 +980,17 @@ nvs_runtime::nvs_helper! {
             ));
         }
 
-        let Some([protected, encrypted_key, iv, ciphertext, tag]) = segments(token) else {
-            return Err(refused());
-        };
-        let Some(header) = header_of(protected) else {
-            return Err(refused());
-        };
-        let (Ok(iv), Ok(ciphertext), Ok(tag)) = (
-            URL_SAFE_NO_PAD.decode(iv),
-            URL_SAFE_NO_PAD.decode(ciphertext),
-            URL_SAFE_NO_PAD.decode(tag),
-        ) else {
-            return Err(refused());
-        };
-        let Ok(iv): Result<[u8; crypto::GCM_NONCE_LEN], _> = iv.try_into() else {
-            return Err(refused());
-        };
-        if tag.len() != TAG_LEN {
-            return Err(refused());
-        }
-
-        // The AEAD reads the ciphertext and the tag as one buffer, which
-        // compact serialization splits into two segments — so they are put back
-        // together once, before the ring is walked, rather than once per key.
-        let mut body = Vec::new();
-        if body.try_reserve_exact(ciphertext.len() + tag.len()).is_err() {
-            return Err(refused());
-        }
-        body.extend_from_slice(&ciphertext);
-        body.extend_from_slice(&tag);
-        nvs_runtime::affordable(Some(ciphertext.len()), "Core\\Jwe::decrypt")?;
-
+        // Each key's octets are borrowed once, because [`plaintext`] walks the
+        // ring per token rather than per slot and the material outlives it.
+        let mut ring = Vec::new();
         for (picked, held, kind) in &keys {
-            let material = material_of(held, "decrypt")?;
-            let Some(cek) = content_key(*picked, material, *kind, &header, encrypted_key)? else {
-                continue;
-            };
-            // Unreachable from source: every branch of `content_key` answers 32
-            // octets, which is the one length AES-256 has.
-            let cipher = crypto::gcm_cipher(&cek).ok_or_else(|| {
-                Fault::fatal("Core\\Jwe::decrypt built no cipher from a 32-octet key".to_owned())
-            })?;
-            let Ok(plain) = cipher.decrypt(
-                &Nonce::<Aes256Gcm>::from(iv),
-                Payload {
-                    msg: &body,
-                    aad: protected.as_bytes(),
-                },
-            ) else {
-                continue;
-            };
-            return Ok(Value::str(NvsStr::new(&plain)));
+            ring.push((*picked, material_of(held, "decrypt")?, *kind));
         }
-        Err(refused())
+
+        let Some(plain) = plaintext(&ring, token)? else {
+            return Err(refused());
+        };
+        Ok(Value::str(NvsStr::new(&plain)))
     }
 }
 
@@ -1153,6 +1111,87 @@ fn content_key(
     }
 }
 
+/// The payload one key of `ring` opens `token` to, or `None` for a token none
+/// of them opens.
+///
+/// `decrypt`'s whole verdict, held apart from the member so that [`refused`] has
+/// exactly one call site: a shape that is not five base64url segments, a header
+/// outside the subset, a key that answers no content key and an AEAD that will
+/// not open all arrive back here as the same `None`, and there is no branch left
+/// where a second sentence could be written by accident. It is also the seam the
+/// frozen set is replayed against, so the Rust side of
+/// `rule:testing/four-proofs` reads a token through the member's own path rather
+/// than through a copy of it.
+///
+/// A ring entry is what `Jwe\Key` holds — which static built it, its octets, and
+/// the kind those octets were read as — because the key objects themselves are
+/// the member's business and a token's verdict does not depend on them.
+///
+/// # Errors
+///
+/// A [`Fault`] for a request that cannot afford the plaintext, and the fatals
+/// [`content_key`] raises for material that does not read back.
+fn plaintext(
+    ring: &[(i64, &[u8], Option<KeyKind>)],
+    token: &str,
+) -> Result<Option<Vec<u8>>, Fault> {
+    let Some([protected, encrypted_key, iv, ciphertext, tag]) = segments(token) else {
+        return Ok(None);
+    };
+    let Some(header) = header_of(protected) else {
+        return Ok(None);
+    };
+    let (Ok(iv), Ok(ciphertext), Ok(tag)) = (
+        URL_SAFE_NO_PAD.decode(iv),
+        URL_SAFE_NO_PAD.decode(ciphertext),
+        URL_SAFE_NO_PAD.decode(tag),
+    ) else {
+        return Ok(None);
+    };
+    let Ok(iv): Result<[u8; crypto::GCM_NONCE_LEN], _> = iv.try_into() else {
+        return Ok(None);
+    };
+    if tag.len() != TAG_LEN {
+        return Ok(None);
+    }
+
+    // The AEAD reads the ciphertext and the tag as one buffer, which compact
+    // serialization splits into two segments — so they are put back together
+    // once, before the ring is walked, rather than once per key.
+    let mut body = Vec::new();
+    if body
+        .try_reserve_exact(ciphertext.len() + tag.len())
+        .is_err()
+    {
+        return Ok(None);
+    }
+    body.extend_from_slice(&ciphertext);
+    body.extend_from_slice(&tag);
+    nvs_runtime::affordable(Some(ciphertext.len()), "Core\\Jwe::decrypt")?;
+
+    for (picked, material, kind) in ring {
+        let Some(cek) = content_key(*picked, material, *kind, &header, encrypted_key)? else {
+            continue;
+        };
+        // Unreachable from source: every branch of `content_key` answers 32
+        // octets, which is the one length AES-256 has.
+        let cipher = crypto::gcm_cipher(&cek).ok_or_else(|| {
+            Fault::fatal("Core\\Jwe::decrypt built no cipher from a 32-octet key".to_owned())
+        })?;
+        let Ok(plain) = cipher.decrypt(
+            &Nonce::<Aes256Gcm>::from(iv),
+            Payload {
+                msg: &body,
+                aad: protected.as_bytes(),
+            },
+        ) else {
+            continue;
+        };
+        return Ok(Some(plain));
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1185,6 +1224,59 @@ mod tests {
         .expect("a JOSE header is text")
     }
 
+    /// The key ring a case names, in the form [`plaintext`] walks: which static
+    /// would have built it, its octets, and the kind those octets read as.
+    ///
+    /// Every case in the set carries exactly one key, which is what makes the
+    /// ring here one entry long — the rules about rings holding more than one
+    /// are `decrypt`'s own and are a `.nvst` case's, since they are refusals of
+    /// the *call* rather than of a token.
+    fn ring_of(case: &serde_json::Value) -> (i64, Vec<u8>, Option<KeyKind>) {
+        match webcrypto::text(case, "/key/kind") {
+            "shared" => (USE_SHARED, webcrypto::octets(case, "/key/key"), None),
+            "password" => (
+                USE_PASSWORD,
+                webcrypto::text(case, "/key/password").as_bytes().to_vec(),
+                None,
+            ),
+            "keyPair" => (
+                USE_OWN,
+                webcrypto::octets(case, "/key/pkcs8"),
+                Some(curve(webcrypto::text(case, "/key/curve"))),
+            ),
+            kind => panic!("the set keys a token with a {kind}, which Jwe\\Key does not build"),
+        }
+    }
+
+    /// Every token the frozen set holds, opened under the key its own case
+    /// names, to the payload another implementation sealed into it.
+    ///
+    /// This is the browser → Novis direction of
+    /// `rule:security/jwe-compact-subset`, and all three algorithms of the
+    /// subset run through one loop: `dir` reads the content key, `PBES2` derives
+    /// it and unwraps it, and `ECDH-ES` agrees it out of the token's own `epk`.
+    /// A payload that came back as text at all is not the assertion — the
+    /// assertion is that it is *this* text, because an AEAD that opened under
+    /// the wrong content key answers nothing rather than something else.
+    #[test]
+    fn webcrypto_jwe_vectors_decrypt_to_their_payloads() {
+        for vector in webcrypto::vectors("jwe") {
+            let name = webcrypto::text(vector, "/name");
+            let (picked, material, kind) = ring_of(vector);
+            let opened = plaintext(
+                &[(picked, &material, kind)],
+                webcrypto::text(vector, "/token"),
+            )
+            .expect("a vector's payload is affordable")
+            .expect("a vector's token opens under its own key");
+            assert_eq!(
+                String::from_utf8(opened).expect("the set's payloads are text"),
+                webcrypto::text(vector, "/payload"),
+                "{name}"
+            );
+        }
+    }
+
     /// Every `dir` token in the frozen set, written again out of the vector's
     /// own key, IV and payload, and compared to the last character.
     ///
@@ -1203,7 +1295,7 @@ mod tests {
     /// the rest of its header — strike the member, and it is character for
     /// character the one written here.
     #[test]
-    fn encrypt_writes_the_dir_tokens_webcrypto_sealed() {
+    fn webcrypto_jwe_vectors_reencrypt_to_the_same_token_from_the_same_randomness_under_dir() {
         let mut written = 0;
         for vector in webcrypto::vectors("jwe") {
             if webcrypto::text(vector, "/key/kind") != "shared" {
@@ -1254,7 +1346,7 @@ mod tests {
     /// a vector taken at any other count would reproduce nothing here however
     /// right the derivation was.
     #[test]
-    fn encrypt_writes_the_pbes2_token_webcrypto_sealed() {
+    fn webcrypto_jwe_vectors_reencrypt_to_the_same_token_from_the_same_randomness_under_pbes2() {
         let vector = webcrypto::vectors("jwe")
             .iter()
             .find(|vector| webcrypto::text(vector, "/key/kind") == "password")
@@ -1303,7 +1395,7 @@ mod tests {
     /// the Concat KDF, the JWK writer's member order and the empty
     /// encrypted-key segment to another implementation's answer at once.
     #[test]
-    fn encrypt_writes_the_ecdh_es_tokens_webcrypto_sealed() {
+    fn webcrypto_jwe_vectors_reencrypt_to_the_same_token_from_the_same_randomness_under_ecdh_es() {
         let mut written = 0;
         for vector in webcrypto::vectors("jwe") {
             if webcrypto::text(vector, "/key/kind") != "keyPair" {
@@ -1365,49 +1457,31 @@ mod tests {
         );
     }
 
-    /// The three refusals in the set that no `.nvst` case can reach, each
-    /// asserted where it is decided rather than on the sentence it produces.
+    /// Every token the set refuses, refused here — the policy half and the
+    /// authenticity half alike, and each one held against the key its own case
+    /// names rather than against a key that opens nothing anyway.
     ///
-    /// A case only ever sees `decrypt`'s one sentence, which every refusal
-    /// shares on purpose (`rule:security/verification-throws-and-compares-in-constant-time`),
-    /// so a case cannot tell a token refused for the right reason from one
-    /// refused for another. [`content_key`] is where the reason lives: an
-    /// `epk` that is not a point, one of low order and a `p2s` under the floor
-    /// each leave a ring entry with no content key to try, and `None` is that
-    /// branch named.
+    /// The assertion is `None` rather than a sentence because `None` is what
+    /// the one sentence is made of: [`plaintext`] is the whole verdict and
+    /// [`refused`] is its single call site, so every way of not being a token
+    /// this ring opens reaches the caller as the same `RuntimeError` by
+    /// construction rather than by each branch remembering to say the same
+    /// thing (`rule:security/verification-throws-and-compares-in-constant-time`).
+    /// `tests/conformance/core/jwe-refuses-every-unopenable-token-with-one-sentence.nvst`
+    /// is the side that reads the sentence itself.
     #[test]
-    fn no_ring_entry_answers_a_content_key_for_the_tokens_the_set_refuses() {
-        for wanted in [
-            "an epk off the P-256 curve",
-            "an X25519 epk of low order",
-            "p2s one octet short",
-        ] {
-            let case = webcrypto::refusals("jwe")
-                .iter()
-                .find(|case| webcrypto::text(case, "/name") == wanted)
-                .unwrap_or_else(|| panic!("the set refuses {wanted}"));
-            let parts =
-                segments(webcrypto::text(case, "/token")).expect("the set writes compact tokens");
-            let header = header_of(parts[0]).expect("this refusal's header passes the allow-list");
-
-            let (picked, material) = match webcrypto::text(case, "/key/kind") {
-                "password" => (
-                    USE_PASSWORD,
-                    webcrypto::text(case, "/key/password").as_bytes().to_vec(),
-                ),
-                "keyPair" => (USE_OWN, webcrypto::octets(case, "/key/pkcs8")),
-                kind => {
-                    panic!("{wanted} is held against a {kind} key, which this loop has no arm for")
-                }
-            };
-            let kind = (picked == USE_OWN).then(|| curve(webcrypto::text(case, "/key/curve")));
-
+    fn webcrypto_jwe_refusal_vectors_are_all_refused_with_one_runtime_error() {
+        for case in webcrypto::refusals("jwe") {
+            let name = webcrypto::text(case, "/name");
+            let (picked, material, kind) = ring_of(case);
             assert!(
-                matches!(
-                    content_key(picked, &material, kind, &header, parts[1]),
-                    Ok(None)
-                ),
-                "{wanted}"
+                plaintext(
+                    &[(picked, &material, kind)],
+                    webcrypto::text(case, "/token")
+                )
+                .expect("a refusal is refused rather than charged for a plaintext")
+                .is_none(),
+                "{name}"
             );
         }
     }
