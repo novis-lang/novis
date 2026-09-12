@@ -2,56 +2,62 @@
 
 ## State
 
-**Goal `webcrypto`: stage 6 (JWS) is complete** — the check's `cases` list is now sixteen paths that
-all exist and pass, paired against the `jwt-` cases on disk by their `--TEST--` lines the way stage
-5's was, with a comment per group naming the claim that group holds.
+**Goal `http-client` — a program talks to a real API: bodies, headers, streams and pooled connections — has just started; nothing of it has landed yet.** Goal `webcrypto`'s whole list is this goal's Stage 1 floor.
 
-Eight of the ten claims the check named were already on disk under names that do not say so:
-`embedKey`'s proof of possession is inside
-`tests/conformance/core/jwt-sign-writes-the-bag-into-a-sorted-header-and-nothing-else.nvst`, the
-`rsaScheme` option is inside the two `jwt-a-key-set-*` cases, and the unqualified written type is
-refused by `tests/conformance/reject/verify-issued-holds-its-written-type-to-the-tainted-qualifier.nvst`.
-
-Two were genuinely unheld and were written this session: `verifyIssued` refusing `alg: none`, a token
-MAC'd under the key the issuer publishes and an `alg` the key does not carry — four attacks, one
-sentence — and a list claim and an object claim coming back as the written type, asked in both
-spellings and agreeing with `Core\Json::decodeAs` over the same payload text.
-
-`python tools/verify.py` stopped at `test` on one failure,
-`crates/nvs-server/src/serve.rs:7958`'s fleet-ceiling test — the load-dependent one earlier sessions
-already saw, which passes under `cargo test -p nvs-server the_in_flight_ceiling_is_fleet_wide` on its
-own. The five steps before it were clean; the `.nvst` trees and clippy did not run, because the gate
-stops at the first failure and this session changed no Rust. The sixteen cases the stage 6 check
-names were run directly and all pass.
+**The design is settled with the user and is written into the goal's § *Standing decisions*; the record
+that states it is not written yet.** Stage 2 writes it — one new record, the goal names no number — and it
+transcribes those decisions rather than re-deriving them. The things not to re-decide: bodies are flat
+keys of the one bag, at most one per call and checked while compiling; `Client::request(Method, …)`
+replaces the spec's `send(Request)` and there is no `Core\Http\Request`; a stream's body is bounded by
+`idle` and `maxDuration`; gzip, brotli and zstd; the pool is per core and keyed on the pinned address and on the
+client identity (mTLS) a call may present; a hop to
+another origin drops credentials; a test answers outbound calls from a table. TLS is strict by default:
+the operator widens trust in `[http.client.tls]` and names the hosts code may relax it for in six
+host-list grants with no `true` spelling; a plain `http` URL stays allowed and only a redirect from
+`https` to `http` needs a grant; `keylog` is refused at boot in `production`. Name resolution runs on the
+blocking pool, every resolved address is checked and one denied refuses the host, a call falls back
+across the approved set, `Retry-After` is read in both forms, and an outbound call is an `http` trace
+event with no timing member on the reply.
 
 ## Next group
 
-**Stage 7: WebCrypto both directions and the example, whose `cargo-named` check is in exactly the
-state stage 6's was** — one file set: the two goal files' stage 7 block and the `webcrypto_*` tests
-in `crates/nvs-stdlib/src/{jwe,jwt,crypto}.rs`. Seventeen such functions are on disk and the check
-names fourteen, one of which was split in three. The goal's § *Standing decisions* owns the frozen
-vector set and the roster the refusal vectors are judged against.
+**Stage 2: the record** — one file set: `docs/decisions/`, `docs/rules/http-server*`,
+`docs/rules/testing*`, `docs/spec/`.
 
-- [ ] **Pair stage 7's fourteen `tests` names against the `webcrypto_*` functions on disk**, and
-      rewrite the list in place: the list is `docs/agent/loop-goal.toml:9186` and its copy
-      `docs/agent/goals/47-webcrypto.toml:9162`, and
-      `webcrypto_jwe_vectors_reencrypt_to_the_same_token_from_the_same_randomness` is three functions
-      at `crates/nvs-stdlib/src/jwe.rs:1304`, `crates/nvs-stdlib/src/jwe.rs:1355` and
-      `crates/nvs-stdlib/src/jwe.rs:1404`.
-- [ ] **Name the JWS test the list does not** — `crates/nvs-stdlib/src/jwt.rs:2998` is
-      `webcrypto_jws_signs_reproduce_the_randomized_token_as_far_as_it_is_fixed`, the other half of
-      the deterministic-token claim at `crates/nvs-stdlib/src/jwt.rs:2940`, and the goal's § *Standing
-      decisions* says an ES256 or PS256 signature is kept from the file on disk while it still
-      verifies.
-- [ ] **Run what the two stage 7 checks run** — `cargo test -p nvs-stdlib webcrypto_` for the named
-      tests, and `examples/webcrypto.nvs` for the seven lines the `exact` check wants at
-      `docs/agent/loop-goal.toml:9207`; whatever fails is the rest of this group.
+- [ ] **The record** — the next free number in `docs/decisions/`, `changes.creates` the eleven rules the
+      goal's stage 2 table names, `changes.modifies`
+      `http-server/a-non-idempotent-retry-needs-an-idempotency-key`, `security/one-tls-client`,
+      `http-server/allow-url-pins-the-address`, `http-server/retry-is-opt-in-jittered-and-closed` and
+      `observability/trace-events-carry-a-kind`. Its
+      body is the goal's standing decisions and stages 3-13, argued, with the numbers it ships for
+      `idle`, `max_duration`, `pool_idle` and `pool_idle_timeout`, and the shipped `roots` and
+      `min_version`.
+- [ ] **The eleven rule fragments and their JSON entries**, all `designed`, then `python tools/rules.py
+      --render`. The idempotency fragment says `request` where it said `send`, and `one-tls-client`
+      loses its "no spelling for turning it off".
+- [ ] **The spec row** — `docs/spec/01-core-library.md:1167` (`Core\Http\Client`) takes the surface:
+      `patch`, `request`, `stream`, the bag with stages 10 and 11's seven TLS and address keys, and the
+      reply's readers, `tls()` among them.
 
 ## Backlog
 
-- A shape-typed field decodes in no codec — `crates/nvs-stdlib/src/json.rs`'s own known gap, which is
-  why a nested claim is written as a deriving class.
-- Stage 8's rulebook checks (`tools/rules.py --show core-classes/crypto-interop-tier` says `shipped`)
-  are untouched — `docs/agent/loop-goal.toml:9221`.
-- `Jwt::verify`'s HS256 path has no case pairing it with `verifyIssued` over one token, and nothing
-  asks for one — `docs/agent/loop-goal.md` § *Standing decisions*, JWS subset.
+- Stage 3 — the table. `crates/nvs-stdlib/src/test.rs`, `registry.rs`, and the seam above
+  `crate::http::transport` the table answers at. The keystone: every later `.nvst` case needs it.
+- Stage 4 — bodies and verbs. `crates/nvs-stdlib/src/http.rs`, `json.rs`, `registry.rs`, and
+  `crates/nvs-types/src/expr/args.rs` for the two diagnostics. Its own session.
+- Stage 5 — the reply's readers and `Retry-After`'s date. `http.rs`, `transport.rs`'s `Reply` and
+  `retry_after`, and the decode-site roster in `nvs-types`. Shares `http.rs` with stage 4.
+- Stage 6 — streaming. `http.rs`, `transport.rs`, `crates/nvs-config/src/directive.rs`. Its own session.
+- Stages 7 and 8 — the pool, the three codings, the client identity, and the hop's credential rule. `transport.rs`,
+  `compress.rs`, `crates/nvs-host/src/tls.rs`, `directive.rs`. One file set, two stages, two sessions.
+- Stage 9 — the trust roots. `crates/nvs-host/src/tls.rs`, `crates/nvs-config/src/tree.rs`, `db.rs`,
+  `default.toml`, and the first end-to-end `https` test through the client. Its own session.
+- Stages 10 and 11 — relaxing trust, the named address, the downgrade and `tls()`. `tls.rs`,
+  `crates/nvs-runtime/src/capability.rs`, `http.rs`, `transport.rs`. One file set, two sessions.
+- Stage 12 — resolution off the core and every address. `crates/nvs-runtime/src/capability.rs`,
+  `crates/nvs-host/src/blocking.rs`, `http.rs`, `transport.rs` — stage 11's file set, so it can follow in
+  that group.
+- Stage 13 — the `http` trace event. `crates/nvs-runtime/src/ctx/trace.rs`, `transport.rs`. Its own
+  session.
+- Stage 14 — the flips. `docs/rules/` only.
+- When this goal's last check goes green the driver takes goal `process-cache`.

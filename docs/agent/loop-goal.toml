@@ -1,15 +1,15 @@
-# Goal 47 -- Novis reads what a browser encrypts and what an issuer signs
+# Goal 48 -- a program talks to a real API: bodies, headers, streams and pooled connections
 # The acceptance test, as data.
 #
-# `47-webcrypto.md` is the prose. One home each.
+# `48-http-client.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # Stage 7's example: seal, open, a tamper refused, a JWE round trip, a swapped header refused, an issued
-  # token verified and its `alg` swap refused.
-  "examples/webcrypto.nvs",
+  # No example of its own: a program that talks to a real API needs a network, and every case below
+  # answers its calls from `Core\Test`'s table instead.
   # carried from the previous goal by tools/goal-switch.py
+  "examples/webcrypto.nvs",
   "examples/finish.nvs",
   "examples/queue.nvs",
   "examples/queue-sqlite.nvs",
@@ -95,59 +95,52 @@ files = [
 [context]
 
 modules = [
-  # The one construction, its three seams (:103-113), the forgery and key-length errors (:68-74), and
-  # the module doc stage 4 rewrites. Stages 3 and 4 live here.
-  "crates/nvs-stdlib/src/crypto.rs",
-  # Compare-only header reading (:11-22) -- the shape JWE's `alg`/`enc` check copies, and the class
-  # stage 6 gives its asymmetric half.
-  "crates/nvs-stdlib/src/jwt.rs",
-  # `verify`'s key ring and its `tainted` payload answer -- the shape `Core\Jwe` decrypt copies.
-  "crates/nvs-stdlib/src/signature.rs",
-  # The construction's second caller; it must not notice the new tier.
-  "crates/nvs-stdlib/src/signed_cookie.rs",
-  # `draw`, the one CSPRNG seam every nonce, salt and private key comes through.
-  "crates/nvs-stdlib/src/random.rs",
-  # `of` (:352-365) is the enum-argument shape `seal` and `open` copy; the digest roster stays untouched.
-  "crates/nvs-stdlib/src/hash.rs",
-  # base64url, the JWE segment encoding, and hex for the vectors.
-  "crates/nvs-stdlib/src/encoding.rs",
-  # Where `crypto::CLASS` (:1676) and `jwt::CLASS` (:1706) are registered; `Core\Jwe` and `Jwt\KeySet`
-  # join them.
-  "crates/nvs-stdlib/src/registry.rs",
-  # `decodeAs`'s one walk (:82-103), which `Jwt::verifyIssued<T>` decodes its claims through. Stage 6.
+  # The door, the five rows, the one bag (:343-386) and the reply class. Stages 4, 5 and 6.
+  "crates/nvs-stdlib/src/http.rs",
+  # The exchange, framing (:543-548), the header guard (:336-375) and the hop. Stages 6, 7 and 8.
+  "crates/nvs-stdlib/src/http/transport.rs",
+  # `decompress_within` (:522-539), the one bound over gzip, brotli and zstd. Stage 7.
+  "crates/nvs-stdlib/src/compress.rs",
+  # The encode walk `json:` applies the outbound exemption to, and `decodeAs`'s one walk. Stages 4, 5.
   "crates/nvs-stdlib/src/json.rs",
-  # The decode-site roster `verifyIssued<T>` joins beside `Core\Request::jsonAs` (:1517-1528). Stage 6.
+  # `Core\Http\Method`'s eight cases (:123-151). Stage 4.
+  "crates/nvs-stdlib/src/router.rs",
+  # `Core\Test`'s rows (:357-373), where the table joins them. Stage 3.
+  "crates/nvs-stdlib/src/test.rs",
+  # `jsonAs` (:305-313) and `bodyStream` (:314-320), the precedents stages 5 and 6 copy.
+  "crates/nvs-stdlib/src/request.rs",
+  # Where every row is registered, and the qualifier spellings (:302-377).
+  "crates/nvs-stdlib/src/registry.rs",
+  # `reject_keyless_retry` and the decode-site roster (:1517-1528). Stages 4 and 5.
   "crates/nvs-types/src/expr/args.rs",
-  # `check_decode_sites` (:803-830) and `check_shape_decode_site` (:910), the qualifier check. Stage 6.
+  # `check_decode_sites` (:803-830), which `Response::jsonAs` joins. Stage 5.
   "crates/nvs-types/src/derive.rs",
-  # `admits_tainted_argument` (:299-308): a `Qual::Contagious` text parameter takes a `tainted`
-  # argument only where the return type can carry the bit back out, so a member already answering
-  # `tainted` refuses one. That is what a `Core\Jwe` or `Core\Jwt` row is choosing between.
-  "crates/nvs-types/src/expr/quals.rs",
-  # `Core\Ast` — `rule:core-classes/ast-is-inert`'s door onto the compiler's own parser, and the
-  # inert tree it answers with.
-  "crates/nvs-stdlib/src/ast.rs",
-  # `Core\Xml` — spec § 17's one API for documents, and the node family
-  # `rule:core-classes/html-parsing` makes both parsers produce.
-  "crates/nvs-stdlib/src/xml.rs",
-  # Seeding the checker's signature table with `Core`.
-  "crates/nvs-types/src/core_lib.rs",
-  # `Core\Jwe` — `rule:security/protocol-roster`'s JWE entry: compact JWE with `A256GCM` alone,
-  # assembled out of `crate::crypto`'s primitives and holding none of its own.
-  "crates/nvs-stdlib/src/jwe.rs",
-  # The frozen set and the one door onto it. Every slice of stage 7 reads both, and the JSON is
-  # never edited by a session -- what the pack owes is that they are named, not that they are
-  # printed. A stage table may not narrow `modules`, so they are named here.
-  "crates/nvs-stdlib/src/tests/vectors.rs",
-  "crates/nvs-stdlib/tests/vectors/webcrypto.json",
+  # The `[http.client]` rows the four new keys join. Stages 6 and 7.
+  "crates/nvs-config/src/directive.rs",
+  # The TLS session a pooled connection keeps (stage 7), the roots and key log (stage 9), and the policy
+  # value a relaxed call hands in (stage 10).
+  "crates/nvs-host/src/tls.rs",
+  # `HttpClient` (:507) and `CapNet` (:300): `[http.client.tls]` and the six new grants. Stages 9-11.
+  "crates/nvs-config/src/tree.rs",
+  # The precedent a `roots` file is resolved and trust-checked by (:14-21). Stage 9.
+  "crates/nvs-config/src/db.rs",
+  # `pin_host` (:167), which the address and TLS grants are asked beside, and `resolve_host` (:190),
+  # whose lookup leaves the core. Stages 10, 11 and 12.
+  "crates/nvs-runtime/src/capability.rs",
+  # The blocking pool a lookup is handed to (:1-10). Stage 12.
+  "crates/nvs-host/src/blocking.rs",
+  # `TraceKind` (:54-67), which gains `http`, and the `query` filing it copies (:149). Stage 13.
+  "crates/nvs-runtime/src/ctx/trace.rs",
+  # `QuerySpan`, the precedent for a kind's fixed field set. Stage 13.
+  "crates/nvs-db/src/span.rs",
 ]
 
-# Every stage works inside these three: the key picks the algorithm, the roster JWE joins, and how a
-# refusal is reported.
+# Every stage works inside these three: the URL is a sink and the pin survives everything, no wait is
+# unbounded, and a hop is re-checked.
 rules = [
-  "security/algorithm-comes-from-the-key",
-  "security/protocol-roster",
-  "security/verification-throws-and-compares-in-constant-time",
+  "security/outbound-url-is-a-sink",
+  "http-server/no-spelling-for-an-unbounded-wait",
+  "http-server/redirects-are-off-and-every-hop-is-re-pinned",
 ]
 
 adrs = []
@@ -175,7 +168,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `47-webcrypto.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `48-http-client.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -188,71 +181,125 @@ plan = ["Open now", "Blocking"]
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The record, the roster's admission test JWE has to pass, how members are spelled, and the two spec
-# rows it moves.
-rules = ["security/protocol-admission-test", "core-api/verb-lexicon", "core-api/tier-roster"]
-adrs = ["0051"]
+# The record: the two records the client already stands on, how members are spelled, the row it moves,
+# and the two rules the four new `[http.client]` keys' classes and shipped values answer to.
+rules = [
+  "core-api/verb-lexicon",
+  "core-api/shape-rules",
+  "config/three-changeability-classes",
+  "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+  "security/one-tls-client",
+  "security/capability-question-is-grant-and-scope",
+  # The three fragments the record amends beyond those: a set of addresses, `Retry-After`'s date, and
+  # a fifth trace kind.
+  "http-server/allow-url-pins-the-address",
+  "http-server/retry-is-opt-in-jittered-and-closed",
+  "observability/trace-events-carry-a-kind",
+]
+adrs = ["0074", "0058"]
 spec = ["01 §16"]
-shapes = ["A decision record", "A rule fragment", "Citing a document", "Where a rule sits in the order"]
+shapes = ["A decision record", "A rule fragment", "Citing a document"]
 
 [context.stage.3]
-# Six crates enter the tree and `ring` is taken directly: what a dependency move proves, the generated
-# notice, and the C-dependency answer `ring`'s widening restates.
-rules = [
-  "packaging/a-dependency-move-proves-two-things",
-  "packaging/the-third-party-notice-is-generated-never-written-by-hand",
-  "packaging/a-c-dependency-answers-two-questions",
-]
+# The table answers in-process, the way `Core\Test::request` already does.
+rules = ["testing/in-process-request"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.4]
-# The members: the five edits, the case shape, and what a `secret` key may cross.
-rules = ["security/secret-qualifier", "core-api/shape-rules"]
-spec = ["01 §16"]
+# A secret may be sent, a body may carry what a user wrote, and a dynamic verb still owes its key.
+rules = [
+  "security/secret-sinks-refuse",
+  "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
+  "core-api/options-bag",
+]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.5]
-# JWE's payload is attacker-supplied text, answered `tainted`.
-rules = ["security/tainted-sources", "security/verification-does-not-launder"]
-shapes = ["A `Core` member", "A `.nvst` test case"]
-
-[context.stage.6]
-# JWS: claims as a shape are held to the codec rule, a verified claim is still input, and expiry stays
-# mandatory under a key pair.
+# A reply is input, a decode into a shape is held to the codec rule, and `Retry-After` is read under the
+# retry rule and the one deadline.
 rules = [
+  "security/tainted-sources",
   "security/derived-codec-qualifiers",
-  "security/tainted-qualifier",
-  "security/verification-does-not-launder",
-  "security/jwt-expiry-is-mandatory",
+  "http-server/retry-is-opt-in-jittered-and-closed",
+  "http-server/one-deadline-covers-the-whole-call",
 ]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
+[context.stage.6]
+# A body saved to disk is bounded the way every disk write is.
+rules = ["http-server/there-is-no-temp-file", "core-classes/io-write-stream"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
 [context.stage.7]
-# The frozen set and the one door onto it are named in `[context] modules`, which is the only list
-# `orient.py` reads a path out of.
-#
-# The example is one of the four proofs a shipped feature owes, and a token arriving from a request
-# is the call a qualifier row decides.
-rules = ["testing/four-proofs", "security/verification-does-not-launder"]
-shapes =["A feature's four proofs — an example, an attack, a bench, a `covers:` marker"]
+# The pool's precedent, and the deadline a stale connection must not stretch.
+rules = ["security/db-pool-reset-is-a-boundary", "http-server/one-deadline-covers-the-whole-call"]
 
 [context.stage.8]
+# What a trace carries, and what a header value may never reach.
+rules = ["security/secret-sinks-refuse", "observability/an-outbound-call-propagates-traceparent"]
+
+[context.stage.9]
+# The trust roots: a trust-checked file, a System key, and the mode a key log is refused in.
+rules = [
+  "security/one-tls-client",
+  "config/three-changeability-classes",
+  "config/ownership-is-the-trust-boundary",
+]
+
+[context.stage.10]
+# A relaxation is a grant with a scope, asked of the request's snapshot, over the one client.
+rules = ["security/one-tls-client", "security/capability-question-is-grant-and-scope"]
+shapes = ["A `Core` member"]
+
+[context.stage.11]
+# The address a call names is still judged, and a reply's certificate chain is input.
+rules = [
+  "security/net-address-policy",
+  "http-server/allow-url-pins-the-address",
+  "security/tainted-sources",
+]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.12]
+# The lookup leaves the core, and every address it answers is judged and may be connected to.
+rules = [
+  "http-server/a-core-is-never-blocked-on-a-syscall",
+  "http-server/allow-url-pins-the-address",
+  "security/net-address-policy",
+]
+
+[context.stage.13]
+# The fifth kind, and the span the rulebook already derives from it.
+rules = [
+  "observability/trace-events-carry-a-kind",
+  "observability/four-kinds-become-a-span",
+  "observability/a-query-is-a-trace-event",
+]
+
+[context.stage.14]
 shapes = ["A rule fragment"]
 
-# Every buffer is a `Core` buffer charged through `nvs_runtime::budget`, and no member holds a
-# refcounted value across a call. No cycle shape, so nothing is added to the skip list.
+# Every buffer is a `Core` buffer charged through `nvs_runtime::budget`, and a pooled connection is a
+# host handle rather than a refcounted value. No cycle shape, so nothing is added to the skip list.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# None of this goal's own checks needs a daemon. The floor is goal `template-format`'s whole list,
-# which carries goal `finish-response`'s served-path and queue checks, and the daemons are theirs.
+# None of this goal's own checks needs a daemon. The floor is goal `webcrypto`'s whole list, which
+# carries goal `finish-response`'s served-path and queue checks, and the daemons are theirs.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 633 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -8989,16 +9036,13 @@ name = "the rule is renamed for what it now says, and shipped"
 argv = ["python", "tools/rules.py", "--show", "ide/a-template-region-gets-the-editors-services-and-formatter"]
 want = ["shipped"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the record. Goal prose stage 2. Matched on the id line, which stays true after stage 7
 # flips the status, so this check survives being folded into every later floor.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "the interop tier is a rule"
 argv = ["python", "tools/rules.py", "--show", "core-classes/crypto-interop-tier"]
 # The id without its `rule:` prefix, because `--citations` cannot tell a token asserted here from a
@@ -9008,14 +9052,14 @@ want = ["core-classes/crypto-interop-tier"]
 
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "the JWE subset is a rule"
 argv = ["python", "tools/rules.py", "--show", "security/jwe-compact-subset"]
 want = ["security/jwe-compact-subset"]
 
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "the JWS subset is a rule"
 argv = ["python", "tools/rules.py", "--show", "security/jws-issued-subset"]
 want = ["security/jws-issued-subset"]
@@ -9025,10 +9069,9 @@ want = ["security/jws-issued-subset"]
 # frozen WebCrypto set where the goal's standing decisions make that output the oracle. Goal prose
 # stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the primitives"
+stage = "1 floor"
 name = "every interop primitive matches its published vectors and refuses its classic bad input"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -9052,10 +9095,9 @@ tests = [
 # Stage 4 -- the `Core\Crypto` members, and the two migration rows that now name them. Goal prose
 # stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 the members"
+stage = "1 floor"
 name = "one seal and open over every cipher, the derivations, the key classes, their bounds and refusals"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9092,7 +9134,7 @@ cases = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the members"
+stage = "1 floor"
 name = "the spec and the migration table name only registered, cased members"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -9104,10 +9146,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- `Core\Jwe`. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "5 jwe"
+stage = "1 floor"
 name = "JWE round-trips under every key kind, and the header selects nothing"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9135,10 +9176,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- JWS: `Core\Jwt` over a key pair, `Jwt\KeySet`, and claims as a shape. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "6 jws"
+stage = "1 floor"
 name = "the algorithm is the key's, an issued token is checked whole, and its claims arrive as a tainted shape"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9177,10 +9217,9 @@ cases = [
 # Stage 7 -- WebCrypto itself, both directions, and the example. Goal prose stage 7. Node's
 # `crypto.subtle` is the browser API; the script uses no package and no network.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "7 the browser"
+stage = "1 floor"
 name = "every vector WebCrypto wrote is read by Novis, reproduced by Novis, or refused by Novis"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -9202,7 +9241,7 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "7 the browser"
+stage = "1 floor"
 file = "examples/webcrypto.nvs"
 want = [
   "sealed",
@@ -9217,24 +9256,481 @@ want = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- the rulebook. Goal prose stage 8.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "the interop tier is shipped"
 argv = ["python", "tools/rules.py", "--show", "core-classes/crypto-interop-tier"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "the JWE subset is shipped"
 argv = ["python", "tools/rules.py", "--show", "security/jwe-compact-subset"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "the JWS subset is shipped"
 argv = ["python", "tools/rules.py", "--show", "security/jws-issued-subset"]
+want = ["shipped"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 14
+# flips the status.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "one body per outbound request is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-request-carries-one-body"]
+want = ["http-server/an-outbound-request-carries-one-body"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a streamed reply's bound is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime"]
+want = ["http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the pinned per-core pool is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"]
+want = ["http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a cross-origin redirect dropping credentials is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-cross-origin-redirect-drops-credentials"]
+want = ["http-server/a-cross-origin-redirect-drops-credentials"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an outbound call answered from a table is a rule"
+argv = ["python", "tools/rules.py", "--show", "testing/an-outbound-call-is-answered-from-a-table"]
+want = ["testing/an-outbound-call-is-answered-from-a-table"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the operator's client trust roots are a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/the-client-trust-roots-are-the-operators"]
+want = ["http-server/the-client-trust-roots-are-the-operators"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "relaxing TLS only under a host grant is a rule"
+argv = ["python", "tools/rules.py", "--show", "security/tls-trust-is-relaxed-only-under-a-host-grant"]
+want = ["security/tls-trust-is-relaxed-only-under-a-host-grant"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "naming an outbound address only under a grant is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-call-names-its-address-only-under-a-grant"]
+want = ["http-server/an-outbound-call-names-its-address-only-under-a-grant"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an https redirect never becoming plaintext is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-https-redirect-never-becomes-plaintext"]
+want = ["http-server/an-https-redirect-never-becomes-plaintext"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a reply reporting its TLS session is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-reply-reports-its-tls-session"]
+want = ["http-server/a-reply-reports-its-tls-session"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "trying every approved address is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-call-tries-every-approved-address"]
+want = ["http-server/an-outbound-call-tries-every-approved-address"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the table. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the table"
+name = "a test answers outbound calls from a table, records what was sent, and never connects"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/test-answer-http-serves-an-outbound-call-from-a-table.nvst",
+  "tests/conformance/core/test-an-unanswered-outbound-call-throws-and-never-connects.nvst",
+  "tests/conformance/core/test-sent-http-records-each-outbound-request.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- bodies and verbs. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 bodies and verbs"
+name = "a request carries one body of four kinds, a secret where it is sent, and a verb chosen at run time"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-client-sends-a-json-a-form-a-raw-and-a-multipart-body.nvst",
+  "tests/conformance/core/http-client-streams-a-file-as-the-whole-body.nvst",
+  "tests/conformance/core/http-client-a-secret-reaches-a-header-a-form-and-a-json-body.nvst",
+  "tests/conformance/core/http-client-patch-and-request-send-the-verb-they-name.nvst",
+  "tests/conformance/core/http-client-a-dynamic-body-on-get-or-keyless-post-retry-throws-before-sending.nvst",
+  "tests/conformance/reject/http-client-two-body-keys-are-refused.nvst",
+  "tests/conformance/reject/http-client-a-body-on-get-or-head-is-refused.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 bodies and verbs"
+name = "a file body is streamed at one chunk whatever its size, and re-read on a retry"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_file_body_is_streamed_at_one_chunk_whatever_its_size",
+  "a_file_body_is_re_read_on_every_attempt",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- reading a reply. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 reading a reply"
+name = "a reply's headers, bytes and typed JSON are read, and every one of them is tainted"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-response-reads-a-header-case-insensitively-and-every-repeat.nvst",
+  "tests/conformance/core/http-response-json-as-answers-a-tainted-shape.nvst",
+  "tests/conformance/core/http-response-bytes-answers-the-octets-that-arrived.nvst",
+  "tests/conformance/reject/http-response-json-as-into-an-unqualified-shape-is-refused.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 reading a reply"
+name = "Retry-After is read as seconds or a date, after a 429 or a 503 alone, and a past date keeps the jitter"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "retry_after_as_an_http_date_replaces_the_backoff",
+  "retry_after_past_the_deadline_throws_now",
+  "retry_after_already_past_keeps_the_jittered_backoff",
+  "retry_after_on_a_502_or_504_is_not_read",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- streaming. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 streaming"
+name = "a streamed reply is read once as events, lines, chunks or a bounded file"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-stream-reads-sse-events-across-every-line-ending.nvst",
+  "tests/conformance/core/http-stream-reads-lines-and-chunks-and-refuses-a-second-read.nvst",
+  "tests/conformance/core/http-stream-save-to-stops-at-its-bound.nvst",
+  "tests/conformance/reject/http-client-idle-on-a-buffered-member-is-refused.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 streaming"
+name = "a stream's body is bounded by silence and by a lifetime, and is never retried after its head"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "stream_idle_ends_a_silent_reply",
+  "stream_max_duration_ends_an_endless_reply",
+  "stream_is_retried_before_its_head_and_never_after",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the pool and compression. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the pool and compression"
+name = "a connection is reused only for its own pinned address and only after a framed reply, and every coding is bounded"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "pooled_connection_is_reused_for_one_pinned_address_and_never_across_two",
+  "pooled_connection_goes_back_only_after_a_fully_framed_reply",
+  "stale_pooled_connection_is_replaced_once_without_spending_an_attempt",
+  "pool_holds_no_more_than_its_idle_cap_and_closes_past_its_idle_timeout",
+  "gzip_brotli_and_zstd_replies_are_decoded_under_the_compress_bound_and_a_bomb_is_refused",
+  "accept_encoding_offers_gzip_br_and_zstd",
+  "a_zstd_frame_whose_window_passes_8_mib_is_refused_before_it_is_allocated",
+  "a_content_encoding_the_request_did_not_offer_is_refused_naming_it",
+  "client_identity_is_presented_when_asked_and_is_part_of_the_pool_key",
+  "a_call_without_an_identity_never_reuses_a_connection_that_presented_one",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "7 the pool and compression"
+name = "a client identity reads a PEM chain over a key pair and refuses a leaf that does not match"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-identity-reads-a-pem-chain-and-a-key-pair-and-refuses-a-mismatch.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- credentials on a redirect. Goal prose stage 8.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "8 credentials"
+name = "a hop to another origin carries no credential, and no header value reaches a trace or a message"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "cross_origin_redirect_drops_authorization_cookie_and_every_secret_header",
+  "same_origin_redirect_keeps_the_callers_headers",
+  "no_trace_span_or_error_message_carries_a_header_value",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the trust roots. Goal prose stage 9.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the trust roots"
+name = "the operator's roots add to or replace the bundled set, the floor can rise, and a key log is written"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "roots_of_bundled_and_a_file_trust_the_files_ca",
+  "roots_of_one_file_refuse_a_chain_from_another_ca",
+  "min_version_1_3_refuses_an_origin_that_speaks_only_1_2",
+  "keylog_appends_each_sessions_secrets",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the trust roots"
+name = "a roots file is trust-checked at boot, and a key log is refused in production"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_group_writable_roots_file_is_refused_at_boot",
+  "keylog_is_refused_at_boot_in_production",
+  "keylog_is_accepted_in_development",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the trust roots"
+name = "an https call through the client completes against a loopback origin its roots trust"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "https_call_through_the_client_reaches_a_loopback_origin_under_a_roots_file",
+  "https_call_to_an_origin_no_root_vouches_for_throws_and_is_not_retried",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- relaxing trust from code. Goal prose stage 10.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "10 relaxing trust"
+name = "each relaxing policy does what curl's option does"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "anchors_policy_trusts_only_the_given_certificates",
+  "pin_policy_accepts_a_self_signed_peer_whose_key_matches",
+  "pin_policy_refuses_a_peer_whose_key_does_not_match",
+  "any_name_policy_still_refuses_an_untrusted_chain",
+  "insecure_policy_completes_against_an_untrusted_peer",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "10 relaxing trust"
+name = "a relaxing option needs its host in a grant, and a relaxed connection never serves a strict call"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_tls_option_without_its_host_grant_throws_before_connecting",
+  "a_tls_grant_for_another_host_relaxes_nothing",
+  "tls_min_version_below_the_floor_throws",
+  "a_relaxed_connection_never_serves_a_strict_call_from_the_pool",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "10 relaxing trust"
+name = "a relaxing grant names hosts and has no true spelling"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_tls_grant_of_true_is_refused",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 11 -- the address, the downgrade, and the report. Goal prose stage 11.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "11 address downgrade report"
+name = "a named address is still judged, a downgrade needs its grant and its option, and a reply reports its session"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "connect_to_connects_to_the_named_address_and_checks_the_urls_host",
+  "connect_to_an_address_the_policy_denies_throws_before_connecting",
+  "connect_to_beside_a_target_is_a_logic_error",
+  "https_to_http_redirect_is_refused_without_the_downgrade_grant",
+  "https_to_http_redirect_is_refused_under_the_grant_without_the_option",
+  "https_to_http_redirect_is_followed_under_the_grant_and_the_option",
+  "tls_info_reports_version_cipher_and_the_peer_chain",
+  "tls_info_is_unverified_after_a_pinned_or_relaxed_call",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "11 address downgrade report"
+name = "a reply the table answered reports no TLS session"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-response-tls-is-null-for-a-reply-the-table-answered.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 12 -- a name resolved off the core, and every address it answers. Goal prose stage 12.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "12 every address"
+name = "every resolved address is checked, one denied refuses the host, and the grant is asked before the lookup"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_host_resolving_to_one_denied_address_is_refused_whole",
+  "every_approved_address_is_kept_in_the_resolvers_order_up_to_eight",
+  "the_grant_is_asked_before_the_lookup_leaves_the_core",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "12 every address"
+name = "a lookup leaves the core, a dead address falls back to the next, and a retry never re-resolves"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_slow_lookup_leaves_the_core_free_for_another_task",
+  "a_dead_first_address_falls_back_to_the_next_within_connect_timeout",
+  "every_address_failing_is_one_io_error_naming_each",
+  "a_retry_reuses_the_approved_set_and_never_re_resolves",
+  "a_pooled_connection_to_any_approved_address_serves_the_call",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 13 -- an outbound call is a trace event. Goal prose stage 13.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "13 the trace event"
+name = "an outbound call files one http event with its timings, and nothing a trace may not hold"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "an_outbound_call_files_one_http_trace_event_with_its_timings",
+  "a_retried_call_is_one_http_event_carrying_its_attempt_count",
+  "the_http_trace_event_carries_no_query_string_header_value_or_body",
+  "a_call_the_table_answered_files_no_http_event",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 14 -- the rulebook. Goal prose stage 14.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "one body per outbound request is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-request-carries-one-body"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "a streamed reply's bound is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "the pinned per-core pool is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "a cross-origin redirect dropping credentials is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-cross-origin-redirect-drops-credentials"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "an outbound call answered from a table is shipped"
+argv = ["python", "tools/rules.py", "--show", "testing/an-outbound-call-is-answered-from-a-table"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "the operator's client trust roots are shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/the-client-trust-roots-are-the-operators"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "relaxing TLS only under a host grant is shipped"
+argv = ["python", "tools/rules.py", "--show", "security/tls-trust-is-relaxed-only-under-a-host-grant"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "naming an outbound address only under a grant is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-call-names-its-address-only-under-a-grant"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "an https redirect never becoming plaintext is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-https-redirect-never-becomes-plaintext"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "a reply reporting its TLS session is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-reply-reports-its-tls-session"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "14 the rulebook"
+name = "trying every approved address is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-call-tries-every-approved-address"]
 want = ["shipped"]
