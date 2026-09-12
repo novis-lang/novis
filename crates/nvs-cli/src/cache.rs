@@ -2563,11 +2563,15 @@ mod tests {
     /// first run of a program actually costs, and pricing the cold arm at less than it would
     /// flatter the cache.
     ///
-    /// Each arm is the **fastest** of its runs rather than the mean, because a minimum is the one
-    /// statistic a busy machine cannot inflate: whatever else a sample was charged for, no arm can
-    /// be measured faster than the work it did. The named margin is written well under the ratio a
-    /// development machine actually prints — so a loaded machine cannot fail it by being slow, and
-    /// a slow *disk* only moves it the safe way: the `fsync` is in the cold arm. What is asserted
+    /// The margin is read off the **best pair** of runs rather than off each arm's own fastest,
+    /// because the two halves of a pair are measured microseconds apart and so meet the same
+    /// machine: a minimum taken over the whole sweep is free to pair a cold arm measured while the
+    /// box was idle with a warm arm that waited on a disk something else was writing. Neither arm
+    /// can be measured faster than the work it did, so the best pair is still a lower bound on the
+    /// ratio; what it buys is that one stalled sample decides nothing, which is what a guard that
+    /// shares its machine with a release build needs. The named margin is written well under the
+    /// ratio a development machine actually prints, and a slow *disk* moves it the safe way: the
+    /// `fsync` is in the cold arm. What is asserted
     /// is "codegen dominates place and relocate", not a benchmark's own number; a change that
     /// brought the two within this factor of each other would mean the loader had grown expensive
     /// enough to reopen the decision, which is exactly what § *Revisiting* asks this test to detect.
@@ -2578,8 +2582,9 @@ mod tests {
 
         /// The factor a warm start must clear. Under it, § *Revisiting* is owed a look.
         const MARGIN: u32 = 4;
-        /// Samples per arm. The minimum of five is stable well inside the margin above.
-        const RUNS: u32 = 5;
+        /// Sample pairs. The best of nine clears the margin with room to spare on an idle
+        /// machine, and nine pairs stall together only on a machine nothing can measure.
+        const RUNS: u32 = 9;
 
         let dir = scratch("warm-margin");
         let source = dir.join("program.nvs");
@@ -2600,8 +2605,7 @@ mod tests {
         fs::write(&source, &text).expect("a scratch directory of this test's own is writable");
         let (program, digest) = lowered(&source);
 
-        let mut cold = Duration::MAX;
-        let mut warm = Duration::MAX;
+        let mut best: Option<(Duration, Duration)> = None;
         for run in 0..RUNS {
             // A cache of this sample's own, so every cold arm is a genuinely empty one and the
             // directory it publishes into is not one another sample already filled.
@@ -2611,7 +2615,7 @@ mod tests {
             let at = Instant::now();
             let (built, provenance) =
                 unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
-            cold = cold.min(at.elapsed());
+            let cold = at.elapsed();
             assert_eq!(
                 provenance,
                 Provenance::Compiled,
@@ -2621,12 +2625,24 @@ mod tests {
             let at = Instant::now();
             let (loaded, provenance) =
                 unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
-            warm = warm.min(at.elapsed());
+            let warm = at.elapsed();
             assert_eq!(
                 provenance,
                 Provenance::Loaded,
                 "the artifact the cold arm published is under the same key"
             );
+
+            // A cross-product rather than a division, so a warm arm that lands on zero
+            // nanoseconds is still a pair this loop can rank.
+            let better = match best {
+                Some((held_cold, held_warm)) => {
+                    cold.as_nanos() * held_warm.as_nanos() > held_cold.as_nanos() * warm.as_nanos()
+                }
+                None => true,
+            };
+            if better {
+                best = Some((cold, warm));
+            }
 
             // Once, and only for the work's sake: a margin over two arms that ran different
             // programs — or no program — would measure nothing.
@@ -2636,7 +2652,8 @@ mod tests {
             }
         }
 
-        println!("cold {cold:?}, warm {warm:?} (fastest of {RUNS})");
+        let (cold, warm) = best.expect("one pair per run, and there is at least one run");
+        println!("cold {cold:?}, warm {warm:?} (the best of {RUNS} pairs)");
         assert!(
             warm * MARGIN <= cold,
             "§ Verification's margin: a warm start must be at least {MARGIN}x a cold one, and this \
