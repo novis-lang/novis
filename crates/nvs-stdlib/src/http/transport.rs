@@ -37,9 +37,11 @@
 //! code for both.
 //!
 //! What a call spends is one buffer holding the whole reply, capped at
-//! [`REPLY_CEILING`], plus the request text, both released with the request.
-//! What outlives it is the connection itself, charged to the core under that
-//! module's two caps.
+//! [`REPLY_CEILING`], plus the request text, both released with the request. A
+//! reply that arrived compressed spends a second buffer for the decoded octets,
+//! under that same ceiling lowered onto the operator's
+//! (`rule:core-classes/decompression-bound`). What outlives it is the
+//! connection itself, charged to the core under that module's two caps.
 //!
 //! # `https` is three lines, because the stream is a plain `Read`/`Write`
 //!
@@ -74,6 +76,7 @@ use nvs_runtime::{Fault, ThrownClass};
 use rand::RngExt;
 
 use super::pool;
+use crate::compress;
 
 /// The most reply a single call will hold, headers and body together.
 ///
@@ -164,6 +167,16 @@ pub(crate) struct Call<'a> {
     /// so every call on a core arrives with the same pair and a request cannot
     /// move them.
     pub(crate) pool: pool::Caps,
+    /// What a reply that arrived compressed is decoded under — `[limits]
+    /// max_decompressed` and `[limits] max_decompression_ratio`, already
+    /// resolved.
+    ///
+    /// Here for [`Call::pool`]'s reason: [`compress::Bound::ceiling`] reads a
+    /// `Ctx` and this module has none. A call carries the bound but cannot
+    /// widen it — `rule:core-classes/decompression-bound` is one-way, and a
+    /// reply is octets another host chose, so there is nothing here to ask for
+    /// more with.
+    pub(crate) compress: compress::Bound,
     /// The W3C `traceparent` naming the request this call is made from, or
     /// `None` where `[trace] propagate` is off.
     ///
@@ -266,8 +279,9 @@ impl<T: Read + Seek> Rewindable for T {}
 pub(crate) struct Reply {
     /// The status line's code.
     pub(crate) status: i64,
-    /// The body's octets, exactly as they arrived once any transfer coding was
-    /// undone — a `Vec<u8>` and not a `String` because whether they are text is
+    /// The body's octets, exactly as they arrived once the transfer coding and
+    /// the content coding were both undone — a `Vec<u8>` and not a `String`
+    /// because whether they are text is
     /// `Core\Http\Response::text`'s question and not this module's, and a reply
     /// a program only wanted the bytes of must not throw on the way here.
     pub(crate) body: Vec<u8>,
@@ -757,18 +771,104 @@ fn sent(
 ///
 /// # Errors
 ///
-/// [`sent`]'s, and a `RuntimeError` for a body past [`REPLY_CEILING`].
+/// [`sent`]'s, a `RuntimeError` for a body past [`REPLY_CEILING`], and
+/// [`coding_of`]'s for a reply under a coding [`OFFERED`] does not name.
 pub(crate) fn send(
     call: &Call<'_>,
     repin: &mut dyn FnMut(&str) -> Result<IpAddr, Fault>,
 ) -> Result<Reply, Fault> {
     let mut answer = sent(call, repin, Bounds::Whole)?;
     let body = answer.body.whole(REPLY_CEILING)?;
+    let Some(codec) = coding_of(&answer.headers, call.member)? else {
+        return Ok(Reply {
+            status: answer.status,
+            body,
+            headers: answer.headers,
+        });
+    };
+    // A decoded reply is still a reply this call holds whole, so
+    // [`REPLY_CEILING`] is this module's own ask against the operator's
+    // ceiling, and [`compress::Bound::within`] takes the smaller on each axis.
+    // Lowering it here rather than trusting the ratio is what keeps a call's
+    // footprint the one number the rest of this module is written on.
+    let bound = call.compress.within(compress::Bound {
+        bytes: REPLY_CEILING as u64,
+        ratio: u64::MAX,
+    });
+    let body = compress::decompress_within(codec, &body, bound, call.member)?;
+    // The two fields described the frame and not the body. What a program
+    // reads back is decoded, so a `Content-Encoding` still naming the coding
+    // and a `Content-Length` still counting the compressed octets would both be
+    // answers to a question nobody can ask any more.
+    answer
+        .headers
+        .retain(|(name, _)| name != "content-encoding" && name != "content-length");
     Ok(Reply {
         status: answer.status,
         body,
         headers: answer.headers,
     })
+}
+
+/// What every request offers, and so the only codings a reply may arrive
+/// under.
+///
+/// Three and not more: these are the codings this process can undo under
+/// `rule:core-classes/decompression-bound`, and an offer is a promise to decode
+/// what comes back. `deflate` is deliberately absent — it is two framings on
+/// the wire under one name, and an origin picking the other one is a decode
+/// this client would get wrong rather than refuse.
+const OFFERED: &str = "gzip, br, zstd";
+
+/// The codec a reply's `Content-Encoding` names, or `None` for a body that
+/// arrived as it was written.
+///
+/// One coding or none. A list is refused rather than peeled: [`OFFERED`] offers
+/// three single codings and never a stack of them, so a reply under two is one
+/// no request here asked for, and peeling would be a decode per layer where the
+/// bound is judged per layer.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` naming the coding, for anything else the field
+/// holds.
+fn coding_of(headers: &[(String, String)], member: &str) -> Result<Option<compress::Codec>, Fault> {
+    let Some(named) = header(headers, "content-encoding") else {
+        return Ok(None);
+    };
+    let named = named.trim();
+    // `identity` is the field spelled as the absence of one, and an origin is
+    // allowed to write it.
+    if named.is_empty() || named.eq_ignore_ascii_case("identity") {
+        return Ok(None);
+    }
+    if named.eq_ignore_ascii_case("gzip") {
+        return Ok(Some(compress::Codec::Gzip));
+    }
+    if named.eq_ignore_ascii_case("br") {
+        return Ok(Some(compress::Codec::Brotli));
+    }
+    if named.eq_ignore_ascii_case("zstd") {
+        return Ok(Some(compress::Codec::Zstd));
+    }
+    Err(Fault::thrown(format!(
+        "{member}: the reply arrived under `Content-Encoding: {named}`, which this request did \
+         not offer — every one of them offers `{OFFERED}` and nothing else. A coding this client \
+         cannot undo is refused rather than handed on as the octets it is still in."
+    )))
+}
+
+/// The refusal for a program that wrote an `Accept-Encoding` of its own.
+///
+/// Refused rather than dropped or sent beside ours, because either of those is
+/// this client deciding what the program meant: two offers let the origin pick,
+/// and one of the two would name a coding [`coding_of`] then refuses.
+fn own_offer(member: &str, name: &str) -> Fault {
+    Fault::thrown(format!(
+        "{member}: `{name}` is this client's own header and not a program's — every request \
+         offers `{OFFERED}`, which is exactly the set a reply is decoded from under \
+         `rule:core-classes/decompression-bound`."
+    ))
 }
 
 /// The same call, stopped at the head, with the body left on the socket.
@@ -1067,6 +1167,14 @@ fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
         env!("CARGO_PKG_VERSION"),
         "\r\nAccept: */*\r\n"
     ));
+    if let Some((name, _)) = call
+        .headers
+        .iter()
+        .find(|(held, _)| held.eq_ignore_ascii_case("accept-encoding"))
+    {
+        return Err(own_offer(call.member, name));
+    }
+    field(&mut out, "Accept-Encoding", OFFERED, call.member)?;
     if let Some(key) = &call.idempotency_key {
         field(&mut out, "Idempotency-Key", key, call.member)?;
     }
@@ -1473,6 +1581,7 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::{Call, Incoming, Streamed, backoff, send, send_streamed};
+    use crate::compress::{Bound, Codec, compress_to};
     use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
     use nvs_host::scheduler::Scheduler;
     use nvs_runtime::{Ctx, Fault, OutputSink, TaskRoot};
@@ -1508,6 +1617,13 @@ mod tests {
     /// the idle one — a hang, where the failure a case is written to catch is a
     /// count.
     fn origin(replies: Vec<&'static str>) -> (SocketAddr, std::thread::JoinHandle<Served>) {
+        origin_raw(replies.into_iter().map(|r| r.as_bytes().to_vec()).collect())
+    }
+
+    /// [`origin`] for a reply no `&str` holds: a compressed body is octets a
+    /// codec chose, and writing the cases against bytes is what keeps the one
+    /// listener answering both kinds.
+    fn origin_raw(replies: Vec<Vec<u8>>) -> (SocketAddr, std::thread::JoinHandle<Served>) {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
         let at = listener.local_addr().expect("its own address");
         listener
@@ -1552,11 +1668,7 @@ mod tests {
     /// The reply goes out under the same lock that records the request, so a
     /// case joining the moment the last one is counted has the octets that
     /// answer it already on the wire.
-    fn answer(
-        mut stream: std::net::TcpStream,
-        replies: Vec<&'static str>,
-        state: Arc<Mutex<Served>>,
-    ) {
+    fn answer(mut stream: std::net::TcpStream, replies: Vec<Vec<u8>>, state: Arc<Mutex<Served>>) {
         // Said rather than assumed: a connection accepted from a non-blocking
         // listener inherits that mode on Windows and does not on Linux, and a
         // handler that read `WouldBlock` as the end of a connection would close
@@ -1579,7 +1691,7 @@ mod tests {
             let Some(reply) = replies.get(held.asked.len()) else {
                 return;
             };
-            stream.write_all(reply.as_bytes()).expect("a reply");
+            stream.write_all(reply).expect("a reply");
             stream.flush().expect("a flushed reply");
             held.asked
                 .push(String::from_utf8_lossy(&request[..read]).into_owned());
@@ -1607,8 +1719,25 @@ mod tests {
                 idle: 16,
                 timeout: Duration::from_secs(30),
             },
+            // `[limits]`'s shipped ceiling, which only the bomb below lowers.
+            compress: Bound {
+                bytes: 64 << 20,
+                ratio: 1000,
+            },
             traceparent: None,
         }
+    }
+
+    /// A reply carrying `frame` under `coding`, framed by length the way an
+    /// origin that compressed its body writes one.
+    fn encoded(coding: &str, frame: &[u8]) -> Vec<u8> {
+        let mut reply = format!(
+            "HTTP/1.1 200 OK\r\nContent-Encoding: {coding}\r\nContent-Length: {}\r\n\r\n",
+            frame.len()
+        )
+        .into_bytes();
+        reply.extend_from_slice(frame);
+        reply
     }
 
     /// What a redirect hop must never be asked for.
@@ -2026,6 +2155,109 @@ mod tests {
         let raw = b"HTTP/1.1 301 Moved\r\nLOCATION: /next\r\nContent-Length: 0\r\n\r\n";
         let (reply, _) = parsed(raw).expect("a redirect");
         assert_eq!(super::redirect_of(&reply).as_deref(), Some("/next"));
+    }
+
+    /// Every request offers the three codings this client can undo, and an
+    /// `Accept-Encoding` a program wrote is refused rather than sent beside
+    /// ours.
+    ///
+    /// The refusal is asserted at [`super::compose`] rather than over a socket
+    /// because that is where it happens: a head that never goes out is the
+    /// point of it, and a case that sent one would be asserting on whether the
+    /// origin was still listening.
+    #[test]
+    fn accept_encoding_offers_gzip_br_and_zstd() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"]);
+        send(&call(at, "test"), &mut never).expect("an answer");
+        let asked = served.join().expect("the origin thread").asked;
+        assert!(
+            asked[0].contains("Accept-Encoding: gzip, br, zstd\r\n"),
+            "{}",
+            asked[0]
+        );
+
+        let mut theirs = call(at, "test");
+        theirs.headers = vec![("Accept-Encoding".to_owned(), "deflate".to_owned())];
+        let parts = super::parts(&theirs.url, "test").expect("a URL this case wrote");
+        let refused = super::compose(&theirs, &parts).expect_err("a program's own offer");
+        assert!(
+            format!("{refused:?}").contains("Accept-Encoding"),
+            "the refusal names the header: {refused:?}"
+        );
+    }
+
+    /// A reply under each offered coding is decoded before a program sees it,
+    /// and one that expands past the bound is refused rather than truncated
+    /// (`rule:core-classes/decompression-bound`).
+    ///
+    /// The two fields that described the frame are asserted **absent** from
+    /// what comes back: a `Content-Length` counting compressed octets beside a
+    /// decoded body is a number no reader of it can use.
+    #[test]
+    fn gzip_brotli_and_zstd_replies_are_decoded_under_the_compress_bound_and_a_bomb_is_refused() {
+        let payload: Vec<u8> = (0..4096_u32).map(|n| (n % 251) as u8).collect();
+        for (coding, codec) in [
+            ("gzip", Codec::Gzip),
+            ("br", Codec::Brotli),
+            ("zstd", Codec::Zstd),
+        ] {
+            let frame = compress_to(codec, &payload).expect("a frame this case wrote");
+            let (at, served) = origin_raw(vec![encoded(coding, &frame)]);
+            let reply = send(&call(at, "test"), &mut never).expect("an answer");
+            assert_eq!(reply.body, payload, "a `{coding}` reply arrives decoded");
+            assert!(
+                !reply
+                    .headers
+                    .iter()
+                    .any(|(name, _)| name == "content-encoding" || name == "content-length"),
+                "a decoded body keeps neither field that framed it: {:?}",
+                reply.headers
+            );
+            served.join().expect("the origin thread");
+        }
+
+        // A megabyte of one octet under a four-kilobyte ceiling: the ratio is
+        // wide open, so what refuses it is the absolute half.
+        let bomb = compress_to(Codec::Gzip, &vec![b'A'; 1 << 20]).expect("a frame");
+        let (at, served) = origin_raw(vec![encoded("gzip", &bomb)]);
+        let mut bounded = call(at, "test");
+        bounded.compress = Bound {
+            bytes: 4096,
+            ratio: 1000,
+        };
+        let refused = send(&bounded, &mut never).expect_err("a bomb past the bound");
+        let why = format!("{refused:?}");
+        assert!(
+            why.contains("rule:core-classes/decompression-bound"),
+            "the refusal names the rule: {why}"
+        );
+        assert!(
+            why.contains("test"),
+            "the refusal names the member that made the call: {why}"
+        );
+        served.join().expect("the origin thread");
+    }
+
+    /// A coding the request never offered is refused naming it, rather than
+    /// handed on as the octets it is still in.
+    ///
+    /// `deflate` is the one to ask it with: it is the coding this client
+    /// deliberately does not offer, and an origin sending it anyway is exactly
+    /// the case a silently-undecoded body would be mistaken for text in.
+    #[test]
+    fn a_content_encoding_the_request_did_not_offer_is_refused_naming_it() {
+        let (at, served) = origin_raw(vec![encoded("deflate", b"never read")]);
+        let refused = send(&call(at, "test"), &mut never).expect_err("a coding never offered");
+        let why = format!("{refused:?}");
+        assert!(
+            why.contains("deflate"),
+            "the refusal names the coding: {why}"
+        );
+        assert!(
+            why.contains("gzip, br, zstd"),
+            "and what was offered instead: {why}"
+        );
+        served.join().expect("the origin thread");
     }
 
     /// `rule:core-api/tier-roster`'s "over the runtime's own reactor rather than a second

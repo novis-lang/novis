@@ -2147,6 +2147,7 @@ fn exchanged(
         idempotency_key: args[RETRY_KEY].as_text().map(str::to_owned),
         body,
         pool: pool_of(ctx),
+        compress: crate::compress::Bound::ceiling(ctx),
         traceparent: traceparent_of(ctx),
     };
 
