@@ -198,6 +198,44 @@ const MESSAGE: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
+/// `{json?, body?, headers?}` — what a registered answer comes back with, as
+/// `rule:testing/an-outbound-call-is-answered-from-a-table` writes the bag.
+///
+/// **`json` and `body` are two spellings of one slot**, not two things a reply
+/// can hold: `json` is the value written to JSON where it is registered, so a
+/// test naming an object never writes `Core\Json::encode` by hand and never
+/// quotes a document into a string literal, and `body` is the bytes for
+/// everything that is not a JSON document. An answer naming both is a
+/// `LogicError` rather than a precedence rule nobody would remember.
+///
+/// The status is a parameter and not an option because every answer has one —
+/// `rule:core-api/shape-rules` R2's bag is for what a call may leave out, and a
+/// reply with no status is not a reply.
+const ANSWER: &[CoreOption] = &[
+    // `Const::NeverWritten` and not a `Null`, which is what a `mixed` option
+    // owes `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`:
+    // `null` is a JSON document a test may mean, so the two have to arrive
+    // under different tags.
+    CoreOption {
+        name: "json",
+        ty: CoreTy::Mixed,
+        default: Const::NeverWritten,
+    },
+    CoreOption {
+        name: "body",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    // The same `array<string>` shape `Core\Http\Options` writes its request
+    // headers as, one door over, so a test registering a reply and a program
+    // making a call spell a header map the same way.
+    CoreOption {
+        name: "headers",
+        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        default: Const::EmptyArray,
+    },
+];
+
 /// `Core\Test`'s registry rows — § 4's three equality members, the three
 /// predicate ones its example writes beside them, and § 5's `expectFailure`.
 /// See
@@ -371,6 +409,36 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_test_request",
             doc: Some(&REQUEST_DOC),
         },
+        CoreMethod {
+            name: "answerHttp",
+            names: &["url", "status"],
+            // `Qual::Sink`, which is the mark that refuses a `tainted` argument
+            // and says why: this text decides which of the program's outbound
+            // calls are answered, so a URL that came from outside would be
+            // outside input choosing which calls a test lets through.
+            // `Core\Http::allowUrl` is still the one door through
+            // `rule:security/outbound-url-is-a-sink` — nothing here connects to
+            // the URL it is given, and a call that matches a row is answered
+            // without resolving anything.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Uint,
+                CoreTy::Options(ANSWER),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_answer_http",
+            doc: Some(&ANSWER_HTTP_DOC),
+        },
+        CoreMethod {
+            name: "sentHttp",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(SENT_REQUEST_NAME)),
+            symbol: "nvs_core_test_sent_http",
+            doc: Some(&SENT_HTTP_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -431,6 +499,83 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
 const STATUS_SLOT: usize = 0;
 /// [`RESPONSE`]'s second slot: the bytes the program wrote.
 const BODY_SLOT: usize = 1;
+
+/// `Core\Test\SentRequest`'s fully-qualified name, written once for the same
+/// reason [`NAME`] is.
+pub(crate) const SENT_REQUEST_NAME: &str = r"Core\Test\SentRequest";
+
+/// One outbound call the program made while the answer table was armed —
+/// `rule:testing/an-outbound-call-is-answered-from-a-table`.
+///
+/// **Nothing on it is `tainted`, which is the asymmetry with every member of a
+/// reply**: what these four read back is text the program under test authored
+/// — the verb its own row named, the URL it composed, the headers it wrote —
+/// and `rule:security/tainted-qualifier`'s qualifier answers where a value came
+/// from. Marking a sent request `tainted` would say it arrived from outside,
+/// which would make a test launder its own subject's output to assert on it.
+///
+/// A `Core`-owned instance for [`RESPONSE`]'s reason, and readonly for a second
+/// one: a record of what was sent is a fact about a call that has already been
+/// made, so there is nothing on it a program could sensibly write.
+pub(crate) const SENT_REQUEST: CoreClass = CoreClass {
+    name: SENT_REQUEST_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "method",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Enum(crate::router::METHOD_NAME),
+            symbol: "nvs_core_test_sent_method",
+            doc: Some(&SENT_METHOD_DOC),
+        },
+        CoreMethod {
+            name: "url",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_test_sent_url",
+            doc: Some(&SENT_URL_DOC),
+        },
+        CoreMethod {
+            name: "header",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_test_sent_header",
+            doc: Some(&SENT_HEADER_DOC),
+        },
+        CoreMethod {
+            name: "body",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_test_sent_body",
+            doc: Some(&SENT_BODY_DOC),
+        },
+    ],
+    slots: &["method", "url", "headers", "body"],
+    constants: &[],
+};
+
+/// [`SENT_REQUEST`]'s first slot: the [`crate::router::METHOD`] ordinal of the
+/// verb the call carried.
+const SENT_METHOD_SLOT: usize = 0;
+/// [`SENT_REQUEST`]'s second slot: the URL as the program wrote it.
+const SENT_URL_SLOT: usize = 1;
+/// [`SENT_REQUEST`]'s third slot: the headers, keyed by a lower-cased name.
+///
+/// A slot with no member of its own name, which [`SENT_REQUEST`]'s roster is
+/// the reason for: a header map is read one name at a time, and handing the
+/// whole array back would be a second reading of the same slot that a test
+/// could iterate in an order the request never had.
+const SENT_HEADERS_SLOT: usize = 2;
+/// [`SENT_REQUEST`]'s fourth slot: the bytes the call carried.
+const SENT_BODY_SLOT: usize = 3;
 
 /// `Core\Test::advance`'s reference card — `rule:core-api/reference-card`.
 const ADVANCE_DOC: MethodDoc = MethodDoc {
@@ -528,6 +673,109 @@ const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "Everything the program echoed, in order, and an empty string for a program that wrote \
           nothing. A program that threw still answers with whatever it had written first.",
+    errors: &[],
+};
+
+/// `Core\Test::answerHttp`'s reference card — `rule:core-api/reference-card`.
+const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
+    short: "Says what one outbound URL answers with, and takes this test off the network — from \
+            the first answer registered, every `Core\\Http\\Client` call the test makes is served \
+            from the table and none of them connects.",
+    params: &[
+        ParamDoc {
+            name: "url",
+            desc: "The URL this answer serves: the whole of it, or a prefix ending in `*`. \
+                   Nothing is resolved and no host is looked up — this is the text a call's own \
+                   URL is compared against.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "status",
+            desc: "The status the call answers with, as a wire status line can write it: three \
+                   digits, `100` to `999`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "json",
+            desc: "A value the answer carries as a JSON document, written exactly as \
+                   `Core\\Json::encode` would write it. The answer declares \
+                   `application/json` for it unless the `headers` bag names a content type \
+                   itself.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "body",
+            desc: "The bytes the answer carries, for a reply that is not a JSON document. An \
+                   answer may name this or `json` and not both.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "headers",
+            desc: "The headers the answer carries, keyed by name — the same shape \
+                   `Core\\Http\\Options` writes a request's headers in. A name is matched \
+                   case-insensitively, as a header name is.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. Answers accumulate, so a test registers as many as it has calls; a URL \
+          answered exactly wins over one answered by a prefix, and the longest prefix wins among \
+          prefixes.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The answer names both `json` and `body`, which are two spellings of one body; or \
+               the status is not one a status line can carry.",
+    }],
+};
+
+/// `Core\Test::sentHttp`'s reference card — `rule:core-api/reference-card`.
+const SENT_HTTP_DOC: MethodDoc = MethodDoc {
+    short: "Every outbound call the program under test has made since the answer table was \
+            armed, oldest first — what was sent, rather than what came back.",
+    params: &[],
+    ret: "One `Core\\Test\\SentRequest` per call, in the order the program made them, and an \
+          empty array for a test that registered answers nobody asked for. Nothing on a record \
+          is `tainted`: it is the program's own text.",
+    errors: &[],
+};
+
+/// `Core\Test\SentRequest::method`'s reference card — `rule:core-api/reference-card`.
+const SENT_METHOD_DOC: MethodDoc = MethodDoc {
+    short: "The verb this call carried, as the `Core\\Http\\Method` case the member that made it \
+            is named for.",
+    params: &[],
+    ret: "The case — `Core\\Http\\Method::Get` for a `Core\\Http\\Client::get`, and so on for \
+          every row.",
+    errors: &[],
+};
+
+/// `Core\Test\SentRequest::url`'s reference card — `rule:core-api/reference-card`.
+const SENT_URL_DOC: MethodDoc = MethodDoc {
+    short: "The URL this call was made to, as the program wrote it.",
+    params: &[],
+    ret: "The whole URL, unchanged — not the pattern the answer was registered under, so a test \
+          answering a prefix can still assert the exact path its subject asked for.",
+    errors: &[],
+};
+
+/// `Core\Test\SentRequest::header`'s reference card — `rule:core-api/reference-card`.
+const SENT_HEADER_DOC: MethodDoc = MethodDoc {
+    short: "What this call carried under one header name, so a test can assert the \
+            authorization, the content type or the trace header its subject composed.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The header to read, matched case-insensitively as a header name is.",
+        shape: &[],
+    }],
+    ret: "The value, or `null` where the request carried no such header.",
+    errors: &[],
+};
+
+/// `Core\Test\SentRequest::body`'s reference card — `rule:core-api/reference-card`.
+const SENT_BODY_DOC: MethodDoc = MethodDoc {
+    short: "The bytes this call carried, so a test can assert the document its subject sent \
+            rather than only the URL it sent it to.",
+    params: &[],
+    ret: "The request body, and an empty `bytes` for a call that carried none.",
     errors: &[],
 };
 
@@ -1020,11 +1268,242 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The widest status a status line can carry, and the narrowest.
+///
+/// Three digits is what the wire has room for, and nothing narrower is the
+/// bound: a test of a client's behaviour over a status no registry names is a
+/// test worth writing, while `0` and `1000` are answers no origin can send and
+/// so are refusals rather than fixtures.
+const STATUS_FLOOR: u64 = 100;
+/// See [`STATUS_FLOOR`].
+const STATUS_CEILING: u64 = 999;
+
+/// The `content-type` an answer written from `json` declares for itself.
+const JSON_CONTENT_TYPE: &str = "application/json";
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::answerHttp(string $url, uint $status, {json?, body?, headers?}): void`
+    /// — `rule:testing/an-outbound-call-is-answered-from-a-table`, and the
+    /// switch that takes a test off the network.
+    ///
+    /// **The first call is what arms the table**, and everything after it is
+    /// one more row: there is no member that turns faking *on* without
+    /// registering an answer, because the all-or-nothing rule is about what a
+    /// call that matches no row does, and a table with no rows in it would then
+    /// make every outbound call in the test a refusal it never asked for.
+    ///
+    /// **No refusal for a call outside a test**, which is
+    /// `Core\Test::scriptAnswers`'s reason one member up: a table nothing
+    /// consults is a table nothing consults. What is worth naming is that this
+    /// door only ever *narrows* what the program can reach — a call answered
+    /// from here opens no socket, resolves no name and asks no capability,
+    /// because there is nothing for a capability to be asked about.
+    ///
+    /// **`{json: null}` is an answer whose body is the JSON document `null`**,
+    /// and omitting `json` is no body at all: the option admits `null`, so it
+    /// omits as the never-written marker
+    /// (`rule:core-api/omission-is-not-a-written-null`) and the two arrive
+    /// under different tags rather than as one argument.
+    fn nvs_core_test_answer_http(ctx, args: [5]) {
+        let member = "Core\\Test::answerHttp";
+        let url = args[0].as_text().ok_or_else(|| {
+            // Unreachable from source: the row's first parameter is
+            // `CoreTy::Text`, so `E0401` refuses anything else a phase earlier.
+            Fault::fatal(format!("{member} expected a `string` URL, got tag {}", args[0].tag_byte()))
+        })?;
+        let status = args[1].as_uint().ok_or_else(|| {
+            // Unreachable from source, for the row's `CoreTy::Uint` and the
+            // same reason as the URL above.
+            Fault::fatal(format!("{member} expected a `uint` status, got tag {}", args[1].tag_byte()))
+        })?;
+        if !(STATUS_FLOOR..=STATUS_CEILING).contains(&status) {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{member}(): a status line carries three digits, so an answer's status is \
+                     between {STATUS_FLOOR} and {STATUS_CEILING}, and this one is {status}"
+                ),
+            ));
+        }
+
+        let written = matches!(args[3].tag(), Some(Tag::Str));
+        let encoded = if matches!(args[2].tag(), Some(Tag::Unset)) {
+            None
+        } else {
+            Some(crate::json::written(args[2], member)?)
+        };
+        if written && encoded.is_some() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{member}(): `json` and `body` are two spellings of one body, so an answer \
+                     names one of them"
+                ),
+            ));
+        }
+
+        let mut headers: Vec<(String, String)> = crate::http::headers_of(args, 4, member)?
+            .into_iter()
+            .map(|(name, value)| (name.to_ascii_lowercase(), value))
+            .collect();
+        let body = match encoded {
+            Some(document) => {
+                if !headers.iter().any(|(name, _)| name == "content-type") {
+                    headers.push(("content-type".to_owned(), JSON_CONTENT_TYPE.to_owned()));
+                }
+                document.into_bytes()
+            }
+            None => args[3].as_text().unwrap_or_default().as_bytes().to_vec(),
+        };
+
+        ctx.faked_http_mut().answer(nvs_runtime::HttpAnswer {
+            url: url.to_owned(),
+            status: u16::try_from(status).unwrap_or(u16::MAX),
+            headers,
+            body,
+        });
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::sentHttp(): array<Core\Test\SentRequest>` — what the program
+    /// sent while the table answered it, oldest first.
+    ///
+    /// **The records are built here rather than held as values**, which is what
+    /// keeps `nvs_runtime::AnswerTable` plain data: a request that is never
+    /// asked about costs a `String` and two `Vec`s, and no reference to a
+    /// `Core`-owned instance is held across the calls between one send and the
+    /// assertion about it.
+    fn nvs_core_test_sent_http(ctx, args: [0]) {
+        let _ = args;
+        let mut out = nvs_runtime::NvsArray::new();
+        for sent in ctx.faked_http().sent() {
+            let mut headers = nvs_runtime::NvsArray::new();
+            for (name, value) in &sent.headers {
+                headers.set(
+                    nvs_runtime::NvsStr::new(name.as_bytes()),
+                    Value::str(nvs_runtime::NvsStr::new(value.as_bytes())),
+                );
+            }
+            let ordinal = crate::router::method_case(&sent.verb).ok_or_else(|| {
+                // Unreachable from source: the verb was written by the
+                // `Core\Http\Client` row that recorded the call, and every one
+                // of those is a case of this roster.
+                Fault::fatal(format!(
+                    "Core\\Test::sentHttp found a verb `Core\\Http\\Method` does not name: {}",
+                    sent.verb
+                ))
+            })?;
+            out.append(crate::instance::build(
+                &SENT_REQUEST,
+                [
+                    Value::int(ordinal),
+                    Value::str(nvs_runtime::NvsStr::new(sent.url.as_bytes())),
+                    Value::array(headers),
+                    Value::bytes(nvs_runtime::NvsStr::new(&sent.body)),
+                ],
+            ));
+        }
+        Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentRequest::method(): Core\Http\Method` — the verb the call
+    /// carried, as the case the member that made it is named for.
+    fn nvs_core_test_sent_method(_ctx, args: [1]) {
+        sent_slot(args, SENT_METHOD_SLOT, "method")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentRequest::url(): string` — the URL as the program wrote it.
+    fn nvs_core_test_sent_url(_ctx, args: [1]) {
+        sent_slot(args, SENT_URL_SLOT, "url")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentRequest::body(): bytes` — the bytes the call carried.
+    fn nvs_core_test_sent_body(_ctx, args: [1]) {
+        sent_slot(args, SENT_BODY_SLOT, "body")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\SentRequest::header(string $name): ?string` — one header the
+    /// call carried.
+    ///
+    /// **Case-insensitively, which is what a header name is**: the slot is
+    /// keyed by a lower-cased name where the record was written, so the lookup
+    /// lower-cases what it is asked and the two cannot disagree. A test
+    /// asserting `Authorization` therefore reads the header a subject wrote as
+    /// `authorization`, which is the same header and not a second one.
+    fn nvs_core_test_sent_header(_ctx, args: [2]) {
+        let receiver = crate::instance::receiver(args[0], &SENT_REQUEST, "header")?;
+        let name = args[1].as_text().ok_or_else(|| {
+            // Unreachable from source: the row's parameter is `CoreTy::Text`.
+            Fault::fatal(format!(
+                "Core\\Test\\SentRequest::header expected a `string` name, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        let held = crate::instance::slot(receiver, SENT_HEADERS_SLOT);
+        let array = held.array_ptr().ok_or_else(|| {
+            // Unreachable from source: the slot is written by `sentHttp` above
+            // and holds the array it built there.
+            Fault::fatal(
+                "Core\\Test\\SentRequest::header found a record it cannot read".to_owned(),
+            )
+        })?;
+        let array = crate::arr::borrowed(array);
+        let Some(value) = array.get(name.to_ascii_lowercase().as_bytes()) else {
+            return Ok(Value::null());
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`NvsArray::get` borrows the entry's reference from the receiver's own \
+                      slot, which is live for the length of the call, and this value is being \
+                      handed to the caller — which is exactly `Value::retain`'s obligation"
+        )]
+        // SAFETY: the receiver owns the entry's reference and outlives this call.
+        unsafe {
+            value.retain();
+        }
+        Ok(value)
+    }
+}
+
+/// One [`SENT_REQUEST`] slot, handed to the caller with a reference of its own
+/// — [`response_slot`]'s accounting, one class over.
+fn sent_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &SENT_REQUEST, member)?;
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot's reference belongs to the receiver, which is live for \
+                  the length of the call, and this value is being handed to the \
+                  caller — which is exactly `Value::retain`'s obligation"
+    )]
+    // SAFETY: the receiver owns the slot's reference and outlives this call.
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_test_advance" => (nvs_core_test_advance as *const ()).cast(),
+        "nvs_core_test_answer_http" => (nvs_core_test_answer_http as *const ()).cast(),
+        "nvs_core_test_sent_http" => (nvs_core_test_sent_http as *const ()).cast(),
+        "nvs_core_test_sent_method" => (nvs_core_test_sent_method as *const ()).cast(),
+        "nvs_core_test_sent_url" => (nvs_core_test_sent_url as *const ()).cast(),
+        "nvs_core_test_sent_header" => (nvs_core_test_sent_header as *const ()).cast(),
+        "nvs_core_test_sent_body" => (nvs_core_test_sent_body as *const ()).cast(),
         "nvs_core_test_script_answers" => (nvs_core_test_script_answers as *const ()).cast(),
         "nvs_core_test_server_url" => (nvs_core_test_server_url as *const ()).cast(),
         "nvs_core_test_assert_same" => (nvs_core_test_assert_same as *const ()).cast(),
@@ -2007,7 +2486,13 @@ mod tests {
         CLASS.methods.iter().filter(|method| {
             !matches!(
                 method.name,
-                "expectFailure" | "advance" | "scriptAnswers" | "request" | "serverUrl"
+                "expectFailure"
+                    | "advance"
+                    | "scriptAnswers"
+                    | "request"
+                    | "serverUrl"
+                    | "answerHttp"
+                    | "sentHttp"
             )
         })
     }
@@ -2140,13 +2625,15 @@ mod tests {
                 if params.is_empty() && matches!(ret, CoreTy::Mixed)
         ));
         assert!(matches!(member.return_ty, CoreTy::Void));
-        // It is one of exactly five rows that assert nothing about a subject —
-        // this, § 12's `advance`, `rule:tooling/a-prompt-is-a-core-member`'s `scriptAnswers` and § 18's
-        // `request` and `serverUrl` — and [`asserting_members`] names all five
-        // by hand. This count is what makes adding a member to this class have
-        // to answer "is it an assertion?": a new row joins § 4's shape sweep
-        // unless it is listed there, and listing it moves this number.
-        assert_eq!(asserting_members().count(), CLASS.methods.len() - 5);
+        // It is one of the rows that assert nothing about a subject — this,
+        // § 12's `advance`, `rule:tooling/a-prompt-is-a-core-member`'s
+        // `scriptAnswers`, § 18's `request` and `serverUrl`, and
+        // `rule:testing/an-outbound-call-is-answered-from-a-table`'s
+        // `answerHttp` and `sentHttp` — and [`asserting_members`] names each of
+        // them by hand. This count is what makes adding a member to this class
+        // have to answer "is it an assertion?": a new row joins § 4's shape
+        // sweep unless it is listed there, and listing it moves this number.
+        assert_eq!(asserting_members().count(), CLASS.methods.len() - 7);
         assert_eq!(equality_members().count(), 3);
     }
 }

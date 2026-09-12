@@ -160,6 +160,7 @@ use crate::throwable::{Thrown, ThrownClass};
 pub(crate) type ExitDrain = fn(&mut Ctx, Result<(), i32>, Option<&Thrown>);
 use crate::value::Value;
 
+mod answers;
 mod current;
 mod error;
 mod held;
@@ -179,6 +180,7 @@ mod wiring;
 pub(crate) use self::current::*;
 // The one item of that module a host needs: `nvs_host`'s stack switch is what
 // carries the pair off the thread and back — see [`CurrentStack`].
+pub use self::answers::*;
 pub use self::current::CurrentStack;
 pub use self::error::*;
 pub use self::held::*;
@@ -939,6 +941,22 @@ pub struct Ctx {
     /// **What it spends:** three words per request for the empty queue, and the
     /// answers themselves only where a test wrote them.
     scripted_answers: std::collections::VecDeque<String>,
+    /// `rule:testing/an-outbound-call-is-answered-from-a-table`'s table: the
+    /// answers a test registered for outbound calls, and the calls it has made
+    /// since — empty for every context outside a test.
+    ///
+    /// **Beside [`Self::scripted_answers`] because it is the same idea one
+    /// door over**: a test declares the world its subject runs in, and the
+    /// isolate is what scopes the declaration. The only writer of the answers
+    /// half is `Core\Test::answerHttp`, so a request or a `nvs run` never has
+    /// one — and the switch it arms only ever *removes* a program's reach,
+    /// since a call answered from here opens no socket at all.
+    ///
+    /// **What it spends:** four words per request for the two empty vectors,
+    /// then a row per registered answer and a record per call taken, both
+    /// charged to the test that wrote them and released with its isolate.
+    /// [`AnswerTable`] is the home of the rest.
+    faked_http: AnswerTable,
     /// `Core\Out::capture`'s buffers, innermost last —
     /// `rule:security/capture-answers-the-carrier`
     /// .

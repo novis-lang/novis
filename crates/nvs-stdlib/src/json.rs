@@ -933,6 +933,25 @@ fn escape_non_ascii(text: &str) -> String {
     out
 }
 
+/// `value` as one compact JSON document, refused under `member` where it holds
+/// something JSON cannot write.
+///
+/// [`Encodable`] and not a second walk, for that type's own reason: a `float`,
+/// a nested array and a cycle are spelled the same however the document was
+/// asked for. The caller outside this module is `Core\Test::answerHttp`, whose
+/// `json` option is a document exactly as [`nvs_core_json_encode`]'s argument
+/// is — a faked reply that spelled a number differently from a real one would
+/// be a fixture that passes against a client the wire would fail.
+///
+/// # Errors
+///
+/// A `LogicError`, named after `member`, for a value this encoder refuses —
+/// the program built it, so an unencodable one is a bug in the program.
+pub(crate) fn written(value: Value, member: &str) -> Result<String, Fault> {
+    serde_json::to_string(&Encodable::document(value))
+        .map_err(|why| Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}")))
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Json::encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string`
     /// — replacing `json_encode` and its fifteen `JSON_*` flags.

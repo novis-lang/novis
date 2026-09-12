@@ -152,6 +152,7 @@ impl Ctx {
             random_state: None,
             test_server: None,
             scripted_answers: std::collections::VecDeque::new(),
+            faked_http: crate::ctx::AnswerTable::default(),
             captures: Vec::new(),
             content_type: None,
             body_stream: None,
@@ -574,6 +575,26 @@ impl Ctx {
     /// thing a test can assert rather than a hang.
     pub fn take_scripted_answer(&mut self) -> Option<String> {
         self.scripted_answers.pop_front()
+    }
+
+    /// `rule:testing/an-outbound-call-is-answered-from-a-table`'s table, as
+    /// `Core\Test::answerHttp` fills it and `Core\Http\Client` reads it — see
+    /// [`crate::ctx::AnswerTable`] for the matching, and [`Self::faked_http`]'s
+    /// field docs for why it is scoped to one test's isolate.
+    #[must_use]
+    pub fn faked_http(&self) -> &crate::ctx::AnswerTable {
+        &self.faked_http
+    }
+
+    /// The same table, to register an answer in or to write a call down in.
+    ///
+    /// One accessor for both writes rather than a method per operation: a
+    /// registration and a record are the two halves of one mechanism, and the
+    /// decisions in either — which row answers a URL, what order the calls are
+    /// handed back in — belong to the table rather than to the context holding
+    /// it.
+    pub fn faked_http_mut(&mut self) -> &mut crate::ctx::AnswerTable {
+        &mut self.faked_http
     }
 
     /// A context writing to the process's standard output.

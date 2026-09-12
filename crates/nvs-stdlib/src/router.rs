@@ -1421,7 +1421,7 @@ pub(crate) fn match_value(
 /// hand may spell it as the wire token (`GET`). `None` is a verb this roster
 /// does not name, which no compiled table can hold — `#[Route(method: …)]`
 /// takes a case of this enum and nothing else.
-fn method_case(verb: &str) -> Option<i64> {
+pub(crate) fn method_case(verb: &str) -> Option<i64> {
     METHOD
         .cases
         .iter()

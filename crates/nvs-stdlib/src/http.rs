@@ -124,7 +124,7 @@ use std::time::{Duration, Instant};
 
 use fluent_uri::UriRef;
 use fluent_uri::component::{Authority, Scheme};
-use nvs_runtime::{Ctx, Fault, NvsStr, Tag, Value};
+use nvs_runtime::{Ctx, Fault, NvsStr, Tag, ThrownClass, Value};
 use nvs_syntax::duration;
 
 use crate::registry::{
@@ -250,6 +250,26 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 /// scheme is outside the roster, it names no host, or the capability refuses
 /// the host or the address it resolves to.
 fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
+    let host = judged_host(text, member)?;
+    nvs_runtime::capability::pin_host(ctx, &host, member)
+}
+
+/// [`pin`]'s first two questions — the ones a URL answers by itself — and the
+/// host they leave: the text parses, and its scheme is one of the two this
+/// class speaks.
+///
+/// Split out because `rule:testing/an-outbound-call-is-answered-from-a-table`
+/// asks exactly these of a faked call and none of the ones below them: a call
+/// answered from a test's table is still refused for a scheme nothing here
+/// speaks, because that is a statement about what the program wrote, while
+/// resolution and § 3's address table have nothing to judge where no
+/// connection is made.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a text that is not a URL, a scheme outside the
+/// roster, or a URL that names no host.
+fn judged_host(text: &str, member: &str) -> Result<String, Fault> {
     let reference = UriRef::parse(text).map_err(|_| {
         Fault::thrown(format!(
             "{member}: this text is not a URL, so there is no host in it to approve"
@@ -272,7 +292,7 @@ fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<std::net::IpAddr, Faul
         ))
     })?;
 
-    nvs_runtime::capability::pin_host(ctx, Authority::host(&authority), member)
+    Ok(Authority::host(&authority).to_owned())
 }
 
 nvs_runtime::nvs_helper! {
@@ -747,22 +767,33 @@ fn bound_of(
     Ok(configured.unwrap_or(fallback))
 }
 
-/// The `headers` bag, copied out as the lines the request will carry.
+/// The `headers` bag at slot `at`, copied out as the lines the request will
+/// carry, with every name as the caller wrote it.
 ///
 /// Copied rather than borrowed for `crate::str`'s reason: a key arrives as its
 /// own reference, and holding one per entry across the exchange would owe a
 /// release on every early return under it.
 ///
+/// The slot is a parameter because two bags have this shape and one walk reads
+/// both: this class's request headers, and the reply headers
+/// `Core\Test::answerHttp` registers (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+/// A caller that wants them lower-cased says so at its own call site, since a
+/// request carries the names the program wrote.
+///
 /// # Errors
 ///
 /// A [`Fault::fatal`] for an argument or an element that is not text, both
 /// ruled out by the row's `array<string>` and so unreachable from source.
-fn headers_of(args: &[Value], member: &str) -> Result<Vec<(String, String)>, Fault> {
-    let Some(array) = args[HEADERS].array_ptr() else {
+pub(crate) fn headers_of(
+    args: &[Value],
+    at: usize,
+    member: &str,
+) -> Result<Vec<(String, String)>, Fault> {
+    let Some(array) = args[at].array_ptr() else {
         return Err(Fault::fatal(format!(
             "{member} expected {:?} for `headers`, got tag {}",
             Tag::Array,
-            args[HEADERS].tag_byte()
+            args[at].tag_byte()
         )));
     };
     let mut headers = Vec::new();
@@ -815,8 +846,39 @@ fn headers_of(args: &[Value], member: &str) -> Result<Vec<(String, String)>, Fau
 /// shape or a target whose slots this crate did not write, both unreachable
 /// from source.
 fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, IpAddr), Fault> {
+    let url = given_url(args, member)?;
     if !matches!(args[0].tag(), Some(Tag::Object)) {
-        let text = args[0]
+        let address = pin(ctx, &url, member)?;
+        return Ok((url, address));
+    }
+
+    let target = crate::instance::receiver(args[0], &TARGET, member)?;
+    let address = crate::instance::slot(target, TARGET_ADDRESS_SLOT);
+    let address = address
+        .as_text()
+        .and_then(|text| text.parse::<IpAddr>().ok())
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{member} found a `Core\\Http\\Target` it cannot read"
+            ))
+        })?;
+    Ok((url, address))
+}
+
+/// The URL this call names, whichever arm of the union carried it.
+///
+/// Separate from [`approved`] because the answer table asks only this half:
+/// a faked call compares the *text* against its rows and never learns an
+/// address, so the two questions cannot be one function without the faked path
+/// resolving a name it will not connect to.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for an argument of another shape or a target whose slots
+/// this crate did not write, both unreachable from source.
+fn given_url(args: &[Value], member: &str) -> Result<String, Fault> {
+    if !matches!(args[0].tag(), Some(Tag::Object)) {
+        return Ok(args[0]
             .as_text()
             .ok_or_else(|| {
                 Fault::fatal(format!(
@@ -824,26 +886,18 @@ fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, IpAd
                     args[0].tag_byte()
                 ))
             })?
-            .to_owned();
-        let address = pin(ctx, &text, member)?;
-        return Ok((text, address));
+            .to_owned());
     }
-
     let target = crate::instance::receiver(args[0], &TARGET, member)?;
     let url = crate::instance::slot(target, TARGET_URL_SLOT);
-    let address = crate::instance::slot(target, TARGET_ADDRESS_SLOT);
-    let malformed = || {
-        Fault::fatal(format!(
-            "{member} found a `Core\\Http\\Target` it cannot read"
-        ))
-    };
-    Ok((
-        url.as_text().ok_or_else(malformed)?.to_owned(),
-        address
-            .as_text()
-            .and_then(|text| text.parse::<IpAddr>().ok())
-            .ok_or_else(malformed)?,
-    ))
+    Ok(url
+        .as_text()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{member} found a `Core\\Http\\Target` it cannot read"
+            ))
+        })?
+        .to_owned())
 }
 
 /// Every request member's body: the URL through the outbound policy, the
@@ -861,6 +915,9 @@ fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, IpAd
 /// [`transport::send`]'s.
 fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> {
     let named = format!("{CLIENT_NAME}::{member}");
+    if ctx.faked_http().is_armed() {
+        return faked(ctx, args, &named, member);
+    }
     let (url, address) = approved(ctx, args, &named)?;
 
     judge_bound(args, DEADLINE, "deadline", &named)?;
@@ -893,7 +950,7 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
             "http.client.connect_timeout",
             DEFAULT_CONNECT_TIMEOUT,
         )?,
-        headers: headers_of(args, &named)?,
+        headers: headers_of(args, HEADERS, &named)?,
         redirects: redirects_of(ctx, args),
         attempts: args[RETRY_ATTEMPTS]
             .as_uint()
@@ -918,6 +975,68 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
         [
             Value::int(reply.status),
             Value::str(NvsStr::new(reply.body.as_bytes())),
+        ],
+    ))
+}
+
+/// One call answered from a test's table —
+/// `rule:testing/an-outbound-call-is-answered-from-a-table`, as the branch
+/// taken before anything is resolved.
+///
+/// **Above [`approved`] rather than inside [`transport::send`]**, which is the
+/// whole of what the rule buys: a faked call asks no capability, looks up no
+/// name and judges no address, because there is no connection for an address
+/// to be pinned to — so a client's own conformance cases are writable with no
+/// listener and no outbound grant. The door it steps around is one that only
+/// ever *narrows* what a program may reach, and nothing here reaches anything.
+///
+/// **Everything decided from the arguments is still decided**, and in the same
+/// order: the scheme roster, the demand for a host, and § 5's bounds. A test
+/// that takes its subject off the network keeps every refusal its subject
+/// would have met on it, so a wrong URL fails the same way faked and real.
+///
+/// What the record holds is what the *program* composed — its verb, its URL
+/// and its own `headers` bag. The headers a request grows while it is being
+/// framed are the transport's, and nothing is framed here.
+///
+/// # Errors
+///
+/// [`judged_host`]'s three, [`judge_bound`]'s and [`judge_attempts`]', and a
+/// `LogicError` naming a URL the table does not answer.
+fn faked(ctx: &mut Ctx, args: &[Value], named: &str, member: &str) -> Result<Value, Fault> {
+    let url = given_url(args, named)?;
+    judged_host(&url, named)?;
+    judge_bound(args, DEADLINE, "deadline", named)?;
+    judge_bound(args, CONNECT_TIMEOUT, "connectTimeout", named)?;
+    judge_bound(args, RETRY_BACKOFF, "retryBackoff", named)?;
+    judge_attempts(args, named)?;
+
+    let headers = headers_of(args, HEADERS, named)?
+        .into_iter()
+        .map(|(name, value)| (name.to_ascii_lowercase(), value))
+        .collect();
+    ctx.faked_http_mut().record(nvs_runtime::HttpSent {
+        verb: member.to_ascii_uppercase(),
+        url: url.clone(),
+        headers,
+        body: Vec::new(),
+    });
+
+    let Some(answer) = ctx.faked_http().answer_for(&url) else {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{named}: this test answers outbound calls from a table and no answer is \
+                 registered for {url} — `Core\\Test::answerHttp` registers one, exactly or as a \
+                 prefix ending in `*`"
+            ),
+        ));
+    };
+    Ok(crate::instance::build(
+        &RESPONSE,
+        [
+            Value::int(i64::from(answer.status)),
+            Value::str(NvsStr::new(&answer.body)),
         ],
     ))
 }
