@@ -18505,7 +18505,7 @@ Reports whether `$hash` is weaker than what `hash` would write today — a diffe
 <a id="core-core-crypto"></a>
 ### `Core\Crypto`
 
-Keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf, generateKey, seal, open, deriveKey, expandKey
+Keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf, generateKey, seal, open, deriveKey, expandKey, generateKeyPair, agree
 
 `Core\Crypto` names its cipher with a case of `Core\Crypto\Cipher` and never with a string.
 `openssl_encrypt($data, "aes-256-cbc", $key, 0, $iv)` puts the primitive in a string and the nonce at
@@ -18661,6 +18661,8 @@ a derived key seals like a drawn one
 | [`Core\Crypto::open`](#core-core-crypto-open) | `open(bytes $sealed, secret bytes $key, Core\Crypto\Cipher $cipher): bytes` |
 | [`Core\Crypto::deriveKey`](#core-core-crypto-derivekey) | `deriveKey(secret string $password, bytes $salt, uint $iterations): secret bytes` |
 | [`Core\Crypto::expandKey`](#core-core-crypto-expandkey) | `expandKey(secret bytes $material, bytes $salt, string $info): secret bytes` |
+| [`Core\Crypto::generateKeyPair`](#core-core-crypto-generatekeypair) | `generateKeyPair(Core\Crypto\KeyKind $kind): Core\Crypto\KeyPair` |
+| [`Core\Crypto::agree`](#core-core-crypto-agree) | `agree(Core\Crypto\KeyPair $mine, Core\Crypto\PublicKey $theirs): secret bytes` |
 
 <a id="core-core-crypto-generatekey"></a>
 #### `Core\Crypto::generateKey`
@@ -18746,6 +18748,41 @@ Derives a key from material that is already uniform with HKDF-SHA256 — a share
 | `$info` | `string` (neutral) | The context string. Two calls over one `$material` with different `$info` answer unrelated keys, which is how one secret keys two things. |
 
 **Returns** `secret bytes` — 32 octets as a `secret bytes`, the width `seal` and `open` key under, and the same for the same three arguments.
+
+<a id="core-core-crypto-generatekeypair"></a>
+#### `Core\Crypto::generateKeyPair`
+
+```nvs skip
+Core\Crypto::generateKeyPair(Core\Crypto\KeyKind $kind): Core\Crypto\KeyPair
+```
+
+Draws a fresh private key of the kind this call names and answers the pair it is, from the same CSPRNG `Core\Random` uses. There is no key size argument: each kind has one size, and the kinds that would need one are the two this member refuses.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$kind` | `Core\Crypto\KeyKind` | Which key to draw. `P256` agrees and signs, `X25519` agrees only, `Ed25519` signs only, and the two RSA kinds are read rather than drawn. |
+
+**Returns** `Core\Crypto\KeyPair` — The pair, ready to sign or to agree with, and answering `write` with a PKCS#8 `Core\Crypto\KeyPair::read` takes back.
+
+**Throws** `LogicError` — `$kind` is `RsaPkcs1` or `RsaPss`. An RSA key is never generated here — a program is handed one by whoever issued it, and `Core\Crypto\KeyPair::read` is the member that takes it.
+
+<a id="core-core-crypto-agree"></a>
+#### `Core\Crypto::agree`
+
+```nvs skip
+Core\Crypto::agree(Core\Crypto\KeyPair $mine, Core\Crypto\PublicKey $theirs): secret bytes
+```
+
+Agrees a shared secret with a peer over ECDH, from this program's own pair and the public key the peer sent. The answer is the raw agreed value and is not a key: run it through `expandKey` with a context string, which is what turns one agreement into the keys a protocol needs.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$mine` | `Core\Crypto\KeyPair` | This program's pair, of kind `P256` or `X25519`. The other kinds sign rather than agree. |
+| `$theirs` | `Core\Crypto\PublicKey` | The peer's public key, which has to be of the same kind: two keys on different curves are not two ends of one agreement. |
+
+**Returns** `secret bytes` — 32 octets as a `secret bytes` — the x-coordinate for P-256 and the u-coordinate for X25519, which is what WebCrypto's `deriveBits` answers over the same two keys.
+
+**Throws** `LogicError` — The two keys are not two ends of one agreement: a pair of a kind that agrees nothing — `Ed25519` and both RSA kinds — or two keys on different curves.; `RuntimeError` — The peer's X25519 point contributes nothing, so the secret would be all-zero whatever this program's scalar is. That is a point chosen by whoever sent it, so it is a verdict on them rather than a bug here.
 
 <a id="core-core-crypto-publickey"></a>
 ### `Core\Crypto\PublicKey`

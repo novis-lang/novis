@@ -2,59 +2,58 @@
 
 ## State
 
-**Goal `webcrypto` — stage 4's two key classes are both registered.** `Crypto\KeyPair`
-(`crates/nvs-stdlib/src/crypto.rs:1044`) declares `read` as a static and `write`/`publicKey` as
-instance members, over slots that are the PKCS#8 and the kind; its own doc owns why those and why
-there is no cache of parsed keys behind them. Three `.nvst` cases under
-`tests/conformance/core/crypto-key-pair-*.nvst` hold it. `Core\Crypto` itself
-(`crates/nvs-stdlib/src/crypto.rs:630`) still has only its five AEAD and KDF rows, and closing that
-is the whole of what stage 4 has left.
+**Goal `webcrypto` — stage 4's key half is closed.** `Core\Crypto`
+(`crates/nvs-stdlib/src/crypto.rs:629`) now carries `generateKeyPair` and `agree` beside its five
+AEAD and KDF rows, with three `.nvst` cases each. `generated_pkcs8`
+(`crates/nvs-stdlib/src/crypto.rs:2702`) owns how a drawn key becomes a file: the two RFC 8410 kinds
+are a 16-octet constant prefix in front of a scalar drawn through `crate::random::draw`, and P-256
+goes through `p256`'s `EncodePrivateKey`, which the locked `pkcs8` + `alloc` features do carry. A
+drawn pair is the same object a read pair is, so `write` hands back a file `KeyPair::read` takes.
 
-**The codec now reads all five kinds.** `PrivateKey` (`crates/nvs-stdlib/src/crypto.rs:2379`)
-replaced `SignatureKind` and `read_signing_key`: it reads every kind of the roster, answers the
-public half with `public()`, and narrows to the four that sign through `signing()`, so `SigningKey`
-has exactly one producer and X25519 reaches no signer. `pkcs8_der`
-(`crates/nvs-stdlib/src/crypto.rs:2548`) unwraps one PEM `PRIVATE KEY` block and `x25519_scalar`
-(`:2522`) walks RFC 8410's structure — the one kind neither `p256` nor `ring` reads a private key
-for.
+**`agree` (`crates/nvs-stdlib/src/crypto.rs:2781`) draws the refusal line by who made the mistake.**
+`NoAgreement::Keys` is a `LogicError` — a kind that agrees nothing, or two keys on different curves,
+both of them the program's own doing — and `NoAgreement::Point` is a `RuntimeError`, the verdict on a
+peer whose X25519 point contributes nothing. `pair_of` (`:3307`) and `key_of` (`:3163`) each take a
+slot index now, since `agree`'s two keys are arguments rather than a receiver.
 
-**What the next session must not assume.** Nothing in this module *writes* a PKCS#8. `write`
-answers the slot, and `KeyPair::read` stores what it was handed, so `generateKeyPair` is the first
-member that has to encode one — see the next group's first item. `agree_p256` and `agree_x25519`
-still carry `expect(dead_code)`, which registering `agree` removes.
+**What stage 4 still owes** is `Crypto::sign` and `Crypto::verify`: `SigningKey`, `PrivateKey::signing`
+and `sign` still carry `expect(dead_code)` placeholders, and so do `VerifyingKey`'s side.
+`docs/reference/core/Crypto.md` is still the AEAD-only page — nothing gates it, and stage 4's table
+says it is rewritten for the new surface.
 
 ## Next group
 
-**Stage 4: the two rows that close `Core\Crypto`** — one file set:
-`crates/nvs-stdlib/src/crypto.rs` and new `tests/conformance/core/crypto-*.nvst` cases. No
-`registry.rs` edit and no `lib.rs` edit: both rows go on `CLASS`
-(`crates/nvs-stdlib/src/crypto.rs:630`), which is registered already. `KEY_PAIR`
-(`crates/nvs-stdlib/src/crypto.rs:1044`) is the worked example for a row that answers an instance,
-and `nvs_core_crypto_key_pair_read` (`:3039`) for building one.
+**Stage 4: the two raw signature rows** — one file set: `crates/nvs-stdlib/src/crypto.rs` and new
+`tests/conformance/core/crypto-*.nvst` cases. Both rows go on `CLASS`
+(`crates/nvs-stdlib/src/crypto.rs:629`), which is registered already; `nvs_core_crypto_agree`
+(`crates/nvs-stdlib/src/crypto.rs:3026`) is the worked example for a row taking a key object as an
+argument, and the frozen set's `signatures` section is what a case asserts against.
 
-- [ ] **`Crypto::generateKeyPair(Crypto\KeyKind $kind): Crypto\KeyPair`** — three kinds and never
-      RSA: both RSA cases are a `LogicError` naming `KeyPair::read`, because `ring` generates none.
-      The scalar is drawn through `crate::random::draw`
-      (`crates/nvs-stdlib/src/random.rs:483`) rather than any crate's own generator, so a seeded
-      test reproduces the key. **Decide there how a PKCS#8 is written**: the two 25519 kinds are a
-      16-octet constant prefix in front of the scalar, which is exactly what `x25519_scalar`
-      (`crates/nvs-stdlib/src/crypto.rs:2522`) reads back, and P-256 is either `p256`'s
-      `EncodePrivateKey` — check the `pkcs8` feature carries the encoder before designing around it
-      — or the same prefix over its SEC1 body. Build the instance as
-      `nvs_core_crypto_key_pair_read` (`:3039`) does, and make the answer a key `read` accepts.
-      `rule:core-classes/crypto-interop-tier`, `rule:core-api/shape-rules`.
-- [ ] **`Crypto::agree(Crypto\KeyPair $mine, Crypto\PublicKey $theirs): secret bytes`** — over
-      `agree_x25519` (`crates/nvs-stdlib/src/crypto.rs:1503`) and `agree_p256` (`:1539`), with
-      `pair_of` (`:3008`) and `key_of` (`:2865`) as the two readers. Two different curves is a
-      `LogicError`, as is a kind that agrees nothing (Ed25519, either RSA); a non-contributory
-      X25519 secret is a `RuntimeError`, being a verdict on the point a peer sent. The frozen set's
-      `/ecdh/vectors` carries both curves' pairs and the secret they agree on, which is what a case
-      asserts against. `rule:core-classes/crypto-interop-tier`.
+- [ ] **`Crypto::sign(bytes $message, Crypto\KeyPair $key): bytes`** — over `PrivateKey::signing`
+      (`crates/nvs-stdlib/src/crypto.rs:2571`) and `sign` (`crates/nvs-stdlib/src/crypto.rs:2806`),
+      with `pair_of(args, 1, "sign")` (`crates/nvs-stdlib/src/crypto.rs:3307`) as the reader. An
+      X25519 pair signs nothing and is a `LogicError`, which is what `signing`'s `None` already
+      means. ECDSA answers the 64-octet `r ‖ s` and never DER. Removing the three
+      `expect(dead_code)` placeholders this reaches is part of the slice.
+      `rule:security/algorithm-comes-from-the-key`, `rule:core-api/shape-rules`.
+- [ ] **`Crypto::verify(bytes $message, bytes $signature, Crypto\PublicKey $key): void`** — over
+      `PublicKey::verifying` (`crates/nvs-stdlib/src/crypto.rs:1897`) and `verify_signature`
+      (`crates/nvs-stdlib/src/crypto.rs:2445`), with `key_of(args, 2, "verify")`
+      (`crates/nvs-stdlib/src/crypto.rs:3163`). It answers nothing or one `RuntimeError` and never a
+      `bool`; an X25519 key is the one `LogicError`.
+      `rule:security/verification-throws-and-compares-in-constant-time`.
+- [ ] **Three `.nvst` cases per row**, the two members asserted together: `RS256` and `EdDSA`
+      reproduce the frozen signature octet for octet, while `ES256` and `PS256` are randomized and so
+      are held to verifying rather than to their bytes. The split is the module doc's *four
+      signatures* section (`crates/nvs-stdlib/src/crypto.rs:210`), and `verify_signature`
+      (`crates/nvs-stdlib/src/crypto.rs:2445`) is the one comparison either half reaches.
 
 ## Backlog
 
 - `examples/webcrypto.nvs` — the goal's acceptance fixture, which no stage has written yet; the
   driver reports it missing after every session. `docs/agent/loop-goal.md`.
+- `docs/reference/core/Crypto.md` is still the AEAD-only essay, with no paragraph on the key classes,
+  `generateKeyPair` or `agree`. Stage 4's table says it is rewritten for the new surface.
 - The standing decisions say PEM is read "with what the graph already carries
   (`crates/nvs-host/src/tls.rs:121`)"; that reader is `rustls`'s and `nvs-stdlib` cannot reach it —
   `pem-rfc7468` is not in the lockfile, so `der`'s own is off too. `pkcs8_der` decodes the armour

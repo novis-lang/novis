@@ -6407,6 +6407,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   and the `not(test)` means that warning lands in the test build. Add the accessor the field exists
   for and have a case call it, rather than widening the attribute.
   [until: gone crates/nvs-stdlib/src/crypto.rs:stage 4 registers the members]
+- **Registering a row fulfils `expect(dead_code)` on more than the functions it calls, and the
+  warning that fires can be on a `const`.** `Core\Crypto::agree` reached `agree_p256` and
+  `agree_x25519`, and clearing their attributes left `SHARED_LEN`'s unfulfilled two thousand lines
+  above, because only those two signatures name it. Run `cargo check -p <crate>` after a row and
+  clear whatever it names, rather than grepping for the functions you think you reached.
+  [until: gone crates/nvs-stdlib/src/crypto.rs:stage 4 registers the members]
 
 ## Divergences and refusals already pinned
 
