@@ -1,0 +1,106 @@
+--TEST--
+Core\Jwt::verifyIssued finds the one key a token's `kid` names and tries no other, a token naming none is answered only by a set holding one key, and a key that signs nothing verifies nothing — `rule:security/algorithm-comes-from-the-key`, `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// The rule that bounds what a token costs: a `kid` is a lookup into the set and
+// selects nothing else, so a token is checked against at most one key whatever
+// the set holds. A happy path cannot see the failure this exists to prevent —
+// so the token below is signed by one key and *names* the other, which a member
+// that fell back to trying the rest of the set would accept.
+Core\Crypto\KeyPair $a = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+Core\Crypto\KeyPair $b = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+string $jwkA = Core\Encoding::decodeText(
+    $a->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    Core\Charset::Utf8
+);
+string $jwkB = Core\Encoding::decodeText(
+    $b->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    Core\Charset::Utf8
+);
+string $namedA = Core\Str::replace($jwkA, "{", "{\"kid\":\"a\",");
+string $namedB = Core\Str::replace($jwkB, "{", "{\"kid\":\"b\",");
+
+Core\Jwt\KeySet $both = Core\Jwt\KeySet::read("{\"keys\":[" . $namedA . "," . $namedB . "]}");
+Core\Jwt\KeySet $sole = Core\Jwt\KeySet::read("{\"keys\":[" . $jwkA . "]}");
+
+var $claims = Core\Arr::shapeAs<{iss: string, aud: string}>([
+    "iss" => "https://issuer.example",
+    "aud" => "novis-app",
+]);
+string $signedByA = Core\Jwt::signObject($claims, 15m, $a, {kid: "a"});
+string $signedByBNamingA = Core\Jwt::signObject($claims, 15m, $b, {kid: "a"});
+string $unnamed = Core\Jwt::signObject($claims, 15m, $a);
+
+// Counted rather than read off one line: a member that answered the wrong
+// question would still print a plausible sentence for each of these.
+int $verified = 0;
+int $refused = 0;
+string $says = "";
+
+try {
+    var $found = Core\Jwt::verifyIssued<
+        tainted {iss: string, aud: string, iat: int, exp: int}
+    >($signedByA, $both, "https://issuer.example", "novis-app");
+    $verified = $verified + 1;
+} catch (RuntimeError $no) {
+    $refused = $refused + 1;
+    $says = $no->message;
+}
+
+// Signed by `b`, naming `a`. The named key is the only one that gets to answer.
+try {
+    var $wrong = Core\Jwt::verifyIssued<
+        tainted {iss: string, aud: string, iat: int, exp: int}
+    >($signedByBNamingA, $both, "https://issuer.example", "novis-app");
+    $verified = $verified + 1;
+} catch (RuntimeError $no) {
+    $refused = $refused + 1;
+    $says = $no->message;
+}
+
+// A token naming no key against a set of two: there is nothing to look up, and
+// guessing is the thing this member does not do.
+try {
+    var $ambiguous = Core\Jwt::verifyIssued<
+        tainted {iss: string, aud: string, iat: int, exp: int}
+    >($unnamed, $both, "https://issuer.example", "novis-app");
+    $verified = $verified + 1;
+} catch (RuntimeError $no) {
+    $refused = $refused + 1;
+    $says = $no->message;
+}
+
+// The same token against the set that holds exactly one key, which is the one
+// shape in which a nameless token is not ambiguous.
+try {
+    var $only = Core\Jwt::verifyIssued<
+        tainted {iss: string, aud: string, iat: int, exp: int}
+    >($unnamed, $sole, "https://issuer.example", "novis-app");
+    $verified = $verified + 1;
+} catch (RuntimeError $no) {
+    $refused = $refused + 1;
+    $says = $no->message;
+}
+
+echo $verified, " verified and ", $refused, " refused", "\n";
+echo $says, "\n";
+
+// The key that agrees and signs nothing is a bug in the program, not a verdict
+// on the token: the algorithm comes from the key, and this kind has none.
+try {
+    Core\Crypto\KeyPair $agreeing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+    var $never = Core\Jwt::verifyIssued<tainted {iss: string}>(
+        $signedByA,
+        $agreeing->publicKey(),
+        "https://issuer.example",
+        "novis-app"
+    );
+    echo "an X25519 key verified something", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+--EXPECT--
+2 verified and 2 refused
+Core\Jwt::verifyIssued(): $token is not a token this issuer's key signed. Every way of not being one — a shape that is not three base64url parts, a header carrying a parameter a verifier may not honour, a `kid` that names no key in the set, an `alg` that is not the one that key carries, a signature under another key, and an altered payload — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Jwt::verifyIssued(): an `X25519` key verifies nothing — it is a key for Core\Crypto::agree alone. A `P256` key checks ES256, an `Ed25519` key EdDSA, and the two RSA kinds RS256 and PS256.

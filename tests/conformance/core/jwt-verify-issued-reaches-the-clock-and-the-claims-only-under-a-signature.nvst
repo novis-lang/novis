@@ -1,0 +1,254 @@
+--TEST--
+Core\Jwt::verifyIssued checks the clock and the registered claims only after a signature has held, `leeway` widens the window at both ends and is bounded on both sides, and a claim refusal names the claim — `rule:security/jwt-expiry-is-mandatory`, `rule:security/verification-does-not-launder`
+--FILE--
+<?nvs
+// The order is the whole design, so it is what is asserted. Everything up to
+// the signature is one sentence, because a forger picks what it sees; only past
+// it may a message say which claim was wrong, because the only reader who gets
+// there is holding a token the issuer really signed. A member that checked the
+// claims first would still print a plausible sentence for each case below on
+// its own — so the last block signs one token with the wrong key *and* the
+// wrong issuer and asserts which of the two sentences comes back.
+Core\Crypto\KeyPair $issuer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+Core\Crypto\KeyPair $stranger = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+var $segment = fn (string $text): string => Core\Encoding::toBase64Url(
+    Core\Encoding::encodeText($text, Core\Charset::Utf8)
+);
+var $signed = fn (string $input, Core\Crypto\KeyPair $key): string => $input . "."
+    . Core\Encoding::toBase64Url(
+        Core\Crypto::sign(Core\Encoding::encodeText($input, Core\Charset::Utf8), $key)
+    );
+var $tokenOf = fn (string $header, string $claims, Core\Crypto\KeyPair $key): string =>
+    $signed($segment($header) . "." . $segment($claims), $key);
+
+string $plain = "{\"alg\":\"EdDSA\",\"typ\":\"JWT\"}";
+int $now = Core\Time::now()->toEpochSeconds();
+string $soon = ($now + 900) as string;
+
+// The clock, asserted on both sides of the default leeway. A token 30 seconds
+// past its `exp` is inside the 60 seconds a call that names none gets, and
+// outside the 10 it may ask for instead — one token, two verdicts, and neither
+// readable from the other half alone.
+string $lapsed = $tokenOf(
+    $plain,
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"exp\":" . (($now - 30) as string) . "}",
+    $issuer
+);
+try {
+    var $inside = Core\Jwt::verifyIssued<tainted {iss: string, aud: string, exp: int}>(
+        $lapsed, $issuer->publicKey(), "https://issuer.example", "novis-app"
+    );
+    echo "60s of leeway carries a token 30s past its expiry", "\n";
+} catch (RuntimeError $no) {
+    echo "the default leeway refused it: ", $no->message, "\n";
+}
+try {
+    var $outside = Core\Jwt::verifyIssued<tainted {iss: string, aud: string, exp: int}>(
+        $lapsed, $issuer->publicKey(), "https://issuer.example", "novis-app", {leeway: 10s}
+    );
+    echo "10s of leeway carried it too", "\n";
+} catch (RuntimeError $expired) {
+    // The epoch seconds in it are the clock's, so the assertion is its stem:
+    // what is pinned is that expiry keeps a sentence of its own, which it may,
+    // being reached only under a signature that held.
+    if (Core\Str::startsWith($expired->message, "Core\\Jwt::verifyIssued(): the token expired at ")) {
+        echo "10s of leeway does not, and expiry keeps its own sentence", "\n";
+    } else {
+        echo "10s of leeway refused it with: ", $expired->message, "\n";
+    }
+}
+
+// `nbf` is the same window at the other end, and a token carrying no `exp` has
+// nowhere to put a lifetime at all.
+string $early = $tokenOf(
+    $plain,
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"nbf\":"
+        . (($now + 30) as string) . ",\"exp\":" . $soon . "}",
+    $issuer
+);
+int $accepted = 0;
+int $rejected = 0;
+try {
+    var $notYet = Core\Jwt::verifyIssued<tainted {iss: string, aud: string, exp: int}>(
+        $early, $issuer->publicKey(), "https://issuer.example", "novis-app"
+    );
+    $accepted = $accepted + 1;
+} catch (RuntimeError $no) {
+    $rejected = $rejected + 1;
+}
+try {
+    var $tooEarly = Core\Jwt::verifyIssued<tainted {iss: string, aud: string, exp: int}>(
+        $early, $issuer->publicKey(), "https://issuer.example", "novis-app", {leeway: 10s}
+    );
+    $accepted = $accepted + 1;
+} catch (RuntimeError $no) {
+    $rejected = $rejected + 1;
+}
+try {
+    var $forever = Core\Jwt::verifyIssued<tainted {iss: string, aud: string}>(
+        $tokenOf($plain, "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\"}", $issuer),
+        $issuer->publicKey(),
+        "https://issuer.example",
+        "novis-app"
+    );
+    $accepted = $accepted + 1;
+} catch (RuntimeError $no) {
+    $rejected = $rejected + 1;
+}
+echo "the window holds at both ends: ", $accepted, " accepted and ", $rejected, " refused", "\n";
+
+// The claims, counted over the table of the ways a token can be addressed to
+// somebody else. Only the third and the fifth are this program's token.
+array<string> $addressed = [
+    "{\"iss\":\"https://elsewhere.example\",\"aud\":\"novis-app\",\"exp\":" . $soon . "}",
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"another-app\",\"exp\":" . $soon . "}",
+    "{\"iss\":\"https://issuer.example\",\"aud\":[\"novis-app\"],\"exp\":" . $soon . "}",
+    "{\"iss\":\"https://issuer.example\",\"aud\":[\"novis-app\",\"another-app\"],\"exp\":" . $soon . "}",
+    "{\"iss\":\"https://issuer.example\",\"aud\":[\"novis-app\",\"another-app\"],\"azp\":\"novis-app\",\"exp\":"
+        . $soon . "}",
+];
+int $ours = 0;
+int $theirs = 0;
+string $said = "";
+foreach ($addressed as string $claims) {
+    try {
+        var $mine = Core\Jwt::verifyIssued<tainted {iss: string, exp: int}>(
+            $tokenOf($plain, $claims, $issuer),
+            $issuer->publicKey(),
+            "https://issuer.example",
+            "novis-app"
+        );
+        $ours = $ours + 1;
+    } catch (RuntimeError $no) {
+        $theirs = $theirs + 1;
+        $said = $no->message;
+    }
+}
+echo $ours, " addressed to this program and ", $theirs, " to somebody else", "\n";
+
+// A `nonce` is compared in constant time and an absent one is refused, which is
+// the difference between a replayed login and a fresh one.
+array<string> $nonces = [
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"nonce\":\"n-0S6\",\"exp\":" . $soon . "}",
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"nonce\":\"n-0S7\",\"exp\":" . $soon . "}",
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"exp\":" . $soon . "}",
+];
+int $fresh = 0;
+foreach ($nonces as string $claims) {
+    try {
+        var $login = Core\Jwt::verifyIssued<tainted {iss: string, exp: int}>(
+            $tokenOf($plain, $claims, $issuer),
+            $issuer->publicKey(),
+            "https://issuer.example",
+            "novis-app",
+            {nonce: "n-0S6"}
+        );
+        $fresh = $fresh + 1;
+    } catch (RuntimeError $no) {
+        $said = $no->message;
+    }
+}
+echo "one nonce of three is the one that was asked for: ", $fresh, "\n";
+
+// `typ` is compared with any `application/` prefix removed and without regard
+// to case, which is what makes RFC 9068's access tokens readable at all.
+int $typed = 0;
+array<string> $headers = [
+    "{\"alg\":\"EdDSA\",\"typ\":\"application/AT+JWT\"}",
+    "{\"alg\":\"EdDSA\",\"typ\":\"at+jwt\"}",
+    "{\"alg\":\"EdDSA\",\"typ\":\"JWT\"}",
+];
+foreach ($headers as string $header) {
+    try {
+        var $access = Core\Jwt::verifyIssued<tainted {iss: string, exp: int}>(
+            $tokenOf($header, "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"exp\":" . $soon . "}", $issuer),
+            $issuer->publicKey(),
+            "https://issuer.example",
+            "novis-app",
+            {typ: "at+jwt"}
+        );
+        $typed = $typed + 1;
+    } catch (RuntimeError $no) {
+        $said = $no->message;
+    }
+}
+echo "two of three spellings are the same `typ`: ", $typed, "\n";
+
+// `maxAge` is asked of `auth_time`, and a token carrying none cannot answer it.
+array<string> $sessions = [
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"auth_time\":" . (($now - 60) as string) . ",\"exp\":" . $soon . "}",
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"auth_time\":" . (($now - 6000) as string) . ",\"exp\":" . $soon . "}",
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"exp\":" . $soon . "}",
+];
+int $recent = 0;
+foreach ($sessions as string $claims) {
+    try {
+        var $authenticated = Core\Jwt::verifyIssued<tainted {iss: string, exp: int}>(
+            $tokenOf($plain, $claims, $issuer),
+            $issuer->publicKey(),
+            "https://issuer.example",
+            "novis-app",
+            {maxAge: 30m}
+        );
+        $recent = $recent + 1;
+    } catch (RuntimeError $no) {
+        $said = $no->message;
+    }
+}
+echo "one session of three was authenticated recently enough: ", $recent, "\n";
+echo $said, "\n";
+
+// The bound on `leeway` itself, on both sides of it. It is a clock
+// disagreement, not an extension of the token's life, so it is a bug in the
+// program rather than a verdict on any token.
+try {
+    var $widest = Core\Jwt::verifyIssued<tainted {iss: string, exp: int}>(
+        $tokenOf($plain, "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"exp\":" . $soon . "}", $issuer),
+        $issuer->publicKey(),
+        "https://issuer.example",
+        "novis-app",
+        {leeway: 5m}
+    );
+    echo "five minutes is the widest leeway there is", "\n";
+} catch (LogicError $bug) {
+    echo "five minutes was refused: ", $bug->message, "\n";
+}
+try {
+    var $wider = Core\Jwt::verifyIssued<tainted {iss: string, exp: int}>(
+        $tokenOf($plain, "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"exp\":" . $soon . "}", $issuer),
+        $issuer->publicKey(),
+        "https://issuer.example",
+        "novis-app",
+        {leeway: 301s}
+    );
+    echo "one second past it was allowed", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+
+// And the order: a token that is wrong in both ways answers with the sentence
+// that gives nothing away, because the claim check is never reached.
+try {
+    var $never = Core\Jwt::verifyIssued<tainted {iss: string, exp: int}>(
+        $tokenOf($plain, "{\"iss\":\"https://elsewhere.example\",\"aud\":\"novis-app\",\"exp\":" . $soon . "}", $stranger),
+        $issuer->publicKey(),
+        "https://issuer.example",
+        "novis-app"
+    );
+    echo "a stranger's token verified", "\n";
+} catch (RuntimeError $no) {
+    echo $no->message, "\n";
+}
+--EXPECT--
+60s of leeway carries a token 30s past its expiry
+10s of leeway does not, and expiry keeps its own sentence
+the window holds at both ends: 1 accepted and 2 refused
+2 addressed to this program and 3 to somebody else
+one nonce of three is the one that was asked for: 1
+two of three spellings are the same `typ`: 2
+one session of three was authenticated recently enough: 1
+Core\Jwt::verifyIssued(): the token is authentic and carries no `auth_time`, which is what a `maxAge` is asked of. A claim this member checks is one the issuer and this program had to agree on beforehand, so a mismatch is a token meant for somebody else rather than a forgery.
+five minutes is the widest leeway there is
+Core\Jwt::verifyIssued(): {leeway: …} is 301s, and it is a clock disagreement rather than an extension of the token's life — it is refused below zero and above 300s.
+Core\Jwt::verifyIssued(): $token is not a token this issuer's key signed. Every way of not being one — a shape that is not three base64url parts, a header carrying a parameter a verifier may not honour, a `kid` that names no key in the set, an `alg` that is not the one that key carries, a signature under another key, and an altered payload — is this one sentence, so a forgery says nothing about which half of it failed.

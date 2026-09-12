@@ -1,0 +1,84 @@
+--TEST--
+Core\Jwt::verifyIssued answers the type its call site wrote, decoding a verified payload as Core\Json::decodeAs decodes a document, and the issuer's key reaches it as a set or on its own — `rule:security/protocol-roster`, `rule:security/verification-does-not-launder`
+--FILE--
+<?nvs
+// Agreement, over the two spellings of a key and the two things a written type
+// may be. One question — "what did the claims decode into?" — is asked with the
+// issuer's key held directly and with the same key inside the set the issuer
+// publishes, and with an inline shape and a deriving class. A member that read
+// a set as anything but a lookup, or that grew a decoder of its own beside
+// `Core\Json`'s, would still print plausibly against any one of these alone.
+#[Core\Json\Derive]
+final class Session {
+    public tainted string $iss;
+    public tainted string $aud;
+    public tainted string $sub;
+    public int $iat;
+    public int $exp;
+
+    public function constructor(
+        tainted string $iss,
+        tainted string $aud,
+        tainted string $sub,
+        int $iat,
+        int $exp
+    ) {
+        $this->iss = $iss;
+        $this->aud = $aud;
+        $this->sub = $sub;
+        $this->iat = $iat;
+        $this->exp = $exp;
+    }
+}
+
+Core\Crypto\KeyPair $issuer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+string $token = Core\Jwt::signObject(
+    Core\Arr::shapeAs<{iss: string, aud: string, sub: string}>([
+        "iss" => "https://issuer.example",
+        "aud" => "novis-app",
+        "sub" => "ada",
+    ]),
+    15m,
+    $issuer
+);
+
+var $direct = Core\Jwt::verifyIssued<
+    tainted {iss: string, aud: string, sub: string, iat: int, exp: int}
+>($token, $issuer->publicKey(), "https://issuer.example", "novis-app");
+echo $direct->sub, " of ", $direct->iss, " for ", $direct->exp - $direct->iat, "s", "\n";
+
+// The same key, reached the way a program that fetched a JWKS reaches it. A
+// document of one key is the shape a token carrying no `kid` is answered by.
+string $jwk = Core\Encoding::decodeText(
+    $issuer->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    Core\Charset::Utf8
+);
+Core\Jwt\KeySet $published = Core\Jwt\KeySet::read("{\"keys\":[" . $jwk . "]}");
+
+Session $viaSet = Core\Jwt::verifyIssued<Session>(
+    $token,
+    $published,
+    "https://issuer.example",
+    "novis-app"
+);
+echo $viaSet->sub, " of ", $viaSet->iss, " for ", $viaSet->exp - $viaSet->iat, "s", "\n";
+
+// The boundary on the written type itself: a token carries one payload object,
+// so a list names a document no token has. It is a bug in the program rather
+// than a verdict on the token, and it is answered before the token is read.
+try {
+    var $listed = Core\Jwt::verifyIssued<array<tainted {sub: string}>>(
+        $token,
+        $issuer->publicKey(),
+        "https://issuer.example",
+        "novis-app"
+    );
+    echo "a list decoded", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+--EXPECT--
+ada of https://issuer.example for 900s
+ada of https://issuer.example for 900s
+Core\Jwt::verifyIssued(): a token carries one payload object, so `<array<…>>` names a document no token has. Write the type one token's claims decode into.

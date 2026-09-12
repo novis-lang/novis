@@ -1,0 +1,74 @@
+--TEST--
+Core\Jwt::verifyIssued refuses every header parameter that would make a verifier fetch, decompress or trust something the token brought, and ignores every hint it does not read — `rule:security/protocol-roster`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// Invariance over a sweep, asserted by counting. Every parameter below is one
+// a real issuer's library can write and a verifier must not honour: a key or a
+// fetch the token carries with it, an extension a verifier would have to
+// understand to be safe, and a payload that is not the one segment it looks
+// like. Each token here is *correctly signed by the right key*, so nothing but
+// the header policy can refuse it — a member that read the list and forgot one
+// entry still prints a plausible refusal for the other seven.
+Core\Crypto\KeyPair $issuer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+var $segment = fn (string $text): string => Core\Encoding::toBase64Url(
+    Core\Encoding::encodeText($text, Core\Charset::Utf8)
+);
+var $signed = fn (string $input, Core\Crypto\KeyPair $key): string => $input . "."
+    . Core\Encoding::toBase64Url(
+        Core\Crypto::sign(Core\Encoding::encodeText($input, Core\Charset::Utf8), $key)
+    );
+
+int $now = Core\Time::now()->toEpochSeconds();
+string $payload = "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"exp\":"
+    . (($now + 900) as string) . "}";
+
+array<string> $carried = [
+    "\"jku\":\"https://issuer.example/jwks.json\"",
+    "\"x5u\":\"https://issuer.example/cert.pem\"",
+    "\"x5c\":[\"MIIBkTCB+w==\"]",
+    "\"jwk\":{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"AAAA\"}",
+    "\"crit\":[\"exp\"]",
+    "\"b64\":false",
+    "\"zip\":\"DEF\"",
+    "\"cty\":\"JWT\"",
+];
+
+int $honoured = 0;
+int $refused = 0;
+string $says = "";
+foreach ($carried as string $parameter) {
+    string $header = "{\"alg\":\"EdDSA\"," . $parameter . ",\"typ\":\"JWT\"}";
+    string $token = $signed($segment($header) . "." . $segment($payload), $issuer);
+    try {
+        var $claims = Core\Jwt::verifyIssued<tainted {iss: string, aud: string, exp: int}>(
+            $token,
+            $issuer->publicKey(),
+            "https://issuer.example",
+            "novis-app"
+        );
+        $honoured = $honoured + 1;
+    } catch (RuntimeError $no) {
+        $refused = $refused + 1;
+        $says = $no->message;
+    }
+}
+echo $honoured, " honoured and ", $refused, " refused", "\n";
+
+// The other side of the same bound, and the reason the list is a deny-list
+// rather than an allow-list: an issuer sends hints a verifier does not read —
+// `x5t` is a thumbprint of a certificate nobody here fetches — and refusing
+// what is merely unknown refuses real ID tokens.
+string $hinted = "{\"alg\":\"EdDSA\",\"x5t\":\"dGh1bWI\",\"typ\":\"JWT\"}";
+var $ignored = Core\Jwt::verifyIssued<tainted {iss: string, aud: string, exp: int}>(
+    $signed($segment($hinted) . "." . $segment($payload), $issuer),
+    $issuer->publicKey(),
+    "https://issuer.example",
+    "novis-app"
+);
+echo "a hint it does not read is ", $ignored->iss, "'s to send", "\n";
+echo $says, "\n";
+--EXPECT--
+0 honoured and 8 refused
+a hint it does not read is https://issuer.example's to send
+Core\Jwt::verifyIssued(): $token is not a token this issuer's key signed. Every way of not being one — a shape that is not three base64url parts, a header carrying a parameter a verifier may not honour, a `kid` that names no key in the set, an `alg` that is not the one that key carries, a signature under another key, and an altered payload — is this one sentence, so a forgery says nothing about which half of it failed.

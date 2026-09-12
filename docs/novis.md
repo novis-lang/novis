@@ -19154,13 +19154,14 @@ Reports which time step `$code` belonged to, or `null`. Accepts the current 30-s
 <a id="core-core-jwt"></a>
 ### `Core\Jwt`
 
-Keywords: sign, signObject, verify
+Keywords: sign, signObject, verify, verifyIssued
 
 | Member | Signature |
 |---|---|
 | [`Core\Jwt::sign`](#core-core-jwt-sign) | `sign(array<string> $claims, Core\Time\Duration $lifetime, secret bytes\|Core\Crypto\KeyPair $key, {kid?: string, typ?: string, embedKey?: bool}): string` |
 | [`Core\Jwt::signObject`](#core-core-jwt-signobject) | `signObject(object $claims, Core\Time\Duration $lifetime, Core\Crypto\KeyPair $key, {kid?: string, typ?: string, embedKey?: bool}): string` |
 | [`Core\Jwt::verify`](#core-core-jwt-verify) | `verify(string $token, secret bytes $key): array<tainted string>` |
+| [`Core\Jwt::verifyIssued`](#core-core-jwt-verifyissued) | `verifyIssued<T>(string $token, Core\Jwt\KeySet\|Core\Crypto\PublicKey $keys, string $issuer, string $audience, {leeway?: Core\Time\Duration, typ?: string, nonce?: string, maxAge?: Core\Time\Duration}): T` |
 
 <a id="core-core-jwt-sign"></a>
 #### `Core\Jwt::sign`
@@ -19223,6 +19224,30 @@ Answers the claims `$token` carries, having checked that this key signed it and 
 **Returns** `array<tainted string>` — Every claim in the payload, by name, each one `tainted`: a signature proves who wrote a value, not that it is safe for any sink. `exp` and `iat` are present in it, in their own decimal spelling.
 
 **Throws** `LogicError` — `$key` is shorter than 32 octets — a value that was never a signing key.; `RuntimeError` — The token is not one this key signed, which is one sentence for every way of not being one; or it is, and has expired, carries no `exp`, or carries a claim that is not text.
+
+<a id="core-core-jwt-verifyissued"></a>
+#### `Core\Jwt::verifyIssued`
+
+```nvs skip
+Core\Jwt::verifyIssued<T>(string $token, Core\Jwt\KeySet|Core\Crypto\PublicKey $keys, string $issuer, string $audience, {leeway?: Core\Time\Duration, typ?: string, nonce?: string, maxAge?: Core\Time\Duration}): T
+```
+
+Verifies a token another party issued and answers its claims as the written type, having checked the header's policy, found the one key that may have signed it, checked the signature, and then the clock and the registered claims in that order. It throws rather than answering an empty value.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$token` | `string` (neutral) | The token as the request carried it, in its three-part form. It is refused unread past 8 KiB. |
+| `$keys` | `Core\Jwt\KeySet\|Core\Crypto\PublicKey` | The issuer's key set, in which the header's `kid` names exactly one key, or one public key on its own. There is no try-every-key: a token naming no `kid` verifies only against a set holding exactly one. The token's `alg` is compared against the key's algorithm and never used to pick one. |
+| `$issuer` | `string` (neutral) | What the token's `iss` must equal, exactly. |
+| `$audience` | `string` (neutral) | What the token's `aud` must be, or must hold. A token listing more than one audience must also carry an `azp` equal to this. |
+| `{leeway: …}` | `Core\Time\Duration` (default `null`) | How far the clock may disagree, at both ends of the window: 60 seconds when omitted, and refused when negative or wider than 5 minutes. It widens the expiry check and never removes it. |
+| `{typ: …}` | `string` (default `null`, neutral) | The `typ` the header must carry, compared case-insensitively with any `application/` prefix removed — `at+jwt` for RFC 9068's access tokens. Any `typ` is accepted when this is omitted. |
+| `{nonce: …}` | `string` (default `null`, neutral) | The value the token's `nonce` claim must equal, compared in constant time. A token carrying none is refused when this is named. |
+| `{maxAge: …}` | `Core\Time\Duration` (default `null`) | How old the token's `auth_time` may be. A token carrying none is refused when this is named. |
+
+**Returns** `T` — An instance of the written type, decoded from the payload as `Core\Json::decodeAs` decodes a document. Its text fields must be declared `tainted`, which the call site is held to: a signature proves who wrote a claim, not that it is safe for any sink.
+
+**Throws** `LogicError` — `leeway` is negative or wider than 5 minutes; the written type is a list, which no token's payload is; or the key is an `X25519` one, which verifies nothing.; `RuntimeError` — The token is not one this issuer's key signed, its header carries a parameter a verifier may not honour, or no key was found for it — one sentence for every way of not being verifiable; or it is authentic, and is outside its validity window or carries a registered claim that is not what was asked for, which names the claim.
 
 <a id="core-core-jwt-keyset"></a>
 ### `Core\Jwt\KeySet`

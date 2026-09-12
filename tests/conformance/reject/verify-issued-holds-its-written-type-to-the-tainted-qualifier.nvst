@@ -1,0 +1,49 @@
+--TEST--
+`Core\Jwt::verifyIssued<T>` refuses a written type whose text fields are not `tainted`, at the call that writes it and at the class that declared it — `rule:security/derived-codec-qualifiers`, `rule:security/verification-does-not-launder`
+--FILE--
+<?nvs
+// A signature proves who wrote a claim, not that it is safe for any sink, so
+// the claims come back qualified — and a codec adds no qualifier rule of its
+// own, which means the fields receiving them have to say so where they are
+// written. An inline shape says it in one word; a class says it once per text
+// field, and is reported at the declaration that put the field on the wire
+// contract rather than at every call that decodes into it.
+#[Core\Json\Derive]
+final class Session {
+    public string $sub;
+
+    public function constructor(string $sub) {
+        $this->sub = $sub;
+    }
+}
+
+Core\Crypto\KeyPair $issuer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+string $token = Core\Jwt::signObject(
+    Core\Arr::shapeAs<{iss: string}>(["iss" => "https://issuer.example"]),
+    15m,
+    $issuer
+);
+
+var $shaped = Core\Jwt::verifyIssued<{iss: string, exp: int}>(
+    $token,
+    $issuer->publicKey(),
+    "https://issuer.example",
+    "novis-app"
+);
+Session $declared = Core\Jwt::verifyIssued<Session>(
+    $token,
+    $issuer->publicKey(),
+    "https://issuer.example",
+    "novis-app"
+);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0810]: `Session::$sub` is declared `string`, and `Core\Jwt::verifyIssued` answers a peer's octets
+   --> case.nvs:10:19
+%A
+error[E0810]: `iss` is declared `string` in `{exp: int, iss: string}`, and `Core\Jwt::verifyIssued` answers a peer's octets
+   --> case.nvs:24:38
+%A
+error: aborting due to 2 errors

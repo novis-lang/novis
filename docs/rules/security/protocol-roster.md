@@ -12,6 +12,8 @@ reveal at every call site — turning a deliberately conspicuous escape hatch in
 destroys its value as a signal. A userland implementation is still possible and cannot be prevented;
 the claim is not exclusivity but that the obvious, documented option is the correct one.
 
-**Signed cookies, CSRF, TOTP and JWT's shared-key half are on disk**, each with conformance cases.
-`Core\Signature`, `Core\Jwe` and `Jwt::verifyIssued` are not: no member, no module, no case. The roster
-is therefore not yet the closed set this rule describes.
+**Every entry above is registered and carries conformance cases**, `Jwt::verifyIssued` included —
+so a token another party issued is verified against a `Jwt\KeySet` here rather than in userland.
+What the roster still owes is not a member but the flow around one: fetching, caching and rotating
+a key set are a package's job (`rule:security/protocol-admission-test`), and every member here is
+stateless over the key it is handed.
