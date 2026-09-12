@@ -272,6 +272,13 @@ const NAME: &str = r"Core\Crypto";
 /// reports a slot holding something else.
 pub(crate) const CIPHER_NAME: &str = r"Core\Crypto\Cipher";
 
+/// The key-kind enum's name, once, for the rows that take it and the fatal that
+/// reports a slot holding something else.
+pub(crate) const KEY_KIND_NAME: &str = r"Core\Crypto\KeyKind";
+
+/// The key-format enum's name, once, for the same two places.
+pub(crate) const KEY_FORMAT_NAME: &str = r"Core\Crypto\KeyFormat";
+
 /// A key's length in octets — XChaCha20-Poly1305's only key size and AES-256's,
 /// so this is the constructions' number rather than a choice of ours, and one
 /// generated key keys either of them.
@@ -394,7 +401,136 @@ const CIPHER_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `rule:core-api/tier-roster`'s AEAD-only surface, as three rows.
+/// Which asymmetric key a program is naming — what `generateKeyPair` makes,
+/// what a stored key is read back as, and what a pair therefore signs or agrees
+/// with.
+///
+/// Closed at the roster `rule:core-classes/crypto-interop-tier` fixes, and
+/// carrying no default for the reason [`CIPHER`] carries none: a call says which
+/// primitive it is under. The kinds are not interchangeable and the type does
+/// not pretend they are — an X25519 pair agrees and signs nothing, an Ed25519 or
+/// RSA pair signs and agrees nothing, and each wrong pairing is a `LogicError`
+/// rather than a second-best answer.
+///
+/// RSA is one key type under two cases, which is
+/// `rule:security/algorithm-comes-from-the-key` held at the only door where the
+/// key itself cannot settle the question: PKCS#8 and SPKI both say *RSA* and
+/// neither says `RS256` or `PS256`, so the scheme is fixed when the key is read
+/// and is read back off the kind everywhere after. [`SignatureKind`] is that
+/// same choice inside the crate, which is why it has four variants where this
+/// has five: X25519 signs nothing and so reaches no signer.
+///
+/// The integers are each case's own constant, written out rather than
+/// auto-incremented, per [`CoreEnum::cases`]. They are ABI: a member reads them
+/// back out of an argument slot, so reordering this list is a behaviour change,
+/// not a cosmetic one.
+pub(crate) const KEY_KIND: CoreEnum = CoreEnum {
+    name: KEY_KIND_NAME,
+    cases: &[
+        ("P256", 0),
+        ("X25519", 1),
+        ("Ed25519", 2),
+        ("RsaPkcs1", 3),
+        ("RsaPss", 4),
+    ],
+    doc: Some(&KEY_KIND_DOC),
+};
+
+/// [`KEY_KIND`]'s reference card — `rule:core-api/reference-card`. The module
+/// doc owns why the roster stops where it does; these say what each case is for.
+const KEY_KIND_DOC: EnumDoc = EnumDoc {
+    short: "Which asymmetric key a member is naming — the curve or the RSA scheme. There is no \
+            default, and the kinds do not substitute for one another: agreement is the two \
+            Diffie-Hellman cases and signing is the other three.",
+    cases: &[
+        CaseDoc {
+            name: "P256",
+            desc: "NIST P-256, for agreement (ECDH) and for signing (ECDSA over SHA-256, as the \
+                   64-octet `r ‖ s` a browser and JWS both use). The one curve every WebCrypto \
+                   implementation has, so it is what an interop key pair is.",
+        },
+        CaseDoc {
+            name: "X25519",
+            desc: "Curve25519 key agreement, and agreement alone — a pair of this kind signs \
+                   nothing. Prefer it over `P256` when both ends choose the curve, because \
+                   nothing about it has to be checked at a call site to be safe.",
+        },
+        CaseDoc {
+            name: "Ed25519",
+            desc: "Ed25519 signatures, and signatures alone — a pair of this kind agrees \
+                   nothing. The signing kind to prefer when both ends are Novis: short keys, \
+                   short signatures, and no scheme left to choose.",
+        },
+        CaseDoc {
+            name: "RsaPkcs1",
+            desc: "An RSA key signing RSASSA-PKCS1-v1_5 over SHA-256 — JWS's `RS256`, and what \
+                   most identity providers still issue. An RSA key is read, never generated, and \
+                   this case is what fixes its scheme at the read.",
+        },
+        CaseDoc {
+            name: "RsaPss",
+            desc: "The same RSA key under RSASSA-PSS with SHA-256 and a 32-octet salt — JWS's \
+                   `PS256`. It is a separate case rather than a separate key type because the \
+                   key cannot say which of the two it is for.",
+        },
+    ],
+};
+
+/// Which encoding a public key is read out of or written back into — the three
+/// a browser's `SubtleCrypto.exportKey` writes, under the names it writes them
+/// under.
+///
+/// It reaches the public half alone. A private key crosses as PKCS#8 and
+/// nothing else, so `KeyPair::write` takes no format argument: there is one
+/// spelling for a stored pair, which is the one a service-account file already
+/// holds.
+///
+/// No default, for the reason [`CIPHER`] and [`KEY_KIND`] carry none, and here
+/// with a second edge: the encodings are not all defined for all kinds. `Raw` is
+/// the key material with nothing around it — the uncompressed point for `P256`,
+/// the 32 octets for `X25519` and `Ed25519` — and an RSA key has no such form,
+/// so `Raw` against either RSA kind is a `LogicError` rather than a guess at
+/// which DER was meant.
+///
+/// The integers are each case's own constant, written out rather than
+/// auto-incremented, per [`CoreEnum::cases`], and they are ABI for the same
+/// reason [`CIPHER`]'s are: a member reads them back out of an argument slot.
+pub(crate) const KEY_FORMAT: CoreEnum = CoreEnum {
+    name: KEY_FORMAT_NAME,
+    cases: &[("Raw", 0), ("Spki", 1), ("Jwk", 2)],
+    doc: Some(&KEY_FORMAT_DOC),
+};
+
+/// [`KEY_FORMAT`]'s reference card — `rule:core-api/reference-card`.
+const KEY_FORMAT_DOC: EnumDoc = EnumDoc {
+    short: "Which encoding a public key is read from or written to. They are WebCrypto's own three \
+            export formats under its own names, so a key crosses to a browser in whichever of them \
+            the other end asked for.",
+    cases: &[
+        CaseDoc {
+            name: "Raw",
+            desc: "The key material alone: the 65-octet uncompressed point for `P256`, the 32 \
+                   octets for `X25519` and `Ed25519`. An RSA key has no raw form, so this is a \
+                   `LogicError` under either RSA kind.",
+        },
+        CaseDoc {
+            name: "Spki",
+            desc: "DER `SubjectPublicKeyInfo`, the one form every kind has — the key material \
+                   under the algorithm identifier that names it. What a certificate and a `.pem` \
+                   public key carry, and the only format an RSA key reads from or writes to \
+                   besides `Jwk`.",
+        },
+        CaseDoc {
+            name: "Jwk",
+            desc: "The JSON Web Key as UTF-8 JSON octets. A read accepts what a browser exports, \
+                   `ext` and `key_ops` included, and refuses one carrying `d`, because a private \
+                   key handed over as a public one is a bug. A write answers RFC 7638's required \
+                   members, sorted — the form a thumbprint is taken over.",
+        },
+    ],
+};
+
+/// `rule:core-api/tier-roster`'s AEAD-only surface, as registry rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[

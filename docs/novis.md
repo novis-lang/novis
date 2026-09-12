@@ -21941,6 +21941,30 @@ Which authenticated construction a `seal` or an `open` runs. There is no default
 | `Core\Crypto\Cipher::XChaCha20Poly1305` | ChaCha20-Poly1305 under a 192-bit nonce — the one to prefer when both ends are Novis, because a nonce that wide is never drawn twice and the cipher is fast on a host with no AES instructions. Seals as `nonce(24) ‖ ciphertext ‖ tag(16)`. |
 | `Core\Crypto\Cipher::Aes256Gcm` | AES-256-GCM, the interop cipher: what a browser's WebCrypto encrypts with, so a sealed message crosses to the other end. Seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is WebCrypto's own output with its IV in front. Its 96-bit nonce puts a birthday bound near 2^32 messages under one key; past that, seal under the other case. |
 
+<a id="enum-core-crypto-keykind"></a>
+#### `Core\Crypto\KeyKind`
+
+Which asymmetric key a member is naming — the curve or the RSA scheme. There is no default, and the kinds do not substitute for one another: agreement is the two Diffie-Hellman cases and signing is the other three.
+
+| Case | Meaning |
+|---|---|
+| `Core\Crypto\KeyKind::P256` | NIST P-256, for agreement (ECDH) and for signing (ECDSA over SHA-256, as the 64-octet `r ‖ s` a browser and JWS both use). The one curve every WebCrypto implementation has, so it is what an interop key pair is. |
+| `Core\Crypto\KeyKind::X25519` | Curve25519 key agreement, and agreement alone — a pair of this kind signs nothing. Prefer it over `P256` when both ends choose the curve, because nothing about it has to be checked at a call site to be safe. |
+| `Core\Crypto\KeyKind::Ed25519` | Ed25519 signatures, and signatures alone — a pair of this kind agrees nothing. The signing kind to prefer when both ends are Novis: short keys, short signatures, and no scheme left to choose. |
+| `Core\Crypto\KeyKind::RsaPkcs1` | An RSA key signing RSASSA-PKCS1-v1_5 over SHA-256 — JWS's `RS256`, and what most identity providers still issue. An RSA key is read, never generated, and this case is what fixes its scheme at the read. |
+| `Core\Crypto\KeyKind::RsaPss` | The same RSA key under RSASSA-PSS with SHA-256 and a 32-octet salt — JWS's `PS256`. It is a separate case rather than a separate key type because the key cannot say which of the two it is for. |
+
+<a id="enum-core-crypto-keyformat"></a>
+#### `Core\Crypto\KeyFormat`
+
+Which encoding a public key is read from or written to. They are WebCrypto's own three export formats under its own names, so a key crosses to a browser in whichever of them the other end asked for.
+
+| Case | Meaning |
+|---|---|
+| `Core\Crypto\KeyFormat::Raw` | The key material alone: the 65-octet uncompressed point for `P256`, the 32 octets for `X25519` and `Ed25519`. An RSA key has no raw form, so this is a `LogicError` under either RSA kind. |
+| `Core\Crypto\KeyFormat::Spki` | DER `SubjectPublicKeyInfo`, the one form every kind has — the key material under the algorithm identifier that names it. What a certificate and a `.pem` public key carry, and the only format an RSA key reads from or writes to besides `Jwk`. |
+| `Core\Crypto\KeyFormat::Jwk` | The JSON Web Key as UTF-8 JSON octets. A read accepts what a browser exports, `ext` and `key_ops` included, and refuses one carrying `d`, because a private key handed over as a public one is a bug. A write answers RFC 7638's required members, sorted — the form a thumbprint is taken over. |
+
 <a id="enum-core-mime-type"></a>
 #### `Core\Mime\Type`
 

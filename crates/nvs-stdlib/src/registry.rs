@@ -2537,6 +2537,15 @@ pub const ENUMS: &[CoreEnum] = &[
     // primitive is a closed case at the call site, never the mode string
     // `openssl_encrypt` reads, and this one carries no default either.
     crate::crypto::CIPHER,
+    // Beside the cipher because it is the same class's other closed choice, on
+    // the asymmetric half: which key a program means, named at the call rather
+    // than sniffed out of the encoding. It is also where RSA's two signature
+    // schemes are told apart, which a PKCS#8 or SPKI key cannot do for itself.
+    crate::crypto::KEY_KIND,
+    // And the encoding that key crosses in, which is the third closed choice of
+    // the same class: `exportKey`'s own three formats, named at the call rather
+    // than sniffed out of the octets a program was handed.
+    crate::crypto::KEY_FORMAT,
     // The answer `Core\Mime::detect` gives, whose zero case is `Unknown`: a
     // detection that cannot say is an ordinary case rather than an error, and
     // a closed one so a caller never compares against a media-type spelling
