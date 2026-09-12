@@ -25,7 +25,7 @@
 use nvs_syntax::ast::{Modifier, WrittenModifier};
 use nvs_syntax::{Parsed, Trivia};
 
-use crate::print::Rewrite;
+use crate::print::{self, Rewrite};
 
 /// Every keyword `parsed` writes somewhere other than where it was written, in
 /// source order and covering no byte twice.
@@ -46,7 +46,13 @@ fn push_list<'t>(
     trivia: &[Trivia],
     text: &'t str,
 ) {
-    if !list.iter().all(|written| is_one_code_run(trivia, written)) {
+    // `private (set)` is one modifier written across a skipped run, and a list
+    // holding one is left exactly as its author wrote it rather than moved a
+    // piece at a time.
+    if !list
+        .iter()
+        .all(|written| print::one_code_run(trivia, written.span))
+    {
         return;
     }
     let mut canonical: Vec<&WrittenModifier> = list.iter().collect();
@@ -80,17 +86,4 @@ const fn rank(modifier: Modifier) -> u8 {
         Modifier::Readonly => 3,
         Modifier::Lateinit => 4,
     }
-}
-
-/// Whether `written` covers one run of code with nothing skipped inside it.
-///
-/// The printer tiles a file into trivia and the code between two of them, so a
-/// keyword it moves has to be code the whole way through. `private (set)` is
-/// one modifier written across a skipped run, and a list holding one is left
-/// exactly as its author wrote it rather than moved a piece at a time.
-fn is_one_code_run(trivia: &[Trivia], written: &WrittenModifier) -> bool {
-    let after = trivia.partition_point(|trivium| trivium.span.start < written.span.start);
-    !trivia
-        .get(after)
-        .is_some_and(|next| next.span.start < written.span.end)
 }

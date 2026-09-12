@@ -12,9 +12,11 @@
 //!
 //! A code run is copied byte for byte, save for the edits that write something
 //! other than what is there, each of them a [`Rewrite`]: a modifier list goes
-//! out in its canonical order ([`crate::modifiers`]), a brace the author left
-//! no room in front of gets the run [`crate::brace`] requires, and a literal
-//! the quote rule respells gets the delimiters [`crate::tokens`] decides.
+//! out in its canonical order ([`crate::modifiers`]), a run of imports in path
+//! order ([`crate::imports`]), a brace the author left no room in front of gets
+//! the run [`crate::brace`] requires, and a literal the quote rule respells
+//! gets the delimiters — and a multi-line list the comma — that
+//! [`crate::tokens`] decides.
 //! `rule:tooling/fmt-never-reflows` leaves what is inside an expression to the
 //! author, and bytes a program prints — inline HTML, a heredoc body, a markup
 //! literal's body — are never a formatter's to touch, so a rule that appears to
@@ -23,12 +25,12 @@
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
-use nvs_diagnostics::SourceFile;
+use nvs_diagnostics::{SourceFile, Span};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::brace::{self, Placements};
 use crate::indent::Indent;
-use crate::{modifiers, tokens};
+use crate::{imports, modifiers, tokens};
 
 /// One run of bytes, and what the printer writes in its place.
 ///
@@ -44,6 +46,20 @@ pub(crate) struct Rewrite<'t> {
     pub(crate) written: &'t str,
 }
 
+/// Whether `span` covers one run of code with nothing skipped inside it.
+///
+/// A file is tiled into trivia and the code between two of them, so every
+/// [`Rewrite`] lies inside one run: a rule that moves bytes from one place to
+/// another asks this about the bytes it is about to move, because a span with a
+/// comment or a line break inside it is two runs, and half of one is not
+/// something to write at another's place.
+pub(crate) fn one_code_run(trivia: &[Trivia], span: Span) -> bool {
+    let after = trivia.partition_point(|trivium| trivium.span.start < span.start);
+    !trivia
+        .get(after)
+        .is_some_and(|next| next.span.start < span.end)
+}
+
 /// Writes `parsed` back out as the text of a formatted file.
 ///
 /// `parsed` must be `file`'s own parse: the spans are offsets into its text.
@@ -53,6 +69,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
     let braces = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
     edits.extend(braces.insertions());
+    edits.extend(imports::rewrites(parsed, text));
     edits.extend(tokens::rewrites(&parsed.index, text, &parsed.trivia));
     edits.sort_by_key(|edit| edit.start);
     let mut out = String::with_capacity(text.len());

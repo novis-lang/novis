@@ -36,9 +36,9 @@
 // table in the database.
 
 use Core\Db;
-use Core\Db\Schema;
 use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
+use Core\Db\Schema;
 
 var $db = Db::connect('schema');
 

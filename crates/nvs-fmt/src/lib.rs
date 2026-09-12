@@ -50,11 +50,12 @@
 //!    names is the frame every rule under `docs/rules/tooling/fmt-*` hangs off,
 //!    and what lands in it is four spaces per enclosing body (`indent.rs`), one
 //!    canonical order for a declaration's modifiers (`modifiers.rs`), the line
-//!    each opening brace sits on (`brace.rs`) and the quote a plain string
-//!    literal is delimited by (`tokens.rs`). PER's blank lines, the trailing
-//!    comma, the `use` block's order, the reserved spellings and the constructs
-//!    PER never saw are still the author's, so a file that disagrees with one
-//!    of them comes back disagreeing with it.
+//!    each opening brace sits on (`brace.rs`), the order a run of imports goes
+//!    out in (`imports.rs`), and the quote a plain string literal is delimited
+//!    by together with the comma a multi-line list ends its last element on
+//!    (`tokens.rs`). PER's blank lines, the reserved spellings and the
+//!    constructs PER never saw are still the author's, so a file that disagrees
+//!    with one of them comes back disagreeing with it.
 //!    — owner: M10
 //! 2. **A line the tree does not place keeps the author's own indentation.**
 //!    `indent.rs`'s own doc says which ones those are: a `switch`, a `match`
@@ -78,12 +79,37 @@
 //!    literal in an argument list does not, and what closes it is a node for
 //!    the attribute in that walk rather than a second scan here.
 //!    — owner: M10
+//! 5. **A comma-separated list whose closing delimiter is not its node's last
+//!    byte keeps the comma its author wrote.** `tokens.rs` tells a list's
+//!    closer from a block's by the node that ends there, and three lists end
+//!    inside a node that runs on past them: a parameter list inside the
+//!    `Function` or `Method` whose body follows it, an enum-case list inside
+//!    the `EnumDecl`, and a shape type's fields inside a declaration whose
+//!    type `crates/nvs-syntax/src/walk.rs` gives no node at all. So
+//!    `rule:tooling/fmt-trailing-commas` reaches call arguments and array,
+//!    object and `match` arm lists today, and what closes the rest is a
+//!    boundary for each in that walk rather than a bracket-matching scan here,
+//!    which would have to tell a `)` in an attribute's argument list from the
+//!    one that ends the parameters — gap 4's absence again.
+//!    — owner: M10
+//! 6. **A comment written between two imports holds the block it is in
+//!    unsorted on either side of it.** A comment belongs to the declaration it
+//!    was written above, and `imports.rs` moves a path without moving anything
+//!    around it, so sorting across one would leave it standing over an import
+//!    it does not describe. The safe direction is the one taken: the run ends
+//!    at the comment and each half is sorted alone, so
+//!    `rule:tooling/fmt-sorts-the-use-block` is satisfied for an uncommented
+//!    block and under-applied for a commented one. What closes it is the
+//!    comment moving with the declaration below it, which is a second span per
+//!    element rather than a second scan.
+//!    — owner: M10
 
 use std::fmt;
 
 use nvs_diagnostics::{Diagnostics, SourceFile};
 
 mod brace;
+mod imports;
 mod indent;
 mod modifiers;
 mod print;
