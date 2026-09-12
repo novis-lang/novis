@@ -35,13 +35,13 @@ echo 'uuid=' . (Core\Uuid::tryParse('00000000-0000-4000-8000-000000000000') != n
 
 var $joined = Core\Path::join('srv', 'app', 'index.nvs');
 echo 'path=' . Core\Str::replace($joined, Core\Path::SEPARATOR, '/') . "\n";
-echo 'stem=' . Core\Path::basename('/srv/app/index.nvs', {withoutExtension: true}) . "\n";
+echo 'stem=' . Core\Path::basename('/srv/app/index.nvs', { withoutExtension: true }) . "\n";
 echo 'ext=' . (Core\Path::extension('/srv/app/index.nvs') ?? 'none') . "\n";
 
 var $query = Core\Uri::parseQuery('a=1&b[]=2&b[]=3&c[k]=v');
 echo 'queryKeys=' . Core\Str::join(Core\Arr::keys($query), ',') . "\n";
 
-var $rows = Core\Csv::parse("name,qty\nfig,2\npear,5\n", {header: true});
+var $rows = Core\Csv::parse("name,qty\nfig,2\npear,5\n", { header: true });
 echo 'rows=' . Core\Arr::count($rows) . "\n";
 // `Core\Arr::first` answers a `?array<string>` here, and a narrowed nullable
 // array has lost its element type by the time `nvs-ir` lowers a subscript of

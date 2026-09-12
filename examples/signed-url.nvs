@@ -30,7 +30,7 @@ array<secret bytes> $ring = [$key];
 // proves origin, not safety for any sink
 // (`rule:security/verification-does-not-launder`).
 array<string> $claims = ['doc' => '7', 'act' => 'download'];
-string $token = Core\Signature::sign($claims, {keys: $ring, until: null});
+string $token = Core\Signature::sign($claims, { keys: $ring, until: null });
 array<tainted string> $back = Core\Signature::verify($token, $ring);
 echo 'claims:    ', $back['act'], ' of ', $back['doc'], "\n";
 
@@ -39,7 +39,7 @@ echo 'claims:    ', $back['act'], ' of ', $back['doc'], "\n";
 // there are no claims to hand back, because the claim is the URL the caller
 // is already holding.
 Core\Uri $link = Core\Uri::parse('https://example.test/files/7?act=download')
-    ->sign({keys: $ring, until: null});
+    ->sign({ keys: $ring, until: null });
 $link->verifySignature($ring);
 echo 'signed:    ', $link->path(), " verifies under the ring that signed it\n";
 
@@ -75,7 +75,7 @@ echo 'forgeries: ', $tampered == $unsigned ? 'one sentence for both' : 'two sent
 // overnight.
 Core\Time\Instant $ago = Core\Time::now()->minus(1h);
 Core\Uri $stale = Core\Uri::parse('https://example.test/files/7?act=download')
-    ->sign({keys: $ring, until: $ago});
+    ->sign({ keys: $ring, until: $ago });
 string $expired = '';
 try {
     $stale->verifySignature($ring);

@@ -60,7 +60,9 @@
 //!    and what lands in it is four spaces per enclosing body (`indent.rs`), one
 //!    canonical order for a declaration's modifiers (`modifiers.rs`), the line
 //!    each opening brace sits on (`brace.rs`), the order a run of imports goes
-//!    out in (`imports.rs`), and the quote a plain string literal is delimited
+//!    out in (`imports.rs`), the space a qualified type and a one-line object
+//!    literal are written with (`space.rs`), and the quote a plain string
+//!    literal is delimited
 //!    by together with the comma a multi-line list ends its last element on and
 //!    the one case a reserved spelling has (`tokens.rs`). PER's blank lines and
 //!    the constructs PER never saw are still the author's, so a file that
@@ -101,7 +103,10 @@
 //!    object and `match` arm lists today, and what closes the rest is a
 //!    boundary for each in that walk rather than a bracket-matching scan here,
 //!    which would have to tell a `)` in an attribute's argument list from the
-//!    one that ends the parameters — gap 4's absence again.
+//!    one that ends the parameters — gap 4's absence again. A shape type's
+//!    braces are outside `space.rs`'s one-space rule for the same reason they
+//!    are outside this one: `{a: string}` is a node to nobody, so the `{` that
+//!    opens it cannot be told from the `{` that opens a block.
 //!    — owner: M10
 //! 6. **A comment written between two imports holds the block it is in
 //!    unsorted on either side of it.** A comment belongs to the declaration it
@@ -124,6 +129,7 @@ mod imports;
 mod indent;
 mod modifiers;
 mod print;
+mod space;
 mod tokens;
 
 /// A file `nvs fmt` will not rewrite, because its parse reported an error

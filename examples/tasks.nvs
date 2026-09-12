@@ -39,7 +39,7 @@ try {
     Core\Task::map([1, 2], fn(int $n): int => {
         Core\Time::sleep(200ms);
         return $n;
-    }, {deadline: 20ms});
+    }, { deadline: 20ms });
     echo 'deadline missed', "\n";
 } catch (TimeoutError $e) {
     echo 'deadline hit', "\n";
@@ -63,6 +63,6 @@ Core\Task::map(Core\Arr::range(1, 6), fn(int $n): int => {
     Core\Time::sleep(5ms);
     Gauge::$live -= 1;
     return $n;
-}, {limit: 2});
+}, { limit: 2 });
 
 echo 'limit held at ', Gauge::$peak, "\n";

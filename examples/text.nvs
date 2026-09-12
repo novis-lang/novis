@@ -7,7 +7,7 @@ var $parts = Core\Regex::split($tidy, "[,\\s]+");
 echo 'words=' . Core\Arr::count($parts) . "\n";
 
 var $slug = Core\Str::lower(Core\Regex::replace($tidy, '[^A-Za-z]+', '-'));
-echo 'slug=' . Core\Str::trim($slug, {characters: '-'}) . "\n";
+echo 'slug=' . Core\Str::trim($slug, { characters: '-' }) . "\n";
 
 var $found = Core\Regex::match('order-4711-eu', "order-(\\d+)-(\\w+)");
 if ($found != null) {

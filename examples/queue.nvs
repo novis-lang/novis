@@ -82,7 +82,7 @@ var $flaky = Core\Uuid::v4()->toString();
 // 0023's graph copy and refuses `secret` — a durable row is an output, and a
 // job needing a credential reads it from configuration at run time, which is
 // where credentials live anyway.
-var $receipt = Queue::push('examples/queue/receipt.nvs', {args: {order: 7}, queue: $queue});
+var $receipt = Queue::push('examples/queue/receipt.nvs', { args: { order: 7 }, queue: $queue });
 echo 'enqueued', "\n";
 
 // § 4: the claim is the worker's, not ours, and `stats` is how a program sees

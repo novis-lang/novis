@@ -36,7 +36,7 @@ string $dir = Core\IO::temporaryDir();
 try {
     foreach (Core\Request::files() as Core\Request\Part $part) {
         string $dest = Core\IO::within($dir, 'upload.bin');
-        $part->saveTo($dest, {max: 4096, overwrite: true});
+        $part->saveTo($dest, { max: 4096, overwrite: true });
         echo 'saved ', Core\IO::size($dest), " bytes\n";
     }
     echo "a program answered a request\n";
@@ -55,7 +55,7 @@ while ($i < 1024) {
     $i = $i + 1;
 }
 string $blob = Core\Path::join($dir, 'payload.bin');
-Core\IO::writeStream($blob, $chunks, {overwrite: true});
+Core\IO::writeStream($blob, $chunks, { overwrite: true });
 echo 'streamed ', Core\IO::size($blob), " bytes\n";
 
 // The destination is a name this program built with `Core\Path::join` from a

@@ -6317,6 +6317,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   operand there is `E0707: no string form` at a line that looks like a static call. Put the call in a
   local and write `{$local}`; the hole grammar is the double-quoted string's, **both** halves of it
   (`rule:core-classes/html-literal`). [until: reviewed 2026-09-12]
+- **A `docs/rules/tooling/fmt-*` example can be a spelling the grammar refuses, and a case built on it
+  comes back as a refusal rather than a layout disagreement.** Those fragments were written at design
+  time against a grammar that had not shipped, so `tainted ?string` (the `?` wraps the qualified type)
+  and a brace-bodied `fn` with no `=>` in front of it are examples no `.nvs` file can hold, and
+  `nvs-fmt`'s harness answers one with "does not parse (43 error(s))". Run a fragment's example through
+  `target/debug/nvs.exe check` before building a fixture on it, and correct the fragment where it loses.
+  [until: reviewed 2026-09-12]
 
 ## Divergences and refusals already pinned
 

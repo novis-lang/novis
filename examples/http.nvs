@@ -67,7 +67,7 @@ try {
 // Finite by construction. The budget covers the whole call, so the only
 // question a caller has is how long, never whether.
 try {
-    var $slow = Core\Http\Client::get($url, {deadline: 1ms});
+    var $slow = Core\Http\Client::get($url, { deadline: 1ms });
     echo 'no deadline', "\n";
 } catch (RuntimeError $expired) {
     echo 'deadline hit', "\n";

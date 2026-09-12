@@ -10,11 +10,17 @@
 //! indentation or spacing rewrites a whitespace run, and one about where a
 //! brace sits rewrites the runs on either side of it.
 //!
+//! What a whitespace run has to be is [`Runs`], which every stage that decides
+//! one contributes to: the line a brace sits on ([`crate::brace`]) and the
+//! space a qualifier or a one-line object literal wants ([`crate::space`]) are
+//! the same answer to "what must precede this byte", and the run that is not
+//! there to rewrite is written into the code run instead.
+//!
 //! A code run is copied byte for byte, save for the edits that write something
 //! other than what is there, each of them a [`Rewrite`]: a modifier list goes
 //! out in its canonical order ([`crate::modifiers`]), a run of imports in path
-//! order ([`crate::imports`]), a brace the author left no room in front of gets
-//! the run [`crate::brace`] requires, and a literal the quote rule respells
+//! order ([`crate::imports`]), a run [`Runs`] requires where its author wrote
+//! none, and a literal the quote rule respells
 //! gets the delimiters — a multi-line list the comma, and a mis-cased reserved
 //! spelling its lower-case letters — that [`crate::tokens`] decides.
 //! `rule:tooling/fmt-never-reflows` leaves what is inside an expression to the
@@ -28,9 +34,8 @@ use std::vec::IntoIter;
 use nvs_diagnostics::{Diagnostics, SourceFile, Span};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
-use crate::brace::{self, Placements};
 use crate::indent::Indent;
-use crate::{imports, modifiers, tokens};
+use crate::{brace, imports, modifiers, space, tokens};
 
 /// One run of bytes, and what the printer writes in its place.
 ///
@@ -44,6 +49,71 @@ pub(crate) struct Rewrite<'t> {
     pub(crate) end: usize,
     /// What belongs there.
     pub(crate) written: &'t str,
+}
+
+/// The whitespace the layout rules require before a byte, for one file.
+///
+/// Every stage that decides a run hands in the same pair — the offset the run
+/// precedes, and what has to be there — and the two questions the printer then
+/// asks are which run to write over ([`Runs::before`]) and which one has no run
+/// to write over at all ([`Runs::insertions`]). A byte is one stage's or
+/// another's and never both, so the answer for an offset is a single string.
+pub(crate) struct Runs {
+    /// What must precede an offset, by that offset, in source order.
+    wanted: Vec<(usize, String)>,
+    /// Which of those the author wrote no whitespace run at all before, as
+    /// indices into `wanted`.
+    absent: Vec<usize>,
+}
+
+impl Runs {
+    /// What `wanted` requires of the file `trivia` came from.
+    ///
+    /// A run is the author's unless a stage asked for it, so the offsets no
+    /// stage named are simply absent from here, and an offset two of them named
+    /// keeps the first answer rather than writing two runs at one byte.
+    pub(crate) fn new(mut wanted: Vec<(usize, String)>, trivia: &[Trivia]) -> Self {
+        wanted.sort_by_key(|(at, _)| *at);
+        wanted.dedup_by_key(|(at, _)| *at);
+        let after_whitespace: Vec<usize> = trivia
+            .iter()
+            .filter(|trivium| trivium.kind == TriviaKind::Whitespace)
+            .map(|trivium| trivium.span.end as usize)
+            .collect();
+        let absent = wanted
+            .iter()
+            .enumerate()
+            .filter(|(_, (at, _))| after_whitespace.binary_search(at).is_err())
+            .map(|(index, _)| index)
+            .collect();
+        Self { wanted, absent }
+    }
+
+    /// The whitespace that belongs immediately before `offset`, or [`None`]
+    /// where every stage decides nothing and the author's own run stands.
+    pub(crate) fn before(&self, offset: usize) -> Option<&str> {
+        let at = self
+            .wanted
+            .binary_search_by_key(&offset, |(at, _)| *at)
+            .ok()?;
+        Some(&self.wanted[at].1)
+    }
+
+    /// The runs to write where the author left no whitespace to rewrite.
+    ///
+    /// `class Queue{` has no trivium between the name and the brace, so the
+    /// line break the rule requires there is an insertion into a code run
+    /// rather than a rewritten one — the same edit with an empty range.
+    pub(crate) fn insertions(&self) -> Vec<Rewrite<'_>> {
+        self.absent
+            .iter()
+            .map(|&at| Rewrite {
+                start: self.wanted[at].0,
+                end: self.wanted[at].0,
+                written: &self.wanted[at].1,
+            })
+            .collect()
+    }
 }
 
 /// Whether `span` covers one run of code with nothing skipped inside it.
@@ -67,9 +137,11 @@ pub(crate) fn one_code_run(trivia: &[Trivia], span: Span) -> bool {
 pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) -> String {
     let text = file.text();
     let indent = Indent::new(&parsed.index, text);
-    let braces = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
+    let mut wanted = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
+    wanted.extend(space::runs(&parsed.index, text, &parsed.trivia));
+    let runs = Runs::new(wanted, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
-    edits.extend(braces.insertions());
+    edits.extend(runs.insertions());
     edits.extend(imports::rewrites(parsed, text));
     edits.extend(tokens::rewrites(&parsed.index, text, &parsed.trivia));
     edits.extend(tokens::spellings(reported, text));
@@ -85,7 +157,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
             "trivia arrive in source order and no two of them overlap"
         );
         push_code(&mut out, text, cursor, start, &mut moved);
-        push_trivium(&mut out, &indent, &braces, text, *trivium);
+        push_trivium(&mut out, &indent, &runs, text, *trivium);
         cursor = end;
     }
     push_code(&mut out, text, cursor, text.len(), &mut moved);
@@ -121,27 +193,22 @@ fn push_code<'t>(
 
 /// Writes one trivium, re-indenting the line it leaves the printer on.
 ///
-/// A whitespace run carrying a brace's own line break is that brace's, whole:
-/// [`crate::brace`] decides both how many of them there are and what follows
-/// the last one, because a declaration's opener and a control structure's are
-/// the same run written two ways. Every other whitespace run that carries a
+/// A whitespace run a stage requires is that stage's, whole: [`Runs`] decides
+/// both how many bytes there are and what follows the last of them, because a
+/// declaration's opener, a control structure's and the space in front of a
+/// qualified type are one run written several ways. Every other run that
+/// carries a
 /// line break ends by opening a line, and what opens that line is the one thing
 /// in the run this stage decides: everything up to and including the last break
 /// is the author's — blank lines and all — and what follows it is four spaces
 /// per enclosing body (`rule:tooling/fmt-base-style-is-per`). A run the tree
 /// does not place, and every comment, go out exactly as they came in.
-fn push_trivium(
-    out: &mut String,
-    indent: &Indent<'_>,
-    braces: &Placements,
-    text: &str,
-    trivium: Trivia,
-) {
+fn push_trivium(out: &mut String, indent: &Indent<'_>, runs: &Runs, text: &str, trivium: Trivia) {
     let start = trivium.span.start as usize;
     let end = trivium.span.end as usize;
     let run = &text[start..end];
     let opens_a_line = trivium.kind == TriviaKind::Whitespace;
-    if let Some(carried) = opens_a_line.then(|| braces.before(end)).flatten() {
+    if let Some(carried) = opens_a_line.then(|| runs.before(end)).flatten() {
         out.push_str(carried);
         return;
     }

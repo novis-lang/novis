@@ -55,7 +55,7 @@ if (Core\Json::encode(Core\Arr::shapeAs<{city: string}>(['city' => 'Vienna', 'no
 // dotted path, because a form wants the whole list rather than the first item
 // of it (`rule:core-classes/derive-reports-every-field`).
 try {
-    Core\Request::queryAs<tainted {age: int, city: string}>({name: 'bad'});
+    Core\Request::queryAs<tainted {age: int, city: string}>({ name: 'bad' });
     echo "not reached\n";
 } catch (ParseError $refused) {
     if (Core\Arr::count($refused->issues) == 2) {

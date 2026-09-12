@@ -85,25 +85,25 @@ var $later = Core\Time::now()->plus(1h);
 // group and is written at the enqueue that creates it. Three of these five
 // carry one, and the two that do not are what makes the first count a
 // selection rather than the whole queue.
-Queue::push('examples/queue/receipt.nvs', {queue: $batch, runAt: $later, tag: 'invoices'});
-Queue::push('examples/queue/receipt.nvs', {queue: $batch, runAt: $later, tag: 'invoices'});
-Queue::push('examples/queue/receipt.nvs', {queue: $batch, runAt: $later, tag: 'invoices'});
-Queue::push('examples/queue/receipt.nvs', {queue: $batch, runAt: $later});
-Queue::push('examples/queue/receipt.nvs', {queue: $batch, runAt: $later});
+Queue::push('examples/queue/receipt.nvs', { queue: $batch, runAt: $later, tag: 'invoices' });
+Queue::push('examples/queue/receipt.nvs', { queue: $batch, runAt: $later, tag: 'invoices' });
+Queue::push('examples/queue/receipt.nvs', { queue: $batch, runAt: $later, tag: 'invoices' });
+Queue::push('examples/queue/receipt.nvs', { queue: $batch, runAt: $later });
+Queue::push('examples/queue/receipt.nvs', { queue: $batch, runAt: $later });
 
 // The count is the answer, because a caller has nothing else to read: no row
 // comes back and the rows are gone by the time it could have looked.
-echo 'tagged=', Queue::purge($batch, {state: State::Pending, tag: 'invoices'}), "\n";
+echo 'tagged=', Queue::purge($batch, { state: State::Pending, tag: 'invoices' }), "\n";
 
 // The same queue with the group taken out of it, and `Pending` named a second
 // time — this is the opt-in, and a program that means to discard work still
 // waiting to run has to say so in the source.
-echo 'purged-pending=', Queue::purge($batch, {state: State::Pending}), "\n";
+echo 'purged-pending=', Queue::purge($batch, { state: State::Pending }), "\n";
 
 // The dead-letter half. One attempt and a job that throws every time, so the
 // row exhausts its attempts and moves to the table
 // `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` keeps.
-Queue::push('examples/queue/flaky.nvs', {queue: $doomed, maxAttempts: 1});
+Queue::push('examples/queue/flaky.nvs', { queue: $doomed, maxAttempts: 1 });
 Poll::until(fn (): bool => { return Queue::stats($doomed)->deadLettered() > 0; });
 
 // A purge naming no state at all: the default set is what has finished, so
@@ -115,13 +115,13 @@ echo 'dead-survives=', Queue::stats($doomed)->deadLettered(), "\n";
 
 // And the same row named. `State::Dead` is a different table rather than
 // another ordinal, which is why being in it is what the case *is*.
-echo 'purged-dead=', Queue::purge($doomed, {state: State::Dead}), "\n";
+echo 'purged-dead=', Queue::purge($doomed, { state: State::Dead }), "\n";
 
 // The receipt half, and the answer a caller can get no other way. The refusal
 // is the `where` clause of the delete rather than a check in front of it: the
 // state a claim reads and the row a delete removes are one moment, so the
 // database decides and the `bool` is what it decided.
-var $running = Queue::push('examples/queue/held.nvs', {queue: $held});
+var $running = Queue::push('examples/queue/held.nvs', { queue: $held });
 Poll::until(fn (): bool => { return Queue::status($running) == State::Claimed; });
 echo 'claimed-delete=', Said::word(Queue::delete($running)), "\n";
 
@@ -139,12 +139,12 @@ echo 'terminal-delete=', Said::word(Queue::delete($running)), "\n";
 // the connection the application enqueues through for as long as it takes. One
 // row at a time here because two rows are the whole population — a real sweep
 // writes the bound its own maintenance window can afford.
-Queue::push('examples/queue/receipt.nvs', {queue: $drain, runAt: $later});
-Queue::push('examples/queue/receipt.nvs', {queue: $drain, runAt: $later});
+Queue::push('examples/queue/receipt.nvs', { queue: $drain, runAt: $later });
+Queue::push('examples/queue/receipt.nvs', { queue: $drain, runAt: $later });
 
-var $swept = Queue::purge($drain, {state: State::Pending, limit: 1});
+var $swept = Queue::purge($drain, { state: State::Pending, limit: 1 });
 echo 'bounded=', $swept, "\n";
 while ($swept > 0) {
-    $swept = Queue::purge($drain, {state: State::Pending, limit: 1});
+    $swept = Queue::purge($drain, { state: State::Pending, limit: 1 });
 }
 echo 'remaining=', Queue::stats($drain)->pending(), "\n";

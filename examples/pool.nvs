@@ -110,7 +110,7 @@ echo 'opened=', Ceiling::one($db, 'select 1 as n'), "\n";
 // words, and the refusal this fixture is about is the one `acquire` produces.
 var $asked = Core\Time::monotonic();
 try {
-    Db::connect('tight', {shared: false});
+    Db::connect('tight', { shared: false });
     echo 'refused: nothing — a second connection opened, which `max = 1` forbids', "\n";
 } catch (IOError $full) {
     var $waited = Core\Time::monotonic()->minus($asked)->toMilliseconds();
@@ -139,7 +139,7 @@ var $started = Core\Time::monotonic();
 var $race = Core\Task::all({
     blocked: fn(): string => {
         try {
-            Db::connect('tight', {shared: false});
+            Db::connect('tight', { shared: false });
             return 'opened';
         // `$busy` and not `$full`: a `catch` binding inside a closure that
         // spells a name the enclosing frame also binds is lowered as a capture

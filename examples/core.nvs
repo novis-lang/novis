@@ -8,7 +8,7 @@ array<string> $words = ['pear', 'Apple', 'fig', 'banana'];
 var $upper = Core\Arr::map($words, fn(string $w) => Core\Str::upper($w));
 echo Core\Str::join($upper, '|') . "\n";
 
-var $sorted = Core\Arr::sort($words, {by: fn(string $w) => Core\Str::length($w)});
+var $sorted = Core\Arr::sort($words, { by: fn(string $w) => Core\Str::length($w) });
 echo Core\Str::join($sorted, ',') . "\n";
 
 echo Core\Str::replace('a-b-c', '-', '+') . "\n";

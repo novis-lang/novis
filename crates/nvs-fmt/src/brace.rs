@@ -28,17 +28,19 @@
 //! corpus is LF (`.gitattributes`), so this is about files this tool is pointed
 //! at, not about the tree.
 //!
-//! A closure, an anonymous class, a property hook and a bracketed `namespace`
-//! are deliberately absent. The rule names a class, an interface, an enum and a
-//! named function or method, and the first two of those sit inside an
-//! expression, whose interior is the author's for good
-//! (`rule:tooling/fmt-never-reflows`).
+//! An `fn` closure is on the K&R side rather than absent: it is an expression,
+//! so its body brace stays on the line its parameter list and return type were
+//! written on, and only the closing brace of a multi-line body gets a line of
+//! its own (`rule:tooling/fmt-novis-constructs`). An anonymous class, a
+//! property hook and a bracketed `namespace` are the ones deliberately absent —
+//! the declaration half of the rule names a class, an interface, an enum and a
+//! named function or method, and an expression's interior is otherwise the
+//! author's for good (`rule:tooling/fmt-never-reflows`).
 
 use nvs_diagnostics::BytePos;
-use nvs_syntax::{IndexNode, SyntaxIndex, Trivia, TriviaKind};
+use nvs_syntax::{IndexNode, SyntaxIndex, Trivia};
 
 use crate::indent::Indent;
-use crate::print::Rewrite;
 
 /// One level of the brace rule: the declarations whose body's `{` starts a line
 /// of its own, at the declaration's own indentation.
@@ -50,12 +52,16 @@ const DECLARATIONS: &[&str] = &[
     "Method",
 ];
 
-/// The control structures that write every brace of theirs inside one node.
+/// The nodes that write every brace of theirs inside themselves.
 ///
 /// A `try` holds its own body's braces and each `catch`'s and the `finally`'s,
-/// and a `switch` holds the pair around its arms, so a `{` whose innermost node
-/// is one of these is a body opener with nothing further to check.
-const CARRIES_ITS_BRACES: &[&str] = &["Try", "Switch"];
+/// a `switch` holds the pair around its arms, and an `fn` closure's block body
+/// is spliced into the closure rather than given a [`Block`] of its own, so a
+/// `{` whose innermost node is one of these is a body opener with nothing
+/// further to check.
+///
+/// [`Block`]: nvs_syntax::ast::Block
+const CARRIES_ITS_BRACES: &[&str] = &["Fn", "Try", "Switch"];
 
 /// The control structures whose body is a [`Block`](nvs_syntax::ast::Block) of
 /// its own, which is the node that carries the braces.
@@ -74,51 +80,15 @@ const CONTINUATIONS: &[(&str, &str)] = &[
     ("finally", "Try"),
 ];
 
-/// The whitespace this stage requires before a byte, for one file.
-pub(crate) struct Placements {
-    /// What must precede an offset, by that offset, in source order.
-    wanted: Vec<(usize, String)>,
-    /// Which of those the author wrote no whitespace run at all before, as
-    /// indices into `wanted`.
-    absent: Vec<usize>,
-}
-
-impl Placements {
-    /// The whitespace that belongs immediately before `offset`, or [`None`]
-    /// where this stage decides nothing and the author's own run stands.
-    pub(crate) fn before(&self, offset: usize) -> Option<&str> {
-        let at = self
-            .wanted
-            .binary_search_by_key(&offset, |(at, _)| *at)
-            .ok()?;
-        Some(&self.wanted[at].1)
-    }
-
-    /// The runs to write where the author left no whitespace to rewrite.
-    ///
-    /// `class Queue{` has no trivium between the name and the brace, so the
-    /// line break the rule requires there is an insertion into a code run
-    /// rather than a rewritten one — the same edit with an empty range.
-    pub(crate) fn insertions(&self) -> Vec<Rewrite<'_>> {
-        self.absent
-            .iter()
-            .map(|&at| Rewrite {
-                start: self.wanted[at].0,
-                end: self.wanted[at].0,
-                written: &self.wanted[at].1,
-            })
-            .collect()
-    }
-}
-
 /// Everything the brace rule requires of `text`, which must be `index`'s and
-/// `trivia`'s own file.
+/// `trivia`'s own file: the run that has to precede an offset, by that offset,
+/// which is [`Runs`](crate::print::Runs)'s to write.
 pub(crate) fn placements(
     index: &SyntaxIndex,
     indent: &Indent<'_>,
     text: &str,
     trivia: &[Trivia],
-) -> Placements {
+) -> Vec<(usize, String)> {
     let mut wanted = Vec::new();
     let mut bodies = Vec::new();
     let mut cursor = 0_usize;
@@ -140,21 +110,7 @@ pub(crate) fn placements(
         let opening = indent.opening_of(node.span.start as usize);
         wanted.push((at, format!("{line_break}{opening}")));
     }
-    wanted.sort_by_key(|(at, _)| *at);
-
-    let after_whitespace: Vec<usize> = trivia
-        .iter()
-        .filter(|trivium| trivium.kind == TriviaKind::Whitespace)
-        .map(|trivium| trivium.span.end as usize)
-        .collect();
-    let absent = wanted
-        .iter()
-        .enumerate()
-        .filter(|(_, (at, _))| after_whitespace.binary_search(at).is_err())
-        .map(|(index, _)| index)
-        .collect();
-
-    Placements { wanted, absent }
+    wanted
 }
 
 /// Reads `text[from..to]`, which is code and nothing else, and records what
@@ -248,7 +204,9 @@ fn continues_a_clause(bytes: &[u8], offset: usize) -> Option<&'static str> {
 /// Whether `byte` can sit inside a name, which a keyword's neighbour may not.
 ///
 /// Every byte of a multi-byte character counts as one: a keyword is ASCII, so a
-/// word boundary never falls inside one of those.
-fn is_word(byte: u8) -> bool {
+/// word boundary never falls inside one of those. [`crate::space`] asks the
+/// same question of the same keywords, so the predicate is shared rather than
+/// spelled twice and allowed to drift.
+pub(crate) fn is_word(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'$' || byte >= 0x80
 }

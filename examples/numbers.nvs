@@ -5,14 +5,14 @@ echo 'gcd=' . Core\Math::gcd(84, 36) . "\n";
 echo 'intDiv=' . Core\Math::intDiv(17, 5) . "\n";
 echo 'hex=' . Core\Math::toBase(48879, 16) . "\n";
 echo 'back=' . Core\Math::fromBase('beef', 16) . "\n";
-echo 'root=' . Core\Math::format(Core\Math::sqrt(2.25), {decimals: 1}) . "\n";
-echo 'even=' . Core\Math::format(Core\Math::round(2.5, {mode: Core\RoundMode::HalfEven}), {decimals: 0}) . "\n";
-echo 'money=' . Core\Math::format(1234567.891, {decimals: 2, groupSeparator: ','}) . "\n";
-echo 'pi=' . Core\Math::format(Core\Math::PI, {decimals: 4}) . "\n";
+echo 'root=' . Core\Math::format(Core\Math::sqrt(2.25), { decimals: 1 }) . "\n";
+echo 'even=' . Core\Math::format(Core\Math::round(2.5, { mode: Core\RoundMode::HalfEven }), { decimals: 0 }) . "\n";
+echo 'money=' . Core\Math::format(1234567.891, { decimals: 2, groupSeparator: ',' }) . "\n";
+echo 'pi=' . Core\Math::format(Core\Math::PI, { decimals: 4 }) . "\n";
 
 decimal $price = 19.99;
 decimal $shipping = 4.95;
-echo 'total=' . Core\Math::format($price + $shipping, {decimals: 2}) . "\n";
+echo 'total=' . Core\Math::format($price + $shipping, { decimals: 2 }) . "\n";
 
 array<int> $nums = [3, 1, 4, 1, 5];
 echo 'sum=' . Core\Arr::sum($nums) . "\n";

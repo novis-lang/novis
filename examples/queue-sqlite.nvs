@@ -77,7 +77,7 @@ class Poll
 // rows it finds are the ones the last run left.
 var $queue = Core\Uuid::v4()->toString();
 
-var $receipt = Queue::push('examples/queue/receipt.nvs', {args: {order: 7}, queue: $queue});
+var $receipt = Queue::push('examples/queue/receipt.nvs', { args: { order: 7 }, queue: $queue });
 echo 'enqueued', "\n";
 
 // One job and two workers, and the count is `1` rather than a race: the claim
@@ -95,8 +95,8 @@ echo 'ran', "\n";
 // the other's transaction, so the two claims happen in some order and both jobs
 // still run — a busy timeout is a wait, and the thing this line would fail on
 // is a claim that reported contention as an error instead of waiting for it.
-var $first = Queue::push('examples/queue/receipt.nvs', {queue: $queue});
-var $second = Queue::push('examples/queue/receipt.nvs', {queue: $queue});
+var $first = Queue::push('examples/queue/receipt.nvs', { queue: $queue });
+var $second = Queue::push('examples/queue/receipt.nvs', { queue: $queue });
 Poll::until(fn (): bool => {
     return Queue::status($first) == State::Succeeded
         && Queue::status($second) == State::Succeeded;
