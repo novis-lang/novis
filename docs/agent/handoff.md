@@ -3,57 +3,57 @@
 ## State
 
 **Goal `http-client` — a program talks to a real API: bodies, headers, streams and pooled
-connections. Stages 1–6 are on disk, and stage 7 now holds its pool half and the buffered half of
-its compression half.** [ADR 0180](../decisions/0180.md) is the record and the home of every
-decision this goal executes.
+connections. Stages 1–6 are on disk, and stage 7 now holds its pool half and the whole of its
+compression half.** [ADR 0180](../decisions/0180.md) is the record and the home of every decision
+this goal executes.
 
-Every request head writes `Accept-Encoding: gzip, br, zstd` — `OFFERED` in
-`crates/nvs-stdlib/src/http/transport.rs` — and an `Accept-Encoding` a program wrote is **refused**
-naming it rather than sent beside ours: an offer is a promise to decode, so the set is the client's
-and a program can neither widen nor narrow it. That is this session's one tradeoff, and it costs a
-program the ability to ask an origin for `identity`. A buffered reply under one of the three is
-decoded in `send`, under `Call::compress` — `compress::Bound::ceiling(ctx)`, carried like
-`Call::pool` — with `REPLY_CEILING` lowered onto it, and what comes back carries neither
-`Content-Encoding` nor `Content-Length`. `decompress_within` now takes the member a refusal names,
-so an HTTP reply's refusal no longer says `Core\Compress::decompress()`. A zstd frame's declared
-window is capped at 8 MiB before the decoder allocates it, which `Bound` cannot reach and
-`ruzstd` defaults to 100 MiB.
+A streamed reply under one of the three offered codings is decoded **as it arrives**.
+`transport::Incoming` is now the framing (`Framed`) with a decoder optionally in front of it
+(`Coding::As` / `Coding::Under`), so the walks in `http/stream.rs` read decoded octets from either
+and never learn which. `send_streamed` decides the coding from the head and strips
+`Content-Encoding` and `Content-Length`, exactly as the buffered `send` does. The decode is
+`compress::Decoder` — each backend's own `Read` over a source that blocks, built at the first read
+because a zstd decoder reads its frame header as it is constructed. What bounds it is its window
+(32 KiB DEFLATE, 8 MiB zstd, 16 MiB brotli with the large-window extension off) plus one
+`transport::STEP`, because a stream has no total for an output ceiling to be over; the wait is
+bounded by `idle` and `maxDuration` as before. A framing refusal travels out past the decoder in
+`Incoming::faulted`, so a silence is still a `TimeoutError` and not a `ParseError` about zstd.
 
-Stage 7 still owes the streamed half and § 7's client identity, which is also part of the pool key.
-Nothing is blocked.
+Stage 7 still owes § 7's client identity, which is also part of the pool key. Nothing is blocked.
 
 ## Next group
 
-**Stage 7: a reply may arrive compressed, streamed** — one file set:
-`crates/nvs-stdlib/src/http/transport.rs`, `crates/nvs-stdlib/src/http/stream.rs`,
-`crates/nvs-stdlib/src/compress.rs`.
+**Stage 7: a client identity is presented when asked and is part of the pool key** — one file set:
+`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/crypto.rs`,
+`crates/nvs-host/src/tls.rs`, `crates/nvs-stdlib/src/http/transport.rs`.
 
-- [ ] **A streamed reply is decoded as it arrives, and its decoder's window is charged to the
-      request** — the coding is the head's and `coding_of`
-      (`crates/nvs-stdlib/src/http/transport.rs:835`) already reads it, so `send_streamed`
-      (`crates/nvs-stdlib/src/http/transport.rs:885`) is where it is decided and
-      `Incoming::pull` (`crates/nvs-stdlib/src/http/transport.rs:531`) is where the octets are
-      framed and would be decoded, one read at a time rather than gathered first. The decoder is a
-      `Read` over a source that is not all here yet, which is the shape `decompress_within`
-      (`crates/nvs-stdlib/src/compress.rs:539`) does not have — it takes a whole slice.
-      `rule:core-classes/decompression-bound`, and the goal's § *Standing decisions* fixes the
-      windows: 32 KiB for gzip, 8 MiB for zstd, 16 MiB for brotli, charged to the request and
-      released with the stream.
-- [ ] **A client identity is presented when asked and is part of the pool key** — `pool_key`
-      (`crates/nvs-stdlib/src/http/transport.rs:1029`) is what a reuse agrees on and the identity
-      has to reach it, and the option arrives where the `Call` is built
-      (`crates/nvs-stdlib/src/http.rs:2101`). A call without an identity never reuses a connection
-      that presented one. `rule:security/db-pool-reset-is-a-boundary` is the shape — every
-      credential is part of the key.
+- [ ] **`Core\Http\Identity` reads a PEM chain over a key pair and refuses a leaf that does not
+      match it** — a new Tier 0 class beside `Core\Crypto\KeyPair`
+      (`crates/nvs-stdlib/src/crypto.rs:352`, whose `KEY_PAIR_NAME` is the spelling to follow), with
+      one static `read(bytes $chainPem, Crypto\KeyPair $key)`. The refusal is a leaf whose public key
+      is not the pair's, which is the only check `read` can make locally. Its registry row and doc
+      card go beside the option rows at `crates/nvs-stdlib/src/http.rs:351`.
+      `rule:core-api/shape-rules`, and the goal's § *Stage 7* prose is what it executes.
+- [ ] **`identity?: Core\Http\Identity` joins the bag and reaches the handshake** — a new option
+      constant beside `RETRY_KEY_OPTION` (`crates/nvs-stdlib/src/http.rs:353`) and a new slot beside
+      `RETRY_KEY` (`crates/nvs-stdlib/src/http.rs:814`), carried on `Call` the way `Call::pool` and
+      `Call::compress` are. One `ClientConfig` per `Identity`, built once and held as long as it is,
+      beside the process-wide one at `crates/nvs-host/src/tls.rs:314` — that module doc's
+      "what that spends" paragraph (`crates/nvs-host/src/tls.rs:85`) is where the second config's
+      cost is stated. `rule:security/db-pool-reset-is-a-boundary` is the shape the key follows.
+- [ ] **The pool key includes the identity** — `pool_key`
+      (`crates/nvs-stdlib/src/http/transport.rs:1309`) gains it, so two identities never share a
+      connection and a call without one never reuses a connection that presented one. The two Rust
+      tests the stage's `[[check]]` names are
+      `client_identity_is_presented_when_asked_and_is_part_of_the_pool_key` and
+      `a_call_without_an_identity_never_reuses_a_connection_that_presented_one`, and the `.nvst` case
+      is `tests/conformance/core/http-identity-reads-a-pem-chain-and-a-key-pair-and-refuses-a-mismatch.nvst`.
+      `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`.
 
 ## Backlog
 
-- An armed answer table (`rule:testing/an-outbound-call-is-answered-from-a-table`) hands its octets
-  over without a decode, so a case arming a `Content-Encoding` reply gets the frame — decide in
-  [ADR 0180](../decisions/0180.md) whether a table's octets are already decoded.
-- Brotli's window is whatever the frame declares; only zstd's is bounded
-  (`crates/nvs-stdlib/src/compress.rs`'s `ZSTD_WINDOW`). The standing decision names 16 MiB for it.
-- A program cannot ask an origin for `identity`, since `Accept-Encoding` is refused to it
-  ([ADR 0180](../decisions/0180.md)).
-- `Core\Compress::decompress` still offers `Zlib` and `Deflate`, which no HTTP reply may use —
-  the two sets are deliberately different (`docs/rules/core-classes/decompression-bound.md`).
+- Stage 8 onward is untouched: credentials on a redirect, then the trust-root and grant stages.
+- `[context] modules` printed no entry for `crates/nvs-host/src/tls.rs`'s client-auth half; the next
+  group needs it and the field should name it.
+- Parsing `Link`, `Retry-After` for a program, and RFC 9457 problem details stay the `nvs/rest`
+  package's, per the goal's § *Standing decisions*.
