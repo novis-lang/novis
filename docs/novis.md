@@ -20406,13 +20406,14 @@ Sends `$method` to `$url` under a finite budget — the row for a verb chosen at
 <a id="core-core-http-response"></a>
 ### `Core\Http\Response`
 
-Keywords: status, text, bytes, header, headers
+Keywords: status, text, bytes, jsonAs, header, headers
 
 | Member | Signature |
 |---|---|
 | [`Core\Http\Response->status`](#core-core-http-response-status) | `status(): int` |
 | [`Core\Http\Response->text`](#core-core-http-response-text) | `text(): tainted string` |
 | [`Core\Http\Response->bytes`](#core-core-http-response-bytes) | `bytes(): tainted bytes` |
+| [`Core\Http\Response->jsonAs`](#core-core-http-response-jsonas) | `jsonAs<T>({maxDepth?: uint}): T` |
 | [`Core\Http\Response->header`](#core-core-http-response-header) | `header(string $name): ?tainted string` |
 | [`Core\Http\Response->headers`](#core-core-http-response-headers) | `headers(string $name): array<tainted string>` |
 
@@ -20450,6 +20451,23 @@ $response->bytes(): tainted bytes
 The reply's body as the octets that arrived, for the replies that are not text at all — an image, an archive, a signature.
 
 **Returns** `tainted bytes` — Every byte of the body, `tainted` for `text`'s reason and asking nothing of them: a reply that is not UTF-8 is read here and refused there, so which of the two a program calls is what decides whether the question is asked.
+
+<a id="core-core-http-response-jsonas"></a>
+#### `Core\Http\Response->jsonAs`
+
+```nvs skip
+$response->jsonAs<T>({maxDepth?: uint}): T
+```
+
+The reply's body hydrated into an instance of `T` — `Core\Json::decodeAs` over the octets `bytes` answers, carrying the same `{maxDepth?}` bag; write `array<T>` to read a JSON array as one instance per element.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest before it is refused, counted PHP's way: a scalar document is depth 1. |
+
+**Returns** `T` — A new `T` built from the document's fields, or one `T` per element for an `array<T>`. Every text field of `T` has to declare `tainted`, because these are octets another host chose and the field is where they land.
+
+**Throws** `LogicError` — `T` carries no `#[Json\Derive]` codec to decode into, or a `maxDepth` outside 1..=1024 was asked for.; `ParseError` — The body is not one whole JSON document at that depth — which includes a reply with no body at all and one that is not UTF-8 — or it is not the object `T` decodes from, or its fields are missing or of the wrong type. Every failed field is one issue on the error, at its own path. What the reply declared as its `Content-Type` is not consulted either way.
 
 <a id="core-core-http-response-header"></a>
 #### `Core\Http\Response->header`

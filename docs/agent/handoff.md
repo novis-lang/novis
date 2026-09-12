@@ -3,47 +3,55 @@
 ## State
 
 **Goal `http-client` — a program talks to a real API: bodies, headers, streams and pooled connections.
-Stages 1–4 are on disk, stage 5 is half on disk, and nothing of stages 6–14 is.**
+Stages 1–5 are on disk; nothing of stages 6–14 is.**
 [ADR 0180](../decisions/0180.md) is the record and the home of every decision this goal executes.
 
-`Core\Http\Response` now carries five instance rows over three slots
-(`crates/nvs-stdlib/src/http.rs:904`): `status`, `text`, `bytes`, `header` and `headers`. **The body
-slot holds octets and `text` is what asks whether they are UTF-8** — the transport no longer decodes,
-so a reply that is not text reaches `bytes()` instead of failing the call, and `text()` retags the
-slot's own allocation rather than copying it. The header slot is one entry per lower-cased name, each
-an array of that name's lines in arrival order; `header` joins them with `, ` and throws a
-`LogicError` naming `headers` for `set-cookie`, present or not.
+`Core\Http\Response` carries six instance rows over three slots
+(`crates/nvs-stdlib/src/http.rs:904`): `status`, `text`, `bytes`, `jsonAs<T>`, `header` and `headers`.
+**The body slot has three readers and none of them consumes it** — `bytes` asks nothing, `text` asks
+whether the octets are UTF-8, `jsonAs<T>` reads them as one JSON document — so any may follow any
+other. `jsonAs` is `Core\Json::decode_as` over that slot, and it is on
+`registry::WRITTEN_CLASS_MEMBERS`, which is what puts the descriptor, the list flag and an inline
+shape's contract ahead of the receiver (`args: [5]`). Its `T` must declare `tainted` on every text
+field; both halves of that check now cover this owner — see the playbook bullet for why the class half
+and the shape half are keyed differently.
 
-`Core\Test::answerHttp` grew two arms to make those testable: `body` is `string|bytes`, and a
-`headers` entry may be an `array<string>` for a field a reply carried twice
-(`crates/nvs-stdlib/src/test.rs:214`). Both are test-surface only and neither changes a request.
+`retry_after` (`crates/nvs-stdlib/src/http/transport.rs:663`) reads both of RFC 9110 § 10.2.3's forms,
+on a `429` and a `503` and on nothing else, and a date already past answers `None` so the jittered
+backoff stands. The wait is not clamped where it is read — `attempts` already throws where any wait
+would end past the deadline.
 
 Nothing is blocked and no design question is open.
 
 ## Next group
 
-**Stage 5: reading a reply, the second half** — one file set: `crates/nvs-stdlib/src/http.rs`,
-`crates/nvs-stdlib/src/http/transport.rs`, `crates/nvs-types/src/expr/args.rs`.
+**Stage 6: streaming, the reader and its bounds** — one file set: `crates/nvs-stdlib/src/http.rs`,
+`crates/nvs-stdlib/src/http/transport.rs`, `crates/nvs-stdlib/src/registry.rs`.
 
-- [ ] **`jsonAs<T>()` joins the decode-site roster** — a sixth instance row beside `bytes` at
-      `crates/nvs-stdlib/src/http.rs:904`, decoding the body slot's octets. The roster is a match on
-      the member name alone at `crates/nvs-types/src/expr/args.rs:1649`, so a `jsonAs` on this class
-      is recorded by it already — what the slice owes is the case that pins it and the comment above
-      it at `crates/nvs-types/src/expr/args.rs:1641`, which names two members and will name three.
-      `T` must be a `tainted` shape or a class whose text fields declare `tainted`
-      (`rule:security/derived-codec-qualifiers`); the reject case the check names is
-      `tests/conformance/reject/http-response-json-as-into-an-unqualified-shape-is-refused.nvst`.
-- [ ] **`Retry-After` is read in both forms** — `retry_after` at
-      `crates/nvs-stdlib/src/http/transport.rs:663` reads delay-seconds only, and is called for all
-      four closed statuses at `crates/nvs-stdlib/src/http/transport.rs:307`. An HTTP-date replaces the
-      backoff, one past the remaining deadline throws now, one already past keeps the jittered
-      backoff, and the header is read after a `429` or a `503` alone —
-      `rule:http-server/retry-is-opt-in-jittered-and-closed`. The four Rust tests the check names are
-      the stage's `cargo-named` half.
+- [ ] **`Core\Http\Stream` is a class and `Client::stream` is the row that answers one** — a seventh
+      `CLIENT` row beside `request` at `crates/nvs-stdlib/src/http.rs:816`, taking a
+      `Core\Http\Method` ahead of the URL as `request` does, and a new `CoreClass` beside `RESPONSE`
+      at `crates/nvs-stdlib/src/http.rs:904` whose slots pair with its members the same way. The
+      reader's shape is `Core\Request::bodyStream`'s (`crates/nvs-stdlib/src/request.rs:314`), and
+      `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it` is what
+      makes a second read throw. The record says whether `events`, `lines`, `chunks` and `saveTo` are
+      four members of one class.
+- [ ] **The body runs under `idle` and `maxDuration`, and a stream is retried only before its head** —
+      `attempts` at `crates/nvs-stdlib/src/http/transport.rs:300` is where an attempt is decided, so
+      it is where "after the first byte of body a failure ends the stream" has to hold;
+      `rule:http-server/no-spelling-for-an-unbounded-wait` is why neither key has an unbounded
+      spelling and why either on a buffered member is a diagnostic. The cargo tests the stage names
+      are `stream_idle_ends_a_silent_reply`, `stream_max_duration_ends_an_endless_reply` and
+      `stream_is_retried_before_its_head_and_never_after`.
+- [ ] **`events()` parses the WHATWG EventSource format** — a line ends at `\r\n`, `\r` or `\n`;
+      `data`, `event` and `id` are read, `retry` is read and ignored, a comment line is skipped, and a
+      line and an event are each length-capped beside `REPLY_CEILING` at
+      `crates/nvs-stdlib/src/http/transport.rs:74`. Every field is `tainted string`
+      (`rule:security/tainted-sources`).
 
 ## Backlog
 
-- Stage 6 onwards of goal `http-client` is untouched; the goal's prose is the order.
-- `REPLY_CEILING` still has no streaming member beside it — `crates/nvs-stdlib/src/http/transport.rs:74`
-  names the gap, and the goal's later stages own it.
-- `Core\Http\Response` has no timing member and will not get one — a standing decision of the goal.
+- Parsing `Link`, `Retry-After` for a program, and RFC 9457 problem details are the `nvs/rest`
+  package's, not this goal's — `docs/agent/loop-goal.md` § *Standing decisions*.
+- The two obsolete HTTP-date forms RFC 9110 § 5.6.7 still lists are not parsed; the reasoning is on
+  `http_date` in `crates/nvs-stdlib/src/http/transport.rs`.

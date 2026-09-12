@@ -655,15 +655,100 @@ fn retryable(status: i64) -> bool {
     matches!(status, 429 | 502 | 503 | 504)
 }
 
-/// A `Retry-After` in seconds, which replaces the computed backoff.
+/// A `Retry-After` in either of RFC 9110 § 10.2.3's forms, which replaces the
+/// computed backoff — `rule:http-server/retry-is-opt-in-jittered-and-closed`.
 ///
-/// The HTTP-date form is not read: it needs a clock agreement this module does
-/// not have, and a header it cannot parse leaves the jittered backoff in place,
-/// which is the safe direction rather than the fast one.
+/// **Read on a `429` and a `503` and on nothing else**, which is narrower than
+/// [`retryable`]: those two are the statuses whose meaning *is* "come back
+/// later", so the field on them is the origin saying when. A `502` or a `504`
+/// is a gateway reporting what happened behind it, and a `Retry-After` there
+/// describes the gateway's own state rather than the request's — taking it
+/// would let one failing hop hold every client for as long as it liked.
+///
+/// A **date already past** answers `None` rather than a zero wait, so the call
+/// keeps its jittered backoff: one stale date handed to a thousand clients is
+/// the synchronised burst the jitter exists to prevent, and the clock the two
+/// hosts disagree by is exactly what makes such a date arrive.
+///
+/// A value neither form spells also leaves the backoff in place, which is the
+/// safe direction rather than the fast one. The wait this returns is not
+/// clamped here: [`attempts`] throws where any wait would end past the
+/// deadline, so a `Retry-After` longer than the call's remaining budget ends it
+/// now instead of sleeping through it
+/// (`rule:http-server/one-deadline-covers-the-whole-call`).
 fn retry_after(reply: &Reply) -> Option<Duration> {
-    header(reply, "retry-after")
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .map(Duration::from_secs)
+    if !matches!(reply.status, 429 | 503) {
+        return None;
+    }
+    let value = header(reply, "retry-after")?.trim();
+    if let Ok(seconds) = value.parse::<u64>() {
+        return Some(Duration::from_secs(seconds));
+    }
+    http_date(value)?
+        .duration_since(std::time::SystemTime::now())
+        .ok()
+        .filter(|wait| !wait.is_zero())
+}
+
+/// The instant an IMF-fixdate names — `Sun, 06 Nov 1994 08:49:37 GMT`, RFC 9110
+/// § 5.6.7's preferred form and the one every origin writing a date sends.
+///
+/// The two obsolete forms that section still lists are not read. Each is a
+/// two-digit year a reader has to guess a century for, and the guess is the
+/// whole of what they add here: a header this cannot parse leaves the jittered
+/// backoff in place, so the cost of not reading them is one retry at the base
+/// delay rather than a wrong answer.
+///
+/// `None` for anything that is not that shape, including a date before the
+/// epoch — a `Retry-After` in 1969 is not a wait, whatever else it is.
+fn http_date(value: &str) -> Option<std::time::SystemTime> {
+    /// The month names, in the order that gives each its number.
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+
+    // The day name is checked for being there and not for agreeing with the
+    // date: a sender that names the wrong weekday still named a day, and
+    // refusing over it would spend a real wait on a field nothing reads.
+    let (_day_name, rest) = value.split_once(", ")?;
+    let mut fields = rest.split(' ');
+    let day: i64 = fields.next()?.parse().ok()?;
+    let name = fields.next()?;
+    let month = i64::try_from(MONTHS.iter().position(|held| *held == name)?).ok()? + 1;
+    let year: i64 = fields.next()?.parse().ok()?;
+    let clock = fields.next()?;
+    if fields.next()? != "GMT" || fields.next().is_some() {
+        return None;
+    }
+    let mut parts = clock.split(':');
+    let hour: u64 = parts.next()?.parse().ok()?;
+    let minute: u64 = parts.next()?.parse().ok()?;
+    let second: u64 = parts.next()?.parse().ok()?;
+    if parts.next().is_some() || !(1..=31).contains(&day) || hour > 23 || minute > 59 || second > 60
+    {
+        return None;
+    }
+    let days = days_from_civil(year, month, day);
+    let seconds = days
+        .checked_mul(86_400)?
+        .checked_add(i64::try_from(hour * 3_600 + minute * 60 + second).ok()?)?;
+    std::time::UNIX_EPOCH.checked_add(Duration::from_secs(u64::try_from(seconds).ok()?))
+}
+
+/// Days from `1970-01-01` to a proleptic Gregorian `y-m-d`, negative before it.
+///
+/// Hinnant's civil-from-days inverse, which is the shape this takes because it
+/// is branch-free over the leap rules rather than a table of month lengths with
+/// a February correction beside it. March is treated as the year's first month,
+/// so the leap day falls at the end and needs no special case at all.
+fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let year_of_era = year - era * 400;
+    let shifted = if month > 2 { month - 3 } else { month + 9 };
+    let day_of_year = (153 * shifted + 2) / 5 + day - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
 }
 
 /// § 6's full jitter: uniform in `[0, base × 2^attempt]`.
@@ -980,6 +1065,163 @@ mod tests {
         assert!(started.elapsed() < Duration::from_secs(1));
         assert!(format!("{expired:?}").contains("deadline"), "{expired:?}");
         served.join().expect("the origin thread");
+    }
+
+    /// A reply with `status` and the one header a `Retry-After` test needs.
+    fn told(status: i64, after: &str) -> Reply {
+        Reply {
+            status,
+            body: Vec::new(),
+            headers: vec![("retry-after".to_owned(), after.to_owned())],
+        }
+    }
+
+    /// `at`, as the IMF-fixdate an origin would have written it.
+    fn fixdate(at: std::time::SystemTime) -> String {
+        let seconds = i64::try_from(
+            at.duration_since(std::time::UNIX_EPOCH)
+                .expect("a time after the epoch")
+                .as_secs(),
+        )
+        .expect("a year this millennium");
+        // The inverse of [`days_from_civil`], written out here rather than
+        // shared: a formatter the subject also uses would agree with itself
+        // whatever either of them got wrong.
+        let days = seconds.div_euclid(86_400);
+        let rest = seconds.rem_euclid(86_400);
+        let mut year = 1970;
+        let mut left = days;
+        loop {
+            let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+            let length = if leap { 366 } else { 365 };
+            if left < length {
+                break;
+            }
+            left -= length;
+            year += 1;
+        }
+        let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+        let lengths = [
+            31,
+            if leap { 29 } else { 28 },
+            31,
+            30,
+            31,
+            30,
+            31,
+            31,
+            30,
+            31,
+            30,
+            31,
+        ];
+        let names = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
+        let mut month = 0;
+        while left >= lengths[month] {
+            left -= lengths[month];
+            month += 1;
+        }
+        format!(
+            "Mon, {:02} {} {} {:02}:{:02}:{:02} GMT",
+            left + 1,
+            names[month],
+            year,
+            rest / 3_600,
+            (rest % 3_600) / 60,
+            rest % 60
+        )
+    }
+
+    /// `rule:http-server/retry-is-opt-in-jittered-and-closed`: the field is read
+    /// in both of its forms, and the date one replaces the computed backoff
+    /// exactly as the seconds one does.
+    ///
+    /// Asserted on [`super::retry_after`] rather than on an elapsed wait,
+    /// because what separates the two forms is a parse: a test that slept would
+    /// pass a date it had read as no date at all, since an unread header and a
+    /// short wait produce the same second.
+    #[test]
+    fn retry_after_as_an_http_date_replaces_the_backoff() {
+        let soon = std::time::SystemTime::now() + Duration::from_secs(120);
+        let dated =
+            super::retry_after(&told(503, &fixdate(soon))).expect("a date in the future is a wait");
+        assert!(
+            dated > Duration::from_secs(100) && dated <= Duration::from_secs(120),
+            "{dated:?}"
+        );
+
+        // The other form, on the other status, so neither is carrying the test.
+        assert_eq!(
+            super::retry_after(&told(429, " 7 ")),
+            Some(Duration::from_secs(7))
+        );
+
+        // And a value that is neither form leaves the backoff in place.
+        assert_eq!(super::retry_after(&told(503, "whenever")), None);
+        assert_eq!(
+            super::retry_after(&told(503, "Mon, 32 Xxx 2026 00:00:00 GMT")),
+            None
+        );
+    }
+
+    /// `rule:http-server/one-deadline-covers-the-whole-call`: a `Retry-After`
+    /// longer than what is left of the deadline ends the call now rather than
+    /// sleeping through the budget and then failing.
+    ///
+    /// The origin asks for a minute and the call has half a second, so the
+    /// elapsed time is the whole assertion: a clamp that slept to the deadline
+    /// and tried again would take that half second and answer `TimeoutError`
+    /// too, which is why the bound asserted is well under it.
+    #[test]
+    fn retry_after_past_the_deadline_throws_now() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 503 Busy\r\nRetry-After: 60\r\nContent-Length: 0\r\n\r\n",
+        ]);
+        let mut retried = call(at, "test");
+        retried.attempts = 3;
+        retried.backoff = Duration::from_millis(1);
+        retried.deadline = Instant::now() + Duration::from_millis(500);
+
+        let started = Instant::now();
+        let expired = send(&retried, &mut never).expect_err("the deadline, not the header");
+        assert!(started.elapsed() < Duration::from_millis(400), "it slept");
+        assert!(format!("{expired:?}").contains("deadline"), "{expired:?}");
+        served.join().expect("the origin thread");
+    }
+
+    /// A date already past keeps the jittered backoff rather than becoming a
+    /// zero wait — the rule's own sentence, and the one every client handed the
+    /// same stale date depends on.
+    ///
+    /// The failure this forbids is a burst: `Some(ZERO)` here would have every
+    /// holder of one date retry in the same instant, against a service that has
+    /// just said it is busy.
+    #[test]
+    fn retry_after_already_past_keeps_the_jittered_backoff() {
+        let gone = std::time::SystemTime::now() - Duration::from_secs(600);
+        assert_eq!(super::retry_after(&told(503, &fixdate(gone))), None);
+
+        // The boundary on the other side: a date far enough ahead is read, so
+        // the `None` above is the pastness and not the parse.
+        let ahead = std::time::SystemTime::now() + Duration::from_secs(600);
+        assert!(super::retry_after(&told(503, &fixdate(ahead))).is_some());
+    }
+
+    /// The field is read on a `429` and a `503` and on nothing else, which is
+    /// narrower than [`super::retryable`]'s four.
+    ///
+    /// Asked of every status the retry set holds, so a member that read the
+    /// header off whatever it was given fails here while still looking right on
+    /// the two rows it was written for.
+    #[test]
+    fn retry_after_on_a_502_or_504_is_not_read() {
+        let read: Vec<i64> = [429, 502, 503, 504]
+            .into_iter()
+            .filter(|status| super::retry_after(&told(*status, "30")).is_some())
+            .collect();
+        assert_eq!(read, vec![429, 503], "a gateway does not set the pace");
     }
 
     /// A chunked body is joined before it is a `string`: the framing is the
