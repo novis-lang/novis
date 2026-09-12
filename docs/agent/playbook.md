@@ -1781,6 +1781,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   not enough to *insert* a space inside `$a+$b`, so the first rule that needs token boundaries either
   puts them in `Parsed` beside the trivia — which `Lexer::with_trivia`'s own doc anticipates — or reads
   them from `nvs_syntax::tokenize`. [until: reviewed 2026-09-12]
+- **A layout rule `nvs fmt` learns is green only if the corpus already follows it.**
+  `crates/nvs-fmt/tests/identity.rs` asserts every `.nvs` file under `examples/` and `tests/` comes
+  back byte for byte, and that test is goal `fmt`'s stage-2 acceptance check, so it is a floor every
+  later stage has to keep green. Before writing a rule into the printer, format the corpus with it and
+  read what moves — a rule the corpus disagrees with lands *with* a corpus reformat or not at all.
+  [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
 
 ## Running things
 
