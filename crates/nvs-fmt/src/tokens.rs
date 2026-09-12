@@ -61,8 +61,26 @@
 //! A parameter list, an enum-case list and a shape type's fields are written
 //! inside a node that ends somewhere else entirely, and are a known gap in
 //! [`the crate's own doc`](crate).
+//!
+//! # The reserved spellings
+//!
+//! A mis-cased reserved spelling goes out in lower case
+//! (`rule:tooling/fmt-normalizes-only-reserved-spellings`), and what it is read
+//! from is the parse's own diagnostics: both spellings that rule names — the
+//! open tag and a duration literal's unit — are errors, each reported under
+//! [`code::E_RESERVED_SPELLING_CASE`] with its primary span on the bytes to
+//! respell. [`repairs`] is what that costs the refusal in [`crate::format`],
+//! which turns on an error this stage does *not* rewrite rather than on an
+//! error at all: the tree behind a mis-cased spelling is whole — the token is
+//! there and its span is exact — and a half-written file's is not.
+//!
+//! Only the upper-case bytes inside that span are written, so a duration's
+//! count and its separators are copied rather than respelled and nothing here
+//! learns either spelling's grammar. What this does not promise is that the
+//! result compiles: a literal that is mis-cased *and* out of order comes back
+//! lower-cased and still refused, by the diagnostic that was always its own.
 
-use nvs_diagnostics::BytePos;
+use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, code};
 use nvs_syntax::{SyntaxIndex, Trivia};
 
 use crate::print::Rewrite;
@@ -75,6 +93,13 @@ const COMMA: &str = ",";
 
 /// What a deleted byte goes out as.
 const NOTHING: &str = "";
+
+/// The lower-case letters, indexed by their upper-case counterpart's distance
+/// from `A`.
+///
+/// A [`Rewrite`] writes a borrowed string, so a respelled letter is a slice of
+/// this one rather than a `String` allocated for each byte of each spelling.
+const LOWER: &str = "abcdefghijklmnopqrstuvwxyz";
 
 /// The productions whose own last byte closes a comma-separated list.
 ///
@@ -92,6 +117,42 @@ const LISTS: &[&str] = &[
     "ObjectLiteral",
     "StaticCall",
 ];
+
+/// Whether `diagnostic` names something these rules rewrite, so that the file
+/// carrying it is formatted rather than refused.
+pub(crate) fn repairs(diagnostic: &Diagnostic) -> bool {
+    diagnostic.code == Some(code::E_RESERVED_SPELLING_CASE)
+}
+
+/// Every upper-case byte of a mis-cased reserved spelling in `text`, and the
+/// lower-case one that goes out in its place.
+///
+/// `diagnostics` must be `text`'s own parse: a report's primary span is read as
+/// an offset into it, and it is the spelling itself, because that is the span
+/// each of these reports names its fix at.
+pub(crate) fn spellings<'t>(diagnostics: &Diagnostics, text: &str) -> Vec<Rewrite<'t>> {
+    let mut out = Vec::new();
+    for diagnostic in diagnostics.iter().filter(|d| repairs(d)) {
+        let Some(span) = diagnostic.primary_span() else {
+            continue;
+        };
+        let from = span.start as usize;
+        let Some(spelling) = text.get(from..span.end as usize) else {
+            continue;
+        };
+        for (offset, byte) in spelling.bytes().enumerate() {
+            if byte.is_ascii_uppercase() {
+                let letter = usize::from(byte - b'A');
+                out.push(Rewrite {
+                    start: from + offset,
+                    end: from + offset + 1,
+                    written: &LOWER[letter..=letter],
+                });
+            }
+        }
+    }
+    out
+}
 
 /// Every edit the token rules make to `text`, which must be `index`'s and
 /// `trivia`'s own file, in source order.

@@ -28,7 +28,7 @@
 //! `rule:ide/tokens-plus-trivia-reproduce-the-file`, which
 //! `crates/nvs-syntax/tests/lossless.rs` holds over the whole corpus.
 //!
-//! # A file that does not parse is refused
+//! # A file the parse could not place is refused
 //!
 //! A parse that reports an error answers a [`Refusal`] carrying that parse's
 //! diagnostics, and no text at all. The safe direction is the whole reason: an
@@ -36,6 +36,15 @@
 //! rearranged around a bracket its author has not typed yet. The parse is
 //! [`format()`]'s own, so a caller walking a directory hands each file in
 //! separately and one file's errors can never refuse the next one.
+//!
+//! The one error that refuses nothing is the one this formatter itself
+//! rewrites: a mis-cased reserved spelling
+//! (`rule:tooling/fmt-normalizes-only-reserved-spellings`). Nothing about such
+//! a file is half written — the lexer read the tag or the duration literal it
+//! was handed, every span behind it is exact, and the diagnostic names the
+//! bytes to lower-case — so [`crate::tokens`] writes the spelling and the file
+//! is formatted. A rule naming a rewrite that no file carrying one ever reaches
+//! would be a rule with nothing behind it.
 //!
 //! # What it spends
 //!
@@ -52,16 +61,18 @@
 //!    canonical order for a declaration's modifiers (`modifiers.rs`), the line
 //!    each opening brace sits on (`brace.rs`), the order a run of imports goes
 //!    out in (`imports.rs`), and the quote a plain string literal is delimited
-//!    by together with the comma a multi-line list ends its last element on
-//!    (`tokens.rs`). PER's blank lines, the reserved spellings and the
-//!    constructs PER never saw are still the author's, so a file that disagrees
-//!    with one of them comes back disagreeing with it.
+//!    by together with the comma a multi-line list ends its last element on and
+//!    the one case a reserved spelling has (`tokens.rs`). PER's blank lines and
+//!    the constructs PER never saw are still the author's, so a file that
+//!    disagrees with one of them comes back disagreeing with it.
 //!    — owner: M10
 //! 2. **A line the tree does not place keeps the author's own indentation.**
 //!    `indent.rs`'s own doc says which ones those are: a `switch`, a `match`
-//!    arm list, a template region, and every continuation line inside an
-//!    expression. The first three are rules that have not landed; the last is
-//!    `rule:tooling/fmt-never-reflows` and stays the author's for good.
+//!    arm list, a template region's own text, and every continuation line
+//!    inside an expression. The first three are rules that have not landed —
+//!    the `?>` that opens a template region is code and is placed, the text
+//!    after it is not — and the last is `rule:tooling/fmt-never-reflows` and
+//!    stays the author's for good.
 //!    — owner: M10
 //! 3. **A closing brace is moved onto a line of its own only where it already
 //!    opens one.** `brace.rs` decides the run before an *opening* brace and the
@@ -115,7 +126,8 @@ mod modifiers;
 mod print;
 mod tokens;
 
-/// A file `nvs fmt` will not rewrite, because it does not parse.
+/// A file `nvs fmt` will not rewrite, because its parse reported an error
+/// these rules do not themselves rewrite.
 ///
 /// Carries the file's name and everything its parse reported, so a caller can
 /// name it and render the diagnostics through the renderer it already has. It
@@ -160,16 +172,20 @@ impl std::error::Error for Refusal {}
 ///
 /// # Errors
 ///
-/// A file whose parse reports an error is refused: the answer is a [`Refusal`]
-/// naming it and carrying the diagnostics, and no text is produced.
+/// A file whose parse reports an error the token rules do not themselves
+/// rewrite is refused: the answer is a [`Refusal`] naming it and carrying the
+/// diagnostics, and no text is produced.
 pub fn format(file: &SourceFile) -> Result<String, Refusal> {
     let mut diagnostics = Diagnostics::new();
     let parsed = nvs_syntax::parse(file, &mut diagnostics);
-    if diagnostics.has_errors() {
+    if diagnostics
+        .iter()
+        .any(|d| d.is_error() && !tokens::repairs(d))
+    {
         return Err(Refusal {
             name: file.name().to_owned(),
             diagnostics,
         });
     }
-    Ok(print::print(file, &parsed))
+    Ok(print::print(file, &parsed, &diagnostics))
 }

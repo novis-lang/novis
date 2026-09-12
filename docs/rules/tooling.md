@@ -743,6 +743,16 @@ spelling has no other legal meaning. Two qualify, and each already carries the d
 fix: a duration literal's unit, `5Min` → `5min` ([`types/duration-literal`](types.md#types-duration-literal)), and the open tag,
 `<?NVS` → `<?nvs` ([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)).
 
+Both spellings are errors, and that is how `nvs fmt` reaches them rather than what stops it: the
+formatter refuses a file for an error it does not itself rewrite, not for reporting one at all. A
+mis-cased reserved spelling leaves a whole tree behind it — the lexer read the tag or the duration
+literal it was handed, and `E_RESERVED_SPELLING_CASE`'s primary span is exactly the bytes to
+lower-case — so the file is formatted and the spelling goes out in its one form. The alternative,
+leaving the rewrite to an editor's code action and having `nvs fmt` refuse the file, would make this
+rule name two rewrites nothing performs. What the formatter does not promise is that the result
+compiles: a literal that is mis-cased *and* out of order comes back lower-cased and still refused,
+by the diagnostic that was always its own.
+
 The criterion is what generalizes, not the list. A keyword never qualifies: `IF` and `ECHO` are legal
 `PascalCase` class names under [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), so nothing lexical
 separates a mis-typed keyword from a deliberate class reference, and a formatter that rewrote one would be

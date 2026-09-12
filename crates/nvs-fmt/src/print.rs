@@ -15,8 +15,8 @@
 //! out in its canonical order ([`crate::modifiers`]), a run of imports in path
 //! order ([`crate::imports`]), a brace the author left no room in front of gets
 //! the run [`crate::brace`] requires, and a literal the quote rule respells
-//! gets the delimiters — and a multi-line list the comma — that
-//! [`crate::tokens`] decides.
+//! gets the delimiters — a multi-line list the comma, and a mis-cased reserved
+//! spelling its lower-case letters — that [`crate::tokens`] decides.
 //! `rule:tooling/fmt-never-reflows` leaves what is inside an expression to the
 //! author, and bytes a program prints — inline HTML, a heredoc body, a markup
 //! literal's body — are never a formatter's to touch, so a rule that appears to
@@ -25,7 +25,7 @@
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
-use nvs_diagnostics::{SourceFile, Span};
+use nvs_diagnostics::{Diagnostics, SourceFile, Span};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::brace::{self, Placements};
@@ -62,8 +62,9 @@ pub(crate) fn one_code_run(trivia: &[Trivia], span: Span) -> bool {
 
 /// Writes `parsed` back out as the text of a formatted file.
 ///
-/// `parsed` must be `file`'s own parse: the spans are offsets into its text.
-pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
+/// `parsed` and `reported` must be `file`'s own parse and what it reported: the
+/// spans on both sides are offsets into its text.
+pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) -> String {
     let text = file.text();
     let indent = Indent::new(&parsed.index, text);
     let braces = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
@@ -71,6 +72,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
     edits.extend(braces.insertions());
     edits.extend(imports::rewrites(parsed, text));
     edits.extend(tokens::rewrites(&parsed.index, text, &parsed.trivia));
+    edits.extend(tokens::spellings(reported, text));
     edits.sort_by_key(|edit| edit.start);
     let mut out = String::with_capacity(text.len());
     let mut moved = edits.into_iter().peekable();

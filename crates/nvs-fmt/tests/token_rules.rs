@@ -106,3 +106,27 @@ echo $one, $empty, $spread, $call, $object, $arm;
 ";
     assert_eq!(formatted(mangled), canonical);
 }
+
+/// `rule:tooling/fmt-normalizes-only-reserved-spellings`'s two spellings are
+/// both errors, and neither of them refuses the file: the tree behind a
+/// mis-cased spelling is whole, so the formatter writes the one case the
+/// spelling has. Everything else keeps the case it was written in — an
+/// identifier's is a workspace-wide rename and a string's is its value.
+#[test]
+fn a_mis_cased_open_tag_and_duration_unit_are_lower_cased() {
+    let mangled = "\
+<?NVS
+var $ttl = 30S;
+var $window = 1H30M;
+var $kept = 'Novis';
+echo $ttl, $window, $kept;
+";
+    let canonical = "\
+<?nvs
+var $ttl = 30s;
+var $window = 1h30m;
+var $kept = 'Novis';
+echo $ttl, $window, $kept;
+";
+    assert_eq!(formatted(mangled), canonical);
+}
