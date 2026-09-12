@@ -38,10 +38,13 @@
 //!
 //! What a call spends is one buffer holding the whole reply, capped at
 //! [`REPLY_CEILING`], plus the request text, both released with the request. A
-//! reply that arrived compressed spends a second buffer for the decoded octets,
-//! under that same ceiling lowered onto the operator's
-//! (`rule:core-classes/decompression-bound`). What outlives it is the
-//! connection itself, charged to the core under that module's two caps.
+//! buffered reply that arrived compressed spends a second buffer for the
+//! decoded octets, under that same ceiling lowered onto the operator's
+//! (`rule:core-classes/decompression-bound`); a streamed one spends its
+//! decoder's window and one [`STEP`] instead ([`compress::Decoder`]), which is
+//! what bounds a decode that has no total for a ceiling to be over. What
+//! outlives it is the connection itself, charged to the core under that
+//! module's two caps.
 //!
 //! # `https` is three lines, because the stream is a plain `Read`/`Write`
 //!
@@ -66,6 +69,7 @@
 use std::cell::RefCell;
 use std::io::{ErrorKind, Read, Seek, Write};
 use std::net::{IpAddr, SocketAddr};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use fluent_uri::component::{Authority, Scheme};
@@ -350,6 +354,14 @@ enum Bounds {
     },
 }
 
+/// How much of a coded body one [`Incoming::pull`] decodes.
+///
+/// One socket read's worth, which is what [`Framed::pull`] reads into as well.
+/// What a streamed decode holds beyond its window is one of these and never
+/// whatever the frame would expand to, and that is the whole of why a decode
+/// with no output ceiling over it is still bounded.
+const STEP: usize = 8192;
+
 /// A reply's body, read off the wire as a program asks for it.
 ///
 /// This is what makes a streamed reply streamed: [`exchange`] stops at the end
@@ -359,10 +371,51 @@ enum Bounds {
 /// one framing implementation and one place a bound is judged rather than two
 /// of each.
 ///
-/// **What it spends:** one read buffer, whatever the framing has pulled and no
-/// reader has taken yet, and — under chunked framing alone — at most one
-/// incomplete chunk waiting for the rest of itself.
+/// A reply that arrived under a coding is that same framing with a decoder in
+/// front of it ([`Incoming::under`]), so both kinds hand a reader decoded
+/// octets and the walks in [`super::stream`] never learn which one they are on.
+///
+/// **What it spends:** one read buffer, whatever has been framed and no reader
+/// has taken yet, — under chunked framing alone — at most one incomplete chunk
+/// waiting for the rest of itself, and for a coded reply one decoding window
+/// and one [`STEP`].
 pub(crate) struct Incoming {
+    /// The body as it is read, with a decoder in front of the framing or not.
+    body: Coding,
+    /// Where the framing leaves a refusal that has to travel out past a
+    /// decoder.
+    ///
+    /// A decoder is a `Read` and a `Read` carries an `io::Error`, which has no
+    /// room for the thrown class that makes a `TimeoutError` catchable as one.
+    /// So the framing files the real refusal here on its way out and returns a
+    /// plain error for the backend to wrap however it likes, and
+    /// [`Incoming::pull`] takes it back before it reads what the backend said.
+    faulted: Rc<RefCell<Option<Fault>>>,
+}
+
+/// Whether a decoder sits between the framing and the reader.
+enum Coding {
+    /// The reply arrived as it was written, and what the framing holds is what
+    /// a reader takes.
+    ///
+    /// Boxed, and not for its size: a decoder takes its source as a `Box<dyn
+    /// Read>`, so the box a framing already sits in is the one the decode ends
+    /// up reading through and [`Incoming::under`] allocates nothing.
+    As(Box<Framed>),
+    /// One coding, undone as the octets arrive.
+    Under {
+        /// The decode, which has taken ownership of the framing.
+        decoder: compress::Decoder,
+        /// Decoded octets not yet taken by a reader.
+        held: Vec<u8>,
+        /// Whether the decoder has said there is no more.
+        ended: bool,
+    },
+}
+
+/// One reply body's framing: octets off the connection, delimited, with no
+/// coding undone.
+struct Framed {
     /// The connection the rest of the body is still arriving on, or `None` once
     /// the framing has ended it and for a body that was whole to begin with.
     source: Option<Box<dyn Connection>>,
@@ -384,6 +437,9 @@ pub(crate) struct Incoming {
     /// Where the connection goes when the framing ends this body, or `None` for
     /// a reply after which it is closed instead.
     reuse: Option<Reuse>,
+    /// [`Incoming::faulted`], shared so a refusal survives the trip out through
+    /// a decoder.
+    faulted: Rc<RefCell<Option<Fault>>>,
 }
 
 /// Where a connection goes once its reply is over: the key it is filed under
@@ -409,25 +465,33 @@ impl std::fmt::Debug for Incoming {
     /// What the request's table of readers prints, which is what it can:
     /// [`Connection`] is a trait object over a socket with no `Debug` of its
     /// own, and the octets are a reply another host wrote and not something to
-    /// spill into a line meant for reading a `Ctx`. The member and the lengths
-    /// are the two facts a reader of that line is after.
+    /// spill into a line meant for reading a `Ctx`. The member, the coding and
+    /// the lengths are the facts a reader of that line is after.
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        out.debug_struct("Incoming")
-            .field("member", &self.member)
-            .field("held", &self.held.len())
-            .field("raw", &self.raw.len())
-            .field("ended", &self.ended)
-            .finish_non_exhaustive()
+        let mut line = out.debug_struct("Incoming");
+        line.field("member", &self.member());
+        match &self.body {
+            Coding::As(framed) => line
+                .field("coded", &false)
+                .field("held", &framed.held.len())
+                .field("raw", &framed.raw.len())
+                .field("ended", &framed.ended),
+            Coding::Under { held, ended, .. } => line
+                .field("coded", &true)
+                .field("held", &held.len())
+                .field("ended", ended),
+        };
+        line.finish_non_exhaustive()
     }
 }
 
-impl Incoming {
+impl Framed {
     /// A body still on `source`, where `raw` is whatever arrived beside the
     /// head.
     ///
     /// # Errors
     ///
-    /// [`Incoming::deframe`]'s, for a chunk header that is not a length.
+    /// [`Framed::deframe`]'s, for a chunk header that is not a length.
     fn over(
         source: Box<dyn Connection>,
         raw: Vec<u8>,
@@ -447,6 +511,7 @@ impl Incoming {
             until,
             member: member.to_owned(),
             reuse,
+            faulted: Rc::new(RefCell::new(None)),
         };
         // The octets that came with the head are already here, and a reply
         // short enough to arrive in one read is over before the first `pull` —
@@ -467,7 +532,7 @@ impl Incoming {
     /// reader rather than as octets is what keeps one reading of a streamed
     /// body — the walks frame off a reader and have no second arm for a reply
     /// a test wrote.
-    pub(crate) fn already(held: Vec<u8>, member: &str) -> Self {
+    fn already(held: Vec<u8>, member: &str) -> Self {
         Self {
             source: None,
             held,
@@ -478,6 +543,7 @@ impl Incoming {
             until: Instant::now(),
             member: member.to_owned(),
             reuse: None,
+            faulted: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -498,14 +564,14 @@ impl Incoming {
     }
 
     /// The octets framed and not yet taken.
-    pub(crate) fn held(&self) -> &[u8] {
+    fn held(&self) -> &[u8] {
         &self.held
     }
 
     /// Whether the framing has said there is no more: what tells a walk that
     /// the octets it could not frame an element out of are all it will ever
     /// get, rather than a piece of one still on the wire.
-    pub(crate) fn ended(&self) -> bool {
+    fn ended(&self) -> bool {
         self.ended
     }
 
@@ -516,7 +582,7 @@ impl Incoming {
     /// elements is one read's worth plus whatever of the next element has
     /// arrived, rather than every byte of the body the walk has already been
     /// through.
-    pub(crate) fn consume(&mut self, octets: usize) {
+    fn consume(&mut self, octets: usize) {
         self.held.drain(..octets.min(self.held.len()));
     }
 
@@ -528,9 +594,9 @@ impl Incoming {
     /// `TimeoutError` for a silence past `idle` or a body past its lifetime,
     /// `IOError` for a connection that failed mid-body, and a `RuntimeError`
     /// for chunked framing the other end never finished.
-    pub(crate) fn pull(&mut self) -> Result<bool, Fault> {
+    fn pull(&mut self) -> Result<bool, Fault> {
         let had = self.held.len();
-        let mut buffer = [0_u8; 8192];
+        let mut buffer = [0_u8; STEP];
         while !self.ended {
             let now = Instant::now();
             if now >= self.until {
@@ -583,26 +649,8 @@ impl Incoming {
         Ok(self.held.len() > had)
     }
 
-    /// The whole body, under `ceiling`.
-    ///
-    /// # Errors
-    ///
-    /// [`Incoming::pull`]'s, and a `RuntimeError` for a body past `ceiling`.
-    pub(crate) fn whole(&mut self, ceiling: usize) -> Result<Vec<u8>, Fault> {
-        while self.pull()? {
-            if self.held().len() > ceiling {
-                return Err(Fault::thrown(format!(
-                    "{}: the reply passed {ceiling} bytes, which is as much of one another host \
-                     is allowed to make this process hold",
-                    self.member
-                )));
-            }
-        }
-        Ok(std::mem::take(&mut self.held))
-    }
-
-    /// Moves everything [`Incoming::raw`] now holds that is body into
-    /// [`Incoming::held`], answering whether the framing has ended the body.
+    /// Moves everything [`Framed::raw`] now holds that is body into
+    /// [`Framed::held`], answering whether the framing has ended the body.
     ///
     /// # Errors
     ///
@@ -626,7 +674,7 @@ impl Incoming {
         }
     }
 
-    /// As many whole chunks as [`Incoming::raw`] holds, moved across, leaving
+    /// As many whole chunks as [`Framed::raw`] holds, moved across, leaving
     /// the part-chunk at the end for the read that completes it.
     ///
     /// # Errors
@@ -660,6 +708,212 @@ impl Incoming {
         };
         self.raw.drain(..from);
         Ok(ended)
+    }
+}
+
+impl Read for Framed {
+    /// The framed octets, as the source a decoder reads from.
+    ///
+    /// A decoder needs a source that blocks until there is something or the
+    /// body is over, which is exactly [`Framed::pull`]: a `0` here means the
+    /// framing ended the body and never that the rest is still coming, so a
+    /// decoder cannot mistake a socket that has gone quiet for the end of its
+    /// frame — the quiet is [`Framed::pull`]'s own refusal instead.
+    ///
+    /// That refusal is filed in [`Framed::faulted`] and what comes back is a
+    /// plain error, because whatever the backend wraps this in on the way out
+    /// would otherwise be all that is left of it.
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        while self.held.is_empty() && !self.ended {
+            match self.pull() {
+                Ok(true) => {}
+                Ok(false) => break,
+                Err(fault) => {
+                    *self.faulted.borrow_mut() = Some(fault);
+                    return Err(std::io::Error::other("the body's own refusal, filed"));
+                }
+            }
+        }
+        let take = out.len().min(self.held.len());
+        out[..take].copy_from_slice(&self.held[..take]);
+        self.held.drain(..take);
+        Ok(take)
+    }
+}
+
+impl Incoming {
+    /// A body still on `source`, where `raw` is whatever arrived beside the
+    /// head.
+    ///
+    /// # Errors
+    ///
+    /// [`Framed::deframe`]'s, for a chunk header that is not a length.
+    fn over(
+        source: Box<dyn Connection>,
+        raw: Vec<u8>,
+        frame: Frame,
+        idle: Duration,
+        until: Instant,
+        member: &str,
+        reuse: Option<Reuse>,
+    ) -> Result<Self, Fault> {
+        let framed = Framed::over(source, raw, frame, idle, until, member, reuse)?;
+        Ok(Self {
+            faulted: Rc::clone(&framed.faulted),
+            body: Coding::As(Box::new(framed)),
+        })
+    }
+
+    /// A body that is already here in full, on no connection at all — what an
+    /// armed answer table hands a streamed call
+    /// (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+    pub(crate) fn already(held: Vec<u8>, member: &str) -> Self {
+        let framed = Framed::already(held, member);
+        Self {
+            faulted: Rc::clone(&framed.faulted),
+            body: Coding::As(Box::new(framed)),
+        }
+    }
+
+    /// The same body with `codec` undone as it arrives.
+    ///
+    /// The decoder takes the framing, so from here on the socket is reached
+    /// only through the decode and what a reader asks this for is decoded
+    /// octets. It is wrapped at the head and never later: a decoder that
+    /// started part way through a frame would be reading from the middle of
+    /// one, and there is no reader yet at the head to have taken anything.
+    fn under(self, codec: compress::Codec, member: &str) -> Self {
+        let Self { body, faulted } = self;
+        match body {
+            Coding::As(framed) => Self {
+                body: Coding::Under {
+                    decoder: compress::Decoder::over(codec, framed, member),
+                    held: Vec::new(),
+                    ended: false,
+                },
+                faulted,
+            },
+            under @ Coding::Under { .. } => Self {
+                body: under,
+                faulted,
+            },
+        }
+    }
+
+    /// What a refusal from this body names.
+    fn member(&self) -> &str {
+        match &self.body {
+            Coding::As(framed) => &framed.member,
+            Coding::Under { decoder, .. } => decoder.member(),
+        }
+    }
+
+    /// The octets a reader may take: framed, and decoded where there is a
+    /// coding.
+    pub(crate) fn held(&self) -> &[u8] {
+        match &self.body {
+            Coding::As(framed) => framed.held(),
+            Coding::Under { held, .. } => held,
+        }
+    }
+
+    /// Whether the body has said there is no more: what tells a walk that the
+    /// octets it could not frame an element out of are all it will ever get,
+    /// rather than a piece of one still on the wire.
+    pub(crate) fn ended(&self) -> bool {
+        match &self.body {
+            Coding::As(framed) => framed.ended(),
+            Coding::Under { ended, .. } => *ended,
+        }
+    }
+
+    /// Drops the first `octets` of what is held and untaken — the element a
+    /// walk has just handed a program.
+    ///
+    /// The move is what bounds a walk's memory: what this holds between two
+    /// elements is one step's worth plus whatever of the next element has
+    /// arrived, rather than every byte of the body the walk has already been
+    /// through.
+    pub(crate) fn consume(&mut self, octets: usize) {
+        match &mut self.body {
+            Coding::As(framed) => framed.consume(octets),
+            Coding::Under { held, .. } => {
+                held.drain(..octets.min(held.len()));
+            }
+        }
+    }
+
+    /// Waits for more body, answering whether any arrived — `false` is the end
+    /// of the body, and a silence is a throw rather than an end.
+    ///
+    /// A coded body is decoded one [`STEP`] at a time here rather than gathered
+    /// and decoded at the end, which is what keeps a compressed stream a
+    /// stream: an event under `gzip` reaches the walk that is waiting for it
+    /// while the rest of the body is still being written.
+    ///
+    /// # Errors
+    ///
+    /// `TimeoutError` for a silence past `idle` or a body past its lifetime,
+    /// `IOError` for a connection that failed mid-body, a `RuntimeError` for
+    /// chunked framing the other end never finished, and a `ParseError` for a
+    /// coded body whose frame is not what its `Content-Encoding` said.
+    pub(crate) fn pull(&mut self) -> Result<bool, Fault> {
+        let (decoder, held, ended) = match &mut self.body {
+            Coding::As(framed) => return framed.pull(),
+            Coding::Under {
+                decoder,
+                held,
+                ended,
+            } => (decoder, held, ended),
+        };
+        if *ended {
+            return Ok(false);
+        }
+        let mut step = [0_u8; STEP];
+        let read = match decoder.pull_into(&mut step) {
+            Ok(read) => read,
+            Err(why) => {
+                // A refused frame is over. The decoder owns the framing, and
+                // reading one it has already refused would ask the socket for
+                // octets nothing downstream can do anything with.
+                *ended = true;
+                // The framing's own refusal if it had one, because it is the
+                // one that says `TimeoutError` rather than `ParseError`.
+                return Err(self.faulted.borrow_mut().take().unwrap_or(why));
+            }
+        };
+        if read == 0 {
+            *ended = true;
+            return Ok(false);
+        }
+        held.extend_from_slice(&step[..read]);
+        Ok(true)
+    }
+
+    /// The whole body, under `ceiling`.
+    ///
+    /// # Errors
+    ///
+    /// [`Incoming::pull`]'s, and a `RuntimeError` for a body past `ceiling`.
+    pub(crate) fn whole(&mut self, ceiling: usize) -> Result<Vec<u8>, Fault> {
+        while self.pull()? {
+            if self.held().len() > ceiling {
+                return Err(Fault::thrown(format!(
+                    "{}: the reply passed {ceiling} bytes, which is as much of one another host \
+                     is allowed to make this process hold",
+                    self.member()
+                )));
+            }
+        }
+        Ok(self.taken())
+    }
+
+    /// Everything held, moved out.
+    fn taken(&mut self) -> Vec<u8> {
+        match &mut self.body {
+            Coding::As(framed) => std::mem::take(&mut framed.held),
+            Coding::Under { held, .. } => std::mem::take(held),
+        }
     }
 }
 
@@ -878,9 +1132,16 @@ fn own_offer(member: &str, name: &str) -> Fault {
 /// and every hop below is the same code and only what comes after them differs
 /// (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
 ///
+/// A reply under one of the codings [`OFFERED`] is decoded **as it arrives**
+/// rather than gathered first: [`Incoming::under`] puts the decoder in front of
+/// the framing, and what the walks read is decoded octets one [`STEP`] at a
+/// time. What bounds that decode is its window and not a total, because a
+/// stream has no total to have one over.
+///
 /// # Errors
 ///
-/// [`sent`]'s. The body's own refusals arrive later, at the reader
+/// [`sent`]'s, and [`coding_of`]'s for a reply under a coding [`OFFERED`] does
+/// not name. The body's own refusals arrive later, at the reader
 /// ([`Incoming::pull`]).
 pub(crate) fn send_streamed(
     call: &Call<'_>,
@@ -890,7 +1151,19 @@ pub(crate) fn send_streamed(
         idle: call.idle,
         until: Instant::now() + call.max_duration,
     };
-    sent(call, repin, bounds)
+    let mut answer = sent(call, repin, bounds)?;
+    let Some(codec) = coding_of(&answer.headers, call.member)? else {
+        return Ok(answer);
+    };
+    answer.body = answer.body.under(codec, call.member);
+    // [`send`]'s reason and the same two fields: what a program reads back is
+    // decoded, so a `Content-Encoding` still naming the coding and a
+    // `Content-Length` still counting the compressed octets are both answers to
+    // a question nobody can ask any more.
+    answer
+        .headers
+        .retain(|(name, _)| name != "content-encoding" && name != "content-length");
+    Ok(answer)
 }
 
 /// One URL's worth of attempts, under the call's own deadline.
@@ -2258,6 +2531,126 @@ mod tests {
             "and what was offered instead: {why}"
         );
         served.join().expect("the origin thread");
+    }
+
+    /// A streamed reply under a coding is decoded **as it arrives**: a reader
+    /// takes decoded octets out of it while the rest of the frame is still
+    /// unwritten, which is what keeps a compressed stream a stream.
+    ///
+    /// The origin withholds the tail until this case says so, so what comes out
+    /// of the decoder before that cannot have been decoded from octets the
+    /// origin had not sent — a pause between two writes would assert the same
+    /// thing on a clock instead, and on a loaded machine it would assert it
+    /// wrongly.
+    ///
+    /// The payload is noise on purpose. A compressible one makes a frame short
+    /// enough to arrive in a single piece, and the case would then be asserting
+    /// what a buffered decode already does.
+    #[test]
+    fn a_streamed_reply_is_decoded_as_it_arrives_rather_than_gathered_first() {
+        let payload = noise(1 << 20);
+        for (coding, codec) in [
+            ("gzip", Codec::Gzip),
+            ("br", Codec::Brotli),
+            ("zstd", Codec::Zstd),
+        ] {
+            let frame = compress_to(codec, &payload).expect("a frame this case wrote");
+            // Three quarters, so that every backend has whole blocks of its own
+            // framing to work from before the tail arrives.
+            let cut = frame.len() / 4 * 3;
+            let (at, tail, served) = withheld(
+                format!(
+                    "HTTP/1.1 200 OK\r\nContent-Encoding: {coding}\r\nContent-Length: {}\r\n\r\n",
+                    frame.len()
+                ),
+                frame[..cut].to_vec(),
+                frame[cut..].to_vec(),
+            );
+
+            let mut asking = call(at, "test");
+            asking.idle = Duration::from_secs(10);
+            let mut reply = send_streamed(&asking, &mut never).expect("a head");
+            assert!(
+                !reply
+                    .headers
+                    .iter()
+                    .any(|(name, _)| name == "content-encoding" || name == "content-length"),
+                "a decoded stream keeps neither field that framed it: {:?}",
+                reply.headers
+            );
+
+            assert!(
+                reply
+                    .body
+                    .pull()
+                    .expect("what has already arrived, decoded"),
+                "a `{coding}` stream answers its first pull from the octets it has"
+            );
+            let early = reply.body.held().len();
+            assert!(
+                early > 0 && early < payload.len(),
+                "a `{coding}` stream decodes a piece and not the whole body: {early}"
+            );
+            assert_eq!(
+                reply.body.held(),
+                &payload[..early],
+                "and what it decoded is the body's own first octets"
+            );
+
+            tail.send(()).ok();
+            while reply.body.pull().expect("the rest of the body") {}
+            assert_eq!(
+                reply.body.held(),
+                payload,
+                "a `{coding}` stream read to its end is the whole body, decoded"
+            );
+            served.join().expect("the origin thread");
+        }
+    }
+
+    /// A frame this case can split without it compressing away: a linear
+    /// congruential sequence, which is the shortest thing here that no codec
+    /// finds a pattern in.
+    fn noise(octets: usize) -> Vec<u8> {
+        let mut state = 0x2545_F491_4F6C_DD1D_u64;
+        (0..octets)
+            .map(|_| {
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                u8::try_from((state >> 33) & 0xFF).unwrap_or_default()
+            })
+            .collect()
+    }
+
+    /// A listener answering `head` and `first`, and then `rest` once the sender
+    /// speaks.
+    ///
+    /// The withheld tail is what makes a case about streaming deterministic:
+    /// what a reader got before the channel was spoken to cannot have come from
+    /// octets the origin had not written.
+    fn withheld(
+        head: String,
+        first: Vec<u8>,
+        rest: Vec<u8>,
+    ) -> (SocketAddr, mpsc::Sender<()>, std::thread::JoinHandle<()>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        let (tell, told) = mpsc::channel::<()>();
+        let served = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client's connection");
+            let mut request = [0_u8; 4096];
+            let _ = stream.read(&mut request);
+            let _ = stream.write_all(head.as_bytes());
+            let _ = stream.write_all(&first);
+            let _ = stream.flush();
+            // A case that fails before it releases the tail ends here rather
+            // than holding the run.
+            told.recv_timeout(Duration::from_secs(20)).ok();
+            let _ = stream.write_all(&rest);
+            let _ = stream.flush();
+        });
+        (at, tell, served)
     }
 
     /// `rule:core-api/tier-roster`'s "over the runtime's own reactor rather than a second

@@ -52,7 +52,7 @@
 //!    rather than per stream is not a bound.
 //!    — owner: unowned
 
-use std::io::Read as _;
+use std::io::Read;
 
 use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
 
@@ -632,6 +632,118 @@ fn over_window(requested: u64, member: &str) -> Fault {
              (rule:core-classes/decompression-bound)."
         ),
     )
+}
+
+/// One coding undone as its octets arrive, for a body that is not all here yet.
+///
+/// [`decompress_within`] is a slice in and a `Vec` out, which is the shape a
+/// buffered body has and a streamed one never will: the reader feeding this is
+/// still waiting on a socket. Each backend's decoder is already a `Read`, so
+/// what this adds is a source that blocks, a decode step bounded by the
+/// caller's buffer rather than by the frame, and the window cap that bounds a
+/// streamed decode in place of an output ceiling.
+///
+/// **What it spends:** one decoding window, released with the reader — 32 KiB
+/// for the three DEFLATE framings, which is that format's window; at most
+/// [`ZSTD_WINDOW`] for zstd; and 16 MiB for brotli, which is that format's
+/// largest window with the large-window extension off, as it is here. There is
+/// no total-output ceiling and there cannot be one: a stream has no total, and
+/// what bounds it instead is the `idle` and `maxDuration` of the socket it
+/// arrives on (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
+pub(crate) struct Decoder {
+    /// Which coding, for what a refusal names.
+    codec: Codec,
+    /// The member the call was made from, as [`decompress_within`]'s `member`.
+    member: String,
+    /// The decode, and the source until there is one.
+    state: State,
+}
+
+/// A decoder is built at its first read rather than when it is asked for,
+/// because a zstd one reads the frame header as it is constructed and that
+/// header is on the socket with the rest of the body. Building all of them
+/// that way is one shape rather than one per backend, and it keeps the head of
+/// a streamed reply free of a wait for the body's first octets.
+enum State {
+    /// The source, with nothing read off it yet.
+    Waiting(Option<Box<dyn Read>>),
+    /// The decoder, reading.
+    Running(Box<dyn Read>),
+}
+
+impl Decoder {
+    /// A decode of `codec` over `source`, which `member` names in a refusal.
+    pub(crate) fn over(codec: Codec, source: Box<dyn Read>, member: &str) -> Self {
+        Self {
+            codec,
+            member: member.to_owned(),
+            state: State::Waiting(Some(source)),
+        }
+    }
+
+    /// What a refusal from this decode names.
+    pub(crate) fn member(&self) -> &str {
+        &self.member
+    }
+
+    /// The next decoded octets, at most `out.len()` of them, with `0` for the
+    /// end of the frame.
+    ///
+    /// # Errors
+    ///
+    /// A `ParseError` for a frame that is not what its coding says it is, and
+    /// for a zstd frame whose window passes [`ZSTD_WINDOW`]. A refusal the
+    /// source itself raised arrives as one of those too, flattened by whatever
+    /// the backend wrapped it in, so a caller that has a truer one kept
+    /// elsewhere should prefer it.
+    pub(crate) fn pull_into(&mut self, out: &mut [u8]) -> Result<usize, Fault> {
+        let waiting = match &mut self.state {
+            State::Waiting(source) => source.take(),
+            State::Running(_) => None,
+        };
+        if let Some(source) = waiting {
+            self.state = State::Running(built(self.codec, source, &self.member)?);
+        }
+        let State::Running(decoder) = &mut self.state else {
+            // The one path that leaves a taken source behind is a frame
+            // refused at its header, and a reader that has been refused is
+            // over — so this is a caller reading past its own refusal.
+            return Err(malformed(
+                self.codec,
+                "a frame already refused is not read again",
+                &self.member,
+            ));
+        };
+        decoder
+            .read(out)
+            .map_err(|why| malformed(self.codec, &why.to_string(), &self.member))
+    }
+}
+
+/// The backend decoder for `codec`, reading `source`.
+///
+/// Every window this process will hold for one decode is decided here:
+/// DEFLATE's is 32 KiB by the format, brotli's is 16 MiB by the same, and
+/// zstd's is the only one a frame gets to ask for, which is why it is the only
+/// one with a number beside it ([`ZSTD_WINDOW`]).
+fn built(codec: Codec, source: Box<dyn Read>, member: &str) -> Result<Box<dyn Read>, Fault> {
+    Ok(match codec {
+        Codec::Gzip => Box::new(flate2::read::GzDecoder::new(source)),
+        Codec::Zlib => Box::new(flate2::read::ZlibDecoder::new(source)),
+        Codec::Deflate => Box::new(flate2::read::DeflateDecoder::new(source)),
+        Codec::Brotli => Box::new(brotli::Decompressor::new(source, 4096)),
+        Codec::Zstd => {
+            match ruzstd::decoding::StreamingDecoder::new_with_max_window_size(source, ZSTD_WINDOW)
+            {
+                Ok(decoder) => Box::new(decoder),
+                Err(ruzstd::decoding::errors::FrameDecoderError::WindowSizeTooBig {
+                    requested,
+                    ..
+                }) => return Err(over_window(requested, member)),
+                Err(why) => return Err(malformed(codec, &why.to_string(), member)),
+            }
+        }
+    })
 }
 
 // ============================================================================
