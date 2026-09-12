@@ -1,0 +1,86 @@
+--TEST--
+Core\Jwt::verifyIssued refuses `alg: none`, a token MAC'd under the key the issuer publishes and an algorithm that key does not carry, each with the one sentence a forgery gets — `rule:security/algorithm-comes-from-the-key`, `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// Agreement, counted. The key is the issuer's, and every token below is one an
+// attacker writes out of what the issuer published: `alg: none` says there is
+// nothing to check, and `HS256` says the *public* half is a shared secret —
+// which it is, to everybody who read the JWKS. The algorithm coming from the
+// key is what makes each of these the same not-authentic as a truncated token,
+// so the assertion is that four attacks produce one sentence rather than a
+// verdict apiece, which a member with an arm per algorithm passes on no line.
+Core\Crypto\KeyPair $issuer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+var $segment = fn (string $text): string => Core\Encoding::toBase64Url(
+    Core\Encoding::encodeText($text, Core\Charset::Utf8)
+);
+
+int $now = Core\Time::now()->toEpochSeconds();
+string $claims = $segment(
+    "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"exp\":"
+        . (($now + 900) as string) . "}"
+);
+
+string $input = $segment("{\"alg\":\"EdDSA\",\"typ\":\"JWT\"}") . "." . $claims;
+string $honest = $input . "." . Core\Encoding::toBase64Url(
+    Core\Crypto::sign(Core\Encoding::encodeText($input, Core\Charset::Utf8), $issuer)
+);
+string $signature = Core\Str::split($honest, ".")[2];
+
+// The two shapes of the classic attack: `none` with nothing after the second
+// dot, and `none` carrying the signature the issuer really wrote.
+string $none = $segment("{\"alg\":\"none\",\"typ\":\"JWT\"}");
+string $stripped = $none . "." . $claims . ".";
+string $borrowed = $none . "." . $claims . "." . $signature;
+
+// The confusion. A verifier that reads `alg` to pick its arm HMACs whatever
+// key it is holding, and the key it is holding here is the one the issuer
+// publishes — so this token is one anybody who can fetch a JWKS can sign.
+bytes $published = $issuer->publicKey()->write(Core\Crypto\KeyFormat::Raw);
+array<string> $mac = ["iss" => "https://issuer.example", "aud" => "novis-app"];
+string $confused = Core\Jwt::sign($mac, 15m, $published);
+
+// And an algorithm the key does not carry, under the signature it does: one
+// kind names one algorithm, so `ES256` here is a header disagreeing with the
+// key rather than a second thing worth trying.
+string $es256 = $segment("{\"alg\":\"ES256\",\"typ\":\"JWT\"}") . "." . $claims . "." . $signature;
+
+array<string> $attempts = [$stripped, $borrowed, $confused, $es256];
+string $first = "";
+int $refusals = 0;
+int $agreed = 0;
+foreach ($attempts as string $attempt) {
+    try {
+        var $forged = Core\Jwt::verifyIssued<tainted {iss: string, aud: string, exp: int}>(
+            $attempt,
+            $issuer->publicKey(),
+            "https://issuer.example",
+            "novis-app"
+        );
+        echo "a forgery verified as ", $forged->iss, "'s", "\n";
+    } catch (RuntimeError $refused) {
+        $refusals = $refusals + 1;
+        if ($first == "") {
+            $first = $refused->message;
+        }
+        if ($refused->message == $first) {
+            $agreed = $agreed + 1;
+        }
+    }
+}
+echo $refusals, " refusals, ", $agreed, " of them the same sentence", "\n";
+
+// Nothing above consumed the token the issuer signed, so the four refusals are
+// about the attempts and not about a member that had stopped reading tokens.
+var $back = Core\Jwt::verifyIssued<tainted {iss: string, aud: string, exp: int}>(
+    $honest,
+    $issuer->publicKey(),
+    "https://issuer.example",
+    "novis-app"
+);
+echo "the issuer's own token is still ", $back->aud, "'s", "\n";
+echo $first, "\n";
+--EXPECT--
+4 refusals, 4 of them the same sentence
+the issuer's own token is still novis-app's
+Core\Jwt::verifyIssued(): $token is not a token this issuer's key signed. Every way of not being one — a shape that is not three base64url parts, a header carrying a parameter a verifier may not honour, a `kid` that names no key in the set, an `alg` that is not the one that key carries, a signature under another key, and an altered payload — is this one sentence, so a forgery says nothing about which half of it failed.
