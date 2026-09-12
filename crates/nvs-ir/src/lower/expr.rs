@@ -137,6 +137,14 @@ impl<'a> Lowering<'a> {
                 );
                 self.lower_interpolated_parts(parts, expr.span, env, cur)
             }
+            // The same parts under a different rule: `rule:core-classes/html-literal`
+            // trusts every segment and escapes every hole, and what it denotes
+            // is a carrier rather than a `string`. It reaches here whatever its
+            // body holds, a hole-free one included — `nvs_syntax`'s parser
+            // deliberately skips `collapse_string_parts` for this node, since
+            // the node and not the part count is what says
+            // `Core\Html\Markup`.
+            ExprKind::Markup(parts) => self.lower_markup_literal(parts, env, cur),
             ExprKind::Variable(span) => {
                 let name = strip_sigil(span_text(self.src, *span));
                 let &(v, ty) = env.get(name).unwrap_or_else(|| {
@@ -562,8 +570,11 @@ impl<'a> Lowering<'a> {
     /// the *type* `Core\Cli\Text` and a conversion in front of the sink would
     /// have thrown that away; that helper's own doc comment owns the rule and
     /// [`Self::convert_operand`]'s rows still describe what it renders. Either
-    /// call defines no value, so it is pushed with `result: None` rather than
-    /// emitted through [`Self::emit`].
+    /// way the write itself is [`Self::emit_write`]'s.
+    ///
+    /// A ``html`…` `` operand takes neither path and becomes no value at all:
+    /// `rule:core-classes/html-literal`'s sink position is a write per piece,
+    /// which is [`Self::echo_markup_parts`].
     ///
     /// An operand `concat_operand` reports as non-aliasing (a literal, a
     /// nested `Concat`'s own result, or a freshly converted `HelperCall`
@@ -576,6 +587,13 @@ impl<'a> Lowering<'a> {
     /// a loop's back edge).
     pub(crate) fn lower_echo(&mut self, operands: &[Expr], cur: &mut BlockId, env: &mut Env) {
         for operand in operands {
+            // A markup literal written straight at a sink is the one operand
+            // that never becomes a value at all — see
+            // [`Self::echo_markup_parts`].
+            if let ExprKind::Markup(parts) = &operand.kind {
+                self.echo_markup_parts(parts, env, cur);
+                continue;
+            }
             let mark = self.temporaries_mark();
             // The sink substitutes everything except its own carrier, and a
             // carrier is a *class* — `rule:tooling/terminal-output-is-a-sink`'s one raw path is the type
@@ -597,20 +615,62 @@ impl<'a> Lowering<'a> {
             if !aliasing {
                 self.own_temporary(v);
             }
-            // The one conversion-free helper that can genuinely *throw*: a
-            // write to the request's output. The scalar-to-string conversions
-            // around it carry a landing block too, for the reason every
-            // status-returning instruction does — see `Inst::on_error`.
-            let landing = self.landing_block(env);
-            self.block_insts[cur.index() as usize].push(Inst {
-                result: None,
-                ty: None,
-                kind: InstKind::HelperCall {
-                    helper,
-                    args: vec![v],
-                },
-                on_error: Some(landing),
-            });
+            self.emit_write(helper, v, env, *cur);
+            self.release_temporaries_since(mark, *cur);
+        }
+    }
+    /// One operand's write to the request's output — the tail every spelling
+    /// of `echo` ends in.
+    ///
+    /// The one conversion-free helper that can genuinely *throw*, so it
+    /// carries the failure edge [`Self::landing_block`] hands out; the
+    /// scalar-to-string conversions in front of it carry one too, for the
+    /// reason every status-returning instruction does (see [`Inst::on_error`]).
+    /// The call defines no value, which is why it is pushed rather than
+    /// emitted through [`Self::emit`].
+    fn emit_write(&mut self, helper: Helper, v: ValueId, env: &mut Env, cur: BlockId) {
+        let landing = self.landing_block(env);
+        self.block_insts[cur.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::HelperCall {
+                helper,
+                args: vec![v],
+            },
+            on_error: Some(landing),
+        });
+    }
+    /// `echo html`…`;` — `rule:core-classes/html-literal`'s **sink** position,
+    /// which is a run of writes with no carrier built at all.
+    ///
+    /// Each piece is written as it is produced: a segment's bytes, then a
+    /// hole's escaped ones, then the next segment's. Nothing joins them and
+    /// nothing wraps the join, because a carrier born and consumed at one sink
+    /// is unobservable — the same erasure `rule:security/tainted-qualifier`
+    /// performs for the qualifier, and what makes the most-written line in a
+    /// web program cost no allocation at all.
+    ///
+    /// **The write span is the piece, not the statement**, which is the one
+    /// thing a reader can tell apart from the value-position lowering: a
+    /// bidirectional isolate opened in a segment and closed after a hole is two
+    /// unterminated controls to `rule:security/bidi-predicate`, where the joined
+    /// bytes would have been one balanced pair. Splitting a write can only ever
+    /// neutralize *more* — a control unterminated in the whole text is
+    /// unterminated in its own piece too — so this is the safe direction of the
+    /// difference, and it is the granularity `echo $a, $b;` already has.
+    fn echo_markup_parts(&mut self, parts: &[StringPart], env: &mut Env, cur: &mut BlockId) {
+        for part in parts {
+            let mark = self.temporaries_mark();
+            let piece = match part {
+                StringPart::Text(span) => {
+                    let s = nvs_types::string_lit::cook_markup_text(self.src, *span).0;
+                    self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0
+                }
+                StringPart::Expr(e) => self.lower_markup_hole(e, env, cur),
+            };
+            // Every piece is fresh and has exactly one use, the write below.
+            self.own_temporary(piece);
+            self.emit_write(Helper::EchoStr, piece, env, *cur);
             self.release_temporaries_since(mark, *cur);
         }
     }
@@ -641,16 +701,7 @@ impl<'a> Lowering<'a> {
         let mark = self.temporaries_mark();
         let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(text));
         self.own_temporary(v);
-        let landing = self.landing_block(env);
-        self.block_insts[cur.index() as usize].push(Inst {
-            result: None,
-            ty: None,
-            kind: InstKind::HelperCall {
-                helper: Helper::EchoStr,
-                args: vec![v],
-            },
-            on_error: Some(landing),
-        });
+        self.emit_write(Helper::EchoStr, v, env, *cur);
         self.release_temporaries_since(mark, *cur);
     }
     /// `print $x` — one operand written exactly as [`Self::lower_echo`]
@@ -2113,6 +2164,149 @@ impl<'a> Lowering<'a> {
             self.emit_retain(*cur, v);
         }
         (v, Ty::Str)
+    }
+    /// Lowers `ExprKind::Markup`'s parts into the one `Core\Html\Markup` they
+    /// denote — `rule:core-classes/html-literal`'s **value** position, which is
+    /// the literal assigned, returned or put in an array rather than written
+    /// straight to a sink.
+    ///
+    /// **One carrier, however many pieces.** Each piece becomes bytes first — a
+    /// segment cooked by `nvs_types::string_lit::cook_markup_text`, a hole by
+    /// [`Self::lower_markup_hole`] — and the join is the same n-ary
+    /// [`InstKind::Concat`] an interpolated string's parts fold to. Only the
+    /// join is lifted, through the identical `nvs_types::CORE_HTML_MARKUP` call
+    /// [`Self::lower_markup_lift`] emits for `as Core\Html\Markup`. Escaping
+    /// each hole into a carrier of its own and composing those with
+    /// `Markup + Markup` would answer the same bytes for an object allocation
+    /// per hole, where that rule's *What it costs to run* promises one object
+    /// for the whole literal.
+    ///
+    /// **Ownership is [`Self::lower_interpolated_parts`]'.** Every piece is in
+    /// flight for as long as the pieces after it are still being lowered, and
+    /// one of those can throw, so each lives on [`Self::owned_temporaries`]
+    /// until the `Concat` has read it. The lift borrows its own argument and
+    /// takes the reference its slot keeps, so the joined bytes are released
+    /// here too and the carrier leaves with exactly one owner — the same pair
+    /// [`Self::lower_markup_lift`] leaves.
+    pub(crate) fn lower_markup_literal(
+        &mut self,
+        parts: &[StringPart],
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        let mut pieces: Vec<ValueId> = Vec::with_capacity(parts.len());
+        for part in parts {
+            let piece = match part {
+                StringPart::Text(span) => {
+                    // The issues are discarded: `nvs_types::check_program` has
+                    // already reported them against this same span.
+                    let s = nvs_types::string_lit::cook_markup_text(self.src, *span).0;
+                    self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0
+                }
+                StringPart::Expr(e) => self.lower_markup_hole(e, env, cur),
+            };
+            self.own_temporary(piece);
+            pieces.push(piece);
+        }
+        let bytes = match pieces[..] {
+            // ``html`` ``, whose body has nothing in it at all — the one shape
+            // that reaches here with no parts, a body of plain text arriving as
+            // a single `StringPart::Text`.
+            [] => {
+                let (empty, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(String::new()));
+                self.own_temporary(empty);
+                empty
+            }
+            [only] => only,
+            _ => {
+                let (joined, _) = self.emit(
+                    *cur,
+                    Ty::Str,
+                    InstKind::Concat {
+                        pieces: pieces.clone(),
+                    },
+                );
+                // Every piece is consumed here and each of them is fresh, so
+                // this releases exactly what the loop above staged.
+                self.release_temporaries_since(mark, *cur);
+                self.own_temporary(joined);
+                joined
+            }
+        };
+        let carrier = self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::CoreCall {
+                symbol: nvs_types::CORE_HTML_MARKUP,
+                args: vec![bytes],
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        carrier
+    }
+    /// Lowers one of a markup literal's holes to the bytes it contributes.
+    ///
+    /// **A hole already holding a `Core\Html\Markup` is spliced raw and every
+    /// other hole is escaped** (`rule:core-classes/html-literal`), which is the
+    /// one question here. It cannot be asked of the [`Ty`]s: a carrier and a
+    /// `rule:classes/stringable` object both erase to [`Ty::Object`]. So
+    /// `nvs_types::expr::literals::infer_markup_literal` records the hole's
+    /// checked type at the hole's own span and [`Self::hole_is_carrier`] reads
+    /// it back.
+    ///
+    /// Neither answer is a [`Helper`] row, for [`Self::lower_markup_lift`]'s
+    /// reason: what the escape produces is the sink's own transform and what
+    /// the raw splice reads is a `Core` class's slot, and both belong to the
+    /// crate that owns that layout. A non-carrier hole reaches the escape as
+    /// the `string` [`Self::convert_operand`] makes of it, which is the same
+    /// row `.`-concatenation gives a scalar, a union or a `toString`.
+    ///
+    /// The call borrows its argument, so a fresh operand is staged and released
+    /// once the call has read it and a borrowed one is left where it is. The
+    /// answer is this expression's own fresh `string`, which the literal's join
+    /// then owns.
+    fn lower_markup_hole(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) -> ValueId {
+        let mark = self.temporaries_mark();
+        let (v, ty) = self.lower_expr(e, None, env, cur);
+        let (operand, operand_ty, symbol, aliasing) = if self.hole_is_carrier(e.span) {
+            (
+                v,
+                Ty::Object,
+                nvs_types::CORE_HTML_MARKUP_TEXT,
+                self.aliasing_read(e),
+            )
+        } else {
+            let (text, aliasing) = self.convert_operand(e, v, ty, env, cur);
+            (text, Ty::Str, nvs_types::CORE_HTML_ESCAPE_TEXT, aliasing)
+        };
+        self.account_for_arg(operand, operand_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        let (bytes, _) = self.emit_fallible(
+            *cur,
+            Ty::Str,
+            InstKind::CoreCall {
+                symbol,
+                args: vec![operand],
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        bytes
+    }
+    /// Whether the markup hole at `span` already holds a `Core\Html\Markup`.
+    ///
+    /// `Self::markup_target` answers the same question about an `as`
+    /// conversion's written target and reads the same table; what differs is
+    /// that this key is an expression's span rather than a type node's, which
+    /// is how the checker's answer about a *value* survives into a phase where
+    /// classes no longer do.
+    fn hole_is_carrier(&self, span: nvs_diagnostics::Span) -> bool {
+        let Some(id) = self.exprs.declared_ty(span) else {
+            return false;
+        };
+        matches!(self.checked_types.get(id), CheckedTy::Class(qname, _)
+            if qname.to_string() == nvs_types::CORE_HTML_MARKUP_CLASS)
     }
     /// Lowers `expr` — an `ExprKind::Index`'s subscript — to a key operand
     /// for [`ir::InstKind::ArrayGet`]/[`ir::InstKind::ArraySet`], in

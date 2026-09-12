@@ -2166,7 +2166,10 @@ impl<'a> Lowering<'a> {
             | ExprKind::ParentExpr
             | ExprKind::Fn(_)
             | ExprKind::Error(_) => {}
-            ExprKind::Interpolated(parts) => {
+            // A markup literal's holes are walked beside an interpolation's
+            // for the same reason: `html`{$i++}`` re-points `$i` exactly as
+            // `"{$i++}"` does, whatever the two literals then denote.
+            ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {
                 for part in parts {
                     if let StringPart::Expr(x) = part {
                         self.collect_reassigned_in_expr(x, seen, out);
