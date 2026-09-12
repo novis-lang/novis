@@ -41,7 +41,7 @@ try {
     echo "a bounded-out decompression answers: nothing at all\n";
 }
 --EXPECT--
-Core\Compress::decompress(): a `Core\Codec::Gzip` frame decompressing past the 16383 octet ceiling is refused rather than truncated (rule:core-classes/decompression-bound). Lower `$maxBytes` or `$maxRatio` to decompress less; neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
+Core\Compress::decompress(): a `Core\Codec::Gzip` frame decompressing past the 16383 octet ceiling is refused rather than truncated (rule:core-classes/decompression-bound). `[limits] max_decompressed` and `[limits] max_decompression_ratio` are the operator's ceiling, which a call naming `$maxBytes` or `$maxRatio` lowers and nothing raises.
 at the bound: 16384
 ratio refused
 a bounded-out decompression answers: nothing at all

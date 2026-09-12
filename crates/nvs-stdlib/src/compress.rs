@@ -511,6 +511,17 @@ pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
     }
 }
 
+/// The largest decoding window a `Core\Codec::Zstd` frame may ask for.
+///
+/// A bound the output ceiling cannot stand in for. A zstd frame names its
+/// window in its header and the decoder holds that much memory before it reads
+/// a block, so six octets of header are enough to ask this process for a
+/// hundred megabytes — which is what the backend allows by default — and a
+/// frame that then decompresses to nothing never reaches [`Bound`] at all. 8
+/// MiB is the window every real encoder stays under at every level, and the
+/// number ADR 0180 fixes for what one decode may hold.
+const ZSTD_WINDOW: u64 = 8 << 20;
+
 /// `data` decompressed under `codec`, refusing rather than truncating at
 /// `bound` — `rule:core-classes/decompression-bound`.
 ///
@@ -519,7 +530,17 @@ pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
 /// costs the ceiling and never the frame's declared size. Reading that one
 /// extra octet is what tells a document that exactly fills the bound from one
 /// that passes it.
-pub(crate) fn decompress_within(codec: Codec, data: &[u8], bound: Bound) -> Result<Vec<u8>, Fault> {
+///
+/// `member` is what a refusal names. This is not `Core\Compress`'s decode
+/// alone — a compressed HTTP reply is decoded here too, under the same bound —
+/// and a program told to lower `$maxBytes` on a member it never called cannot
+/// act on the message.
+pub(crate) fn decompress_within(
+    codec: Codec,
+    data: &[u8],
+    bound: Bound,
+    member: &str,
+) -> Result<Vec<u8>, Fault> {
     let ceiling = bound.output_ceiling(data.len());
     let stop = usize::try_from(ceiling.saturating_add(1)).unwrap_or(usize::MAX);
     let mut out = Vec::new();
@@ -536,16 +557,22 @@ pub(crate) fn decompress_within(codec: Codec, data: &[u8], bound: Bound) -> Resu
         Codec::Brotli => brotli::Decompressor::new(data, 4096)
             .take(stop as u64)
             .read_to_end(&mut out),
-        Codec::Zstd => match ruzstd::decoding::StreamingDecoder::new(data) {
-            Ok(decoder) => decoder.take(stop as u64).read_to_end(&mut out),
-            Err(why) => return Err(malformed(codec, &why.to_string())),
-        },
+        Codec::Zstd => {
+            match ruzstd::decoding::StreamingDecoder::new_with_max_window_size(data, ZSTD_WINDOW) {
+                Ok(decoder) => decoder.take(stop as u64).read_to_end(&mut out),
+                Err(ruzstd::decoding::errors::FrameDecoderError::WindowSizeTooBig {
+                    requested,
+                    ..
+                }) => return Err(over_window(requested, member)),
+                Err(why) => return Err(malformed(codec, &why.to_string(), member)),
+            }
+        }
     };
     if let Err(why) = read {
-        return Err(malformed(codec, &why.to_string()));
+        return Err(malformed(codec, &why.to_string(), member));
     }
     if out.len() as u64 > ceiling {
-        return Err(over_bound(codec, data.len(), bound, ceiling));
+        return Err(over_bound(codec, data.len(), bound, ceiling, member));
     }
     Ok(out)
 }
@@ -555,11 +582,11 @@ pub(crate) fn decompress_within(codec: Codec, data: &[u8], bound: Bound) -> Resu
 /// A `ParseError` for `Core\Json::decode`'s reason — input did not match a
 /// format this code declared — and specifically **not** an `IOError`, so a
 /// caller cannot confuse a hostile input with a failing disk.
-fn malformed(codec: Codec, why: &str) -> Fault {
+fn malformed(codec: Codec, why: &str, member: &str) -> Fault {
     Fault::thrown_as(
         ThrownClass::Parse,
         format!(
-            "Core\\Compress::decompress(): not a well-formed `Core\\Codec::{}` frame: {why}",
+            "{member}: not a well-formed `Core\\Codec::{}` frame: {why}",
             codec.spelled()
         ),
     )
@@ -571,7 +598,7 @@ fn malformed(codec: Codec, why: &str) -> Fault {
 /// first question a caller asks is whether to raise their own argument or ask
 /// the operator about `[limits]` — and only one of those two is ever the
 /// answer.
-fn over_bound(codec: Codec, input: usize, bound: Bound, ceiling: u64) -> Fault {
+fn over_bound(codec: Codec, input: usize, bound: Bound, ceiling: u64, member: &str) -> Fault {
     let half = if ceiling == bound.bytes {
         format!("the {} octet ceiling", bound.bytes)
     } else {
@@ -580,11 +607,29 @@ fn over_bound(codec: Codec, input: usize, bound: Bound, ceiling: u64) -> Fault {
     Fault::thrown_as(
         ThrownClass::Parse,
         format!(
-            "Core\\Compress::decompress(): a `Core\\Codec::{}` frame decompressing past {half} is \
-             refused rather than truncated (rule:core-classes/decompression-bound). Lower \
-             `$maxBytes` or `$maxRatio` to decompress less; neither can be raised past \
-             `[limits] max_decompressed` and `[limits] max_decompression_ratio`.",
+            "{member}: a `Core\\Codec::{}` frame decompressing past {half} is refused rather than \
+             truncated (rule:core-classes/decompression-bound). `[limits] max_decompressed` and \
+             `[limits] max_decompression_ratio` are the operator's ceiling, which a call naming \
+             `$maxBytes` or `$maxRatio` lowers and nothing raises.",
             codec.spelled()
+        ),
+    )
+}
+
+/// The refusal for a zstd frame asking for a window past [`ZSTD_WINDOW`].
+///
+/// A `ParseError` for [`malformed`]'s reason — it is a statement about the
+/// input and not about this machine — and it names both numbers, because the
+/// only thing a caller can do about it is know that the frame was built for a
+/// decoder with more room than this one offers.
+fn over_window(requested: u64, member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Parse,
+        format!(
+            "{member}: the `Core\\Codec::Zstd` frame asks for a {requested} octet decoding \
+             window, past the {ZSTD_WINDOW} this process holds for one. Refused before the \
+             window is allocated, because a frame's header alone asks for it \
+             (rule:core-classes/decompression-bound)."
         ),
     )
 }
@@ -626,7 +671,12 @@ nvs_runtime::nvs_helper! {
             ratio: uint_of(args, 3, "decompress", "`$maxRatio`")?,
         };
         let bound = Bound::ceiling(ctx).within(asked);
-        Ok(Value::bytes(NvsStr::new(&decompress_within(codec, data, bound)?)))
+        Ok(Value::bytes(NvsStr::new(&decompress_within(
+            codec,
+            data,
+            bound,
+            "Core\\Compress::decompress()",
+        )?)))
     }
 }
 
@@ -665,6 +715,45 @@ mod tests {
         }
     }
 
+    /// What these cases decode as, since every refusal names the member it is
+    /// answering.
+    const MEMBER: &str = "Core\\Compress::decompress()";
+
+    /// A zstd frame's window is memory its header asks for and the decoder
+    /// holds before it reads a block, so [`Bound`] never sees it — which is
+    /// why [`ZSTD_WINDOW`] is a second number and why this case is written on
+    /// a frame that has no blocks at all.
+    ///
+    /// Six octets are a whole header: the magic, a descriptor naming neither a
+    /// content size nor a dictionary, and a window descriptor whose exponent
+    /// of 14 asks for 16 MiB.
+    #[test]
+    fn a_zstd_frame_whose_window_passes_8_mib_is_refused_before_it_is_allocated() {
+        let header = [0x28_u8, 0xB5, 0x2F, 0xFD, 0x00, 0x70];
+        let why = refusal(
+            &decompress_within(Codec::Zstd, &header, ROOMY, MEMBER)
+                .expect_err("a window past the ceiling"),
+        );
+        assert!(
+            why.contains("8388608"),
+            "the refusal names the ceiling: {why}"
+        );
+        assert!(
+            why.contains("16777216"),
+            "and the window that was asked for: {why}"
+        );
+
+        // The ceiling is on the window a frame declares and not on what it
+        // decompresses to, so the frames this class writes still round trip.
+        let payload = vec![b'Z'; 64 << 10];
+        let frame = compress_to(Codec::Zstd, &payload).expect("compresses");
+        assert_eq!(
+            decompress_within(Codec::Zstd, &frame, ROOMY, MEMBER)
+                .expect("a frame under the window"),
+            payload
+        );
+    }
+
     /// `rule:core-classes/decompression-bound`'s first half: the class is one
     /// API over every case, and each direction is the other's inverse.
     ///
@@ -682,7 +771,7 @@ mod tests {
                 "{:?} wrote an empty frame",
                 codec.spelled()
             );
-            let back = decompress_within(codec, &frame, ROOMY).expect("decompresses");
+            let back = decompress_within(codec, &frame, ROOMY, MEMBER).expect("decompresses");
             assert_eq!(back, payload, "{} did not round trip", codec.spelled());
             round_tripped += 1;
         }
@@ -742,7 +831,7 @@ mod tests {
                 ratio: 2,
             };
             let why = refusal(
-                &decompress_within(codec, &frame, bound)
+                &decompress_within(codec, &frame, bound, MEMBER)
                     .expect_err("a 64 KiB expansion passes a 2:1 ratio"),
             );
             assert!(
@@ -769,8 +858,9 @@ mod tests {
                 bytes: 1024,
                 ratio: u64::MAX,
             };
-            let why =
-                refusal(&decompress_within(codec, &frame, bound).expect_err("32 KiB passes 1 KiB"));
+            let why = refusal(
+                &decompress_within(codec, &frame, bound, MEMBER).expect_err("32 KiB passes 1 KiB"),
+            );
             assert!(
                 why.contains("1024 octet ceiling"),
                 "the refusal names the ceiling it hit: {why}"
@@ -784,7 +874,8 @@ mod tests {
                 ratio: u64::MAX,
             };
             assert_eq!(
-                decompress_within(codec, &frame, exact).expect("the exact size is accepted"),
+                decompress_within(codec, &frame, exact, MEMBER)
+                    .expect("the exact size is accepted"),
                 payload
             );
         }
@@ -845,7 +936,7 @@ mod tests {
             bytes: u64::MAX,
             ratio: u64::MAX,
         });
-        decompress_within(Codec::Gzip, &frame, bound).expect_err("the ceiling still holds");
+        decompress_within(Codec::Gzip, &frame, bound, MEMBER).expect_err("the ceiling still holds");
     }
 
     /// There is no value, in an argument or in `nvs.toml`, that means "no
@@ -869,11 +960,11 @@ mod tests {
             bytes: u64::MAX,
             ratio: u64::MAX,
         });
-        decompress_within(Codec::Zlib, &frame, widest)
+        decompress_within(Codec::Zlib, &frame, widest, MEMBER)
             .expect_err("`uint`'s maximum is not an escape");
 
         let zero = Bound { bytes: 0, ratio: 0 };
-        decompress_within(Codec::Zlib, &frame, zero).expect_err("zero is a bound of zero");
+        decompress_within(Codec::Zlib, &frame, zero, MEMBER).expect_err("zero is a bound of zero");
 
         let mut ctx = Ctx::buffered();
         ctx.set_config(crate::tests::granting(
