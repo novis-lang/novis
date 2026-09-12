@@ -71,7 +71,17 @@ use rand::RngExt;
 /// "until memory runs out" is that host deciding this process's footprint. Two
 /// megabytes past the point where a caller should be reaching for
 /// `Core\Http\Client::stream` instead.
-const REPLY_CEILING: usize = 8 * 1024 * 1024;
+pub(super) const REPLY_CEILING: usize = 8 * 1024 * 1024;
+
+/// The most head a reply may carry before it is refused.
+///
+/// [`REPLY_CEILING`]'s argument one level down, and the reason there is a
+/// second number: the head arrives before anything about the reply is known,
+/// so it is the one part of a reply no framing bounds. A streamed call reads
+/// only this much before it hands the connection on, so without a cap here an
+/// origin that never ends its header section would be an unbounded hold that
+/// the body's own two bounds never see.
+const HEAD_CEILING: usize = 64 * 1024;
 
 /// The longest line [`super::stream`]'s readers will frame out of a reply.
 ///
@@ -114,6 +124,13 @@ pub(crate) struct Call<'a> {
     pub(crate) deadline: Instant,
     /// The handshake's own bound, which is separate from the total.
     pub(crate) connect_timeout: Duration,
+    /// The longest silence a streamed body may hold — read by
+    /// [`send_streamed`] and by nothing a buffered call reaches, since
+    /// [`Call::deadline`] is what covers one of those whole.
+    pub(crate) idle: Duration,
+    /// The longest a streamed body may take altogether, counted from the call.
+    /// [`Call::idle`]'s other half, and read in the same one place.
+    pub(crate) max_duration: Duration,
     /// The caller's own headers, in the order the array wrote them.
     pub(crate) headers: Vec<(String, String)>,
     /// How many redirect hops may be followed. Zero is the default.
@@ -240,6 +257,295 @@ pub(crate) struct Reply {
     pub(crate) headers: Vec<(String, String)>,
 }
 
+/// One connected socket, plaintext or inside a TLS session.
+///
+/// A trait object rather than the type parameter [`exchange`] would otherwise
+/// take, because a streamed reply hands the connection **back**: [`one`] is the
+/// last place the two spellings are still distinct, and boxing there is what
+/// lets the framing, the ceiling and the reader a program walks be written
+/// once.
+pub(crate) trait Connection: Read + Write {
+    /// Bounds every wait on this connection by `at`, or lifts the bound —
+    /// `NvsTcp::set_deadline`, which owns what a deadline is.
+    fn bound_by(&mut self, at: Option<Instant>);
+}
+
+impl Connection for NvsTcp {
+    fn bound_by(&mut self, at: Option<Instant>) {
+        self.set_deadline(at);
+    }
+}
+
+impl Connection for NvsTls<NvsTcp> {
+    fn bound_by(&mut self, at: Option<Instant>) {
+        self.set_deadline(at);
+    }
+}
+
+/// What delimits the body that follows a head.
+#[derive(Clone, Copy)]
+enum Frame {
+    /// `Transfer-Encoding: chunked` — a hexadecimal length before each piece.
+    Chunked,
+    /// `Content-Length` — this many octets of body still to come.
+    Sized(u64),
+    /// Neither field: the body is over when the connection is.
+    UntilClose,
+}
+
+/// What bounds a body once its head has been read.
+///
+/// The two arms are the two members, and they are an enum rather than a pair of
+/// durations so that neither call can be given the other's bounds by arithmetic
+/// — a buffered reply under an `idle` would be the wait
+/// `rule:http-server/no-spelling-for-an-unbounded-wait` says has no spelling,
+/// reached by passing the wrong field.
+#[derive(Clone, Copy)]
+enum Bounds {
+    /// A buffered reply's: the one deadline that covers the whole call
+    /// (`rule:http-server/one-deadline-covers-the-whole-call`).
+    Whole,
+    /// A streamed body's own two, which are the bag keys
+    /// `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
+    /// names.
+    Streamed {
+        /// The longest gap between two reads that deliver anything.
+        idle: Duration,
+        /// When the body stops being allowed to say anything more.
+        until: Instant,
+    },
+}
+
+/// A reply's body, read off the wire as a program asks for it.
+///
+/// This is what makes a streamed reply streamed: [`exchange`] stops at the end
+/// of the head and hands the connection here, so what follows is framed one
+/// read at a time rather than gathered whole first. A **buffered** reply is the
+/// same reader drained in one go ([`Incoming::whole`]), which is why there is
+/// one framing implementation and one place a bound is judged rather than two
+/// of each.
+///
+/// **What it spends:** one read buffer, whatever the framing has pulled and no
+/// reader has taken yet, and — under chunked framing alone — at most one
+/// incomplete chunk waiting for the rest of itself.
+pub(crate) struct Incoming {
+    /// The connection the rest of the body is still arriving on, or `None` once
+    /// the framing has ended it and for a body that was whole to begin with.
+    source: Option<Box<dyn Connection>>,
+    /// Body octets pulled and framed, and not yet taken by a reader.
+    held: Vec<u8>,
+    /// Octets pulled and not yet framed, which only chunked framing ever leaves
+    /// anything in.
+    raw: Vec<u8>,
+    /// What delimits this body.
+    frame: Frame,
+    /// Whether the framing has said there is no more.
+    ended: bool,
+    /// The longest silence this body may hold.
+    idle: Duration,
+    /// The instant it stops being allowed to say anything more.
+    until: Instant,
+    /// What a refusal names, owned because a stream outlives its [`Call`].
+    member: String,
+}
+
+impl Incoming {
+    /// A body still on `source`, where `raw` is whatever arrived beside the
+    /// head.
+    ///
+    /// # Errors
+    ///
+    /// [`Incoming::deframe`]'s, for a chunk header that is not a length.
+    fn over(
+        source: Box<dyn Connection>,
+        raw: Vec<u8>,
+        frame: Frame,
+        idle: Duration,
+        until: Instant,
+        member: &str,
+    ) -> Result<Self, Fault> {
+        let mut body = Self {
+            source: Some(source),
+            held: Vec::new(),
+            raw,
+            frame,
+            ended: false,
+            idle,
+            until,
+            member: member.to_owned(),
+        };
+        // The octets that came with the head are already here, and a reply
+        // short enough to arrive in one read is over before the first `pull`.
+        if body.deframe()? {
+            body.ended = true;
+            body.source = None;
+        }
+        Ok(body)
+    }
+
+    /// The octets framed and not yet taken.
+    pub(crate) fn held(&self) -> &[u8] {
+        &self.held
+    }
+
+    /// Waits for more body, answering whether any arrived — `false` is the end
+    /// of the body, and a silence is a throw rather than an end.
+    ///
+    /// # Errors
+    ///
+    /// `TimeoutError` for a silence past `idle` or a body past its lifetime,
+    /// `IOError` for a connection that failed mid-body, and a `RuntimeError`
+    /// for chunked framing the other end never finished.
+    pub(crate) fn pull(&mut self) -> Result<bool, Fault> {
+        let had = self.held.len();
+        let mut buffer = [0_u8; 8192];
+        while !self.ended {
+            let now = Instant::now();
+            if now >= self.until {
+                return Err(outlived(&self.member));
+            }
+            let Some(mut source) = self.source.take() else {
+                self.ended = true;
+                break;
+            };
+            // Both bounds on the one wait: whichever is nearer is what the
+            // socket parks under, and which of them it was is read back off the
+            // clock when it fires.
+            source.bound_by(Some(self.until.min(now + self.idle)));
+            match source.read(&mut buffer) {
+                Ok(0) => {
+                    self.ended = true;
+                    if matches!(self.frame, Frame::Chunked) {
+                        return Err(malformed(
+                            &self.member,
+                            "a chunk is shorter than its own header said",
+                        ));
+                    }
+                }
+                Ok(read) => {
+                    self.source = Some(source);
+                    self.raw.extend_from_slice(&buffer[..read]);
+                    if self.deframe()? {
+                        self.ended = true;
+                        self.source = None;
+                    }
+                }
+                Err(err) if err.kind() == ErrorKind::Interrupted => self.source = Some(source),
+                Err(err) if err.kind() == ErrorKind::TimedOut => {
+                    return Err(if Instant::now() >= self.until {
+                        outlived(&self.member)
+                    } else {
+                        silent(&self.member, self.idle)
+                    });
+                }
+                Err(err) => {
+                    return Err(Fault::thrown_as(
+                        ThrownClass::Io,
+                        format!("{}: reading the reply failed — {err}", self.member),
+                    ));
+                }
+            }
+            if self.held.len() > had {
+                return Ok(true);
+            }
+        }
+        Ok(self.held.len() > had)
+    }
+
+    /// The whole body, under `ceiling`.
+    ///
+    /// # Errors
+    ///
+    /// [`Incoming::pull`]'s, and a `RuntimeError` for a body past `ceiling`.
+    pub(crate) fn whole(&mut self, ceiling: usize) -> Result<Vec<u8>, Fault> {
+        while self.pull()? {
+            if self.held().len() > ceiling {
+                return Err(Fault::thrown(format!(
+                    "{}: the reply passed {ceiling} bytes, which is as much of one another host \
+                     is allowed to make this process hold",
+                    self.member
+                )));
+            }
+        }
+        Ok(std::mem::take(&mut self.held))
+    }
+
+    /// Moves everything [`Incoming::raw`] now holds that is body into
+    /// [`Incoming::held`], answering whether the framing has ended the body.
+    ///
+    /// # Errors
+    ///
+    /// A `RuntimeError` for a chunk header that is not a hexadecimal length.
+    fn deframe(&mut self) -> Result<bool, Fault> {
+        match self.frame {
+            Frame::Chunked => self.dechunk(),
+            Frame::Sized(left) => {
+                let take = usize::try_from(left)
+                    .unwrap_or(usize::MAX)
+                    .min(self.raw.len());
+                self.held.extend(self.raw.drain(..take));
+                let left = left - u64::try_from(take).unwrap_or(u64::MAX);
+                self.frame = Frame::Sized(left);
+                Ok(left == 0)
+            }
+            Frame::UntilClose => {
+                self.held.append(&mut self.raw);
+                Ok(false)
+            }
+        }
+    }
+
+    /// As many whole chunks as [`Incoming::raw`] holds, moved across, leaving
+    /// the part-chunk at the end for the read that completes it.
+    ///
+    /// # Errors
+    ///
+    /// A `RuntimeError` for a chunk header that is not text or not a length.
+    fn dechunk(&mut self) -> Result<bool, Fault> {
+        let mut from = 0_usize;
+        let ended = loop {
+            let Some(end) = find(&self.raw[from..], b"\r\n") else {
+                break false;
+            };
+            let header = std::str::from_utf8(&self.raw[from..from + end])
+                .map_err(|_| malformed(&self.member, "a chunk header is not text"))?;
+            let size =
+                usize::from_str_radix(header.split(';').next().unwrap_or_default().trim(), 16)
+                    .map_err(|_| {
+                        malformed(&self.member, "a chunk header is not a hexadecimal length")
+                    })?;
+            let at = from + end + 2;
+            if size == 0 {
+                // Whatever trailer follows the last chunk is not body, and the
+                // connection is about to be dropped with it.
+                from = self.raw.len();
+                break true;
+            }
+            if self.raw.len() < at + size + 2 {
+                break false;
+            }
+            self.held.extend_from_slice(&self.raw[at..at + size]);
+            from = at + size + 2;
+        };
+        self.raw.drain(..from);
+        Ok(ended)
+    }
+}
+
+/// A reply whose head has arrived and whose body has not.
+///
+/// What every attempt produces, and what `Core\Http\Client::stream` hands a
+/// program: a buffered call is this with [`Incoming::whole`] called on it, so
+/// the two members read one reply implementation rather than two.
+pub(crate) struct Streamed {
+    /// The status line's code.
+    pub(crate) status: i64,
+    /// Every header, as [`Reply::headers`] describes them.
+    pub(crate) headers: Vec<(String, String)>,
+    /// The rest of the reply, still on the socket.
+    pub(crate) body: Incoming,
+}
+
 /// What one attempt produced: an answer, or a failure worth trying again.
 ///
 /// The distinction is `rule:http-server/retry-is-opt-in-jittered-and-closed`
@@ -249,7 +555,7 @@ pub(crate) struct Reply {
 /// change, so it leaves as a `Fault` and never sleeps first.
 enum Attempt {
     /// The other end answered, whatever it said.
-    Answered(Reply),
+    Answered(Streamed),
     /// The socket did not get there, with the sentence a refusal would carry.
     Failed(String),
 }
@@ -285,15 +591,16 @@ struct Parts {
 /// attempt could not reach the address, a `RuntimeError` for a reply that is
 /// not HTTP or a body that is not text, and whatever `repin` refuses a hop
 /// with.
-pub(crate) fn send(
+fn sent(
     call: &Call<'_>,
     repin: &mut dyn FnMut(&str) -> Result<IpAddr, Fault>,
-) -> Result<Reply, Fault> {
+    bounds: Bounds,
+) -> Result<Streamed, Fault> {
     let mut url = call.url.clone();
     let mut address = call.address;
     let mut hops = 0_u32;
     loop {
-        let reply = attempts(call, &url, address)?;
+        let reply = attempts(call, &url, address, bounds)?;
         let Some(location) = redirect_of(&reply) else {
             return Ok(reply);
         };
@@ -309,15 +616,60 @@ pub(crate) fn send(
     }
 }
 
+/// A buffered reply, whole: [`sent`] under the one deadline, drained.
+///
+/// # Errors
+///
+/// [`sent`]'s, and a `RuntimeError` for a body past [`REPLY_CEILING`].
+pub(crate) fn send(
+    call: &Call<'_>,
+    repin: &mut dyn FnMut(&str) -> Result<IpAddr, Fault>,
+) -> Result<Reply, Fault> {
+    let mut answer = sent(call, repin, Bounds::Whole)?;
+    let body = answer.body.whole(REPLY_CEILING)?;
+    Ok(Reply {
+        status: answer.status,
+        body,
+        headers: answer.headers,
+    })
+}
+
+/// The same call, stopped at the head, with the body left on the socket.
+///
+/// The head is under [`Call::deadline`] exactly as a buffered call's is — a
+/// stream's own two bounds start where the head ends, which is why every retry
+/// and every hop below is the same code and only what comes after them differs
+/// (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
+///
+/// # Errors
+///
+/// [`sent`]'s. The body's own refusals arrive later, at the reader
+/// ([`Incoming::pull`]).
+pub(crate) fn send_streamed(
+    call: &Call<'_>,
+    repin: &mut dyn FnMut(&str) -> Result<IpAddr, Fault>,
+) -> Result<Streamed, Fault> {
+    let bounds = Bounds::Streamed {
+        idle: call.idle,
+        until: Instant::now() + call.max_duration,
+    };
+    sent(call, repin, bounds)
+}
+
 /// One URL's worth of attempts, under the call's own deadline.
-fn attempts(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Reply, Fault> {
+fn attempts(
+    call: &Call<'_>,
+    url: &str,
+    address: IpAddr,
+    bounds: Bounds,
+) -> Result<Streamed, Fault> {
     let mut attempt = 0_u32;
     loop {
         if Instant::now() >= call.deadline {
             return Err(expired(call.member));
         }
         let last = attempt + 1 >= call.attempts;
-        let wait = match one(call, url, address)? {
+        let wait = match one(call, url, address, bounds)? {
             Attempt::Answered(reply) => {
                 if last || !retryable(reply.status) {
                     return Ok(reply);
@@ -352,7 +704,7 @@ fn attempts(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Reply, Fault>
 }
 
 /// One connection, one request, one reply.
-fn one(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Attempt, Fault> {
+fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<Attempt, Fault> {
     let parts = parts(url, call.member)?;
     let request = compose(call, &parts)?;
     let socket = SocketAddr::new(address, parts.port);
@@ -376,10 +728,10 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Attempt, Fault> {
     stream.set_deadline(Some(call.deadline));
 
     if !parts.tls {
-        return exchange(call, &mut stream, &request, socket);
+        return exchange(call, Box::new(stream), &request, socket, bounds);
     }
     match NvsTls::over(stream, &parts.host) {
-        Ok(mut tls) => exchange(call, &mut tls, &request, socket),
+        Ok(tls) => exchange(call, Box::new(tls), &request, socket, bounds),
         // A name or a certificate this build will not accept is settled: the
         // module doc's second paragraph is why only one of these two shapes is
         // handed back for another attempt.
@@ -395,17 +747,21 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr) -> Result<Attempt, Fault> {
     }
 }
 
-/// The request out and the reply back, over whatever is already connected.
+/// The request out and the reply's **head** back, over whatever is already
+/// connected.
 ///
-/// Generic over the stream so `http` and `https` share one copy of the framing,
-/// the ceiling and the failure split — the plaintext side of a TLS session is
-/// the same `Read` and `Write` as a bare socket, which is the whole reason
-/// `nvs-host` exposes it that way.
+/// It stops at the blank line and hands the connection to [`Incoming`] with
+/// whatever octets came after it in the same reads. A buffered call drains that
+/// reader immediately and a streamed one walks it, so `http` and `https` share
+/// one copy of the framing, the ceiling and the failure split — the plaintext
+/// side of a TLS session is the same `Read` and `Write` as a bare socket, which
+/// is the whole reason `nvs-host` exposes it that way.
 fn exchange(
     call: &Call<'_>,
-    stream: &mut (impl Read + Write),
+    mut stream: Box<dyn Connection>,
     request: &str,
     socket: SocketAddr,
+    bounds: Bounds,
 ) -> Result<Attempt, Fault> {
     if let Err(err) = stream.write_all(request.as_bytes()) {
         return Ok(Attempt::Failed(format!(
@@ -413,7 +769,7 @@ fn exchange(
         )));
     }
     if let Some(body) = &call.body
-        && let Some(err) = write_body(body, stream, call.member)?
+        && let Some(err) = write_body(body, &mut stream, call.member)?
     {
         return Ok(Attempt::Failed(format!(
             "sending to {socket} failed: {err}"
@@ -427,24 +783,43 @@ fn exchange(
 
     let mut raw = Vec::new();
     let mut buffer = [0_u8; 8192];
-    loop {
+    let end = loop {
+        if let Some(end) = find(&raw, b"\r\n\r\n") {
+            break end;
+        }
+        if raw.len() > HEAD_CEILING {
+            return Err(Fault::thrown(format!(
+                "{}: the reply's header section passed {HEAD_CEILING} bytes without ending, \
+                 which is more head than an origin has to send before this call will hold one",
+                call.member
+            )));
+        }
         match stream.read(&mut buffer) {
-            Ok(0) => break,
-            Ok(read) => {
-                raw.extend_from_slice(&buffer[..read]);
-                if raw.len() > REPLY_CEILING {
-                    return Err(Fault::thrown(format!(
-                        "{}: the reply passed {REPLY_CEILING} bytes, which is as much of one \
-                         another host is allowed to make this process hold",
-                        call.member
-                    )));
-                }
-            }
+            // A connection that closed before the blank line is a statement
+            // about the other end, not weather: a second identical request
+            // gets the same non-reply, so it leaves as a `Fault`.
+            Ok(0) => return Err(malformed(call.member, "no header section ended it")),
+            Ok(read) => raw.extend_from_slice(&buffer[..read]),
             Err(err) if err.kind() == ErrorKind::Interrupted => {}
             Err(err) => return Ok(Attempt::Failed(format!("reading {socket} failed: {err}"))),
         }
-    }
-    parse(&raw, call.member).map(Attempt::Answered)
+    };
+
+    let (status, headers) = head_of(&raw[..end], call.member)?;
+    let rest = raw.split_off(end + 4);
+    let (idle, until) = match bounds {
+        Bounds::Whole => (
+            call.deadline.saturating_duration_since(Instant::now()),
+            call.deadline,
+        ),
+        Bounds::Streamed { idle, until } => (idle, until),
+    };
+    let body = Incoming::over(stream, rest, frame_of(&headers), idle, until, call.member)?;
+    Ok(Attempt::Answered(Streamed {
+        status,
+        headers,
+        body,
+    }))
 }
 
 /// The request text — the line, the headers this module always sends, and the
@@ -655,9 +1030,9 @@ fn resolved(base: &str, location: &str, member: &str) -> Result<String, Fault> {
 }
 
 /// The `Location` of a reply that is a redirect, or `None` for one that is not.
-fn redirect_of(reply: &Reply) -> Option<String> {
+fn redirect_of(reply: &Streamed) -> Option<String> {
     matches!(reply.status, 301 | 302 | 303 | 307 | 308)
-        .then(|| header(reply, "location"))
+        .then(|| header(&reply.headers, "location"))
         .flatten()
         .map(str::to_owned)
 }
@@ -689,11 +1064,11 @@ fn retryable(status: i64) -> bool {
 /// deadline, so a `Retry-After` longer than the call's remaining budget ends it
 /// now instead of sleeping through it
 /// (`rule:http-server/one-deadline-covers-the-whole-call`).
-fn retry_after(reply: &Reply) -> Option<Duration> {
+fn retry_after(reply: &Streamed) -> Option<Duration> {
     if !matches!(reply.status, 429 | 503) {
         return None;
     }
-    let value = header(reply, "retry-after")?.trim();
+    let value = header(&reply.headers, "retry-after")?.trim();
     if let Ok(seconds) = value.parse::<u64>() {
         return Some(Duration::from_secs(seconds));
     }
@@ -788,82 +1163,79 @@ fn expired(member: &str) -> Fault {
 }
 
 /// The first value under `name`, which is already lower-cased in [`Reply`].
-fn header<'a>(reply: &'a Reply, name: &str) -> Option<&'a str> {
-    reply
-        .headers
+fn header<'a>(headers: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    headers
         .iter()
         .find(|(held, _)| held == name)
         .map(|(_, value)| value.as_str())
 }
 
-/// The reply bytes, as a status, a header list and a decoded body.
-fn parse(raw: &[u8], member: &str) -> Result<Reply, Fault> {
-    let malformed = |why: &str| {
-        Fault::thrown(format!(
-            "{member}: the other end answered with something that is not an HTTP reply — {why}"
-        ))
-    };
-    let end = find(raw, b"\r\n\r\n").ok_or_else(|| malformed("no header section ended it"))?;
-    let head = std::str::from_utf8(&raw[..end])
-        .map_err(|_| malformed("its header section is not text"))?;
+/// A reply that is not HTTP, as every reading of one is refused.
+fn malformed(member: &str, why: &str) -> Fault {
+    Fault::thrown(format!(
+        "{member}: the other end answered with something that is not an HTTP reply — {why}"
+    ))
+}
+
+/// A streamed body that said nothing for longer than its `idle`.
+fn silent(member: &str, idle: Duration) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Timeout,
+        format!(
+            "{member}: the reply sent nothing for {idle:?}, which is as long a silence as this \
+             stream's `idle` allows"
+        ),
+    )
+}
+
+/// A streamed body still arriving past its `maxDuration`.
+fn outlived(member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Timeout,
+        format!(
+            "{member}: the reply was still arriving when this stream's `maxDuration` ran out, \
+             which bounds the whole body however much of it is left"
+        ),
+    )
+}
+
+/// A reply's header section, as a status and a header list.
+fn head_of(head: &[u8], member: &str) -> Result<(i64, Vec<(String, String)>), Fault> {
+    let head = std::str::from_utf8(head)
+        .map_err(|_| malformed(member, "its header section is not text"))?;
 
     let mut lines = head.split("\r\n");
     let status_line = lines.next().unwrap_or_default();
     let mut fields = status_line.splitn(3, ' ');
     if !fields.next().unwrap_or_default().starts_with("HTTP/") {
-        return Err(malformed("its first line is not a status line"));
+        return Err(malformed(member, "its first line is not a status line"));
     }
     let status: i64 = fields
         .next()
         .and_then(|code| code.parse().ok())
-        .ok_or_else(|| malformed("its status line carries no status code"))?;
+        .ok_or_else(|| malformed(member, "its status line carries no status code"))?;
 
     let headers: Vec<(String, String)> = lines
         .filter_map(|line| line.split_once(':'))
         .map(|(name, value)| (name.trim().to_ascii_lowercase(), value.trim().to_owned()))
         .collect();
-
-    let reply = Reply {
-        status,
-        body: Vec::new(),
-        headers,
-    };
-    let rest = &raw[end + 4..];
-    let body = if header(&reply, "transfer-encoding")
-        .is_some_and(|value| value.to_ascii_lowercase().contains("chunked"))
-    {
-        dechunk(rest, &malformed)?
-    } else if let Some(length) =
-        header(&reply, "content-length").and_then(|value| value.trim().parse::<usize>().ok())
-    {
-        rest.get(..length.min(rest.len()))
-            .unwrap_or_default()
-            .to_vec()
-    } else {
-        rest.to_vec()
-    };
-
-    Ok(Reply { body, ..reply })
+    Ok((status, headers))
 }
 
-/// A chunked body, joined.
-fn dechunk(mut rest: &[u8], malformed: &dyn Fn(&str) -> Fault) -> Result<Vec<u8>, Fault> {
-    let mut out = Vec::new();
-    loop {
-        let end = find(rest, b"\r\n").ok_or_else(|| malformed("a chunk header never ended"))?;
-        let header = std::str::from_utf8(&rest[..end])
-            .map_err(|_| malformed("a chunk header is not text"))?;
-        let size = usize::from_str_radix(header.split(';').next().unwrap_or_default().trim(), 16)
-            .map_err(|_| malformed("a chunk header is not a hexadecimal length"))?;
-        rest = &rest[end + 2..];
-        if size == 0 {
-            return Ok(out);
-        }
-        if rest.len() < size + 2 {
-            return Err(malformed("a chunk is shorter than its own header said"));
-        }
-        out.extend_from_slice(&rest[..size]);
-        rest = &rest[size + 2..];
+/// What the head says delimits the body under it.
+///
+/// The order is RFC 9112 § 6.3's: a `Transfer-Encoding` settles the framing and
+/// a `Content-Length` beside it says nothing, which is the reading that makes
+/// request smuggling a parse disagreement rather than a choice.
+fn frame_of(headers: &[(String, String)]) -> Frame {
+    if header(headers, "transfer-encoding")
+        .is_some_and(|value| value.to_ascii_lowercase().contains("chunked"))
+    {
+        return Frame::Chunked;
+    }
+    match header(headers, "content-length").and_then(|value| value.trim().parse::<u64>().ok()) {
+        Some(length) => Frame::Sized(length),
+        None => Frame::UntilClose,
     }
 }
 
@@ -876,7 +1248,7 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Call, Reply, backoff, dechunk, parse, send};
+    use super::{Call, Incoming, Streamed, backoff, send, send_streamed};
     use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
     use nvs_host::scheduler::Scheduler;
     use nvs_runtime::{Ctx, Fault, OutputSink, TaskRoot};
@@ -920,6 +1292,8 @@ mod tests {
             address: at.ip(),
             deadline: Instant::now() + Duration::from_secs(10),
             connect_timeout: Duration::from_secs(5),
+            idle: Duration::from_secs(30),
+            max_duration: Duration::from_secs(300),
             headers: Vec::new(),
             redirects: 0,
             attempts: 1,
@@ -933,6 +1307,38 @@ mod tests {
     /// What a redirect hop must never be asked for.
     fn never(_url: &str) -> Result<IpAddr, Fault> {
         panic!("a call with no redirect hop must not re-pin")
+    }
+
+    /// A body a case wrote out in full, so [`Incoming`] can be driven over one
+    /// without a socket: the cursor is empty, so the first read is the close
+    /// that ends an unframed body.
+    impl super::Connection for std::io::Cursor<Vec<u8>> {
+        fn bound_by(&mut self, _at: Option<Instant>) {}
+    }
+
+    /// A whole reply read the way a socket delivers one — the head off the
+    /// front, the rest through the framing — as the answer and its drained
+    /// body.
+    fn parsed(raw: &[u8]) -> Result<(Streamed, Vec<u8>), Fault> {
+        let end = super::find(raw, b"\r\n\r\n").expect("a head this case wrote");
+        let (status, headers) = super::head_of(&raw[..end], "test")?;
+        let mut body = Incoming::over(
+            Box::new(std::io::Cursor::new(Vec::new())),
+            raw[end + 4..].to_vec(),
+            super::frame_of(&headers),
+            Duration::from_secs(1),
+            Instant::now() + Duration::from_secs(10),
+            "test",
+        )?;
+        let octets = body.whole(super::REPLY_CEILING)?;
+        Ok((
+            Streamed {
+                status,
+                headers,
+                body,
+            },
+            octets,
+        ))
     }
 
     /// The two slots a `Core\Http\Response` holds are what a real exchange
@@ -1081,12 +1487,26 @@ mod tests {
     }
 
     /// A reply with `status` and the one header a `Retry-After` test needs.
-    fn told(status: i64, after: &str) -> Reply {
-        Reply {
+    fn told(status: i64, after: &str) -> Streamed {
+        Streamed {
             status,
-            body: Vec::new(),
             headers: vec![("retry-after".to_owned(), after.to_owned())],
+            body: empty_body(),
         }
+    }
+
+    /// A body with nothing in it and nothing behind it, for the cases that
+    /// assert on a head alone.
+    fn empty_body() -> Incoming {
+        Incoming::over(
+            Box::new(std::io::Cursor::new(Vec::new())),
+            Vec::new(),
+            super::Frame::UntilClose,
+            Duration::from_secs(1),
+            Instant::now() + Duration::from_secs(10),
+            "test",
+        )
+        .expect("nothing to frame")
     }
 
     /// `at`, as the IMF-fixdate an origin would have written it.
@@ -1243,8 +1663,8 @@ mod tests {
     fn a_chunked_body_is_joined_before_it_is_a_string() {
         let raw = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n\
                     2\r\nok\r\n3\r\n ay\r\n0\r\n\r\n";
-        let reply = parse(raw, "test").expect("a chunked reply");
-        assert_eq!(reply.body, b"ok ay");
+        let (_, body) = parsed(raw).expect("a chunked reply");
+        assert_eq!(body, b"ok ay");
     }
 
     /// A body that is not UTF-8 arrives whole and is not repaired here —
@@ -1255,8 +1675,8 @@ mod tests {
     fn a_body_that_is_not_text_arrives_whole() {
         let mut raw = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n".to_vec();
         raw.extend_from_slice(&[0xff, 0xfe]);
-        let reply = parse(&raw, "test").expect("bytes that are not text");
-        assert_eq!(reply.body, [0xff, 0xfe]);
+        let (_, body) = parsed(&raw).expect("bytes that are not text");
+        assert_eq!(body, [0xff, 0xfe]);
     }
 
     /// A header a caller wrote cannot end its own line: a value carrying
@@ -1282,15 +1702,15 @@ mod tests {
     /// so it fails rather than being guessed at.
     #[test]
     fn a_chunk_header_that_is_not_a_length_fails() {
-        let malformed = |why: &str| Fault::thrown(format!("test: {why}"));
-        assert!(dechunk(b"zz\r\nok\r\n0\r\n\r\n", &malformed).is_err());
+        let raw = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\nok\r\n0\r\n\r\n";
+        assert!(parsed(raw).is_err());
     }
 
     /// The header lookup is case-insensitive because HTTP field names are.
     #[test]
     fn a_header_is_found_whatever_case_the_origin_wrote_it_in() {
         let raw = b"HTTP/1.1 301 Moved\r\nLOCATION: /next\r\nContent-Length: 0\r\n\r\n";
-        let reply: Reply = parse(raw, "test").expect("a redirect");
+        let (reply, _) = parsed(raw).expect("a redirect");
         assert_eq!(super::redirect_of(&reply).as_deref(), Some("/next"));
     }
 
@@ -1501,6 +1921,139 @@ mod tests {
         assert_eq!(
             second.written, b"the second effort",
             "the second attempt sent what the first one read"
+        );
+    }
+
+    /// A listener that answers with `head` and then holds the connection open
+    /// saying nothing, until the channel tells it to let go.
+    fn quiet(head: &'static str) -> (SocketAddr, mpsc::Sender<()>, std::thread::JoinHandle<()>) {
+        listening(head, false)
+    }
+
+    /// The same, dribbling a byte every few milliseconds instead of going
+    /// quiet — every read lands inside any `idle` worth naming, which is the
+    /// case only a lifetime ends.
+    fn dribbling(
+        head: &'static str,
+    ) -> (SocketAddr, mpsc::Sender<()>, std::thread::JoinHandle<()>) {
+        listening(head, true)
+    }
+
+    /// The two above: answer one connection with `head`, then either dribble or
+    /// say nothing until the sender goes or speaks.
+    fn listening(
+        head: &'static str,
+        dribble: bool,
+    ) -> (SocketAddr, mpsc::Sender<()>, std::thread::JoinHandle<()>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        let (done, told) = mpsc::channel();
+        let served = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("a connection");
+            let mut request = [0_u8; 4096];
+            let _ = stream.read(&mut request);
+            let _ = stream.write_all(head.as_bytes());
+            let _ = stream.flush();
+            while matches!(told.try_recv(), Err(mpsc::TryRecvError::Empty)) {
+                if dribble && (stream.write_all(b".").is_err() || stream.flush().is_err()) {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        });
+        (at, done, served)
+    }
+
+    /// `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s
+    /// first bound. The head arrives and the body never does, and what ends the
+    /// call is the silence — well inside a `deadline` that has not moved, which
+    /// is the whole point of the stream carrying two bounds of its own.
+    #[test]
+    fn stream_idle_ends_a_silent_reply() {
+        let (at, done, served) = quiet("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n");
+        let mut asking = call(at, "test");
+        asking.idle = Duration::from_millis(50);
+
+        let began = Instant::now();
+        let mut reply = send_streamed(&asking, &mut never).expect("a head");
+        assert_eq!(reply.status, 200);
+        let refused = reply.body.pull().expect_err("a body that never came");
+        assert!(
+            format!("{refused:?}").contains("sent nothing for"),
+            "{refused:?}"
+        );
+        assert!(
+            began.elapsed() < Duration::from_secs(5),
+            "the silence ended it and not the ten-second deadline"
+        );
+
+        done.send(()).ok();
+        served.join().expect("the origin thread");
+    }
+
+    /// The same rule's second bound, and the case the first one cannot reach:
+    /// an origin sending a byte at a time passes every idle check ever written,
+    /// so the walk is ended by the lifetime or by nothing.
+    #[test]
+    fn stream_max_duration_ends_an_endless_reply() {
+        let (at, done, served) = dribbling("HTTP/1.1 200 OK\r\n\r\n");
+        let mut asking = call(at, "test");
+        asking.idle = Duration::from_secs(30);
+        asking.max_duration = Duration::from_millis(300);
+
+        let mut reply = send_streamed(&asking, &mut never).expect("a head");
+        let refused = loop {
+            match reply.body.pull() {
+                Ok(true) => {}
+                Ok(false) => panic!("an origin that never stops has no end to reach"),
+                Err(err) => break err,
+            }
+        };
+        assert!(
+            format!("{refused:?}").contains("`maxDuration`"),
+            "{refused:?}"
+        );
+
+        done.send(()).ok();
+        served.join().expect("the origin thread");
+    }
+
+    /// § 6's retry, and where it stops. The head is retried like any other
+    /// answer; once it has arrived the body is on one connection, and a body
+    /// the origin cut short is not a second request — retrying there would send
+    /// the request twice for one walk and splice the second reply's tail onto
+    /// the first one's.
+    #[test]
+    fn stream_is_retried_before_its_head_and_never_after() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 503 Busy\r\nContent-Length: 0\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nok\r\n",
+        ]);
+        let mut asking = call(at, "test");
+        asking.attempts = 2;
+
+        let mut reply = send_streamed(&asking, &mut never).expect("the second attempt's head");
+        assert_eq!(
+            reply.status, 200,
+            "the `503` was retried, not answered with"
+        );
+        assert_eq!(
+            reply.body.held(),
+            b"ok",
+            "the chunk that arrived in the same reads as the head is already framed"
+        );
+
+        let cut = reply.body.pull().expect_err("a body the origin cut short");
+        assert!(
+            format!("{cut:?}").contains("shorter than its own header"),
+            "{cut:?}"
+        );
+
+        let asked = served.join().expect("the origin thread");
+        assert_eq!(
+            asked.len(),
+            2,
+            "the head was asked for twice and the body for never"
         );
     }
 }

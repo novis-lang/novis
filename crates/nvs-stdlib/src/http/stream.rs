@@ -796,7 +796,7 @@ nvs_runtime::nvs_helper! {
         let bag = &args[1..];
         judge_bound(bag, IDLE, "idle", STREAM_MEMBER)?;
         judge_bound(bag, MAX_DURATION, "maxDuration", STREAM_MEMBER)?;
-        let (status, body, headers) = exchanged(ctx, bag, "stream", &verb)?;
+        let (status, body, headers) = exchanged(ctx, bag, "stream", &verb, true)?;
         Ok(crate::instance::build(
             &STREAM,
             [

@@ -853,6 +853,10 @@ const TARGET_ADDRESS_SLOT: usize = 1;
 const DEFAULT_DEADLINE: Duration = Duration::from_secs(30);
 /// See [`DEFAULT_DEADLINE`].
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+/// See [`DEFAULT_DEADLINE`]. `[http.client] idle`'s shipped value.
+const DEFAULT_IDLE: Duration = Duration::from_secs(30);
+/// See [`DEFAULT_DEADLINE`]. `[http.client] max_duration`'s shipped value.
+const DEFAULT_MAX_DURATION: Duration = Duration::from_secs(300);
 /// § 6's base delay, which the same section leaves out of the block because it
 /// is only reachable once a program has opted into retrying at all.
 const DEFAULT_BACKOFF: Duration = Duration::from_millis(100);
@@ -1534,6 +1538,12 @@ fn judge_attempts(args: &[Value], member: &str) -> Result<(), Fault> {
 /// leaving a field out inherits the deployment's bound rather than removing it,
 /// and a deployment that configured nothing inherits the shipped one.
 ///
+/// A bag that is **narrower** than `at` reads as a bag that left the field out,
+/// which is what [`IDLE`] and [`MAX_DURATION`] need: they sit past the last
+/// slot of [`OPTIONS`], so every buffered row asks for them off the end and
+/// gets the directive's value, while the one row that declares them reads what
+/// the call wrote.
+///
 /// # Errors
 ///
 /// [`judge_bound`]'s, for an option that is not a positive duration. A
@@ -1548,7 +1558,10 @@ fn bound_of(
     directive: &str,
     fallback: Duration,
 ) -> Result<Duration, Fault> {
-    if !matches!(args[at].tag(), Some(Tag::Null)) {
+    if args
+        .get(at)
+        .is_some_and(|held| !matches!(held.tag(), Some(Tag::Null)))
+    {
         let nanos = crate::time::nanos_of(args, at, option)?;
         return Ok(Duration::from_nanos(nanos.unsigned_abs()));
     }
@@ -2024,7 +2037,7 @@ fn fields_of(
 /// [`pin`]'s four, [`judge_bound`]'s, [`judge_attempts`]' and [`judge_verb`]',
 /// and then [`transport::send`]'s.
 fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Value, Fault> {
-    let (status, body, headers) = exchanged(ctx, args, member, verb)?;
+    let (status, body, headers) = exchanged(ctx, args, member, verb, false)?;
     Ok(crate::instance::build(
         &RESPONSE,
         [
@@ -2054,6 +2067,7 @@ fn exchanged(
     args: &[Value],
     member: &str,
     verb: &str,
+    streamed: bool,
 ) -> Result<(i64, Vec<u8>, Value), Fault> {
     let named = format!("{CLIENT_NAME}::{member}");
     if ctx.faked_http().is_armed() {
@@ -2094,6 +2108,15 @@ fn exchanged(
             "http.client.connect_timeout",
             DEFAULT_CONNECT_TIMEOUT,
         )?,
+        idle: bound_of(ctx, args, IDLE, "idle", "http.client.idle", DEFAULT_IDLE)?,
+        max_duration: bound_of(
+            ctx,
+            args,
+            MAX_DURATION,
+            "maxDuration",
+            "http.client.max_duration",
+            DEFAULT_MAX_DURATION,
+        )?,
         headers: headers_of(args, HEADERS, &named)?,
         redirects: redirects_of(ctx, args),
         attempts: args[RETRY_ATTEMPTS]
@@ -2114,6 +2137,19 @@ fn exchanged(
         traceparent: traceparent_of(ctx),
     };
 
+    // The one difference between the two members, and it is which bounds the
+    // body runs under rather than a second reading of it: a buffered call is
+    // one deadline over the whole exchange, and a streamed one stops at the
+    // head and gives the body `idle` and `maxDuration` of its own
+    // (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
+    // The octets are still gathered here either way — what a `Core\Http\Stream`
+    // hands out is the reader, and that slot is the next edit.
+    if streamed {
+        let mut answer = transport::send_streamed(&call, &mut |hop| pin(ctx, hop, &named))?;
+        let body = answer.body.whole(transport::REPLY_CEILING)?;
+        let headers = header_map(&answer.headers);
+        return Ok((answer.status, body, headers));
+    }
     let reply = transport::send(&call, &mut |hop| pin(ctx, hop, &named))?;
     let headers = header_map(&reply.headers);
     Ok((reply.status, reply.body, headers))
