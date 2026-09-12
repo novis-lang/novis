@@ -7,42 +7,52 @@ Every `Core\Http\Client` member refuses a `tainted` URL and accepts what the lau
 // value that came from outside the process is refused by the type itself and
 // not by a check a member could forget.
 //
-// The depth claim is *agreement*: one question asked of all five members,
-// asserting that they answer it the same way. A member that spelled its URL
-// `tainted string` — the spelling that reads most natural, since a URL is
+// The depth claim is *agreement*: one question asked of every member of the
+// class, asserting that they answer it the same way. A member that spelled its
+// URL `tainted string` — the spelling that reads most natural, since a URL is
 // usually assembled from something a caller sent — would still print
-// plausibly on its own line and fails here.
+// plausibly on its own line and fails here. `request` is asked it at the slot
+// its verb pushed the URL into, which is the position a sink is easiest to
+// lose.
 tainted string $outside = "http://example.com/status";
 
 var $a = Core\Http\Client::get($outside);
 var $b = Core\Http\Client::post($outside);
 var $c = Core\Http\Client::put($outside);
-var $d = Core\Http\Client::delete($outside);
-var $e = Core\Http\Client::head($outside);
+var $d = Core\Http\Client::patch($outside);
+var $e = Core\Http\Client::delete($outside);
+var $f = Core\Http\Client::head($outside);
+var $g = Core\Http\Client::request(Core\Http\Method::Get, $outside);
 
-// And the door itself, which is the reason the five above can be closed: the
+// And the door itself, which is the reason every line above can be closed: the
 // one parameter in the language that admits a tainted URL is the launderer's,
 // and what it answers with is accepted everywhere they refused. These two
-// lines contribute no diagnostic, which is half the claim — five refusals with
-// no way through them would be a class nobody can call.
+// lines contribute no diagnostic, which is half the claim — a wall of refusals
+// with no way through it would be a class nobody can call.
 Core\Http\Target $pinned = Core\Http::allowUrl($outside);
-var $f = Core\Http\Client::get($pinned);
+var $h = Core\Http\Client::get($pinned);
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
-   --> case.nvs:14:32
-%A
-error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
-   --> case.nvs:15:33
-%A
-error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
    --> case.nvs:16:32
 %A
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
-   --> case.nvs:17:35
+   --> case.nvs:17:33
 %A
 error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
-   --> case.nvs:18:33
+   --> case.nvs:18:32
 %A
-error: aborting due to 5 errors
+error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
+   --> case.nvs:19:34
+%A
+error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
+   --> case.nvs:20:35
+%A
+error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
+   --> case.nvs:21:33
+%A
+error[E0401]: expected `string|Core\Http\Target`, found `tainted string`
+   --> case.nvs:22:59
+%A
+error: aborting due to 7 errors

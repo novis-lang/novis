@@ -1,0 +1,29 @@
+--TEST--
+`Core\Http\Client::patch` cannot ask for retries without `retryIdempotencyKey`, and the key is what makes the retry legal — `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`
+--FILE--
+<?nvs
+// `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`: a `PATCH`
+// applies a change rather than restating one, so a repeated attempt is a second
+// effect and needs an identity the server can recognise — the same obligation
+// `POST` carries, asked here of the other verb on that roster. Both halves of
+// the question are written at the call — the verb is the member's own name, and
+// `rule:core-api/shape-rules` R2 makes the bag a literal — so it is refused
+// while compiling, and no request is made to discover it.
+string $url = "https://example.test/orders/7";
+
+var $a = Core\Http\Client::patch($url, {json: ["status" => "paid"], retryAttempts: 3});
+
+// The bound on its other side, so a refusal written one condition too wide
+// fails here: the key makes the same retry legal, and a `patch` that asks for
+// no retry owes no key at all.
+var $b = Core\Http\Client::patch($url, {json: ["status" => "paid"], retryAttempts: 3, retryIdempotencyKey: "order-7"});
+var $c = Core\Http\Client::patch($url, {json: ["status" => "paid"]});
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0796]: `Core\Http\Client::patch` asks for retries without `retryIdempotencyKey`
+   --> case.nvs:11:69
+%A
+   = help: a repeated `PATCH` is a second effect rather than a second question, so an attempt needs an identity the server can recognise: add `retryIdempotencyKey: "..."` to the same bag, sent as `Idempotency-Key` and identical across attempts
+%A
+error: aborting due to 1 error

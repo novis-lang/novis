@@ -3,8 +3,9 @@
 --FILE--
 <?nvs
 // `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`: `GET`, `HEAD`, `PUT` and `DELETE` retry freely, because a
-// repeated one is a second question; `POST` repeats an *effect*, so its retries
-// need an `Idempotency-Key` the server can recognise. Both halves of that
+// repeated one is a second question; `POST` and `PATCH` repeat an *effect*, so
+// their retries need an `Idempotency-Key` the server can recognise, and this
+// case asks the first of those two. Both halves of that
 // question are written at the call — the verb is the member's own name, and ADR
 // 0063 R2 makes the bag a literal — so it is refused while compiling, and no
 // request is made to discover it.
@@ -27,7 +28,7 @@ var $f = Core\Http\Client::post($url, {retryAttempts: 3, retryIdempotencyKey: "o
 
 --EXPECTF-ERROR--
 error[E0796]: `Core\Http\Client::post` asks for retries without `retryIdempotencyKey`
-   --> case.nvs:10:40
+   --> case.nvs:11:40
 %A
    = help: a repeated `POST` is a second effect rather than a second question, so an attempt needs an identity the server can recognise: add `retryIdempotencyKey: "..."` to the same bag, sent as `Idempotency-Key` and identical across attempts
 %A

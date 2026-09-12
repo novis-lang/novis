@@ -18,14 +18,21 @@ var $c = Core\Http\Client::post($url, {body: "raw", contentType: "text/plain"});
 var $d = Core\Http\Client::put($url, {multipart: ["part" => "value"]});
 
 // And the refusal, which names the two keys that were *written* rather than
-// the first two the bag declares.
+// the first two the bag declares. Asked of a second verb and a second pair of
+// keys, so a check that learned one member's name or one pair would fail here.
 var $e = Core\Http\Client::post($url, {form: ["id" => "7"], json: ["id" => 7]});
+var $f = Core\Http\Client::patch($url, {body: "raw", contentType: "text/plain", multipart: ["part" => "value"]});
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0815]: `Core\Http\Client::post` is given two bodies, `form` and `json`
-   --> case.nvs:19:61
+   --> case.nvs:20:61
 %A
    = help: which key a body is written under is what says how it is sent, so exactly one of `json`, `form`, `body` and `multipart` may be written: keep the one whose encoding the server expects
 %A
-error: aborting due to 1 error
+error[E0815]: `Core\Http\Client::patch` is given two bodies, `body` and `multipart`
+   --> case.nvs:21:81
+%A
+   = help: which key a body is written under is what says how it is sent, so exactly one of `json`, `form`, `body` and `multipart` may be written: keep the one whose encoding the server expects
+%A
+error: aborting due to 2 errors

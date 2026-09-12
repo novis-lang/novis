@@ -1,0 +1,43 @@
+--TEST--
+One bag sent under every verb that carries a body is framed identically, and the verb is the only thing that differs — `rule:http-server/an-outbound-request-carries-one-body`
+--FILE--
+<?nvs
+// The claim is *agreement*: the same `json` bag written at each member the
+// one-body rule admits a body at, asserted by comparing every record against
+// the first rather than by reading a line per verb, so a member that grew a
+// framing of its own fails here while still looking right on its own line.
+// Nothing below is granted `net.connect` and no socket is opened — the table
+// answers every call, and what a record holds is the framing a real call would
+// have written (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok"});
+
+var $post = Core\Http\Client::post("https://api.example.com/orders", {json: ["id" => 7]});
+var $put = Core\Http\Client::put("https://api.example.com/orders", {json: ["id" => 7]});
+var $patch = Core\Http\Client::patch("https://api.example.com/orders", {json: ["id" => 7]});
+var $delete = Core\Http\Client::delete("https://api.example.com/orders", {json: ["id" => 7]});
+
+// The verb is the member's own name, so each record carries a different
+// `Core\Http\Method` ordinal; the framing is the body key's answer, so every
+// record carries the same one.
+var $sent = Core\Test::sentHttp();
+string $first = "";
+int $alike = 0;
+foreach ($sent as Core\Test\SentRequest $call) {
+    string $framing = ($call->header("content-type") ?? "-") . " " . ($call->body() as string);
+    if ($first == "") {
+        $first = $framing;
+    }
+    if ($framing == $first) {
+        $alike = $alike + 1;
+    }
+    echo ($call->method() as int), " ", $call->url(), "\n";
+}
+echo $alike, " of ", Core\Arr::count($sent), " framed alike\n";
+echo $first, "\n";
+--EXPECT--
+4 https://api.example.com/orders
+5 https://api.example.com/orders
+6 https://api.example.com/orders
+7 https://api.example.com/orders
+4 of 4 framed alike
+application/json {"id":7}
