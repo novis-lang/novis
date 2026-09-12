@@ -1903,6 +1903,7 @@ class Goal:
         self._begun = 0.0  # monotonic start of the current check(), for the elapsed stamp
         self._cargo = {}  # args tuple -> Result, within one check() call
         self._suite = {}  # (leg name, args tuple) -> Result, likewise
+        self._commands = {}  # (argv tuple, cwd) -> Result, likewise
         self._exes = None  # package -> [(target, exe, dir)] off the workspace build; see test_executables
         self._crate_runs = {}  # package -> Result of its binaries, within one check() call
         self._tree = ""
@@ -1993,6 +1994,17 @@ class Goal:
         if key not in self._cargo:
             self._cargo[key] = capture("cargo", args)
         return self._cargo[key]
+
+    def command(self, argv, cwd):
+        """A `command` check's process, with the result shared by every check naming the same argv
+        in the same directory, exactly as `cargo()` shares a cargo run. A floor folds in the same
+        tool gate -- `reference.py --check`, `rules.py --check` -- once per goal that named it, and
+        the tree cannot change inside one check() call, so every run after the first answers the
+        same thing again. Each check still judges its own exit and `want` against the result."""
+        key = (tuple(argv), cwd)
+        if key not in self._commands:
+            self._commands[key] = capture(argv[0], argv[1:], cwd=ROOT / cwd)
+        return self._commands[key]
 
     def suite(self, leg, args, exact=False):
         """`nvs test` on a leg, with the result shared by every check that asks for the same
@@ -2345,8 +2357,7 @@ class Goal:
             # reads that binary, and that loop is the one place the gate skips one.
             if measures_release_cli(c):
                 self.join_prebuild()
-            r = self.timed(label, lambda: capture(argv[0], argv[1:],
-                                                  cwd=ROOT / c.get("cwd", ".")))
+            r = self.timed(label, lambda: self.command(argv, c.get("cwd", ".")))
             # Some commands fail by design -- `nvs config check` over a file that must be refused
             # is one, and its exit code is the assertion. `exit = "nonzero"` inverts the
             # expectation exactly as it does on a fixture.
@@ -2489,26 +2500,38 @@ class Goal:
             # rather than "the one running". `timed` advances the counter under the ticker's own
             # lock, so the bar itself stays exact.
             self.trace(f"valgrind {f}")
-            return f, self.timed(f"valgrind {f}", lambda: shell(cmd_for(f)))
+            started = time.monotonic()
+            r = self.timed(f"valgrind {f}", lambda: shell(cmd_for(f)))
+            return r, time.monotonic() - started
 
-        # `map` keeps input order, so the failure reported is the first fixture in the goal's own
-        # list however the workers finished. It does not short-circuit, which is the one behaviour
-        # that changes: a red sweep runs all of them and names EVERY leaking fixture instead of
-        # stopping at the first. That is worth the seconds -- "one fixture leaks" and "twelve do"
-        # are different bugs, and the parallel sweep pays a fraction of what the serial one did to
+        # Submitted longest first, by each fixture's cost on this leg the last time it swept: a
+        # fixture that walks to a resource ceiling (`examples/limits.nvs`) runs far longer under
+        # memcheck than the rest, and one that starts mid-pool is the sweep's whole tail. A fixture
+        # with no recorded cost goes first, because it may be the long one. The verdicts are read
+        # back in the goal's own order, so the failure reported first is the first fixture in the
+        # list however the workers finished. Nothing short-circuits: a red sweep runs all of them
+        # and names EVERY leaking fixture, because "one fixture leaks" and "twelve do" are
+        # different bugs, and the parallel sweep pays a fraction of what a serial one would to
         # answer both.
+        last = prof.get("fixture_s") or {}
+        order = sorted(targets, key=lambda f: -last.get(f, float("inf")))
         fails, began = [], time.monotonic()
         with ThreadPoolExecutor(max_workers=jobs) as pool:
-            for f, r in pool.map(sweep, targets):
-                if r.code == vg_error:
-                    fails.append(f"valgrind {f}: exit {r.code} -- {r.first_err_line}")
-        # What the width bought, against the serial cost measured on this same box. Recorded rather
-        # than printed: it is how a later run says whether the policy is still right here, and it
-        # costs nothing to keep.
+            running = {f: pool.submit(sweep, f) for f in order}
+            done = {f: running[f].result() for f in targets}
+        for f in targets:
+            r, _ = done[f]
+            if r.code == vg_error:
+                fails.append(f"valgrind {f}: exit {r.code} -- {r.first_err_line}")
+        # What the width bought, against the serial cost measured on this same box, and what each
+        # fixture cost, which orders the next sweep's submission. Recorded rather than printed: it
+        # is how a later run says whether the policy is still right here, and it costs nothing to
+        # keep.
         spent = time.monotonic() - began
         if prof.get("sample_s") and spent > 0:
             machine.remember(leg.name, sweep_s=round(spent, 1),
                              sweep_speedup=round(prof["sample_s"] * len(targets) / spent, 2))
+        machine.remember(leg.name, fixture_s={f: round(s, 1) for f, (_, s) in done.items()})
         if fails:
             return fails[0] + (f"  (and {len(fails) - 1} more: "
                                f"{', '.join(x.split(':')[0] for x in fails[1:])})"
@@ -2587,6 +2610,7 @@ class Goal:
         self.ran = []
         self._cargo = {}
         self._suite = {}
+        self._commands = {}
         self._exes = None
         self._crate_runs = {}
         self.short = []  # thresholds not met yet, judged after everything else
