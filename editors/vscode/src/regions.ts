@@ -247,10 +247,7 @@ async function embedded(document: TextDocument, position?: Position): Promise<Ur
   if (language === undefined) {
     return undefined;
   }
-  const uri = where(document, language);
-  shown.set(uri.toString(), virtual(document.getText(), answered, language));
-  changed.fire(uri);
-  return uri;
+  return embedding(document, language, "template", virtual(document.getText(), answered, language));
 }
 
 /** The service a whole-document question goes to: the first region's, where there is one. */
@@ -267,15 +264,42 @@ function first(enabled: boolean, regions: readonly Region[]): string | undefined
   return undefined;
 }
 
-/** Where `document`'s markup is shown to `language`'s service. */
-function where(document: TextDocument, language: string): Uri {
+/** Where `document`'s markup is shown to `language`'s service, under the name `as`. */
+function where(document: TextDocument, language: string, as: string): Uri {
   return Uri.parse(
-    `${SCHEME}://${language}/template.${language}?${encodeURIComponent(document.uri.toString())}`,
+    `${SCHEME}://${language}/${as}.${language}?${encodeURIComponent(document.uri.toString())}`,
   );
 }
 
-/** Ask the server where `document` stops being Novis. */
-async function regions(document: TextDocument): Promise<Region[]> {
+/**
+ * A virtual document under `language`'s service holding `text`, named apart from the buffer's own
+ * by `as`.
+ *
+ * The format pass asks the editor's HTML formatter about one chunk of markup rather than about the
+ * file, so it needs a document of its own: the same scheme and the same content provider, under a
+ * name of its own so an ask in flight for the buffer is never answered with a chunk of it.
+ */
+export function embedding(
+  document: TextDocument,
+  language: string,
+  as: string,
+  text: string,
+): Uri {
+  const uri = where(document, language, as);
+  shown.set(uri.toString(), text);
+  changed.fire(uri);
+  return uri;
+}
+
+/**
+ * Ask the server where `document` stops being Novis, in `text` where the caller holds one the
+ * buffer does not.
+ *
+ * Which is what the format pass holds: the regions it lays out are the regions of what `nvs fmt`
+ * answered, and the request carries that text rather than making either end guess at it
+ * (`crates/nvs-lsp/src/regions.rs` § *the text comes with the question, when the client has one*).
+ */
+export async function regions(document: TextDocument, text?: string): Promise<Region[]> {
   const client = serving;
   if (client === undefined || document.languageId !== "nvs") {
     return [];
@@ -283,6 +307,7 @@ async function regions(document: TextDocument): Promise<Region[]> {
   try {
     return await client.sendRequest<Region[]>(METHOD, {
       textDocument: { uri: document.uri.toString() },
+      ...(text === undefined ? {} : { text }),
     });
   } catch {
     // No answer is no boundary, and no boundary forwards nothing: see `serve`.
