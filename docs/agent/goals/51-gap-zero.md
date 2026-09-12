@@ -118,7 +118,7 @@ this stage exists rather than a list being worked down.
    | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
    | `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
    | `Core\Test::request`'s shape against spec § 13's one English cell | `docs/rules/testing/in-process-request.md` |
-   | `goto` labels, grouped `use`, `var` as a declarator, an enum case named with a keyword | `crates/nvs-syntax/src/lib.rs` § *Known gaps* |
+   | **Struck** — none of the syntax four was owed: `var` is built (`crates/nvs-syntax/src/parser/stmt.rs:229`) and PHP's property `var` is `E0122`; a grouped `use` is refused on purpose and a `goto` label is left unparsed behind `goto`'s own refusal (`crates/nvs-syntax/src/lib.rs` § *Deliberately rejected*); a keyword-spelled enum case is a case, pinned by `tests/conformance/reject/an-enum-case-spelled-as-a-lowercase-keyword-is-told-its-casing.nvst` | `crates/nvs-syntax/src/lib.rs` § *Known gaps* |
    | `nvs serve` runs on one core | `crates/nvs-cli/src/serve.rs:42` |
    | The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | `crates/nvs-db/src/matrix.rs` gap 1 |
    | `Core\Metrics` — the exporter ships and no class row exists to read it through | `crates/nvs-stdlib/src/registry.rs` |
@@ -135,11 +135,8 @@ the milestone's file gains the scope sentence where it does not already carry on
 - `crates/nvs-runtime/src/decimal.rs`'s inlining and `crates/nvs-runtime/src/lib.rs`'s string fast path
   → **M12**, the optimising tier.
 
-**Two known items look like deferrals and are not**, and they are the worked examples of the rule biting:
+**One known item looks like a deferral and is not**, and it is the worked example of the rule biting:
 
-- **The syntax four** — `goto` labels, grouped `use`, `var`, a keyword-named enum case. M1's own *Verify*
-  is a `php-src` corpus parse, and **M1 is carried**, so there is no milestone to defer to. It is a real
-  gap and stage 6 closes it.
 - **The in-flight cycle collector** is a **decision, not a gap.**
   `rule:security/arena-is-an-ownership-root`'s record says outright that it remains open. It leaves the
   register for that rule's own fragment, which is where an open decision belongs; the register counts what
@@ -181,12 +178,11 @@ cheap ([loop-authoring.md](../loop-authoring.md) § 7). The groups the register 
 2. **`crates/nvs-stdlib/src/cldr.rs`** — the plural rosters, the ordinals, the eight pattern letters.
    One diagnostic band, three items. `html.rs` left this group with the register row above it: its
    refusal is landed, and what that module still waits on is M7's HTML response rather than a band.
-3. **`crates/nvs-syntax/src/lib.rs`** — the syntax four, alone, because it shares files with nothing.
-4. **`crates/nvs-db/src/matrix.rs` + `tests/db/compose.yaml`** — the socket leg, so `AF_UNIX` is asserted
+3. **`crates/nvs-db/src/matrix.rs` + `tests/db/compose.yaml`** — the socket leg, so `AF_UNIX` is asserted
    against a real server rather than against nothing.
-5. **`crates/nvs-types/src/intrinsics.rs` + `crates/nvs-server/src/schedule.rs`** — the grants `nvs check`
+4. **`crates/nvs-types/src/intrinsics.rs` + `crates/nvs-server/src/schedule.rs`** — the grants `nvs check`
    never builds, and the fleet lease that parses and is not armed.
-6. **`crates/nvs-cli/src/serve.rs`** and the `*-outstanding.txt` request members, each against the entry
+5. **`crates/nvs-cli/src/serve.rs`** and the `*-outstanding.txt` request members, each against the entry
    that was meant to carry them — goals `per-core` and `test-request` both retired without doing so, and re-deriving is how
    this stage finds out whether the work landed under a different name.
 

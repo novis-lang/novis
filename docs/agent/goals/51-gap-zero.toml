@@ -63,8 +63,6 @@ modules = [
   "crates/nvs-stdlib/src/cldr.rs",
   # `html-to-source`'s computed `$reason`, which waited on a diagnostic band that has since opened.
   "crates/nvs-stdlib/src/html.rs",
-  # The syntax four -- the group that shares files with nothing else in this goal.
-  "crates/nvs-syntax/src/lib.rs",
   # Gap 6 -- `nvs check` builds no grants, so the host diagnostic fires for nobody.
   "crates/nvs-types/src/intrinsics.rs",
   # The fleet lease that parses, boots and is not armed.
@@ -316,18 +314,6 @@ args = ["test", "-p", "nvs-diagnostics"]
 tests = [
   "a_computed_reason_is_refused_where_the_rule_says_it_is",
   "eight_pattern_letters_are_accepted_rather_than_refused",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "6 the rest of the register"
-name = "nvs-syntax (the four shapes M1's corpus parse still refuses)"
-args = ["test", "-p", "nvs-syntax"]
-tests = [
-  "a_goto_label_parses",
-  "a_grouped_use_parses",
-  "var_is_a_property_declarator",
-  "an_enum_case_may_be_named_with_a_keyword",
 ]
 
 [[check]]

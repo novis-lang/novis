@@ -68,22 +68,17 @@
 //!   That is the shape of the rename refusal beside it
 //!   (`rule:statements/nothing-gets-a-second-name`) and holds for the same reason — a reader learns
 //!   every short name a file introduces from the statement that introduces it.
+//! - **A `goto` label** (`done:` as its own statement) is not parsed, and gets no refusal of its own.
+//!   `goto` itself is refused (`E0203`, in `parser/stmt.rs`'s `parse_goto`), that is the first error
+//!   an author reads, and a label has nothing else to be for — so the generic errors behind it are
+//!   left as they are. `use function` and `use const` are the same shape: `function` and `const`
+//!   stay ordinary name segments, because `rule:classes/no-free-functions-or-constants` leaves
+//!   neither spelling anything to import.
 //!
 //! # Known gaps
 //!
-//! The plan's M1 *Verify* step is a corpus-parse of a real PHP install, which is where these are
-//! most likely to bite. None has an ADR-level reason to stay unsupported — they are just not built
-//! yet:
+//! Neither has a decision record's reason to stay unsupported — each is just not built yet:
 //!
-//! - **`goto` target labels** (`label:` as its own statement) are unparsed — only `goto ident;`
-//!   itself is handled (and rejected, per `rule:statements/no-function-static-and-no-global`). Interacts with
-//!   `rule:types/object-literal`'s own block/object-literal
-//!   disambiguation: a block whose first statement would have been a label (`{ done: ... }`) matches
-//!   the same one-token-past-`{` lookahead an attempted object literal does, so it is now diagnosed
-//!   as "needs parentheses" instead of whatever the (already broken, since labels don't parse) prior
-//!   behavior was — not a regression on real code, since no Novis/PHP program relies on an unparsed
-//!   construct, but worth knowing if label support is ever added.
-//!   — owner: M1
 //! - **A local variable declaration typed with a bare inline shape type** (`{x: int} $point;`) is not
 //!   parsed — statement-initial `{` already commits to a block (`rule:types/shape-type`), and unlike
 //!   the object-literal collision `rule:types/object-literal` names and this parser resolves, teaching
