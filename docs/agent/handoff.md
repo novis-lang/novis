@@ -2,65 +2,63 @@
 
 ## State
 
-**Goal `webcrypto` — stage 5 is landed whole: `Core\Jwe` and `Core\Jwe\Key` are on disk, registered and
-green.** `crates/nvs-stdlib/src/jwe.rs` holds the class, the four named constructors and the three
-key-management paths over `crypto.rs`'s crate-private primitives; `rule:security/jwe-compact-subset` is
-the home and the implementation matches it. Six `.nvst` cases are in `tests/conformance/core/`, and
-`Core\Jwe` is struck from `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`.
+**Goal `webcrypto` — `Core\Jwe` is now held to the frozen set from both sides.** Every `jwe` vector in
+`crates/nvs-stdlib/tests/vectors/webcrypto.json` is written again, byte for byte, by a new
+`#[cfg(test)] mod tests` at the foot of `crates/nvs-stdlib/src/jwe.rs`: the three `dir` tokens, the PBES2
+one and both `ECDH-ES` ones, each out of the vector's own randomness. The three refusals no `.nvst` case
+reaches — *an epk off the P-256 curve*, *an X25519 epk of low order*, *p2s one octet short* — are asserted
+at `content_key` answering `None`, so the test names the branch rather than the shared sentence.
 
-**The frozen vector set already judges this, and it passes.** `jwe-opens-every-token-webcrypto-sealed.nvst`
-decrypts all six `jwe.vectors` tokens in `crates/nvs-stdlib/tests/vectors/webcrypto.json` — `dir`
-including the empty payload and the `kid` one, `ECDH-ES` over both curves, PBES2 at the floor — and
-`jwe-refuses-every-unopenable-token-with-one-sentence.nvst` refuses thirteen of the twenty-three
-`jwe.refusals` with one sentence. The `dir` header `encrypt` writes is byte-identical to the set's
-(`eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0`), asserted in
-`jwe-round-trips-under-every-key-and-answers-a-tainted-payload.nvst`.
+**`encrypt` draws, and nothing below it does.** `nvs_core_jwe_encrypt` keeps every
+`crate::random::draw`; the key management and the AEAD are four seams beside `compact` that take what
+was drawn — `direct`, `wrapped`, `ephemeral` and `sealed`. No behaviour changed, and the six `.nvst`
+cases are unchanged and green.
 
-**`crypto.rs` opened five things to `Core\Jwe` and lost its five dead-code markers**, whose expectations
-went unfulfilled the moment the caller landed: `agree`, `NoAgreement` and `generated_pkcs8` are
-`pub(crate)` (the last taking a `who` for its two fatals), and `stored_key`/`stored_octets` are new — one
-reader over both key classes, held to one layout by a `const` assertion beside the slot constants.
+**The last handoff's stage numbers were wrong, and this one corrects them.**
+`docs/agent/loop-goal.md`'s own `## Stage` headings put JWS — `Jwt::sign` over a pair, `Jwt\KeySet`,
+`verifyIssued<T>` — at **stage 6**, and the vector replay plus `examples/webcrypto.nvs` at **stage 7**.
+What landed here is stage 7's `jwe` half; stage 6 is untouched, and the failing acceptance check
+(`examples/webcrypto.nvs`) stays red until `Jwt::verifyIssued` exists.
 
-**Open, and named for stage 6:** `encrypt` writes no `kid`, so the set's *dir with a kid* vector is a
-decrypt-only vector today. `rule:security/jwe-compact-subset` writes four constructors with one parameter
-each and says nothing about a `kid`, so none was added; the session that writes the vector test decides
-with the token in front of it.
+**Decided, with the token in front of it:** `encrypt` writes no `kid`.
+`rule:security/jwe-compact-subset` gives `Jwe\Key`'s constructors one parameter each and none of them is
+a key name, so the set's *dir with a kid* vector is decrypt-only; what the Rust test holds for it is its
+header minus that one member.
 
 ## Next group
 
-**Stage 6: the vector set as Rust tests, in the shape `crypto.rs`'s own `#[cfg(test)]` block gives them**
-— one file set: a new `#[cfg(test)] mod tests` at the foot of `crates/nvs-stdlib/src/jwe.rs`, reading
-`crates/nvs-stdlib/tests/vectors/webcrypto.json` the way `crates/nvs-stdlib/src/crypto.rs:4079`
-(`the_derivation_ecdh_es_runs_matches_rfc_7518_appendix_c`) reads its own section.
-`rule:security/jwe-compact-subset` is the rule; the `.nvst` cases already cover the member surface, so
-what these add is what a case cannot reach — `encrypt` held to a frozen token byte for byte under the
-vector's own randomness.
+**Stage 6: JWS — `Core\Jwt` over a key pair** — one file set: `crates/nvs-stdlib/src/jwt.rs`,
+`crates/nvs-stdlib/src/registry.rs`, and for the last item `crates/nvs-types/src/expr/args.rs`. The
+goal's § *Standing decisions* fixes the whole surface; `docs/agent/loop-goal.md:173` is the stage.
 
-- [ ] **Split the AEAD and header halves out of `crates/nvs-stdlib/src/jwe.rs:728`
-      (`nvs_core_jwe_encrypt`) so a test can seal with a given IV.** The member draws its IV and its
-      PBES2 salt and content key through `crate::random::draw`
-      (`crates/nvs-stdlib/src/random.rs:483`), which a test cannot hand fixed values to; a
-      `fn sealed(cek, iv, protected, payload)` beside `crates/nvs-stdlib/src/jwe.rs:@compact` is the seam,
-      and the member keeps the draw. No behaviour changes, so the six cases are the check.
-- [ ] **`encrypt` reproduces the set's three `dir` tokens byte for byte.** Each vector carries
-      `randomness.iv`; assert the whole token string against `token`, which is what makes the canonical
-      header a property rather than a comment. Then PBES2, whose `randomness` is `cek`, `p2s` and `p2c`
-      — `crates/nvs-stdlib/src/jwe.rs:@pbes2_key` is the derivation and
-      `crates/nvs-stdlib/src/crypto.rs:2403` (`wrap_key`) the wrap.
-- [ ] **The two `ECDH-ES` vectors, whose randomness is an ephemeral pair rather than a value.**
-      `randomness.ephemeralPkcs8` is what `crates/nvs-stdlib/src/crypto.rs:2815` (`generated_pkcs8`)
-      would have drawn, so the seam is the same split one level deeper. Then the `jwe.refusals` no case
-      reaches — *an epk off the P-256 curve*, *an X25519 epk of low order*, *p2s one octet short* —
-      asserted against `crates/nvs-stdlib/src/jwe.rs:1025` (`content_key`) answering `None` rather than
-      against the sentence, so the test names the branch.
+- [ ] **`Jwt::sign` takes a `Crypto\KeyPair` beside a shared key, with the trailing
+      `{kid?, typ?, embedKey?}` bag.** `rule:security/algorithm-comes-from-the-key`: the pair's kind is
+      ES256, EdDSA, RS256 or PS256 and there is no `alg` argument. The five edits sit at
+      `crates/nvs-stdlib/src/jwt.rs:453` (`nvs_core_jwt_sign`) and the row and card above it; the HS256
+      path, the canonical header and the payload layout do not change, so every existing case passes
+      untouched. Stage 0's two module-doc sections, `crates/nvs-stdlib/src/jwt.rs:11-28` and `:66-99`,
+      are rewritten whole in this slice.
+- [ ] **`Jwt\KeySet::read`, a second registered class in the same module.** Its admission rules are the
+      goal's § *Standing decisions*; it joins the class list at `crates/nvs-stdlib/src/registry.rs:1748`
+      the way `crate::jwe::KEY` does at `:1763`, and `rule:security/algorithm-comes-from-the-key` is why
+      a `kid` is a lookup and never a try.
+- [ ] **`Jwt::verifyIssued<T>`, beside `crates/nvs-stdlib/src/jwt.rs:523` (`nvs_core_jwt_verify`).**
+      Its type argument joins the decode-site roster at `crates/nvs-types/src/expr/args.rs:1526`, which
+      is `rule:security/derived-codec-qualifiers` and the one edit this goal makes outside
+      `nvs-stdlib`; the claims come back `tainted` (`rule:security/verification-does-not-launder`) and
+      `exp` stays mandatory (`rule:security/jwt-expiry-is-mandatory`).
 
 ## Backlog
 
-- `Jwe\Key` carries no `kid`, so `encrypt` writes none — decide it in stage 6 against the set's *dir with
-  a kid* vector (`rule:security/jwe-compact-subset`).
-- `examples/webcrypto.nvs` is stage 7 and still missing; it needs `Jwt::verifyIssued` as well as
-  `Core\Jwe` (`docs/agent/loop-goal.md:222`).
-- Stage 7's `Jwt::verifyIssued` and `Jwt\KeySet` are untouched; the goal's § *Standing decisions* holds
-  the whole surface.
+- Stage 7's `jws` and `signatures` replay, once stage 6 lands: the shape is `jwe.rs`'s new
+  `#[cfg(test)] mod tests`, deterministic algorithms byte for byte and ES256/PS256 held to verification
+  (`docs/agent/loop-goal.md:218`).
+- `examples/webcrypto.nvs` is stage 7's tail and the failing acceptance check
+  (`docs/agent/loop-goal.md:222`).
+- Stage 8 flips `core-classes/crypto-interop-tier`, `security/jwe-compact-subset` and
+  `security/jws-issued-subset` to `shipped` (`docs/agent/loop-goal.md:230`).
 - `crates/nvs-stdlib/src/crypto.rs` is past 4,800 lines with a third of it under `#[cfg(test)]` — a split
   is not this goal's (`docs/agent/playbook.md` § *Splitting a file that got too big*).
+- The pack prints the goal's § *Standing decisions* but not its `## Stage` headings, and `[context]` has
+  no field for goal prose: `python tools/peek.py 'docs/agent/loop-goal.md:re:^## Stage:12'` is the one
+  call that says which stage the work is in.
