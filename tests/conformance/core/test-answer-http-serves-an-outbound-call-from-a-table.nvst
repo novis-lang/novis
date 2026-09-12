@@ -1,0 +1,51 @@
+--TEST--
+A registered answer serves the outbound call that matches it, exactly or by a `*` prefix, with no listener and no outbound grant — `rule:testing/an-outbound-call-is-answered-from-a-table`
+--FILE--
+<?nvs
+// There is no `nvs.toml` section in this case, and that is the claim: nothing
+// below is granted `net.connect`, no name is resolved and no socket is opened,
+// yet every call is answered. The first `answerHttp` is what arms the table
+// (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+
+// `json` is the value written as a JSON document where it is registered, so a
+// test naming an object never quotes one into a string literal.
+Core\Test::answerHttp("https://api.example.com/users/7", 200, {json: ["name" => "ada", "active" => true]});
+// `body` is the other spelling of the same slot, for a reply that is not JSON.
+Core\Test::answerHttp("https://api.example.com/users/9", 404, {body: "no such user"});
+// A prefix ending in `*` answers everything under it, and loses to the exact
+// rows above wherever both match.
+Core\Test::answerHttp("https://api.example.com/*", 503, {body: "the origin is out"});
+
+var $found = Core\Http\Client::get("https://api.example.com/users/7");
+echo $found->status(), " ", $found->text(), "\n";
+
+var $missing = Core\Http\Client::get("https://api.example.com/users/9");
+echo $missing->status(), " ", $missing->text(), "\n";
+
+// Neither exact row names this URL, so the prefix one answers it.
+var $covered = Core\Http\Client::delete("https://api.example.com/orders/3");
+echo $covered->status(), " ", $covered->text(), "\n";
+
+// A row is selected by the URL and nothing else, so it answers every verb that
+// names it rather than the one it happened to be written for, and answering a
+// call does not consume it.
+var $again = Core\Http\Client::head("https://api.example.com/users/7");
+echo $again->status(), " ", $again->text(), "\n";
+
+// Every call above is a record, in the order they were made, and the readings
+// on one are the program's own text rather than the answer's.
+var $sent = Core\Test::sentHttp();
+echo Core\Arr::count($sent), "\n";
+foreach ($sent as Core\Test\SentRequest $call) {
+    echo ($call->method() as int), " ", $call->url(), " ", $call->header("accept") ?? "no accept header", " ", Core\Bytes::length($call->body()), "\n";
+}
+--EXPECT--
+200 {"name":"ada","active":true}
+404 no such user
+503 the origin is out
+200 {"name":"ada","active":true}
+4
+0 https://api.example.com/users/7 no accept header 0
+0 https://api.example.com/users/9 no accept header 0
+7 https://api.example.com/orders/3 no accept header 0
+1 https://api.example.com/users/7 no accept header 0

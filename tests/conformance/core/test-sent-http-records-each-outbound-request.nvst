@@ -1,0 +1,54 @@
+--TEST--
+`Core\Test::sentHttp` hands back every outbound call the program made, in order, and nothing a record reads is `tainted` — `rule:testing/an-outbound-call-is-answered-from-a-table`
+--FILE--
+<?nvs
+// The claim is *invariance over a sweep*: four calls differing in verb, URL and
+// headers, asserted by walking the records rather than by reading one of them,
+// so a table that answered each call plausibly and recorded the wrong one still
+// fails here.
+
+Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok"});
+
+var $a = Core\Http\Client::get("https://api.example.com/users/1", {headers: ["Authorization" => "Bearer one"]});
+var $b = Core\Http\Client::post("https://api.example.com/users", {headers: ["Content-Type" => "application/json"]});
+var $c = Core\Http\Client::delete("https://api.example.com/users/1");
+// An unanswered call is a call the program made, so it is recorded before the
+// table is asked whether it knows the URL.
+try {
+    var $d = Core\Http\Client::put("https://other.example.com/users/1");
+} catch (LogicError $unmatched) {
+    echo "refused", "\n";
+}
+
+var $sent = Core\Test::sentHttp();
+echo Core\Arr::count($sent), "\n";
+foreach ($sent as Core\Test\SentRequest $call) {
+    // A header name is case-insensitive, so the name a test asks under is not
+    // the name the subject happened to write.
+    echo ($call->method() as int), " ", $call->url(),
+         " auth=", $call->header("AUTHORIZATION") ?? "-",
+         " type=", $call->header("content-type") ?? "-",
+         " body=", Core\Bytes::length($call->body()), "\n";
+}
+
+// Nothing on a record is `tainted`: a URL read back out of one is accepted at
+// `rule:security/outbound-url-is-a-sink`'s sink, which is the position that
+// refuses a value that came from outside. A reply's `text()` in this position
+// is a compile-time diagnostic, and that asymmetry is the rule's own last
+// paragraph.
+foreach ($sent as Core\Test\SentRequest $call) {
+    if ($call->url() != "https://other.example.com/users/1") {
+        var $echoed = Core\Http\Client::head($call->url());
+        echo $echoed->status(), "\n";
+    }
+}
+--EXPECT--
+refused
+4
+0 https://api.example.com/users/1 auth=Bearer one type=- body=0
+4 https://api.example.com/users auth=- type=application/json body=0
+7 https://api.example.com/users/1 auth=- type=- body=0
+5 https://other.example.com/users/1 auth=- type=- body=0
+200
+200
+200

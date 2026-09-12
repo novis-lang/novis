@@ -97,6 +97,7 @@ Conventions the whole file uses:
 | [`Core\Debug`](#core-core-debug) | one readable rendering of any value — `dump` writes it to stderr, `render` answers it as text |
 | [`Core\Test`](#core-core-test) | the typed assertion roster a `#[Test]` method calls — what PHPUnit's `assert*` family becomes when testing is part of the language |
 | [`Core\Test\Response`](#core-core-test-response) | what `Core\Test::request` answers — the status and the bytes one in-process request produced |
+| [`Core\Test\SentRequest`](#core-core-test-sentrequest) |  |
 | [`Core\Task`](#core-core-task) | structured concurrency — run a fixed set or a whole array of closures as child tasks and get every result back before the call returns |
 | [`Core\Task\Channel<T>`](#core-core-task-channel) | a bounded queue between two tasks whose `send` waits at the bound — backpressure instead of a growing buffer |
 | [`Core\Script\Handle`](#core-core-script-handle) | what `spawn script` answers — a handle on a running child script that `await` collects exactly once |
@@ -14845,7 +14846,7 @@ Renders `$value` exactly as `dump` would and answers it as the carrier of the si
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -14919,6 +14920,8 @@ final class CartTest {
 | [`Core\Test::serverUrl`](#core-core-test-serverurl) | `serverUrl(): ?string` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
 | [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path): Core\Test\Response` |
+| [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, {json?: mixed, body?: string, headers?: array<string>}): void` |
+| [`Core\Test::sentHttp`](#core-core-test-senthttp) | `sentHttp(): array<Core\Test\SentRequest>` |
 
 <a id="core-core-test-assertsame"></a>
 #### `Core\Test::assertSame`
@@ -15185,6 +15188,38 @@ Runs one request through the program under test in this process — the compiled
 
 **Throws** `RuntimeError` — There is no program under test — the call is outside a `nvs test` or `nvs run` invocation — or the call is already inside an in-process request, which is refused because the program answering one is the program that asked.
 
+<a id="core-core-test-answerhttp"></a>
+#### `Core\Test::answerHttp`
+
+```nvs skip
+Core\Test::answerHttp(string $url, uint $status, {json?: mixed, body?: string, headers?: array<string>}): void
+```
+
+Says what one outbound URL answers with, and takes this test off the network — from the first answer registered, every `Core\Http\Client` call the test makes is served from the table and none of them connects.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string` (sink) | The URL this answer serves: the whole of it, or a prefix ending in `*`. Nothing is resolved and no host is looked up — this is the text a call's own URL is compared against. |
+| `$status` | `uint` | The status the call answers with, as a wire status line can write it: three digits, `100` to `999`. |
+| `{json: …}` | `mixed` (default `(omitted)`) | A value the answer carries as a JSON document, written exactly as `Core\Json::encode` would write it. The answer declares `application/json` for it unless the `headers` bag names a content type itself. |
+| `{body: …}` | `string` (default `null`, neutral) | The bytes the answer carries, for a reply that is not a JSON document. An answer may name this or `json` and not both. |
+| `{headers: …}` | `array<string>` (default `[]`) | The headers the answer carries, keyed by name — the same shape `Core\Http\Options` writes a request's headers in. A name is matched case-insensitively, as a header name is. |
+
+**Returns** `void` — Nothing. Answers accumulate, so a test registers as many as it has calls; a URL answered exactly wins over one answered by a prefix, and the longest prefix wins among prefixes.
+
+**Throws** `LogicError` — The answer names both `json` and `body`, which are two spellings of one body; or the status is not one a status line can carry.
+
+<a id="core-core-test-senthttp"></a>
+#### `Core\Test::sentHttp`
+
+```nvs skip
+Core\Test::sentHttp(): array<Core\Test\SentRequest>
+```
+
+Every outbound call the program under test has made since the answer table was armed, oldest first — what was sent, rather than what came back.
+
+**Returns** `array<Core\Test\SentRequest>` — One `Core\Test\SentRequest` per call, in the order the program made them, and an empty array for a test that registered answers nobody asked for. Nothing on a record is `tainted`: it is the program's own text.
+
 <a id="core-core-test-response"></a>
 ### `Core\Test\Response`
 
@@ -15241,6 +15276,66 @@ $response->body(): string
 The bytes the program under test wrote while answering this request.
 
 **Returns** `string` — Everything the program echoed, in order, and an empty string for a program that wrote nothing. A program that threw still answers with whatever it had written first.
+
+<a id="core-core-test-sentrequest"></a>
+### `Core\Test\SentRequest`
+
+Keywords: method, url, header, body
+
+| Member | Signature |
+|---|---|
+| [`Core\Test\SentRequest->method`](#core-core-test-sentrequest-method) | `method(): Core\Http\Method` |
+| [`Core\Test\SentRequest->url`](#core-core-test-sentrequest-url) | `url(): string` |
+| [`Core\Test\SentRequest->header`](#core-core-test-sentrequest-header) | `header(string $name): ?string` |
+| [`Core\Test\SentRequest->body`](#core-core-test-sentrequest-body) | `body(): bytes` |
+
+<a id="core-core-test-sentrequest-method"></a>
+#### `Core\Test\SentRequest->method`
+
+```nvs skip
+$sentRequest->method(): Core\Http\Method
+```
+
+The verb this call carried, as the `Core\Http\Method` case the member that made it is named for.
+
+**Returns** `Core\Http\Method` — The case — `Core\Http\Method::Get` for a `Core\Http\Client::get`, and so on for every row.
+
+<a id="core-core-test-sentrequest-url"></a>
+#### `Core\Test\SentRequest->url`
+
+```nvs skip
+$sentRequest->url(): string
+```
+
+The URL this call was made to, as the program wrote it.
+
+**Returns** `string` — The whole URL, unchanged — not the pattern the answer was registered under, so a test answering a prefix can still assert the exact path its subject asked for.
+
+<a id="core-core-test-sentrequest-header"></a>
+#### `Core\Test\SentRequest->header`
+
+```nvs skip
+$sentRequest->header(string $name): ?string
+```
+
+What this call carried under one header name, so a test can assert the authorization, the content type or the trace header its subject composed.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The header to read, matched case-insensitively as a header name is. |
+
+**Returns** `?string` — The value, or `null` where the request carried no such header.
+
+<a id="core-core-test-sentrequest-body"></a>
+#### `Core\Test\SentRequest->body`
+
+```nvs skip
+$sentRequest->body(): bytes
+```
+
+The bytes this call carried, so a test can assert the document its subject sent rather than only the URL it sent it to.
+
+**Returns** `bytes` — The request body, and an empty `bytes` for a call that carried none.
 
 <a id="core-core-task"></a>
 ### `Core\Task`
