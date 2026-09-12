@@ -1,11 +1,12 @@
-// The template regions, and the three decisions the client makes about them.
+// The template regions and the format pass, as the decisions the client makes about them.
 //
 // `rule:ide/a-template-region-gets-services-but-no-second-formatter` puts the boundaries on the
 // server, so what is left here is the client's own half: whether a position is inside a region,
-// whether the user asked for any of this, and what the editor's service is shown. Those live in
-// `src/template.ts`, which imports no `vscode` — the headless tier has no such module
-// (`scripts/headless.mjs`) — and are run directly; `src/regions.ts` is the part that needs a running
-// editor, asserted as text the way the AST and Test Explorer suites assert theirs.
+// whether the user asked for any of this, what the editor's service is shown, and what a format
+// request leaves in the buffer. Those live in `src/template.ts`, which imports no `vscode` — the
+// headless tier has no such module (`scripts/headless.mjs`) — and are run directly; `src/regions.ts`
+// and `src/format.ts` are the halves that need a running editor, asserted as text the way the AST
+// and Test Explorer suites assert theirs.
 //
 // `recorded/template.nvs` is the program
 // `tests/lsp/regions/a-short-echo-splits-one-paragraph-into-two-regions.lspt` freezes an answer for,
@@ -17,7 +18,7 @@ import * as assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { Region, forwarded, virtual } from "../../src/template";
+import { Region, formatted, forwarded, virtual } from "../../src/template";
 
 const ROOT = resolve(__dirname, "..", "..", "..");
 
@@ -35,18 +36,26 @@ const REGIONS: Region[] = [
   { range: { start: { line: 3, character: 18 }, end: { line: 4, character: 0 } }, language: "html" },
 ];
 
-// Every module under `src/`, with its prose removed, because what must not appear anywhere is a
-// formatting registration and the file that wanted one would be the file that made it.
+// Every module under `src/`, with its prose removed and keyed by its file name, because the
+// formatting registration is asserted both ways round: one in the whole client, and that one in
+// `format.ts`. A comment naming an API is not a call to it, and the file that wanted a second
+// formatter would be the file that explained itself in a comment first.
 //
 // Comment *lines* go rather than a `/* … */` region, for the reason the Test Explorer suite gives:
 // a regex hunting a block comment finds the `/*` inside a string literal and eats to the next `*/`.
-const EVERY_MODULE = readdirSync(join(ROOT, "src"))
-  .filter((file) => file.endsWith(".ts"))
-  .map((file) => readFileSync(join(ROOT, "src", file), "utf8"))
-  .join("\n")
-  .split("\n")
-  .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
-  .join("\n");
+const MODULES = new Map<string, string>(
+  readdirSync(join(ROOT, "src"))
+    .filter((file) => file.endsWith(".ts"))
+    .map((file) => [
+      file,
+      readFileSync(join(ROOT, "src", file), "utf8")
+        .split("\n")
+        .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
+        .join("\n"),
+    ]),
+);
+
+const EVERY_MODULE = [...MODULES.values()].join("\n");
 
 describe("the template regions", () => {
   it("forwards inside a region and nothing outside one", () => {
@@ -105,16 +114,55 @@ describe("the template regions", () => {
     assert.equal(virtual(PROGRAM, REGIONS, "css").trim(), "");
   });
 
-  it("registers no formatting provider anywhere in the client", () => {
-    // The load-bearing absence: a `.nvs` file has one formatter and it is `nvs fmt`
-    // (`rule:tooling/fmt-is-never-a-diagnostic`). The server declares none either, which
+});
+
+describe("the template format", () => {
+  it("leaves the buffer unchanged when nvs fmt refuses", () => {
+    // `nvs fmt --stdin` writes nothing at all to standard output for a file it will not parse and
+    // exits non-zero (`crates/nvs-cli/src/fmt.rs`'s `stdin`), which reaches the decision as
+    // nothing: the buffer keeps every byte its author typed rather than taking a partial
+    // rendering of a file they have not finished.
+    assert.equal(formatted(PROGRAM, undefined), undefined);
+
+    // A buffer already in the canonical layout is left alone too. Replacing a text with itself is
+    // an edit the editor still marks the document dirty for and still puts on the undo stack.
+    assert.equal(formatted(PROGRAM, PROGRAM), undefined);
+
+    // And a buffer the formatter did change becomes exactly what it answered, whole: every layout
+    // decision in that text is `nvs fmt`'s (`rule:tooling/fmt-is-one-canonical-style`), so there
+    // is nothing for the client to keep, merge or re-indent.
+    const written = PROGRAM.replace("var $name =", "var  $name  =");
+    assert.notEqual(written, PROGRAM);
+    assert.equal(formatted(written, PROGRAM), PROGRAM);
+  });
+
+  it("registers one formatting provider, in the module that starts nvs fmt", () => {
+    // A `.nvs` file has one formatter of Novis and it is `nvs fmt`
+    // (`rule:ide/one-server-two-thin-clients`), so what the client may hold is one registration
+    // that starts that process — `src/format.ts` — and no second opinion about a layout anywhere.
+    // The server declares no formatting provider at all, which
     // `the_server_declares_no_formatting_provider` holds on the other side of the wire.
+    const PROVIDER = "registerDocumentFormattingEditProvider";
+    assert.equal(
+      EVERY_MODULE.match(new RegExp(PROVIDER, "g"))?.length,
+      1,
+      "the client registers a formatter of Novis in more than one place",
+    );
+    assert.ok(MODULES.get("format.ts")?.includes(PROVIDER), `${PROVIDER}: not format.ts's`);
+
+    // Formatting a selection or a keystroke is a layout decision over part of a file, and
+    // `nvs fmt` has no mode that formats less than a whole one — its flags are I/O modes and
+    // nothing else (`rule:tooling/fmt-check-writes-nothing`). Asking the editor to format the
+    // document would re-enter the provider above over the Novis file, and over the virtual one it
+    // would lay out the whitespace standing in for the Novis half as though it were markup.
+    //
+    // The editor's own HTML formatter over a chunk of markup is not on this list: those bytes are
+    // the editor's (`rule:ide/a-template-region-gets-services-but-no-second-formatter`), and what
+    // is refused here is a second formatter of Novis.
     for (const api of [
-      "registerDocumentFormattingEditProvider",
       "registerDocumentRangeFormattingEditProvider",
       "registerOnTypeFormattingEditProvider",
       "executeFormatDocumentProvider",
-      "executeFormatRangeProvider",
     ]) {
       assert.ok(!EVERY_MODULE.includes(api), `${api}: a second formatter inside a .nvs file`);
     }

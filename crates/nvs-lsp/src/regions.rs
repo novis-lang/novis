@@ -63,13 +63,13 @@
 //! here to report until it does. That lands as one more arm of the filter
 //! below rather than as a second mechanism.
 //!
-//! **Anything at all about formatting.** The regions are what the embedded
-//! services are registered over, and they are registered for everything except
-//! formatting: `nvs fmt` is the only formatter a `.nvs` file has, and a second
-//! one inside it is what that rule's load-bearing half refuses. No answer here
-//! can say otherwise — a [`Region`] is a range and a language, which
-//! `tests/regions.rs` holds it to, and [`crate::capabilities`] declares no
-//! formatting provider for the file around it.
+//! **Anything at all about formatting.** A client's format pass reads these
+//! regions to find the markup it hands its own HTML formatter (ADR 0173 § 1),
+//! but nothing about a layout crosses this wire: `nvs fmt` is the only
+//! formatter of Novis there is, and no answer here can say otherwise — a
+//! [`Region`] is a range and a language, which `tests/regions.rs` holds it to,
+//! and [`crate::capabilities`] declares no formatting provider, so the editor
+//! reaches the formatter as a process and never as a request.
 //!
 //! # What it spends
 //!

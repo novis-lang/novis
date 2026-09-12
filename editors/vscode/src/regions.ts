@@ -7,12 +7,11 @@
 // `nvs/regions` and the mapping from a boundary to a service is `template.ts`; what is here is the
 // asking, the virtual document and the four registrations.
 //
-// **Nothing is registered as a formatting provider, and that absence is the rule's load-bearing
-// half.** A `.nvs` file has one formatter, `nvs fmt`, and it is unconfigurable by decision
-// (`rule:tooling/fmt-is-one-canonical-style`); a second one reflowing the markup inside it would
-// make `nvs fmt --check` fail for a reason that is not "this file is laid out wrong". The server
-// declares no formatting provider either (`crates/nvs-lsp/src/capabilities.rs`), so neither side of
-// the wire offers one and `editor.formatOnSave` in a template runs `nvs fmt` over the whole file.
+// **No formatting provider is registered here.** The client has exactly one and it is
+// `src/format.ts`, which runs `nvs fmt` over the buffer — the only formatter of Novis there is,
+// and unconfigurable by decision (`rule:tooling/fmt-is-one-canonical-style`). The server declares
+// none at all (`crates/nvs-lsp/src/capabilities.rs`), so no layout crosses the wire this file
+// asks over and `editor.formatOnSave` in a template is that process.
 //
 // **How a request is forwarded.** VS Code answers a service for a *document*, so the markup is
 // handed to it as one: a virtual document under this file's own scheme, holding the regions where
