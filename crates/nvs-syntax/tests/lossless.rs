@@ -18,7 +18,10 @@
     reason = "the skip notice and the corpus sizes are this test's report, as in `corpus_parse.rs`"
 )]
 
+use std::panic::resume_unwind;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
 
 use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap};
 use nvs_syntax::{Lexer, TokenKind};
@@ -110,26 +113,62 @@ fn first_hole(file: &SourceFile) -> Option<String> {
     (cursor != len).then(|| format!("dropped the {} byte(s) after offset {cursor}", len - cursor))
 }
 
-/// Reports every file in `paths` whose pieces do not tile it, as one line each.
-/// `to_source` turns a file's bytes into the Novis source inside it.
-fn holes_in(paths: &[PathBuf], to_source: impl Fn(&str) -> Option<String>) -> Vec<String> {
-    let mut holes = Vec::new();
-    for path in paths {
-        let Ok(text) = std::fs::read_to_string(path) else {
-            // Real-world PHP is not always UTF-8; `corpus_parse.rs`'s module
-            // doc is the home of why that is skipped rather than failed.
-            continue;
-        };
-        let Some(source) = to_source(&text) else {
-            continue;
-        };
-        let mut map = SourceMap::new();
-        let id = map.add(path.display().to_string(), &source);
-        if let Some(hole) = first_hole(map.file(id)) {
-            holes.push(format!("{}: {hole}", path.display()));
-        }
-    }
-    holes
+/// The line naming where `path`'s pieces stop tiling it, or `None` when they tile
+/// it or it holds no Novis source. `to_source` turns a file's bytes into the
+/// Novis source inside it.
+fn hole_in(path: &Path, to_source: &impl Fn(&str) -> Option<String>) -> Option<String> {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        // Real-world PHP is not always UTF-8; `corpus_parse.rs`'s module
+        // doc is the home of why that is skipped rather than failed.
+        return None;
+    };
+    let source = to_source(&text)?;
+    let mut map = SourceMap::new();
+    let id = map.add(path.display().to_string(), &source);
+    first_hole(map.file(id)).map(|hole| format!("{}: {hole}", path.display()))
+}
+
+/// Reports every file in `paths` whose pieces do not tile it, one line each, in
+/// `paths`' order.
+///
+/// The files are shared out over every core, as `corpus_parse.rs` shares out the
+/// same php-src checkout: libtest runs this test on one thread, and walked one
+/// file at a time the checkout made it the slowest test binary in the workspace.
+/// Each file is lexed into its own `SourceMap`, so the workers share nothing but
+/// the index of the next file, and sorting by that index gives back the order a
+/// single thread would report in.
+fn holes_in(paths: &[PathBuf], to_source: impl Fn(&str) -> Option<String> + Sync) -> Vec<String> {
+    let workers = thread::available_parallelism()
+        .map_or(1, |n| n.get())
+        .min(paths.len());
+    let next = AtomicUsize::new(0);
+    let mut found: Vec<(usize, String)> = thread::scope(|scope| {
+        // Collected before any is joined, or each worker would be spawned and
+        // joined in turn -- the serial loop again.
+        let handles: Vec<_> = (0..workers)
+            .map(|_| {
+                scope.spawn(|| {
+                    let mut mine = Vec::new();
+                    loop {
+                        let index = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(path) = paths.get(index) else {
+                            break;
+                        };
+                        if let Some(hole) = hole_in(path, &to_source) {
+                            mine.push((index, hole));
+                        }
+                    }
+                    mine
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().unwrap_or_else(|panic| resume_unwind(panic)))
+            .collect()
+    });
+    found.sort_unstable_by_key(|(index, _)| *index);
+    found.into_iter().map(|(_, hole)| hole).collect()
 }
 
 #[test]
