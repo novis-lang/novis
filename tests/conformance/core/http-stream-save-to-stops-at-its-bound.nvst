@@ -1,0 +1,52 @@
+--TEST--
+`Core\Http\Stream::saveTo` writes a body exactly as long as `$max` and refuses the one a byte past it, leaving nothing on disk where it refused — the bound named on both sides, and `rule:core-classes/io-write-stream`'s partial-file rule asserted by the `exists` after the throw rather than by the throw itself
+--FILE--
+<?nvs
+// No socket and no name resolution: the reply comes from the table
+// (`rule:testing/an-outbound-call-is-answered-from-a-table`). The same twelve
+// octets are answered at two URLs, so that the accepted side and the refused
+// side differ in the bound and in nothing else — a member that counted the
+// wrong way round prints plausibly against either half alone.
+Core\Test::answerHttp("https://api.example.com/report", 200, {body: "aaaabbbbcccc", headers: ["content-type" => "text/plain"]});
+Core\Test::answerHttp("https://api.example.com/report-again", 200, {body: "aaaabbbbcccc", headers: ["content-type" => "text/plain"]});
+Core\Test::answerHttp("https://api.example.com/report-third", 200, {body: "aaaabbbbcccc", headers: ["content-type" => "text/plain"]});
+
+var $fits = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/report");
+echo $fits->status(), " ", $fits->header("content-type") ?? "no type", " ", Core\Arr::count($fits->headers("content-type")), "\n";
+$fits->saveTo("report.txt", 12);
+echo "fits: ", Core\IO::read("report.txt"), "\n";
+
+// One octet less of a budget, and the reply is the same length: the refusal is
+// the bound's other side, and the file it would have written is not there to be
+// found by a later reader.
+var $over = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/report-again");
+try {
+    $over->saveTo("over.txt", 11);
+    echo "a bound of eleven accepted twelve octets\n";
+} catch (RuntimeError $refused) {
+    if (Core\IO::exists("over.txt")) {
+        echo "refused, and the partial file was left behind\n";
+    } else {
+        echo "refused, and nothing was left behind\n";
+    }
+}
+
+// What reached disk is what the walk would have yielded, asked of a third reply
+// rather than of the one already written: `saveTo` is `chunks()` with a file on
+// the other end of it, and a member that framed the body differently on its way
+// to disk would still have printed the line above.
+var $walked = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/report-third");
+uint $seen = 0;
+foreach ($walked->chunks() as tainted bytes $chunk) {
+    $seen = $seen + Core\Bytes::length($chunk);
+}
+echo "walked: ", $seen, " saved: ", Core\Str::length(Core\IO::read("report.txt")), "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+200 text/plain 1
+fits: aaaabbbbcccc
+refused, and nothing was left behind
+walked: 12 saved: 12

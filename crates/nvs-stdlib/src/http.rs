@@ -120,6 +120,7 @@
 //! `Core\Http\Part::file`, which is a descriptor and a chunk rather than the file
 //! ([`transport::Piece`]). What the exchange itself spends is [`transport`]'s to state.
 
+pub(crate) mod stream;
 mod transport;
 
 use std::net::IpAddr;
@@ -219,7 +220,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_http_response_json_as" => (nvs_core_http_response_json_as as *const ()).cast(),
         "nvs_core_http_response_header" => (nvs_core_http_response_header as *const ()).cast(),
         "nvs_core_http_response_headers" => (nvs_core_http_response_headers as *const ()).cast(),
-        _ => return None,
+        // The streamed reply's own, beside its class rather than here: they are
+        // this module's symbols, and [`stream`] is a module of this one for
+        // [`transport`]'s reason.
+        other => return stream::address(other),
     })
 }
 
@@ -878,6 +882,24 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
             symbol: "nvs_core_http_client_request",
             doc: Some(&REQUEST_DOC),
         },
+        // The one row that answers something other than a `Core\Http\Response`:
+        // a reply read as it arrives rather than as a value, whose class and
+        // whose four readers are [`stream`]'s. The verb is a parameter here for
+        // `request`'s reason and one of its own — a streamed reply is usually a
+        // `POST`.
+        CoreMethod {
+            name: "stream",
+            names: &["method", "url"],
+            params: &[
+                CoreTy::Enum(crate::router::METHOD_NAME),
+                URL,
+                CoreTy::Options(OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(stream::STREAM_NAME),
+            symbol: "nvs_core_http_client_stream",
+            doc: Some(&STREAM_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -1301,6 +1323,17 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
             same bag the named rows take is the whole of what a call says.",
     params: DYNAMIC_PARAMS,
     ret: REQUEST_RET,
+    errors: REQUEST_ERRORS,
+};
+
+/// `Core\Http\Client::stream`'s reference card — `rule:core-api/reference-card`.
+const STREAM_DOC: MethodDoc = MethodDoc {
+    short: "Sends `$method` to `$url` and answers once the head has arrived, leaving the body to \
+            be read as it comes — the row for a reply a program works through rather than holds, \
+            such as a server-sent event stream or a result set a line at a time.",
+    params: DYNAMIC_PARAMS,
+    ret: "A `Core\\Http\\Stream` whose `status()`, `header()` and `headers()` answer the head, and \
+          whose body is read by exactly one of `events()`, `lines()`, `chunks()` and `saveTo()`.",
     errors: REQUEST_ERRORS,
 };
 
@@ -1908,6 +1941,37 @@ fn fields_of(
 /// [`pin`]'s four, [`judge_bound`]'s, [`judge_attempts`]' and [`judge_verb`]',
 /// and then [`transport::send`]'s.
 fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Value, Fault> {
+    let (status, body, headers) = exchanged(ctx, args, member, verb)?;
+    Ok(crate::instance::build(
+        &RESPONSE,
+        [
+            Value::int(status),
+            Value::bytes(NvsStr::new(&body)),
+            headers,
+        ],
+    ))
+}
+
+/// One exchange, as its status, its octets and [`header_map`]'s array — every
+/// request member's whole body, ahead of the class that reads the answer back.
+///
+/// The split is [`stream::STREAM`]'s: a buffered reply and a streamed one are
+/// the same call, checked the same way and sent over the same transport, and
+/// differ only in which class the answer is built into. A second copy of the
+/// reading would be a second place for a bound to be judged, which is the one
+/// mistake here that still connects.
+///
+/// # Errors
+///
+/// [`approved`]'s refusals, [`judge_bound`]'s, [`judge_attempts`]',
+/// [`judge_verb`]'s, [`body_of`]'s and whatever [`transport::send`] raised — or,
+/// where a test has armed the answer table, [`faked`]'s.
+fn exchanged(
+    ctx: &mut Ctx,
+    args: &[Value],
+    member: &str,
+    verb: &str,
+) -> Result<(i64, Vec<u8>, Value), Fault> {
     let named = format!("{CLIENT_NAME}::{member}");
     if ctx.faked_http().is_armed() {
         return faked(ctx, args, &named, verb);
@@ -1968,19 +2032,16 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Va
     };
 
     let reply = transport::send(&call, &mut |hop| pin(ctx, hop, &named))?;
-    Ok(crate::instance::build(
-        &RESPONSE,
-        [
-            Value::int(reply.status),
-            Value::bytes(NvsStr::new(&reply.body)),
-            header_map(&reply.headers),
-        ],
-    ))
+    let headers = header_map(&reply.headers);
+    Ok((reply.status, reply.body, headers))
 }
 
-/// The field lines of a reply, as [`RESPONSE`]'s header slot holds them: one
-/// entry per lower-cased name, each an array of that name's lines in arrival
-/// order.
+/// The field lines of a reply, as a header slot holds them: one entry per
+/// lower-cased name, each an array of that name's lines in arrival order.
+///
+/// `at` names the slot rather than this reading assuming one, because a
+/// buffered reply and a streamed one both carry the map and neither's layout is
+/// the other's.
 ///
 /// Grouped here rather than read back out of a flat list at every call, because
 /// both readers of the slot ask the same question of it and a program asking
@@ -2018,8 +2079,8 @@ fn header_map(lines: &[(String, String)]) -> Value {
 /// keys were lower-cased where they were parsed, so the comparison RFC 9110
 /// § 5.1 asks for is one allocation at the call rather than a walk that
 /// compares case-insensitively at every entry.
-fn field_lines(object: *mut nvs_runtime::ObjHeader, name: &str) -> Option<Vec<Vec<u8>>> {
-    let map = crate::instance::slot(object, HEADERS_SLOT).array_ptr()?;
+fn field_lines(object: *mut nvs_runtime::ObjHeader, at: usize, name: &str) -> Option<Vec<Vec<u8>>> {
+    let map = crate::instance::slot(object, at).array_ptr()?;
     let map = crate::arr::borrowed(map);
     let values = map.get(name.to_ascii_lowercase().as_bytes())?.array_ptr()?;
     let values = crate::arr::borrowed(values);
@@ -2033,6 +2094,71 @@ fn field_lines(object: *mut nvs_runtime::ObjHeader, name: &str) -> Option<Vec<Ve
         lines.push(held.as_text().unwrap_or_default().as_bytes().to_vec());
     }
     Some(lines)
+}
+
+/// The `$name` argument of a header reading.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, unreachable from source: the row's own
+/// `CoreTy::Text` is what `E0401` refuses anything else against.
+fn field_name<'a>(value: &'a Value, class: &str, member: &str) -> Result<&'a str, Fault> {
+    value.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{class}::{member} expected a `string` name, got tag {}",
+            value.tag_byte()
+        ))
+    })
+}
+
+/// One field of a reply, joined as RFC 9110 § 5.3 makes repeated lines
+/// equivalent — `header()`'s answer, for whichever class asked.
+///
+/// The join is the reading a program almost always wants: a `content-type` the
+/// origin sent twice means what the two lines say together. `Set-Cookie` is the
+/// field the equivalence does not cover ([`UNJOINABLE_FIELD`]), so it throws
+/// rather than answering a string that parses as neither cookie — and it throws
+/// whether or not the reply carried one, because a rule that depended on what
+/// arrived is a rule no program could be written against.
+///
+/// # Errors
+///
+/// A `LogicError` naming `headers` for `Set-Cookie`.
+fn joined_field(
+    object: *mut nvs_runtime::ObjHeader,
+    at: usize,
+    name: &str,
+    class: &str,
+) -> Result<Value, Fault> {
+    if name.eq_ignore_ascii_case(UNJOINABLE_FIELD) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{class}::header(): a `Set-Cookie` line is not part of RFC 9110 § 5.3's comma \
+                 equivalence and two of them joined parse as neither cookie — \
+                 `headers(\"set-cookie\")` answers them one line each"
+            ),
+        ));
+    }
+    Ok(match field_lines(object, at, name) {
+        None => Value::null(),
+        Some(lines) => Value::str(NvsStr::new(&lines.join(&b", "[..]))),
+    })
+}
+
+/// Every line one field carried, kept apart where [`joined_field`] joins them —
+/// `headers()`'s answer, for whichever class asked.
+///
+/// A field that arrived once answers a list of one and a field that never
+/// arrived an empty list, so nothing here is nullable: the absence a caller
+/// asks about is `Core\Arr::count`'s zero, and a `?array` would add a second
+/// spelling of the same emptiness (`rule:core-api/shape-rules` R5).
+fn listed_field(object: *mut nvs_runtime::ObjHeader, at: usize, name: &str) -> Value {
+    let mut out = NvsArray::new();
+    for line in field_lines(object, at, name).unwrap_or_default() {
+        out.append(Value::str(NvsStr::new(&line)));
+    }
+    Value::array(out)
 }
 
 /// One call answered from a test's table —
@@ -2065,7 +2191,12 @@ fn field_lines(object: *mut nvs_runtime::ObjHeader, name: &str) -> Option<Vec<Ve
 ///
 /// [`judged_host`]'s three, [`judge_bound`]'s, [`judge_attempts`]' and
 /// [`judge_verb`]', and a `LogicError` naming a URL the table does not answer.
-fn faked(ctx: &mut Ctx, args: &[Value], named: &str, verb: &str) -> Result<Value, Fault> {
+fn faked(
+    ctx: &mut Ctx,
+    args: &[Value],
+    named: &str,
+    verb: &str,
+) -> Result<(i64, Vec<u8>, Value), Fault> {
     let url = given_url(args, named)?;
     judged_host(&url, named)?;
     judge_bound(args, DEADLINE, "deadline", named)?;
@@ -2113,13 +2244,10 @@ fn faked(ctx: &mut Ctx, args: &[Value], named: &str, verb: &str) -> Result<Value
             ),
         ));
     };
-    Ok(crate::instance::build(
-        &RESPONSE,
-        [
-            Value::int(i64::from(answer.status)),
-            Value::bytes(NvsStr::new(&answer.body)),
-            header_map(&answer.headers),
-        ],
+    Ok((
+        i64::from(answer.status),
+        answer.body.clone(),
+        header_map(&answer.headers),
     ))
 }
 
@@ -2444,55 +2572,26 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\Response::header(string $name): ?tainted string` —
     /// `rule:security/tainted-qualifier`'s reply half, read one field at a time.
     ///
-    /// The join is RFC 9110 § 5.3's own equivalence, in arrival order, and it
-    /// is the reading a program almost always wants: a `content-type` the
-    /// origin sent twice means what the two lines say together. `Set-Cookie` is
-    /// the field the equivalence does not cover ([`UNJOINABLE_FIELD`]), so it
-    /// throws rather than answering a string that parses as neither cookie —
-    /// and it throws whether or not the reply carried one, because a rule that
-    /// depended on what arrived is a rule no program could be written against.
+    /// [`joined_field`] is the reading and the home of what it decides, because
+    /// a streamed reply answers the same question over a map of its own.
     ///
     /// # Errors
     ///
-    /// A `LogicError` naming `headers` for `Set-Cookie`. A [`Fault::fatal`]
-    /// naming the member for a receiver that is not a `Core\Http\Response` or a
+    /// That function's `LogicError` for `Set-Cookie`. A [`Fault::fatal`] naming
+    /// the member for a receiver that is not a `Core\Http\Response` or a
     /// `$name` that is not text, both unreachable from source exactly as in
     /// [`nvs_core_http_response_status`].
     fn nvs_core_http_response_header(_ctx, args: [2]) {
         let object = crate::instance::receiver(args[0], &RESPONSE, "header")?;
-        let name = args[1].as_text().ok_or_else(|| {
-            Fault::fatal(format!(
-                "{RESPONSE_NAME}::header expected a `string` name, got tag {}",
-                args[1].tag_byte()
-            ))
-        })?;
-        if name.eq_ignore_ascii_case(UNJOINABLE_FIELD) {
-            return Err(Fault::thrown_as(
-                ThrownClass::Logic,
-                format!(
-                    "{RESPONSE_NAME}::header(): a `Set-Cookie` line is not part of RFC 9110 \
-                     § 5.3's comma equivalence and two of them joined parse as neither cookie \
-                     — `headers(\"set-cookie\")` answers them one line each"
-                ),
-            ));
-        }
-        Ok(match field_lines(object, name) {
-            None => Value::null(),
-            Some(lines) => Value::str(NvsStr::new(&lines.join(&b", "[..]))),
-        })
+        let name = field_name(&args[1], RESPONSE_NAME, "header")?;
+        joined_field(object, HEADERS_SLOT, name, RESPONSE_NAME)
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Response::headers(string $name): array<tainted string>` —
     /// [`nvs_core_http_response_header`]'s other half, keeping apart what that
-    /// one joins.
-    ///
-    /// A field that arrived once answers a list of one and a field that never
-    /// arrived an empty list, so nothing here is nullable: the absence a caller
-    /// asks about is `Core\Arr::count`'s zero, and a `?array` would add a
-    /// second spelling of the same emptiness
-    /// (`rule:core-api/shape-rules` R5).
+    /// one joins. [`listed_field`] is the reading.
     ///
     /// # Errors
     ///
@@ -2500,17 +2599,8 @@ nvs_runtime::nvs_helper! {
     /// is what that member's `Set-Cookie` refusal names.
     fn nvs_core_http_response_headers(_ctx, args: [2]) {
         let object = crate::instance::receiver(args[0], &RESPONSE, "headers")?;
-        let name = args[1].as_text().ok_or_else(|| {
-            Fault::fatal(format!(
-                "{RESPONSE_NAME}::headers expected a `string` name, got tag {}",
-                args[1].tag_byte()
-            ))
-        })?;
-        let mut out = NvsArray::new();
-        for line in field_lines(object, name).unwrap_or_default() {
-            out.append(Value::str(NvsStr::new(&line)));
-        }
-        Ok(Value::array(out))
+        let name = field_name(&args[1], RESPONSE_NAME, "headers")?;
+        Ok(listed_field(object, HEADERS_SLOT, name))
     }
 }
 

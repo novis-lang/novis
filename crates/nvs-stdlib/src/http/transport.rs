@@ -69,9 +69,22 @@ use rand::RngExt;
 ///
 /// A cap and not a configuration: a reply is bytes another host chose, so
 /// "until memory runs out" is that host deciding this process's footprint. Two
-/// megabytes past the point where a caller should be streaming instead, which
-/// is the member this class does not have yet.
+/// megabytes past the point where a caller should be reaching for
+/// `Core\Http\Client::stream` instead.
 const REPLY_CEILING: usize = 8 * 1024 * 1024;
+
+/// The longest line [`super::stream`]'s readers will frame out of a reply.
+///
+/// Beside [`REPLY_CEILING`] and for its argument: a line is bytes another host
+/// chose, and a reader that framed one "until memory runs out" would let that
+/// host pick this process's footprint one line at a time. A reply whose text
+/// genuinely has no line breaks is read by `chunks()`, which frames nothing.
+pub(super) const LINE_CEILING: usize = 64 * 1024;
+
+/// The most `data` one server-sent event will accumulate, over however many
+/// `data` lines it is spread across. [`LINE_CEILING`]'s argument, one level up:
+/// the per-line cap alone would leave the event unbounded.
+pub(super) const EVENT_CEILING: usize = 1024 * 1024;
 
 /// How much of a file body this module holds at once.
 ///

@@ -1897,6 +1897,21 @@ pub const CLASSES: &[CoreClass] = &[
     // with the transport that fills them, and [`crate::http`]'s module doc is
     // the home of that list.
     crate::http::RESPONSE,
+    // `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s
+    // answer, which is the reply that is read as it arrives: the same head
+    // members over the same map, and four framings of a body that is taken by
+    // the first of them to name it rather than read by all four.
+    crate::http::stream::STREAM,
+    // One server-sent event, which is what the first of those four frames.
+    crate::http::stream::EVENT,
+    // The three walks those framings answer with. Three classes rather than one
+    // because `CoreTy::Iterated` is parameter position only, so an
+    // `Iterable<T>` return is a named class and [`ITERABLES`] is where its `T`
+    // is declared — an event, a line and a chunk are three `T`s over one
+    // implementation.
+    crate::http::stream::EVENTS,
+    crate::http::stream::LINES,
+    crate::http::stream::CHUNKS,
     // `rule:http-server/an-outbound-request-carries-one-body`'s part, which is
     // the arm of `body` and of a `multipart` field that names a file instead of
     // holding one. Two constructors and no member, for the reason
@@ -2927,6 +2942,15 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // And the second, for the same reason: an entry of a walked tree is a
     // `string` whatever the tree held.
     (crate::io::WALK_NAME, &CoreTy::Str),
+    // A streamed reply's three framings, whose elements are `tainted` for the
+    // reason every byte of a reply is: pinning says where the octets came from
+    // and nothing about what is in them.
+    (
+        crate::http::stream::EVENTS_NAME,
+        &CoreTy::Instance(crate::http::stream::EVENT_NAME),
+    ),
+    (crate::http::stream::LINES_NAME, &CoreTy::TaintedStr),
+    (crate::http::stream::CHUNKS_NAME, &CoreTy::TaintedBytes),
     // `rule:core-classes/db-statement-members`' `Db\Rows` under `foreach ($rows as Row
     // $row)`: a result set walks what it is already holding, which is its own `T` — a `Core\Db\Row` for `query`
     // and the hydrated class for `queryAs<T>`. Back to one of the receiver's
@@ -5238,6 +5262,9 @@ mod tests {
             crate::io::WALK_NAME,
             crate::http::TARGET_NAME,
             crate::http::PART_NAME,
+            crate::http::stream::EVENTS_NAME,
+            crate::http::stream::LINES_NAME,
+            crate::http::stream::CHUNKS_NAME,
             crate::cli::COLOR_NAME,
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,

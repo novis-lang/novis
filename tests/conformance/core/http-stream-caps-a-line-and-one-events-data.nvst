@@ -1,0 +1,83 @@
+--TEST--
+A streamed reply's line cap and event cap are each named on both sides — the longest line `lines()` frames and the first it refuses, the longest `data` one event may accumulate and the first byte past it — and `chunks()` and `saveTo`, which frame nothing, are bound by neither — `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
+--FILE--
+<?nvs
+// The caps are constants rather than directives: these are bytes another host
+// chose, so "until memory runs out" would be that host deciding this process's
+// footprint. Nothing below opens a socket
+// (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+
+// 65536 octets and one more, each followed by the `\n` that makes it a line.
+string $fitsLine = Core\Str::repeat("a", 65536);
+string $overLine = Core\Str::repeat("a", 65537);
+Core\Test::answerHttp("https://api.example.com/line-fits", 200, {body: $fitsLine . "\n"});
+Core\Test::answerHttp("https://api.example.com/line-over", 200, {body: $overLine . "\n"});
+Core\Test::answerHttp("https://api.example.com/line-framed", 200, {body: $overLine . "\n"});
+Core\Test::answerHttp("https://api.example.com/line-saved", 200, {body: $overLine . "\n"});
+
+// One event's `data` is accumulated across however many `data` lines carry it,
+// each of which is a line and so under the line cap itself: the event cap is
+// the one the per-line cap cannot make, which is why both are asked here.
+string $unit = Core\Str::repeat("a", 65530);
+string $block = "";
+int $i = 0;
+while ($i < 16) {
+    $block = $block . "data: " . $unit . "\n";
+    $i = $i + 1;
+}
+Core\Test::answerHttp("https://api.example.com/event-fits", 200, {body: $block . "data: " . Core\Str::repeat("b", 80) . "\n\n"});
+Core\Test::answerHttp("https://api.example.com/event-over", 200, {body: $block . "data: " . Core\Str::repeat("b", 81) . "\n\n"});
+
+var $fits = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/line-fits");
+echo $fits->status(), "\n";
+foreach ($fits->lines() as tainted string $line) {
+    echo "line: ", Core\Str::length($line), "\n";
+}
+
+try {
+    var $over = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/line-over");
+    foreach ($over->lines() as tainted string $refused) {
+        echo "a line one octet past the cap was framed\n";
+    }
+} catch (RuntimeError $long) {
+    echo $long->message, "\n";
+}
+
+// The same octets through the framings that frame nothing: a cap on a line is
+// not a cap on the reply, and a reader that had put it in the wrong place would
+// refuse these two as well.
+var $framed = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/line-framed");
+uint $octets = 0;
+foreach ($framed->chunks() as tainted bytes $chunk) {
+    $octets = $octets + Core\Bytes::length($chunk);
+}
+var $saved = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/line-saved");
+$saved->saveTo("long.txt", 70000);
+echo "chunks: ", $octets, " saved: ", Core\Str::length(Core\IO::read("long.txt")), "\n";
+
+// The event cap, exactly: 1048576 octets of accumulated `data` is an event, and
+// the next octet is not.
+var $whole = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/event-fits");
+foreach ($whole->events() as Core\Http\Event $event) {
+    echo "event: ", Core\Str::length($event->data()), " ", $event->name() ?? "message", " ", $event->id() ?? "none", "\n";
+}
+
+try {
+    var $huge = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/event-over");
+    foreach ($huge->events() as Core\Http\Event $past) {
+        echo "an event one octet past the cap was dispatched\n";
+    }
+} catch (RuntimeError $big) {
+    echo $big->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+200
+line: 65536
+Core\Http\Stream::lines(): a line of this reply is longer than the 65536 bytes a streamed line may be — the length is the origin's choice and the cap is this process's
+chunks: 65538 saved: 65538
+event: 1048576 message none
+Core\Http\Stream::events(): one event of this reply carries more than the 1048576 bytes of `data` an event may accumulate — the length is the origin's choice and the cap is this process's

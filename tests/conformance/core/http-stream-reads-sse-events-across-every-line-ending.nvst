@@ -1,0 +1,59 @@
+--TEST--
+`Core\Http\Stream::events` reads the WHATWG EventSource format whichever of `\r\n`, `\r` and `\n` ended each line, keeps an `id` in force between events, dispatches nothing for a block carrying no `data`, and is the one framing a lone `\r` ends a line for — `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
+--FILE--
+<?nvs
+// Nothing below opens a socket or resolves a name: every outbound call is
+// answered from the table (`rule:testing/an-outbound-call-is-answered-from-a-table`),
+// which is what lets a streamed reply be written out here byte for byte.
+//
+// One reply, three times, differing only in what ends each line. A parser that
+// learned two of the three terminators reads the third as one unterminated line
+// and dispatches nothing at all, so the three are asked the same question and
+// the answers are compared rather than each being read on its own.
+string $lf = ": a comment, which is skipped\nretry: 500\nevent: tick\ndata: one\nid: 7\n\ndata: two\ndata: and more\n\n";
+string $crlf = ": a comment, which is skipped\r\nretry: 500\r\nevent: tick\r\ndata: one\r\nid: 7\r\n\r\ndata: two\r\ndata: and more\r\n\r\n";
+string $cr = ": a comment, which is skipped\rretry: 500\revent: tick\rdata: one\rid: 7\r\rdata: two\rdata: and more\r\r";
+
+Core\Test::answerHttp("https://sse.example.com/lf", 200, {body: $lf, headers: ["content-type" => "text/event-stream"]});
+Core\Test::answerHttp("https://sse.example.com/crlf", 200, {body: $crlf, headers: ["content-type" => "text/event-stream"]});
+Core\Test::answerHttp("https://sse.example.com/cr", 200, {body: $cr, headers: ["content-type" => "text/event-stream"]});
+
+array<string> $urls = ["https://sse.example.com/lf", "https://sse.example.com/crlf", "https://sse.example.com/cr"];
+foreach ($urls as string $url) {
+    // The head is readable before the body is read at all, and it is the same
+    // reading `Core\Http\Response` gives — one implementation behind two doors.
+    var $stream = Core\Http\Client::stream(Core\Http\Method::Get, $url);
+    echo $stream->status(), " ", $stream->header("content-type") ?? "no type", " ", Core\Arr::count($stream->headers("content-type")), "\n";
+
+    // Two events, not three: the leading block sets `retry` and a comment and
+    // carries no `data`, so it dispatches nothing — while the `id` it would
+    // have carried stays in force for the block after the one that set it,
+    // which is why the second event reports `7` without naming it.
+    foreach ($stream->events() as Core\Http\Event $event) {
+        echo $event->name() ?? "message", " id=", $event->id() ?? "none", " [", $event->data(), "]\n";
+    }
+}
+
+// The one difference between the two framings, named on the side that does not
+// have it: `lines()` ends a line at `\n` alone, so the body every line of which
+// ended at `\r` is one line to it and six lines plus two events to `events()`.
+var $flat = Core\Http\Client::stream(Core\Http\Method::Get, "https://sse.example.com/cr");
+int $lines = 0;
+foreach ($flat->lines() as tainted string $line) {
+    $lines = $lines + 1;
+}
+echo "lines: ", $lines, "\n";
+--EXPECT--
+200 text/event-stream 1
+tick id=7 [one]
+message id=7 [two
+and more]
+200 text/event-stream 1
+tick id=7 [one]
+message id=7 [two
+and more]
+200 text/event-stream 1
+tick id=7 [one]
+message id=7 [two
+and more]
+lines: 1

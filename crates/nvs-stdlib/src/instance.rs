@@ -208,6 +208,54 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::CURRENT, crate::db::STREAM_CURRENT_SYMBOL),
         ],
     ),
+    // A streamed reply's three framings, which carry all three names for the
+    // reason every walk above does: an event, a line and a chunk are framed off
+    // the reply by the `advance` that answers them, so none of them exists when
+    // the walk is named. `crate::http::stream`'s module doc is the argument, and
+    // three classes over one implementation is [`registry::ITERABLES`]'s doing
+    // rather than this table's.
+    (
+        crate::http::stream::EVENTS_NAME,
+        &[
+            (
+                sequence::ITERATE,
+                crate::http::stream::EVENTS_ITERATE_SYMBOL,
+            ),
+            (
+                sequence::ADVANCE,
+                crate::http::stream::EVENTS_ADVANCE_SYMBOL,
+            ),
+            (
+                sequence::CURRENT,
+                crate::http::stream::EVENTS_CURRENT_SYMBOL,
+            ),
+        ],
+    ),
+    (
+        crate::http::stream::LINES_NAME,
+        &[
+            (sequence::ITERATE, crate::http::stream::LINES_ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::http::stream::LINES_ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::http::stream::LINES_CURRENT_SYMBOL),
+        ],
+    ),
+    (
+        crate::http::stream::CHUNKS_NAME,
+        &[
+            (
+                sequence::ITERATE,
+                crate::http::stream::CHUNKS_ITERATE_SYMBOL,
+            ),
+            (
+                sequence::ADVANCE,
+                crate::http::stream::CHUNKS_ADVANCE_SYMBOL,
+            ),
+            (
+                sequence::CURRENT,
+                crate::http::stream::CHUNKS_CURRENT_SYMBOL,
+            ),
+        ],
+    ),
     (
         crate::cursor::NAME,
         &[

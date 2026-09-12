@@ -1301,12 +1301,19 @@ mod tests {
     /// body is. Their sibling `status()` is the deliberate absence, and it is
     /// this test read the other way once more: three digits carry nothing a
     /// sink can misread.
+    /// `Core\Http\Stream`'s two and `Core\Http\Event`'s three are that same
+    /// reply read as it arrives: the head's field lines carry the mark for the
+    /// reason the buffered reply's do, and an event's `data`, `name` and `id`
+    /// are the origin's text whatever the program did to ask for them. The
+    /// streamed body itself is not here and is not a gap — it is the shape the
+    /// paragraph below names.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
     ///
-    /// **One tainted answer is deliberately not here, and it is the shape this
-    /// roster cannot see.** `Core\Request::bodyStream` answers an instance, and
+    /// **The tainted answers deliberately not here are one shape, and it is the
+    /// shape this roster cannot see.** `Core\Request::bodyStream` and
+    /// `Core\Http\Stream`'s `lines()` and `chunks()` answer an instance, and
     /// the mark is on what a `foreach` over it *binds* — written in
     /// `nvs_stdlib::registry::ITERABLES` rather than in a return type, exactly
     /// as `Core\Jwt::verify`'s is written on an array's element. So a member
@@ -1345,6 +1352,9 @@ mod tests {
                 (r"Core\Cli", "secret", "secret tainted string".to_owned(),),
                 (r"Core\Env", "all", "array<tainted string>".to_owned()),
                 (r"Core\Env", "get", "null|tainted string".to_owned()),
+                (r"Core\Http\Event", "data", "tainted string".to_owned()),
+                (r"Core\Http\Event", "id", "null|tainted string".to_owned(),),
+                (r"Core\Http\Event", "name", "null|tainted string".to_owned(),),
                 (r"Core\Http\Response", "bytes", "tainted bytes".to_owned(),),
                 (
                     r"Core\Http\Response",
@@ -1357,6 +1367,16 @@ mod tests {
                     "array<tainted string>".to_owned(),
                 ),
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
+                (
+                    r"Core\Http\Stream",
+                    "header",
+                    "null|tainted string".to_owned(),
+                ),
+                (
+                    r"Core\Http\Stream",
+                    "headers",
+                    "array<tainted string>".to_owned(),
+                ),
                 (r"Core\IO", "stdin", "tainted string".to_owned()),
                 (r"Core\Jwe", "decrypt", "tainted string".to_owned()),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),

@@ -1,0 +1,88 @@
+--TEST--
+`Core\Http\Stream`'s body is read one way and once: `lines()` strips a trailing `\r` and needs no terminator on the last line, `chunks()` frames nothing, and whichever of the four ran first, the next one throws naming it and leaves no file behind — `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+--FILE--
+<?nvs
+// No socket is opened and no name resolved: the answers come from the table
+// (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+// A field the origin sent twice, so that both readings of the head are asked
+// of the same reply: `header` joins the two lines and `headers` keeps them.
+array<string> $trace = ["one", "two"];
+Core\Test::answerHttp("https://api.example.com/rows", 200, {body: "alpha\nbeta\r\ngamma", headers: ["x-trace" => $trace]});
+Core\Test::answerHttp("https://api.example.com/blob", 200, {body: "raw octets"});
+Core\Test::answerHttp("https://api.example.com/events", 200, {body: "event: done\ndata: finished\nid: 9\n\n"});
+
+// A line ends at `\n`, a `\r` before that one is the other half of a CRLF and
+// is stripped, and the last line needs no terminator at all — three questions
+// one body answers, where a reader that got any of them wrong still prints a
+// plausible first line.
+var $rows = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/rows");
+echo $rows->status(), " ", $rows->header("x-trace") ?? "no trace", " ", Core\Arr::count($rows->headers("x-trace")), "\n";
+foreach ($rows->lines() as tainted string $line) {
+    echo "[", $line, "] ", Core\Str::length($line), "\n";
+}
+
+// The body is gone rather than merely closed to a second reader, which is what
+// makes the refusal a property of the memory as well as of the rule.
+try {
+    foreach ($rows->chunks() as tainted bytes $late) {
+        echo "a second reader walked the body\n";
+    }
+} catch (LogicError $twice) {
+    echo $twice->message, "\n";
+}
+
+// `chunks()` frames nothing: what a walk yields is what the transport had, and
+// a reply the table answered is one piece of it.
+var $blob = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/blob");
+int $pieces = 0;
+uint $octets = 0;
+foreach ($blob->chunks() as tainted bytes $chunk) {
+    $pieces = $pieces + 1;
+    $octets = $octets + Core\Bytes::length($chunk);
+}
+echo "pieces: ", $pieces, " octets: ", $octets, "\n";
+
+// The refusal reaches `saveTo` before the destination is created, so a program
+// that was right to be refused is not left holding an empty file at a name it
+// chose — the `exists` is the only thing that can tell that apart from the
+// throw alone.
+try {
+    $blob->saveTo("late.bin", 1024);
+    echo "a second reader wrote the body to disk\n";
+} catch (LogicError $saved) {
+    echo $saved->message, "\n";
+    if (Core\IO::exists("late.bin")) {
+        echo "refused, and an empty file was left behind\n";
+    } else {
+        echo "refused, and nothing was left behind\n";
+    }
+}
+
+// And the same rule from the fourth door, so that a reader which learned it for
+// one framing still fails here.
+var $stream = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/events");
+foreach ($stream->events() as Core\Http\Event $event) {
+    echo $event->name() ?? "message", " id=", $event->id() ?? "none", " [", $event->data(), "]\n";
+}
+try {
+    foreach ($stream->events() as Core\Http\Event $again) {
+        echo "a second walk found an event\n";
+    }
+} catch (LogicError $reread) {
+    echo $reread->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+200 one, two 2
+[alpha] 5
+[beta] 4
+[gamma] 5
+Core\Http\Stream::chunks(): this stream's body was read by `lines()` — a streamed body is read one way and once, and a second reader is refused rather than answered empty, which would be the same answer as a body that was empty
+pieces: 1 octets: 10
+Core\Http\Stream::saveTo(): this stream's body was read by `chunks()` — a streamed body is read one way and once, and a second reader is refused rather than answered empty, which would be the same answer as a body that was empty
+refused, and nothing was left behind
+done id=9 [finished]
+Core\Http\Stream::events(): this stream's body was read by `events()` — a streamed body is read one way and once, and a second reader is refused rather than answered empty, which would be the same answer as a body that was empty
