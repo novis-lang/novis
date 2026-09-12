@@ -4653,6 +4653,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   case fails with a reset it never asked for. Say `stream.set_nonblocking(false)` on every accepted
   connection before reading it, as `transport.rs`'s `answer` does.
   [until: gone crates/nvs-stdlib/src/http/transport.rs:set_nonblocking]
+- **A `Core` refusal's exact text is pinned by a conformance case, so `cargo test` stays green while
+  `verify.py` fails at step 7 on a reworded message.** The `.nvst` expectation holds the whole
+  sentence, and changing only the advice half of one is enough to fail it. Grep
+  `tests/conformance/` for a distinctive phrase of the message before you reword it rather than
+  after the verify run. [until: reviewed 2026-09-13]
 
 ## Splitting a file that got too big
 
