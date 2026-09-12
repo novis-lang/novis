@@ -1686,12 +1686,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   order. Put every target first and every flag — `--window`, `--context`, `--in`, `--locate` —
   last, and reach for the per-target `:3` context suffix when only one target wants it.
   [until: reviewed 2026-09-11]
-- **A goal `.toml` check whose `want` string spells a `rule:` token fails `rules.py --check` for every
-  goal ahead of it.** `--citations` scans `docs/**/*.toml` for that token and cannot tell an assertion
-  about a rule the goal will create from a citation of one that already exists, so a check written to
-  gate a future rule breaks the rulebook from the day it is written until that goal lands. Put the bare
-  id in `want` — `python tools/rules.py --show <id>` prints the `rule:` token on its first line, so the
-  check matches the same output and still means what it did. [until: rule core-classes/crypto-interop-tier]
 - **A `loop-goal.toml` check's drafted `tests` list can be *mixed*: some names are claims the tree
   landed under other names, the rest are unwritten work.** Map the whole list onto existing tests
   and a name ends up pointing at a test that does not assert it; write every name and two are
@@ -1844,6 +1838,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   exist, and it commits by pathspec, so the old filename stays staged in the index while the new one
   goes in — a fresh checkout of that commit carries both. Name only the new path in the section, then
   commit the leftover deletion straight after the wrap. [until: reviewed 2026-09-12]
+- **A new rule's `because` names only the records that created or amended it, and a "depends on"
+  record listed there fails `records.py --check` against a file nobody may edit.** The relation is
+  bidirectional, so every id in a `because` obliges that record's own `changes:` block to name the
+  rule back, and a frozen record never acquires one — listing `0051` beside `0179` reported
+  `0051.md:3 ... its changes: does not name the rule`. Put the ancestry in the new record's
+  `Depends on:` bullet and leave `because` at the records that wrote the rule.
+  [until: reviewed 2026-10-12]
 
 ## Running things
 

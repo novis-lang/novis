@@ -175,7 +175,7 @@ plan = ["Open now", "Blocking"]
 rules = ["security/protocol-admission-test", "core-api/verb-lexicon", "core-api/tier-roster"]
 adrs = ["0051"]
 spec = ["01 §16"]
-shapes = ["A decision record", "A rule fragment", "Citing a document"]
+shapes = ["A decision record", "A rule fragment", "Citing a document", "Where a rule sits in the order"]
 
 [context.stage.3]
 # Six crates enter the tree and `ring` is taken directly: what a dependency move proves, the generated
