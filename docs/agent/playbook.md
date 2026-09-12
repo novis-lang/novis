@@ -1878,6 +1878,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   output ever names. Read the *direction* a check's name states against what the crate's own tests
   assert before sizing the item: a Rust-side proof that is absent gets written, not spelled
   differently. [until: reviewed 2026-09-12]
+- **An acceptance check that runs a `tools/*.py --show` can go red on the console's *code page* rather
+  than on the tree, and the tell is a traceback ending in `UnicodeEncodeError`.** `rules.py` printed
+  `core-classes/crypto-interop-tier`'s metadata and then died on the `‖` in its body, because a console
+  here is cp1252 and that tool carried no `sys.stdout.reconfigure`, so a rule that was written and
+  correct reported as unwritten work. Run a red check's own `argv` and read its *last* line before
+  touching the tree; the repair is the three lines `tools/rules.py:445-450` now carries, in whichever
+  tool prints the prose. [until: reviewed 2026-09-12]
 
 ## Running things
 
@@ -6466,12 +6473,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   anything in its own file. Add its `NAME`, made `pub(crate)`, to the test's `HANDLES` list in the
   slice that registers the class.
   [until: gone crates/nvs-stdlib/src/registry.rs:const HANDLES]
-- **A `Qual::Contagious` text parameter refuses a `tainted` argument when the member already answers
-  `tainted`.** `admits_tainted_argument` (`crates/nvs-types/src/expr/quals.rs:299-308`) admits one
-  only where the qualifier has somewhere new to go, so `Core\Jwe::decrypt`'s row refuses the token a
-  request hands in, as `expected 'string', found 'tainted string'`. Mark such a parameter
-  `Qual::Neutral`, which is what `Core\Jwt::verify` (`crates/nvs-stdlib/src/jwt.rs:466-472`) does.
-  [until: gone crates/nvs-stdlib/src/jwe.rs:CoreTy::Text(Qual::Contagious), CoreTy::Array(&KEY_TY)]
 
 ## Divergences and refusals already pinned
 

@@ -2,25 +2,22 @@
 
 ## State
 
-**Goal `webcrypto`, stage 7 is complete.** `examples/webcrypto.nvs` prints the seven lines the
-`exact` check at `docs/agent/loop-goal.toml:9162-9174` freezes, in order, at exit 0, and the
-fourteen stage 7 test names are all green. Stage 8 — the rulebook — is what is left of the goal.
+**Goal `webcrypto`: stages 1–7 are complete, and stage 8 — the rulebook — is all that is left.** Its
+three checks (`docs/agent/loop-goal.toml:9185-9203`) ask that `core-classes/crypto-interop-tier`,
+`security/jwe-compact-subset` and `security/jws-issued-subset` each read `shipped`; all three still
+read `designed`, and nothing else about them is open.
 
-**The example signs the ID token it verifies, under the set's own issuer key.** The frozen set's ID
-tokens all carry `exp` 1767229200, `verifyIssued` takes no clock at the Novis level and its `leeway`
-is capped at five minutes (`crates/nvs-stdlib/src/jwt.rs:380-395`), so the goal's § *Stage 7* ask —
-verify one of the set's ID tokens — is not reachable from a program running at the wall clock. What
-the example does instead is read the set's `ed-1` pair from its frozen PKCS#8, publish the JWK
-WebCrypto exported for it as a one-key JWKS, sign at this clock and verify through that set — then
-swap `EdDSA` for `HS256` in the header of that same token and be refused. The JWE half does open one
-of the set's own tokens.
+**Stage 2's three checks were red on the tool, not on the tree.** The rules were written and correct;
+`tools/rules.py --show` died printing a rule body on a cp1252 console, so the check exited 1 after
+matching its `want`. Fixed at `tools/rules.py:445-450`, and the playbook's *Tooling* bullet is the
+general shape of that failure.
 
-**`Core\Jwe::decrypt` cannot be handed a token that arrived in a request.** Its `$token` is
-`CoreTy::Text(Qual::Contagious)` over a `TaintedStr` return (`crates/nvs-stdlib/src/jwe.rs:185-194`),
-and `admits_tainted_argument` (`crates/nvs-types/src/expr/quals.rs:299-308`) refuses a `tainted`
-argument at a `Contagious` parameter whose answer is already `tainted`. `Core\Jwt::verify` and
-`verifyIssued` are `Qual::Neutral` for exactly this reason and say so
-(`crates/nvs-stdlib/src/jwt.rs:466-494`). That is the next group.
+**`Core\Jwe::decrypt` takes the token a request handed in.** Its `$token` is `Qual::Neutral`
+(`crates/nvs-stdlib/src/jwe.rs:194`) for `Core\Jwt::verify`'s reason: the payload is `tainted` on the
+way out whatever the token was, so contagion has nothing left to carry and
+`admits_tainted_argument` (`crates/nvs-types/src/expr/quals.rs:307`) would only have refused the
+ordinary call. `encrypt`'s payload stays `Qual::Contagious` — its return is plain `Str`, so the
+qualifier still has somewhere to go, and the new case proves it does.
 
 `nvs-host`'s two CPU-charging watchdog tests stay the known flake
 (`crates/nvs-host/src/watchdog.rs:1051` and `:1103`): one fails per run under load, a different one
@@ -28,29 +25,27 @@ each time, and each passes alone.
 
 ## Next group
 
-**Stage 7: the token a request hands in** — one file set: `crates/nvs-stdlib/src/jwe.rs`, with
-`crates/nvs-types/src/expr/quals.rs:299` and `crates/nvs-stdlib/src/jwt.rs:466` read-only.
-`rule:security/verification-does-not-launder`, and the goal's § *Standing decisions* paragraph
-beginning "JWE answers like the rest of the roster".
+**Stage 8: the rulebook** — one file set: `docs/rules/core-classes.json`, `docs/rules/security.json`
+and whatever `--render` writes from them. `rule:core-classes/crypto-interop-tier`,
+`rule:security/jwe-compact-subset`, `rule:security/jws-issued-subset`.
 
-- [ ] **Mark `Core\Jwe::decrypt`'s `$token` `Qual::Neutral`** at
-      `crates/nvs-stdlib/src/jwe.rs:188`, rewriting the row's comment the way
-      `crates/nvs-stdlib/src/jwt.rs:468-471` writes its own: the token is neutral on the way in
-      because the payload is `tainted` on the way out whatever it was, so contagion has nothing
-      left to carry and only refuses the ordinary call. Check whether `encrypt`'s payload
-      (`crates/nvs-stdlib/src/jwe.rs:179`) is in the same position — its return is plain `Str`, so
-      it is not — and whether `crates/nvs-types/src/core_lib.rs:940-990`'s qualifier audit counts
-      the row.
-- [ ] **Write the case that only compiles under it**:
-      `tests/conformance/core/jwe-opens-a-token-that-arrived-tainted.nvst`, shaped like
-      `tests/conformance/core/jwe-opens-every-token-webcrypto-sealed.nvst:1` — open one of the
-      frozen `dir` tokens, hand the `tainted` payload back to `encrypt`, and open the `tainted`
-      token that comes out. Add the Rust-side half beside the set's replays in
-      `crates/nvs-stdlib/src/jwe.rs:1262` if the member's own tests do not already reach it.
+- [ ] **Flip the interop tier to `shipped`** — the `status` field of the rule object at
+      `docs/rules/core-classes.json:692`, `rule:core-classes/crypto-interop-tier`. The goal's whole
+      surface is on disk and its conformance cases are green, which is what the status asserts.
+- [ ] **Flip both JOSE subsets to `shipped`** in one edit — `docs/rules/security.json:1437`
+      (`rule:security/jwe-compact-subset`) and `docs/rules/security.json:1454`
+      (`rule:security/jws-issued-subset`) — then re-render with `python tools/rules.py --render`,
+      which rewrites `docs/rules/*.md` and `docs/ground-rules.md`.
+- [ ] **Regenerate `docs/novis.md` rather than hand-editing it.** It is filtered to rules whose
+      status is `shipped` (`tools/rules.py:35`), so it grows by these three; `tools/reference.py`
+      owns it, and which flag renders it is not checked. `python tools/verify.py --doc` before the
+      `DONE` status, as the session prompt's step 6 requires.
 
 ## Backlog
 
-- **Stage 8, the rulebook** — `rule:core-classes/crypto-interop-tier` and the goal's § *Stage 8*.
-- **The set's ID tokens verify only at a clock nothing hands in** — a `.nvst` case cannot reach
-  `verifyIssued` over a frozen token at all; `docs/agent/loop-goal.md` § *Stage 7*.
-- What stays out of this goal is its own § *Standing decisions* last bullet, not this list.
+- The Rust-side half of the tainted-token claim has no home: nothing under `crates/nvs-types/tests/`
+  names a `Core` member, and `core_lib.rs`'s per-slot audit (`crates/nvs-types/src/core_lib.rs:938`)
+  already pins the row's mark.
+- JWE-encrypted ID tokens, key-set fetching and caching, and structured claims under a shared key are
+  out of this goal by its § *Standing decisions*.
+- `crates/nvs-host/src/watchdog.rs:1051` and `:1103` flake under load; nothing owns the repair.

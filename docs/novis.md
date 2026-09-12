@@ -19315,7 +19315,7 @@ Opens `$token` against each key in `$keys` in order and answers the payload that
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$token` | `string` | The token text, as it arrived. A `tainted` value is accepted here — that is the point of the member. |
+| `$token` | `string` (neutral) | The token text, as it arrived. A `tainted` value is accepted here — that is the point of the member. |
 | `$keys` | `array<Core\Jwe\Key>` | The key ring, tried in order, so a token sealed under any key still in it opens. A ring holding a key built by `Jwe\Key::password` holds exactly that one key, because every try costs a full derivation. A key built by `Jwe\Key::recipient` is a public key and opens nothing. |
 
 **Returns** `tainted string` — The payload, character for character, as `tainted string`.
