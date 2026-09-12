@@ -1,0 +1,34 @@
+--TEST--
+`Core\Html::join` writes its parts in order with the separator between each pair and nowhere else, and the answer is a `Markup` — `rule:core-classes/html-literal`
+--FILE--
+<?nvs
+// The list form of `Markup + Markup`: a page composed from fragments writes
+// this instead of folding the operator, and the separator is what the operator
+// has no room for.
+array<Core\Html\Markup> $rows = [
+    "<li>one</li>" as Core\Html\Markup,
+    "<li>two</li>" as Core\Html\Markup,
+    "<li>three</li>" as Core\Html\Markup,
+];
+echo Core\Html::join($rows, "<br>" as Core\Html\Markup), "\n";
+
+// Between each *pair*: never ahead of the first part and never after the last,
+// which a single part is what shows — one part has no pair, so it is written
+// alone however loud the separator is.
+array<Core\Html\Markup> $one = ["<li>only</li>" as Core\Html\Markup];
+echo Core\Html::join($one, "<br>" as Core\Html\Markup), "\n";
+
+// The answer is a `Markup` and not merely bytes that print the same: the
+// declared type asserts it, and joining the result again is what would stop
+// compiling if `join` answered a `string`.
+Core\Html\Markup $list = Core\Html::join($rows, "" as Core\Html\Markup);
+array<Core\Html\Markup> $twice = [$list, $list];
+echo Core\Html::join($twice, "<hr>" as Core\Html\Markup), "\n";
+
+// A `Markup` is a value type, so composing leaves every operand where it was.
+echo Core\Html::join($one, "<br>" as Core\Html\Markup), "\n";
+--EXPECT--
+<li>one</li><br><li>two</li><br><li>three</li>
+<li>only</li>
+<li>one</li><li>two</li><li>three</li><hr><li>one</li><li>two</li><li>three</li>
+<li>only</li>

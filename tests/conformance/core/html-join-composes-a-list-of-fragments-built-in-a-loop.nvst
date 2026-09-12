@@ -1,0 +1,35 @@
+--TEST--
+A list of markup literals built in a loop composes with `Core\Html::join`, and the joined result splices into another literal without being escaped again — `rule:core-classes/html-literal`
+--FILE--
+<?nvs
+// The shape a page is actually written in: one literal per row, a list built
+// as the rows are produced, and one `join` at the end — which is what replaces
+// folding `+` over `n` fragments and allocating `n - 1` intermediates.
+array<string> $names = ["ada & grace", "<hopper>", "o'neill"];
+array<Core\Html\Markup> $cells = [];
+foreach ($names as string $name) {
+    // Each hole is escaped where it is written: the literal's segments are the
+    // author's markup and the hole is the data.
+    $cells[] = html`<td>{$name}</td>`;
+}
+Core\Html\Markup $row = Core\Html::join($cells, "" as Core\Html\Markup);
+echo $row, "\n";
+
+// A separator between the pairs, and nothing around the ends.
+echo Core\Html::join($cells, "<td>|</td>" as Core\Html\Markup), "\n";
+
+// The join's answer is a carrier, so a hole holding it is spliced raw — the
+// escaped cells above are written once and not a second time.
+echo html`<table><tr>{$row}</tr></table>`, "\n";
+
+// And the loop's own shape does not change the answer: a list the loop never
+// appended to produces a row that writes nothing, so a table with no data is
+// still a table.
+array<Core\Html\Markup> $nothing = [];
+Core\Html\Markup $none = Core\Html::join($nothing, "" as Core\Html\Markup);
+echo html`<table><tr>{$none}</tr></table>`, "\n";
+--EXPECT--
+<td>ada &amp; grace</td><td>&lt;hopper&gt;</td><td>o&#39;neill</td>
+<td>ada &amp; grace</td><td>|</td><td>&lt;hopper&gt;</td><td>|</td><td>o&#39;neill</td>
+<table><tr><td>ada &amp; grace</td><td>&lt;hopper&gt;</td><td>o&#39;neill</td></tr></table>
+<table><tr></tr></table>

@@ -1,0 +1,31 @@
+--TEST--
+`Core\Html::join` over an empty list answers markup that writes nothing, and the separator reaches the output only where there is a pair — `rule:core-classes/html-literal`
+--FILE--
+<?nvs
+// The boundary the walk has to get right on its own: with no part to write
+// there is no pair for the separator to go between, so a loud separator is not
+// what an empty list answers.
+array<Core\Html\Markup> $none = [];
+Core\Html\Markup $empty = Core\Html::join($none, "<br>" as Core\Html\Markup);
+echo "[", $empty, "]\n";
+
+// It is a `Markup` rather than nothing at all, so it composes like one: the
+// empty answer is the identity of both `+` and `join`.
+echo "[", $empty + ("<b>x</b>" as Core\Html\Markup), "]\n";
+
+array<Core\Html\Markup> $around = [$empty, "<b>y</b>" as Core\Html\Markup, $empty];
+echo "[", Core\Html::join($around, "" as Core\Html\Markup), "]\n";
+
+// An empty *separator* is the other empty, and the two are independent: three
+// parts and nothing between them is a concatenation.
+array<Core\Html\Markup> $parts = [
+    "<b>" as Core\Html\Markup,
+    "bold" as Core\Html\Markup,
+    "</b>" as Core\Html\Markup,
+];
+echo "[", Core\Html::join($parts, "" as Core\Html\Markup), "]\n";
+--EXPECT--
+[]
+[<b>x</b>]
+[<b>y</b>]
+[<b>bold</b>]

@@ -1,0 +1,35 @@
+--TEST--
+`Core\Html::join` escapes nothing, so an escaped fragment is written once and a trusted one is written raw — `rule:core-classes/html-literal`, `rule:security/launderer-answers-a-carrier`
+--FILE--
+<?nvs
+// Every part is already a carrier, so each one passed whichever rule made it
+// markup. Escaping here would be the second application the carrier exists to
+// make unreachable: `&amp;` would go out as `&amp;amp;`.
+array<Core\Html\Markup> $escaped = [
+    Core\Html::escape("a & b"),
+    Core\Html::escape("<c>"),
+];
+echo Core\Html::join($escaped, " and " as Core\Html\Markup), "\n";
+
+// The same five characters in a *trusted* part are the markup the author
+// wrote, and they travel untouched — this is where `join` differs from the
+// sink, which escapes everything that is not a carrier.
+array<Core\Html\Markup> $trusted = [
+    "<b>a & b</b>" as Core\Html\Markup,
+    "<i>'q' > \"p\"</i>" as Core\Html\Markup,
+];
+echo Core\Html::join($trusted, " & " as Core\Html\Markup), "\n";
+
+// The separator is a carrier for the same reason and gets the same treatment:
+// a separator holding markup is written as markup, not as its own text.
+echo Core\Html::join($escaped, "</li><li>" as Core\Html\Markup), "\n";
+
+// And the bytes are the ones the fragments carried, which `toSource` is the
+// one way to read back out (`rule:core-classes/html-to-source`).
+Core\Html\Markup $joined = Core\Html::join($trusted, "" as Core\Html\Markup);
+echo Core\Html::toSource($joined, "asserting the joined bytes are the parts' own"), "\n";
+--EXPECT--
+a &amp; b and &lt;c&gt;
+<b>a & b</b> & <i>'q' > "p"</i>
+a &amp; b</li><li>&lt;c&gt;
+<b>a & b</b><i>'q' > "p"</i>
