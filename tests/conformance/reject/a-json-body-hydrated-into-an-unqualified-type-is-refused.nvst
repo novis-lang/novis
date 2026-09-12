@@ -60,8 +60,8 @@ echo $post->title, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0810]: `Author::$name` is declared `string`, and a decoded request body is tainted
+error[E0810]: `Author::$name` is declared `string`, and `Core\Request::jsonAs` answers a peer's octets
 %A
-error[E0810]: `Post::$tags` is declared `array<string>`, and a decoded request body is tainted
+error[E0810]: `Post::$tags` is declared `array<string>`, and `Core\Request::jsonAs` answers a peer's octets
 %A
 error: aborting due to 2 errors

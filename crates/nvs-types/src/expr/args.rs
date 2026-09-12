@@ -1514,18 +1514,25 @@ pub(crate) fn written_class_of(
         let qname = qname.clone();
         // `rule:core-classes/db-column-types`'s own question about the class, which is a question
         // about the whole program and so is only *recorded* here — see
-        // [`crate::derive::check_row_sites`]. `Core\Request::jsonAs` records a
-        // site of its own beside it, for `rule:security/derived-codec-qualifiers`'s
+        // [`crate::derive::check_row_sites`]. A decode site is the other
+        // recorded question, for `rule:security/derived-codec-qualifiers`'s
         // qualifier rather than for a type map — see
-        // [`crate::derive::check_decode_sites`]. `Core\Json::decodeAs` is the
-        // third row on this roster and gets neither: its list form is a
-        // legitimate JSON array document, and it takes its own document through
+        // [`crate::derive::check_decode_sites`] — and it is recorded for a
+        // member whose document is a peer's whatever the argument carrying it
+        // was typed as: `Core\Request::jsonAs` reads the request body, and
+        // `Core\Jwt::verifyIssued` reads a payload another party wrote, which
+        // `rule:security/verification-does-not-launder` keeps `tainted` because
+        // a signature proves origin and not safety.
+        // `Core\Json::decodeAs` gets neither: it takes its own document through
         // a plain `string` parameter, so a tainted argument is already refused
         // where it is passed rather than at the class it writes.
         let span = type_args.first().map_or(call_span, |ty| ty.span);
-        if method == "jsonAs" {
-            env.decode_sites
-                .push(crate::derive::DecodeSite::new(qname.clone(), span));
+        if method == "jsonAs" || method == "verifyIssued" {
+            env.decode_sites.push(crate::derive::DecodeSite::new(
+                format!("{owner}::{method}"),
+                qname.clone(),
+                span,
+            ));
         }
         if method == "queryAs" {
             env.row_sites.push(crate::derive::RowSite::new(
@@ -1551,12 +1558,15 @@ pub(crate) fn written_class_of(
         let span = type_args.first().map_or(call_span, |ty| ty.span);
         // Every `Core\Request` member on this roster reads the request —
         // `rule:security/tainted-sources` makes the body and the query alike a
-        // peer's octets. The other owners do not: `Core\Json::decodeAs` takes
+        // peer's octets — and `Core\Jwt::verifyIssued` reads a payload another
+        // party wrote, which `rule:security/verification-does-not-launder`
+        // keeps `tainted`. The other owners do not: `Core\Json::decodeAs` takes
         // its document through a plain `string` parameter, so a tainted one is
         // refused where it is passed; `Core\Arr::shapeAs` converts an array the
         // program already holds, whose taint it carries in already; and a
         // `Core\Db` row is not a taint source at all.
-        if owner.to_string() == r"Core\Request" {
+        let owner_name = owner.to_string();
+        if owner_name == r"Core\Request" || owner_name == r"Core\Jwt" {
             crate::derive::check_shape_decode_site(
                 element,
                 &format!("{owner}::{method}"),

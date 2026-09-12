@@ -774,15 +774,19 @@ fn report_row_site(site: &RowSite, message: String, help: &str, diags: &mut Diag
     );
 }
 
-/// One `Core\Request::jsonAs<T>` call site, held until every deriving class in
-/// the program has recorded its fields.
+/// One call site of a member that decodes a peer's octets into a written class,
+/// held until every deriving class in the program has recorded its fields.
 ///
-/// [`RowSite`]'s reason for the other member on
+/// [`RowSite`]'s reason for the other members on
 /// [`crate::expr::args::written_class_of`]'s roster: the class a call names is
 /// routinely declared in a file the walk has not reached, so answering where
 /// the call is written would make the refusal depend on file order.
 #[derive(Debug)]
 pub struct DecodeSite {
+    /// The member that asked, as `Class::member`, so the report says whose
+    /// octets they are — a request body under `Core\Request`, an issuer's
+    /// payload under `Core\Jwt::verifyIssued`.
+    member: String,
     /// The class the type argument named, resolved. `array<C>` records `C`: a
     /// list decode is the same decode run once per element, so the fields
     /// receiving the body are the same fields.
@@ -795,23 +799,28 @@ pub struct DecodeSite {
 impl DecodeSite {
     /// Records a site, from [`crate::expr::args::written_class_of`] — the one
     /// place a written class and the member that asked for it are both in hand.
-    pub(crate) fn new(class: QName, span: Span) -> Self {
-        Self { class, span }
+    pub(crate) fn new(member: String, class: QName, span: Span) -> Self {
+        Self {
+            member,
+            class,
+            span,
+        }
     }
 }
 
 /// `rule:security/derived-codec-qualifiers`'s qualifier, asked of the class a
-/// `Core\Request::jsonAs<T>` wrote, once every deriving class in the program
-/// has recorded its fields.
+/// decoding member wrote, once every deriving class in the program has recorded
+/// its fields.
 ///
 /// Run after the walk, from [`crate::check::check_program`], beside
 /// [`check_row_sites`] and for the same reason.
 ///
 /// **The call site, not the declaration.** A derived codec says nothing about
 /// where its documents come from, and the same class is legitimate over one the
-/// program built itself; it is the request *body* that is a peer's octets. So
-/// the site that decodes one is where the question has an answer, and the
-/// message still points at the property, which is where the fix is written.
+/// program built itself; it is the *document* that is a peer's octets — a
+/// request body, or the payload of a token another party signed. So the site
+/// that decodes one is where the question has an answer, and the message still
+/// points at the property, which is where the fix is written.
 ///
 /// **The reachable set, not the written class's own fields.** A field typed as
 /// another deriving class is filled from the same document, so its text fields
@@ -849,16 +858,17 @@ pub(crate) fn check_decode_sites(
                 }
                 let property = &field.property;
                 let spelling = interner.describe(field.declared);
+                let member = &site.member;
                 diags.report(
                     Diagnostic::error(
                         code::E_DECODED_FIELD_NOT_TAINTED,
                         format!(
-                            "`{class}::${property}` is declared `{spelling}`, and a decoded \
-                             request body is tainted"
+                            "`{class}::${property}` is declared `{spelling}`, and `{member}` \
+                             answers a peer's octets"
                         ),
                     )
                     .with_primary(field.span, "declared without a qualifier")
-                    .with_secondary(site.span, "hydrated from a request body here")
+                    .with_secondary(site.span, format!("hydrated by `{member}` here"))
                     .with_help(
                         "`rule:security/derived-codec-qualifiers`: a decoder assigns into the \
                          declared property types, so a field that receives a peer's octets is \
@@ -893,7 +903,7 @@ fn unqualified_text(declared: TypeId, interner: &crate::ty::TypeInterner) -> boo
 }
 
 /// `rule:security/tainted-qualifier`'s qualifier asked of an **inline shape**
-/// written at a `Core\Request` decode site — the shape half of the question
+/// written at a decode site — the shape half of the question
 /// [`check_decode_sites`] asks of a deriving class.
 ///
 /// **Answered where it is written rather than recorded.** A shape declares its
