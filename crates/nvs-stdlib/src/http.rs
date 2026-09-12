@@ -2040,22 +2040,24 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Va
     let (status, body, headers) = exchanged(ctx, args, member, verb, false)?;
     Ok(crate::instance::build(
         &RESPONSE,
-        [
-            Value::int(status),
-            Value::bytes(NvsStr::new(&body)),
-            headers,
-        ],
+        [Value::int(status), body, headers],
     ))
 }
 
-/// One exchange, as its status, its octets and [`header_map`]'s array — every
-/// request member's whole body, ahead of the class that reads the answer back.
+/// One exchange, as its status, the value its answer's body slot holds and
+/// [`header_map`]'s array — every request member's whole body, ahead of the
+/// class that reads the answer back.
 ///
 /// The split is [`stream::STREAM`]'s: a buffered reply and a streamed one are
 /// the same call, checked the same way and sent over the same transport, and
 /// differ only in which class the answer is built into. A second copy of the
 /// reading would be a second place for a bound to be judged, which is the one
 /// mistake here that still connects.
+///
+/// The body slot is where the two classes part: a `Core\Http\Response` holds
+/// the octets, which are all here by the time this returns, and a
+/// `Core\Http\Stream` holds [`filed`]'s key to a reader the rest of the reply
+/// is still arriving on.
 ///
 /// # Errors
 ///
@@ -2068,10 +2070,10 @@ fn exchanged(
     member: &str,
     verb: &str,
     streamed: bool,
-) -> Result<(i64, Vec<u8>, Value), Fault> {
+) -> Result<(i64, Value, Value), Fault> {
     let named = format!("{CLIENT_NAME}::{member}");
     if ctx.faked_http().is_armed() {
-        return faked(ctx, args, &named, verb);
+        return faked(ctx, args, &named, verb, streamed);
     }
     let (url, address) = approved(ctx, args, &named)?;
 
@@ -2139,20 +2141,33 @@ fn exchanged(
 
     // The one difference between the two members, and it is which bounds the
     // body runs under rather than a second reading of it: a buffered call is
-    // one deadline over the whole exchange, and a streamed one stops at the
-    // head and gives the body `idle` and `maxDuration` of its own
+    // one deadline over the whole exchange under `REPLY_CEILING`, and a
+    // streamed one stops at the head and leaves the body on the socket under
+    // `idle` and `maxDuration`
     // (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
-    // The octets are still gathered here either way — what a `Core\Http\Stream`
-    // hands out is the reader, and that slot is the next edit.
     if streamed {
-        let mut answer = transport::send_streamed(&call, &mut |hop| pin(ctx, hop, &named))?;
-        let body = answer.body.whole(transport::REPLY_CEILING)?;
+        let answer = transport::send_streamed(&call, &mut |hop| pin(ctx, hop, &named))?;
         let headers = header_map(&answer.headers);
-        return Ok((answer.status, body, headers));
+        return Ok((answer.status, filed(ctx, answer.body), headers));
     }
     let reply = transport::send(&call, &mut |hop| pin(ctx, hop, &named))?;
     let headers = header_map(&reply.headers);
-    Ok((reply.status, reply.body, headers))
+    Ok((
+        reply.status,
+        Value::bytes(NvsStr::new(&reply.body)),
+        headers,
+    ))
+}
+
+/// A streamed reply's body, filed against this request, as the key its
+/// `Core\Http\Stream`'s body slot holds.
+///
+/// The reader is a Rust value and a slot holds a [`Value`], so what the class
+/// carries is a key into the request's own table — `Core\IO\File`'s design, and
+/// [`Ctx::hold_open_reader`](nvs_runtime::Ctx::hold_open_reader) is where why a
+/// `Core` handle is a key is argued.
+fn filed(ctx: &mut Ctx, body: transport::Incoming) -> Value {
+    Value::uint(ctx.hold_open_reader(Box::new(body)))
 }
 
 /// The field lines of a reply, as a header slot holds them: one entry per
@@ -2315,7 +2330,8 @@ fn faked(
     args: &[Value],
     named: &str,
     verb: &str,
-) -> Result<(i64, Vec<u8>, Value), Fault> {
+    streamed: bool,
+) -> Result<(i64, Value, Value), Fault> {
     let url = given_url(args, named)?;
     judged_host(&url, named)?;
     judge_bound(args, DEADLINE, "deadline", named)?;
@@ -2363,11 +2379,19 @@ fn faked(
             ),
         ));
     };
-    Ok((
-        i64::from(answer.status),
-        answer.body.clone(),
-        header_map(&answer.headers),
-    ))
+    let status = i64::from(answer.status);
+    let octets = answer.body.clone();
+    let headers = header_map(&answer.headers);
+    // A streamed call is answered through a reader here too, over octets that
+    // are all present already ([`transport::Incoming::already`]): the walks
+    // have one way to frame a body, and a test that armed the table is walking
+    // the same code a call to an origin does.
+    let body = if streamed {
+        filed(ctx, transport::Incoming::already(octets, named))
+    } else {
+        Value::bytes(NvsStr::new(&octets))
+    };
+    Ok((status, body, headers))
 }
 
 /// The `traceparent` this call carries: the request's own trace, when

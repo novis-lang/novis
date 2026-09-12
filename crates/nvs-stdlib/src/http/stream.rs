@@ -15,9 +15,10 @@
 //! rest throw: `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
 //! draws that line for the inbound half and
 //! `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime` draws
-//! the same one here. [`consumed`] is where it is drawn — it moves the octets
-//! out of the receiver's slot, so a second reader finds nothing rather than
-//! being told not to look, and the refusal names the member that took them.
+//! the same one here. [`consumed`] is where it is drawn — it moves the key of
+//! the reader out of the receiver's slot, so a second reader has nothing left
+//! to reach the body with rather than being told not to look, and the refusal
+//! names the member that took it.
 //! Answering the second reader empty was the rejected alternative: an exhausted
 //! walk and a body that was empty would then be one answer, which is the
 //! ambiguity `rule:errors/ambiguous-input-refused` exists to refuse.
@@ -40,19 +41,27 @@
 //!
 //! # What a reader is walking over
 //!
-//! The reply's octets, in the receiver's own slot: [`super::exchanged`] hands
-//! the whole body over with the head, so a reader frames what is already in
-//! hand and the transport's own ceiling is what bounds it
-//! ([`super::transport`]). A line and one event's accumulated `data` are capped
-//! on top of that, at [`super::transport::LINE_CEILING`] and
-//! [`super::transport::EVENT_CEILING`] — these are bytes another host chose,
-//! and "until memory runs out" would be that host deciding this process's
-//! footprint.
+//! The body still on the socket. [`super::exchanged`] stops at the end of the
+//! head and files [`super::transport::Incoming`] — the reply as a reader —
+//! against the request, and what the receiver's slot holds is the key to it, so
+//! a walk frames the next element out of what has arrived and waits for the
+//! rest of it there. A reader is a Rust value and a slot holds a `Value`, which
+//! is why the key rather than the reader: `Core\IO\File`'s design, argued at
+//! [`nvs_runtime::Ctx::hold_open_reader`].
 //!
-//! **What it spends:** the reply's octets, once, charged to the request and
-//! released with the walk that took them — plus one framed element for as long
-//! as the loop body holds it, and, inside `events()`, that event's accumulated
-//! `data` under the cap above.
+//! What bounds the wait is the pair of bounds the call was made under, and
+//! nothing in this module. What bounds the *memory* is here: a line and one
+//! event's accumulated `data` are capped at [`super::transport::LINE_CEILING`]
+//! and [`super::transport::EVENT_CEILING`] — these are bytes another host
+//! chose, and "until memory runs out" would be that host deciding this
+//! process's footprint.
+//!
+//! **What it spends:** one read's worth of body plus the element being framed,
+//! charged to the request and released as each element is taken — plus one
+//! framed element for as long as the loop body holds it, and, inside
+//! `events()`, that event's accumulated `data` under the cap above. The
+//! connection under the reader is given back at the end of the body, or with
+//! the request where a program abandons the walk.
 
 use super::*;
 
@@ -80,24 +89,24 @@ pub(crate) const CHUNKS_NAME: &str = r"Core\Http\Chunks";
 const STATUS_AT: usize = 0;
 /// [`STREAM`]'s header slot, holding [`super::header_map`]'s array.
 const STREAM_HEADERS_AT: usize = 1;
-/// [`STREAM`]'s body slot, holding the octets until a reader takes them and
-/// `null` from then on — [`consumed`] is the only writer.
+/// [`STREAM`]'s body slot, holding the key of the reader the rest of the reply
+/// is arriving on until a walk takes it and `null` from then on — [`consumed`]
+/// is the only writer.
 const STREAM_BODY_AT: usize = 2;
 /// The member that took the body, or `null` while none has: what the second
 /// reader's refusal names.
 const READ_BY_AT: usize = 3;
 
-/// A reader's octets, which it borrows for the length of one `advance()`.
+/// The key of the reader this walk frames off, moved here out of the stream's
+/// own slot, and `null` once the body has ended and the reader been dropped.
 const READER_BODY_AT: usize = 0;
-/// How far into those octets this walk has framed.
-const READER_FROM_AT: usize = 1;
 /// The element the last `advance()` framed, which `current()` answers, and
 /// `null` before the first one and after the last.
-const READER_CURRENT_AT: usize = 2;
-/// [`EVENTS`]' fourth slot: the last event id the origin set, which the format
+const READER_CURRENT_AT: usize = 1;
+/// [`EVENTS`]' third slot: the last event id the origin set, which the format
 /// carries forward until the origin sets another — so an event that named no
 /// `id` reports the one still in force rather than `null`.
-const READER_LAST_ID_AT: usize = 3;
+const READER_LAST_ID_AT: usize = 2;
 
 /// [`EVENT`]'s three slots, by index.
 const EVENT_DATA_AT: usize = 0;
@@ -441,7 +450,7 @@ pub(crate) const EVENTS: CoreClass = CoreClass {
     name: EVENTS_NAME,
     methods: &[],
     instance: &[],
-    slots: &["body", "from", "current", "lastId"],
+    slots: &["body", "current", "lastId"],
     constants: &[],
 };
 
@@ -450,7 +459,7 @@ pub(crate) const LINES: CoreClass = CoreClass {
     name: LINES_NAME,
     methods: &[],
     instance: &[],
-    slots: &["body", "from", "current"],
+    slots: &["body", "current"],
     constants: &[],
 };
 
@@ -459,7 +468,7 @@ pub(crate) const CHUNKS: CoreClass = CoreClass {
     name: CHUNKS_NAME,
     methods: &[],
     instance: &[],
-    slots: &["body", "from", "current"],
+    slots: &["body", "current"],
     constants: &[],
 };
 
@@ -475,19 +484,20 @@ enum Framing {
     Chunks,
 }
 
-/// The octets this stream is holding, moved out of its slot and owned by the
-/// caller from here.
+/// The key of the reader this stream's body is arriving on, moved out of its
+/// slot and carried by the caller from here.
 ///
 /// The move is what makes "read once" a property of the memory rather than only
-/// of the refusal: the stream is left holding nothing, so a second reader has
-/// nothing to find and an abandoned walk frees the body with itself.
+/// of the refusal: the stream is left holding no key, so a second reader has
+/// nothing to reach the body with, and the one walk that took it is the only
+/// thing in the request that can name that reader.
 ///
 /// # Errors
 ///
 /// A `LogicError` naming the member that took the body, where one already has.
 fn consumed(receiver: *mut nvs_runtime::ObjHeader, member: &str) -> Result<Value, Fault> {
     let held = crate::instance::slot(receiver, STREAM_BODY_AT);
-    if octets_of(&held).is_none() {
+    if held.as_uint().is_none() {
         let taken = crate::instance::slot(receiver, READ_BY_AT);
         let taken = taken.as_text().unwrap_or("a reader");
         return Err(Fault::thrown_as(
@@ -499,15 +509,8 @@ fn consumed(receiver: *mut nvs_runtime::ObjHeader, member: &str) -> Result<Value
             ),
         ));
     }
-    #[expect(
-        unsafe_code,
-        reason = "the slot's reference is the one being moved out, and the \
-                  `set_slot` below releases exactly the reference this retain \
-                  added back"
-    )]
-    unsafe {
-        held.retain();
-    }
+    // No retain: a key is a `uint` and holds no reference, which is the whole
+    // of what moving it costs compared with moving the octets it replaced.
     crate::instance::set_slot(receiver, STREAM_BODY_AT, Value::null());
     crate::instance::set_slot(
         receiver,
@@ -517,22 +520,37 @@ fn consumed(receiver: *mut nvs_runtime::ObjHeader, member: &str) -> Result<Value
     Ok(held)
 }
 
-/// A walk over `body`, positioned at its first element.
+/// A walk over the reader `body` keys, positioned before its first element.
+///
+/// There is no cursor beside the key: the reader drops each element as the walk
+/// takes it ([`transport::Incoming::consume`]), so where the next one starts is
+/// where what the reader still holds starts.
 fn walk(class: &CoreClass, body: Value) -> Value {
-    crate::instance::build(class, [body, Value::uint(0), Value::null()])
+    crate::instance::build(class, [body, Value::null()])
 }
 
 /// An `events()` walk, which carries one slot the other two do not: the id the
 /// format keeps in force between events.
 fn event_walk(body: Value) -> Value {
-    crate::instance::build(
-        &EVENTS,
-        [body, Value::uint(0), Value::null(), Value::null()],
-    )
+    crate::instance::build(&EVENTS, [body, Value::null(), Value::null()])
 }
 
-/// One step of a walk: the next element parked in the receiver's slot, and
-/// whether there was one.
+/// One step of a walk: the next element framed off the reader and parked in the
+/// receiver's slot, and whether there was one.
+///
+/// **The framing waits where it has to.** An element the reader cannot complete
+/// out of what it is holding is not an element yet, so this pulls and frames
+/// again, and what ends an origin that never completes one is the pair of
+/// bounds the call was made under
+/// (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`)
+/// rather than anything here. A body that has ended is framed once more, since
+/// the last line of a reply needs no terminator.
+///
+/// **The reader is taken out of the request's table at the end of the body**,
+/// which closes the connection the rest of it would have arrived on there
+/// rather than at the end of the request. The key goes with it, so an
+/// `advance()` after `false` is answered `false` again instead of reaching a
+/// slot some later stream has filled.
 ///
 /// The element the previous step parked is released by
 /// [`nvs_runtime::nvs_object_field_set`] unless the loop body is still holding
@@ -542,60 +560,94 @@ fn event_walk(body: Value) -> Value {
 ///
 /// # Errors
 ///
-/// [`framed`]'s two caps.
-fn step(value: Value, class: &CoreClass, framing: Framing) -> Result<Value, Fault> {
+/// [`line_at`]'s and [`event_at`]'s caps, and
+/// [`transport::Incoming::pull`]'s two bounds and its `IOError`.
+fn step(ctx: &mut Ctx, value: Value, class: &CoreClass, framing: Framing) -> Result<Value, Fault> {
     let receiver = crate::instance::receiver(value, class, nvs_runtime::sequence::ADVANCE)?;
-    let held = crate::instance::slot(receiver, READER_BODY_AT);
-    // No case can reach this: the slot is filled by [`walk`] with octets
-    // [`consumed`] has already read, and nothing else writes it.
-    let octets = octets_of(&held).ok_or_else(|| {
-        Fault::fatal(format!(
-            "{}::{} expected octets in its `body` slot, got tag {}",
-            class.name,
-            nvs_runtime::sequence::ADVANCE,
-            held.tag_byte()
-        ))
-    })?;
-    let from = usize::try_from(
-        crate::instance::slot(receiver, READER_FROM_AT)
-            .as_uint()
-            .unwrap_or(0),
-    )
-    .unwrap_or(usize::MAX);
-    let framed = match framing {
-        Framing::Events => {
-            // Scoped, because the slot's own reference is released by the
-            // `set_slot` below and nothing may still be reading the bytes it
-            // lent to the parse by then.
-            let parsed = {
-                let carried = crate::instance::slot(receiver, READER_LAST_ID_AT);
-                event_at(octets, from, carried.as_text().map(str::as_bytes))?
-            };
-            parsed.map(|(event, next, id)| {
-                crate::instance::set_slot(
-                    receiver,
-                    READER_LAST_ID_AT,
-                    optional_text(id.as_deref()),
-                );
-                (event, next)
-            })
-        }
-        Framing::Lines => line_at(octets, from, false, "lines")?
-            .map(|(line, next)| (Value::str(NvsStr::new(line)), next)),
-        Framing::Chunks => (from < octets.len())
-            .then(|| (Value::bytes(NvsStr::new(&octets[from..])), octets.len())),
+    let Some(key) = crate::instance::slot(receiver, READER_BODY_AT).as_uint() else {
+        // The body ended, the reader went with it and the key was cleared:
+        // this is the state a finished walk is left in, not a slot to refuse.
+        return Ok(Value::bool(false));
     };
-    match framed {
+    // Copied rather than borrowed from the slot, because the parse below runs
+    // while the reader is borrowed out of `ctx` and the `set_slot` in the same
+    // arm releases the reference the slot is lending.
+    let carried = match framing {
+        Framing::Events => crate::instance::slot(receiver, READER_LAST_ID_AT)
+            .as_text()
+            .map(|id| id.as_bytes().to_vec()),
+        Framing::Lines | Framing::Chunks => None,
+    };
+    let reader = reader_at(ctx, key, class)?;
+    let element = loop {
+        let ended = reader.ended();
+        let held = reader.held();
+        let framed = match framing {
+            Framing::Events => {
+                event_at(held, ended, carried.as_deref())?.map(|(event, used, id)| {
+                    crate::instance::set_slot(
+                        receiver,
+                        READER_LAST_ID_AT,
+                        optional_text(id.as_deref()),
+                    );
+                    (event, used)
+                })
+            }
+            Framing::Lines => line_at(held, ended, false, "lines")?
+                .map(|(line, used)| (Value::str(NvsStr::new(line)), used)),
+            // A walk over chunks frames nothing, so whatever has arrived is an
+            // element and the read that delivered it is the piece a program
+            // sees.
+            Framing::Chunks => {
+                (!held.is_empty()).then(|| (Value::bytes(NvsStr::new(held)), held.len()))
+            }
+        };
+        match framed {
+            Some((element, used)) => {
+                reader.consume(used);
+                break Some(element);
+            }
+            None if ended => break None,
+            None => {
+                reader.pull()?;
+            }
+        }
+    };
+    match element {
         None => {
+            drop(ctx.take_open_reader(key));
+            crate::instance::set_slot(receiver, READER_BODY_AT, Value::null());
             crate::instance::set_slot(receiver, READER_CURRENT_AT, Value::null());
             Ok(Value::bool(false))
         }
-        Some((element, next)) => {
-            crate::instance::set_slot(receiver, READER_FROM_AT, Value::uint(next as u64));
+        Some(element) => {
             crate::instance::set_slot(receiver, READER_CURRENT_AT, element);
             Ok(Value::bool(true))
         }
     }
+}
+
+/// The reader `key` names, as the type this module framed it as.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the request holds no such reader. No case can reach
+/// it: a key is filed by [`super::filed`], moved by [`consumed`] and cleared in
+/// the same breath as the reader is taken out, and all three are this module's.
+fn reader_at<'a>(
+    ctx: &'a mut Ctx,
+    key: u64,
+    class: &CoreClass,
+) -> Result<&'a mut transport::Incoming, Fault> {
+    ctx.open_reader_mut(key)
+        .and_then(|reader| reader.as_any_mut().downcast_mut::<transport::Incoming>())
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{}::{} found no reply reader under the key in its `body` slot",
+                class.name,
+                nvs_runtime::sequence::ADVANCE
+            ))
+        })
 }
 
 /// The element `current()` answers, with a reference of its own: the slot keeps
@@ -615,42 +667,73 @@ fn current(value: Value, class: &CoreClass) -> Result<Value, Fault> {
     Ok(held)
 }
 
-/// One line of `octets` from `from`, and where the next one starts.
+/// One line off the front of `octets`, and how many of them it took — or
+/// `None` where there is not a whole line there yet.
 ///
 /// `ends_at_cr` is the whole difference between the two framings that read
 /// lines: the EventSource format ends a line at `\r\n`, `\r` or `\n`, and
 /// `lines()` ends one at `\n` and strips a trailing `\r`. A final line needs no
-/// terminator — the body is over, and a fragment with nothing after it is what
-/// the origin sent.
+/// terminator, which is what `ended` decides: the body being over is what makes
+/// a fragment the last line rather than the start of one still arriving.
 ///
 /// # Errors
 ///
-/// A `RuntimeError` for a line over [`transport::LINE_CEILING`].
+/// [`capped`]'s, on the framed line and on a fragment alike.
 fn line_at<'a>(
     octets: &'a [u8],
-    from: usize,
+    ended: bool,
     ends_at_cr: bool,
     member: &str,
 ) -> Result<Option<(&'a [u8], usize)>, Fault> {
-    if from >= octets.len() {
-        return Ok(None);
-    }
-    let rest = &octets[from..];
-    let (line, next) = match rest
+    let (line, used) = match octets
         .iter()
         .position(|byte| *byte == b'\n' || (ends_at_cr && *byte == b'\r'))
     {
-        None => (rest, octets.len()),
+        // Nothing that ends a line is here. A body that is over ends its last
+        // line by being over; one that is not is holding a fragment, which is
+        // a line only once the octet that ends it arrives — and the cap is
+        // what an origin that never sends one runs into.
+        None => {
+            if !ended {
+                capped(octets.len(), member)?;
+                return Ok(None);
+            }
+            if octets.is_empty() {
+                return Ok(None);
+            }
+            (octets, octets.len())
+        }
+        // A `\r` at the very end of what has arrived may be the first half of
+        // a CRLF whose second half is still on the wire, and a framing that
+        // ends a line at either would read one line ending as two.
+        Some(at) if ends_at_cr && octets[at] == b'\r' && at + 1 == octets.len() && !ended => {
+            return Ok(None);
+        }
         Some(at) => {
-            let crlf = rest[at] == b'\r' && rest.get(at + 1) == Some(&b'\n');
-            (&rest[..at], from + at + if crlf { 2 } else { 1 })
+            let crlf = octets[at] == b'\r' && octets.get(at + 1) == Some(&b'\n');
+            (&octets[..at], at + if crlf { 2 } else { 1 })
         }
     };
     let line = match line.split_last() {
         Some((b'\r', head)) => head,
         _ => line,
     };
-    if line.len() > transport::LINE_CEILING {
+    capped(line.len(), member)?;
+    Ok(Some((line, used)))
+}
+
+/// Refuses a line past [`transport::LINE_CEILING`].
+///
+/// Asked of a framed line and of a fragment still waiting for its terminator
+/// alike: an origin that sends no line ending would otherwise be an origin this
+/// process buffers without a bound, which is the same failure the cap on a
+/// framed line prevents one read later.
+///
+/// # Errors
+///
+/// A `RuntimeError` naming the cap and the member the program called.
+fn capped(length: usize, member: &str) -> Result<(), Fault> {
+    if length > transport::LINE_CEILING {
         return Err(Fault::thrown(format!(
             "{STREAM_NAME}::{member}(): a line of this reply is longer than the \
              {} bytes a streamed line may be — the length is the origin's choice and the cap is \
@@ -658,16 +741,16 @@ fn line_at<'a>(
             transport::LINE_CEILING
         )));
     }
-    Ok(Some((line, next)))
+    Ok(())
 }
 
-/// What one dispatched event is: the `Core\Http\Event` itself, where the parse
-/// got to, and the id left in force after it.
+/// What one dispatched event is: the `Core\Http\Event` itself, how many octets
+/// the parse took, and the id left in force after it.
 type Dispatched = (Value, usize, Option<Vec<u8>>);
 
-/// The next event of `octets` from `from`, parsed as the WHATWG EventSource
-/// format defines one: the event, where the parse got to, and the id left in
-/// force after it.
+/// The next event off the front of `octets`, parsed as the WHATWG EventSource
+/// format defines one: the event, the octets it took, and the id left in force
+/// after it.
 ///
 /// `carried` is that id on the way in. The format keeps it between events — an
 /// `id` line sets it and nothing clears it, including the blank line that
@@ -677,11 +760,17 @@ type Dispatched = (Value, usize, Option<Vec<u8>>);
 /// dispatch, which is why only one of the two is threaded through here.
 ///
 /// An event is dispatched at the **blank line** that ends its block and nowhere
-/// else, so a block the body stopped in the middle of is not one: the origin
-/// did not finish sending it, and a half-event handed to a program as a whole
+/// else, so a block that is still arriving is not one and neither is the block
+/// a body stopped in the middle of: a half-event handed to a program as a whole
 /// one is the failure this format's terminator exists to prevent. A block whose
 /// lines set no `data` dispatches nothing either, which is what makes an id-only
 /// keep-alive block invisible to a walk.
+///
+/// The parse restarts at the front of the block every time more of it arrives,
+/// which is what `data` accumulating between two reads would otherwise have to
+/// be threaded through slots for. What that rescan costs is bounded by the same
+/// [`transport::EVENT_CEILING`] that bounds the block: an origin sending `data`
+/// and never a blank line runs into it rather than into this walk's memory.
 ///
 /// `retry` is read and ignored — reconnecting is the program's decision, and a
 /// server-chosen sleep inside a `Core` iterator is a wait with no bound the
@@ -693,16 +782,16 @@ type Dispatched = (Value, usize, Option<Vec<u8>>);
 /// passes [`transport::EVENT_CEILING`].
 fn event_at(
     octets: &[u8],
-    from: usize,
+    ended: bool,
     carried: Option<&[u8]>,
 ) -> Result<Option<Dispatched>, Fault> {
-    let mut at = from;
+    let mut at = 0;
     let mut data: Vec<u8> = Vec::new();
     let mut written = false;
     let mut name: Option<Vec<u8>> = None;
     let mut id: Option<Vec<u8>> = carried.map(<[u8]>::to_vec);
-    while let Some((line, next)) = line_at(octets, at, true, "events")? {
-        at = next;
+    while let Some((line, next)) = line_at(&octets[at..], ended, true, "events")? {
+        at += next;
         if line.is_empty() {
             if written {
                 return Ok(Some((
@@ -799,12 +888,7 @@ nvs_runtime::nvs_helper! {
         let (status, body, headers) = exchanged(ctx, bag, "stream", &verb, true)?;
         Ok(crate::instance::build(
             &STREAM,
-            [
-                Value::int(status),
-                headers,
-                Value::bytes(NvsStr::new(&body)),
-                Value::null(),
-            ],
+            [Value::int(status), headers, body, Value::null()],
         ))
     }
 }
@@ -991,8 +1075,8 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Iterator<Core\Http\Event>::advance(): bool` — the next event framed, or
     /// `false` at the end of the body.
-    fn nvs_core_http_events_advance(_ctx, args: [1]) {
-        let stepped = step(args[0], &EVENTS, Framing::Events);
+    fn nvs_core_http_events_advance(ctx, args: [1]) {
+        let stepped = step(ctx, args[0], &EVENTS, Framing::Events);
         crate::cursor::consume(args[0]);
         stepped
     }
@@ -1018,8 +1102,8 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Iterator<tainted string>::advance(): bool` — the next line framed.
-    fn nvs_core_http_lines_advance(_ctx, args: [1]) {
-        let stepped = step(args[0], &LINES, Framing::Lines);
+    fn nvs_core_http_lines_advance(ctx, args: [1]) {
+        let stepped = step(ctx, args[0], &LINES, Framing::Lines);
         crate::cursor::consume(args[0]);
         stepped
     }
@@ -1046,8 +1130,8 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Iterator<tainted bytes>::advance(): bool` — the octets the transport
     /// has, in one piece.
-    fn nvs_core_http_chunks_advance(_ctx, args: [1]) {
-        let stepped = step(args[0], &CHUNKS, Framing::Chunks);
+    fn nvs_core_http_chunks_advance(ctx, args: [1]) {
+        let stepped = step(ctx, args[0], &CHUNKS, Framing::Chunks);
         crate::cursor::consume(args[0]);
         stepped
     }
@@ -1075,12 +1159,12 @@ mod tests {
         for class in [&LINES, &CHUNKS] {
             assert_eq!(
                 class.slots,
-                ["body", "from", "current"],
+                ["body", "current"],
                 "{} does not carry the layout `step` reads",
                 class.name
             );
         }
-        assert_eq!(EVENTS.slots, ["body", "from", "current", "lastId"]);
+        assert_eq!(EVENTS.slots, ["body", "current", "lastId"]);
         assert_eq!(STREAM.slots, ["status", "headers", "body", "readBy"]);
     }
 
@@ -1095,7 +1179,7 @@ mod tests {
             "event: tick\r\ndata: one\r\nid: 7\r\n\r\n",
             "event: tick\rdata: one\rid: 7\r\r",
         ] {
-            let (_, next, id) = event_at(body.as_bytes(), 0, None)
+            let (_, next, id) = event_at(body.as_bytes(), true, None)
                 .expect("no cap is reached")
                 .expect("the block ends with a blank line");
             assert_eq!(next, body.len(), "{body:?} was not read to its end");
@@ -1109,11 +1193,11 @@ mod tests {
     #[test]
     fn a_lone_carriage_return_ends_a_line_for_one_framing_only() {
         let body = b"one\rtwo\n";
-        let (line, _) = line_at(body, 0, true, "events")
+        let (line, _) = line_at(body, true, true, "events")
             .expect("no cap is reached")
             .expect("there is a line");
         assert_eq!(line, b"one");
-        let (line, _) = line_at(body, 0, false, "lines")
+        let (line, _) = line_at(body, true, false, "lines")
             .expect("no cap is reached")
             .expect("there is a line");
         assert_eq!(line, b"one\rtwo");
@@ -1125,7 +1209,7 @@ mod tests {
     #[test]
     fn a_block_carrying_no_data_dispatches_nothing_and_keeps_its_id() {
         let body = b": a comment\nid: 7\nretry: 500\n\ndata: one\n\n";
-        let (_, _, id) = event_at(body, 0, None)
+        let (_, _, id) = event_at(body, true, None)
             .expect("no cap is reached")
             .expect("the second block carries data");
         assert_eq!(id.as_deref(), Some(&b"7"[..]));
@@ -1137,14 +1221,65 @@ mod tests {
     #[test]
     fn a_block_the_body_stopped_inside_is_not_an_event() {
         assert!(
-            event_at(b"data: half", 0, None)
+            event_at(b"data: half", true, None)
                 .expect("no cap is reached")
                 .is_none()
         );
         assert!(
-            event_at(b"data: half\n\n", 0, None)
+            event_at(b"data: half\n\n", true, None)
                 .expect("no cap is reached")
                 .is_some()
         );
+    }
+
+    /// A fragment with nothing after it yet is not a line, and the same octets
+    /// once the body is over are one — the distinction a walk over a reader has
+    /// to make and a walk over a finished body never had to.
+    #[test]
+    fn a_fragment_is_a_line_only_once_the_body_is_over() {
+        assert!(
+            line_at(b"one", false, false, "lines")
+                .expect("no cap is reached")
+                .is_none()
+        );
+        let (line, used) = line_at(b"one", true, false, "lines")
+            .expect("no cap is reached")
+            .expect("a body that is over ends its last line");
+        assert_eq!((line, used), (&b"one"[..], 3));
+    }
+
+    /// A `\r` at the end of what has arrived is half of a line ending whose
+    /// other half may still be on the wire, so the event framing waits for it.
+    /// A reader that did not would end the line at the `\r` and then read the
+    /// `\n` as an empty line, which is a dispatch the origin never sent.
+    #[test]
+    fn a_carriage_return_at_the_end_of_a_read_waits_for_its_newline() {
+        assert!(
+            line_at(b"one\r", false, true, "events")
+                .expect("no cap is reached")
+                .is_none()
+        );
+        let (line, used) = line_at(b"one\r\n", false, true, "events")
+            .expect("no cap is reached")
+            .expect("the whole line ending is here");
+        assert_eq!((line, used), (&b"one"[..], 5));
+    }
+
+    /// A block still arriving dispatches nothing, exactly as one the body
+    /// stopped inside does. The octets stay where they are, so the next read
+    /// frames the same block again with more of it — which is what makes the
+    /// parse restart at the front of the block rather than carry `data`
+    /// forward.
+    #[test]
+    fn a_block_that_is_still_arriving_dispatches_nothing() {
+        assert!(
+            event_at(b"data: one\n", false, None)
+                .expect("no cap is reached")
+                .is_none()
+        );
+        let (_, used, _) = event_at(b"data: one\n\n", false, None)
+            .expect("no cap is reached")
+            .expect("the blank line dispatched it");
+        assert_eq!(used, 11, "the block is taken to the end of its blank line");
     }
 }
