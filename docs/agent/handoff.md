@@ -3,57 +3,56 @@
 ## State
 
 **Goal `http-client` — a program talks to a real API: bodies, headers, streams and pooled
-connections. Stages 1–6 are on disk, and stage 7 now holds its pool half and the whole of its
-compression half.** [ADR 0180](../decisions/0180.md) is the record and the home of every decision
-this goal executes.
+connections. Stages 1–7 are on disk.** [ADR 0180](../decisions/0180.md) is the record and the home
+of every decision this goal executes.
 
-A streamed reply under one of the three offered codings is decoded **as it arrives**.
-`transport::Incoming` is now the framing (`Framed`) with a decoder optionally in front of it
-(`Coding::As` / `Coding::Under`), so the walks in `http/stream.rs` read decoded octets from either
-and never learn which. `send_streamed` decides the coding from the head and strips
-`Content-Encoding` and `Content-Length`, exactly as the buffered `send` does. The decode is
-`compress::Decoder` — each backend's own `Read` over a source that blocks, built at the first read
-because a zstd decoder reads its frame header as it is constructed. What bounds it is its window
-(32 KiB DEFLATE, 8 MiB zstd, 16 MiB brotli with the large-window extension off) plus one
-`transport::STEP`, because a stream has no total for an output ceiling to be over; the wait is
-bounded by `idle` and `maxDuration` as before. A framing refusal travels out past the decoder in
-`Incoming::faulted`, so a silence is still a `TimeoutError` and not a `ParseError` about zstd.
+Stage 7's last half landed: a **client identity**. `Core\Http\Identity::read(bytes $chainPem,
+Crypto\KeyPair $key)` is a new Tier 0 class beside `Core\Crypto\KeyPair`, and it refuses a leaf
+whose `SubjectPublicKeyInfo` is not the pair's — the one check that can be made without asking a
+server anything. `identity?: Core\Http\Identity` is the last of the shared bag keys, so every
+request member takes it, and it reaches the handshake through `nvs_host::tls::NvsIdentity`, whose
+`ClientConfig` carries a client-cert resolver over the same process-wide anchor set. `pool_key`
+carries the leaf's SHA-256, so two identities are two pools and a call under none never draws a
+connection that presented one.
 
-Stage 7 still owes § 7's client identity, which is also part of the pool key. Nothing is blocked.
+**One deviation from the goal's § *Stage 7* prose, deliberate:** the prose says a config is "built
+once per `Identity` and held as long as it is"; it is built once per **call** instead and released
+with it. A slot holds a Novis value, so holding a built config would mean a process- or core-lifetime
+table keyed by private key material — priority 1 spent to buy priority 3, which
+`crate::crypto::KEY_PAIR`'s own doc already turned down for the same material. The pool is what makes
+it cheap: a reused connection handshakes not at all. The record's *What it spends* already reads
+"one `ClientConfig` … released with the call, O(in-flight)".
+
+Nothing is blocked.
 
 ## Next group
 
-**Stage 7: a client identity is presented when asked and is part of the pool key** — one file set:
-`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/crypto.rs`,
-`crates/nvs-host/src/tls.rs`, `crates/nvs-stdlib/src/http/transport.rs`.
+**Stage 8: credentials on a redirect** — one file set, the same one stage 7 left loaded:
+`crates/nvs-stdlib/src/http/transport.rs`, `crates/nvs-stdlib/src/http.rs`.
 
-- [ ] **`Core\Http\Identity` reads a PEM chain over a key pair and refuses a leaf that does not
-      match it** — a new Tier 0 class beside `Core\Crypto\KeyPair`
-      (`crates/nvs-stdlib/src/crypto.rs:352`, whose `KEY_PAIR_NAME` is the spelling to follow), with
-      one static `read(bytes $chainPem, Crypto\KeyPair $key)`. The refusal is a leaf whose public key
-      is not the pair's, which is the only check `read` can make locally. Its registry row and doc
-      card go beside the option rows at `crates/nvs-stdlib/src/http.rs:351`.
-      `rule:core-api/shape-rules`, and the goal's § *Stage 7* prose is what it executes.
-- [ ] **`identity?: Core\Http\Identity` joins the bag and reaches the handshake** — a new option
-      constant beside `RETRY_KEY_OPTION` (`crates/nvs-stdlib/src/http.rs:353`) and a new slot beside
-      `RETRY_KEY` (`crates/nvs-stdlib/src/http.rs:814`), carried on `Call` the way `Call::pool` and
-      `Call::compress` are. One `ClientConfig` per `Identity`, built once and held as long as it is,
-      beside the process-wide one at `crates/nvs-host/src/tls.rs:314` — that module doc's
-      "what that spends" paragraph (`crates/nvs-host/src/tls.rs:85`) is where the second config's
-      cost is stated. `rule:security/db-pool-reset-is-a-boundary` is the shape the key follows.
-- [ ] **The pool key includes the identity** — `pool_key`
-      (`crates/nvs-stdlib/src/http/transport.rs:1309`) gains it, so two identities never share a
-      connection and a call without one never reuses a connection that presented one. The two Rust
-      tests the stage's `[[check]]` names are
-      `client_identity_is_presented_when_asked_and_is_part_of_the_pool_key` and
-      `a_call_without_an_identity_never_reuses_a_connection_that_presented_one`, and the `.nvst` case
-      is `tests/conformance/core/http-identity-reads-a-pem-chain-and-a-key-pair-and-refuses-a-mismatch.nvst`.
-      `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`.
+- [ ] **A `secret` header value is carried as such into the call**, so a hop can tell which headers
+      were credentials — `headers_of` flattens a `secret string` into a plain `String` today
+      (`crates/nvs-stdlib/src/http.rs:1848`), and `Call::headers` is `Vec<(String, String)>`
+      (`crates/nvs-stdlib/src/http/transport.rs:152`). The goal's § *Stage 8* prose is what it
+      executes; `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned` is the rule the hop
+      runs under.
+- [ ] **A hop to another origin drops `Authorization`, `Cookie`, `Proxy-Authorization` and every
+      header whose value was `secret`; a hop within one origin keeps them** — the hop loop is
+      `crates/nvs-stdlib/src/http/transport.rs:1022`, and the headers are written in `compose`
+      at `crates/nvs-stdlib/src/http/transport.rs:1478`. Same origin is scheme, host and port all
+      equal.
+- [ ] **No header value reaches a trace span, a log record or an error message** — made a test
+      rather than a habit, over the guard that already names the header and not the value
+      (`crates/nvs-stdlib/src/http/transport.rs:1478`, the `field` calls).
 
 ## Backlog
 
-- Stage 8 onward is untouched: credentials on a redirect, then the trust-root and grant stages.
-- `[context] modules` printed no entry for `crates/nvs-host/src/tls.rs`'s client-auth half; the next
-  group needs it and the field should name it.
-- Parsing `Link`, `Retry-After` for a program, and RFC 9457 problem details stay the `nvs/rest`
-  package's, per the goal's § *Standing decisions*.
+- Stage 9 wants the first end-to-end `https` test through `Core\Http\Client`; today no test crosses
+  the `transport.rs` → `tls.rs` seam, because `NvsTls::over` verifies against the compiled-in
+  anchors and a loopback origin cannot chain to one. `[http.client.tls] roots` is what unblocks it.
+- An identity with an operator-named anchor bundle has no spelling: `NvsIdentity::read` builds over
+  the compiled-in set only. Stage 9's `roots` is where the two meet.
+- `Core\Http\Identity` is not in `docs/spec/01-core-library.md`; the reference card is its only
+  prose home today.
+- Parsing `Link`, `Retry-After` for a program, and RFC 9457 problem details are the `nvs/rest`
+  package's, not this goal's (§ *Not this goal*).

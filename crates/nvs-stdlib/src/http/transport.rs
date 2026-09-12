@@ -181,6 +181,13 @@ pub(crate) struct Call<'a> {
     /// reply is octets another host chose, so there is nothing here to ask for
     /// more with.
     pub(crate) compress: compress::Bound,
+    /// Who this end is when a server asks the client for a certificate, or
+    /// `None` where the call named no `identity`.
+    ///
+    /// Built once per call for [`Call::pool`]'s reason and released with it,
+    /// which is O(in-flight): every attempt and every hop of one call presents
+    /// the same identity, and no two calls share a built one.
+    pub(crate) identity: Option<Identity>,
     /// The W3C `traceparent` naming the request this call is made from, or
     /// `None` where `[trace] propagate` is off.
     ///
@@ -188,6 +195,22 @@ pub(crate) struct Call<'a> {
     /// what the id is are both read in [`super::traceparent_of`], off the `Ctx`
     /// this module deliberately cannot reach.
     pub(crate) traceparent: Option<String>,
+}
+
+/// A client identity, as a call carries it: the session configuration every
+/// handshake this call runs uses, and the name a pooled connection is filed
+/// under.
+///
+/// Two fields and not one because they are read in two places that must not be
+/// able to disagree — the handshake presents the chain, and [`pool_key`] writes
+/// the fingerprint — and because a pool key is a string that ends up in no
+/// diagnostic a private key could reach. The fingerprint is
+/// `super::fingerprint_of`'s digest of the leaf, which is public.
+pub(crate) struct Identity {
+    /// What a handshake under this identity is configured with.
+    pub(crate) session: nvs_host::tls::NvsIdentity,
+    /// The leaf certificate's SHA-256, lower-case hex.
+    pub(crate) fingerprint: String,
 }
 
 /// `rule:http-server/an-outbound-request-carries-one-body`'s one body, framed:
@@ -1219,7 +1242,12 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<At
     let parts = parts(url, call.member)?;
     let request = compose(call, &parts)?;
     let socket = SocketAddr::new(address, parts.port);
-    let key = pool_key(&parts, socket);
+    let identity = call.identity.as_ref();
+    let key = pool_key(
+        &parts,
+        socket,
+        identity.map(|held| held.fingerprint.as_str()),
+    );
 
     if let Some(mut held) = pool::take(&key, Instant::now()) {
         // The drawn connection carries no bound of its own: the call's deadline
@@ -1256,7 +1284,14 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<At
     stream.set_deadline(Some(call.deadline));
 
     let connection: Box<dyn Connection> = if parts.tls {
-        match NvsTls::over(stream, &parts.host) {
+        // One handshake either way: an identity changes what this end presents
+        // when the server asks for a certificate and nothing about whom this end
+        // believes, so the refusal split below is the same split for both.
+        let handshake = match identity {
+            Some(held) => NvsTls::over_identity(stream, &parts.host, &held.session),
+            None => NvsTls::over(stream, &parts.host),
+        };
+        match handshake {
             Ok(tls) => Box::new(tls),
             // A name or a certificate this build will not accept is settled:
             // the module doc's paragraph on `https` is why only one of these
@@ -1299,9 +1334,21 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<At
 /// of those is a connection served to a call whose own check would have
 /// refused it — a pool keyed on the URL's host, which is what most clients
 /// key on, quietly undoes the pin.
-fn pool_key(parts: &Parts, socket: SocketAddr) -> String {
+///
+/// **The client identity is part of it**, which is that same sentence one step
+/// further in: a connection that presented a certificate is authenticated as
+/// *that* client for as long as it stays open, so handing it to a call under a
+/// different identity — or under none — would let one client's credential carry
+/// another's request. A call that named no identity writes an empty field
+/// rather than leaving the field out, so the two are two keys rather than one
+/// key that is a prefix of the other.
+fn pool_key(parts: &Parts, socket: SocketAddr, identity: Option<&str>) -> String {
     let scheme = if parts.tls { "https" } else { "http" };
-    format!("{scheme}|{host}|{socket}", host = parts.host)
+    format!(
+        "{scheme}|{host}|{socket}|{identity}",
+        host = parts.host,
+        identity = identity.unwrap_or_default()
+    )
 }
 
 /// The request out and the reply's **head** back, over whatever is already
@@ -1997,6 +2044,7 @@ mod tests {
                 bytes: 64 << 20,
                 ratio: 1000,
             },
+            identity: None,
             traceparent: None,
         }
     }
@@ -3107,7 +3155,7 @@ mod tests {
 
         let parts = super::parts(&asking.url, "test").expect("the URL this case wrote");
         super::pool::release(
-            super::pool_key(&parts, SocketAddr::new(at.ip(), parts.port)),
+            super::pool_key(&parts, SocketAddr::new(at.ip(), parts.port), None),
             Box::new(Retired),
             asking.pool,
             Instant::now(),
@@ -3120,6 +3168,112 @@ mod tests {
             served.join().expect("the origin thread").connections,
             1,
             "the one attempt bought the one connection that answered"
+        );
+    }
+
+    /// A client identity issued to `name`, as a call carries one.
+    ///
+    /// Generated rather than read from a fixture: what these cases are about is
+    /// that two identities are two clients, and two chains a fixture holds
+    /// would be two more files saying the same thing.
+    fn client_identity(name: &str) -> super::Identity {
+        let issued = rcgen::generate_simple_self_signed(vec![format!("{name}.client.example")])
+            .expect("the client certificate could not be generated");
+        let session = nvs_host::tls::NvsIdentity::read(
+            issued.cert.pem().as_bytes(),
+            &issued.signing_key.serialize_der(),
+        )
+        .expect("a chain and its own key were refused");
+        let fingerprint = crate::http::fingerprint_of(session.leaf());
+        super::Identity {
+            session,
+            fingerprint,
+        }
+    }
+
+    /// Both halves of what an identity is: the session it builds answers a
+    /// server that asks the client for a certificate, and the name a connection
+    /// under it is filed by carries its leaf.
+    ///
+    /// *When asked* is the whole of the presenting rule — a session sends
+    /// nothing until a `CertificateRequest` arrives — and a call that named no
+    /// identity is configured to answer one with nothing at all, which
+    /// `nvs_host::tls`'s own case asserts on the shipped configuration.
+    #[test]
+    fn client_identity_is_presented_when_asked_and_is_part_of_the_pool_key() {
+        let (mine, theirs) = (client_identity("one"), client_identity("two"));
+        assert!(
+            mine.session.presents(),
+            "a call under an identity answers a server that asks for a certificate"
+        );
+        assert_ne!(
+            mine.fingerprint, theirs.fingerprint,
+            "two certificates are two identities"
+        );
+
+        let parts =
+            super::parts("https://api.example/v1", "test").expect("the URL this case wrote");
+        let socket = SocketAddr::new(IpAddr::from([203, 0, 113, 7]), parts.port);
+        let under_mine = super::pool_key(&parts, socket, Some(&mine.fingerprint));
+
+        assert!(
+            under_mine.contains(&mine.fingerprint),
+            "the key names the identity the connection was opened under: {under_mine}"
+        );
+        assert_ne!(
+            under_mine,
+            super::pool_key(&parts, socket, Some(&theirs.fingerprint)),
+            "two identities never share a connection"
+        );
+        assert_ne!(
+            under_mine,
+            super::pool_key(&parts, socket, None),
+            "an identity is not the absence of one"
+        );
+    }
+
+    /// A call that names no identity never draws a connection that presented
+    /// one.
+    ///
+    /// The one that matters of the two directions: a TLS connection that
+    /// presented a certificate stays authenticated as that client for as long
+    /// as it is open, so an anonymous call reusing one would send its request
+    /// under somebody else's credential. Asserted by the connection still being
+    /// in the store afterwards, which says it was never drawn — a fresh one
+    /// answering says only that one was opened.
+    #[test]
+    fn a_call_without_an_identity_never_reuses_a_connection_that_presented_one() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let asking = call(at, "test");
+        assert!(
+            asking.identity.is_none(),
+            "this case's call is the anonymous one"
+        );
+
+        let identity = client_identity("pooled");
+        let parts = super::parts(&asking.url, "test").expect("the URL this case wrote");
+        let theirs = super::pool_key(
+            &parts,
+            SocketAddr::new(at.ip(), parts.port),
+            Some(&identity.fingerprint),
+        );
+        super::pool::release(
+            theirs.clone(),
+            Box::new(Retired),
+            asking.pool,
+            Instant::now(),
+        );
+
+        let reply = send(&asking, &mut never).expect("the anonymous call's answer");
+        assert_eq!(reply.status, 200);
+        assert_eq!(
+            served.join().expect("the origin thread").connections,
+            1,
+            "the anonymous call opened one connection of its own"
+        );
+        assert!(
+            super::pool::take(&theirs, Instant::now()).is_some(),
+            "the identity's connection was still in the store, so nothing anonymous drew it"
         );
     }
 }

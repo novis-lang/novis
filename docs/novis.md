@@ -161,6 +161,7 @@ Conventions the whole file uses:
 | [`Core\Zip`](#core-core-zip) |  |
 | [`Core\Http`](#core-core-http) |  |
 | [`Core\Http\Target`](#core-core-http-target) |  |
+| [`Core\Http\Identity`](#core-core-http-identity) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
 | [`Core\Http\Response`](#core-core-http-response) |  |
 | [`Core\Http\Stream`](#core-core-http-stream) |  |
@@ -20189,6 +20190,33 @@ Keywords:
 | Member | Signature |
 |---|---|
 
+<a id="core-core-http-identity"></a>
+### `Core\Http\Identity`
+
+Keywords: read
+
+| Member | Signature |
+|---|---|
+| [`Core\Http\Identity::read`](#core-core-http-identity-read) | `read(bytes $chainPem, Core\Crypto\KeyPair $key): Core\Http\Identity` |
+
+<a id="core-core-http-identity-read"></a>
+#### `Core\Http\Identity::read`
+
+```nvs skip
+Core\Http\Identity::read(bytes $chainPem, Core\Crypto\KeyPair $key): Core\Http\Identity
+```
+
+Reads the certificate chain a request presents when a server asks the client for one, over the key pair that goes with it. The leaf is checked against the key here, so a chain and a key that are not each other's are refused before any connection is opened.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$chainPem` | `bytes` (neutral) | The chain as PEM, the leaf first and then whatever intermediates the server needs to build a path — the order every other client takes one in. |
+| `$key` | `Core\Crypto\KeyPair` | The leaf's private key. Its kind is what the handshake is signed with, so a key that only agrees — `X25519` — is refused here. |
+
+**Returns** `Core\Http\Identity` — The identity, to name as a request's `identity` option. It is presented only when the server asks for it, and two identities never share a pooled connection.
+
+**Throws** `LogicError` — `$chainPem` is not a PEM certificate chain or holds no certificate, `$key` is not a key a TLS handshake can be signed with, or the chain's leaf carries a different public key than `$key`. A client identity is the program's own deployment material, so every refusal is a mistake in what it was deployed with rather than a verdict on anyone.
+
 <a id="core-core-http-client"></a>
 ### `Core\Http\Client`
 
@@ -20196,20 +20224,20 @@ Keywords: get, post, put, patch, delete, head, request, stream
 
 | Member | Signature |
 |---|---|
-| [`Core\Http\Client::get`](#core-core-http-client-get) | `get(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
-| [`Core\Http\Client::post`](#core-core-http-client-post) | `post(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
-| [`Core\Http\Client::put`](#core-core-http-client-put) | `put(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
-| [`Core\Http\Client::patch`](#core-core-http-client-patch) | `patch(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
-| [`Core\Http\Client::delete`](#core-core-http-client-delete) | `delete(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
-| [`Core\Http\Client::head`](#core-core-http-client-head) | `head(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
-| [`Core\Http\Client::request`](#core-core-http-client-request) | `request(Core\Http\Method $method, string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>}): Core\Http\Response` |
-| [`Core\Http\Client::stream`](#core-core-http-client-stream) | `stream(Core\Http\Method $method, string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, idle?: Core\Time\Duration, maxDuration?: Core\Time\Duration}): Core\Http\Stream` |
+| [`Core\Http\Client::get`](#core-core-http-client-get) | `get(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response` |
+| [`Core\Http\Client::post`](#core-core-http-client-post) | `post(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response` |
+| [`Core\Http\Client::put`](#core-core-http-client-put) | `put(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response` |
+| [`Core\Http\Client::patch`](#core-core-http-client-patch) | `patch(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response` |
+| [`Core\Http\Client::delete`](#core-core-http-client-delete) | `delete(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response` |
+| [`Core\Http\Client::head`](#core-core-http-client-head) | `head(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response` |
+| [`Core\Http\Client::request`](#core-core-http-client-request) | `request(Core\Http\Method $method, string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response` |
+| [`Core\Http\Client::stream`](#core-core-http-client-stream) | `stream(Core\Http\Method $method, string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity, idle?: Core\Time\Duration, maxDuration?: Core\Time\Duration}): Core\Http\Stream` |
 
 <a id="core-core-http-client-get"></a>
 #### `Core\Http\Client::get`
 
 ```nvs skip
-Core\Http\Client::get(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>}): Core\Http\Response
+Core\Http\Client::get(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response
 ```
 
 Fetches `$url` under a finite budget, over the address the outbound policy pinned.
@@ -20229,6 +20257,7 @@ Fetches `$url` under a finite budget, over the address the outbound policy pinne
 | `{body: …}` | `secret tainted string\|secret tainted bytes\|Core\Http\Part` (default `null`) | The octets to send exactly as given, under `contentType`. At most one of `json`, `form`, `body` and `multipart` may be written, and none of them on `get` or `head`; both refusals are made while compiling. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type `body`'s octets are sent under. It means nothing without `body`, and writing it alone is refused while compiling. |
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
+| `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
@@ -20238,7 +20267,7 @@ Fetches `$url` under a finite budget, over the address the outbound policy pinne
 #### `Core\Http\Client::post`
 
 ```nvs skip
-Core\Http\Client::post(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>}): Core\Http\Response
+Core\Http\Client::post(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response
 ```
 
 Sends a `POST` to `$url` under a finite budget. Its retries need `retryIdempotencyKey`, because a repeated `POST` is a second effect rather than a second question.
@@ -20258,6 +20287,7 @@ Sends a `POST` to `$url` under a finite budget. Its retries need `retryIdempoten
 | `{body: …}` | `secret tainted string\|secret tainted bytes\|Core\Http\Part` (default `null`) | The octets to send exactly as given, under `contentType`. At most one of `json`, `form`, `body` and `multipart` may be written, and none of them on `get` or `head`; both refusals are made while compiling. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type `body`'s octets are sent under. It means nothing without `body`, and writing it alone is refused while compiling. |
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
+| `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
@@ -20267,7 +20297,7 @@ Sends a `POST` to `$url` under a finite budget. Its retries need `retryIdempoten
 #### `Core\Http\Client::put`
 
 ```nvs skip
-Core\Http\Client::put(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>}): Core\Http\Response
+Core\Http\Client::put(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response
 ```
 
 Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its retries need no key.
@@ -20287,6 +20317,7 @@ Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its 
 | `{body: …}` | `secret tainted string\|secret tainted bytes\|Core\Http\Part` (default `null`) | The octets to send exactly as given, under `contentType`. At most one of `json`, `form`, `body` and `multipart` may be written, and none of them on `get` or `head`; both refusals are made while compiling. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type `body`'s octets are sent under. It means nothing without `body`, and writing it alone is refused while compiling. |
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
+| `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
@@ -20296,7 +20327,7 @@ Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its 
 #### `Core\Http\Client::patch`
 
 ```nvs skip
-Core\Http\Client::patch(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>}): Core\Http\Response
+Core\Http\Client::patch(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response
 ```
 
 Sends a `PATCH` to `$url` under a finite budget. A partial update repeated is a second effect, so its retries need `retryIdempotencyKey` exactly as `post`'s do.
@@ -20316,6 +20347,7 @@ Sends a `PATCH` to `$url` under a finite budget. A partial update repeated is a 
 | `{body: …}` | `secret tainted string\|secret tainted bytes\|Core\Http\Part` (default `null`) | The octets to send exactly as given, under `contentType`. At most one of `json`, `form`, `body` and `multipart` may be written, and none of them on `get` or `head`; both refusals are made while compiling. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type `body`'s octets are sent under. It means nothing without `body`, and writing it alone is refused while compiling. |
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
+| `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
@@ -20325,7 +20357,7 @@ Sends a `PATCH` to `$url` under a finite budget. A partial update repeated is a 
 #### `Core\Http\Client::delete`
 
 ```nvs skip
-Core\Http\Client::delete(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>}): Core\Http\Response
+Core\Http\Client::delete(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response
 ```
 
 Sends a `DELETE` to `$url` under a finite budget.
@@ -20345,6 +20377,7 @@ Sends a `DELETE` to `$url` under a finite budget.
 | `{body: …}` | `secret tainted string\|secret tainted bytes\|Core\Http\Part` (default `null`) | The octets to send exactly as given, under `contentType`. At most one of `json`, `form`, `body` and `multipart` may be written, and none of them on `get` or `head`; both refusals are made while compiling. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type `body`'s octets are sent under. It means nothing without `body`, and writing it alone is refused while compiling. |
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
+| `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
@@ -20354,7 +20387,7 @@ Sends a `DELETE` to `$url` under a finite budget.
 #### `Core\Http\Client::head`
 
 ```nvs skip
-Core\Http\Client::head(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>}): Core\Http\Response
+Core\Http\Client::head(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response
 ```
 
 Asks `$url` for its headers alone, under the same budget a `get` would have.
@@ -20374,6 +20407,7 @@ Asks `$url` for its headers alone, under the same budget a `get` would have.
 | `{body: …}` | `secret tainted string\|secret tainted bytes\|Core\Http\Part` (default `null`) | The octets to send exactly as given, under `contentType`. At most one of `json`, `form`, `body` and `multipart` may be written, and none of them on `get` or `head`; both refusals are made while compiling. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type `body`'s octets are sent under. It means nothing without `body`, and writing it alone is refused while compiling. |
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
+| `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
@@ -20383,7 +20417,7 @@ Asks `$url` for its headers alone, under the same budget a `get` would have.
 #### `Core\Http\Client::request`
 
 ```nvs skip
-Core\Http\Client::request(Core\Http\Method $method, string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>}): Core\Http\Response
+Core\Http\Client::request(Core\Http\Method $method, string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>, identity?: Core\Http\Identity}): Core\Http\Response
 ```
 
 Sends `$method` to `$url` under a finite budget — the row for a verb chosen at run time, where every other one is a verb of its own. There is no request object: the same bag the named rows take is the whole of what a call says.
@@ -20404,6 +20438,7 @@ Sends `$method` to `$url` under a finite budget — the row for a verb chosen at
 | `{body: …}` | `secret tainted string\|secret tainted bytes\|Core\Http\Part` (default `null`) | The octets to send exactly as given, under `contentType`. At most one of `json`, `form`, `body` and `multipart` may be written, and none of them on `get` or `head`; both refusals are made while compiling. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type `body`'s octets are sent under. It means nothing without `body`, and writing it alone is refused while compiling. |
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
+| `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
@@ -20413,7 +20448,7 @@ Sends `$method` to `$url` under a finite budget — the row for a verb chosen at
 #### `Core\Http\Client::stream`
 
 ```nvs skip
-Core\Http\Client::stream(Core\Http\Method $method, string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>, idle?: Core\Time\Duration, maxDuration?: Core\Time\Duration}): Core\Http\Stream
+Core\Http\Client::stream(Core\Http\Method $method, string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string|secret tainted bytes|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string|Core\Http\Part>, identity?: Core\Http\Identity, idle?: Core\Time\Duration, maxDuration?: Core\Time\Duration}): Core\Http\Stream
 ```
 
 Sends `$method` to `$url` and answers once the head has arrived, leaving the body to be read as it comes — the row for a reply a program works through rather than holds, such as a server-sent event stream or a result set a line at a time.
@@ -20434,6 +20469,7 @@ Sends `$method` to `$url` and answers once the head has arrived, leaving the bod
 | `{body: …}` | `secret tainted string\|secret tainted bytes\|Core\Http\Part` (default `null`) | The octets to send exactly as given, under `contentType`. At most one of `json`, `form`, `body` and `multipart` may be written, and none of them on `get` or `head`; both refusals are made while compiling. |
 | `{contentType: …}` | `string` (default `null`, neutral) | The media type `body`'s octets are sent under. It means nothing without `body`, and writing it alone is refused while compiling. |
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
+| `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{idle: …}` | `Core\Time\Duration` (default `null`) | The longest the body may go silent for once the head has arrived. Omitted, the runtime's `[http.client] idle` applies; there is no spelling for no bound at all. |
 | `{maxDuration: …}` | `Core\Time\Duration` (default `null`) | The longest the body may take altogether, which is what ends an origin dribbling a byte at a time under every idle check. Omitted, the runtime's `[http.client] max_duration` applies. `deadline` covers the connection and the head and stops there. |
 

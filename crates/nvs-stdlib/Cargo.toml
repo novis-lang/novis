@@ -109,6 +109,12 @@ nvs-test.workspace = true
 # reading `nvs_runtime::capability`'s own cases state, and the only thing in
 # this crate that needs a parser for it.
 toml.workspace = true
+# `http/transport.rs`'s client-identity cases need a certificate and the key
+# that goes with it, and no shipped path issues one. The same row `nvs-host`
+# already carries for its own handshake cases, so this adds no crate to any
+# binary: a chain a test signs is the only way to assert that a chain and a key
+# that are not each other's are refused.
+rcgen.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy, for exactly
