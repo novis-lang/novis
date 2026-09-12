@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*25 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -367,7 +367,7 @@ initializer, and two computed carriers.
 
 <a id="core-classes-html-literal"></a>
 
-## ``html`…` `` is a `Core\Html\Markup` whose segments are trusted and whose holes are escaped  *(designed — not yet in the compiler)*
+## ``html`…` `` is a `Core\Html\Markup` whose segments are trusted and whose holes are escaped
 
 `rule:core-classes/html-literal`
 

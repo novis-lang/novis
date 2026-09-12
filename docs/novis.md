@@ -18866,11 +18866,12 @@ Authenticates `$token` against every key in `$keys`, checks the lifetime it carr
 <a id="core-core-html"></a>
 ### `Core\Html`
 
-Keywords: escape, toSource, parse, sanitize
+Keywords: escape, join, toSource, parse, sanitize
 
 | Member | Signature |
 |---|---|
 | [`Core\Html::escape`](#core-core-html-escape) | `escape(string $text): Core\Html\Markup` |
+| [`Core\Html::join`](#core-core-html-join) | `join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup` |
 | [`Core\Html::toSource`](#core-core-html-tosource) | `toSource(Core\Html\Markup $markup, string $reason): string` |
 | [`Core\Html::parse`](#core-core-html-parse) | `parse(string $document): Core\Xml\Node` |
 | [`Core\Html::sanitize`](#core-core-html-sanitize) | `sanitize(string $document): Core\Html\Markup` |
@@ -18889,6 +18890,22 @@ Writes `&`, `<`, `>`, `"` and `'` in `$text` as character references, and replac
 | `$text` | `string` (launder) | The text to write into an HTML document, as text rather than as markup. |
 
 **Returns** `Core\Html\Markup` — A `Core\Html\Markup` carrying the escaped text, safe in element content and in an attribute value quoted either way. It is not a `string`, which is what stops the sink escaping it a second time; `toSource` is the way back to the bytes. Text with none of the five characters and no unterminated control is carried through unchanged. The five are escaped unconditionally: there is no flag, and an input that already reads as a reference is escaped again, since `&amp;` in the input is text that said `&amp;`.
+
+<a id="core-core-html-join"></a>
+#### `Core\Html::join`
+
+```nvs skip
+Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup
+```
+
+Concatenates a list of `Core\Html\Markup` fragments in order, writing `$separator` between each pair — the list form of `Markup + Markup`, which is what a page composed from fragments writes instead of folding the operator over them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$parts` | `array<Core\Html\Markup>` | The fragments to write out, in the order they are held. |
+| `$separator` | `Core\Html\Markup` | The markup written between each pair of parts — never before the first or after the last. An empty markup joins the parts with nothing between them. |
+
+**Returns** `Core\Html\Markup` — A `Core\Html\Markup` carrying every part's bytes in order, and empty markup for an empty list. Nothing is escaped on the way: each part and the separator are already carriers, so re-escaping one would corrupt the markup it was built for.
 
 <a id="core-core-html-tosource"></a>
 #### `Core\Html::toSource`
