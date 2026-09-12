@@ -125,6 +125,8 @@ modules = [
   "crates/nvs-fmt/src/brace.rs",
   # The rules that rewrite a token rather than the whitespace around it.
   "crates/nvs-fmt/src/tokens.rs",
+  # The `use` block: consecutive imports, written back in path order.
+  "crates/nvs-fmt/src/imports.rs",
 ]
 
 # The rules every stage works inside: what the formatter is, what it may not do to a line break, the
