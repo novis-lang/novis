@@ -128,6 +128,9 @@ modules = [
   "crates/nvs-stdlib/src/xml.rs",
   # Seeding the checker's signature table with `Core`.
   "crates/nvs-types/src/core_lib.rs",
+  # `Core\Jwe` — `rule:security/protocol-roster`'s JWE entry: compact JWE with `A256GCM` alone,
+  # assembled out of `crate::crypto`'s primitives and holding none of its own.
+  "crates/nvs-stdlib/src/jwe.rs",
 ]
 
 # Every stage works inside these three: the key picks the algorithm, the roster JWE joins, and how a
