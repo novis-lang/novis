@@ -1436,7 +1436,7 @@
     {
       "id": "security/jwe-compact-subset",
       "title": "`Core\\Jwe` speaks compact JWE with `A256GCM` alone, and the static that built the key picks the algorithm",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0179"
       ],
@@ -1448,12 +1448,17 @@
         "core-classes/crypto-interop-tier",
         "core-classes/decompression-bound"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/core/jwe-opens-every-token-webcrypto-sealed.nvst",
+        "tests/conformance/core/jwe-a-token-opens-only-under-the-static-that-sealed-it.nvst",
+        "tests/conformance/core/jwe-refuses-every-unopenable-token-with-one-sentence.nvst",
+        "tests/conformance/core/jwe-round-trips-under-every-key-and-answers-a-tainted-payload.nvst"
+      ]
     },
     {
       "id": "security/jws-issued-subset",
       "title": "A token another party issued verifies against a key found by `kid`, never one that is tried, and its claims come back as a `tainted` shape",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0179"
       ],
@@ -1465,7 +1470,13 @@
         "security/derived-codec-qualifiers",
         "security/jwe-compact-subset"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/core/jwt-verify-issued-finds-one-key-and-tries-no-other.nvst",
+        "tests/conformance/core/jwt-verify-issued-refuses-a-header-a-verifier-may-not-honour.nvst",
+        "tests/conformance/core/jwt-verify-issued-answers-the-written-type-from-either-key-spelling.nvst",
+        "tests/conformance/core/jwt-verify-issued-reaches-the-clock-and-the-claims-only-under-a-signature.nvst",
+        "tests/conformance/core/jwt-a-key-set-admits-what-it-serves-and-skips-the-rest.nvst"
+      ]
     },
     {
       "id": "security/csrf-is-on-by-default",

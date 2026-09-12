@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*25 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -1550,7 +1550,7 @@ two are different members rather than one with a flag.
 
 <a id="core-classes-crypto-interop-tier"></a>
 
-## `Core\Crypto`'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads  *(designed — not yet in the compiler)*
+## `Core\Crypto`'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads
 
 `rule:core-classes/crypto-interop-tier`
 

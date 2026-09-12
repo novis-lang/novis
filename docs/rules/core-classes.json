@@ -691,11 +691,17 @@
     {
       "id": "core-classes/crypto-interop-tier",
       "title": "`Core\\Crypto`'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0179"],
       "divergesFromPhp": "there is no cipher name in a string and no unauthenticated mode to reach for, so `aes-256-ecb` has no spelling",
       "seeAlso": ["core-api/tier-roster", "security/algorithm-comes-from-the-key", "security/jwe-compact-subset", "core-classes/secret-reveal"],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/core/crypto-aes-gcm-sealed-bytes-are-nonce-then-ciphertext-then-tag.nvst",
+        "tests/conformance/core/crypto-seals-and-opens-under-the-cipher-the-call-names.nvst",
+        "tests/conformance/core/crypto-both-derivations-repeat-exactly-and-separate-on-every-argument.nvst",
+        "tests/conformance/core/crypto-public-key-round-trips-every-kind-through-every-encoding.nvst",
+        "tests/conformance/core/crypto-sign-writes-what-webcrypto-signed-and-verify-takes-every-one.nvst"
+      ]
     },
     {
       "id": "core-classes/signature",

@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*19 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
+*17 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1743,7 +1743,7 @@ two is the rule, not an inconsistency: one is a value we had, the other is a val
 
 <a id="security-jwe-compact-subset"></a>
 
-## `Core\Jwe` speaks compact JWE with `A256GCM` alone, and the static that built the key picks the algorithm  *(designed — not yet in the compiler)*
+## `Core\Jwe` speaks compact JWE with `A256GCM` alone, and the static that built the key picks the algorithm
 
 `rule:security/jwe-compact-subset`
 
@@ -1788,7 +1788,7 @@ attacker choosing the ring's length is the iteration ceiling defeated one layer 
 
 <a id="security-jws-issued-subset"></a>
 
-## A token another party issued verifies against a key found by `kid`, never one that is tried, and its claims come back as a `tainted` shape  *(designed — not yet in the compiler)*
+## A token another party issued verifies against a key found by `kid`, never one that is tried, and its claims come back as a `tainted` shape
 
 `rule:security/jws-issued-subset`
 
