@@ -2,48 +2,50 @@
 
 ## State
 
-**Goal `webcrypto`: stage 4's member surface is complete and `tests/conformance/` is green** — 1827
-passed, 0 failed, 0 skipped at this commit. The three cases this session wrote are the last of it: the
-`secret` qualifier travelling with what `deriveKey`, `expandKey` and `agree` answer, `agree`'s refusal
-of a peer's point on both curves — at `read` for P-256 and at `agree` for X25519 — and a PKCS#8 round
-trip asserted by the shared secret rather than by the public half, which a PKCS#8 can carry.
+**Goal `webcrypto`: stage 5 (`Core\Jwe`) is complete** — the check's ten case paths all exist and pass,
+and stage 4 is still green. Three cases were written this session and four existing ones were paired
+into the check's list by their `--TEST--` lines rather than renamed on disk.
 
-**The stage 4 check's other eight paths were drafted names, not missing work**, and both
-`docs/agent/loop-goal.toml` and `docs/agent/goals/47-webcrypto.toml` now name the cases the tree
-carries. The playbook bullet under *Tooling* is how to spot the next one; nothing was renamed on disk.
+What the three new ones pin, each a claim the seven cases already on disk did not hold: the protected
+header's allow-list, asserted against tokens WebCrypto sealed *with* the header they are refused for —
+so the tag holds over it and only the list can refuse them, with a `kid` token as the control that
+opens; PBES2's `p2c` read before any derivation, asserted by the case finishing at all under counts of
+4,294,967,295 and one that does not fit the counter, and by agreeing with the bounds
+`Core\Crypto::deriveKey` holds its own arguments to; and an `epk` read through
+`Core\Crypto\PublicKey::read` on the curve *this program's* key is on, with the same two JWKs handed to
+that member answering the same way.
 
-`python tools/verify.py` is 11 of 11 green here, the three load-dependent tests earlier sessions saw
-fail in a full run included — `nvs-host`'s two CPU-charging watchdog ones
-(`crates/nvs-host/src/watchdog.rs:1051` and `:1103`) and `nvs-server`'s
-`the_in_flight_ceiling_is_fleet_wide_so_a_hot_core_cannot_refuse_while_neighbours_idle`
-(`crates/nvs-server/src/serve.rs:7958`). They are timing, not this goal, which touches neither crate.
+`python tools/verify.py` was collected green at this commit. The three load-dependent tests earlier
+sessions saw fail in a full run — `crates/nvs-host/src/watchdog.rs:1051` and `:1103`, and
+`crates/nvs-server/src/serve.rs:7958` — are timing, not this goal, which touches neither crate.
 
 ## Next group
 
-**Stage 5: `Core\Jwe`, whose check is in the same state stage 4's was** — one file set:
-`tests/conformance/core/jwe-*.nvst`, `crates/nvs-stdlib/src/jwe.rs`, and the two goal files. Seven
-`jwe-` cases are on disk and the check names six paths, none of which exists, so the first item is the
-pairing and the rest are the claims nothing holds. `rule:security/protocol-roster`'s JWE entry and
-`rule:security/algorithm-comes-from-the-key`, plus the goal's § *Standing decisions* for the subset.
+**Stage 6: JWS — `Core\Jwt` over a key pair, `Jwt\KeySet`, and claims as a shape, whose check is in
+exactly the state stage 5's was** — one file set: `tests/conformance/core/jwt-*.nvst`,
+`crates/nvs-stdlib/src/jwt.rs`, and the two goal files. The members are landed and nineteen `jwt-`
+cases are on disk, while the check names ten paths and none of them exists, so the first item is the
+pairing and the rest are whatever it leaves unheld. `rule:security/algorithm-comes-from-the-key`,
+`rule:security/verification-does-not-launder` and the goal's § *Standing decisions* for the JWS subset.
 
-- [ ] **Pair the stage 5 check's six paths against the seven cases on disk**, by `--TEST--` line, and
-      rewrite in place the ones the tree already holds — the round trip under every key kind and the
-      tainted payload are `jwe-round-trips-under-every-key-and-answers-a-tainted-payload.nvst`. The
-      list is `docs/agent/loop-goal.toml:9114` and its copy `docs/agent/goals/47-webcrypto.toml:9090`;
-      the members are `crates/nvs-stdlib/src/jwe.rs:175` and `:186`.
-- [ ] **`jwe-refuses-zip-crit-and-every-unknown-header-with-one-sentence.nvst`** — the allowed header
-      members are the goal's list and everything else is one `RuntimeError`, read at
-      `crates/nvs-stdlib/src/jwe.rs:939`.
-- [ ] **`jwe-pbes2-refuses-an-iteration-count-past-its-ceiling-before-deriving.nvst`** — `p2c` is
-      attacker-supplied and bounded at both ends before the first HMAC, at
-      `crates/nvs-stdlib/src/jwe.rs:939`.
-- [ ] **`jwe-ecdh-es-refuses-an-ephemeral-key-off-the-curve.nvst`** — the `epk` a token carries is read
-      through the same validation a peer's key gets, at `crates/nvs-stdlib/src/jwe.rs:939`.
+- [ ] **Pair the stage 6 check's ten paths against the nineteen `jwt-` cases on disk**, by `--TEST--`
+      line, and rewrite the list in place the way stage 5's was — the list is
+      `docs/agent/loop-goal.toml:9145` and its copy `docs/agent/goals/47-webcrypto.toml:9121`, and the
+      cases on disk are `tests/conformance/core/jwt-*.nvst`.
+- [ ] **`embedKey`'s proof of possession**, if the pairing leaves it unheld: the pair's public half
+      written as RFC 7638's minimal JWK under `jwk`, and a `LogicError` under a shared key —
+      `crates/nvs-stdlib/src/jwt.rs:428`.
+- [ ] **The `verifyIssued` claims the pairing leaves unheld** — the header a verifier may not honour,
+      the clock under a bounded leeway, and `azp` where `aud` is a list of more than one —
+      `crates/nvs-stdlib/src/jwt.rs:479`.
+- [ ] **`Jwt\KeySet::read`'s `rsaScheme`**, which reaches only an RSA key carrying no `alg` and loses
+      to a key's own — `crates/nvs-stdlib/src/jwt.rs:2336`.
 
 ## Backlog
 
-- Stage 6 (JWS) is the same shape again: ten drafted `jwt-` paths, and `tests/conformance/core/jwt-*`
-  already holds some of the claims — pair before writing (`docs/agent/loop-goal.toml`'s stage 6 check).
-- Stage 7 is `-p nvs-stdlib` vector tests plus `examples/webcrypto.nvs`, which does not exist yet.
-- JWE-encrypted ID tokens, JWK export of private keys and a key-set fetcher stay out of this goal
-  (the goal's § *Not this goal*).
+- No token in the frozen set carries `typ` or `cty`, so two of the eight allowed JWE header members
+  are refused-by-nothing rather than accepted-by-a-case; regenerating the set is the user's call
+  (goal § *Standing decisions*, `tools/webcrypto-vectors.mjs`).
+- Nothing pins `MAX_HEADER`'s 4096-octet cap on a protected header — `crates/nvs-stdlib/src/jwe.rs:137`.
+- Stage 7 is WebCrypto both directions and the example; stage 8 onward is untouched
+  (`docs/agent/goals/47-webcrypto.md`).

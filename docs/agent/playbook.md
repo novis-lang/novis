@@ -4615,6 +4615,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   arrive whole, and otherwise lean on the vector being self-checking — a scalar, key or signature with
   one digit wrong cannot agree or verify, so a passing test has confirmed its own literals.
   [until: reviewed 2026-09-12]
+- **A `uint` parameter refuses an `int`, and a `foreach` over a table of counts is where a case meets
+  that.** `Core\Crypto::deriveKey`'s `$iterations` and every other counted argument are `uint`, and an
+  `int` reaching one is `E0401 expected uint, found int` at the call rather than a widening, so a
+  bounds sweep declared `array<int>` compiles everywhere except the line that matters. Declare the
+  table `array<uint>` and the loop variable `uint`. [until: reviewed 2026-09-12]
 
 ## Splitting a file that got too big
 
