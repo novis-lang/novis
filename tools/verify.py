@@ -101,6 +101,25 @@ satisfies a full run and a `-p nvs-ir` verdict never satisfies an unscoped one; 
 directions do, because a superset already proved the subset. Anything unexpected -- an
 unreadable file, a corrupt cache -- makes it fall through and run the steps for real.
 
+## Why `test` runs its binaries side by side
+
+`cargo test` runs the workspace's test binaries one after another, and libtest's threads only ever
+share out the tests inside one binary, so the longest step here left most of the machine idle. The
+step is still `cargo test`'s verdict over `cargo test`'s tests. `cargo test --no-run` builds exactly
+the binaries `cargo test` would run and names them; each is run where cargo runs it -- its
+package's directory, with `CARGO_MANIFEST_DIR` set, as `tools/loop.py`'s `crate_tests` runs them --
+as many at a time as there are cores, the slowest of the last run first (`TEST_TIMES`); and `cargo
+test --doc` runs beside them for the doc-tests no binary holds. The passed, failed and ignored
+counts come out the same as cargo's.
+
+Two things differ, both on purpose. Every binary runs, where cargo stops at the first that fails,
+so a red step names every failing binary at once. And a binary that fails is run a second time,
+alone. One that passes alone failed because of what ran beside it -- a fixed port, a fixed path under
+the shared temp or target directory, a container name, a timeout that load breaks -- and it is
+reported as that failure, red, rather than retried into green. The fix is always to give the test
+its own resource, never to run it apart: a clash that serial running hides is the same clash waiting
+for the loop and a person to run the suite at the same moment.
+
 ## Why `doc` is a periodic gate rather than a step
 
 `cargo doc --no-deps --workspace` resolves every ``[`Foo::bar`]`` in a doc comment. The lint it
@@ -168,12 +187,16 @@ import re
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".agent-tmp"
 CACHE = TMP / "verify-green.json"
 PROGRESS = TMP / "verify-progress.json"  # the step in flight; see the module doc
+# Each test binary's seconds in the last run, so the next one starts the slowest first: started
+# last, one long binary is the whole step's tail. A missing or unreadable file only costs order.
+TEST_TIMES = TMP / "verify-test-times.json"
 
 TAIL_LINES = 60  # of the failing step only; the full log is always on disk
 CACHE_TTL = 3600  # seconds. A tree hash cannot go stale on its own; this is a belt on braces.
@@ -237,15 +260,20 @@ class Step:
 
     `env` is the third of the same kind of exception, and so far the `doc` step's alone:
     `broken_intra_doc_links` is a rustdoc lint rather than a rustc one, so it is set through
-    `RUSTDOCFLAGS` and not on the command line."""
+    `RUSTDOCFLAGS` and not on the command line.
 
-    def __init__(self, name, args, summarize, exe="cargo", cwd=None, env=None):
+    `runner` replaces the one command with a function returning `(exit status, output)`, and is the
+    `test` step's alone: `args` is then what a reader types to reproduce the step, and `run_tests`
+    is what actually runs."""
+
+    def __init__(self, name, args, summarize, exe="cargo", cwd=None, env=None, runner=None):
         self.name = name
         self.args = args
         self.summarize = summarize
         self.exe = exe
         self.cwd = cwd or ROOT
         self.env = env
+        self.runner = runner
         self.seconds = 0.0
         self.code = None
         self.out = ""
@@ -258,15 +286,18 @@ class Step:
 def run(step):
     started = time.monotonic()
     try:
-        p = subprocess.run(
-            [step.exe, *step.args],
-            cwd=step.cwd,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            env=dict(os.environ, **step.env) if step.env else None,
-        )
-        step.code, step.out = p.returncode, (p.stdout or "") + (p.stderr or "")
+        if step.runner is not None:
+            step.code, step.out = step.runner(step)
+        else:
+            p = subprocess.run(
+                [step.exe, *step.args],
+                cwd=step.cwd,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                env=dict(os.environ, **step.env) if step.env else None,
+            )
+            step.code, step.out = p.returncode, (p.stdout or "") + (p.stderr or "")
     except OSError as exc:
         step.code, step.out = -1, f"could not run `{step.cmd}`: {exc}"
     step.seconds = time.monotonic() - started
@@ -274,6 +305,106 @@ def run(step):
     TMP.mkdir(exist_ok=True)
     (TMP / f"verify-{step.name}.log").write_text(step.out, encoding="utf-8", newline="\n")
     return step.code == 0
+
+
+def test_jobs(scope):
+    """What `cargo test` would run, as jobs -- or `(None, output)` when the build fails.
+
+    A job is `{name, argv, cwd, env, rerun}`. The build is `cargo test --no-run`, so on a tree
+    `build` just compiled it costs only the test harnesses, and its diagnostics are rendered to
+    stderr as a plain `cargo test` would print them. The package is read off `package_id` the way
+    `tools/loop.py`'s `test_executables` reads it."""
+    built = subprocess.run(
+        ["cargo", "test", "--no-run", "--message-format=json-render-diagnostics", *scope],
+        cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace")
+    if built.returncode != 0:
+        return None, (built.stderr or "") + (built.stdout or "")
+    flags = {"lib": "--lib", "bin": "--bin", "test": "--test", "example": "--example",
+             "bench": "--bench"}
+    jobs, libs = [], 0
+    for line in built.stdout.splitlines():
+        try:
+            m = json.loads(line)
+        except ValueError:
+            continue
+        if m.get("reason") != "compiler-artifact" or not m.get("executable"):
+            continue
+        if not m.get("profile", {}).get("test"):
+            continue
+        source, _, tail = m.get("package_id", "").rpartition("#")
+        package = tail.split("@", 1)[0] if "@" in tail else source.rstrip("/").rsplit("/", 1)[-1]
+        target = m["target"]["name"]
+        kind = next((k for k in m["target"].get("kind", []) if k in flags), "lib")
+        libs += kind == "lib"
+        cwd = str(Path(m["manifest_path"]).parent)
+        flag = flags[kind] if kind == "lib" else f"{flags[kind]} {target}"
+        jobs.append({"name": f"{package} {kind} {target}", "argv": [m["executable"]], "cwd": cwd,
+                     "env": {"CARGO_MANIFEST_DIR": cwd},
+                     "rerun": f"cargo test -p {package} {flag}"})
+    # A package with no library has no doc-tests, and `cargo test --doc -p` refuses it outright.
+    if libs or not scope:
+        jobs.append({"name": "doc-tests", "argv": ["cargo", "test", "--doc", *scope],
+                     "cwd": str(ROOT), "env": {}, "rerun": " ".join(["cargo", "test", "--doc", *scope])})
+    return jobs, ""
+
+
+def run_job(job):
+    """One job to completion: `(seconds, exit status, output)`."""
+    started = time.monotonic()
+    try:
+        p = subprocess.run(job["argv"], cwd=job["cwd"], capture_output=True, encoding="utf-8",
+                           errors="replace", env=dict(os.environ, **job["env"]))
+        code, out = p.returncode, (p.stdout or "") + (p.stderr or "")
+    except OSError as exc:
+        code, out = -1, f"could not run `{' '.join(job['argv'])}`: {exc}"
+    return time.monotonic() - started, code, out
+
+
+def run_tests(step):
+    """The `test` step -- the module docstring's *Why `test` runs its binaries side by side*."""
+    jobs, fail = test_jobs(step.args[1:])
+    if jobs is None:
+        return 1, fail
+    try:
+        last = json.loads(TEST_TIMES.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        last = {}
+    if not isinstance(last, dict):
+        last = {}
+    # Unknown first: a binary with no recorded time is new, and new is as likely to be slow.
+    jobs.sort(key=lambda j: -float(last.get(j["name"], float("inf"))))
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
+        results = dict(zip((j["name"] for j in jobs), pool.map(run_job, jobs)))
+
+    failed = [j for j in jobs if results[j["name"]][1] != 0]
+    # Alone, one at a time, after the pool has drained: the second run is the diagnosis.
+    alone = {j["name"]: run_job(j)[1] == 0 for j in failed}
+
+    try:
+        TMP.mkdir(exist_ok=True)
+        TEST_TIMES.write_text(json.dumps({n: round(r[0], 2) for n, r in sorted(results.items())},
+                                         indent=1), encoding="utf-8", newline="\n")
+    except OSError:
+        pass
+
+    # Passing binaries first, by name, so the tail a red step prints is the failures.
+    names = {j["name"] for j in failed}
+    out = [f"     Running {n}\n{results[n][2]}" for n in sorted(results) if n not in names]
+    for j in failed:
+        out.append(f"     Running {j['name']}  -- FAILED, exit {results[j['name']][1]}\n"
+                   f"{results[j['name']][2]}")
+    for j in failed:
+        if alone[j["name"]]:
+            out.append(
+                f"error: `{j['name']}` failed beside the other test binaries and passed alone. "
+                f"It shares something with a binary that runs at the same time -- a fixed port, a "
+                f"fixed path under the shared temp or target directory, a container name -- or "
+                f"leans on a timeout that load breaks. Give the test its own (port 0, a directory "
+                f"no other test names, its own container) rather than running it apart: "
+                f"`tools/verify.py` § *Why `test` runs its binaries side by side*.")
+        else:
+            out.append(f"error: `{j['name']}` failed, alone as well; `{j['rerun']}` runs it again.")
+    return (1 if failed else 0), "\n".join(out)
 
 
 def progress(done, step=None, total=0, finished=None):
@@ -436,7 +567,7 @@ def steps_for(opts):
         steps.append(Step("template", ["tools/directives.py", "--check-template"],
                           summarize_template, exe=sys.executable))
     steps.append(Step("build", ["build", *scope], summarize_build))
-    steps.append(Step("test", ["test", *scope], summarize_test))
+    steps.append(Step("test", ["test", *scope], summarize_test, runner=run_tests))
     if not opts.fast:
         # The `.nvst` trees, through the binary `build` above just produced. Until this step
         # existed, `verify.py` ran no case at all: a case that failed to compile, or whose
