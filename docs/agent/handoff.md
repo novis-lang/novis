@@ -2,57 +2,57 @@
 
 ## State
 
-**Goal `fmt` (M10), stage 4 has its first name green.** `crates/nvs-fmt/src/tokens.rs` is the home of
-the rules that rewrite a token rather than the whitespace around it, and what is in it is the quote
-rule: a double-quoted literal goes out single-quoted when both spellings name the same string, which
-is a body with no `'` and no `\` in it. `rule:tooling/fmt-quotes`'s fragment now records that reading
-of its "would force to be escaped" clause — the two quotings do not share an escape grammar, so
-respelling `"one\ttwo"` would change the string's value.
+**Goal `fmt` (M10), stage 4 is one name from green.** `crates/nvs-fmt/src/tokens.rs` holds both rules
+that rewrite a code byte: the quote a plain literal is delimited by, and the comma a multi-line list
+ends its last element on. The comma's operative test is where the **closing delimiter** sits — a line
+break between the last element and the closer means the comma is there, a closer that follows its
+element on that element's line means it is not — and both directions are applied, so a comma written
+in front of a trailing closer is deleted. `rule:tooling/fmt-trailing-commas`'s fragment now records
+that reading. Which lists it reaches is the node that ends at the closer, so a parameter list, an
+enum-case list and a shape type's fields are gap 5 in `crates/nvs-fmt/src/lib.rs`.
 
-The scan is `crates/nvs-fmt/src/brace.rs`'s, over the code runs the printer tiles: a `"` is an
-opening quote only when the innermost node at it is a `Str` that starts there, so a heredoc body, an
-interpolation site and a comment are never candidates. A literal an attribute writes is not one
-either — that is gap 4 in `crates/nvs-fmt/src/lib.rs`.
+**`crates/nvs-fmt/src/imports.rs` is new** and holds the `use` block's order. What it moves is the
+**path**, never the declaration: `print::one_code_run` is the printer's own invariant and
+`use Core\Str;` is two code runs either side of the space after the keyword. A comment between two
+imports ends the run and each half sorts alone — gap 6 in the same doc.
 
-**The corpus absorbed it**: 99 `.nvs` files, 743 lines, each a `"` pair swapped for a `'` pair and
-nothing else. `NVS_FMT_ACCEPT=1 cargo test -p nvs-fmt --test identity` is how that edit is made now;
-the accepting run still fails, so the diff is read before it is committed. Nothing is blocked.
+Six of stage 4's seven test names are green; the seventh is the reserved spellings, below. The corpus
+absorbed both rules in three files (`examples/pool.nvs`, `examples/xml-tree.nvs`,
+`examples/schema.nvs`). Nothing is blocked.
 
 ## Next group
 
-**Stage 4: the token rules, continued** — one file set: `crates/nvs-fmt/src/tokens.rs`,
-`crates/nvs-fmt/src/print.rs` and `crates/nvs-fmt/tests/token_rules.rs`. Each of these rewrites a
-code run, so `crates/nvs-fmt/src/print.rs:38`'s `Rewrite` is the shape and
-`crates/nvs-fmt/src/tokens.rs:71` is the scan that keeps a literal's own bytes out of it.
+**Stage 4: the reserved spellings, then stage 5's two negatives** — one file set:
+`crates/nvs-fmt/src/tokens.rs`, `crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/duration.rs`
+and the crate's tests. The first item is a decision the goal pre-authorizes; the other two are claims
+the printer already satisfies.
 
-- [ ] **The trailing comma** — `rule:tooling/fmt-trailing-commas`. A comma-separated list the author
-      spread over more than one line gets a comma after its last element and a one-line list never
-      does; whether it spans lines is the author's, `rule:tooling/fmt-never-reflows`. An insertion is
-      a `Rewrite` with `start == end` (`crates/nvs-fmt/src/print.rs:38`). The index carries no
-      element spans, so what a closer's own node gives you is the list, and the last element ends at
-      the last non-trivia byte before the closing `)`, `]` or `}` — `crates/nvs-fmt/src/tokens.rs:71`
-      is the walk. Test `a_multi_line_list_gains_a_trailing_comma_and_a_one_line_list_has_none`.
-- [ ] **The `use` block's order** — `rule:tooling/fmt-sorts-the-use-block`. A run of `UseDecl` nodes
-      with only trivia between them is a permutation of itself, which is exactly
-      `crates/nvs-fmt/src/modifiers.rs:43`'s shape: each declaration's text goes out at one of the
-      run's own spans, so the blank lines and comments between them stay where they were written —
-      and a comment naming the import above it therefore ends up over a different one, which is the
-      thing to decide and then write into the crate's gaps. Find them as
-      `crates/nvs-fmt/src/tokens.rs:71` finds a literal, and sort by the path
-      (`crates/nvs-syntax/src/ast.rs:1766`). Test `consecutive_use_declarations_are_sorted_by_full_path`.
-- [ ] **The two negatives** — `rule:tooling/fmt-never-inserts-visibility` and
-      `rule:tooling/fmt-never-reorders-members`. Two tests over what is already true, beside the
-      quote rule's own at `crates/nvs-fmt/tests/token_rules.rs:20`: a member with no visibility keyword comes back
-      with none, and a class whose members are in no particular order comes back in that same order.
-      Tests `no_visibility_keyword_is_ever_inserted` and `class_members_keep_their_declaration_order`.
-      The reserved-spelling half of that stage's check is the playbook bullet above: decide the
-      refusal question first, because `<?NVS` and `5Min` do not parse.
+- [ ] **The reserved spellings, and the refusal that hides them** —
+      `rule:tooling/fmt-normalizes-only-reserved-spellings`. The lexer takes `<?NVS` and reports
+      "`<?nvs` must be written in lower case" at `crates/nvs-syntax/src/lexer.rs:384`, and a
+      mis-cased duration unit is `MisCasedUnit` at `crates/nvs-syntax/src/duration.rs:49`. Both are
+      errors, and `crates/nvs-fmt/src/lib.rs:139` refuses a file whose parse reports one — so the
+      formatter never reaches the two spellings the rule names. Decide that under the rule's own
+      reasoning and write it into the fragment: either a mis-cased reserved spelling is a diagnostic
+      the parse carries without refusing the file, or the rewrite is the editor's code action and
+      what `nvs fmt` owes is the refusal. The scan that would hold it is
+      `crates/nvs-fmt/src/tokens.rs:123`. Test `a_mis_cased_open_tag_and_duration_unit_are_lower_cased`.
+- [ ] **Markup and inline HTML come back byte-identical** — the goal's standing decision that bytes a
+      program prints are never touched, and `rule:tooling/fmt-never-reflows`. Two tests over what is
+      already true, in the shape of `crates/nvs-fmt/tests/never_rewrites_a_declaration.rs:21`: an
+      `?> … <?nvs` region and a markup literal's body survive a format unchanged. Tests
+      `an_inline_html_region_is_byte_identical_after_formatting` and
+      `a_markup_literal_body_is_byte_identical_after_formatting`.
+- [ ] **A close tag is never moved onto or off a line** — the other half of stage 5's first check,
+      and the one that needs `crates/nvs-fmt/src/indent.rs:1`'s template-region gap read first: a
+      `?>` that begins its line sits at its block's depth, and one that follows a statement stays
+      where it is. Tests `a_close_tag_that_begins_its_line_sits_at_the_depth_of_its_block` and
+      `a_close_tag_is_never_moved_onto_or_off_a_line`.
 
 ## Backlog
 
-- The `nvs fmt` command itself is unlanded — `nvs fmt` is still `unrecognized subcommand`, so every
-  stage's evidence is a `cargo test` (`docs/agent/loop-goal.md`, stage 6).
-- PER's blank lines, and the constructs PER never saw (`rule:tooling/fmt-novis-constructs`) —
-  gap 1 in `crates/nvs-fmt/src/lib.rs`.
-- A one-line body comes back as a header, a line and a `{ … }` until one-statement-per-line lands —
-  gap 3 in `crates/nvs-fmt/src/lib.rs`.
+- Parameter lists, enum cases and shape fields get no trailing comma — gap 5, `crates/nvs-fmt/src/lib.rs`.
+- A comment inside a `use` block pins the run around it — gap 6, same doc.
+- A literal inside an attribute keeps its quotes — gap 4, same doc.
+- PER's blank lines, the `use` block's own one included — `rule:tooling/fmt-base-style-is-per`, stage 5.
+- Stage 6 is the command: in place, `--check`, `--diff`, `--stdin`, and the frozen `tests/fmt/` pairs.
