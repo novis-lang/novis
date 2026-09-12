@@ -18,7 +18,18 @@ import * as assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { Region, formatted, forwarded, virtual } from "../../src/template";
+import {
+  Chunk,
+  Position,
+  Region,
+  chunks,
+  edited,
+  formatted,
+  forwarded,
+  hidden,
+  merged,
+  virtual,
+} from "../../src/template";
 
 const ROOT = resolve(__dirname, "..", "..", "..");
 
@@ -56,6 +67,78 @@ const MODULES = new Map<string, string>(
 );
 
 const EVERY_MODULE = [...MODULES.values()].join("\n");
+
+// The one hole both fixtures carry, written once so a case can name its bytes without counting
+// them: twelve characters of Novis inside a line of markup.
+const HOLE = "<?= $name ?>";
+
+// Markup inside a `for` body, which is where a chunk's base is not column zero. `nvs fmt` puts the
+// `?>` at the depth of the block it sits in (`rule:tooling/fmt-novis-constructs`), so this is a
+// file that pass has already been over, and the markup under it is what the client lays out from
+// there (ADR 0173 § 3).
+const LOOP = [
+  "<?nvs",
+  "for ($row = 0; $row < 3; $row = $row + 1) {",
+  "    ?>",
+  "<ul>",
+  `<li>hi ${HOLE}</li>`,
+  "</ul>",
+  "    <?nvs",
+  "}",
+  "?>",
+  "",
+].join("\n");
+
+// What `nvs/regions` answers for it: the markup either side of the hole, ending where the `<?nvs`
+// that closes the chunk begins — so the whitespace in front of that tag is the markup's own. The
+// boundaries are the lexer's and are held on the other side of the wire by
+// `crates/nvs-lsp/tests/regions.rs`; what is written here is where they fall in these bytes, named
+// by `indexOf` so the fixture above can be edited without re-counting a column.
+const RUNS = html(
+  LOOP,
+  [LOOP.indexOf("<ul>"), LOOP.indexOf(HOLE)],
+  [LOOP.indexOf(HOLE) + HOLE.length, LOOP.indexOf("    <?nvs") + 4],
+);
+
+/** The server's answer for `text`, from the offsets its markup runs lie between. */
+function html(text: string, ...runs: readonly (readonly [number, number])[]): Region[] {
+  return runs.map(([start, end]) => ({
+    range: { start: spot(text, start), end: spot(text, end) },
+    language: "html",
+  }));
+}
+
+/** One offset as the line and character the wire counts it in. */
+function spot(text: string, at: number): Position {
+  const rows = text.slice(0, at).split("\n");
+  return { line: rows.length - 1, character: rows[rows.length - 1].length };
+}
+
+/** The chunk as the formatter is shown it, with a fixture that may not be shown one failing here. */
+function shownTo(text: string, chunk: Chunk): string {
+  const body = hidden(text, chunk);
+  if (body === undefined) {
+    throw new Error("the fixture's markup holds the stand-in's own character");
+  }
+  return body;
+}
+
+/**
+ * The editor's HTML formatter, as the headless tier has one.
+ *
+ * It has none: the built-in formatter needs a running editor
+ * (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`), and the milestone's host
+ * run is where a real template goes through a real one. This answers in the shape a real one does —
+ * every row in its own columns, starting at the first, with `nest` naming the rows it puts a level
+ * into — because what the merge may not simply trust is the column the formatter chose.
+ */
+function answered(text: string, chunk: Chunk, nest: readonly number[]): string {
+  return shownTo(text, chunk)
+    .split("\n")
+    .map((row, index) =>
+      row.trim() === "" ? "" : (nest.includes(index) ? "    " : "") + row.trim())
+    .join("\n");
+}
 
 describe("the template regions", () => {
   it("forwards inside a region and nothing outside one", () => {
@@ -166,5 +249,154 @@ describe("the template format", () => {
     ]) {
       assert.ok(!EVERY_MODULE.includes(api), `${api}: a second formatter inside a .nvs file`);
     }
+  });
+
+  it("formats only the Novis half when nvs.template.format is false", () => {
+    // `false` answers no chunk at all, so the merge has nothing to put anywhere and the buffer
+    // becomes exactly what `nvs fmt` wrote. That is the whole of the pass for a user whose markup
+    // whitespace is output, or whose HTML tooling is their own.
+    const off = chunks(false, PROGRAM, REGIONS, "html");
+    assert.deepEqual(off, []);
+    assert.equal(merged(PROGRAM, off, []), PROGRAM);
+
+    // The same answer from the other side: a spelling this client has no formatter for is nobody's
+    // chunk, and those bytes stay as `nvs fmt` left them too.
+    assert.deepEqual(chunks(true, PROGRAM, REGIONS, "css"), []);
+
+    // The setting is read by its whole name, which is what makes the boolean above the user's
+    // answer rather than this file's. The contributions suite is what freezes the name itself.
+    assert.ok(
+      EVERY_MODULE.includes('"nvs.template.format"'),
+      "no module names the setting, so nothing turns the markup pass off",
+    );
+  });
+
+  it("starts a chunk after a close tag at that line's indentation", () => {
+    const list = chunks(true, PROGRAM, REGIONS, "html");
+
+    // One chunk and not two: the hole in the middle of the paragraph is part of its line, and the
+    // two regions the server answered either side of it are one run of markup to lay out.
+    assert.equal(list.length, 1, "the hole in the paragraph was read as a boundary");
+    const [chunk] = list;
+    assert.equal(PROGRAM.slice(chunk.start, chunk.end), `<p>hi ${HOLE}!</p>\n`);
+    assert.deepEqual(chunk.holes.map((hole) => PROGRAM.slice(hole.start, hole.end)), [HOLE]);
+
+    // The `?>` that opened it begins its own line, so the chunk is laid out from column zero — and
+    // the markup starts at the first column of the line after it, which is how a chunk is told from
+    // a run continuing one.
+    assert.equal(chunk.base, "");
+    assert.equal(PROGRAM[chunk.start - 1], "\n");
+  });
+
+  it("indents a chunk inside a loop body one level deeper than the loop", () => {
+    const [chunk] = chunks(true, LOOP, RUNS, "html");
+
+    // The `?>` is one level into the `for` body, so that is where its markup starts.
+    assert.equal(chunk.base, "    ");
+
+    assert.equal(merged(LOOP, [chunk], [answered(LOOP, chunk, [1])]), [
+      "<?nvs",
+      "for ($row = 0; $row < 3; $row = $row + 1) {",
+      "    ?>",
+      "    <ul>",
+      `        <li>hi ${HOLE}</li>`,
+      "    </ul>",
+      "    <?nvs",
+      "}",
+      "?>",
+      "",
+    ].join("\n"));
+  });
+
+  it("puts the open tag that ends a chunk at the chunk's base", () => {
+    const [chunk] = chunks(true, LOOP, RUNS, "html");
+
+    // The chunk's last line is the whitespace in front of that `<?nvs`, and a formatter is free to
+    // answer with it, without it, or in a column of its own. The tag ends up at the base either
+    // way, so it starts where the markup it closes does rather than where the formatter stopped.
+    const full = answered(LOOP, chunk, [1]);
+    for (const answer of [full, full.replace(/\n+$/, ""), `${full}\n\n`]) {
+      const out = merged(LOOP, [chunk], [answer]);
+      assert.ok(out.includes("\n    <?nvs\n"), "the closing tag did not come back to the base");
+      assert.ok(!out.includes("\n<?nvs"), "the closing tag lost the base");
+    }
+  });
+
+  it("never edits a byte of a hole", () => {
+    const [chunk] = chunks(true, LOOP, RUNS, "html");
+    const body = shownTo(LOOP, chunk);
+
+    // The formatter is shown a stand-in of the hole's own length and never a byte of its Novis, so
+    // every column of the markup around it is where its author put it.
+    assert.equal(body.length, chunk.end - chunk.start);
+    assert.ok(!body.includes("$row") && !body.includes("$name"), "a hole's Novis reached the formatter");
+    assert.ok(!body.includes("<?"), "an open tag reached the formatter");
+
+    // And what goes back into the buffer carries the hole's bytes exactly, on the line its author
+    // wrote them on — the line the formatter moved, with the bytes it was never shown.
+    const out = merged(LOOP, [chunk], [answered(LOOP, chunk, [1])]);
+    assert.equal(out.split("\n")[4], `        <li>hi ${HOLE}</li>`);
+    assert.equal(out.match(/<\?=/g)?.length, 1);
+  });
+
+  it("leaves a chunk as written when formatting it would reach a hole", () => {
+    const [chunk] = chunks(true, LOOP, RUNS, "html");
+    const body = shownTo(LOOP, chunk);
+    const cut = chunk.holes[0].start - chunk.start;
+
+    // A stand-in that came back a character short, and one a formatter wrapped a line inside:
+    // either is a layout that would have moved a byte of Novis, so that chunk keeps the text it
+    // had. An unformatted chunk is a layout complaint and an edited hole is a changed program.
+    const short = body.slice(0, cut) + body.slice(cut + 1);
+    const wrapped = `${body.slice(0, cut + 2)}\n${body.slice(cut + 2)}`;
+    for (const answer of [short, wrapped, undefined]) {
+      assert.equal(merged(LOOP, [chunk], [answer]), LOOP);
+    }
+
+    // Markup already holding the stand-in's own character is shown to no formatter at all, since a
+    // run in that answer would no longer be the client's to read back. The replacement is one
+    // character for one, so the regions above still describe these bytes.
+    const own = LOOP.replace("<ul>", `<${String.fromCodePoint(0xe000)}l>`);
+    const [same] = chunks(true, own, RUNS, "html");
+    assert.equal(hidden(own, same), undefined);
+    assert.equal(merged(own, [same], [undefined]), own);
+  });
+
+  it("changes no byte outside a region", () => {
+    const [chunk] = chunks(true, LOOP, RUNS, "html");
+    const out = merged(LOOP, [chunk], [answered(LOOP, chunk, [1])]);
+
+    // The Novis above the chunk and the Novis below it come through a slice, so `nvs fmt` stays the
+    // only thing that has laid out a byte of either (`rule:ide/one-server-two-thin-clients`) and
+    // `nvs fmt --check` still passes over what this writes.
+    assert.ok(out.startsWith(LOOP.slice(0, chunk.start)), "a byte before the chunk moved");
+    assert.ok(out.endsWith(LOOP.slice(chunk.end)), "a byte after the chunk moved");
+    assert.notEqual(out, LOOP);
+
+    // A formatter that answers with what it was shown changes nothing anywhere: the stand-ins go
+    // back as the holes they stood in for, and the file is the one `nvs fmt` wrote.
+    const [only] = chunks(true, PROGRAM, REGIONS, "html");
+    assert.equal(merged(PROGRAM, [only], [shownTo(PROGRAM, only)]), PROGRAM);
+  });
+
+  it("reads a formatter's edits as one text, whatever order they arrive in", () => {
+    const body = "<ul>\n<li>hi</li>\n</ul>\n";
+    const indent = (line: number, text: string) => ({
+      range: { start: { line, character: 0 }, end: { line, character: 0 } },
+      newText: text,
+    });
+
+    // A range formatter answers in edits and this pass decides in texts, so the edits are written
+    // out in one pass and in position order — which is not the order they need have arrived in.
+    assert.equal(edited(body, [indent(2, "  "), indent(1, "    ")]),
+                 "<ul>\n    <li>hi</li>\n  </ul>\n");
+
+    // Two that overlap are an answer the client cannot read, and it leaves the text alone rather
+    // than applying the half of it that fits.
+    const over = [
+      { range: { start: { line: 0, character: 0 }, end: { line: 1, character: 2 } }, newText: "x" },
+      { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 4 } }, newText: "y" },
+    ];
+    assert.equal(edited(body, over), body);
   });
 });
