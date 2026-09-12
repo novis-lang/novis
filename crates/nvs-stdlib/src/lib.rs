@@ -310,15 +310,19 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             script::SPAWN_METHOD_SYMBOL,
             script::AWAIT_SYMBOL,
         ])
-        // The sink carriers' three row-less symbols, which are constructs
-        // rather than members for the same reason those two are: `rule:core-classes/html-auto-escape`'s
-        // lift is `as` on a source literal, and § 5's `Markup + Markup` and ADR
-        // 0086 § 2's `Text + Text` are an operator. Each is reachable only from
-        // the lowering of the construct that spells it, which is what a row
-        // would undo — `html`'s and `cli`'s own module docs own why.
+        // The sink carriers' row-less symbols, which are constructs rather than
+        // members for the same reason those two are: `rule:core-classes/html-auto-escape`'s
+        // lift is `as` on a source literal, § 5's `Markup + Markup` and ADR
+        // 0086 § 2's `Text + Text` are an operator, and
+        // `rule:core-classes/html-literal`'s pair is a markup literal's segment
+        // and hole. Each is reachable only from the lowering of the construct
+        // that spells it, which is what a row would undo — `html`'s and
+        // `cli`'s own module docs own why.
         .chain([
             html::MARKUP_SYMBOL,
             html::MARKUP_CONCAT_SYMBOL,
+            html::ESCAPE_TEXT_SYMBOL,
+            html::MARKUP_TEXT_SYMBOL,
             cli::TEXT_CONCAT_SYMBOL,
         ])
         .map(|symbol| (symbol, address_of(symbol)))
@@ -454,11 +458,13 @@ mod tests {
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()
                 // `rule:security/isolate-shares-nothing`'s `spawn script` — in its two entry forms, which
-                // are two symbols and one construct — and `await`, `rule:core-classes/html-auto-escape`'s `as Markup` and `Markup + Markup`, and `rule:tooling/styling-is-a-value-not-a-grammar`'s
-                // `Text + Text`: six symbols behind five constructs, each
-                // syntax rather than a call, so none of them has a row
-                // either — see `script`'s, `html`'s and `cli`'s module docs.
-                + 6
+                // are two symbols and one construct — and `await`, `rule:core-classes/html-auto-escape`'s `as Markup` and `Markup + Markup`, `rule:tooling/styling-is-a-value-not-a-grammar`'s
+                // `Text + Text`, and `rule:core-classes/html-literal`'s markup
+                // literal, whose segment and hole are a second pair behind one
+                // construct: eight symbols behind six constructs, each syntax
+                // rather than a call, so none of them has a row either — see
+                // `script`'s, `html`'s and `cli`'s module docs.
+                + 8
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

@@ -71,11 +71,15 @@
 //!
 //! # Known gaps
 //!
-//! [`MARKUP`] is registered *and* reachable: `rule:core-classes/html-auto-escape`'s three ways to
-//! obtain one are all here — [`MARKUP_SYMBOL`] for `as Markup` on a source
-//! literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`, and the escape
-//! itself, which `rule:security/launderer-answers-a-carrier` turned from the first two's poor relation into
-//! the ordinary one. What still waits is the sink's **automatic** lift — every
+//! [`MARKUP`] is registered *and* reachable: every way
+//! `rule:core-classes/html-auto-escape` and `rule:core-classes/html-literal`
+//! give a program to obtain one is here — [`MARKUP_SYMBOL`] for `as Markup` on
+//! a source literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`, the escape
+//! itself, which `rule:security/launderer-answers-a-carrier` turned from the
+//! first two's poor relation into the ordinary one, and the pair a markup
+//! literal's own lowering reaches, [`ESCAPE_TEXT_SYMBOL`] and
+//! [`MARKUP_TEXT_SYMBOL`], which answer a hole's bytes rather than a carrier
+//! per hole. What still waits is the sink's **automatic** lift — every
 //! non-`Markup` interpolation into an HTML response escaped and wrapped with
 //! no call written at the site — and it waits on that response existing, which
 //! is the same wait `Core\Request` is on. The *predicate* `rule:security/launderer-answers-a-carrier` reads
@@ -247,6 +251,32 @@ pub const MARKUP_SYMBOL: &str = "nvs_core_html_markup";
 /// that took its operands from anywhere.
 pub const MARKUP_CONCAT_SYMBOL: &str = "nvs_core_html_markup_concat";
 
+/// The symbol a markup literal's hole lowers to — `rule:core-classes/html-literal`'s
+/// escape, answering the escaped **bytes** where [`nvs_core_html_escape`]
+/// answers a carrier.
+///
+/// One transformation, two answer shapes, and the position is what picks: a
+/// hole is one piece of a literal that becomes a single `Markup` holding the
+/// joined bytes, so a carrier per hole would be a carrier the join unwraps
+/// again. What that rule's *What it costs to run* promises is one object
+/// allocation for the whole literal, however many holes it has.
+///
+/// Row-less for [`MARKUP_SYMBOL`]'s reason: `escape` is the written spelling
+/// and this is a lowering's, so the literal's own lowering is the only thing
+/// allowed to reach it.
+pub const ESCAPE_TEXT_SYMBOL: &str = "nvs_core_html_escape_text";
+
+/// The symbol a markup literal's `Markup`-holding hole lowers to — the raw
+/// splice `rule:core-classes/html-literal` grants it, answering the carrier's
+/// own bytes.
+///
+/// Row-less for [`ESCAPE_TEXT_SYMBOL`]'s reason, and narrower than
+/// `Core\Html::toSource`, which is the *written* way out of the carrier and
+/// demands a reason for being one (`rule:core-classes/html-to-source`). Nothing
+/// a program writes reaches this: the bytes it hands back never become a
+/// `string` a program can hold, only another carrier's slot.
+pub const MARKUP_TEXT_SYMBOL: &str = "nvs_core_html_markup_text";
+
 /// `Core\Html::escape`'s reference card — `rule:core-api/reference-card`.
 const ESCAPE_DOC: MethodDoc = MethodDoc {
     short: "Writes `&`, `<`, `>`, `\"` and `'` in `$text` as character references, and replaces \
@@ -348,6 +378,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_html_to_source" => (nvs_core_html_to_source as *const ()).cast(),
         MARKUP_SYMBOL => (nvs_core_html_markup as *const ()).cast(),
         MARKUP_CONCAT_SYMBOL => (nvs_core_html_markup_concat as *const ()).cast(),
+        ESCAPE_TEXT_SYMBOL => (nvs_core_html_escape_text as *const ()).cast(),
+        MARKUP_TEXT_SYMBOL => (nvs_core_html_markup_text as *const ()).cast(),
         _ => return None,
     })
 }
@@ -392,6 +424,65 @@ fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
     })
 }
 
+/// The escape itself, as bytes: `&`, `<`, `>`, `"` and `'` written as
+/// character references and every unterminated bidirectional control replaced,
+/// which is the whole of `rule:security/launderers-are-sink-named`'s transform
+/// for the HTML sink.
+///
+/// `value` is borrowed, as a `CoreCall`'s argument always is, and the answer
+/// carries **one reference of its own** for whoever called to hand on — the
+/// argument's own, retained, where there was nothing to escape, and a fresh
+/// allocation where there was. That is what lets [`nvs_core_html_escape`] pass
+/// it straight to [`crate::instance::build`], which takes a slot's reference
+/// over, and [`ESCAPE_TEXT_SYMBOL`] hand it back as the answer.
+///
+/// # Why the unchanged case still carries the argument's own bytes
+///
+/// `rule:core-classes/html-auto-escape` makes this the sink's *only* behaviour:
+/// every non-`Markup` interpolation into an HTML response passes through here,
+/// whether or not it is tainted. So the input with nothing to escape is not an
+/// edge case, it is most of a page — and handing that path's bytes straight on
+/// keeps it at one scan and no *string* allocation, which is what makes a rule
+/// that cannot be switched off affordable (AGENTS.md's priority 3).
+/// [`nvs_render::text::substitute`] answers a borrow for the same reason one
+/// sink over.
+fn escaped_text(value: Value, subject: &str) -> Result<Value, Fault> {
+    let text = text(&value, subject)?;
+
+    // Both halves are a scan and neither fires on ordinary text, so they are
+    // asked before anything is allocated.
+    let mut unterminated = Vec::new();
+    nvs_render::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
+    if unterminated.is_empty() && !text.chars().any(|c| escaped(c).is_some()) {
+        #[expect(
+            unsafe_code,
+            reason = "the argument slot holds a live reference for the length of \
+                      the call, which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            value.retain();
+        }
+        return Ok(value);
+    }
+
+    // Every escape is longer than what it replaces, so the input's length is a
+    // floor and never a wasted reservation.
+    let mut out = String::with_capacity(text.len());
+    let mut cuts = unterminated.into_iter().peekable();
+    for (offset, c) in text.char_indices() {
+        if cuts.peek() == Some(&offset) {
+            cuts.next();
+            out.push(REPLACEMENT);
+            continue;
+        }
+        match escaped(c) {
+            Some(reference) => out.push_str(reference),
+            None => out.push(c),
+        }
+    }
+    Ok(Value::str(NvsStr::new(out.as_bytes())))
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Html::escape(tainted string $text): Core\Html\Markup` — `rule:security/launderers-are-sink-named`
     /// 's launderer for the sink § 5 describes, replacing
@@ -407,16 +498,9 @@ nvs_runtime::nvs_helper! {
     /// is not idempotent, so an answer the sink could not tell from unescaped
     /// text is one it would escape a second time.
     ///
-    /// # Why the unchanged case still carries the argument's own bytes
-    ///
-    /// `rule:core-classes/html-auto-escape` makes this the sink's *only* behaviour: every non-`Markup`
-    /// interpolation into an HTML response passes through here, whether or not
-    /// it is tainted. So the input with nothing to escape is not an edge case,
-    /// it is most of a page — and handing that path's bytes straight to the
-    /// carrier keeps it at one scan and no *string* allocation, which is what
-    /// makes a rule that cannot be switched off affordable (AGENTS.md's
-    /// priority 3). [`nvs_render::text::substitute`] answers a borrow for the
-    /// same reason one sink over.
+    /// The transform is [`escaped_text`], shared with [`ESCAPE_TEXT_SYMBOL`],
+    /// and its doc comment holds why the unchanged input still travels on its
+    /// own bytes. What is left here is the lift.
     ///
     /// **What the carrier itself spends:** one object allocation per call,
     /// charged to the request exactly as [`nvs_core_html_markup`]'s lift is.
@@ -424,46 +508,52 @@ nvs_runtime::nvs_helper! {
     /// including the unchanged one — the alternative is a `string` answer the
     /// sink escapes again, which costs a second scan *and* a wrong document.
     fn nvs_core_html_escape(_ctx, args: [1]) {
-        let text = text(&args[0], r"`Core\Html::escape`'s `$text`")?;
+        // `instance::build` takes the slot's reference over, and that is
+        // exactly the one `escaped_text` hands back.
+        let escaped = escaped_text(args[0], r"`Core\Html::escape`'s `$text`")?;
+        Ok(crate::instance::build(&MARKUP, [escaped]))
+    }
+}
 
-        // Both halves are a scan and neither fires on ordinary text, so they
-        // are asked before anything is allocated.
-        let mut unterminated = Vec::new();
-        nvs_render::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
-        if unterminated.is_empty() && !text.chars().any(|c| escaped(c).is_some()) {
-            // `instance::build` takes over the slot's reference, and a
-            // `CoreCall`'s arguments are borrowed — so the reference the
-            // carrier ends up holding is taken here, as the lift does it.
-            #[expect(
-                unsafe_code,
-                reason = "the argument slot holds a live reference for the length of \
-                          the call, which is `Value::retain`'s whole obligation"
-            )]
-            unsafe {
-                args[0].retain();
-            }
-            return Ok(crate::instance::build(&MARKUP, [args[0]]));
-        }
+nvs_runtime::nvs_helper! {
+    /// A markup literal's hole, escaped — `rule:core-classes/html-literal`'s
+    /// hole rule, and the whole of what [`ESCAPE_TEXT_SYMBOL`] does.
+    ///
+    /// The same transform `Core\Html::escape` runs, answering the bytes it
+    /// produced instead of a carrier holding them, because the piece this is
+    /// one of is on its way into a carrier already.
+    ///
+    /// **What it spends:** nothing beyond the escape itself — no object, and no
+    /// string where the hole's text had nothing to escape.
+    fn nvs_core_html_escape_text(_ctx, args: [1]) {
+        escaped_text(args[0], "a markup literal's hole")
+    }
+}
 
-        // Every escape is longer than what it replaces, so the input's length
-        // is a floor and never a wasted reservation.
-        let mut out = String::with_capacity(text.len());
-        let mut cuts = unterminated.into_iter().peekable();
-        for (offset, c) in text.char_indices() {
-            if cuts.peek() == Some(&offset) {
-                cuts.next();
-                out.push(REPLACEMENT);
-                continue;
-            }
-            match escaped(c) {
-                Some(reference) => out.push_str(reference),
-                None => out.push(c),
-            }
+nvs_runtime::nvs_helper! {
+    /// A markup literal's `Markup`-holding hole, spliced raw — the whole of
+    /// what [`MARKUP_TEXT_SYMBOL`] does.
+    ///
+    /// **Nothing is escaped**, which is `rule:core-classes/html-literal`'s rule
+    /// rather than an omission: a hole already holding a carrier is
+    /// `Markup + Markup` written in interpolation syntax, and escaping a
+    /// fragment that passed whichever rule made it a `Markup` would corrupt the
+    /// markup it was built for.
+    ///
+    /// **What it spends:** nothing. The slot's bytes travel under one more
+    /// reference into the carrier the literal is building, so a spliced
+    /// fragment is not copied.
+    fn nvs_core_html_markup_text(_ctx, args: [1]) {
+        let slot = markup_slot(args[0], "a markup literal's spliced hole")?;
+        #[expect(
+            unsafe_code,
+            reason = "the slot holds a live reference for the length of the call, \
+                      which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            slot.retain();
         }
-        Ok(crate::instance::build(
-            &MARKUP,
-            [Value::str(NvsStr::new(out.as_bytes()))],
-        ))
+        Ok(slot)
     }
 }
 

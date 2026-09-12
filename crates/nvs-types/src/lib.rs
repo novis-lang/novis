@@ -224,8 +224,9 @@ pub use nvs_stdlib::cli::{
     NAME as CORE_CLI_TEXT_CLASS, TEXT_CONCAT_SYMBOL as CORE_CLI_TEXT_CONCAT,
 };
 pub use nvs_stdlib::html::{
-    MARKUP_CONCAT_SYMBOL as CORE_HTML_MARKUP_CONCAT, MARKUP_NAME as CORE_HTML_MARKUP_CLASS,
-    MARKUP_SYMBOL as CORE_HTML_MARKUP,
+    ESCAPE_TEXT_SYMBOL as CORE_HTML_ESCAPE_TEXT, MARKUP_CONCAT_SYMBOL as CORE_HTML_MARKUP_CONCAT,
+    MARKUP_NAME as CORE_HTML_MARKUP_CLASS, MARKUP_SYMBOL as CORE_HTML_MARKUP,
+    MARKUP_TEXT_SYMBOL as CORE_HTML_MARKUP_TEXT,
 };
 pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use nvs_stdlib::registry::takes_source as core_takes_source;
