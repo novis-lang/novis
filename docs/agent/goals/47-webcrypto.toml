@@ -9052,16 +9052,18 @@ cases = [
   "tests/conformance/core/crypto-pbkdf2-refuses-an-iteration-count-or-salt-outside-its-bounds.nvst",
   "tests/conformance/core/crypto-derived-and-agreed-keys-are-secret-bytes.nvst",
   "tests/conformance/core/crypto-agree-refuses-a-public-key-that-is-not-on-its-curve.nvst",
-  "tests/conformance/core/crypto-public-keys-read-raw-spki-and-jwk-and-write-them-back.nvst",
+  # The public key's three encodings, in and out, and the one key three reads of it agree on.
+  "tests/conformance/core/crypto-public-key-round-trips-every-kind-through-every-encoding.nvst",
+  "tests/conformance/core/crypto-public-key-is-one-key-whichever-encoding-carried-it.nvst",
   "tests/conformance/core/crypto-a-key-pair-written-as-pkcs8-reads-back-and-agrees-the-same-secret.nvst",
   # The two kinds JWS brings: RSA read and never generated, Ed25519, and PEM.
-  "tests/conformance/core/crypto-key-kinds-read-and-write-rsa-and-ed25519-keys-in-every-format.nvst",
-  "tests/conformance/core/crypto-a-pem-private-key-reads-back-as-the-pair-it-holds.nvst",
-  "tests/conformance/core/crypto-generate-key-pair-refuses-an-rsa-kind-and-names-read.nvst",
-  "tests/conformance/core/crypto-agree-refuses-an-ed25519-or-rsa-pair.nvst",
+  "tests/conformance/core/crypto-key-pair-reads-every-kind-and-derives-the-half-webcrypto-exported.nvst",
+  "tests/conformance/core/crypto-key-pair-reads-a-pem-block-as-the-pair-its-der-is.nvst",
+  "tests/conformance/core/crypto-generate-key-pair-draws-every-kind-but-rsa-and-rsa-is-a-bug.nvst",
+  "tests/conformance/core/crypto-agree-takes-two-ends-of-one-curve-and-nothing-else.nvst",
   # Raw signatures over the same kinds.
-  "tests/conformance/core/crypto-sign-and-verify-take-their-scheme-from-the-key-kind.nvst",
-  "tests/conformance/core/crypto-verify-refuses-every-forgery-with-one-message.nvst",
+  "tests/conformance/core/crypto-sign-and-verify-take-every-kind-of-key-but-x25519.nvst",
+  "tests/conformance/core/crypto-verify-refuses-every-forgery-of-the-set-with-one-sentence.nvst",
 ]
 
 [[check]]

@@ -1892,6 +1892,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   unwritten work while every claim under them is asserted. When a grep for a check's cited RFC number
   returns nothing at all, read the doc comment of the test covering that primitive before budgeting
   the vectors. [until: reviewed 2026-09-12]
+- **A `loop-goal.toml` `nvs-suite` check's `cases` are drafted names, and a case can be on disk under
+  the name its author chose.** Eight of goal `webcrypto`'s stage 4 paths read "not written yet"
+  against green cases, because no check named the tree's own spellings —
+  `crypto-public-key-round-trips-every-kind-through-every-encoding.nvst` is the check's
+  `crypto-public-keys-read-raw-spki-and-jwk-and-write-them-back.nvst`. List the directory for that
+  member and compare `--TEST--` lines before writing anything: where the tree holds the claim the
+  repair is the name in the goal file, and where it holds half of it the drafted case is real work.
+  [until: reviewed 2026-10-12]
 
 ## Running things
 
