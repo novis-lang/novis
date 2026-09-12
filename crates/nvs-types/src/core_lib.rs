@@ -1275,6 +1275,12 @@ mod tests {
     /// absent, and that is the same test read the other way twice: a case of a
     /// closed enum carries no character of its document, and a child is another
     /// node whose own members are already here.
+    /// `Core\Jwe::decrypt` is the roster read over a payload only the holder of
+    /// a key can see: decrypting proves who wrote it and never that it is safe
+    /// for a sink, which is `Core\Jwt::verify`'s reading over confidentiality
+    /// rather than over a signature. `Core\SignedCookie::open` is the one
+    /// deliberate absence from that pair and is a launderer instead, because a
+    /// payload this program sealed itself was already plain when it went in.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1321,6 +1327,7 @@ mod tests {
                 (r"Core\Env", "get", "null|tainted string".to_owned()),
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
                 (r"Core\IO", "stdin", "tainted string".to_owned()),
+                (r"Core\Jwe", "decrypt", "tainted string".to_owned()),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
                 (
                     r"Core\Net\Datagram\Message",
@@ -1398,7 +1405,8 @@ mod tests {
                 (r"Core\Zip", "read", "tainted bytes".to_owned()),
             ]),
             "the roster of members whose *answer* is qualified `tainted` is closed — a \
-             verified claim, a verified signature's payload, an outbound reply's body, \
+             verified claim, a verified signature's payload, a decrypted payload, an \
+             outbound reply's body, \
              the two environment \
              reads, the two prompts that answer what a person typed, the words the program \
              was started with, everything attached to its standard input, the five reads of \

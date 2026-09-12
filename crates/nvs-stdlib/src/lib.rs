@@ -193,6 +193,7 @@ mod instance;
 pub mod io;
 mod issue;
 pub mod json;
+mod jwe;
 mod jwt;
 mod keyring;
 mod log;
@@ -371,6 +372,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| html::address(symbol))
         .or_else(|| http::address(symbol))
         .or_else(|| json::address(symbol))
+        .or_else(|| jwe::address(symbol))
         .or_else(|| jwt::address(symbol))
         .or_else(|| log::address(symbol))
         .or_else(|| mail::address(symbol))

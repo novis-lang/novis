@@ -1746,8 +1746,23 @@ pub const CLASSES: &[CoreClass] = &[
     // expiry is a positional `Duration` rather than a claim, and why a claim
     // comes back as `tainted string` when the cookie above launders.
     crate::jwt::CLASS,
-    // `rule:security/protocol-roster`'s fifth entry, which closes it — and the
-    // one that is not `Core\Crypto`: a signature is an HMAC over a canonical
+    // The roster's encryption entry, beside `Core\Jwt` because the two read one
+    // wire format from opposite ends: a JWS proves who wrote a payload and this
+    // hides one. `rule:security/jwe-compact-subset` is the subset — compact
+    // serialization, `A256GCM` and nothing else — and [`crate::jwe`]'s own
+    // module doc is the home of why the key arrives as a named constructor,
+    // what the protected header is allowed to carry, and why a ring holding a
+    // password holds exactly one key.
+    crate::jwe::CLASS,
+    // That constructor itself: four statics, no accessor and no way back out,
+    // which is what makes the key-management algorithm a name the caller wrote
+    // rather than an inference off a value's type
+    // (`rule:security/algorithm-comes-from-the-key`). Registered beside its own
+    // class for `Core\Crypto\PublicKey`'s reason — it is the value the class
+    // above takes and nothing else produces one.
+    crate::jwe::KEY,
+    // The roster's detached entry, and the one that is not `Core\Crypto`: a
+    // signature is an HMAC over a canonical
     // document, because its payload is meant to be *read* by whoever holds the
     // token where a seal's is meant to be hidden
     // (`rule:core-api/each-door-takes-a-different-thing`). It shares the key
@@ -5058,7 +5073,12 @@ mod tests {
     /// spec § 15 writing `bodyStream(): Iterable<bytes>` and no member on the
     /// thing it answers with. `Core\Db\Stream` is that entry again for § 18's
     /// `stream()`, and its three slots are the connection's key, the block that
-    /// opened it and the one row the walk is holding. Two have left this list,
+    /// opened it and the one row the walk is holding. `Core\Jwe\Key` is the
+    /// same shape over a secret: its three slots are read by `Core\Jwe`'s two
+    /// members and by nothing else, and a member handing the material back
+    /// would be the accessor whose absence is the whole point of the class —
+    /// `rule:security/jwe-compact-subset` writes four constructors and no
+    /// member on what they answer ([`crate::jwe`]). Two have left this list,
     /// both the same way:
     /// `Core\Db\Connection` when `query` landed on it, and `Core\Db\Rows` when
     /// its readers did.
@@ -5103,6 +5123,7 @@ mod tests {
             crate::request::BODY_STREAM_NAME,
             crate::request::FILES_NAME,
             crate::request::PART_CONTENT_NAME,
+            crate::jwe::KEY_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

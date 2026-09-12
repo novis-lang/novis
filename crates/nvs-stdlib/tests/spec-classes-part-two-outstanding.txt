@@ -14,4 +14,3 @@
 # slice, and a line naming a class that is registered now fails the same test.
 
 §16 Core\Metrics   # unowned
-§16 Core\Jwe   # webcrypto
