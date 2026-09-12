@@ -306,6 +306,25 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
     table.desc(id)
 }
 
+/// Every `Core` descriptor a compiled unit may write into its own data section,
+/// as `(class name, descriptor address)`.
+///
+/// A hole-free `` html`…` `` folds to a `Core\Html\Markup` constant in the
+/// unit's constant pool (`rule:core-classes/html-literal`), and the class word
+/// of that constant is one of these addresses, written once while compiling and
+/// read by every core afterwards — which is the half of this module's
+/// § *Decision: the descriptors are one leaked table for the process* that a
+/// per-core table would fail.
+///
+/// Separate from [`crate::symbols`] because that roster is *code*, under the
+/// name a call site calls it by; a descriptor is data, under a mangled name
+/// only the backend can spell (`nvs_codegen::class_desc_symbol`). The two
+/// crates agree on the name there and on the address here.
+#[must_use]
+pub fn class_descriptors() -> Vec<(&'static str, *const ClassDesc)> {
+    vec![(crate::html::MARKUP_NAME, descriptor(&crate::html::MARKUP))]
+}
+
 /// Whether `value` is an instance of `class`, asked by descriptor address.
 ///
 /// A descriptor's address **is** its identity — [`descriptors`] leaks one table

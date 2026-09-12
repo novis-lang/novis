@@ -1303,8 +1303,9 @@ fn warm_hit(program: &nvs_ir::Program, cache: &Cache, key: Digest) -> Option<nvs
 /// § 3's "this process's own addresses", in full.
 ///
 /// Every runtime and `Core` helper by the address this process really calls it at — the same
-/// tables `nvs-codegen`'s JIT resolves through — and every `nvs_class_desc_*` by the address of
-/// the descriptor `descriptors` built out of the same program's IR.
+/// tables `nvs-codegen`'s JIT resolves through — and every `nvs_class_desc_*` out of
+/// `descriptors`, which holds one per class the program declared and one per `Core` class a
+/// folded constant can name.
 ///
 /// **Costs** one map of every exported helper name, built per warm hit and dropped with the
 /// relocation. That is once per unit loaded, against a walk of the payload's relocations that is

@@ -871,6 +871,10 @@ pub struct Descriptors {
     /// relocation against it resolves to. Built once here rather than searched
     /// per relocation: a loader asks this for every undefined symbol in the
     /// payload, which is once per class *per referring section*.
+    ///
+    /// [`core_desc_symbols`]'s rows sit in here beside the unit's own, because
+    /// a payload that folded a markup literal left that name undefined too and
+    /// a loader resolves every undefined symbol out of one table.
     by_symbol: FxHashMap<String, *const u8>,
 }
 
@@ -889,6 +893,7 @@ impl Descriptors {
                     .shape_codecs()
                     .map(|(key, codec)| (shape_codec_symbol(key), codec.cast::<u8>())),
             )
+            .chain(core_desc_symbols())
             .collect();
         let functions = program
             .functions
@@ -916,8 +921,9 @@ impl Descriptors {
         }
     }
 
-    /// The address `symbol` names, or [`None`] if it is not a descriptor of a
-    /// class this unit declares — which `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` makes a cache miss on the
+    /// The address `symbol` names, or [`None`] if it is neither a descriptor of
+    /// a class this unit declares nor one of the `Core` descriptors
+    /// [`core_desc_symbols`] publishes — which `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` makes a cache miss on the
     /// footing of a wrong `env_hash`, never an error.
     ///
     /// The spelling is asked of [`class_desc_symbol`] rather than matched here,
@@ -1657,11 +1663,18 @@ impl UnitBuilder<JITModule> {
         {
             builder.symbol(name, address);
         }
-        // The third table, and the one that cannot be filled here: a class
-        // descriptor is built by `compile_all`, long after this builder is
-        // consumed, so its address is published through a lookup closure the
-        // module calls at relocation time instead. See `Classes`' own docs for
-        // why the address is a relocation at all.
+        // The third: every `Core` class descriptor a folded constant names,
+        // which is data rather than code and so carries a name of its own
+        // shape. `core_desc_symbols` owns why this process already knows that
+        // address while it does not yet know one of the unit's own.
+        for (name, address) in core_desc_symbols() {
+            builder.symbol(name, address);
+        }
+        // The last table, and the one that cannot be filled here: a class *this
+        // unit declares* gets its descriptor from `compile_all`, long after
+        // this builder is consumed, so its address is published through a
+        // lookup closure the module calls at relocation time instead. See
+        // `Classes`' own docs for why the address is a relocation at all.
         let desc_symbols: Arc<Mutex<FxHashMap<String, usize>>> = Arc::default();
         let published = Arc::clone(&desc_symbols);
         builder.symbol_lookup_fn(Box::new(move |name| {
@@ -2239,6 +2252,23 @@ pub fn class_desc_symbol(label: &str) -> String {
     mangled("nvs_class_desc_", label)
 }
 
+/// Every `Core` class descriptor a unit may relocate against, under
+/// [`class_desc_symbol`]'s name and at the address this process leaked it at.
+///
+/// A hole-free `` html`…` `` folds to a `Core\Html\Markup` constant in the
+/// unit's own data section (`rule:core-classes/html-literal`), and the class
+/// word of that constant is a relocation like any other — but against a
+/// descriptor `nvs_stdlib` owns for the whole process rather than one this unit
+/// built, so [`Classes`] holds no row for it and the symbol is an import the
+/// unit never defines. Both ends that resolve a descriptor read this:
+/// [`UnitBuilder::new`]'s symbol table, and [`Descriptors::resolve`], which is
+/// what a warm cache hit relocates a stored payload against.
+fn core_desc_symbols() -> impl Iterator<Item = (String, *const u8)> {
+    nvs_stdlib::class_descriptors()
+        .into_iter()
+        .map(|(label, desc)| (class_desc_symbol(label), desc.cast::<u8>()))
+}
+
 /// The symbol name an inline shape's `nvs_runtime::ShapeCodec` address is
 /// relocated against — [`class_desc_symbol`]'s twin for the contract a call
 /// site carries beside the descriptor, and mangled by the same scheme for the
@@ -2321,6 +2351,29 @@ mod tests {
             &enums,
             &layouts,
         )
+    }
+
+    /// `rule:core-classes/html-literal`'s folded constant names a descriptor no
+    /// unit builds, so the two ends that resolve one both answer for it out of
+    /// [`core_desc_symbols`]: a unit declaring no class at all still resolves
+    /// the carrier, and [`Classes::desc`] is the door that stays shut.
+    #[test]
+    fn the_markup_carrier_resolves_for_a_unit_that_declares_no_class() {
+        let name = class_desc_symbol(nvs_runtime::CARRIER_HTML_MARKUP);
+        let published = core_desc_symbols()
+            .find(|(symbol, _)| *symbol == name)
+            .expect("the carrier's descriptor is published")
+            .1;
+        assert!(!published.is_null());
+
+        let program = lower("<?nvs\nint $x = 1;\n");
+        assert_eq!(Descriptors::of(&program).resolve(&name), Some(published));
+        assert!(
+            Classes::build(&program.classes, &program.shape_codecs)
+                .desc(nvs_runtime::CARRIER_HTML_MARKUP)
+                .is_none(),
+            "the unit's own table answers for the carrier, so the import is not one"
+        );
     }
 
     /// Compiles `source` and hands back the JIT with its tables intact —

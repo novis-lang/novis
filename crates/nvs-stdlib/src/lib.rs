@@ -267,6 +267,12 @@ mod zip;
 /// the home of the `Core` contract.
 pub use nvs_runtime::{CodecField, CodecTy, EnumCases, FieldDefault};
 
+/// `rule:core-classes/html-literal`'s folded constant needs a `Core` class's
+/// descriptor address while it is being compiled, and `instance` is where the
+/// process's one table lives. Re-exported rather than moved, so the roster
+/// stays beside the table it reads.
+pub use instance::class_descriptors;
+
 use registry::CoreClass;
 
 /// Every `Core` implementation's symbol and address, for the JIT to resolve
