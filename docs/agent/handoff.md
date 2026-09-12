@@ -2,58 +2,57 @@
 
 ## State
 
-**Goal `fmt` (M10), stage 3 is closed.** All four of its names pass, the last being
-`a_declaration_brace_is_allman_and_a_control_brace_is_k_and_r`.
-`crates/nvs-fmt/src/brace.rs` answers one question — what whitespace belongs immediately before a
-byte — and the printer applies it: a declaration's `{` gets a line break and the declaration's own
-indentation, a control structure's gets one space, and `elseif`/`else`/`catch`/`finally` get one
-space after the brace that closed the clause above. Which body a brace opens is read off
-`SyntaxIndex::at`, so a `{` inside a string literal or an attribute's object literal is never one —
-its innermost node is an expression, not a declaration.
+**Goal `fmt` (M10), stage 4 has its first name green.** `crates/nvs-fmt/src/tokens.rs` is the home of
+the rules that rewrite a token rather than the whitespace around it, and what is in it is the quote
+rule: a double-quoted literal goes out single-quoted when both spellings name the same string, which
+is a body with no `'` and no `\` in it. `rule:tooling/fmt-quotes`'s fragment now records that reading
+of its "would force to be escaped" clause — the two quotings do not share an escape grammar, so
+respelling `"one\ttwo"` would change the string's value.
 
-**`print::Rewrite` is the shared edit type now** (`crates/nvs-fmt/src/print.rs:37`), and an empty
-range inserts: that is how a brace with no run in front of it (`class Queue{`) gets its line break.
-`modifiers.rs` and `brace.rs` both produce them and the printer sorts them into one stream.
+The scan is `crates/nvs-fmt/src/brace.rs`'s, over the code runs the printer tiles: a `"` is an
+opening quote only when the innermost node at it is a `Str` that starts there, so a heredoc body, an
+interpolation site and a comment are never candidates. A literal an attribute writes is not one
+either — that is gap 4 in `crates/nvs-fmt/src/lib.rs`.
 
-**The corpus is reformatted and stage 2's floor is green** (`crates/nvs-fmt/tests/identity.rs:36`):
-42 `.nvs` files moved a brace, and `nvs fmt` is a fixed point of all of them again. Nothing is
-blocked.
+**The corpus absorbed it**: 99 `.nvs` files, 743 lines, each a `"` pair swapped for a `'` pair and
+nothing else. `NVS_FMT_ACCEPT=1 cargo test -p nvs-fmt --test identity` is how that edit is made now;
+the accepting run still fails, so the diff is read before it is committed. Nothing is blocked.
 
 ## Next group
 
-**Stage 4: the token rules** — one file set: `crates/nvs-fmt/src/print.rs`, a new
-`crates/nvs-fmt/src/tokens.rs`, and a new `crates/nvs-fmt/tests/token_rules.rs`. Every one of these
-edits a code run rather than a whitespace one, so `crates/nvs-fmt/src/print.rs:37`'s `Rewrite` is the
-shape, and `crates/nvs-fmt/src/brace.rs:169` — classify a byte by the innermost node at it, over the
-code runs the printer already tiles — is the pattern that keeps a literal's bytes out of it.
+**Stage 4: the token rules, continued** — one file set: `crates/nvs-fmt/src/tokens.rs`,
+`crates/nvs-fmt/src/print.rs` and `crates/nvs-fmt/tests/token_rules.rs`. Each of these rewrites a
+code run, so `crates/nvs-fmt/src/print.rs:38`'s `Rewrite` is the shape and
+`crates/nvs-fmt/src/tokens.rs:71` is the scan that keeps a literal's own bytes out of it.
 
-- [ ] **Quotes, and the two bodies never touched** — `rule:tooling/fmt-quotes`. A plain string goes
-      out single-quoted unless it interpolates or holds a `'`; a heredoc body and every comment are
-      copied byte for byte. A literal is an expression node, so its span comes off the index the way
-      `crates/nvs-fmt/src/brace.rs:116` takes one. Tests
-      `a_plain_string_is_rewritten_to_single_quotes` and
-      `a_heredoc_body_and_a_comment_are_never_touched`.
-- [ ] **The trailing comma** — `rule:tooling/fmt-trailing-commas`. A list the author spread over
-      several lines ends with one and a one-line list has none, which is the last element's node end
-      plus the bytes up to the closer: `crates/nvs-fmt/src/print.rs:81`. Test
-      `a_multi_line_list_gains_a_trailing_comma_and_a_one_line_list_has_none`.
-- [ ] **The `use` block's order** — `rule:tooling/fmt-sorts-the-use-block`. Consecutive `UseDecl`
-      statements are whole-statement spans, so this is one `Rewrite` per moved line and no reflow:
-      `crates/nvs-fmt/src/print.rs:37`. Test `consecutive_use_declarations_are_sorted_by_full_path`.
-- [ ] **Reserved spellings, and the two negatives** —
-      `rule:tooling/fmt-normalizes-only-reserved-spellings`,
-      `rule:tooling/fmt-never-inserts-visibility`, `rule:tooling/fmt-never-reorders-members`. The
-      open tag and a duration unit are lower-cased; the other two are tests over what the printer
-      already does and belong beside the base style's, at
-      `crates/nvs-fmt/tests/base_style.rs:94`.
+- [ ] **The trailing comma** — `rule:tooling/fmt-trailing-commas`. A comma-separated list the author
+      spread over more than one line gets a comma after its last element and a one-line list never
+      does; whether it spans lines is the author's, `rule:tooling/fmt-never-reflows`. An insertion is
+      a `Rewrite` with `start == end` (`crates/nvs-fmt/src/print.rs:38`). The index carries no
+      element spans, so what a closer's own node gives you is the list, and the last element ends at
+      the last non-trivia byte before the closing `)`, `]` or `}` — `crates/nvs-fmt/src/tokens.rs:71`
+      is the walk. Test `a_multi_line_list_gains_a_trailing_comma_and_a_one_line_list_has_none`.
+- [ ] **The `use` block's order** — `rule:tooling/fmt-sorts-the-use-block`. A run of `UseDecl` nodes
+      with only trivia between them is a permutation of itself, which is exactly
+      `crates/nvs-fmt/src/modifiers.rs:43`'s shape: each declaration's text goes out at one of the
+      run's own spans, so the blank lines and comments between them stay where they were written —
+      and a comment naming the import above it therefore ends up over a different one, which is the
+      thing to decide and then write into the crate's gaps. Find them as
+      `crates/nvs-fmt/src/tokens.rs:71` finds a literal, and sort by the path
+      (`crates/nvs-syntax/src/ast.rs:1766`). Test `consecutive_use_declarations_are_sorted_by_full_path`.
+- [ ] **The two negatives** — `rule:tooling/fmt-never-inserts-visibility` and
+      `rule:tooling/fmt-never-reorders-members`. Two tests over what is already true, beside the
+      quote rule's own at `crates/nvs-fmt/tests/token_rules.rs:20`: a member with no visibility keyword comes back
+      with none, and a class whose members are in no particular order comes back in that same order.
+      Tests `no_visibility_keyword_is_ever_inserted` and `class_members_keep_their_declaration_order`.
+      The reserved-spelling half of that stage's check is the playbook bullet above: decide the
+      refusal question first, because `<?NVS` and `5Min` do not parse.
 
 ## Backlog
 
-- A `}` sharing a line with the statement before it stays there — gap 3, `crates/nvs-fmt/src/lib.rs`.
-- A `do { } while` keeps the author's break before `while`; the rule names only
-  `elseif`/`else`/`catch`/`finally` (`rule:tooling/fmt-base-style-is-per`).
-- A closure's, an anonymous class's and a property hook's brace are left alone on purpose —
-  `crates/nvs-fmt/src/brace.rs`'s module doc says why.
-- Nothing in `crates/nvs-cli` depends on `nvs-fmt` yet, so reformatting the corpus needs a throwaway
-  test rather than a command — stage 6 of the goal owns the leg.
-- PER's blank lines are still the author's — gap 1, `crates/nvs-fmt/src/lib.rs`.
+- The `nvs fmt` command itself is unlanded — `nvs fmt` is still `unrecognized subcommand`, so every
+  stage's evidence is a `cargo test` (`docs/agent/loop-goal.md`, stage 6).
+- PER's blank lines, and the constructs PER never saw (`rule:tooling/fmt-novis-constructs`) —
+  gap 1 in `crates/nvs-fmt/src/lib.rs`.
+- A one-line body comes back as a header, a line and a `{ … }` until one-statement-per-line lands —
+  gap 3 in `crates/nvs-fmt/src/lib.rs`.

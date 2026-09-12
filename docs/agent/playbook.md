@@ -1795,6 +1795,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nothing. Take the break from the text once per file, the way `crates/nvs-fmt/src/brace.rs`'s
   `line_break` does, rather than writing `"\n"` at each site.
   [until: gone crates/nvs-fmt/src/brace.rs:line_break]
+- **`nvs fmt` never sees the two spellings `rule:tooling/fmt-normalizes-only-reserved-spellings`
+  asks it to lower-case: `<?NVS` is `E0231` and `5Min` is `E0101` and `E0319`, so the file does not
+  parse.** The parse reports before the printer runs, and `crates/nvs-fmt/src/lib.rs:142` refuses a
+  file that holds an error. Decide which gives — a refusal the formatter may repair in place, or a
+  fragment handing both spellings to `nvs convert` — before writing that stage's test.
+  [until: test a_mis_cased_open_tag_and_duration_unit_are_lower_cased]
 
 ## Running things
 
