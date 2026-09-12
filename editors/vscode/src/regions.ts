@@ -64,7 +64,9 @@ import { LanguageClient } from "vscode-languageclient/node";
 import { Region, forwarded, service, virtual } from "./template";
 
 // The server's own request, spelled where `crates/nvs-lsp/src/regions.rs` spells it. Its params are
-// an LSP `TextDocumentIdentifier` and its answer a list of `{range, language}`.
+// a `{textDocument, text?}` and its answer a list of `{range, language}`. The forwarding below asks
+// about the open buffer and so sends no `text`; a caller with a text the buffer does not hold yet
+// sends one and is answered about that instead.
 const METHOD = "nvs/regions";
 
 // The setting that turns the forwarding off, default `true`. A user with their own HTML tooling has
@@ -280,7 +282,9 @@ async function regions(document: TextDocument): Promise<Region[]> {
     return [];
   }
   try {
-    return await client.sendRequest<Region[]>(METHOD, { uri: document.uri.toString() });
+    return await client.sendRequest<Region[]>(METHOD, {
+      textDocument: { uri: document.uri.toString() },
+    });
   } catch {
     // No answer is no boundary, and no boundary forwards nothing: see `serve`.
     return [];

@@ -471,10 +471,8 @@ fn answer(
             }
             Err(error) => unreadable(id, &method, &error),
         },
-        regions::METHOD => match serde_json::from_value::<TextDocumentIdentifier>(params) {
-            Ok(document) => {
-                Response::new_ok(id, template_regions(documents, encoding, &document.uri))
-            }
+        regions::METHOD => match regions::Params::from_value(params) {
+            Ok(params) => Response::new_ok(id, template_regions(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
         _ => Response::new_err(
@@ -1367,27 +1365,23 @@ fn redaction_ranges(
 /// `nvs/regions` — which spans of one open document are markup rather than
 /// Novis.
 ///
-/// [`redaction_ranges`]'s sibling: the same [`TextDocumentIdentifier`] goes in,
-/// a JSON array comes back, and an empty array is an answer rather than an
-/// omission — a client that holds its last list keeps forwarding into a region
-/// the developer has since deleted.
+/// [`redaction_ranges`]'s sibling: a document goes in, a JSON array comes back,
+/// and an empty array is an answer rather than an omission — a client that
+/// holds its last list keeps forwarding into a region the developer has since
+/// deleted.
 ///
-/// **Over the buffer, not over an analysis.** A boundary is a lexical fact and
-/// this question arrives on the heels of an edit, so the document is lexed
-/// where every other handler here resolves a graph and type-checks it;
-/// [`regions::for_source`] is where that decision is written down. A URI
-/// nothing is open for answers nothing, because the text to lex is the buffer.
+/// **Over a text, not over an analysis.** A boundary is a lexical fact and this
+/// question arrives on the heels of an edit, so the text is lexed where every
+/// other handler here resolves a graph and type-checks it; which text that is —
+/// the params' own, or the buffer's when they carry none — is
+/// [`regions::for_request`]'s, and the module doc beside it is where both
+/// decisions are written down.
 fn template_regions(
     documents: &Documents,
     encoding: PositionEncoding,
-    uri: &Uri,
+    params: &regions::Params,
 ) -> Vec<serde_json::Value> {
-    let Some(document) = documents.get(uri) else {
-        return Vec::new();
-    };
-    let mut map = SourceMap::new();
-    let id = map.add(uri.as_str(), document.text());
-    regions::for_source(map.file(id), encoding)
+    regions::for_request(documents, encoding, params)
         .iter()
         .map(regions::wire)
         .collect()

@@ -4,9 +4,9 @@
 //! `nvs/regions` is the second request of Novis's own
 //! (`rule:ide/the-request-set-is-closed`), beside [`crate::redactions`], and it
 //! exists for the reason that one does: the alternative is the client deciding
-//! the answer. A `TextDocumentIdentifier` goes in and a list of
-//! `{range, language}` comes back, `language` naming which of the editor's
-//! built-in services owns those bytes.
+//! the answer. A [`Params`] goes in — a document, and optionally the text to
+//! answer about — and a list of `{range, language}` comes back, `language`
+//! naming which of the editor's built-in services owns those bytes.
 //!
 //! # Decision: the lexer is asked, never a grammar in the client
 //!
@@ -32,6 +32,19 @@
 //! `textDocument/publishDiagnostics` is how a file's problems reach the editor,
 //! and a region list that emptied on a broken file would take the services away
 //! at exactly the keystroke a half-written tag needs them.
+//!
+//! # Decision: the text comes with the question, when the client has one
+//!
+//! [`Params`] carries an optional `text`, and given one the answer is that
+//! text's regions rather than the open buffer's; without one it is the
+//! buffer's. Format-on-save asks where the markup is in the output of
+//! `nvs fmt`, which is a text no buffer holds yet, and ADR 0173 § 4 refuses
+//! both ways of answering it elsewhere: a client lexing that text is the second
+//! lexer this request exists to prevent, and `nvs fmt` printing regions is a
+//! flag that is not an I/O mode (`rule:tooling/fmt-is-one-canonical-style`).
+//! The answer's shape is the same either way, and its ranges are positions in
+//! whichever text was lexed — the URI names the document they belong to, not a
+//! text to read.
 //!
 //! # Decision: one region per run, and the client joins them
 //!
@@ -62,12 +75,15 @@
 //!
 //! One token vector over the one document per request, dropped with the answer,
 //! and one range per region. Both are O(bytes in the document), and neither
-//! outlives the reply.
+//! outlives the reply. A request carrying a `text` carries that document once
+//! more on the wire and lexes it in place of the buffer, so it costs the one
+//! copy and no second walk.
 
-use nvs_diagnostics::{Diagnostics, PositionEncoding, SourceFile};
+use lsp_types::TextDocumentIdentifier;
+use nvs_diagnostics::{Diagnostics, PositionEncoding, SourceFile, SourceMap};
 use nvs_syntax::{TokenKind, tokenize};
 
-use crate::document::Analysed;
+use crate::document::{Analysed, Documents};
 use crate::position::range_at;
 use crate::render::Region;
 
@@ -86,6 +102,79 @@ pub const METHOD: &str = "nvs/regions";
 /// know forwards nothing, which is the safe direction — the bytes stay Novis's,
 /// and Novis already answers for them.
 pub const HTML: &str = "html";
+
+/// What one request carries: the document, and the text to answer about when
+/// the client holds one the buffer does not.
+///
+/// `text` is optional and absent means the buffer, so a client that only wants
+/// the open document's regions sends what it always sent. The shape is written
+/// here, beside the walk it drives, because this is the request's own
+/// vocabulary rather than LSP's — the same reason [`METHOD`] is spelled here.
+#[derive(Debug, Clone)]
+pub struct Params {
+    /// The document the ranges are reported against.
+    pub text_document: TextDocumentIdentifier,
+    /// The text to lex, when it is not what the buffer holds.
+    pub text: Option<String>,
+}
+
+impl Params {
+    /// Read one request's params off the wire.
+    ///
+    /// Read field by field rather than derived, because deriving it is the
+    /// crate's first `serde` derive and this is two fields: a `text` that is
+    /// absent, `null` or a string, and the identifier LSP already spells. A
+    /// params object missing `textDocument` fails here rather than answering
+    /// about a document nobody named.
+    ///
+    /// # Errors
+    ///
+    /// The `serde_json` error for params that are not an object, whose
+    /// `textDocument` is missing or malformed, or whose `text` is neither a
+    /// string nor `null`. The server turns one into `InvalidParams`.
+    pub fn from_value(value: serde_json::Value) -> Result<Self, serde_json::Error> {
+        let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::from_value(value)?;
+        let text: Option<String> = match fields.remove("text") {
+            Some(text) => serde_json::from_value(text)?,
+            None => None,
+        };
+        let text_document = serde_json::from_value(
+            fields
+                .remove("textDocument")
+                .unwrap_or(serde_json::Value::Null),
+        )?;
+        Ok(Self {
+            text_document,
+            text,
+        })
+    }
+}
+
+/// The regions one request asks for: `params.text`'s if it carries one, and
+/// otherwise the open buffer's.
+///
+/// A URI nothing is open for and no `text` answers nothing, because then there
+/// is no text to lex. The lex is over a [`SourceMap`] of this answer's own: a
+/// boundary is a lexical fact about the bytes in hand, and the map exists only
+/// to give them a [`SourceFile`] to be positions in.
+#[must_use]
+pub fn for_request(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &Params,
+) -> Vec<Region> {
+    let uri = &params.text_document.uri;
+    let text = match params.text.as_deref() {
+        Some(text) => text,
+        None => match documents.get(uri) {
+            Some(document) => document.text(),
+            None => return Vec::new(),
+        },
+    };
+    let mut map = SourceMap::new();
+    let id = map.add(uri.as_str(), text);
+    for_source(map.file(id), encoding)
+}
 
 /// Every region of `file`, in the order they are written, in `encoding`.
 ///
