@@ -6,9 +6,10 @@
 // `Core\Password` has **no algorithm argument** — the parameters are the
 // library's to choose and `needsRehash` is how a stored hash learns it has
 // fallen behind, which is the whole reason a caller never names a cost.
-// And `Core\Crypto` is **AEAD only**: there is no ECB, no unauthenticated
-// CBC and no cipher-name-as-string in the surface, so "encrypted" and
-// "authenticated" are not two decisions a caller can get half right.
+// And `Core\Crypto` is **AEAD only**: the cipher is a case of a closed enum
+// with no default rather than a name in a string, and there is no ECB and no
+// unauthenticated CBC to name, so "encrypted" and "authenticated" are not two
+// decisions a caller can get half right.
 //
 // The last line is the one the roster exists for. Truncating one byte of a
 // sealed message is the cheapest tamper there is; an unauthenticated mode
@@ -50,10 +51,10 @@ if (Core\Password::verify($wrong, $stored)) {
 // AEAD, both directions.
 secret bytes $key = Core\Crypto::generateKey();
 bytes $message = 'attack at dawn' as bytes;
-bytes $sealed = Core\Crypto::seal($message, $key);
+bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
 echo 'sealed', "\n";
 
-if (Core\Crypto::open($sealed, $key) == $message) {
+if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
     echo 'opened', "\n";
 } else {
     echo 'opened the wrong plaintext', "\n";
@@ -63,7 +64,7 @@ if (Core\Crypto::open($sealed, $key) == $message) {
 // than returning what is left.
 bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
 try {
-    bytes $forged = Core\Crypto::open($tampered, $key);
+    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
     echo 'tamper accepted', "\n";
 } catch (RuntimeError $refused) {
     echo 'tamper refused', "\n";

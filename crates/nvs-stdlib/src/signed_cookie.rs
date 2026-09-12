@@ -46,8 +46,9 @@
 //!
 //! `rule:core-api/shape-rules` R17 refuses an
 //! operation reachable two ways. These rows are not a second route to
-//! `Core\Crypto::seal`: that member takes `bytes` and one key and answers the
-//! raw sealed message, and these take a `string` and a *ring* and answer text a
+//! `Core\Crypto::seal`: that member takes `bytes`, one key and a named cipher
+//! and answers the raw sealed message, and these take a `string` and a *ring*,
+//! seal under the one construction a cookie has ever used, and answer text a
 //! `Set-Cookie` header can carry. Neither substitutes for the other, and a
 //! program that writes the `Core\Crypto` pair plus a base64 call plus a loop
 //! over keys has written this member badly rather than reached it twice. The

@@ -23,8 +23,8 @@ array<bytes> $messages = [
 int $agreed = 0;
 int $flat = 0;
 foreach ($messages as bytes $message) {
-    bytes $sealed = Core\Crypto::seal($message, $key);
-    if (Core\Crypto::open($sealed, $key) == $message) {
+    bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
         $agreed += 1;
     }
     if (Core\Bytes::length($sealed) == Core\Bytes::length($message) + 40) {
@@ -41,9 +41,13 @@ echo "flat ", $flat, " of ", Core\Arr::count($messages), "\n";
 int $refused = 0;
 foreach (Core\Arr::range(1, 5) as int $draw) {
     secret bytes $fresh = Core\Crypto::generateKey();
-    bytes $under = Core\Crypto::seal("attack at dawn" as bytes, $fresh);
+    bytes $under = Core\Crypto::seal(
+        "attack at dawn" as bytes,
+        $fresh,
+        Core\Crypto\Cipher::XChaCha20Poly1305
+    );
     try {
-        bytes $opened = Core\Crypto::open($under, $key);
+        bytes $opened = Core\Crypto::open($under, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
     } catch (RuntimeError $notThisKey) {
         $refused += 1;
     }

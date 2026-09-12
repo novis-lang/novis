@@ -1,0 +1,64 @@
+--TEST--
+Core\Crypto::generateKey, ::seal and ::open round-trip under the cipher the call names, with no mode, padding or nonce argument, and a fresh nonce makes two seals of one message differ — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// `openssl_encrypt($data, "aes-256-cbc", $key, 0, $iv)` names its primitive in
+// a string and its nonce at the call site, which is how a program ends up with
+// a mode chosen by whichever line was copied last. The cipher here is a case of
+// a closed enum with no default, and the nonce is still the library's;
+// `crates/nvs-stdlib/src/crypto.rs` is the home of what each case is and why
+// this one has an extended nonce.
+secret bytes $key = Core\Crypto::generateKey();
+bytes $message = "attack at dawn" as bytes;
+
+// The overhead is flat and stated: a 24-octet nonce and a 16-octet tag, so a
+// program can size a column without sealing anything first.
+bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+if (Core\Bytes::length($sealed) == Core\Bytes::length($message) + 40) {
+    echo "overhead 40", "\n";
+} else {
+    echo "overhead ", Core\Bytes::length($sealed), "\n";
+}
+
+if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+    echo "round trip", "\n";
+} else {
+    echo "opened the wrong plaintext", "\n";
+}
+
+// The nonce is drawn per call rather than kept, so the same message under the
+// same key seals differently every time. A member that reused a nonce would
+// pass every assertion above and lose confidentiality outright, which is why
+// this is asked here rather than left to the construction.
+bytes $again = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+if ($sealed == $again) {
+    echo "the same nonce twice", "\n";
+} else {
+    echo "a fresh nonce", "\n";
+}
+
+// Both of them are still openable, so "differ" above is about the nonce and
+// not about one of the two having been ruined.
+if (Core\Crypto::open($again, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+    echo "and both open", "\n";
+} else {
+    echo "the second one did not open", "\n";
+}
+
+// The empty message is a message: 40 octets of pure overhead, and it opens to
+// the empty buffer rather than being refused as nothing.
+bytes $nothing = "" as bytes;
+bytes $sealedNothing = Core\Crypto::seal($nothing, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+echo Core\Bytes::length($sealedNothing), "\n";
+if (Core\Crypto::open($sealedNothing, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $nothing) {
+    echo "the empty message round-trips", "\n";
+} else {
+    echo "the empty message did not round-trip", "\n";
+}
+--EXPECT--
+overhead 40
+round trip
+a fresh nonce
+and both open
+40
+the empty message round-trips

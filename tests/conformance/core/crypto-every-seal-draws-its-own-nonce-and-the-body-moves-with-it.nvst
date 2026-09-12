@@ -17,8 +17,8 @@ array<bytes> $nonces = [];
 array<bytes> $bodies = [];
 int $opens = 0;
 foreach (Core\Arr::range(1, 8) as int $draw) {
-    bytes $sealed = Core\Crypto::seal($message, $key);
-    if (Core\Crypto::open($sealed, $key) == $message) {
+    bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
         $opens += 1;
     }
 

@@ -15,7 +15,10 @@ array<bytes> $sealed = [];
 foreach (Core\Arr::range(1, 8) as int $draw) {
     secret bytes $key = Core\Crypto::generateKey();
     $keys = Core\Arr::append($keys, $key);
-    $sealed = Core\Arr::append($sealed, Core\Crypto::seal($message, $key));
+    $sealed = Core\Arr::append(
+        $sealed,
+        Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305)
+    );
 }
 
 // A drawn key is the length `seal` accepts, asserted the only way a `secret`
@@ -25,7 +28,7 @@ foreach (Core\Arr::range(1, 8) as int $draw) {
 // is named, and a draw of any other width would be a `LogicError` here.
 int $round = 0;
 foreach (Core\Arr::range(0, 7) as int $i) {
-    if (Core\Crypto::open($sealed[$i], $keys[$i]) == $message) {
+    if (Core\Crypto::open($sealed[$i], $keys[$i], Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
         $round += 1;
     }
 }
@@ -52,7 +55,11 @@ foreach (Core\Arr::range(0, 7) as int $i) {
         if ($i != $j) {
             $crossed += 1;
             try {
-                bytes $opened = Core\Crypto::open($sealed[$i], $keys[$j]);
+                bytes $opened = Core\Crypto::open(
+                    $sealed[$i],
+                    $keys[$j],
+                    Core\Crypto\Cipher::XChaCha20Poly1305
+                );
                 echo "one draw opened another's message", "\n";
             } catch (RuntimeError $notThisKey) {
                 $refused += 1;

@@ -2513,6 +2513,11 @@ pub const ENUMS: &[CoreEnum] = &[
     // subsystem: a format chosen at the call site is a closed enum, never a
     // name in a string that a run-time comparison has to validate.
     crate::compress::CODEC,
+    // The cipher a `Core\Crypto::seal` or `::open` names, beside `Core\Digest`
+    // and `Core\Compress\Codec` because it is their decision a third time: the
+    // primitive is a closed case at the call site, never the mode string
+    // `openssl_encrypt` reads, and this one carries no default either.
+    crate::crypto::CIPHER,
     // The answer `Core\Mime::detect` gives, whose zero case is `Unknown`: a
     // detection that cannot say is an ordinary case rather than an error, and
     // a closed one so a caller never compares against a media-type spelling

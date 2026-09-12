@@ -1,22 +1,25 @@
 //! `Core\Crypto` — `rule:core-api/tier-roster`'s "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string",
-//! as three members that take a key and a message and nothing else.
+//! as members that take a key, a message and a cipher named by a closed enum.
 //!
 //! § 3 places the class and states the roster's one rule; what belongs here is
 //! which construction that rule picked, what the sealed bytes are, and why a
 //! `secret` key crosses this surface without any of it being a laundering.
 //!
-//! # No cipher argument, for `Core\Password`'s reason one class over
+//! # The cipher is a closed enum, required, and never a string
 //!
 //! `openssl_encrypt($data, "aes-256-cbc", …)` names its primitive in a string,
 //! which is how a program ends up with `aes-256-ecb` in one file and a
 //! typo-silent fallback in another — the cipher is chosen by whichever call
 //! site was copied last, and "encrypted" and "authenticated" become two
-//! decisions a caller can get half right. Here the primitive is the library's:
-//! [`seal`](nvs_core_crypto_seal) and [`open`](nvs_core_crypto_open) take a
-//! message and a key, there is no mode, no padding and no IV parameter, and
-//! there is no unauthenticated spelling to reach for. [`crate::password`]'s
-//! module doc makes the same argument about cost parameters; this is that
-//! argument applied to the primitive itself.
+//! decisions a caller can get half right. Here the choice is [`CIPHER`], a
+//! closed enum with no default anywhere: [`seal`](nvs_core_crypto_seal) and
+//! [`open`](nvs_core_crypto_open) take a message, a key and one of its cases,
+//! a misspelled case is a compile error rather than a silent fallback, and
+//! every case there is to name authenticates. What stays off the call is
+//! everything the library is entitled to choose — no mode, no padding, no IV,
+//! and no unauthenticated spelling to reach for. [`crate::password`]'s module
+//! doc makes the same argument about cost parameters, where the roster is one
+//! entry and so the argument is absent rather than closed.
 //!
 //! # XChaCha20-Poly1305, and why the extended nonce
 //!
@@ -258,10 +261,16 @@ use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The class name, once, for the messages that all name it.
 const NAME: &str = r"Core\Crypto";
+
+/// The cipher enum's name, once, for the row that takes it and the fatal that
+/// reports a slot holding something else.
+pub(crate) const CIPHER_NAME: &str = r"Core\Crypto\Cipher";
 
 /// A key's length in octets — XChaCha20-Poly1305's only key size and AES-256's,
 /// so this is the constructions' number rather than a choice of ours, and one
@@ -285,21 +294,20 @@ const TAG_LEN: usize = 16;
 /// empty message between them.
 const OVERHEAD: usize = NONCE_LEN + TAG_LEN;
 
-// Everything from here to `expand_key` is reached by its own tests and by
-// nothing else yet: the `Core` rows that call it are stage 4's, and the
-// `#[expect]` is what will fail the day they land and this stops being true.
-// It is `cfg_attr(not(test), …)` because under `cfg(test)` the tests are the
-// caller, so the lint does not fire and an unconditional expectation would be
-// the unfulfilled one.
+// An item below that still carries `#[expect(dead_code)]` is reached by its own
+// tests and by nothing else: the `Core` row that will call it is not registered
+// yet, and the expectation is what fails the day it is, so each marker deletes
+// itself one row at a time. It is `cfg_attr(not(test), …)` because under
+// `cfg(test)` the tests are the caller, so the lint does not fire and an
+// unconditional expectation would be the unfulfilled one. The interop cipher
+// carries none: [`CIPHER`]'s second case is what a program names to reach it.
 
 /// AES-GCM's nonce length in octets, and an interop number rather than a
 /// choice: it is what WebCrypto emits as an IV and what a JWE header carries.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const GCM_NONCE_LEN: usize = 12;
 
 /// What an AES-GCM sealed message costs over its plaintext, and the shortest
 /// buffer [`gcm_open_under`] could authenticate.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const GCM_OVERHEAD: usize = GCM_NONCE_LEN + TAG_LEN;
 
 /// What a derivation answers, in octets — [`KEY_LEN`], for the module doc's
@@ -346,6 +354,50 @@ pub(crate) const KW_128_KEY_LEN: usize = 16;
 #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const WRAPPED_LEN: usize = KEY_LEN + 8;
 
+/// The cipher a `seal` or an `open` names, and the argument that stands where
+/// `openssl_encrypt`'s mode string stood.
+///
+/// Closed at the roster `rule:core-classes/crypto-interop-tier` fixes, so the
+/// set of things a program can ask for is the set of things that authenticate,
+/// and carrying no default anywhere: a call says which construction it is
+/// under, and the module doc's *the cipher is a closed enum* section is why
+/// that is a required argument rather than a convenience with a fallback.
+///
+/// The integers are each case's own constant, written out rather than
+/// auto-incremented, per [`CoreEnum::cases`]. They are ABI, in the sense that
+/// [`keyed`] reads them back out of an argument slot: reordering this list is a
+/// behaviour change, not a cosmetic one.
+pub(crate) const CIPHER: CoreEnum = CoreEnum {
+    name: CIPHER_NAME,
+    cases: &[("XChaCha20Poly1305", 0), ("Aes256Gcm", 1)],
+    doc: Some(&CIPHER_DOC),
+};
+
+/// [`CIPHER`]'s reference card — `rule:core-api/reference-card`. The module
+/// doc owns why each construction is here; these are that argument condensed.
+const CIPHER_DOC: EnumDoc = EnumDoc {
+    short: "Which authenticated construction a `seal` or an `open` runs. There is no default: a \
+            call names its cipher, and both cases authenticate, so neither choice can produce a \
+            message an alteration would survive.",
+    cases: &[
+        CaseDoc {
+            name: "XChaCha20Poly1305",
+            desc: "ChaCha20-Poly1305 under a 192-bit nonce — the one to prefer when both ends \
+                   are Novis, because a nonce that wide is never drawn twice and the cipher is \
+                   fast on a host with no AES instructions. Seals as `nonce(24) ‖ ciphertext ‖ \
+                   tag(16)`.",
+        },
+        CaseDoc {
+            name: "Aes256Gcm",
+            desc: "AES-256-GCM, the interop cipher: what a browser's WebCrypto encrypts with, so \
+                   a sealed message crosses to the other end. Seals as `nonce(12) ‖ ciphertext ‖ \
+                   tag(16)`, which is WebCrypto's own output with its IV in front. Its 96-bit \
+                   nonce puts a birthday bound near 2^32 messages under one key; past that, seal \
+                   under the other case.",
+        },
+    ],
+};
+
 /// `rule:core-api/tier-roster`'s AEAD-only surface, as three rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -361,14 +413,17 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "seal",
-            names: &["message", "key"],
+            names: &["message", "key", "cipher"],
             // The message is contagious on the `tainted` axis — the ciphertext
             // is made of it — and the key is neutral, because not one octet of
             // a key reaches the answer and its provenance says nothing about
-            // the message's.
+            // the message's. `defaults: &[]` is the roster's rule rather than
+            // this row's convenience: no algorithm argument in this class has
+            // one.
             params: &[
                 CoreTy::Blob(Qual::Contagious),
                 CoreTy::SecretBlob(Qual::Neutral),
+                CoreTy::Enum(CIPHER_NAME),
             ],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -377,10 +432,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "open",
-            names: &["sealed", "key"],
+            names: &["sealed", "key", "cipher"],
             params: &[
                 CoreTy::Blob(Qual::Contagious),
                 CoreTy::SecretBlob(Qual::Neutral),
+                CoreTy::Enum(CIPHER_NAME),
             ],
             defaults: &[],
             return_ty: CoreTy::Bytes,
@@ -405,9 +461,10 @@ const GENERATE_KEY_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Crypto::seal`'s reference card — `rule:core-api/reference-card`.
 const SEAL_DOC: MethodDoc = MethodDoc {
-    short: "Encrypts and authenticates `$message` under `$key` with XChaCha20-Poly1305, drawing \
-            a fresh nonce per call. There is no cipher, mode, padding or IV argument — the \
-            primitive is this library's, and every message it produces is authenticated.",
+    short: "Encrypts and authenticates `$message` under `$key` with the construction `$cipher` \
+            names, drawing a fresh nonce per call. There is no mode, padding or IV argument, and \
+            no cipher name in a string — the only choice is a `Core\\Crypto\\Cipher` case, and \
+            every case authenticates.",
     params: &[
         ParamDoc {
             name: "message",
@@ -417,12 +474,19 @@ const SEAL_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "key",
-            desc: "A 32-octet key, as `generateKey` answers one.",
+            desc: "A 32-octet key, as `generateKey` answers one. One width keys either cipher.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "cipher",
+            desc: "Which construction to seal under. No default: `XChaCha20Poly1305` where both \
+                   ends are Novis, `Aes256Gcm` where a browser has to read the result.",
             shape: &[],
         },
     ],
-    ret: "The sealed message — 40 octets longer than `$message`, and different on every call \
-          for the same inputs, because each draws its own nonce.",
+    ret: "The sealed message — 40 octets longer than `$message` under `XChaCha20Poly1305` and 28 \
+          under `Aes256Gcm`, and different on every call for the same inputs, because each draws \
+          its own nonce.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -437,9 +501,9 @@ const SEAL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Crypto::open`'s reference card — `rule:core-api/reference-card`.
 const OPEN_DOC: MethodDoc = MethodDoc {
-    short: "Authenticates `$sealed` under `$key` and answers the plaintext, or throws. A \
-            message altered by one octet is refused rather than decrypted into whatever is \
-            left of it, which is the whole reason the roster is AEAD only.",
+    short: "Authenticates `$sealed` under `$key` and `$cipher` and answers the plaintext, or \
+            throws. A message altered by one octet is refused rather than decrypted into \
+            whatever is left of it, which is the whole reason the roster is AEAD only.",
     params: &[
         ParamDoc {
             name: "sealed",
@@ -451,6 +515,12 @@ const OPEN_DOC: MethodDoc = MethodDoc {
             desc: "The 32-octet key `$sealed` was sealed under.",
             shape: &[],
         },
+        ParamDoc {
+            name: "cipher",
+            desc: "The construction `$sealed` was sealed under. Naming the other one is a \
+                   forgery like any other, never plausible bytes.",
+            shape: &[],
+        },
     ],
     ret: "The original plaintext, byte for byte.",
     errors: &[
@@ -460,9 +530,10 @@ const OPEN_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "`$sealed` is not an authentic message under `$key` — it was altered, it is \
-                   too short to be one at all, or the key is the wrong one. The three are one \
-                   message on purpose: telling them apart tells a forger which half landed.",
+            desc: "`$sealed` is not an authentic message under `$key` and `$cipher` — it was \
+                   altered, it is too short to be one at all, or the key or the cipher is the \
+                   wrong one. They are one message on purpose: telling them apart tells a forger \
+                   which half landed.",
         },
     ],
 };
@@ -616,7 +687,6 @@ pub(crate) fn open_under(
 /// tree an `Aes256Gcm` is built: `Core\Crypto`'s AES case and `Core\Jwe`'s
 /// `A256GCM` are both on the near side of it, so what a browser reads back was
 /// assembled by one piece of code either way.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn gcm_cipher(key: &[u8]) -> Option<Aes256Gcm> {
     Aes256Gcm::new_from_slice(key).ok()
 }
@@ -635,7 +705,6 @@ pub(crate) fn gcm_cipher(key: &[u8]) -> Option<Aes256Gcm> {
 /// A `RuntimeError` when the sealed message is larger than this construction
 /// can produce or than this process can hold — both unreachable from source,
 /// for [`seal_under`]'s reasons.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn gcm_seal_under(
     cipher: &Aes256Gcm,
     nonce: &[u8; GCM_NONCE_LEN],
@@ -679,7 +748,6 @@ pub(crate) fn gcm_seal_under(
 /// # Errors
 ///
 /// A `RuntimeError` when this process cannot spare the plaintext's buffer.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn gcm_open_under(
     cipher: &Aes256Gcm,
     sealed: &[u8],
@@ -1148,14 +1216,47 @@ pub(crate) fn sign(key: &SigningKey, message: &[u8]) -> Option<Vec<u8>> {
     }
 }
 
-/// The cipher keyed by slot 1, or the `LogicError` a wrong-length key earns.
+/// One of [`CIPHER`]'s constructions, keyed and ready to seal or open.
 ///
-/// Reachable from source despite the parameter's `secret bytes`: the qualifier
-/// is about confidentiality and says nothing about length, and a plain `bytes`
-/// of any size widens onto it. `Core\Random::bytes(8)` is the one-line witness.
-fn keyed(args: &[Value], member: &str) -> Result<XChaCha20Poly1305, Fault> {
+/// The two variants are different sizes — a round-key schedule against a
+/// 32-octet key — and boxing the larger would buy an allocation on the request
+/// path to save a few hundred bytes of stack that live for one call, which is
+/// priority 3 spent on priority 5.
+#[allow(clippy::large_enum_variant)]
+enum Keyed {
+    /// [`CIPHER`]'s `XChaCha20Poly1305`, through [`cipher`].
+    Extended(XChaCha20Poly1305),
+    /// [`CIPHER`]'s `Aes256Gcm`, through [`gcm_cipher`].
+    Interop(Aes256Gcm),
+}
+
+/// The construction slot 2 names, keyed by slot 1, or the `LogicError` a
+/// wrong-length key earns.
+///
+/// The length refusal is reachable from source despite the parameter's `secret
+/// bytes`: the qualifier is about confidentiality and says nothing about
+/// length, and a plain `bytes` of any size widens onto it.
+/// `Core\Random::bytes(8)` is the one-line witness. The cipher slot is not
+/// reachable that way — an argument of a closed enum type is one of its cases
+/// or the program did not compile — so anything else there is a
+/// [`Fault::fatal`], exactly as a wrong tag in [`bytes_of`] is.
+///
+/// One key length keys either construction, which is why `generateKey` answers
+/// a key with no cipher named and this function checks the width once for both.
+fn keyed(args: &[Value], member: &str) -> Result<Keyed, Fault> {
     let key = bytes_of(args, 1, member)?;
-    cipher(key).ok_or_else(|| wrong_key_length(&format!("{NAME}::{member}"), "$key", key.len()))
+    let keyed = match args[2].as_int() {
+        Some(0) => cipher(key).map(Keyed::Extended),
+        Some(1) => gcm_cipher(key).map(Keyed::Interop),
+        _ => {
+            return Err(Fault::fatal(format!(
+                "{NAME}::{member} expected a `{CIPHER_NAME}` case, got tag {} value {:?}",
+                args[2].tag_byte(),
+                args[2].as_int()
+            )));
+        }
+    };
+    keyed.ok_or_else(|| wrong_key_length(&format!("{NAME}::{member}"), "$key", key.len()))
 }
 
 nvs_runtime::nvs_helper! {
@@ -1173,37 +1274,54 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Crypto::seal(bytes $message, secret bytes $key): bytes` —
-    /// replacing `openssl_encrypt` and `sodium_crypto_aead_*_encrypt`, with
-    /// the cipher, the mode, the padding and the nonce all taken off the call.
+    /// `Core\Crypto::seal(bytes $message, secret bytes $key, Cipher $cipher): bytes`
+    /// — replacing `openssl_encrypt` and `sodium_crypto_aead_*_encrypt`, with
+    /// the mode, the padding and the nonce taken off the call and the cipher
+    /// left on it as a case rather than a string.
     ///
     /// The nonce is drawn before anything is allocated and prefixed to the
-    /// answer, which is what lets [`nvs_core_crypto_open`] take one argument
-    /// where PHP's pair takes the IV back as a second.
-    fn nvs_core_crypto_seal(ctx, args: [2]) {
+    /// answer, which is what lets [`nvs_core_crypto_open`] take no IV where
+    /// PHP's pair takes one back as a further argument. Its width is the
+    /// cipher's, and for the interop construction it is drawn here rather than
+    /// inside [`gcm_seal_under`], whose caller in `Core\Jwe` has a nonce
+    /// already written down in a header.
+    fn nvs_core_crypto_seal(ctx, args: [3]) {
         let message = bytes_of(args, 0, "seal")?;
-        let cipher = keyed(args, "seal")?;
-        let sealed = seal_under(ctx, &cipher, message, "Core\\Crypto::seal")?;
+        let sealed = match keyed(args, "seal")? {
+            Keyed::Extended(cipher) => seal_under(ctx, &cipher, message, "Core\\Crypto::seal")?,
+            Keyed::Interop(cipher) => {
+                let mut nonce = [0_u8; GCM_NONCE_LEN];
+                crate::random::draw(ctx, |rng| rng.fill_bytes(&mut nonce));
+                gcm_seal_under(&cipher, &nonce, message, "Core\\Crypto::seal")?
+            }
+        };
         Ok(Value::bytes(NvsStr::new(&sealed)))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Crypto::open(bytes $sealed, secret bytes $key): bytes` —
-    /// replacing `openssl_decrypt`, which answers `false` on a forgery when it
-    /// notices one at all.
+    /// `Core\Crypto::open(bytes $sealed, secret bytes $key, Cipher $cipher): bytes`
+    /// — replacing `openssl_decrypt`, which answers `false` on a forgery when
+    /// it notices one at all.
     ///
-    /// Every way `$sealed` can fail to be an authentic message under `$key` is
-    /// one throw with one sentence; the module doc's *a forgery throws* section
-    /// is why, and it is a security property rather than a simplification.
-    fn nvs_core_crypto_open(_ctx, args: [2]) {
+    /// Every way `$sealed` can fail to be an authentic message under `$key` and
+    /// `$cipher` is one throw with one sentence; the module doc's *a forgery
+    /// throws* section is why, and it is a security property rather than a
+    /// simplification. Naming the cipher the message was not sealed under is
+    /// one of those ways: the nonce widths differ and the tag would not verify
+    /// even if they agreed, so it lands on the same refusal rather than on
+    /// plausible bytes.
+    fn nvs_core_crypto_open(_ctx, args: [3]) {
         let sealed = bytes_of(args, 0, "open")?;
-        let cipher = keyed(args, "open")?;
 
         // A buffer too short to hold a nonce and a tag, a tag that does not
-        // verify and the wrong key are one `None` out of `open_under` and one
-        // sentence here, deliberately not three.
-        let plain = open_under(&cipher, sealed, "Core\\Crypto::open")?.ok_or_else(|| {
+        // verify, the wrong key and the wrong cipher are one `None` out of the
+        // construction and one sentence here, deliberately not four.
+        let opened = match keyed(args, "open")? {
+            Keyed::Extended(cipher) => open_under(&cipher, sealed, "Core\\Crypto::open")?,
+            Keyed::Interop(cipher) => gcm_open_under(&cipher, sealed, "Core\\Crypto::open")?,
+        };
+        let plain = opened.ok_or_else(|| {
             Fault::thrown(
                 "Core\\Crypto::open(): $sealed is not an authentic message under $key — it \
                  has been altered, it is too short to be one, or the key is not the one it \
