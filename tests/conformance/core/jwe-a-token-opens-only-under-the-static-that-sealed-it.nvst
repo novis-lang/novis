@@ -1,0 +1,54 @@
+--TEST--
+A token sealed by one of Jwe\Key's statics opens under that static's key alone, because the header's alg is compared against the key the caller named and never consulted to pick one — `rule:security/algorithm-comes-from-the-key`, `rule:security/jwe-compact-subset`
+--FILE--
+<?nvs
+// The agreement shape over the whole grid: one question — does this token open
+// under this key — asked of every sealer against every opener, and asserted by
+// counting. A class that selected its key-management algorithm from the token's
+// `alg` would open every cell whose key material happened to fit, and would
+// still look right on any single line of this file.
+//
+// `recipient` and `own` are the two halves of one agreement, so the pair opens
+// what either of them sealed — `own` is the opener on two of the four rows, and
+// `recipient` is on none, because a public key is not the half that opens.
+secret bytes $shared = Core\Crypto::generateKey();
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+string $payload = "id=42";
+
+array<string> $tokens = [
+    Core\Jwe::encrypt($payload, Core\Jwe\Key::shared($shared)),
+    Core\Jwe::encrypt($payload, Core\Jwe\Key::password("correct horse battery staple")),
+    Core\Jwe::encrypt($payload, Core\Jwe\Key::recipient($pair->publicKey())),
+    Core\Jwe::encrypt($payload, Core\Jwe\Key::own($pair)),
+];
+
+int $opened = 0;
+int $refused = 0;
+array<string> $sentences = [];
+foreach ($tokens as string $slot => string $token) {
+    // Built inside the loop because a ring is consumed by the call, and each
+    // row of the grid asks the same three questions of a different token.
+    array<Core\Jwe\Key> $openers = [
+        Core\Jwe\Key::shared($shared),
+        Core\Jwe\Key::password("correct horse battery staple"),
+        Core\Jwe\Key::own($pair),
+    ];
+    foreach ($openers as string $which => Core\Jwe\Key $opener) {
+        try {
+            tainted string $back = Core\Jwe::decrypt($token, [$opener]);
+            if ($back == $payload) {
+                $opened += 1;
+            }
+        } catch (RuntimeError $verdict) {
+            $refused += 1;
+            $sentences[$verdict->message] = "";
+        }
+    }
+}
+echo "opened ", $opened, "\n";
+echo "refused ", $refused, "\n";
+echo "distinct sentences ", Core\Arr::count($sentences), "\n";
+--EXPECT--
+opened 4
+refused 8
+distinct sentences 1

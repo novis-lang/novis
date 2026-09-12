@@ -145,6 +145,8 @@ Conventions the whole file uses:
 | [`Core\Csrf`](#core-core-csrf) |  |
 | [`Core\Totp`](#core-core-totp) |  |
 | [`Core\Jwt`](#core-core-jwt) |  |
+| [`Core\Jwe`](#core-core-jwe) |  |
+| [`Core\Jwe\Key`](#core-core-jwe-key) |  |
 | [`Core\Signature`](#core-core-signature) |  |
 | [`Core\Html`](#core-core-html) |  |
 | [`Core\Html\Markup`](#core-core-html-markup) |  |
@@ -19194,6 +19196,130 @@ Answers the claims `$token` carries, having checked that this key signed it and 
 **Returns** `array<tainted string>` — Every claim in the payload, by name, each one `tainted`: a signature proves who wrote a value, not that it is safe for any sink. `exp` and `iat` are present in it, in their own decimal spelling.
 
 **Throws** `LogicError` — `$key` is shorter than 32 octets — a value that was never a signing key.; `RuntimeError` — The token is not one this key signed, which is one sentence for every way of not being one; or it is, and has expired, carries no `exp`, or carries a claim that is not text.
+
+<a id="core-core-jwe"></a>
+### `Core\Jwe`
+
+Keywords: encrypt, decrypt
+
+| Member | Signature |
+|---|---|
+| [`Core\Jwe::encrypt`](#core-core-jwe-encrypt) | `encrypt(string $payload, Core\Jwe\Key $key): string` |
+| [`Core\Jwe::decrypt`](#core-core-jwe-decrypt) | `decrypt(string $token, array<Core\Jwe\Key> $keys): tainted string` |
+
+<a id="core-core-jwe-encrypt"></a>
+#### `Core\Jwe::encrypt`
+
+```nvs skip
+Core\Jwe::encrypt(string $payload, Core\Jwe\Key $key): string
+```
+
+Seals `$payload` into a compact JWE token under `$key`, with `A256GCM` content encryption and the key-management algorithm the static that built `$key` names.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$payload` | `string` | The text to seal. It comes back from `decrypt` exactly as it went in, marked `tainted`. |
+| `$key` | `Core\Jwe\Key` | The key, built by one of `Jwe\Key`'s four statics — which is also what picks `alg`. A key built by `Jwe\Key::own` seals to its own public half. |
+
+**Returns** `string` — Five dot-separated unpadded base64url segments: the protected header, the encrypted key — empty under `dir` and `ECDH-ES` — the 12-octet IV, the ciphertext and the 16-octet tag. Different on every call for the same inputs, because each draws its own IV.
+
+**Throws** `LogicError` — `$key` was built from a public key or a pair whose point contributes nothing to an agreement.; `RuntimeError` — This process cannot spare a buffer the size of the token.
+
+<a id="core-core-jwe-decrypt"></a>
+#### `Core\Jwe::decrypt`
+
+```nvs skip
+Core\Jwe::decrypt(string $token, array<Core\Jwe\Key> $keys): tainted string
+```
+
+Opens `$token` against each key in `$keys` in order and answers the payload that was sealed, or throws. The answer is **`tainted`**: decrypting proves who wrote the payload, never that it is safe for a sink.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$token` | `string` | The token text, as it arrived. A `tainted` value is accepted here — that is the point of the member. |
+| `$keys` | `array<Core\Jwe\Key>` | The key ring, tried in order, so a token sealed under any key still in it opens. A ring holding a key built by `Jwe\Key::password` holds exactly that one key, because every try costs a full derivation. A key built by `Jwe\Key::recipient` is a public key and opens nothing. |
+
+**Returns** `tainted string` — The payload, character for character, as `tainted string`.
+
+**Throws** `LogicError` — `$keys` is empty, or it holds a `Jwe\Key::recipient` key, or it holds a `Jwe\Key::password` key beside anything else.; `RuntimeError` — `$token` is not a token any key in `$keys` opens — it is not five segments, its header is not the subset this class reads, its `alg` is not the one `$keys` names, or it was altered. All of them are one sentence on purpose: telling them apart tells a forger which half landed.
+
+<a id="core-core-jwe-key"></a>
+### `Core\Jwe\Key`
+
+Keywords: shared, password, recipient, own
+
+| Member | Signature |
+|---|---|
+| [`Core\Jwe\Key::shared`](#core-core-jwe-key-shared) | `shared(secret bytes $key): Core\Jwe\Key` |
+| [`Core\Jwe\Key::password`](#core-core-jwe-key-password) | `password(secret string $password): Core\Jwe\Key` |
+| [`Core\Jwe\Key::recipient`](#core-core-jwe-key-recipient) | `recipient(Core\Crypto\PublicKey $key): Core\Jwe\Key` |
+| [`Core\Jwe\Key::own`](#core-core-jwe-key-own) | `own(Core\Crypto\KeyPair $key): Core\Jwe\Key` |
+
+<a id="core-core-jwe-key-shared"></a>
+#### `Core\Jwe\Key::shared`
+
+```nvs skip
+Core\Jwe\Key::shared(secret bytes $key): Core\Jwe\Key
+```
+
+A key for `dir`, where the shared key is the content-encryption key itself and nothing is derived and nothing is wrapped.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `secret bytes` (neutral) | 32 octets both ends already hold — `Core\Crypto::generateKey()` answers one. |
+
+**Returns** `Core\Jwe\Key` — A key `encrypt` writes `"alg":"dir"` for, and `decrypt` accepts only that.
+
+**Throws** `LogicError` — `$key` is not 32 octets — a `bytes` that was never a key.
+
+<a id="core-core-jwe-key-password"></a>
+#### `Core\Jwe\Key::password`
+
+```nvs skip
+Core\Jwe\Key::password(secret string $password): Core\Jwe\Key
+```
+
+A key for `PBES2-HS256+A128KW`, where a person's password is stretched to a key-encryption key and the content key is drawn and wrapped under it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$password` | `secret string` (neutral) | The password, of any length. `Core\Cli::secret` and a form field both reach this parameter; nothing about it is hashed for storage, which is `Core\Password`'s job and not this one's. |
+
+**Returns** `Core\Jwe\Key` — A key `encrypt` derives under at the iteration floor, writing the count and the salt into the header for the other end to repeat.
+
+<a id="core-core-jwe-key-recipient"></a>
+#### `Core\Jwe\Key::recipient`
+
+```nvs skip
+Core\Jwe\Key::recipient(Core\Crypto\PublicKey $key): Core\Jwe\Key
+```
+
+A key for `ECDH-ES` in the sending direction: the other party's public key, which seals a token only that party's pair opens.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `Core\Crypto\PublicKey` | A `P256` or `X25519` public key, already validated by `Core\Crypto\PublicKey::read`. |
+
+**Returns** `Core\Jwe\Key` — A key `encrypt` agrees against under a fresh ephemeral pair, writing that pair's public half into the header as `epk`. It opens nothing: a public key is not the half that decrypts.
+
+**Throws** `LogicError` — `$key` is an `Ed25519` or RSA key, neither of which agrees on anything.
+
+<a id="core-core-jwe-key-own"></a>
+#### `Core\Jwe\Key::own`
+
+```nvs skip
+Core\Jwe\Key::own(Core\Crypto\KeyPair $key): Core\Jwe\Key
+```
+
+A key for `ECDH-ES` in the receiving direction: this program's own key pair, which opens the tokens other parties sealed to its public half.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `Core\Crypto\KeyPair` | A `P256` or `X25519` key pair, read back with `Core\Crypto\KeyPair::read`. |
+
+**Returns** `Core\Jwe\Key` — A key `decrypt` agrees with against the token's `epk`, and that `encrypt` seals to this pair's own public half.
+
+**Throws** `LogicError` — `$key` is an `Ed25519` or RSA pair, neither of which agrees on anything.
 
 <a id="core-core-signature"></a>
 ### `Core\Signature`

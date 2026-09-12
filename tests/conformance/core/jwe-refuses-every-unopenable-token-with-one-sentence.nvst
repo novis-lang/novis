@@ -1,0 +1,110 @@
+--TEST--
+Core\Jwe::decrypt refuses a policy failure, a forgery and a serialization it does not read with the one same RuntimeError sentence, so a token says nothing about which check it failed — `rule:security/jwe-compact-subset`, `rule:security/verification-throws-and-compares-in-constant-time`
+--FILE--
+<?nvs
+// Every token below comes out of the frozen WebCrypto set's refusal list, and
+// they fail for reasons that are not alike at all: an `enc` outside the subset,
+// an `alg` the token made up, a header member that is a fetch or a bomb, an
+// iteration count outside the bounds, a flipped tag, a header edited after
+// sealing, a segment missing, and the JSON serialization this class does not
+// read. The assertion is that the *count of distinct sentences* is one.
+//
+// A member that explained which check failed would still refuse all of them and
+// would fail the second total, which is the one holding the refusal to carrying
+// no oracle for whoever is aiming at the next token.
+bytes $key = Core\Encoding::fromHex("0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96");
+array<Core\Jwe\Key> $ring = [Core\Jwe\Key::shared($key)];
+
+array<string> $refused = [
+    // `enc` is `A256GCM` and nothing else, so a narrower AES-GCM is a token
+    // this class does not read rather than one it reads and then refuses.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4R0NNIn0..9lNwSr6eXK7mJMc_.PIHyObx9A-aLUdk.QOJt5Jat5ZM_iWA_KPjOFw",
+    // `alg: none`, which has nowhere to go: the algorithm comes from the static
+    // that built the key and the header's is only ever compared to it.
+    "eyJhbGciOiJub25lIiwiZW5jIjoiQTI1NkdDTSJ9..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.b5Xw6SThyYFnQa_r-TzUew",
+    // `zip`, a decompression bomb waiting for a verifier that implements it.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiemlwIjoiREVGIn0..9lNwSr6eXK7mJMc_.gSERTb52m2GHdklRqg.ZyZ02-4vRejLt14VXgmQnQ",
+    // `jku`, a fetch the token is talking the program into.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiamt1IjoiaHR0cHM6Ly9rZXlzLmV4YW1wbGUvandrcy5qc29uIn0..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.Qswh8hnNeZuNodWU1bliXw",
+    // A `jwk` that is not an `epk`: a key the token brought with it.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiandrIjp7ImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoiSmk0Z29QNjBleERSM0FfMVZtX1ZkbUxaWEpOdWlsd0ZxM00xZ3FHN21wayIsInkiOiJnRkE0NThyRFVKQkRyOHpGVG1lNDFqWDNaZkZPTXJDTHRiNkV5VGpPVTdZIn19..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.ig48zFcYk1oaAQKPTx6Sow",
+    // A member nobody has heard of, which is an extension we do not implement
+    // or an attack, with no third reading.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiZm9vIjoiYmFyIn0..9lNwSr6eXK7mJMc_.UVVOE5Up6-mBdZ4.LTkp-A63n4YfRaHrIChh2g",
+    // The tag with one character changed: authentic or not is the whole
+    // question, and the answer says nothing more.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.JsrVCjtIvszJAlP-1o4yNg",
+    // A `kid` added to the header of a real token after it was sealed. The
+    // member is on the allowed list, so nothing refuses it on policy — the
+    // header is the additional data, so the tag refuses it instead.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwia2lkIjoieCJ9..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg",
+    // Four segments: a compact JWE is five, and a shape that is not one is not
+    // a token this class has an opinion about.
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU",
+    // A protected header that is not base64url at all.
+    "!!!..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg",
+    // The JSON serialization, which is a real JWE and is not the one
+    // serialization this class reads.
+    "{\"protected\":\"eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0\",\"iv\":\"yWqDaI4F5_VELg4e\",\"ciphertext\":\"e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU\",\"tag\":\"J8rVCjtIvszJAlP-1o4yNg\"}",
+];
+
+int $verdicts = 0;
+string $sentence = "";
+array<string> $sentences = [];
+foreach ($refused as string $slot => string $token) {
+    try {
+        tainted string $opened = Core\Jwe::decrypt($token, $ring);
+        echo "accepted ", $slot, "\n";
+    } catch (RuntimeError $verdict) {
+        $verdicts += 1;
+        $sentence = $verdict->message;
+        $sentences[$verdict->message] = "";
+    }
+}
+echo "verdicts ", $verdicts, " of ", Core\Arr::count($refused), "\n";
+echo "distinct sentences ", Core\Arr::count($sentences), "\n";
+
+// The same honest token under a ring holding a key it was not sealed with,
+// which is the one refusal above that is about the key rather than the token.
+array<Core\Jwe\Key> $wrongKey = [
+    Core\Jwe\Key::shared(Core\Encoding::fromHex("a8484b7f2343539cca6fcdbb5505f277050a78f6d86d639dc27194d4abc3f005")),
+];
+try {
+    tainted string $other = Core\Jwe::decrypt(
+        "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg",
+        $wrongKey
+    );
+    echo "opened under another key", "\n";
+} catch (RuntimeError $verdict) {
+    $verdicts += 1;
+    $sentences[$verdict->message] = "";
+}
+
+// PBES2's two bounds, on both sides, asserted with the same sentence: `p2c` is
+// chosen by whoever sent the token, so the ceiling is what stops one token from
+// buying unbounded CPU on the request path.
+array<string> $outOfBounds = [
+    "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoyMDAwMDAxLCJwMnMiOiI4bHAzTXZ4MnhVSXQybllUZFN2VUZBIn0.631okfB9jHxg8JSVEaFSC3radCMv_0pkTY9SaKP3_KTak4doj0AOuA.AhX9uILfedAG4y7L.PcIAqIqcB4nfPDI.MWwgWwQWrVIyM8OBYiwQnA",
+    "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjo5OTk5OSwicDJzIjoiTmJvU2FaVHo5M01sMkNkWE56c2xDdyJ9.yoWYL-fHy8Fz1LeRKZTqPYZOMTkl4S9tH5fDbSjfaUR4lZzkAF_c7w.9Xczw6_qA5lGK89E.OVZj8hZEDNk-kPw.nguNydfJ69u6p2AQybeu9Q",
+];
+foreach ($outOfBounds as string $slot => string $token) {
+    try {
+        tainted string $derived = Core\Jwe::decrypt(
+            $token,
+            [Core\Jwe\Key::password("correct horse battery staple")]
+        );
+        echo "derived ", $slot, "\n";
+    } catch (RuntimeError $verdict) {
+        $sentences[$verdict->message] = "";
+        $verdicts += 1;
+    }
+}
+echo "verdicts with the bounds ", $verdicts, "\n";
+echo "distinct sentences ", Core\Arr::count($sentences), "\n";
+echo $sentence, "\n";
+--EXPECT--
+verdicts 11 of 11
+distinct sentences 1
+verdicts with the bounds 14
+distinct sentences 1
+Core\Jwe::decrypt(): $token is not a token any key in $keys opens. Every way of not being one — a shape that is not five base64url segments, a protected header outside the subset this class reads, an `alg` or an `enc` that is not the one $keys names, and an altered token — is this one sentence, so a forgery says nothing about which part of it failed.

@@ -1,0 +1,80 @@
+--TEST--
+Jwe\Key::recipient and ::own refuse a key kind that agrees on nothing, Core\Jwe::encrypt refuses a point that contributes nothing, and Core\Jwe::decrypt refuses a public key as the half that opens — each a LogicError, because every one of them is the program's own key — `rule:security/jwe-compact-subset`, `rule:security/verification-throws-and-compares-in-constant-time`
+--FILE--
+<?nvs
+// ECDH-ES is agreement, so the kinds that reach it are the two curves that
+// agree. A key of any other kind is a mistake in the program rather than a
+// verdict on anyone — there is nobody a verdict could be about, because the key
+// is this program's own — so each of these is a `LogicError`.
+Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+try {
+    Core\Jwe\Key $signer = Core\Jwe\Key::recipient($signing->publicKey());
+    echo "an Ed25519 public key was taken", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+
+// The same kind on the other side of the pair, refused by the other static: a
+// pair that signs is not a pair that agrees, whichever half is offered.
+try {
+    Core\Jwe\Key $signerPair = Core\Jwe\Key::own($signing);
+    echo "an Ed25519 pair was taken", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+
+// And RSA, which has no agreement at all rather than one this class declined.
+Core\Crypto\PublicKey $rsa = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex("30820122300d06092a864886f70d01010105000382010f003082010a0282010100cfaa61932d8fd9e7858fa521617621f05bcb3411e174995d1fab033995201d0d9d72e5e8e133d88e8bec27e75068fb7c715eb712cae5750396d50af9ad2b5c45f0a7ab16bcf2cde4566873349a2407fa9452913e433b1d7f1ea74bda50d3f5d0ec2b0b50a4ea3023a2ae3ad4975390cd3b000d8020a578469f4bffa3e9864eb989e67a804a2cf08be53bba1bb0e9071f24156b0383730779d42efbf1daada62835a8e5e1891845cc782c322f9dc7f9eb6ff1c628c925f26ba29978a96cd10b2f61f03f361250261f860927632b6167bcba71f2e4d8df93e142c904a2515cd06af13c856bde1872ee30f3a19d8292cd2ce4b39c9788a0d3c5e3f33fe784c4e0330203010001"),
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyFormat::Spki
+);
+try {
+    Core\Jwe\Key $rsaKey = Core\Jwe\Key::recipient($rsa);
+    echo "an RSA key was taken", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+
+// A key of the right kind whose point contributes nothing: X25519's all-zero
+// point is a real 32-octet point and agrees with every scalar on the same
+// nothing, so the refusal is at the agreement rather than at the read.
+Core\Crypto\PublicKey $lowOrder = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex("0000000000000000000000000000000000000000000000000000000000000000"),
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyFormat::Raw
+);
+Core\Jwe\Key $nothing = Core\Jwe\Key::recipient($lowOrder);
+try {
+    string $sealed = Core\Jwe::encrypt("a card number", $nothing);
+    echo "sealed under a point that contributes nothing", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+
+// The asymmetry the two agreement statics exist to make legible: `recipient` is
+// the sending half and holds a public key, which is not the half that opens
+// anything. A ring holding one is a call that cannot be met, not a token that
+// failed to authenticate — so it is a `LogicError` reached before any key
+// material is touched, and it says which static does open a token.
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+string $token = Core\Jwe::encrypt("a card number", Core\Jwe\Key::recipient($pair->publicKey()));
+try {
+    tainted string $opened = Core\Jwe::decrypt($token, [Core\Jwe\Key::recipient($pair->publicKey())]);
+    echo "a public key opened a token", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+
+// The same token under the pair it was sealed to, so the refusal above is about
+// which half was offered and not about the token.
+tainted string $back = Core\Jwe::decrypt($token, [Core\Jwe\Key::own($pair)]);
+echo $back == "a card number" ? "the pair opens it" : "the pair did not open it", "\n";
+--EXPECT--
+Core\Jwe\Key::recipient(): ECDH-ES agrees over P-256 and X25519, and this key is neither. An Ed25519 key signs and an RSA key has no agreement at all, so there is no shared secret for a content key to come out of.
+Core\Jwe\Key::own(): ECDH-ES agrees over P-256 and X25519, and this key is neither. An Ed25519 key signs and an RSA key has no agreement at all, so there is no shared secret for a content key to come out of.
+Core\Jwe\Key::recipient(): ECDH-ES agrees over P-256 and X25519, and this key is neither. An Ed25519 key signs and an RSA key has no agreement at all, so there is no shared secret for a content key to come out of.
+Core\Jwe::encrypt(): this key agrees on nothing. Its point contributes no shared secret whatever scalar is put against it, so there is no content key to seal under — a key of that shape is not one a peer should have sent.
+Core\Jwe::decrypt(): $keys holds a key built by Core\Jwe\Key::recipient, which is the other party's public key and opens nothing. The half that opens a token is the pair, through Core\Jwe\Key::own.
+the pair opens it

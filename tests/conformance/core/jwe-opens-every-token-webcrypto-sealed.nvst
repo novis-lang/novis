@@ -1,0 +1,82 @@
+--TEST--
+Core\Jwe::decrypt opens every compact token the frozen WebCrypto set holds — `dir`, `ECDH-ES` over both curves and `PBES2-HS256+A128KW` — with the key-management algorithm coming from the static that built the key and never from the token — `rule:security/jwe-compact-subset`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// The interop half of the roster's encryption entry, asserted against tokens
+// this program did not write: every one below came out of the W3C WebCrypto API
+// a browser ships, frozen into crates/nvs-stdlib/tests/vectors/webcrypto.json.
+// A round trip against ourselves would pass over any private spelling of the
+// same construction; these pass only if the wire format is JWE's.
+//
+// Each one is opened with the static its algorithm belongs to, and with no
+// algorithm named anywhere in the call — `rule:security/algorithm-comes-from-the-key`
+// applied to encryption is that the static *is* the choice.
+bytes $shared = Core\Encoding::fromHex("0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96");
+Core\Jwe\Key $dir = Core\Jwe\Key::shared($shared);
+
+// A JSON payload, which is what a token usually carries.
+tainted string $json = Core\Jwe::decrypt(
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg",
+    [$dir]
+);
+echo $json == "{\"scope\":[\"read\",\"write\"],\"user\":42}" ? "dir" : "dir wrong", "\n";
+
+// The empty payload, whose ciphertext segment is empty and whose tag still
+// authenticates the header. A member that read the ciphertext's length as a
+// signal would stop here.
+tainted string $empty = Core\Jwe::decrypt(
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..PXpV5mJoMshPV4QT..GY3Co9HwG6F9FomIGgE7uw",
+    [$dir]
+);
+echo $empty == "" ? "dir empty" : "dir empty wrong", "\n";
+
+// A `kid` the token carries and this class does not read: it is on the allowed
+// list, so it is ignored rather than refused, and it is inside the additional
+// data, so it is still authenticated.
+tainted string $kidded = Core\Jwe::decrypt(
+    "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwia2lkIjoicmluZy0xIn0..UlLxKY2fbg4350rd.aNWN3DrxPTaQSkXXxvlsJFMUeAA.Pdeg0cj_wNJ6DQp_MQNZmQ",
+    [$dir]
+);
+echo $kidded == "grüße, 世界 🔐" ? "dir kid" : "dir kid wrong", "\n";
+
+// ECDH-ES over P-256: the token carries the sender's ephemeral public key as
+// `epk`, and the content key is the agreement run through the Concat KDF with
+// `A256GCM` as its algorithm identifier and empty `apu` and `apv`.
+Core\Crypto\KeyPair $p256 = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex("3041020100301306072a8648ce3d020106082a8648ce3d0301070427302502010104201273ae38c9225cb4b3a0525f528f86fb130c7d29d1c1a48f433c8fac3dca9ecd"),
+    Core\Crypto\KeyKind::P256
+);
+tainted string $card = Core\Jwe::decrypt(
+    "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6InQ1RThMSTZHYmQ5ejYyZGNhUFpjbHpyUTg0dmpxemh4SVpKNXluS0FOR2siLCJ5IjoicGF0S2pUVEFGY1JOYkVXcnh0UzRNUDMyZ3JmY3djSW1BeEZsVWpJMFNNNCJ9fQ..tcyhbkNF3cmmBPoI.GOeTEUQ9srGec1ozeK17lr5HwIjd_2IY53AMz2Zi.cr9tWOfsMB_k-XeAgAi2MA",
+    [Core\Jwe\Key::own($p256)]
+);
+echo $card == "{\"card\":\"4111 1111 1111 1111\"}" ? "ecdh p256" : "ecdh p256 wrong", "\n";
+
+// The same algorithm over the other curve, which is the whole of what the
+// `epk`'s `crv` differs in — and the curve is read off *this program's* key
+// rather than off the token, so there is nothing here for a token to select.
+Core\Crypto\KeyPair $x25519 = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex("302e020100300506032b656e042204201135b8655ccc4ea0b976d3a303d6b64b90e9f0b643f65e52288c25bdcebe4fa4"),
+    Core\Crypto\KeyKind::X25519
+);
+tainted string $message = Core\Jwe::decrypt(
+    "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJYMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiQTBURWxubG16ZTNMNllWWHZUX0ROUDFHdTNsbGhjN242M3lCSTZ2VTdrdyJ9fQ..rMUymvindaXsFDk7.nR4Bh6a6oMQdTnl23OZqAL7su_hrymN_2t_7cylV.w6IiCEkH3aGvKcNq5lG-Og",
+    [Core\Jwe\Key::own($x25519)]
+);
+echo $message == "a message for the server alone" ? "ecdh x25519" : "ecdh x25519 wrong", "\n";
+
+// PBES2 at the iteration floor: the salt and the count are in the header, the
+// content key is wrapped under what they derive, and the password is the one
+// key kind a person types.
+tainted string $note = Core\Jwe::decrypt(
+    "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoxMDAwMDAsInAycyI6InJhZzhZSGFzY28xTC1heVRBbW44OWcifQ.Tm-wRawKwGhnshTzTr3fvvgMCXEVf36FZbvsSTexm_r5nedzhFU9rg.Yzs3G6VmFJHPgIf2.YPZinOm18x5tzxUE48yH2A8hHmPelObo4q4JMd5cfpTreYY3.z6Ru1D5p08dSCJL2PWgHpA",
+    [Core\Jwe\Key::password("correct horse battery staple")]
+);
+echo $note == "{\"note\":\"sealed under a passphrase\"}" ? "pbes2" : "pbes2 wrong", "\n";
+--EXPECT--
+dir
+dir empty
+dir kid
+ecdh p256
+ecdh x25519
+pbes2
