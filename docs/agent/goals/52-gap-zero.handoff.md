@@ -3,7 +3,7 @@
 ## State
 
 **Goal `gap-zero` — the gap register is derived, empty, and the index that held it is gone — has just started;
-nothing of it has landed yet.** Goal `outbound-proxy`'s whole list is this goal's Stage 1 floor.
+nothing of it has landed yet.** Goal `websocket-client`'s whole list is this goal's Stage 1 floor.
 
 Three things are settled before the first session and a session does not re-decide them:
 
@@ -37,7 +37,7 @@ keystone; taking them apart buys a second orientation for nothing.
 - [ ] **Widen `owners.py` to read every register** — five survive stage 7: the module-doc gap items,
       `carried-refusals.md`, the four `crates/nvs-stdlib/tests/*-outstanding.txt` ratchets,
       `guard-name-debt.md`, and the playbook's `[until:]` bullets. One roster, one exit code. The
-      `want` strings in `51-gap-zero.toml` **are** the specification of its output.
+      `want` strings in `52-gap-zero.toml` **are** the specification of its output.
 - [ ] **Drop the third owner kind and add `--deferrals`** — a milestone must exist under `docs/plan/`,
       be **uncarried** (`plan.py` derives the `Carried by` cell from the chain), and its own file must
       state the scope. Deferring to a carried milestone is exactly the orphaning this goal ends, so it

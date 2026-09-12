@@ -28,4 +28,4 @@ policy to the URL's text and warns at every boot; only `Core\Http\Client` is pro
 - Stage 4 — `resolve = "proxy"`, `bypass`, and authentication. `transport.rs`, `http.rs`, and the secret
   registry in `nvs-config`. Shares `transport.rs` with stage 3.
 - Stage 5 — the flips. `docs/rules/` only.
-- When this goal's last check goes green the driver takes goal `gap-zero`.
+- When this goal's last check goes green the driver takes goal `websocket-client`.

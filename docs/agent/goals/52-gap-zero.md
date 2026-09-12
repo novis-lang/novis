@@ -1,7 +1,7 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 51 — the gap register is derived, empty, and the index that held it is gone
+# Loop goal 52 — the gap register is derived, empty, and the index that held it is gone
 
 Every gap this repository records is either **closed** or **named to an uncarried milestone whose plan
 states the scope** — and because this is the last hand-written entry on the chain, there is no third
@@ -14,7 +14,7 @@ emptied after everything that would add to it has run. Goals `carried-gaps` and 
 closed five items; every entry from 23 to 37 closes more. Emptying the register before them would be
 emptying it twice.
 
-Goal `outbound-proxy`'s whole acceptance list is this goal's floor, and it is traded exactly once —
+Goal `websocket-client`'s whole acceptance list is this goal's floor, and it is traded exactly once —
 [§ *Standing decisions*](#standing-decisions) names the check and why.
 
 ## Why here
@@ -57,7 +57,7 @@ the dossier's generated proof entries are the one exception, named rather than i
 
 ## Stage 1 — the floor
 
-Goal `outbound-proxy`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded for
+Goal `websocket-client`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded for
 anything above it, with the one named exception below.
 
 ## Stage 2 — the keystone: one register, two owner kinds, derived
