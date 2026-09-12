@@ -134,6 +134,9 @@ modules = [
   # The space a construct of Novis's own requires: one in front of a qualified type, one inside
   # each brace of a one-line object literal.
   "crates/nvs-fmt/src/space.rs",
+  # `nvs fmt` — the formatter as a command: which files it reads, and where the text it produces
+  # goes.
+  "crates/nvs-cli/src/fmt.rs",
 ]
 
 # The rules every stage works inside: what the formatter is, what it may not do to a line break, the
