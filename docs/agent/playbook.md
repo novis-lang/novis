@@ -4466,6 +4466,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   formatter already answers it and vary only the bytes under test — the assertion prints both whole
   files, and the line that differs names the rule that actually moved.
   [until: reviewed 2026-09-12]
+- **An `nvs-fmt` case panics with "does not parse" when its fixture breaks a *semantic* rule rather
+  than the grammar.** `format` refuses on any error the parse reported, and the parse reports
+  `rule:classes/no-free-functions-or-constants` too, so a top-level `function` in a fixture reads as a
+  syntax error in the panic. Put a fixture's code in a class's `public static function`, the shape
+  `examples/match.nvs` already has. [until: gone crates/nvs-fmt/src/lib.rs:d.is_error()]
 
 ## Splitting a file that got too big
 

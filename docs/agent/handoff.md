@@ -2,47 +2,52 @@
 
 ## State
 
-**Goal `fmt` (M10), stage 5: three of the four constructs have their layout.** A `tainted` or `secret`
-qualifier sits one space before the type it qualifies, a one-line object literal has one space inside
-each brace, and an `fn` closure's body brace stays on the line its signature and `=>` were written on.
-The two spacing rules are `crates/nvs-fmt/src/space.rs`; the closure is one kind added to
-`brace.rs`'s `CARRIES_ITS_BRACES`, because an `fn` body is spliced into the closure and has no `Block`
-of its own.
+**Goal `fmt` (M10), stage 5 is closed: every construct PER never saw has its one layout.** The
+qualifier's space, the `fn` closure's body brace, the one-line object literal's braces and now the
+`match` arm list are all landed, and the stage's other check — a close tag at its block's depth with
+markup byte-identical — has been green since the session before. Nothing is blocked.
 
-**What a whitespace run must be now has one home.** `crates/nvs-fmt/src/print.rs`'s `Runs` holds the
-`(offset, run)` pairs every stage contributes and answers both questions the printer asks of them —
-which run to write over, and which has no run to write over — so `brace.rs` and `space.rs` each hand in
-pairs and neither owns the lookup. A `Rewrite` still cannot cover a trivium, which is why a spacing
-rule is a `Runs` pair and not one of those.
+**A `match` arm list is laid out by two halves, because a depth and a line break are different
+edits.** `crates/nvs-fmt/src/indent.rs`'s `arm_starts` reads the arm boundaries off the `Match`'s
+children — the walk gives an arm no node of its own, so the child after a body opens an arm and the
+`,` or `{` in front of it is where a `default` arm's keyword is found — and `of_line` places an arm
+that already opens a line, plus the brace that closes the list. `crates/nvs-fmt/src/space.rs`'s
+`arm_lines` contributes the `Runs` pair that gives an arm sharing a line with the one before it a
+line of its own, and only that case: a run written over an arm that already opens a line would take
+the blank line its author left above it too. `Match` has left `indent.rs`'s `OPAQUE` as a result, so
+a block written inside an arm is indented like any other now.
 
-The fragment's own examples were corrected against the grammar (see the playbook bullet), and
-`examples/` was reformatted for the object literal's braces. The `match` arm list is the one item left
-in the stage, and nothing is blocked.
+The corpus absorbed this rule with no edit — `examples/match.nvs` was already what the rule asks for.
 
 ## Next group
 
-**Stage 5: the last construct PER never saw** — one file set: `crates/nvs-fmt/src/indent.rs`,
-`crates/nvs-fmt/src/tokens.rs` and `crates/nvs-fmt/tests/novis_constructs.rs`.
+**Stage 6: the command** — one file set: `crates/nvs-cli/src/main.rs`, a new
+`crates/nvs-cli/src/fmt.rs`, a new `crates/nvs-cli/tests/fmt.rs`, and the fixture pairs under
+`tests/fmt/`.
 
-- [ ] **A `match` arm list written across lines is one arm per line, each at one level in from the
-      `match`** — `rule:tooling/fmt-novis-constructs`. An arm is a line `crates/nvs-fmt/src/indent.rs:101`'s
-      `of_line` answers `None` for today, which is why the crate's known-gap 2 names it: the depth comes
-      from the body kinds at `crates/nvs-fmt/src/indent.rs:63`, and `Match` is not a brace-delimited body
-      but an expression whose arms are its children. The trailing comma half is already landed —
-      `Match` is in `crates/nvs-fmt/src/tokens.rs:111`'s `LISTS` — so what this adds is the arm's own
-      line and its depth, and the test is `a_match_arm_list_written_across_lines_is_one_arm_per_line`
-      in `crates/nvs-fmt/tests/novis_constructs.rs:1`. A one-line arm list stays one line
-      (`rule:tooling/fmt-never-reflows`).
-- [ ] **The crate's known gaps lose what this landed** — `crates/nvs-fmt/src/lib.rs:71`'s gap 2 names a
-      `match` arm list among the lines the tree does not place, and the arm rule is what deletes that
-      clause. Gap 1's list of what each module decides gains the arm line beside `indent.rs`.
+- [ ] **`nvs fmt <paths>` rewrites each named file in place, and refuses one that does not parse** —
+      `rule:tooling/fmt-is-one-canonical-style`. The subcommand is a variant in
+      `crates/nvs-cli/src/main.rs:228`'s `enum Command` with a module beside `crates/nvs-cli/src/check.rs:1`
+      to copy the shape from, and the one call it makes is `crates/nvs-fmt/src/lib.rs:184`'s `format`.
+      The test is `fmt_rewrites_each_named_file_in_place` in a new `crates/nvs-cli/tests/fmt.rs`.
+- [ ] **`--check`, `--diff` and `--stdin` are I/O modes and never style knobs** —
+      `rule:tooling/fmt-is-one-canonical-style` names the flag set. `--check` writes nothing and exits
+      non-zero naming each file, `--diff` prints the diff and writes nothing, `--stdin` writes the
+      formatted file to standard output and writes *nothing at all* for a file that does not parse
+      (`crates/nvs-fmt/src/lib.rs:191`'s `Refusal`). Four tests, one per mode, in
+      `crates/nvs-cli/tests/fmt.rs`.
+- [ ] **No compiler command formats anything** — `rule:tooling/fmt-is-never-a-diagnostic`. The test is
+      `nvs_check_never_reports_an_unformatted_file` over `crates/nvs-cli/src/check.rs:1`, which must not
+      gain a call into `nvs_fmt`.
+- [ ] **Every file under `tests/fmt/formatted/` is a fixed point** — the goal's § *Standing decisions*
+      pairs `tests/fmt/input/<name>.nvs` with `tests/fmt/formatted/<name>.nvs`, walked by one `nvs-fmt`
+      test; neither directory exists yet. The stage's command check runs `nvs fmt --check` over the
+      frozen half (`docs/agent/loop-goal.toml:8886`).
 
 ## Backlog
 
-- Stage 6 is the command: `nvs fmt` in `nvs-cli`, with `--check`, `--diff` and `--stdin`
-  (`docs/agent/loop-goal.toml`'s `stage = "6 the command"`).
-- A shape type's braces get no space and a shape's fields no trailing comma, because a type is no node
-  in `crates/nvs-syntax/src/walk.rs` — `crates/nvs-fmt/src/lib.rs`'s known gap 5.
-- An attribute's object literal is outside every node in that walk, so neither its quotes nor its braces
-  are formatted — the same crate doc's gap 4.
-- The space after `fn` is nobody's rule: the corpus writes `fn(`, and no test names it.
+- A multi-line object literal's field lines keep the author's indentation — `ObjectLiteral` is in no
+  body list; `crates/nvs-fmt/src/lib.rs`'s known gap 2 is where it would be named.
+- A shape type's braces get neither the space nor the trailing comma — `crates/nvs-fmt/src/lib.rs`
+  known gap 5, and it needs a node in `crates/nvs-syntax/src/walk.rs` first.
+- Stage 7 is the corpus and the rulebook — `docs/agent/loop-goal.toml`, stage `7 the corpus`.
