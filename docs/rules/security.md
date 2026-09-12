@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*17 of 85 rules below are **designed** rather than shipped, and are marked where they appear.*
+*19 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1617,9 +1617,10 @@ the peer address — so there is still one clock, on the thing that waits.
 `rule:security/protocol-roster`
 
 A closed roster of application-layer security protocols lives in `Core`: signed and encrypted cookies
-(authenticated encryption only, with key rotation), CSRF tokens, TOTP, JWT, and detached signatures
-over a canonical payload. Nothing joins it without meeting the admission test
-([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
+(authenticated encryption only, with key rotation), CSRF tokens, TOTP, JWT — signed and verified under a
+shared key, and verified when another party issued it ([`security/jws-issued-subset`](security.md#security-jws-issued-subset)) — JWE
+([`security/jwe-compact-subset`](security.md#security-jwe-compact-subset)), and detached signatures over a canonical payload. Nothing joins it
+without meeting the admission test ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
 
 They live in `Core` rather than in an extension for two reasons, and the second is structural. Token
 verification sits on the hot path of every authenticated request, so a boundary crossing per request
@@ -1629,11 +1630,11 @@ reveal at every call site — turning a deliberately conspicuous escape hatch in
 destroys its value as a signal. A userland implementation is still possible and cannot be prevented;
 the claim is not exclusivity but that the obvious, documented option is the correct one.
 
-**Four of the five are on disk** — signed cookies, CSRF, TOTP and JWT, each with conformance cases.
-`Core\Signature` is not: no member, no module, no case. The roster is therefore not yet the closed set
-this rule describes.
+**Signed cookies, CSRF, TOTP and JWT's shared-key half are on disk**, each with conformance cases.
+`Core\Signature`, `Core\Jwe` and `Jwt::verifyIssued` are not: no member, no module, no case. The roster
+is therefore not yet the closed set this rule describes.
 
-<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../decisions/0060.md), [0033](../decisions/0033.md), [0055](../decisions/0055.md), [0146](../decisions/0146.md).</sub>
+<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../decisions/0060.md), [0033](../decisions/0033.md), [0055](../decisions/0055.md), [0146](../decisions/0146.md), [0179](../decisions/0179.md).</sub>
 
 <a id="security-protocol-admission-test"></a>
 
@@ -1737,6 +1738,107 @@ authenticated operation over a value that was already plain when it went in. The
 two is the rule, not an inconsistency: one is a value we had, the other is a value we were handed.
 
 <sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md), [0024](../decisions/0024.md).</sub>
+
+<a id="security-jwe-compact-subset"></a>
+
+## `Core\Jwe` speaks compact JWE with `A256GCM` alone, and the static that built the key picks the algorithm  *(designed — not yet in the compiler)*
+
+`rule:security/jwe-compact-subset`
+
+`Core\Jwe` reads and writes compact JWE with `A256GCM` alone, and the static that built the key is what
+picks the key-management algorithm.
+
+[`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key) applied to encryption: `Jwe\Key::shared` means `dir`,
+`Jwe\Key::password` means `PBES2-HS256+A128KW`, and `Jwe\Key::recipient` and `Jwe\Key::own` mean
+`ECDH-ES` — direct agreement, no key wrap, empty `apu` and `apv`. The header's `alg` and `enc` are read
+**only to be compared**, and a mismatch is a refusal. A named constructor rather than a union because a
+shared key and a password are both confidential octets and there is no type that tells them apart; what
+the constructor buys back is that the algorithm now comes from a name the caller wrote rather than from
+an inference the caller cannot see.
+
+**The allowed protected-header parameters are `alg`, `enc`, `epk`, `p2s`, `p2c`, `kid`, `typ` and
+`cty`, and everything else is refused** — `zip` because it is a decompression bomb
+([`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound)), `jku`, `x5u` and `x5c` because they are fetches the token is
+talking the program into, `crit` and a `jwk` other than `epk` because they ask the verifier to act on
+what the token brought with it. An unknown member in a ciphertext header is either an extension we do
+not implement or an attack, with no third reading. The protected header is length-capped before it is
+parsed.
+
+**`p2s` and `p2c` are held to the member's own bounds**: PBKDF2's iteration count is refused below
+100,000 and above 2,000,000 and its salt below 16 octets, checked before the first HMAC. `p2c` is
+attacker-supplied, so without the ceiling one token buys unbounded CPU on the request path.
+
+**`encrypt` writes its header canonically** — members sorted, no whitespace, at every level — which is
+what lets it be held to the frozen vector set byte for byte rather than only round-tripped against
+itself.
+
+The payload is `string` in and **`tainted string`** out, as `Core\Signature::verify`'s is
+([`security/verification-does-not-launder`](security.md#security-verification-does-not-launder)): decrypting proves who wrote it, never that it is safe.
+Every refusal is one `RuntimeError` with one sentence. Decrypt's key ring is tried in order, except that
+a ring holding a password key holds exactly one key, because every try costs a full derivation and an
+attacker choosing the ring's length is the iteration ceiling defeated one layer up.
+
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jws-issued-subset`](security.md#security-jws-issued-subset), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound). Decided in [0179](../decisions/0179.md).</sub>
+
+<a id="security-jws-issued-subset"></a>
+
+## A token another party issued verifies against a key found by `kid`, never one that is tried, and its claims come back as a `tainted` shape  *(designed — not yet in the compiler)*
+
+`rule:security/jws-issued-subset`
+
+`Core\Jwt` verifies a token another party issued against a key it **finds** by `kid`, never one it tries,
+and answers the claims as a `tainted` shape.
+
+`Jwt::verifyIssued<T>` is the roster's reading half for a token this program did not sign. The algorithm
+comes from the key — HS256 under a shared key, and ES256, EdDSA, RS256 or PS256 from a pair or public
+key's kind — so the header's `alg` is read only to be compared, as `Core\Jwt` already does.
+[`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key) is the rule; what this adds is what happens either side of
+the signature check.
+
+**A key is found, never tried.** `kid` is a lookup into the `Jwt\KeySet` and selects nothing else, and a
+token carrying no `kid` verifies only against a set holding exactly one key. There is no try-every-key
+loop, so a token costs at most one signature check however large the set is — a bound that matters
+because the token's sender chooses the `kid` and RSA verification is the dearest operation in the
+roster.
+
+**The header policy is deliberately looser than [`security/jwe-compact-subset`](security.md#security-jwe-compact-subset)'s.** `jku`, `x5u`,
+`x5c`, `jwk`, `crit`, `b64`, `zip` and `cty` are refused — a key or a fetch the token brings, an
+extension, an unencoded or compressed payload, a nested token — and **every other member is ignored**,
+because an issuer sends hints such as `x5t` and a verifier refusing them refuses real ID tokens. A JWE
+header member we refuse is one we would have had to act on; a JWS header member we ignore cannot select
+anything, the key having already decided the algorithm. The token is length-capped before it is parsed.
+
+**The clock and the claims are reached only under a signature that held.** `exp` is required and `nbf` is
+checked when present, both under a `leeway` that is `60s` by default and a `LogicError` when negative or
+above `5m`. `iss` equals the issuer asked for; `aud` is the audience asked for or a list holding it, and
+a list of more than one requires `azp` equal to that audience. A `nonce` asked for is compared in
+constant time and an absent one is refused; `typ` is compared case-insensitively with any `application/`
+prefix removed; `maxAge` requires an `auth_time` no older than `maxAge + leeway`.
+
+**The order is shape, header policy, key, signature, then the clock and the claims**, and policy and
+authenticity are the one `RuntimeError` sentence. Expiry keeps its own message, because only the holder
+of a genuinely signed token ever sees it, and a claims refusal names the claim for the same reason.
+
+**The claims come back as a shape, not as flattened text.** `T` is held to
+[`security/derived-codec-qualifiers`](security.md#security-derived-codec-qualifiers) at the call site exactly as `Core\Request::jsonAs<T>`'s is — an
+inline shape must be `tainted {…}`, a class must declare `tainted` on every text field reachable from
+it, and anything else is a diagnostic naming the field. That is how
+[`security/verification-does-not-launder`](security.md#security-verification-does-not-launder) is kept here: by the type, rather than by refusing every
+structured claim. `Jwt::verify` is untouched and keeps its `array<tainted string>` answer.
+
+**`Jwt\KeySet::read` skips what it has no use for and refuses what is wrong.** It skips a key marked
+`use: enc` and a key whose `alg` or kind is off the roster, because a real JWKS carries keys for purposes
+we do not serve and refusing the set over one of them makes every rotation an outage. It refuses the
+whole document for a private member (`d`, `p`, `q`, `dp`, `dq`, `qi`, `k`), an RSA key under 2048 bits,
+two keys under one `kid`, an `alg` its kind cannot carry, more than 16 keys, a body that is not JSON, and
+an RSA key carrying no `alg` when no `rsaScheme` was named. Fetching, caching and discovering a key set
+are a flow and therefore a package, not `Core` ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
+
+**Structured claims are signed only under a key pair**, by a member whose key parameter is a
+`Crypto\KeyPair` alone, so a token this program signs under a shared key still carries only what
+`Jwt::verify` reads back.
+
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/derived-codec-qualifiers`](security.md#security-derived-codec-qualifiers), [`security/jwe-compact-subset`](security.md#security-jwe-compact-subset). Decided in [0179](../decisions/0179.md).</sub>
 
 <a id="security-csrf-is-on-by-default"></a>
 

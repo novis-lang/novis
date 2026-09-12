@@ -689,6 +689,15 @@
       "guardedBy": ["tests/conformance/core/ratelimit-refuses-rather-than-deciding-allowed.nvst"]
     },
     {
+      "id": "core-classes/crypto-interop-tier",
+      "title": "`Core\\Crypto`'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads",
+      "status": "designed",
+      "because": ["0179"],
+      "divergesFromPhp": "there is no cipher name in a string and no unauthenticated mode to reach for, so `aes-256-ecb` has no spelling",
+      "seeAlso": ["core-api/tier-roster", "security/algorithm-comes-from-the-key", "security/jwe-compact-subset", "core-classes/secret-reveal"],
+      "guardedBy": []
+    },
+    {
       "id": "core-classes/signature",
       "title": "`Core\\Signature` signs a canonicalized payload, and the lifetime rides inside the signed bytes",
       "status": "designed",

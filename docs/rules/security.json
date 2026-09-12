@@ -1330,7 +1330,8 @@
         "0060",
         "0033",
         "0055",
-        "0146"
+        "0146",
+        "0179"
       ],
       "seeAlso": [
         "security/protocol-admission-test",
@@ -1431,6 +1432,40 @@
       "guardedBy": [
         "tests/conformance/core/signed-cookie-open-launders-where-jwt-verify-does-not.nvst"
       ]
+    },
+    {
+      "id": "security/jwe-compact-subset",
+      "title": "`Core\\Jwe` speaks compact JWE with `A256GCM` alone, and the static that built the key picks the algorithm",
+      "status": "designed",
+      "because": [
+        "0179"
+      ],
+      "divergesFromPhp": "there is no `zip`, no `jku` and no `x5u`, so a token cannot talk the verifier into a fetch or a decompression",
+      "seeAlso": [
+        "security/algorithm-comes-from-the-key",
+        "security/jws-issued-subset",
+        "security/verification-does-not-launder",
+        "core-classes/crypto-interop-tier",
+        "core-classes/decompression-bound"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "security/jws-issued-subset",
+      "title": "A token another party issued verifies against a key found by `kid`, never one that is tried, and its claims come back as a `tainted` shape",
+      "status": "designed",
+      "because": [
+        "0179"
+      ],
+      "divergesFromPhp": "a token with no `kid` cannot be walked against a key set, so verification costs one signature check whatever the sender wrote",
+      "seeAlso": [
+        "security/algorithm-comes-from-the-key",
+        "security/jwt-expiry-is-mandatory",
+        "security/verification-does-not-launder",
+        "security/derived-codec-qualifiers",
+        "security/jwe-compact-subset"
+      ],
+      "guardedBy": []
     },
     {
       "id": "security/csrf-is-on-by-default",
