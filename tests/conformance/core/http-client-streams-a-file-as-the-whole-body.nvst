@@ -1,0 +1,92 @@
+--TEST--
+`Core\Http\Part::file` sends a file as the whole body or as one multipart field, named by its path where the call names nothing, and read again at every call — `rule:http-server/an-outbound-request-carries-one-body`
+--FILE--
+<?nvs
+// A part is a *description of what to send*, not a copy of it: nothing between
+// the disk and the socket holds the file, which is the whole reason `body`
+// admits a `Core\Http\Part` beside its two octet arms. What a case can see of
+// that is what arrives — so the claim here is the framing, byte for byte, with
+// the per-call boundary normalised away.
+Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok"});
+Core\IO::write("upload.txt", "an upload\n");
+
+// As the whole body: the octets are the file's and the type is the call's own
+// `contentType`, which is the key that types octets and means nothing without
+// them.
+var $whole = Core\Http\Client::put("https://api.example.com/objects/1", {
+    body: Core\Http\Part::file("upload.txt"),
+    contentType: "text/plain",
+});
+
+// As one field of a multipart body, beside a field that is just a value. The
+// part names no `filename`, so it is told the path's last component; it names
+// no type, so the segment is `application/octet-stream`.
+var $field = Core\Http\Client::post("https://api.example.com/uploads", {multipart: [
+    "note" => "from the case",
+    "attachment" => Core\Http\Part::file("upload.txt"),
+]});
+
+// The same part value written to two calls, with the file rewritten between
+// them: a part holds a path and not the octets, so the second call sends what
+// is on disk when it is made rather than what was there when the part was
+// built.
+var $part = Core\Http\Part::file("upload.txt", {filename: "renamed.txt", contentType: "text/plain"});
+var $first = Core\Http\Client::put("https://api.example.com/objects/2", {body: $part});
+Core\IO::write("upload.txt", "the second upload, longer\n");
+var $second = Core\Http\Client::put("https://api.example.com/objects/2", {body: $part});
+
+// The other arm of the same class, and the same position: a `bytes` part is a
+// part whose octets the program is already holding, so it carries a type the
+// way a file part does and reads nothing.
+var $held = Core\Http\Client::put("https://api.example.com/objects/3", {
+    body: Core\Http\Part::bytes("held octets", "held.txt", {contentType: "text/plain"}),
+});
+
+foreach (Core\Test::sentHttp() as Core\Test\SentRequest $call) {
+    string $type = $call->header("content-type") ?? "-";
+    string $boundary = Core\Str::after($type, "boundary=") ?? "";
+    string $framed = $call->body() as string;
+    if ($boundary != "") {
+        $type = Core\Str::before($type, ";") ?? $type;
+        // The dashes go with it: a `--` at the start of a line is how this
+        // file's own sections are spelled, and a frozen expectation cannot
+        // carry one. The line endings are the wire's and go the same way, for
+        // the same reason.
+        $framed = Core\Str::replaceAll($framed, ["--" . $boundary => "=SEGMENT=", "\r\n" => "\n"]);
+    }
+    echo $call->url(), " ", $type, " ", Core\Bytes::length($call->body()), "\n";
+    echo $framed, "\n";
+}
+--FILE nvs.toml--
+# The grant the part is built under. `Core\Http\Part::file` asks for it where
+# the path is written, and the framing asks again where the file is opened, so
+# an ungranted path never reaches a socket.
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+https://api.example.com/objects/1 text/plain 10
+an upload
+
+https://api.example.com/uploads multipart/form-data 351
+=SEGMENT=
+Content-Disposition: form-data; name="note"
+
+from the case
+=SEGMENT=
+Content-Disposition: form-data; name="attachment"; filename="upload.txt"
+Content-Type: application/octet-stream
+
+an upload
+
+=SEGMENT=--
+
+https://api.example.com/objects/2 text/plain 10
+an upload
+
+https://api.example.com/objects/2 text/plain 26
+the second upload, longer
+
+https://api.example.com/objects/3 text/plain 11
+held octets
+

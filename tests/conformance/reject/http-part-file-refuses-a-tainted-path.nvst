@@ -1,0 +1,26 @@
+--TEST--
+`Core\Http\Part::file` refuses a tainted path where `Core\IO` refuses one, while the octets a part carries and the name it is given admit what a user sent — `rule:security/sink-predicate` and `rule:http-server/an-outbound-request-carries-one-body`
+--FILE--
+<?nvs
+// A part's `$path` is a path, so it is the sink every path in `Core\IO` is: `..`
+// and the separators direct the resolver, and a name a user chose deciding which
+// file leaves this process is the whole of that reading
+// (`rule:security/sink-predicate`).
+tainted string $chosen = "note.txt";
+
+// The refusal, at the one parameter that names a file.
+var $refused = Core\Http\Part::file($chosen);
+
+// And the acceptance on the other side of the same bound: a body position
+// admits `tainted`, because posting what a user sent is ordinary and a request
+// body is not a sink `rule:security/sink-predicate` classifies. So the octets
+// and the name a part is given take the same value the path above refused.
+var $carried = Core\Http\Part::bytes($chosen, $chosen);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:9:37
+%A
+error: aborting due to 1 error

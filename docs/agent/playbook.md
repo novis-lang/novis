@@ -4620,6 +4620,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   match`, because an `array<T>` field reads a JSON array and never an object. Write the nested claim
   as a `#[Core\Json\Derive]` class, whose own `tainted` text fields are what the call site owes under
   `rule:security/derived-codec-qualifiers` anyway. [until: gone crates/nvs-stdlib/src/json.rs:has no case for yet]
+- **A line in `--EXPECT--` that begins with `--` is read as a section header, and the case fails as
+  *"not a valid case: unknown section"* rather than as a mismatch.** The `.nvst` reader splits on
+  `--NAME--` before it compares anything, so a frozen multipart body or a diff-shaped expectation
+  ends the `--EXPECT--` block where its first `--` line starts. Normalise it away in the case, as
+  `tests/conformance/core/http-client-streams-a-file-as-the-whole-body.nvst` does with
+  `Core\Str::replaceAll`, rather than looking for an escape the format does not
+  have. [until: gone tests/conformance/core/http-client-streams-a-file-as-the-whole-body.nvst]
 
 ## Splitting a file that got too big
 
