@@ -139,6 +139,7 @@ Conventions the whole file uses:
 | [`Core\Cldr`](#core-core-cldr) |  |
 | [`Core\Password`](#core-core-password) | password hashing with no algorithm and no cost argument — the library picks the parameters, and `needsRehash` is how a stored hash learns it has fallen behind |
 | [`Core\Crypto`](#core-core-crypto) | authenticated encryption under a cipher named by a closed enum, with no mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted |
+| [`Core\Crypto\PublicKey`](#core-core-crypto-publickey) |  |
 | [`Core\SignedCookie`](#core-core-signedcookie) |  |
 | [`Core\Csrf`](#core-core-csrf) |  |
 | [`Core\Totp`](#core-core-totp) |  |
@@ -18744,6 +18745,64 @@ Derives a key from material that is already uniform with HKDF-SHA256 — a share
 | `$info` | `string` (neutral) | The context string. Two calls over one `$material` with different `$info` answer unrelated keys, which is how one secret keys two things. |
 
 **Returns** `secret bytes` — 32 octets as a `secret bytes`, the width `seal` and `open` key under, and the same for the same three arguments.
+
+<a id="core-core-crypto-publickey"></a>
+### `Core\Crypto\PublicKey`
+
+Keywords: read, write, kind
+
+| Member | Signature |
+|---|---|
+| [`Core\Crypto\PublicKey::read`](#core-core-crypto-publickey-read) | `read(bytes $encoded, Core\Crypto\KeyKind $kind, Core\Crypto\KeyFormat $format): Core\Crypto\PublicKey` |
+| [`Core\Crypto\PublicKey->write`](#core-core-crypto-publickey-write) | `write(Core\Crypto\KeyFormat $format): bytes` |
+| [`Core\Crypto\PublicKey->kind`](#core-core-crypto-publickey-kind) | `kind(): Core\Crypto\KeyKind` |
+
+<a id="core-core-crypto-publickey-read"></a>
+#### `Core\Crypto\PublicKey::read`
+
+```nvs skip
+Core\Crypto\PublicKey::read(bytes $encoded, Core\Crypto\KeyKind $kind, Core\Crypto\KeyFormat $format): Core\Crypto\PublicKey
+```
+
+Reads a public key out of `$encoded` and validates it: on the curve for `P256`, inside the roster's width for either RSA kind, and a JWK's members against the kind named. A key that does not check is refused here and nowhere later, so no member that takes one can be handed a key nobody looked at.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$encoded` | `bytes` (neutral) | The key's octets, in `$format`. |
+| `$kind` | `Core\Crypto\KeyKind` | Which key this is. It is named rather than read out of the octets, because an RSA `SubjectPublicKeyInfo` says `rsaEncryption` whichever of `RS256` and `PS256` the key is for, so the program that was handed the key is the only party that can say. |
+| `$format` | `Core\Crypto\KeyFormat` | Which of WebCrypto's three export encodings `$encoded` is in. |
+
+**Returns** `Core\Crypto\PublicKey` — The key, ready to verify a signature or to agree with, and answering `kind` with the case it was read as.
+
+**Throws** `LogicError` — The call names an encoding the kind does not have — `Raw` against either RSA kind — or the JWK carries `d`, which is a private key handed over as a public one.; `RuntimeError` — `$encoded` is not a public key of that kind in that encoding: a point off the curve, a coordinate of the wrong width, a modulus outside the roster's range, a DER body that does not parse, or a JWK naming another key type. They are one message, because the key came from whoever sent it and a reason is a reply to them.
+
+<a id="core-core-crypto-publickey-write"></a>
+#### `Core\Crypto\PublicKey->write`
+
+```nvs skip
+$publicKey->write(Core\Crypto\KeyFormat $format): bytes
+```
+
+Answers this key in `$format` — the same encodings `read` accepts, so a key crosses to a browser in whichever one the other end asked for. It is written from the key rather than from the octets it arrived in, so one key has one spelling per encoding however it was read.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$format` | `Core\Crypto\KeyFormat` | Which encoding to write. `Jwk` answers RFC 7638's required members, sorted, which is the form a thumbprint is taken over. |
+
+**Returns** `bytes` — The key's octets, a JWK being its UTF-8 JSON.
+
+**Throws** `LogicError` — `Raw` against either RSA kind: an RSA key has no encoding with nothing around it, so there is nothing for this to answer.
+
+<a id="core-core-crypto-publickey-kind"></a>
+#### `Core\Crypto\PublicKey->kind`
+
+```nvs skip
+$publicKey->kind(): Core\Crypto\KeyKind
+```
+
+Reports which of `Core\Crypto\KeyKind`'s cases this key is, which is the kind its read was given and never a second reading of the material.
+
+**Returns** `Core\Crypto\KeyKind` — The case the key was read as. For an RSA key that is `RsaPkcs1` or `RsaPss` — the scheme the key is bound to, settled at the read and not afterwards.
 
 <a id="core-core-signedcookie"></a>
 ### `Core\SignedCookie`

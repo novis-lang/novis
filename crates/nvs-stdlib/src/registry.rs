@@ -1704,6 +1704,12 @@ pub const CLASSES: &[CoreClass] = &[
     // above closed at two. [`crate::crypto`] owns the construction and why
     // there is no cipher argument.
     crate::crypto::CLASS,
+    // The public half of an asymmetric key, as the object `rule:core-api/shape-rules` R14 asks
+    // for: a key has a lifetime — it is read once, checked once, and then used
+    // — so it is a class and not a `bytes` every later member would have to
+    // re-validate. Its own doc owns why its slots are a canonical SPKI and a
+    // kind rather than the octets the program was handed.
+    crate::crypto::PUBLIC_KEY,
     // `rule:security/protocol-roster`'s first roster entry, and beside `Core\Crypto` because it
     // *is* `Core\Crypto` — [`crate::signed_cookie`] keys the same construction
     // through the same three helpers, with a key ring over it and a

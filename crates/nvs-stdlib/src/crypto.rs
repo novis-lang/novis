@@ -314,6 +314,20 @@ pub(crate) const KEY_KIND_NAME: &str = r"Core\Crypto\KeyKind";
 /// The key-format enum's name, once, for the same two places.
 pub(crate) const KEY_FORMAT_NAME: &str = r"Core\Crypto\KeyFormat";
 
+/// The public-key class's name, once, for its own refusals and for the row that
+/// answers one.
+pub(crate) const PUBLIC_KEY_NAME: &str = r"Core\Crypto\PublicKey";
+
+/// [`PUBLIC_KEY`]'s first slot: the key's `SubjectPublicKeyInfo`, whichever
+/// encoding it arrived in.
+const PUBLIC_KEY_SPKI_SLOT: usize = 0;
+
+/// [`PUBLIC_KEY`]'s second slot: [`KEY_KIND`]'s constant for the kind the read
+/// was given, which is the one thing a `SubjectPublicKeyInfo` does not carry —
+/// `rule:security/algorithm-comes-from-the-key` held for the one key type two
+/// JWS algorithms share.
+const PUBLIC_KEY_KIND_SLOT: usize = 1;
+
 /// A key's length in octets — XChaCha20-Poly1305's only key size and AES-256's,
 /// so this is the constructions' number rather than a choice of ours, and one
 /// generated key keys either of them.
@@ -399,22 +413,18 @@ pub(crate) const WRAPPED_LEN: usize = KEY_LEN + 8;
 /// raw export, what a JWK's two coordinates assemble into, and what
 /// [`VerifyingKey::P256`] reads — so a key holds these octets rather than
 /// re-deriving them per call.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const P256_POINT_LEN: usize = 1 + 2 * P256_COORDINATE_LEN;
 
 /// A P-256 coordinate's length in octets, which is the width a JWK's `x` and
 /// `y` are each held to: two members that concatenate to a point of the right
 /// length are still not a point unless each is its own field element wide.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const P256_COORDINATE_LEN: usize = 32;
 
 /// The tag an uncompressed SEC1 point carries in front of its coordinates.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 const SEC1_UNCOMPRESSED: u8 = 0x04;
 
 /// A Curve25519 public key's length in octets, X25519's and Ed25519's alike:
 /// each is one field element and neither curve has a second encoding.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const CURVE25519_POINT_LEN: usize = 32;
 
 /// The narrowest RSA modulus the roster admits, in bits.
@@ -423,13 +433,11 @@ pub(crate) const CURVE25519_POINT_LEN: usize = 32;
 /// both are checked where a key is read: below the floor is a key nobody should
 /// still be verifying with, and above the ceiling is a modulus whose
 /// verification is a CPU bill an attacker chose.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const MIN_RSA_BITS: u32 = 2048;
 
 /// The widest RSA modulus the roster admits, in bits — [`MIN_RSA_BITS`]'s other
 /// end, and the reason `ring`'s `2048_8192` verifiers are the ones this module
 /// names.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const MAX_RSA_BITS: u32 = 8192;
 
 /// The cipher a `seal` or an `open` names, and the argument that stands where
@@ -848,6 +856,152 @@ const EXPAND_KEY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `rule:core-classes/crypto-interop-tier`'s public half, as registry rows: the
+/// key a program was handed, read once and answered in whichever encoding the
+/// other end asked for.
+///
+/// # Decision: the slots are the canonical SPKI and the kind, and every member re-reads
+///
+/// A `Core` instance slot holds a value Novis can already hold and never native
+/// state ([`crate::instance`]), so the parsed key is not what this object keeps.
+/// What it keeps instead is the one encoding every kind of the roster has — the
+/// `SubjectPublicKeyInfo` [`PublicKey::write`] answers — beside the kind's
+/// [`KEY_KIND`] constant, which is the fact that DER does not carry for the one
+/// key type `RsaPkcs1` and `RsaPss` share. Every member then goes back through
+/// [`PublicKey::read`], so a key is **never less validated than the first read
+/// left it**: the DER parse and, on P-256, the on-curve check are paid again
+/// rather than trusted.
+///
+/// The rejected alternative was holding the caller's own octets and its format:
+/// it makes `write` in the arriving encoding a copy, and it makes two programs
+/// holding one key hold two different slot values, so a JWK that arrived with
+/// `ext` and `key_ops` on it would still be inside the object that read it.
+///
+/// **What it spends:** two slots per key, the wider of them the key's DER — a
+/// little over a kilobyte at [`MAX_RSA_BITS`] and under a hundred octets on
+/// every curve — plus one DER parse per member call. No member here is on a
+/// request's hot path: a program reads a peer's key and then verifies or agrees
+/// with it, and those are the calls that matter.
+pub(crate) const PUBLIC_KEY: CoreClass = CoreClass {
+    name: PUBLIC_KEY_NAME,
+    methods: &[CoreMethod {
+        name: "read",
+        names: &["encoded", "kind", "format"],
+        // `$encoded` is neutral on the `tainted` axis because the answer is an
+        // object, which carries no qualifier at all: what crosses out of a
+        // public key off the wire is a key this member has already checked is
+        // one, in the shape the roster admits, rather than the octets that
+        // carried it.
+        params: &[
+            CoreTy::Blob(Qual::Neutral),
+            CoreTy::Enum(KEY_KIND_NAME),
+            CoreTy::Enum(KEY_FORMAT_NAME),
+        ],
+        defaults: &[],
+        return_ty: CoreTy::Instance(PUBLIC_KEY_NAME),
+        symbol: "nvs_core_crypto_public_key_read",
+        doc: Some(&PUBLIC_KEY_READ_DOC),
+    }],
+    instance: &[
+        CoreMethod {
+            name: "write",
+            names: &["format"],
+            params: &[CoreTy::Enum(KEY_FORMAT_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_crypto_public_key_write",
+            doc: Some(&PUBLIC_KEY_WRITE_DOC),
+        },
+        CoreMethod {
+            name: "kind",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Enum(KEY_KIND_NAME),
+            symbol: "nvs_core_crypto_public_key_kind",
+            doc: Some(&PUBLIC_KEY_KIND_DOC),
+        },
+    ],
+    slots: &["spki", "kind"],
+    constants: &[],
+};
+
+/// `Core\Crypto\PublicKey::read`'s reference card — `rule:core-api/reference-card`.
+const PUBLIC_KEY_READ_DOC: MethodDoc = MethodDoc {
+    short: "Reads a public key out of `$encoded` and validates it: on the curve for `P256`, \
+            inside the roster's width for either RSA kind, and a JWK's members against the kind \
+            named. A key that does not check is refused here and nowhere later, so no member \
+            that takes one can be handed a key nobody looked at.",
+    params: &[
+        ParamDoc {
+            name: "encoded",
+            desc: "The key's octets, in `$format`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "kind",
+            desc: "Which key this is. It is named rather than read out of the octets, because \
+                   an RSA `SubjectPublicKeyInfo` says `rsaEncryption` whichever of `RS256` and \
+                   `PS256` the key is for, so the program that was handed the key is the only \
+                   party that can say.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "format",
+            desc: "Which of WebCrypto's three export encodings `$encoded` is in.",
+            shape: &[],
+        },
+    ],
+    ret: "The key, ready to verify a signature or to agree with, and answering `kind` with the \
+          case it was read as.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The call names an encoding the kind does not have — `Raw` against either RSA \
+                   kind — or the JWK carries `d`, which is a private key handed over as a \
+                   public one.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$encoded` is not a public key of that kind in that encoding: a point off \
+                   the curve, a coordinate of the wrong width, a modulus outside the roster's \
+                   range, a DER body that does not parse, or a JWK naming another key type. \
+                   They are one message, because the key came from whoever sent it and a \
+                   reason is a reply to them.",
+        },
+    ],
+};
+
+/// `Core\Crypto\PublicKey::write`'s reference card — `rule:core-api/reference-card`.
+const PUBLIC_KEY_WRITE_DOC: MethodDoc = MethodDoc {
+    short: "Answers this key in `$format` — the same encodings `read` accepts, so a key crosses \
+            to a browser in whichever one the other end asked for. It is written from the key \
+            rather than from the octets it arrived in, so one key has one spelling per \
+            encoding however it was read.",
+    params: &[ParamDoc {
+        name: "format",
+        desc: "Which encoding to write. `Jwk` answers RFC 7638's required members, sorted, \
+               which is the form a thumbprint is taken over.",
+        shape: &[],
+    }],
+    ret: "The key's octets, a JWK being its UTF-8 JSON.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`Raw` against either RSA kind: an RSA key has no encoding with nothing around \
+               it, so there is nothing for this to answer.",
+    }],
+};
+
+/// `Core\Crypto\PublicKey::kind`'s reference card — `rule:core-api/reference-card`.
+const PUBLIC_KEY_KIND_DOC: MethodDoc = MethodDoc {
+    short: "Reports which of `Core\\Crypto\\KeyKind`'s cases this key is, which is the kind its \
+            read was given and never a second reading of the material.",
+    params: &[],
+    ret: "The case the key was read as. For an RSA key that is `RsaPkcs1` or `RsaPss` — the \
+          scheme the key is bound to, settled at the read and not afterwards.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -857,6 +1011,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_crypto_open" => (nvs_core_crypto_open as *const ()).cast(),
         "nvs_core_crypto_derive_key" => (nvs_core_crypto_derive_key as *const ()).cast(),
         "nvs_core_crypto_expand_key" => (nvs_core_crypto_expand_key as *const ()).cast(),
+        "nvs_core_crypto_public_key_read" => (nvs_core_crypto_public_key_read as *const ()).cast(),
+        "nvs_core_crypto_public_key_write" => {
+            (nvs_core_crypto_public_key_write as *const ()).cast()
+        }
+        "nvs_core_crypto_public_key_kind" => (nvs_core_crypto_public_key_kind as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1223,7 +1382,6 @@ pub(crate) fn agree_x25519(
 ///
 /// Both the compressed and the uncompressed encoding are read: a browser
 /// exports the uncompressed form, and a JWK's two coordinates assemble into it.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn read_p256_point(encoded: &[u8]) -> Option<P256PublicKey> {
     P256PublicKey::from_sec1_bytes(encoded).ok()
 }
@@ -1253,7 +1411,6 @@ pub(crate) fn agree_p256(mine: &[u8], theirs: &P256PublicKey) -> Option<[u8; SHA
 /// collapse into one: this is what a program can *name*, that one is what a
 /// signer can be *built from*, and keeping them apart is what stops a kind that
 /// signs nothing from reaching a signer at all.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum KeyKind {
     /// [`KEY_KIND`]'s `P256`: NIST P-256, for agreement and for ECDSA.
@@ -1279,7 +1436,6 @@ impl KeyKind {
     /// argument of a closed enum type is one of its cases — so the member above
     /// reports it as a [`Fault::fatal`], exactly as [`keyed`] reports a cipher
     /// slot holding something else.
-    #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
     pub(crate) fn from_tag(tag: i64) -> Option<Self> {
         Some(match tag {
             0 => Self::P256,
@@ -1291,8 +1447,19 @@ impl KeyKind {
         })
     }
 
+    /// This case's [`KEY_KIND`] constant — [`Self::from_tag`]'s inverse, and
+    /// what a member writes into a slot or answers `kind()` with.
+    pub(crate) fn tag(self) -> i64 {
+        match self {
+            Self::P256 => 0,
+            Self::X25519 => 1,
+            Self::Ed25519 => 2,
+            Self::RsaPkcs1 => 3,
+            Self::RsaPss => 4,
+        }
+    }
+
     /// The `kty` a JWK of this kind carries.
-    #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
     fn key_type(self) -> &'static str {
         match self {
             Self::P256 => "EC",
@@ -1304,7 +1471,6 @@ impl KeyKind {
     /// The `crv` a JWK of this kind carries, and `None` for the kinds whose JWK
     /// names no curve — which is both RSA cases, one key type wearing two
     /// schemes that a document cannot tell apart.
-    #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
     fn curve(self) -> Option<&'static str> {
         Some(match self {
             Self::P256 => "P-256",
@@ -1316,7 +1482,6 @@ impl KeyKind {
 }
 
 /// Which encoding a public key crosses in, as the Rust side of [`KEY_FORMAT`].
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum KeyFormat {
     /// [`KEY_FORMAT`]'s `Raw`: the key material with nothing around it.
@@ -1330,7 +1495,6 @@ pub(crate) enum KeyFormat {
 impl KeyFormat {
     /// The case an argument slot's integer names, read the way
     /// [`KeyKind::from_tag`] reads [`KEY_KIND`]'s.
-    #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
     pub(crate) fn from_tag(tag: i64) -> Option<Self> {
         Some(match tag {
             0 => Self::Raw,
@@ -1354,7 +1518,6 @@ impl KeyFormat {
 ///
 /// [`Bug`]: KeyRefusal::Bug
 /// [`Octets`]: KeyRefusal::Octets
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 #[derive(Debug)]
 pub(crate) enum KeyRefusal {
     /// The call is wrong however sound the octets are: an encoding the kind
@@ -1385,7 +1548,6 @@ pub(crate) enum KeyRefusal {
 /// JWK writes them — big-endian, no leading zero — so a key read from a DER
 /// `INTEGER` and the same key read from a JWK are the same key, down to the
 /// thumbprint.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) enum PublicKey {
     /// NIST P-256.
     P256 {
@@ -1424,7 +1586,6 @@ pub(crate) enum PublicKey {
     },
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 impl PublicKey {
     /// The key `encoded` is, read as `kind` out of `format`, or why it is not
     /// one.
@@ -1466,6 +1627,15 @@ impl PublicKey {
 
     /// Which of [`KEY_KIND`]'s cases this key is, which is the kind its read
     /// was given and never a second reading of the material.
+    ///
+    /// `Core\Crypto\PublicKey::kind` does not reach this: the kind is one of
+    /// [`PUBLIC_KEY`]'s slots, so the member answers it without a parse. What
+    /// reaches it is a member holding a key it has already read — a signature
+    /// check picking its scheme, an agreement refusing two different curves.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "a later stage registers the member")
+    )]
     pub(crate) fn kind(&self) -> KeyKind {
         match self {
             Self::P256 { .. } => KeyKind::P256,
@@ -1481,6 +1651,10 @@ impl PublicKey {
     /// It is what a `kid` is when nobody assigned one, and it is the same
     /// string whichever encoding the key arrived in, because it is taken over
     /// the key's members rather than over the octets that carried them.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "a later stage registers the member")
+    )]
     pub(crate) fn thumbprint(&self) -> String {
         let mut digest = Sha256::new();
         digest.update(self.jwk().as_bytes());
@@ -1494,6 +1668,10 @@ impl PublicKey {
     /// cannot be asked to run an algorithm the key is not bound to:
     /// `rule:security/algorithm-comes-from-the-key` crosses from the read to
     /// the check as a type rather than as an argument.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "a later stage registers the member")
+    )]
     pub(crate) fn verifying(&self) -> Option<VerifyingKey<'_>> {
         Some(match self {
             Self::P256 { uncompressed, .. } => VerifyingKey::P256 {
@@ -1629,6 +1807,10 @@ impl PublicKey {
     /// checked: `rule:core-classes/crypto-interop-tier`'s *validated where it
     /// is read* is what lets [`agree_p256`] take a point and no length, and the
     /// invalid-curve attack is closed by there being no other way to get one.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "a later stage registers the member")
+    )]
     pub(crate) fn p256_point(&self) -> Option<&P256PublicKey> {
         match self {
             Self::P256 { point, .. } => Some(point),
@@ -1764,7 +1946,6 @@ impl PublicKey {
 /// one: [`UintRef`] is the canonical form — leading zeros stripped on the way
 /// in, the sign octet put back on the way out — so the stored components are a
 /// JWK's members whichever encoding they were read from.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 struct RsaComponents<'a> {
     /// The modulus, `n`.
     modulus: UintRef<'a>,
@@ -1802,35 +1983,30 @@ impl<'a> Sequence<'a> for RsaComponents<'a> {}
 /// identifier an RSA `SubjectPublicKeyInfo` carries, whatever the key signs
 /// with, which is why a kind is an argument to a read rather than something
 /// read out of the file.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 const RSA_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.1");
 
 /// A P-256 key's whole `SubjectPublicKeyInfo` up to its point: the outer
 /// `SEQUENCE`, `id-ecPublicKey` with `prime256v1` as its parameter, and the
 /// `BIT STRING` header. Every octet of it is fixed because the point's width
 /// is, so writing one is a prefix and never an encoder's decision.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 const P256_SPKI_PREFIX: [u8; 26] = [
     0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a,
     0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00,
 ];
 
 /// X25519's, which RFC 8410 fixes at OID 1.3.101.110 with no parameters.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 const X25519_SPKI_PREFIX: [u8; 12] = [
     0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x03, 0x21, 0x00,
 ];
 
 /// Ed25519's, which is X25519's with the other of RFC 8410's two OIDs —
 /// 1.3.101.112 — and the one octet of difference between them.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 const ED25519_SPKI_PREFIX: [u8; 12] = [
     0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
 ];
 
 /// `prefix` then `key`, which is the whole of writing a `SubjectPublicKeyInfo`
 /// whose every other octet is constant.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 fn spki_over(prefix: &[u8], key: &[u8]) -> Vec<u8> {
     let mut der = Vec::with_capacity(prefix.len() + key.len());
     der.extend_from_slice(prefix);
@@ -1840,21 +2016,18 @@ fn spki_over(prefix: &[u8], key: &[u8]) -> Vec<u8> {
 
 /// The key inside a `SubjectPublicKeyInfo` that is `prefix` and then a key, or
 /// a refusal when those octets are not that wrapper.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 fn spki_body<'a>(encoded: &'a [u8], prefix: &[u8]) -> Result<&'a [u8], KeyRefusal> {
     encoded.strip_prefix(prefix).ok_or(KeyRefusal::Octets)
 }
 
 /// The 32 octets X25519 and Ed25519 both carry, or a refusal for any other
 /// width.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 fn curve25519_point(encoded: &[u8]) -> Result<[u8; CURVE25519_POINT_LEN], KeyRefusal> {
     <[u8; CURVE25519_POINT_LEN]>::try_from(encoded).map_err(|_| KeyRefusal::Octets)
 }
 
 /// `octets` without the leading zeros a DER `INTEGER` carries and a JWK member
 /// does not, so one number has one stored form here.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 fn trimmed(octets: &[u8]) -> &[u8] {
     let leading = octets.iter().take_while(|octet| **octet == 0).count();
     &octets[leading..]
@@ -2333,6 +2506,188 @@ nvs_runtime::nvs_helper! {
 
         let key = expand_key(material, salt, info.as_bytes());
         Ok(Value::bytes(NvsStr::new(&key)))
+    }
+}
+
+/// The [`Fault`] a [`KeyRefusal`] becomes at the member that took the octets.
+///
+/// `rule:core-classes/crypto-interop-tier`'s split, written once: octets that
+/// are not a key are a verdict on whoever sent them, and a call naming an
+/// encoding its kind does not have is a bug in the program that wrote the call.
+/// [`KeyRefusal`]'s own doc owns why the codec cannot draw that line itself.
+fn key_refused(refusal: &KeyRefusal) -> Fault {
+    match refusal {
+        KeyRefusal::Bug => Fault::thrown_as(
+            ThrownClass::Logic,
+            "Core\\Crypto\\PublicKey::read(): this call names an encoding the kind does not \
+             have, or hands a private key over as a public one — `Raw` is not a form either \
+             RSA kind has, and a JWK carrying `d` is the private half."
+                .to_owned(),
+        ),
+        KeyRefusal::Octets => Fault::thrown(
+            "Core\\Crypto\\PublicKey::read(): these octets are not a public key of the kind \
+             and encoding this call named."
+                .to_owned(),
+        ),
+    }
+}
+
+/// The `bytes` in slot `index`, named for this class rather than for [`CLASS`].
+///
+/// # Errors
+///
+/// A [`Fault::fatal`], on [`bytes_of`]'s reading: the slot's type is written in
+/// the row above, so a value of another tag is a compiled-code bug.
+fn key_octets<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8], Fault> {
+    args[index].as_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{PUBLIC_KEY_NAME}::{member} expected a `bytes`, got tag {}",
+            args[index].tag_byte()
+        ))
+    })
+}
+
+/// The [`KEY_KIND`] case in slot `index`, read the way [`keyed`] reads a cipher.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for [`key_octets`]'s reason: an argument of a closed enum
+/// type is one of its cases before any of this runs.
+fn key_kind_of(args: &[Value], index: usize, member: &str) -> Result<KeyKind, Fault> {
+    args[index]
+        .as_int()
+        .and_then(KeyKind::from_tag)
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PUBLIC_KEY_NAME}::{member} expected a `{KEY_KIND_NAME}` case, got tag {}",
+                args[index].tag_byte()
+            ))
+        })
+}
+
+/// The [`KEY_FORMAT`] case in slot `index`, for [`key_kind_of`]'s reason.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`], as above.
+fn key_format_of(args: &[Value], index: usize, member: &str) -> Result<KeyFormat, Fault> {
+    args[index]
+        .as_int()
+        .and_then(KeyFormat::from_tag)
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PUBLIC_KEY_NAME}::{member} expected a `{KEY_FORMAT_NAME}` case, got tag {}",
+                args[index].tag_byte()
+            ))
+        })
+}
+
+/// The key the receiver in `args[0]` holds, read back out of its slots.
+///
+/// The re-read is [`PUBLIC_KEY`]'s decision rather than this reader's
+/// convenience, and that doc owns it: a slot holds a Novis value, so the parsed
+/// key is not what the object keeps, and going back through [`PublicKey::read`]
+/// is what leaves every later member's key exactly as validated as the first
+/// read left it.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] on a receiver or a slot holding something else, which
+/// compiled code cannot produce: both slots are written by
+/// [`nvs_core_crypto_public_key_read`] and by nothing else.
+fn key_of(args: &[Value], member: &str) -> Result<PublicKey, Fault> {
+    let receiver = crate::instance::receiver(args[0], &PUBLIC_KEY, member)?;
+    let held = crate::instance::slot(receiver, PUBLIC_KEY_SPKI_SLOT);
+    let encoded = held.as_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{PUBLIC_KEY_NAME}::{member} expected a `bytes` in its `{}` slot",
+            PUBLIC_KEY.slots[PUBLIC_KEY_SPKI_SLOT]
+        ))
+    })?;
+    let kind = crate::instance::slot(receiver, PUBLIC_KEY_KIND_SLOT)
+        .as_int()
+        .and_then(KeyKind::from_tag)
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PUBLIC_KEY_NAME}::{member} expected a `{KEY_KIND_NAME}` case in its `{}` slot",
+                PUBLIC_KEY.slots[PUBLIC_KEY_KIND_SLOT]
+            ))
+        })?;
+    // Unreachable from source: the slot holds what the read above wrote, after
+    // a parse that had already succeeded over the same kind and encoding.
+    PublicKey::read(encoded, kind, KeyFormat::Spki).map_err(|_| {
+        Fault::fatal(format!(
+            "{PUBLIC_KEY_NAME}::{member} expected a key in its `{}` slot",
+            PUBLIC_KEY.slots[PUBLIC_KEY_SPKI_SLOT]
+        ))
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Crypto\PublicKey::read(bytes $encoded, Crypto\KeyKind $kind, Crypto\KeyFormat $format): Crypto\PublicKey`
+    /// — the one door onto [`PublicKey::read`].
+    ///
+    /// What the object keeps is the canonical `SubjectPublicKeyInfo` and not the
+    /// octets it was handed, so a key read from a JWK and the same key read from
+    /// its DER are one value down to the slot. [`PUBLIC_KEY`]'s own doc owns the
+    /// layout and what it spends.
+    fn nvs_core_crypto_public_key_read(_ctx, args: [3]) {
+        let encoded = key_octets(args, 0, "read")?;
+        let kind = key_kind_of(args, 1, "read")?;
+        let format = key_format_of(args, 2, "read")?;
+        let key = PublicKey::read(encoded, kind, format).map_err(|refusal| key_refused(&refusal))?;
+        // Unreachable from source: writing a `SubjectPublicKeyInfo` refuses only
+        // where the DER encoder does, over a modulus the read above has already
+        // held inside the roster's range, and the curve kinds' branches are a
+        // constant prefix in front of a fixed-width key.
+        let spki = key.write(KeyFormat::Spki).map_err(|_| {
+            Fault::fatal(format!(
+                "{PUBLIC_KEY_NAME}::read could not write the key it had just read"
+            ))
+        })?;
+        nvs_runtime::affordable(Some(spki.len()), "Core\\Crypto\\PublicKey::read")?;
+        Ok(crate::instance::build(
+            &PUBLIC_KEY,
+            [Value::bytes(NvsStr::new(&spki)), Value::int(kind.tag())],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$publicKey->write(Crypto\KeyFormat $format): bytes` — this key in any of
+    /// the encodings `read` accepts.
+    ///
+    /// The answer is written from the key rather than copied out of the octets
+    /// that carried it, which is what makes a JWK export the minimal one RFC
+    /// 7638 defines whatever `ext` and `key_ops` the browser had put in the
+    /// document this key was read from.
+    fn nvs_core_crypto_public_key_write(_ctx, args: [2]) {
+        let key = key_of(args, "write")?;
+        let format = key_format_of(args, 1, "write")?;
+        let written = key.write(format).map_err(|_| {
+            Fault::thrown_as(
+                ThrownClass::Logic,
+                "Core\\Crypto\\PublicKey::write(): an RSA key has no `Raw` form, so there is \
+                 nothing to write — `Spki` and `Jwk` are the encodings it has."
+                    .to_owned(),
+            )
+        })?;
+        nvs_runtime::affordable(Some(written.len()), "Core\\Crypto\\PublicKey::write")?;
+        Ok(Value::bytes(NvsStr::new(&written)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$publicKey->kind(): Crypto\KeyKind` — the case this key was read as.
+    ///
+    /// The one member here that does not re-read the key, because the kind is a
+    /// slot rather than something the material says: an RSA
+    /// `SubjectPublicKeyInfo` names `rsaEncryption` under either scheme, and
+    /// `rule:security/algorithm-comes-from-the-key` is why the answer is the
+    /// program's own word taken at the read.
+    fn nvs_core_crypto_public_key_kind(_ctx, args: [1]) {
+        let held = crate::instance::read_slot(args, &PUBLIC_KEY, PUBLIC_KEY_KIND_SLOT, "kind")?;
+        Ok(held)
     }
 }
 
@@ -3347,9 +3702,10 @@ mod tests {
     #[test]
     fn the_key_enums_cover_exactly_the_registry_enums_cases() {
         for (name, tag) in KEY_KIND.cases {
-            assert!(
-                KeyKind::from_tag(*tag).is_some(),
-                "`{name}` is a case no Rust kind answers"
+            assert_eq!(
+                KeyKind::from_tag(*tag).map(KeyKind::tag),
+                Some(*tag),
+                "`{name}` is a case no Rust kind answers, or answers under another constant"
             );
         }
         for (name, tag) in KEY_FORMAT.cases {
