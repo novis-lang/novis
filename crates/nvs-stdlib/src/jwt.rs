@@ -59,11 +59,12 @@
 //!
 //! § 4's second bullet makes a token without `exp`, or past it, fail
 //! verification with no flag to disable the check. This class holds it twice.
-//! [`nvs_core_jwt_verify`] refuses a payload carrying no `exp`, and
-//! [`nvs_core_jwt_sign`] takes the lifetime as a **positional `Duration`** and
-//! writes `exp` itself — so a caller cannot forget it, cannot pass it as an
-//! option they leave out, and cannot supply their own: `exp` and `iat` in
-//! `$claims` are a `LogicError` naming the parameter that owns them. A token
+//! [`nvs_core_jwt_verify`] refuses a payload carrying no `exp`, and every
+//! member that signs takes the lifetime as a **positional `Duration`** and
+//! writes `exp` itself through [`registered_pair`] — so a caller cannot forget
+//! it, cannot pass it as an option they leave out, and cannot supply their own:
+//! `exp` and `iat` among the claims are a `LogicError` naming the parameter
+//! that owns them, whichever shape those claims arrived in. A token
 //! this class signs is one this class verifies, which is not true of a design
 //! where the caller assembles the registered claims.
 //!
@@ -122,12 +123,25 @@
 //! `Core\Json::decodeAs<T>` already stands on and which a reader of a
 //! third-party token is written onto rather than this member.
 //!
-//! [`nvs_core_jwt_sign`] takes `array<string>` for the same reason from the
-//! other side: the two halves agree about what a claim is, so a token this
-//! class signs under a shared key never trips the refusal above. Under a key
-//! pair the token is for somebody else's verifier, and what that verifier
-//! accepts is not this module's to promise — the claims are still
-//! `array<string>`, so the agreement holds in the one direction it is about.
+//! **The two members that sign are split on exactly that promise.**
+//! [`nvs_core_jwt_sign`] takes `array<string>` for the reason above read from
+//! the other side: both halves of the shared-key round trip agree about what a
+//! claim is, so a token this class signs under a shared key never trips the
+//! refusal above. [`nvs_core_jwt_sign_object`] takes an `object` and a key
+//! pair, which is a token for somebody else's verifier — its claims are
+//! written as `Core\Json::encode` writes them, and what that party accepts is
+//! not this module's to promise. The split is what keeps the agreement in the
+//! one direction it is about: a structured payload cannot be signed under a
+//! shared key at all, so the member that reads a token back still only ever
+//! meets the text claims `sign` wrote.
+//!
+//! `$claims` there is spelled `object` rather than `mixed`, so a value that is
+//! not structured is refused where the call is written and the body owes no
+//! sentence about one — [`crate::registry::CoreTy::Object`] is the home of
+//! that choice. A claims shape built out of a request reaches it carrying the
+//! per-field qualifiers `rule:security/tainted-qualifier` distributed onto it,
+//! which is why a parameter that is neither `string` nor `bytes` needs no
+//! classification of its own.
 //!
 //! # A key set is an admission, and the two ways a document fails are not one
 //!
@@ -283,7 +297,9 @@ const SIGN_OPTIONS: &[CoreOption] = &[
 /// One verified claim, as `rule:security/verification-does-not-launder` requires it back.
 const CLAIM: CoreTy = CoreTy::TaintedStr;
 
-/// `rule:security/protocol-roster`'s fourth roster entry, as two rows.
+/// `rule:security/protocol-roster`'s fourth roster entry: the two ways of
+/// signing a token, and the one way of reading back a token this program
+/// signed under a shared key.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -303,6 +319,27 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Str,
             symbol: "nvs_core_jwt_sign",
             doc: Some(&SIGN_DOC),
+        },
+        CoreMethod {
+            name: "signObject",
+            names: &["claims", "lifetime", "key"],
+            // `object` rather than `mixed`, which is the whole of the
+            // difference between this member and a `sign` widened by a union:
+            // a value that is not structured is refused where the call is
+            // written. The claims are neutral for the row above's reason, and
+            // the shape they arrive in carries its own fields' qualifiers,
+            // which is `rule:security/tainted-qualifier`'s distribution rather
+            // than anything this row says.
+            params: &[
+                CoreTy::Object,
+                CoreTy::Instance(crate::time::DURATION_NAME),
+                CoreTy::Instance(crypto::KEY_PAIR_NAME),
+                CoreTy::Options(SIGN_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_jwt_sign_object",
+            doc: Some(&SIGN_OBJECT_DOC),
         },
         CoreMethod {
             name: "verify",
@@ -379,6 +416,69 @@ const SIGN_DOC: MethodDoc = MethodDoc {
                    nothing; `{embedKey: true}` was written under a shared secret; `$lifetime` \
                    is zero or negative; or `$claims` names `exp` or `iat`, which this member \
                    writes, or carries a positional entry, since a claim has a name.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This process cannot spare a buffer the size of the token.",
+        },
+    ],
+};
+
+/// `Core\Jwt::signObject`'s reference card — `rule:core-api/reference-card`.
+const SIGN_OBJECT_DOC: MethodDoc = MethodDoc {
+    short: "Signs a structured `$claims` into a JWT that expires `$lifetime` from now, under a \
+            key pair and the one algorithm that pair has. The claims are written as \
+            `Core\\Json::encode` writes them, with `iat` and `exp` appended.",
+    params: &[
+        ParamDoc {
+            name: "claims",
+            desc: "A shape or a class carrying `#[Core\\Json\\Derive]`, encoded as the JSON \
+                   object it is. `exp` and `iat` are written by this member and are refused \
+                   among its fields; a value with no JSON encoding is a bug in the program.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "lifetime",
+            desc: "How long the token stays valid — `15m`, `1h`, `7d`. It must be positive: a \
+                   token that has already expired is a program bug, not a token.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "key",
+            desc: "A `Core\\Crypto\\KeyPair`, which signs ES256, EdDSA, RS256 or PS256 by its \
+                   kind. A shared secret is not accepted here: a structured payload is a token \
+                   issued to another party, and `Core\\Jwt::verify` reads only the text claims \
+                   `sign` writes.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "kid",
+            desc: "The key's name in the header, for a recipient holding several. Omitted by \
+                   default, and written verbatim — it names a key and selects nothing.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "typ",
+            desc: "The header's `typ`, `JWT` when omitted. RFC 9068's access tokens spell it \
+                   `at+jwt`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "embedKey",
+            desc: "Writes the pair's public half into the header as RFC 7638's minimal JWK, \
+                   which is what a DPoP proof carries. Off by default.",
+            shape: &[],
+        },
+    ],
+    ret: "The three base64url parts and their two dots, exactly as `sign` answers — the payload \
+          is the claims object with `iat` and `exp` as its last two members.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$claims` carries a field named `exp` or `iat`, which this member writes; or \
+                   it has no JSON encoding at all — a class that carries no \
+                   `#[Core\\Json\\Derive]`, a `secret` value, a `bytes`, or a cycle. `$key` is \
+                   an `X25519` pair, which signs nothing, or `$lifetime` is zero or negative.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -515,6 +615,7 @@ const KEY_SET_READ_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_jwt_sign" => (nvs_core_jwt_sign as *const ()).cast(),
+        "nvs_core_jwt_sign_object" => (nvs_core_jwt_sign_object as *const ()).cast(),
         "nvs_core_jwt_verify" => (nvs_core_jwt_verify as *const ()).cast(),
         "nvs_core_jwt_key_set_read" => (nvs_core_jwt_key_set_read as *const ()).cast(),
         _ => return None,
@@ -666,25 +767,43 @@ fn signer_at(args: &[Value], slot: usize) -> Result<Signer<'_>, Fault> {
         return Ok(Signer::Shared(key_at(args, slot, "sign")?));
     }
 
-    let (held, kind) = crypto::stored_key(args, slot, &crypto::KEY_PAIR, "sign")?;
+    let (pair, alg) = pair_at(args, slot, "sign")?;
+    Ok(Signer::Pair(pair, alg))
+}
+
+/// The pair at `slot` and the one algorithm its kind signs — `sign`'s
+/// asymmetric arm, and the whole of `signObject`'s key.
+///
+/// One function so the two members cannot come to disagree about which kinds
+/// sign: `rule:security/algorithm-comes-from-the-key` is held by [`pair_alg`]
+/// being the only thing either one asks.
+///
+/// # Errors
+///
+/// A `LogicError` for an `X25519` pair, which signs nothing, and a
+/// [`Fault::fatal`] for octets that no longer parse — unreachable from source,
+/// since they are the ones `Core\Crypto\KeyPair::read` already parsed under
+/// this very kind.
+fn pair_at(args: &[Value], slot: usize, member: &str) -> Result<(PrivateKey, &'static str), Fault> {
+    let (held, kind) = crypto::stored_key(args, slot, &crypto::KEY_PAIR, member)?;
     let alg = pair_alg(kind).ok_or_else(|| {
         Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "{NAME}::sign(): an `X25519` pair signs nothing — it is a key for \
+                "{NAME}::{member}(): an `X25519` pair signs nothing — it is a key for \
                  Core\\Crypto::agree alone. A `P256` pair signs ES256, an `Ed25519` pair EdDSA, \
                  and the two RSA kinds RS256 and PS256."
             ),
         )
     })?;
-    let der = crypto::stored_octets(&held, &crypto::KEY_PAIR, "sign")?;
+    let der = crypto::stored_octets(&held, &crypto::KEY_PAIR, member)?;
     let pair = PrivateKey::read(der, kind).ok_or_else(|| {
         Fault::fatal(format!(
-            "{NAME}::sign held a `{}` that is no longer a private key of its own kind",
+            "{NAME}::{member} held a `{}` that is no longer a private key of its own kind",
             crypto::KEY_PAIR_NAME
         ))
     })?;
-    Ok(Signer::Pair(pair, alg))
+    Ok((pair, alg))
 }
 
 /// The header `jwk` a `{embedKey: true}` call writes: the pair's public half as
@@ -695,10 +814,10 @@ fn signer_at(args: &[Value], slot: usize) -> Result<Signer<'_>, Fault> {
 /// A [`Fault::fatal`] either way. Every kind that reaches this has a public half
 /// and a JWK spelling for it, so both refusals are about this program's own
 /// octets rather than about anything a call site wrote.
-fn embedded_jwk(pair: &PrivateKey) -> Result<String, Fault> {
+fn embedded_jwk(pair: &PrivateKey, member: &str) -> Result<String, Fault> {
     let broken = || {
         Fault::fatal(format!(
-            "{NAME}::sign held a pair with no public half to embed"
+            "{NAME}::{member} held a pair with no public half to embed"
         ))
     };
     let public = pair.public().ok_or_else(broken)?;
@@ -769,6 +888,137 @@ fn payload_of(claims: &NvsArray, now: i64, exp: i64) -> Result<String, Fault> {
     Ok(payload)
 }
 
+/// One pair's signature over a signing input, base64url with no padding.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] twice over, and each is the machine rather than the
+/// program: `signing` answers `None` only for the kind [`pair_at`] already
+/// refused, and `sign` only where `ring`'s generator has failed under the two
+/// randomized algorithms. Both are unreachable from source.
+fn pair_signature(pair: PrivateKey, input: &[u8], member: &str) -> Result<String, Fault> {
+    let key = pair.signing().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} held a pair of a kind that signs nothing"
+        ))
+    })?;
+    let written = crypto::sign(&key, input).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} could not draw the randomness a signature needs"
+        ))
+    })?;
+    Ok(URL_SAFE_NO_PAD.encode(written))
+}
+
+/// The two claims every signing member writes: the second it is issued in, and
+/// that second plus `$lifetime`.
+///
+/// Whole seconds, and the truncation is deliberate: `exp` is a second count by
+/// RFC 7519 § 4.1.4, so a `500ms` lifetime is not a token that lives half a
+/// second — it is a token that has already expired, and it is refused as one
+/// rather than silently rounded up.
+///
+/// One function so the members that sign cannot come to disagree about what a
+/// lifetime buys, which is the bound
+/// `rule:security/jwt-expiry-is-mandatory` is held by.
+///
+/// # Errors
+///
+/// A `LogicError` for a lifetime under one whole second and for one that runs
+/// past the end of the representable range.
+fn registered_pair(
+    ctx: &nvs_runtime::Ctx,
+    lifetime: i64,
+    member: &str,
+) -> Result<(i64, i64), Fault> {
+    let seconds = lifetime / 1_000_000_000;
+    if seconds <= 0 {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{NAME}::{member}(): $lifetime is {lifetime}ns, and a token has to be valid for \
+                 at least one whole second — `exp` counts seconds (RFC 7519 § 4.1.4), so \
+                 anything shorter signs a token that is already past it."
+            ),
+        ));
+    }
+
+    let now = now_seconds(ctx, member)?;
+    let exp = now.checked_add(seconds).ok_or_else(|| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{NAME}::{member}(): $lifetime of {seconds}s runs past the end of the \
+                 representable range from now."
+            ),
+        )
+    })?;
+    Ok((now, exp))
+}
+
+/// The payload `signObject` signs: the claims object as `Core\Json::encode`
+/// writes it, then the two registered claims this class owns.
+///
+/// [`payload_of`]'s twin, and the same assembly by text for a related reason:
+/// what is signed is the encoder's own output, so the members keep the order
+/// that encoder chose — a deriving class's declaration order, a shape's sorted
+/// field list — rather than whatever collation a parsed copy would be written
+/// back out in. The parse here reads the field *names* alone, through
+/// [`serde::de::IgnoredAny`], because the one question left is whether the
+/// object already carries a claim this member writes.
+///
+/// # Errors
+///
+/// A `LogicError` for a claims object with no JSON encoding and for one
+/// carrying `iat` or `exp`, and a [`Fault::fatal`] for encoder output that is
+/// not a JSON object.
+fn object_payload_of(claims: Value, now: i64, exp: i64) -> Result<String, Fault> {
+    let written =
+        serde_json::to_string(&crate::json::Encodable::document(claims)).map_err(|why| {
+            Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{NAME}::signObject(): $claims is written as `Core\\Json::encode` writes it, \
+                     and {why}."
+                ),
+            )
+        })?;
+    // Unreachable from source: `object` admits a class instance and a shape and
+    // nothing else, and `Core\Json`'s encoder writes each of those as a JSON
+    // object or refuses it above.
+    let named: std::collections::BTreeMap<String, serde::de::IgnoredAny> =
+        serde_json::from_str(&written).map_err(|_| {
+            Fault::fatal(format!(
+                "{NAME}::signObject encoded $claims as a document that is not a JSON object"
+            ))
+        })?;
+    for registered in ["iat", "exp"] {
+        if named.contains_key(registered) {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{NAME}::signObject(): $claims carries a field named `{registered}`, which \
+                     this member writes from $lifetime — the clock is not the caller's to set, \
+                     so that a token this member produces always carries an expiry it will \
+                     accept."
+                ),
+            ));
+        }
+    }
+
+    let registered = format!(r#""iat":{now},"exp":{exp}}}"#);
+    let mut payload = String::with_capacity(written.len() + registered.len() + 1);
+    // The encoder's text without its closing brace, which the registered pair
+    // carries instead. An object that wrote no member of its own needs no comma
+    // before them, and `named` is what says whether it wrote one.
+    payload.push_str(&written[..written.len() - 1]);
+    if !named.is_empty() {
+        payload.push(',');
+    }
+    payload.push_str(&registered);
+    Ok(payload)
+}
+
 /// One JSON value as the text a claim comes back as.
 ///
 /// `None` for the three shapes that have no honest text — the module doc's *a
@@ -831,7 +1081,7 @@ nvs_runtime::nvs_helper! {
             }
             Signer::Pair(pair, alg) => {
                 let jwk = if embed {
-                    Some(embedded_jwk(pair)?)
+                    Some(embedded_jwk(pair, "sign")?)
                 } else {
                     None
                 };
@@ -839,34 +1089,7 @@ nvs_runtime::nvs_helper! {
             }
         };
         let header = header_of(alg, jwk.as_deref(), kid, typ);
-
-        // Whole seconds, and the truncation is deliberate: `exp` is a second
-        // count by RFC 7519 § 4.1.4, so a `500ms` lifetime is not a token
-        // that lives half a second — it is a token that has already expired,
-        // and it is refused as one rather than silently rounded up.
-        let seconds = lifetime / 1_000_000_000;
-        if seconds <= 0 {
-            return Err(Fault::thrown_as(
-                ThrownClass::Logic,
-                format!(
-                    "{NAME}::sign(): $lifetime is {lifetime}ns, and a token has to be valid for \
-                     at least one whole second — `exp` counts seconds (RFC 7519 § 4.1.4), so \
-                     anything shorter signs a token that is already past it."
-                ),
-            ));
-        }
-
-        let now = now_seconds(ctx, "sign")?;
-        let exp = now.checked_add(seconds).ok_or_else(|| {
-            Fault::thrown_as(
-                ThrownClass::Logic,
-                format!(
-                    "{NAME}::sign(): $lifetime of {seconds}s runs past the end of the \
-                     representable range from now."
-                ),
-            )
-        })?;
-
+        let (now, exp) = registered_pair(ctx, lifetime, "sign")?;
         let payload = payload_of(&claims, now, exp)?;
         let signing_input = format!(
             "{}.{}",
@@ -877,28 +1100,65 @@ nvs_runtime::nvs_helper! {
             Signer::Shared(key) => {
                 URL_SAFE_NO_PAD.encode(crate::hash::hmac_sha256(key, signing_input.as_bytes()))
             }
-            Signer::Pair(pair, _) => {
-                // Unreachable from source twice over, and each is the machine
-                // rather than the program: `signing` answers `None` only for
-                // the kind `signer_at` already refused, and `sign` only where
-                // `ring`'s generator has failed under the two randomized
-                // algorithms.
-                let key = pair.signing().ok_or_else(|| {
-                    Fault::fatal(format!("{NAME}::sign held a pair of a kind that signs nothing"))
-                })?;
-                let written = crypto::sign(&key, signing_input.as_bytes()).ok_or_else(|| {
-                    Fault::fatal(format!(
-                        "{NAME}::sign could not draw the randomness a signature needs"
-                    ))
-                })?;
-                URL_SAFE_NO_PAD.encode(written)
-            }
+            Signer::Pair(pair, _) => pair_signature(pair, signing_input.as_bytes(), "sign")?,
         };
 
         // Asked once with the real number, as `crate::crypto::seal_under`
         // does: the answer's size is known exactly here.
         let len = signing_input.len() + 1 + signature.len();
         nvs_runtime::affordable(Some(len), "Core\\Jwt::sign")?;
+        let mut token = String::with_capacity(len);
+        token.push_str(&signing_input);
+        token.push('.');
+        token.push_str(&signature);
+        Ok(Value::str(NvsStr::new(token.as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Jwt::signObject(object $claims, Duration $lifetime, Crypto\KeyPair $key, {kid?, typ?, embedKey?}): string`
+    /// — `sign` for a payload that is a structure rather than a table of text.
+    ///
+    /// A second member rather than a union arm on `sign`, because the two
+    /// differ in their key as well as in their claims: this one takes a pair
+    /// alone. `Core\Jwt::verify` reads back the text claims `sign` writes and
+    /// refuses anything else, so a structured payload is a token issued to
+    /// another party — and the key that signs one is the key that party can
+    /// check, never the shared secret this program verifies with itself.
+    ///
+    /// The order is `sign`'s, for `sign`'s reason: the header is settled before
+    /// anything is encoded, so every byte that gets signed is fixed by the key,
+    /// the bag and the clock and by nothing read later.
+    fn nvs_core_jwt_sign_object(ctx, args: [6]) {
+        let claims = args[0];
+        let lifetime = crate::time::nanos_of(args, 1, "signObject")?;
+        let (pair, alg) = pair_at(args, 2, "signObject")?;
+        let kid = args[3].as_text();
+        let typ = args[4].as_text().unwrap_or(TYP);
+        let embed = args[5].as_bool().unwrap_or(false);
+
+        // No shared-key arm to refuse `embedKey` for: the row takes a pair, so
+        // the public half the option writes always exists.
+        let jwk = if embed {
+            Some(embedded_jwk(&pair, "signObject")?)
+        } else {
+            None
+        };
+        let header = header_of(alg, jwk.as_deref(), kid, typ);
+        let (now, exp) = registered_pair(ctx, lifetime, "signObject")?;
+        let payload = object_payload_of(claims, now, exp)?;
+
+        let signing_input = format!(
+            "{}.{}",
+            URL_SAFE_NO_PAD.encode(&header),
+            URL_SAFE_NO_PAD.encode(&payload)
+        );
+        let signature = pair_signature(pair, signing_input.as_bytes(), "signObject")?;
+
+        // Asked once with the real number, as `sign` does: the answer's size is
+        // known exactly here.
+        let len = signing_input.len() + 1 + signature.len();
+        nvs_runtime::affordable(Some(len), "Core\\Jwt::signObject")?;
         let mut token = String::with_capacity(len);
         token.push_str(&signing_input);
         token.push('.');

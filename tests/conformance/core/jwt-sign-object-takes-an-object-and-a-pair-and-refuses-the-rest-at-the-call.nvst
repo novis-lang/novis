@@ -1,0 +1,35 @@
+--TEST--
+Core\Jwt::signObject declares `object` claims and a key pair, so a scalar, an array and a shared secret are each refused where the call is written rather than thrown from the body — `rule:security/protocol-roster`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// The refusals this member does not have to write. `object` is satisfied by a
+// class instance and by a shape and by nothing else, so the member never sees a
+// payload that is not a JSON object and never owes a sentence about one. The
+// key is the same: a structured payload is a token issued to another party, and
+// the only key such a party can check is the public half of a pair.
+secret bytes $shared = Core\Crypto::generateKey();
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+Core\Jwt::signObject("sub=ada", 15m, $pair);
+Core\Jwt::signObject(["sub" => "ada"], 15m, $pair);
+Core\Jwt::signObject(Core\Arr::shapeAs<{sub: string}>(["sub" => "ada"]), 15m, $shared);
+--EXPECTF-ERROR--
+error[E0401]: expected `object`, found `string`
+   --> case.nvs:10:22
+   |
+10 | Core\Jwt::signObject("sub=ada", 15m, $pair);
+   |                      ^^^^^^^^^ this is `string`
+
+error[E0401]: expected `object`, found `array<mixed>`
+   --> case.nvs:11:22
+   |
+11 | Core\Jwt::signObject(["sub" => "ada"], 15m, $pair);
+   |                      ^^^^^^^^^^^^^^^^ this is `array<mixed>`
+
+error[E0401]: expected `Core\Crypto\KeyPair`, found `secret bytes`
+   --> case.nvs:12:79
+   |
+12 | Core\Jwt::signObject(Core\Arr::shapeAs<{sub: string}>(["sub" => "ada"]), 15m, $shared);
+   |                                                                               ^^^^^^^ this is `secret bytes`
+
+error: aborting due to 3 errors

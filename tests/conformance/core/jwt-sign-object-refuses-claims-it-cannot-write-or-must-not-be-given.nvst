@@ -1,0 +1,66 @@
+--TEST--
+Core\Jwt::signObject refuses a claims object with no JSON encoding and one carrying either claim the member writes itself, each as a bug in the program rather than a verdict on a token — `rule:security/jwt-expiry-is-mandatory`, `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// The edges of what `object` lets through. The parameter's type is what refuses
+// an `int` or a `string` here, so every refusal left is about an object that is
+// structured and still not claims: one no encoder can write, and one that has
+// already written a claim this member owns. Both are `LogicError` — the program
+// built the value, and nothing about a token is wrong.
+final class Plain {
+    public string $sub;
+
+    public function constructor(string $sub) {
+        $this->sub = $sub;
+    }
+}
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// A class joins a wire format by carrying the attribute, and this one does not.
+try {
+    Core\Jwt::signObject(new Plain("ada"), 15m, $pair);
+    echo "a class with no codec signed a token", "\n";
+} catch (LogicError $noCodec) {
+    echo $noCodec->message, "\n";
+}
+
+// `exp` is not the caller's to set — `rule:security/jwt-expiry-is-mandatory` has
+// no flag and no field either, so a claims object naming it is refused rather
+// than overwritten. `iat` goes the same way for the same reason: the member
+// writes both, and a payload carrying two of a name is not a document.
+try {
+    Core\Jwt::signObject(
+        Core\Arr::shapeAs<{sub: string, exp: int}>(["sub" => "ada", "exp" => 4]),
+        15m,
+        $pair
+    );
+    echo "a claims object set its own expiry", "\n";
+} catch (LogicError $ownExpiry) {
+    echo $ownExpiry->message, "\n";
+}
+
+try {
+    Core\Jwt::signObject(
+        Core\Arr::shapeAs<{iat: int, sub: string}>(["iat" => 0, "sub" => "ada"]),
+        15m,
+        $pair
+    );
+    echo "a claims object set its own issued-at", "\n";
+} catch (LogicError $ownIssuedAt) {
+    echo $ownIssuedAt->message, "\n";
+}
+
+// And the lifetime is bounded here exactly as it is on `sign`: one member, one
+// answer, because both read it through the same function.
+try {
+    Core\Jwt::signObject(Core\Arr::shapeAs<{sub: string}>(["sub" => "ada"]), 500ms, $pair);
+    echo "a token shorter than a second was signed", "\n";
+} catch (LogicError $tooShort) {
+    echo $tooShort->message, "\n";
+}
+--EXPECT--
+Core\Jwt::signObject(): $claims is written as `Core\Json::encode` writes it, and an instance of `Plain` has no JSON encoding — a class participates by carrying `#[Json\Derive]`.
+Core\Jwt::signObject(): $claims carries a field named `exp`, which this member writes from $lifetime — the clock is not the caller's to set, so that a token this member produces always carries an expiry it will accept.
+Core\Jwt::signObject(): $claims carries a field named `iat`, which this member writes from $lifetime — the clock is not the caller's to set, so that a token this member produces always carries an expiry it will accept.
+Core\Jwt::signObject(): $lifetime is 500000000ns, and a token has to be valid for at least one whole second — `exp` counts seconds (RFC 7519 § 4.1.4), so anything shorter signs a token that is already past it.

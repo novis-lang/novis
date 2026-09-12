@@ -19154,11 +19154,12 @@ Reports which time step `$code` belonged to, or `null`. Accepts the current 30-s
 <a id="core-core-jwt"></a>
 ### `Core\Jwt`
 
-Keywords: sign, verify
+Keywords: sign, signObject, verify
 
 | Member | Signature |
 |---|---|
 | [`Core\Jwt::sign`](#core-core-jwt-sign) | `sign(array<string> $claims, Core\Time\Duration $lifetime, secret bytes\|Core\Crypto\KeyPair $key, {kid?: string, typ?: string, embedKey?: bool}): string` |
+| [`Core\Jwt::signObject`](#core-core-jwt-signobject) | `signObject(object $claims, Core\Time\Duration $lifetime, Core\Crypto\KeyPair $key, {kid?: string, typ?: string, embedKey?: bool}): string` |
 | [`Core\Jwt::verify`](#core-core-jwt-verify) | `verify(string $token, secret bytes $key): array<tainted string>` |
 
 <a id="core-core-jwt-sign"></a>
@@ -19182,6 +19183,28 @@ Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and t
 **Returns** `string` — The three base64url parts and their two dots, as a header, a payload and a signature — a value a header, a query string and a JSON body all carry unescaped.
 
 **Throws** `LogicError` — `$key` is a secret shorter than 32 octets, or an `X25519` pair, which signs nothing; `{embedKey: true}` was written under a shared secret; `$lifetime` is zero or negative; or `$claims` names `exp` or `iat`, which this member writes, or carries a positional entry, since a claim has a name.; `RuntimeError` — This process cannot spare a buffer the size of the token.
+
+<a id="core-core-jwt-signobject"></a>
+#### `Core\Jwt::signObject`
+
+```nvs skip
+Core\Jwt::signObject(object $claims, Core\Time\Duration $lifetime, Core\Crypto\KeyPair $key, {kid?: string, typ?: string, embedKey?: bool}): string
+```
+
+Signs a structured `$claims` into a JWT that expires `$lifetime` from now, under a key pair and the one algorithm that pair has. The claims are written as `Core\Json::encode` writes them, with `iat` and `exp` appended.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$claims` | `object` | A shape or a class carrying `#[Core\Json\Derive]`, encoded as the JSON object it is. `exp` and `iat` are written by this member and are refused among its fields; a value with no JSON encoding is a bug in the program. |
+| `$lifetime` | `Core\Time\Duration` | How long the token stays valid — `15m`, `1h`, `7d`. It must be positive: a token that has already expired is a program bug, not a token. |
+| `$key` | `Core\Crypto\KeyPair` | A `Core\Crypto\KeyPair`, which signs ES256, EdDSA, RS256 or PS256 by its kind. A shared secret is not accepted here: a structured payload is a token issued to another party, and `Core\Jwt::verify` reads only the text claims `sign` writes. |
+| `{kid: …}` | `string` (default `null`, neutral) | The key's name in the header, for a recipient holding several. Omitted by default, and written verbatim — it names a key and selects nothing. |
+| `{typ: …}` | `string` (default `null`, neutral) | The header's `typ`, `JWT` when omitted. RFC 9068's access tokens spell it `at+jwt`. |
+| `{embedKey: …}` | `bool` (default `false`) | Writes the pair's public half into the header as RFC 7638's minimal JWK, which is what a DPoP proof carries. Off by default. |
+
+**Returns** `string` — The three base64url parts and their two dots, exactly as `sign` answers — the payload is the claims object with `iat` and `exp` as its last two members.
+
+**Throws** `LogicError` — `$claims` carries a field named `exp` or `iat`, which this member writes; or it has no JSON encoding at all — a class that carries no `#[Core\Json\Derive]`, a `secret` value, a `bytes`, or a cycle. `$key` is an `X25519` pair, which signs nothing, or `$lifetime` is zero or negative.; `RuntimeError` — This process cannot spare a buffer the size of the token.
 
 <a id="core-core-jwt-verify"></a>
 #### `Core\Jwt::verify`
