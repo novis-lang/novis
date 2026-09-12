@@ -1,0 +1,126 @@
+<?nvs
+// A browser's output, read by a server. The token, the key and the sealed
+// message below were all written somewhere else — they came out of the W3C
+// WebCrypto API a browser ships and are frozen into the vector set this
+// runtime is held to — so nothing here is Novis talking to itself. A round
+// trip against ourselves would pass over any private spelling of the same
+// construction; these only pass if the wire format is the one the web agreed
+// on.
+//
+// Three rules are on display and each of them is structural rather than a
+// check a caller could forget. `Core\Crypto` is **AEAD only** and its cipher
+// is a case of a closed enum, so "encrypted" and "authenticated" are not two
+// decisions to get half right. `Core\Jwe` reads a token's header only to
+// **compare** it, and refuses a parameter it does not understand rather than
+// ignoring it. And in both `Core\Jwe` and `Core\Jwt` the **algorithm comes
+// from the key**: no call below names one, so there is nothing an attacker's
+// header can select.
+//
+// The seven lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 7); the source is not.
+
+// AES-256-GCM, in the layout a browser can take apart: the 12-byte nonce, the
+// ciphertext and the 16-byte tag in that order, which is WebCrypto's own
+// `encrypt` output with its IV put in front.
+secret bytes $key = Core\Crypto::generateKey();
+bytes $message = 'the quarterly figures' as bytes;
+bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
+echo 'sealed', "\n";
+
+if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::Aes256Gcm) == $message) {
+    echo 'opened', "\n";
+} else {
+    echo 'opened the wrong plaintext', "\n";
+}
+
+// One byte short is the cheapest tamper there is. An unauthenticated mode
+// would have handed back what was left of the plaintext; an AEAD hands back
+// nothing at all.
+bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
+try {
+    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto\Cipher::Aes256Gcm);
+    echo 'tamper accepted', "\n";
+} catch (RuntimeError $refused) {
+    echo 'tamper refused', "\n";
+}
+
+// A compact JWE the browser sealed, opened here and written back out. The key
+// is a `secret bytes` one, which is what makes this token a `dir` token — the
+// call names no key-management algorithm, and the header's `alg` is read only
+// to be checked against the key it was handed.
+bytes $shared = Core\Encoding::fromHex('0e23743411f4f8a11b9b229ce598e431adb7994963d03c87e20dd6781939ef96');
+Core\Jwe\Key $direct = Core\Jwe\Key::shared($shared);
+string $browserToken = 'eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..yWqDaI4F5_VELg4e.e5bOCA677wv94e09f00PgD5RGi2AUeTOlEL32fiH4gT3ikLU.J8rVCjtIvszJAlP-1o4yNg';
+
+// A decrypted payload stays `tainted`: opening a token proves who wrote it and
+// never that what it says is safe to hand on, so the token written back out is
+// built from this program's own copy of those claims.
+tainted string $payload = Core\Jwe::decrypt($browserToken, [$direct]);
+string $ourToken = Core\Jwe::encrypt("{\"scope\":[\"read\",\"write\"],\"user\":42}", $direct);
+if (Core\Jwe::decrypt($ourToken, [$direct]) == $payload) {
+    echo 'jwe round trip', "\n";
+} else {
+    echo 'jwe round trip wrong', "\n";
+}
+
+// The same five segments, with the header swapped for one asking that the
+// payload be decompressed on the way out. `zip` is not among the parameters
+// this class reads, and a parameter a verifier does not understand is refused
+// rather than skipped: a token that expands on arrival is a bomb with a
+// signature around it.
+array<string> $segments = Core\Str::split($browserToken, '.');
+string $bombToken = Core\Encoding::toBase64Url(
+    Core\Encoding::encodeText("{\"alg\":\"dir\",\"enc\":\"A256GCM\",\"zip\":\"DEF\"}", Core\Charset::Utf8),
+) . '.' . $segments[1] . '.' . $segments[2] . '.' . $segments[3] . '.' . $segments[4];
+try {
+    tainted string $bomb = Core\Jwe::decrypt($bombToken, [$direct]);
+    echo 'header swap accepted', "\n";
+} catch (RuntimeError $refused) {
+    echo 'header swap refused', "\n";
+}
+
+// The issuer's signing key, as the browser exported it: PKCS#8 in, and its
+// public half published as the one JWK of a JWKS document. The frozen set's
+// own ID tokens are stamped with the minute they were issued and an expiry is
+// not optional here, so what is verified below is a token signed now under
+// that same key.
+secret bytes $pkcs8 = Core\Encoding::fromHex('302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf');
+Core\Crypto\KeyPair $issuer = Core\Crypto\KeyPair::read($pkcs8, Core\Crypto\KeyKind::Ed25519);
+Core\Jwt\KeySet $published = Core\Jwt\KeySet::read(
+    "{\"keys\":[{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"_M6QCKM1ZSSFYSlafOHMywQLYSm7qP8kdElTu8ASYaw\"}]}",
+);
+
+string $idToken = Core\Jwt::sign(
+    ['iss' => 'https://issuer.example', 'aud' => 'client-1', 'sub' => '248289761001'],
+    15m,
+    $issuer,
+);
+
+var $claims = Core\Jwt::verifyIssued<tainted {sub: string}>(
+    $idToken,
+    $published,
+    'https://issuer.example',
+    'client-1',
+);
+echo $claims->sub == '248289761001' ? 'id token verified' : 'id token wrong', "\n";
+
+// The same token with one word changed: `EdDSA` to `HS256`, which asks the
+// verifier to treat the issuer's published public key as a shared secret. It
+// is the oldest attack on this format and it works wherever the header picks
+// the algorithm. Here the key is Ed25519, the header is only compared against
+// it, and the comparison is over before the signature is looked at.
+array<string> $parts = Core\Str::split($idToken, '.');
+string $confusedToken = Core\Encoding::toBase64Url(
+    Core\Encoding::encodeText("{\"alg\":\"HS256\",\"typ\":\"JWT\"}", Core\Charset::Utf8),
+) . '.' . $parts[1] . '.' . $parts[2];
+try {
+    var $forgedClaims = Core\Jwt::verifyIssued<tainted {sub: string}>(
+        $confusedToken,
+        $published,
+        'https://issuer.example',
+        'client-1',
+    );
+    echo 'algorithm swap accepted', "\n";
+} catch (RuntimeError $refused) {
+    echo 'algorithm swap refused', "\n";
+}
