@@ -4600,6 +4600,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   count with `webcrypto::number` (`crates/nvs-stdlib/src/tests/vectors.rs:89`) and print
   `type(v[k]).__name__` rather than the value when checking what a pointer will answer.
   [until: reviewed 2026-09-12]
+- **A published vector typed from memory is wrong about as often as it is right, and `WebFetch` cannot
+  reach an appendix that sits late in a long RFC.** RFC 5903 § 8.1's initiator scalar came back wrong
+  after its first two words, and a fetch of `rfc7515.txt` truncates before Appendix A.3, so neither
+  recall nor the obvious fetch is a source on its own. Fetch the document where it is short enough to
+  arrive whole, and otherwise lean on the vector being self-checking — a scalar, key or signature with
+  one digit wrong cannot agree or verify, so a passing test has confirmed its own literals.
+  [until: reviewed 2026-09-12]
 
 ## Splitting a file that got too big
 

@@ -4367,6 +4367,44 @@ mod tests {
         }
     }
 
+    /// The same exchange over the other curve against RFC 5903 § 8.1, which is
+    /// P-256's own published evidence for it. The frozen set cannot supply this:
+    /// it says what one implementation computes, and an agreement both ends of
+    /// which are a document's literals says what the exchange *is*. The X25519
+    /// half of the test above is RFC 7748 § 6.1 for the same reason.
+    ///
+    /// Each peer's point is multiplied up from the document's other scalar
+    /// rather than copied out of its coordinate pair, because the point a scalar
+    /// reaches is the point the exchange uses and a copied coordinate is a
+    /// second literal that can be wrong on its own. Both directions are
+    /// asserted, for the reason the test above gives.
+    #[test]
+    fn the_p256_agreement_matches_rfc_5903_from_either_end() {
+        let initiator = hex("c88f01f510d9ac3f70a292daa2316de544e9aab8afe84049c62a9c57862d1433");
+        let responder = hex("c6ef9c5d78ae012a011164acb397ce2088685d8f06bf9be0b283ab46476bee53");
+        let published = hex("d6840f6b42f6edafd13116e0e12565202fef8e9ece7dce03812464d04b9442de");
+        let point = |scalar: &[u8]| {
+            P256SecretKey::from_slice(scalar)
+                .expect("the document's key is a scalar of the curve it publishes")
+                .public_key()
+        };
+
+        assert_eq!(
+            agree_p256(&initiator, &point(&responder))
+                .expect("the document's two keys are two ends of one agreement")
+                .as_slice(),
+            published,
+            "RFC 5903 § 8.1, the initiator's scalar against the responder's point"
+        );
+        assert_eq!(
+            agree_p256(&responder, &point(&initiator))
+                .expect("the document's two keys are two ends of one agreement")
+                .as_slice(),
+            published,
+            "RFC 5903 § 8.1, the same secret reached from the other end"
+        );
+    }
+
     /// The key wrap against RFC 3394 § 4.6 — the published case whose key data
     /// is the width every content key here is — and the refusals beside it,
     /// because an unwrap is the half that meets a token: a wrap with an octet
@@ -4604,6 +4642,137 @@ mod tests {
                 );
             });
         }
+    }
+
+    /// RS256 and ES256 against the tokens RFC 7515 publishes in its Appendices
+    /// A.2 and A.3, each verified under the key that appendix prints beside it.
+    ///
+    /// The frozen set is one implementation's signatures over keys it generated
+    /// itself, so a reader agreeing with that generator about an encoding they
+    /// both got wrong still passes it. A document's own token under the
+    /// document's own key is the evidence that cannot be produced that way.
+    ///
+    /// `Crypto\PublicKey::read` takes a JWK, so each appendix's JSON is the
+    /// input with nothing assembled around it — minus the private members it
+    /// prints beside `n` and `x`, because a JWK carrying `d` is refused on the
+    /// way in and that refusal is one of this module's rules rather than an
+    /// obstacle to work around. The payload is carried base64url rather than
+    /// written out, because the appendix's own is the one with the `\r\n` in it.
+    #[test]
+    fn the_published_tokens_of_rfc_7515_verify_under_their_appendix_jwk() {
+        let payload = "eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFt\
+                       cGxlLmNvbS9pc19yb290Ijp0cnVlfQ";
+        let rsa = serde_json::json!({
+            "kty": "RSA",
+            "n": "ofgWCuLjybRlzo0tZWJjNiuSfb4p4fAkd_wWJcyQoTbji9k0l8W26mPddxHmfHQp\
+                  -Vaw-4qPCJrcS2mJPMEzP1Pt0Bm4d4QlL-yRT-SFd2lZS-pCgNMsD1W_YpRPEwOW\
+                  vG6b32690r2jZ47soMZo9wGzjb_7OMg0LOL-bSf63kpaSHSXndS5z5rexMdbBYUs\
+                  LA9e-KXBdQOS-UTo7WTBEMa2R2CapHg665xsmtdVMTBQY4uDZlxvb3qCo5ZwKh9k\
+                  G4LT6_I5IhlJH7aGhyxXFvUK-DWNmoudF8NAco9_h9iaGNj8q2ethFkMLs91kzk2\
+                  PAcDTW9gb54h4FRWyuXpoQ",
+            "e": "AQAB",
+        })
+        .to_string();
+        let ec = serde_json::json!({
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",
+            "y": "x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0",
+        })
+        .to_string();
+
+        let appendices = [
+            (
+                "A.2",
+                KeyKind::RsaPkcs1,
+                rsa,
+                "eyJhbGciOiJSUzI1NiJ9",
+                "cC4hiUPoj9Eetdgtv3hF80EGrhuB__dzERat0XF9g2VtQgr9PJbu3XOiZj5RZmh7\
+                 AAuHIm4Bh-0Qc_lF5YKt_O8W2Fp5jujGbds9uJdbF9CUAr7t1dnZcAcQjbKBYNX4\
+                 BAynRFdiuB--f_nZLgrnbyTyWzO75vRK5h6xBArLIARNPvkSjtQBMHlb1L07Qe7K\
+                 0GarZRmB_eSN9383LcOLn6_dO--xi12jzDwusC-eOkHWEsqtFZESc6BfI7noOPqv\
+                 hJ1phCnvWh6IeYI2w9QOYEUipUTI8np6LbgGY9Fs98rqVt5AXLIhWkWywlVmtVrB\
+                 p0igcN_IoypGlUPQGe77Rw",
+            ),
+            (
+                "A.3",
+                KeyKind::P256,
+                ec,
+                "eyJhbGciOiJFUzI1NiJ9",
+                "DtEhU3ljbEg8L38VWAfUAqOyKAM6-Xx-F4GawxaepmXFCgfTjDxw5djxLa8ISlSA\
+                 pmWQxfKTUJqPP3-Kg6NU1Q",
+            ),
+        ];
+
+        for (appendix, kind, jwk, header, signature) in appendices {
+            let key = PublicKey::read(jwk.as_bytes(), kind, KeyFormat::Jwk)
+                .expect("an appendix prints its public key as the JWK a browser exports");
+            let signature = URL_SAFE_NO_PAD
+                .decode(signature)
+                .expect("a compact JWS carries its signature base64url");
+            assert_eq!(
+                verify_signature(
+                    &key.verifying().expect("every kind of an appendix signs"),
+                    format!("{header}.{payload}").as_bytes(),
+                    &signature,
+                ),
+                Some(()),
+                "RFC 7515 Appendix {appendix}, its own token under its own key"
+            );
+        }
+    }
+
+    /// Ed25519 against RFC 8037 Appendix A.4, which is the one published token
+    /// of the roster whose signature is a function of the message alone — so the
+    /// appendix is held on both sides: its token verifies under the public JWK
+    /// it prints, and signing the same input under the `d` beside it writes the
+    /// same octets back.
+    ///
+    /// The seed arrives as the 32 octets a JWK's `d` carries, so the PKCS#8
+    /// [`PrivateKey::read`] takes is [`ED25519_PKCS8_PREFIX`] over it — the file
+    /// [`generated_pkcs8`] writes for a drawn key, which is why a key that came
+    /// out of a document needs no reader of its own.
+    #[test]
+    fn the_ed25519_token_of_rfc_8037_is_verified_and_signed_again_byte_for_byte() {
+        let input = "eyJhbGciOiJFZERTQSJ9.RXhhbXBsZSBvZiBFZDI1NTE5IHNpZ25pbmc";
+        let published = URL_SAFE_NO_PAD
+            .decode(
+                "hgyY0il_MGCjP0JzlnLWG1PPOt7-09PGcvMg3AIbQR6dWbhijcNR4ki4iylGjg5B\
+                 hVsPt9g7sVvpAr_MuM0KAg",
+            )
+            .expect("a compact JWS carries its signature base64url");
+        let jwk = serde_json::json!({
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        })
+        .to_string();
+
+        let key = PublicKey::read(jwk.as_bytes(), KeyKind::Ed25519, KeyFormat::Jwk)
+            .expect("the appendix prints its public key as a JWK");
+        assert_eq!(
+            verify_signature(
+                &key.verifying().expect("Ed25519 signs"),
+                input.as_bytes(),
+                &published,
+            ),
+            Some(()),
+            "RFC 8037 Appendix A.4, the appendix's token under its own public key"
+        );
+
+        let seed = URL_SAFE_NO_PAD
+            .decode("nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A")
+            .expect("the appendix prints its private key as the seed a JWK's `d` is");
+        let pair = PrivateKey::read(&der_over(&ED25519_PKCS8_PREFIX, &seed), KeyKind::Ed25519)
+            .expect("an RFC 8410 PKCS#8 over that seed is the file this module writes");
+        assert_eq!(
+            sign(
+                &pair.signing().expect("an Ed25519 pair signs"),
+                input.as_bytes(),
+            ),
+            Some(published),
+            "RFC 8037 Appendix A.4's signature, written again from the seed beside it"
+        );
     }
 
     /// A key read as an algorithm it cannot carry is refused at the read, so
