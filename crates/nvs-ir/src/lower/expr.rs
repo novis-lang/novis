@@ -2535,7 +2535,8 @@ impl<'a> Lowering<'a> {
         let nanos = nvs_syntax::duration::parse(text).unwrap_or_else(|err| {
             panic!(
                 "nvs-ir: duration literal `{text}` does not parse ({}) — the lexer \
-                 only produces this token for text that does",
+                 produces this token for text that does, and for a mis-cased \
+                 unit no compile path continues past the error it reports",
                 err.message()
             )
         });

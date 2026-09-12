@@ -7,6 +7,6 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0007]: `30S` is not a duration literal
+error[E0231]: `30S` must be written in lower case
   --> case.nvs:2:16
 %A

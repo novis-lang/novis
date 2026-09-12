@@ -77,8 +77,9 @@ pub mod code {
     pub const E_INVALID_UTF8: Code = Code::new("E0006");
     /// A duration literal that does not follow
     /// `rule:types/duration-literal`'s grammar —
-    /// out of order, a repeated unit, a fractional count, a mis-cased unit, or
-    /// longer than `Core\Time\Duration` can hold.
+    /// out of order, a repeated unit, a fractional count, or longer than
+    /// `Core\Time\Duration` can hold. A unit written in the wrong case is a
+    /// spelling rather than a shape, and is `E_RESERVED_SPELLING_CASE`.
     pub const E_BAD_DURATION_LITERAL: Code = Code::new("E0007");
     /// A bidirectional control that opens a directional scope and never closes
     /// it inside the source span that opened it, per
@@ -337,10 +338,17 @@ pub mod code {
     /// destructuring spelling, `[...]`. See `rule:expressions/bracket-destructuring`.
     pub const E_LIST_DESTRUCTURING_UNSUPPORTED: Code = Code::new("E0230");
     /// A reserved lexical spelling written in anything but lower case —
-    /// `<?NVS` rather than `<?nvs`. PHP matches its reserved spellings
-    /// case-insensitively; Novis accepts exactly one spelling of each, so a
-    /// program's meaning never depends on the case a reserved word was typed
-    /// in. See `rule:classes/reserved-spellings-are-lower-case`. A mis-cased *keyword* (`IF`, `TRUE`) gets no diagnostic of its
+    /// A reserved spelling written in a case Novis does not have: `<?NVS`
+    /// rather than `<?nvs`, and a duration literal's unit, `30S` rather than
+    /// `30s`. PHP matches its reserved spellings case-insensitively; Novis
+    /// accepts exactly one spelling of each, so a program's meaning never
+    /// depends on the case a reserved word was typed in. See
+    /// `rule:classes/reserved-spellings-are-lower-case`. That is what puts a
+    /// Novis-only spelling in this band: the class the code names is the
+    /// case-insensitivity PHP has and Novis does not, of which the open tag is
+    /// the PHP-visible half. The primary span is the spelling itself, which is
+    /// what `rule:tooling/fmt-normalizes-only-reserved-spellings` lower-cases.
+    /// A mis-cased *keyword* (`IF`, `TRUE`) gets no diagnostic of its
     /// own — it is simply an ordinary identifier, since `rule:core-api/identifier-casing` makes
     /// `IF` a legal class name the lexer cannot tell apart from a mis-typed
     /// `if`.

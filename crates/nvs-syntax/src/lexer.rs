@@ -806,6 +806,24 @@ impl<'a> Lexer<'a> {
         self.pos = end;
         match duration::parse(candidate) {
             Ok(_) => self.push(TokenKind::DurationLiteral, span),
+            // A unit in the wrong case is the one refusal here that leaves the
+            // literal's shape intact: `rule:classes/reserved-spellings-are-lower-case` gives the
+            // spelling one form and the bytes are a duration otherwise, so the
+            // token is the literal that was written and the diagnostic's own
+            // primary span is the text to lower-case —
+            // `rule:tooling/fmt-normalizes-only-reserved-spellings` is what writes it. No compile
+            // path continues past the error, so nothing downstream reads a
+            // literal that parses only once it is respelled.
+            Err(duration::DurationError::MisCasedUnit(_)) => {
+                diags.report(
+                    Diagnostic::error(
+                        code::E_RESERVED_SPELLING_CASE,
+                        format!("`{candidate}` must be written in lower case"),
+                    )
+                    .with_primary(span, format!("write `{}`", candidate.to_ascii_lowercase())),
+                );
+                self.push(TokenKind::DurationLiteral, span);
+            }
             Err(err) => {
                 diags.report(
                     Diagnostic::error(
@@ -1826,23 +1844,35 @@ mod tests {
         );
     }
 
-    /// Each of `rule:types/duration-literal`'s five refusals reaches the lexer, and each
-    /// produces one error rather than a cascade — the grammar itself is tested
-    /// in [`crate::duration`], so what this holds is that the lexer *reaches*
-    /// it.
+    /// Every refusal `rule:types/duration-literal` makes about a literal's
+    /// *shape* reaches the lexer, and each produces one error rather than a
+    /// cascade — the grammar itself is tested in [`crate::duration`], so what
+    /// this holds is that the lexer *reaches* it. There is nothing left to lex,
+    /// so the token is [`TokenKind::Unknown`].
     #[test]
     fn a_malformed_duration_literal_is_one_lexer_error() {
-        for src in [
-            "<?nvs 30m1h",
-            "<?nvs 1h1h",
-            "<?nvs 1.5s",
-            "<?nvs 30S",
-            "<?nvs 100000w",
-        ] {
+        for src in ["<?nvs 30m1h", "<?nvs 1h1h", "<?nvs 1.5s", "<?nvs 100000w"] {
             let (kinds, diags) = kinds(src);
             assert!(diags.has_errors(), "{src} should be refused");
             assert_eq!(kinds, vec![OpenTagNvs, Unknown, Eof], "for {src}");
         }
+    }
+
+    /// The case of a unit is the one thing `rule:types/duration-literal` refuses that leaves a
+    /// literal behind: the shape is a duration and only its spelling is wrong,
+    /// so the token is the one that was written and the error names the
+    /// lower-case form for `rule:tooling/fmt-normalizes-only-reserved-spellings` to write.
+    #[test]
+    fn a_mis_cased_duration_unit_keeps_its_token_and_names_its_spelling() {
+        let (kinds, diags) = kinds("<?nvs 1H30M");
+        assert_eq!(kinds, vec![OpenTagNvs, DurationLiteral, Eof]);
+        assert_eq!(diags.error_count(), 1);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(nvs_diagnostics::code::E_RESERVED_SPELLING_CASE)),
+            "expected E_RESERVED_SPELLING_CASE, got {diags:?}"
+        );
     }
 
     /// `rule:types/duration-literal` keeps the sign out of the literal, so the parser never has
