@@ -3841,8 +3841,7 @@ mod tests {
     }
 
     /// Every AES-GCM message the frozen set records seals to exactly the octets
-    /// WebCrypto produced, opens back to its plaintext, and every forgery the
-    /// set records is not authentic under the key it names.
+    /// WebCrypto produced and opens back to its own plaintext.
     ///
     /// The nonce is the recorded one rather than a draw, which is what
     /// [`gcm_seal_under`] takes it as an argument for: a construction that drew
@@ -3851,16 +3850,10 @@ mod tests {
     /// asserted whole, as one comparison against the file's octets, rather than
     /// as three lengths that happen to add up.
     ///
-    /// A refusal answers `None` here because this seam has no member to speak
-    /// for: the one forgery sentence
-    /// `rule:security/verification-throws-and-compares-in-constant-time` asks
-    /// for belongs to `Core\Crypto::open`, which is what turns this `None` into
-    /// it. What the set's five refusals pin is that every way of not being
-    /// authentic — a tag flipped, a ciphertext flipped, a nonce flipped, a
-    /// message too short to hold either, the right bytes under another key —
-    /// arrives there as the same answer, so there is one sentence to say.
+    /// The forgeries the set records beside these messages are the primitive
+    /// refusals test's, with the rest of the roster's.
     #[test]
-    fn every_frozen_aes_gcm_message_seals_and_opens_to_the_sets_own_octets() {
+    fn webcrypto_aes_gcm_vectors_open_and_reseal_byte_for_byte() {
         let sealing = "Core\\Crypto::seal";
         let opening = "Core\\Crypto::open";
         let vectors = webcrypto::vectors("aesGcm");
@@ -3890,21 +3883,6 @@ mod tests {
                     .as_deref(),
                 Some(message.as_slice()),
                 "{name} opens back to its own plaintext"
-            );
-        }
-
-        let refusals = webcrypto::refusals("aesGcm");
-        assert!(!refusals.is_empty(), "and the forgeries it records");
-
-        for refusal in refusals {
-            let name = webcrypto::text(refusal, "/name");
-            let cipher = gcm_cipher(&webcrypto::octets(refusal, "/key"))
-                .expect("the set keys AES-256 with 32 octets");
-            assert!(
-                gcm_open_under(&cipher, &webcrypto::octets(refusal, "/sealed"), opening)
-                    .expect("a forgery costs the same buffer as a message")
-                    .is_none(),
-                "{name} is not authentic under the key it is offered to"
             );
         }
     }
@@ -3997,21 +3975,27 @@ mod tests {
         webcrypto::number(case, "/iterations")
     }
 
-    /// Every PBKDF2 derivation the frozen set records answers exactly the key
-    /// WebCrypto derived, and each count and salt it records as refused is
-    /// refused here too.
+    /// Every key the frozen set's three derivations record, derived again from
+    /// the input beside it: the two `Core\Crypto` members and the key wrap that
+    /// sits under `PBES2`.
     ///
-    /// Replayed through [`derive_key`] rather than through [`pbkdf2_sha256`],
-    /// because what the set's refusals are about is the bounds rather than the
-    /// arithmetic: each sits one step outside one of them, so the file is what
-    /// stops either number moving. The vectors take the same path, so the halves
-    /// cannot come to disagree about where the check is.
+    /// Three sections in one test because they are one question asked of one
+    /// file — whether this runtime turns the recorded input into the recorded
+    /// key — and each section keeps its own empty-list assertion, so a section
+    /// that goes missing from the set is caught rather than skipped.
     ///
-    /// A password is UTF-8 octets, which is what a browser's `TextEncoder` hands
+    /// PBKDF2 is replayed through [`derive_key`] rather than through
+    /// [`pbkdf2_sha256`], because that is the path a program takes and it is
+    /// where the bounds sit; the refusals at those bounds are the test below. A
+    /// password is UTF-8 octets, which is what a browser's `TextEncoder` hands
     /// `importKey`, and the set's second vector is not ASCII — so the encoding
-    /// is pinned here rather than assumed.
+    /// is pinned here rather than assumed, as HKDF's `info` context string is.
+    /// The wrap is the one section with no member of its own: it is internal to
+    /// `PBES2-HS256+A128KW` (`rule:security/jwe-compact-subset`), and the set is
+    /// the only evidence for the 128-bit key-encryption key, which RFC 3394
+    /// publishes no case for.
     #[test]
-    fn every_frozen_pbkdf2_derivation_answers_the_sets_own_key() {
+    fn webcrypto_pbkdf2_hkdf_and_aes_kw_vectors_derive_the_same_keys() {
         let who = "Core\\Crypto::deriveKey";
         let vectors = webcrypto::vectors("pbkdf2");
         assert!(!vectors.is_empty(), "the set carries PBKDF2 vectors at all");
@@ -4032,37 +4016,6 @@ mod tests {
             );
         }
 
-        let refusals = webcrypto::refusals("pbkdf2");
-        assert!(
-            !refusals.is_empty(),
-            "and the bounds it records at the edge"
-        );
-
-        for refusal in refusals {
-            let name = webcrypto::text(refusal, "/name");
-            assert!(
-                derive_key(
-                    webcrypto::text(refusal, "/password").as_bytes(),
-                    &webcrypto::octets(refusal, "/salt"),
-                    rounds(refusal),
-                    who,
-                )
-                .is_err(),
-                "{name} is outside a bound this derivation enforces"
-            );
-        }
-    }
-
-    /// Every HKDF expansion the frozen set records answers exactly the key
-    /// WebCrypto derived, the empty salt and the empty info among them.
-    ///
-    /// RFC 5869's own vectors are the test above; these are the same
-    /// construction asked the way a program asks it, with `info` a context
-    /// string rather than octets — so it is replayed as the UTF-8 of the text
-    /// the set carries, which is what `TextEncoder` hands `deriveBits` and what
-    /// the long case's non-ASCII label makes a real assertion.
-    #[test]
-    fn every_frozen_hkdf_expansion_answers_the_sets_own_key() {
         let vectors = webcrypto::vectors("hkdf");
         assert!(!vectors.is_empty(), "the set carries HKDF vectors at all");
 
@@ -4078,6 +4031,118 @@ mod tests {
                 webcrypto::octets(vector, "/key"),
                 "{name} expands to the key WebCrypto answered with"
             );
+        }
+
+        let vectors = webcrypto::vectors("aesKw");
+        assert!(!vectors.is_empty(), "the set carries AES-KW vectors at all");
+
+        for vector in vectors {
+            let name = webcrypto::text(vector, "/name");
+            let kek = webcrypto::octets(vector, "/kek");
+            let key = thirty_two(&webcrypto::octets(vector, "/key"));
+            assert_eq!(
+                wrap_key(&kek, &key)
+                    .expect("a WebCrypto key-encryption key is one of the two widths")
+                    .as_slice(),
+                webcrypto::octets(vector, "/wrapped"),
+                "{name}"
+            );
+            assert_eq!(
+                unwrap_key(&kek, &webcrypto::octets(vector, "/wrapped")),
+                Some(key),
+                "{name}, opened again"
+            );
+        }
+    }
+
+    /// Every refusal the frozen set records against a primitive, refused by the
+    /// member that owns the rule it breaks.
+    ///
+    /// An AES-GCM forgery — a tag flipped, a ciphertext flipped, a nonce
+    /// flipped, a message too short to hold either, the right bytes under
+    /// another key — is no plaintext at `Core\Crypto::open`, which is where the
+    /// one forgery sentence
+    /// `rule:security/verification-throws-and-compares-in-constant-time` asks
+    /// for is said. A PBKDF2 count or salt outside the bounds is refused by
+    /// `Core\Crypto::deriveKey` before the first HMAC, each case sitting one
+    /// step outside one bound, so the file is what stops either number moving.
+    ///
+    /// A point is refused on each curve at the place the module doc's *two
+    /// curves agree* section puts it, which is the reason one loop asks two
+    /// members: P-256's off-curve point, point at infinity and short encoding
+    /// are refused by `Crypto\PublicKey::read` before anything multiplies by
+    /// them, while an X25519 small-order point is a well-formed encoding and is
+    /// refused by `Crypto::agree` at the all-zero secret it produces. A refusal
+    /// is a property of the point rather than of the scalar meeting it, so each
+    /// case reuses the set's own private key for that curve rather than carrying
+    /// one of its own.
+    #[test]
+    fn webcrypto_primitive_refusal_vectors_are_each_refused_by_the_member_that_owns_the_rule() {
+        let refusals = webcrypto::refusals("aesGcm");
+        assert!(!refusals.is_empty(), "the set records forgeries at all");
+
+        for refusal in refusals {
+            let name = webcrypto::text(refusal, "/name");
+            let cipher = gcm_cipher(&webcrypto::octets(refusal, "/key"))
+                .expect("the set keys AES-256 with 32 octets");
+            assert!(
+                gcm_open_under(
+                    &cipher,
+                    &webcrypto::octets(refusal, "/sealed"),
+                    "Core\\Crypto::open",
+                )
+                .expect("a forgery costs the same buffer as a message")
+                .is_none(),
+                "{name} is not authentic under the key it is offered to"
+            );
+        }
+
+        let refusals = webcrypto::refusals("pbkdf2");
+        assert!(
+            !refusals.is_empty(),
+            "and the bounds it records at the edge"
+        );
+
+        for refusal in refusals {
+            let name = webcrypto::text(refusal, "/name");
+            assert!(
+                derive_key(
+                    webcrypto::text(refusal, "/password").as_bytes(),
+                    &webcrypto::octets(refusal, "/salt"),
+                    rounds(refusal),
+                    "Core\\Crypto::deriveKey",
+                )
+                .is_err(),
+                "{name} is outside a bound this derivation enforces"
+            );
+        }
+
+        let refusals = webcrypto::refusals("ecdh");
+        assert!(
+            !refusals.is_empty(),
+            "and the points it refused to agree on"
+        );
+
+        for refusal in refusals {
+            let name = webcrypto::text(refusal, "/name");
+            let curve = webcrypto::text(refusal, "/curve");
+            let kind = kind_of(curve);
+            let theirs = webcrypto::octets(refusal, "/theirs");
+            let read = PublicKey::read(&theirs, kind, KeyFormat::Raw);
+
+            if kind == KeyKind::P256 {
+                assert!(read.is_err(), "{name}");
+                continue;
+            }
+
+            let theirs = read.expect("a small-order point is a well-formed X25519 encoding");
+            let holder = webcrypto::vectors("ecdh")
+                .iter()
+                .find(|vector| webcrypto::text(vector, "/curve") == curve)
+                .expect("the set agrees over the curve it refuses points on");
+            let mine = PrivateKey::read(&webcrypto::octets(holder, "/a/pkcs8"), kind)
+                .expect("the set writes every private key as DER PKCS#8");
+            assert!(agree(&mine, &theirs).is_err(), "{name}");
         }
     }
 
@@ -4101,8 +4166,13 @@ mod tests {
     /// see. What is pinned is the whole seam a member will reach — the clamping,
     /// the point validation, the coordinate that comes out — and not that either
     /// crate computes its curve, which is its own test suite's job.
+    ///
+    /// Then every form a browser's `exportKey` writes the peer's key in, through
+    /// [`agree`] itself: `raw`, `spki` and `jwk` are three readers of one key,
+    /// and a secret that comes out the same from all three is the evidence they
+    /// built the same point rather than three plausible ones.
     #[test]
-    fn the_two_agreements_match_their_published_vectors() {
+    fn webcrypto_ecdh_vectors_agree_the_same_secret_from_every_key_form() {
         let alice = thirty_two(&hex(
             "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
         ));
@@ -4176,54 +4246,55 @@ mod tests {
                 }
                 curve => panic!("the set carries {curve}, which this module does not agree over"),
             }
-        }
-    }
 
-    /// Every point WebCrypto itself refused to agree under, refused here — and
-    /// on each curve at the place the module doc says it is refused: X25519's
-    /// small-order points at the answer, because the encoding is well formed and
-    /// the secret is what is wrong, and P-256's off-curve point, point at
-    /// infinity and short encoding at the read, before anything is multiplied.
-    ///
-    /// A refusal is a property of the point rather than of the scalar meeting
-    /// it, so each case reuses the vector set's own private key for that curve
-    /// rather than carrying one of its own.
-    #[test]
-    fn an_agreement_refuses_every_point_webcrypto_refuses() {
-        let scalar = |curve: &str| {
-            webcrypto::vectors("ecdh")
-                .iter()
-                .find(|vector| webcrypto::text(vector, "/curve") == curve)
-                .map(|vector| webcrypto::octets(vector, "/a/scalar"))
-                .expect("the set agrees over the curve it refuses points on")
-        };
+            // The same secret again out of the member's own seam, with the
+            // peer's key arriving in each form a browser exports: `read` is
+            // where a coordinate is dropped or a DER wrapper kept, and a key
+            // that read almost right still agrees on *something* until three
+            // encodings of it are made to agree on one secret.
+            let kind = kind_of(webcrypto::text(vector, "/curve"));
+            for (holder, sender) in [("/a", "/b"), ("/b", "/a")] {
+                let mine =
+                    PrivateKey::read(&webcrypto::octets(vector, &format!("{holder}/pkcs8")), kind)
+                        .expect("the set writes every private key as DER PKCS#8");
+                let party = vector
+                    .pointer(sender)
+                    .expect("the set nests a key pair under each party");
 
-        for refusal in webcrypto::refusals("ecdh") {
-            let name = webcrypto::text(refusal, "/name");
-            let theirs = webcrypto::octets(refusal, "/theirs");
-            match webcrypto::text(refusal, "/curve") {
-                "X25519" => assert!(
-                    agree_x25519(&thirty_two(&scalar("X25519")), &thirty_two(&theirs)).is_none(),
-                    "{name}"
-                ),
-                "P-256" => assert!(read_p256_point(&theirs).is_none(), "{name}"),
-                curve => panic!("the set carries {curve}, which this module does not agree over"),
+                for (form, encoded) in [
+                    (KeyFormat::Raw, webcrypto::octets(party, "/raw")),
+                    (KeyFormat::Spki, webcrypto::octets(party, "/spki")),
+                    (
+                        KeyFormat::Jwk,
+                        webcrypto::text(party, "/jwk").as_bytes().to_vec(),
+                    ),
+                ] {
+                    let theirs = PublicKey::read(&encoded, kind, form)
+                        .unwrap_or_else(|_| panic!("{name}, whose peer key a browser exported"));
+                    assert_eq!(
+                        agree(&mine, &theirs)
+                            .expect("the set's two parties are two ends of one agreement")
+                            .as_slice(),
+                        secret,
+                        "{name}, from the peer's key read as {form:?}"
+                    );
+                }
             }
         }
     }
 
     /// The key wrap against RFC 3394 § 4.6 — the published case whose key data
-    /// is the width every content key here is — and against the frozen
-    /// WebCrypto set for both key-encryption key widths. The set is the only
-    /// evidence for the narrow one: the RFC publishes no case that wraps 256
-    /// bits under a 128-bit key, and `PBES2-HS256+A128KW` is exactly that case.
+    /// is the width every content key here is — and the refusals beside it,
+    /// because an unwrap is the half that meets a token: a wrap with an octet
+    /// changed, one a semiblock short and one under a key of no width this wraps
+    /// under are each `None`, which is the one answer the module doc says they
+    /// share.
     ///
-    /// The refusals are beside it because an unwrap is the half that meets a
-    /// token: a wrap with an octet changed, one a semiblock short and one under
-    /// a key of no width this wraps under are each `None`, which is the one
-    /// answer the module doc says they share.
+    /// The frozen set's own wraps, which are the only evidence for the 128-bit
+    /// key-encryption key `PBES2-HS256+A128KW` uses, are the derivation replay
+    /// above.
     #[test]
-    fn the_key_wrap_matches_its_published_vectors_and_refuses_a_changed_wrap() {
+    fn the_key_wrap_matches_rfc_3394_and_refuses_a_changed_wrap() {
         let kek = hex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
         let key = thirty_two(&hex(
             "00112233445566778899aabbccddeeff000102030405060708090a0b0c0d0e0f",
@@ -4239,24 +4310,6 @@ mod tests {
             Some(key),
             "and the same wrap opens back to the key data"
         );
-
-        for vector in webcrypto::vectors("aesKw") {
-            let name = webcrypto::text(vector, "/name");
-            let kek = webcrypto::octets(vector, "/kek");
-            let key = thirty_two(&webcrypto::octets(vector, "/key"));
-            assert_eq!(
-                wrap_key(&kek, &key)
-                    .expect("a WebCrypto key-encryption key is one of the two widths")
-                    .as_slice(),
-                webcrypto::octets(vector, "/wrapped"),
-                "{name}"
-            );
-            assert_eq!(
-                unwrap_key(&kek, &webcrypto::octets(vector, "/wrapped")),
-                Some(key),
-                "{name}, opened again"
-            );
-        }
 
         let mut changed = wrapped;
         changed[0] ^= 1;
@@ -4387,31 +4440,22 @@ mod tests {
             .expect("every key the set signs with is a kind that signs")
     }
 
-    /// Every signature the frozen WebCrypto set holds, verified from the public
-    /// material a JWK carries, and every refusal beside them answering `None`.
-    ///
-    /// A case names its key rather than carrying one, so what is pinned is the
-    /// pairing another implementation actually produced: the same key, the same
-    /// message, the same octets. The refusals are the half that meets a token —
-    /// a flipped octet, another key's signature, a message edited after signing,
-    /// a signature in a form the algorithm does not write, and one made under
-    /// the algorithm the key is not bound to, which is the confusion
+    /// Every signature the set records a refusal for, refused: a flipped octet,
+    /// another key's signature, a message edited after signing, a signature in a
+    /// form the algorithm does not write, and one made under the algorithm the
+    /// key is not bound to, which is the confusion
     /// `rule:security/algorithm-comes-from-the-key` exists to close.
+    ///
+    /// A refusal answers `None` here because this seam has no member to speak
+    /// for: the one sentence
+    /// `rule:security/verification-throws-and-compares-in-constant-time` asks
+    /// for belongs to `Core\Crypto::verify`, which is what turns this `None`
+    /// into it. What the set's refusals pin is that every way of not being the
+    /// signature that key made over that message — the octets, the key, the
+    /// message, the encoding and the algorithm — arrives there as the same
+    /// answer, so there is one sentence to say.
     #[test]
-    fn the_four_signature_algorithms_verify_what_webcrypto_signed() {
-        for vector in webcrypto::vectors("signatures") {
-            let name = webcrypto::text(vector, "/name");
-            let message = webcrypto::octets(vector, "/message");
-            let signature = webcrypto::octets(vector, "/signature");
-            verifying(webcrypto::text(vector, "/key"), |key| {
-                assert_eq!(
-                    verify_signature(&key, &message, &signature),
-                    Some(()),
-                    "{name}"
-                );
-            });
-        }
-
+    fn webcrypto_signature_refusals_are_each_refused_with_one_runtime_error() {
         for refusal in webcrypto::refusals("signatures") {
             let name = webcrypto::text(refusal, "/name");
             let message = webcrypto::octets(refusal, "/message");
@@ -4425,26 +4469,40 @@ mod tests {
         }
     }
 
-    /// Signing, against the frozen set on both sides of the line its
-    /// `deterministic` flag draws.
+    /// Every signature the frozen WebCrypto set holds, in both directions: read
+    /// from the public material a JWK carries, and written again where the
+    /// algorithm writes one message's signature the same way twice.
     ///
-    /// `RS256` and `EdDSA` write the same octets every time, so those are held
-    /// to the set itself: a token signed here under an issuer's key is byte for
-    /// byte what WebCrypto would have written, which is what makes a signed
-    /// token reproducible at all. The other two salt and nonce their signatures,
-    /// so what is asserted there is what survives randomness — a fresh signature
-    /// verifies under the key's own public half, and two over one message
-    /// differ, which is the evidence the randomness reaches the algorithm rather
-    /// than being a constant nobody noticed.
+    /// A case names its key rather than carrying one, so what is pinned is the
+    /// pairing another implementation actually produced: the same key, the same
+    /// message, the same octets.
+    ///
+    /// The two directions are one test because the set's `deterministic` flag is
+    /// what divides them, and that is a property of the algorithm rather than of
+    /// a case. `RS256` and `EdDSA` write the same octets every time, so those
+    /// are held to the set itself: a token signed here under an issuer's key is
+    /// byte for byte what WebCrypto would have written, which is what makes a
+    /// signed token reproducible at all. The other two salt and nonce their
+    /// signatures, so what is asserted there is what survives randomness — a
+    /// fresh signature verifies under the key's own public half, and two over
+    /// one message differ, which is the evidence the randomness reaches the
+    /// algorithm rather than being a constant nobody noticed.
     #[test]
-    fn the_four_signature_algorithms_write_what_webcrypto_would_have() {
+    fn webcrypto_signature_vectors_verify_and_deterministic_ones_resign_byte_for_byte() {
         for vector in webcrypto::vectors("signatures") {
             let name = webcrypto::text(vector, "/name");
             let id = webcrypto::text(vector, "/key");
             let message = webcrypto::octets(vector, "/message");
             let published = webcrypto::octets(vector, "/signature");
-            let written = sign(&signing(id), &message).expect("a key of the set signs");
+            verifying(id, |key| {
+                assert_eq!(
+                    verify_signature(&key, &message, &published),
+                    Some(()),
+                    "{name}"
+                );
+            });
 
+            let written = sign(&signing(id), &message).expect("a key of the set signs");
             if vector["deterministic"]
                 .as_bool()
                 .expect("the set flags every signature one way or the other")
@@ -4601,9 +4659,11 @@ mod tests {
         keys
     }
 
-    /// Every encoding of every public key the frozen set holds, read and
+    /// Every encoding a public key of the frozen set is exported in, read and
     /// written back, against WebCrypto's own octets rather than against this
-    /// codec's.
+    /// codec's — `raw`, `spki` and `jwk`, which are the forms a public key has.
+    /// The private ones a key is also stored in are the two tests above, where
+    /// `pkcs8` and its PEM armour are read.
     ///
     /// The shape is agreement: one key arrives in two or three encodings and
     /// has to become *one* key, so a reader that dropped a coordinate or kept a
@@ -4613,7 +4673,7 @@ mod tests {
     /// the keys the set carries one for — because the first pins the digest and
     /// the second pins the canonicalization it is taken over.
     #[test]
-    fn every_public_key_encoding_round_trips_the_frozen_sets_own_bytes() {
+    fn webcrypto_jws_keys_read_in_every_form_and_write_their_minimal_jwk_and_thumbprint() {
         for (key, kind) in public_keys() {
             let minimal = webcrypto::text(key, "/jwkMinimal");
             let spki = webcrypto::octets(key, "/spki");
@@ -4834,19 +4894,6 @@ mod tests {
             ),
             "a document naming another key type is not this key in another encoding"
         );
-
-        for refusal in webcrypto::refusals("ecdh") {
-            let name = webcrypto::text(refusal, "/name");
-            let kind = kind_of(webcrypto::text(refusal, "/curve"));
-            if kind != KeyKind::P256 {
-                continue;
-            }
-            assert!(
-                PublicKey::read(&webcrypto::octets(refusal, "/theirs"), kind, KeyFormat::Raw)
-                    .is_err(),
-                "{name}"
-            );
-        }
 
         assert!(
             PublicKey::read(&point[..P256_POINT_LEN - 1], KeyKind::P256, KeyFormat::Raw).is_err(),
