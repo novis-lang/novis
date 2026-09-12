@@ -1852,13 +1852,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `io.open(path, encoding='utf-8')` — in any throwaway `python -c` that reads a file out of the tree,
   which is one more reason to reach for `tools/peek.py` whenever the thing you want is nameable as a
   target. [until: reviewed 2026-09-12]
-- **A goal's § *Standing decisions* can pose a question its own record already closed.** `webcrypto`'s
-  fallback clause asks whether a member row may declare a union with `secret` members and says "the
-  record says whether it held", and ADR 0179 § *Investigation* had answered it two stages before the
-  handoff item that asked for it again — the rule fragment the stage created was already written to the
-  answer. Before deciding anything a goal leaves open, read the fragment with `python tools/rules.py
-  --show <topic>/<rule>`: a fragment is always currently true, so it, and not the goal file, says what
-  is still open. [until: gone docs/agent/loop-goal.md:The record says whether it]
 - **Registering a `Core` class trips two closed lists the five-edit checklist does not name.** A class
   with slots and no instance members fails `a_class_with_slots_has_instance_members_and_the_reverse`
   until it is added to that test's `HANDLES`, and a member answering `tainted` fails `nvs-types`'
