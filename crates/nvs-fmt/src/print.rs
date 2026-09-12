@@ -10,16 +10,21 @@
 //! indentation or spacing rewrites a whitespace run, and one about where a
 //! brace sits rewrites the runs on either side of it.
 //!
-//! A code run is copied byte for byte. `rule:tooling/fmt-never-reflows` leaves
-//! what is inside an expression to the author, and bytes a program prints —
-//! inline HTML, a heredoc body, a markup literal's body — are never a
-//! formatter's to touch, so a rule that appears to require rewriting one is
-//! being misread.
+//! A code run is copied byte for byte, save for the one rewrite that only
+//! reorders what is already in it: a modifier list goes out in its canonical
+//! order ([`crate::modifiers`]). `rule:tooling/fmt-never-reflows` leaves what is
+//! inside an expression to the author, and bytes a program prints — inline
+//! HTML, a heredoc body, a markup literal's body — are never a formatter's to
+//! touch, so a rule that appears to require rewriting one is being misread.
+
+use std::iter::Peekable;
+use std::vec::IntoIter;
 
 use nvs_diagnostics::SourceFile;
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::indent::Indent;
+use crate::modifiers::{self, Rewrite};
 
 /// Writes `parsed` back out as the text of a formatted file.
 ///
@@ -28,6 +33,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
     let text = file.text();
     let indent = Indent::new(&parsed.index, text);
     let mut out = String::with_capacity(text.len());
+    let mut moved = modifiers::rewrites(parsed, text).into_iter().peekable();
     let mut cursor = 0_usize;
     for trivium in &parsed.trivia {
         let start = trivium.span.start as usize;
@@ -36,12 +42,39 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
             cursor <= start && start <= end,
             "trivia arrive in source order and no two of them overlap"
         );
-        out.push_str(&text[cursor..start]);
+        push_code(&mut out, text, cursor, start, &mut moved);
         push_trivium(&mut out, &indent, text, *trivium);
         cursor = end;
     }
-    out.push_str(&text[cursor..]);
+    push_code(&mut out, text, cursor, text.len(), &mut moved);
     out
+}
+
+/// Writes the code run `text[from..to]`, each modifier in it going out where
+/// the canonical order puts it.
+///
+/// `moved` is every keyword the file writes somewhere other than where it was
+/// written, in source order; each one lies inside a single run, so what this
+/// takes from the front is what belongs to this run and the rest waits for a
+/// later one.
+fn push_code<'t>(
+    out: &mut String,
+    text: &'t str,
+    from: usize,
+    to: usize,
+    moved: &mut Peekable<IntoIter<Rewrite<'t>>>,
+) {
+    let mut cursor = from;
+    while let Some(rewrite) = moved.next_if(|rewrite| rewrite.end <= to) {
+        debug_assert!(
+            cursor <= rewrite.start,
+            "a rewritten keyword lies inside one code run, and they arrive in source order"
+        );
+        out.push_str(&text[cursor..rewrite.start]);
+        out.push_str(rewrite.written);
+        cursor = rewrite.end;
+    }
+    out.push_str(&text[cursor..to]);
 }
 
 /// Writes one trivium, re-indenting the line it leaves the printer on.

@@ -52,3 +52,32 @@ $tag->rename(\"\");
 ";
     assert_eq!(formatted(mangled), canonical);
 }
+
+#[test]
+fn modifiers_are_written_in_the_canonical_order() {
+    let mangled = "\
+<?nvs
+abstract class Cache {
+    static private int $hits = 0;
+    readonly private string $name;
+
+    public abstract function warm(): void;
+
+    final public function reset(): void {
+    }
+}
+";
+    let canonical = "\
+<?nvs
+abstract class Cache {
+    private static int $hits = 0;
+    private readonly string $name;
+
+    abstract public function warm(): void;
+
+    final public function reset(): void {
+    }
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+}

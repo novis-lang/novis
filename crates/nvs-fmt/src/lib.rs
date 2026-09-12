@@ -45,11 +45,12 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Indentation is the only layout rule written into the printer.** The
-//!    run walk `rule:ide/tokens-plus-trivia-reproduce-the-file` names is the
-//!    frame every rule under `docs/rules/tooling/fmt-*` hangs off, and what
-//!    lands in it so far is four spaces per enclosing body (`indent.rs`).
-//!    Brace placement, modifier order, PER's blank lines, the quote and
+//! 1. **Indentation and modifier order are the layout rules written into the
+//!    printer.** The run walk `rule:ide/tokens-plus-trivia-reproduce-the-file`
+//!    names is the frame every rule under `docs/rules/tooling/fmt-*` hangs off,
+//!    and what lands in it so far is four spaces per enclosing body
+//!    (`indent.rs`) and one canonical order for a declaration's modifiers
+//!    (`modifiers.rs`). Brace placement, PER's blank lines, the quote and
 //!    trailing-comma rules, the `use` block's order and the constructs PER
 //!    never saw are still the author's, so a file that disagrees with one of
 //!    them comes back disagreeing with it.
@@ -66,6 +67,7 @@ use std::fmt;
 use nvs_diagnostics::{Diagnostics, SourceFile};
 
 mod indent;
+mod modifiers;
 mod print;
 
 /// A file `nvs fmt` will not rewrite, because it does not parse.
