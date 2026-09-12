@@ -1833,6 +1833,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   character as code — `String.fromCodePoint(0xe000)` — from the start, and if a raw one is already on
   disk, `git restore <file>` and redo the edit rather than hunting for an anchor.
   [until: reviewed 2026-09-12]
+- **A `cd` in one Bash call is still in force in the next one, so a later `git status` or `grep` answers
+  about the wrong directory instead of failing.** The tool keeps its working directory between calls
+  even though shell state does not, so `cd website && npm run sync:rules` leaves every following call
+  rooted in `website/`, where `git status --porcelain -- website` reports zero changes and a `grep -r`
+  finds nothing. Prefix the next call with `cd /d/mwl &&`, or run the one-off as
+  `cd <dir> && <cmd>` knowing the move sticks. [until: reviewed 2026-09-12]
 
 ## Running things
 

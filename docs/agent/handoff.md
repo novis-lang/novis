@@ -2,44 +2,34 @@
 
 ## State
 
-**Goal `template-format` (M10) — stages 4 and 5 have landed; only stage 6, the rulebook, is left.**
-The markup half is `editors/vscode/src/template.ts`: `chunks` builds them from the formatted text, the
-server's regions and the text's line breaks alone, `hidden` shows a formatter a stand-in of each hole's
-own length, `merged` re-bases an answer onto the chunk's base and drops whole a chunk whose stand-ins
-did not survive, and `edited` is the one conversion from a formatter's edits to a text.
-`editors/vscode/src/format.ts` runs ADR 0173 § 1's order — `nvs fmt`, `nvs/regions` over its answer,
-the editor's `html` **range** formatter over one virtual document per chunk at `{ tabSize: 4,
-insertSpaces: true }` — and `editors/vscode/src/regions.ts` now exports `regions(document, text?)` and
-`embedding(document, language, as, text)` for it. `nvs.template.format` is contributed, default `true`,
-read where the file is, and in `docs/reference/tools/40-editor.md`'s table, which
-`crates/nvs-lsp/tests/extension_reference.rs` holds to the manifest. The headless suite is 222 passing
-and carries the stage-4 check's titles in its order. Nothing is blocked.
+**Goal `template-format` (M10) is met — stage 6, the rulebook, landed with stages 2–5.**
+`rule:ide/a-template-region-gets-the-editors-services-and-formatter` is the rule's id everywhere:
+the record, the chapter list, the fragment's filename and every citation under `crates/`, `docs/`,
+`editors/`, `tests/lsp/` and the website mirror. It is `shipped`, guarded by
+`crates/nvs-lsp/tests/regions.rs`, `editors/vscode/test/contributions/contributions.test.ts` and
+`editors/vscode/test/surfaces/template.test.ts`, and its formatting paragraph now states what
+`editors/vscode/src/format.ts` does rather than what ADR 0173 designed: one chunk at a time, the
+four-space unit whatever the editor's own `tabSize` is, and a regions request nothing answers leaving
+the markup as `nvs fmt` wrote it. Stage 0's other three sentences were corrected in stages 3–4 and were
+re-checked here. Nothing is blocked.
 
 ## Next group
 
-**Stage 6: the rulebook — the id, the status, the guards** — one file set: `docs/rules/ide.json`, the
-fragment beside it, and the 32 files that cite the old id.
+**Goal `template-format` has no open stage — these are the two things it deliberately left** — one file
+set: `crates/nvs-lsp/src/regions.rs` and `editors/vscode/test/surfaces/template.test.ts`.
 
-- [ ] **The rename** — `docs/rules/ide.json:596`: the id becomes
-      `ide/a-template-region-gets-the-editors-services-and-formatter`, in the record, in the chapter's
-      own list (`docs/rules/ide.json:246`), in the fragment's filename, and in every `rule:` citation
-      of it under `docs/`, `crates/`, `editors/` and `tools/` — 32 files — then `python tools/rules.py
-      --render`. The goal's § *Stage 6* is the item; the check is `rules.py --show <new id>`.
-- [ ] **Shipped, with its guards** — `docs/rules/ide.json:596`: status `shipped`, `guardedBy` filled
-      from this goal's tests and goal `editor-surfaces`'s —
-      `editors/vscode/test/surfaces/template.test.ts:202` (the format cases) and
-      `editors/vscode/test/contributions/contributions.test.ts:83` (the frozen roster).
-- [ ] **The sentences stages 3–5 settled** —
-      `docs/rules/ide/a-template-region-gets-services-but-no-second-formatter.md:18`: the formatting
-      paragraph is now shipped behaviour, so read it against `editors/vscode/src/format.ts:106` and the
-      two settings' names against `editors/vscode/package.json:133`, and correct what it says rather
-      than adding to it.
+- [ ] **A markup literal's body is still not a region** — `crates/nvs-lsp/src/regions.rs:58`
+      (§ *What is not a region yet*): `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
+      names it one on the same terms as file-scope markup, but the lexer has no token for a segment, so
+      the fix is the server's answer and a goal of its own rather than a slice of this one.
+- [ ] **The markup pass is only proven against a stub** —
+      `editors/vscode/test/surfaces/template.test.ts:202`: VS Code's HTML formatter does not exist
+      headless, so every check here injects one. A real template round-trips in M10's host run
+      (`docs/plan/m10.md:127`), which no session runs.
 
 ## Backlog
 
-- A hole written across lines becomes one long line of stand-in, so a formatter that wraps it leaves
-  that chunk as written — `editors/vscode/src/template.ts`'s `hidden` owns that trade.
-- A real HTML formatter over a real template is the milestone's host run, never headless —
-  `docs/plan/m10.md` § *Verify*.
-- A markup literal's body is still not a region, so `nvs fmt` alone lays one out —
-  `crates/nvs-lsp/src/regions.rs` § *What is not a region yet*.
+- The website mirror was stale before this session; `npm run sync:rules` is human-fired and publishes
+  every rule edit since the last one (`.github/workflows/pages.yml`).
+- `guardedBy` names no `.lspt` case anywhere in the rulebook, though eight of them cite this rule
+  (`docs/rules/ide.json`).
