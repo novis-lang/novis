@@ -53,7 +53,8 @@
 //! retried. There is no plaintext fallback and no spelling for a session that
 //! verifies nothing; both are priority-1 failures wearing a feature's name.
 
-use std::io::{ErrorKind, Read, Write};
+use std::cell::RefCell;
+use std::io::{ErrorKind, Read, Seek, Write};
 use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};
 
@@ -71,6 +72,15 @@ use rand::RngExt;
 /// megabytes past the point where a caller should be streaming instead, which
 /// is the member this class does not have yet.
 const REPLY_CEILING: usize = 8 * 1024 * 1024;
+
+/// How much of a file body this module holds at once.
+///
+/// `rule:http-server/an-outbound-request-carries-one-body` is why there is a
+/// number here at all: a file part exists so that a body larger than anything
+/// this process would hold can still be sent, and a copy of the file in memory
+/// on the way to the socket would give that back. One buffer per attempt,
+/// released with it, whatever the file's size.
+const BODY_CHUNK: usize = 16 * 1024;
 
 /// One call, whole: what to send, where it was pinned to, and every bound it
 /// runs under.
@@ -101,6 +111,9 @@ pub(crate) struct Call<'a> {
     pub(crate) backoff: Duration,
     /// `Idempotency-Key`, for the one verb that needs one.
     pub(crate) idempotency_key: Option<String>,
+    /// What this call sends after its head, or `None` for a verb that carries
+    /// nothing — already framed, like every other field here.
+    pub(crate) body: Option<Body>,
     /// The W3C `traceparent` naming the request this call is made from, or
     /// `None` where `[trace] propagate` is off.
     ///
@@ -109,6 +122,89 @@ pub(crate) struct Call<'a> {
     /// this module deliberately cannot reach.
     pub(crate) traceparent: Option<String>,
 }
+
+/// `rule:http-server/an-outbound-request-carries-one-body`'s one body, framed:
+/// the type it is sent under, the length it promises, and the pieces in order.
+///
+/// **Framed once per call and written once per attempt**, which is the rule's
+/// last sentence as a shape: [`super::body_of`] decides the encoding, the
+/// boundary and the segments before the first connection, so a retry repeats
+/// bytes rather than repeating the work that produced them.
+///
+/// `Content-Length` is a field here rather than a sum taken at the socket,
+/// because it is written into the head before any piece is read and the two
+/// must be the same number even where the file underneath has since changed
+/// size.
+pub(crate) struct Body {
+    /// The `Content-Type` this framing chose, or `None` where the program sent
+    /// octets and named no type for them.
+    pub(crate) content_type: Option<String>,
+    /// `Content-Length` — known before the first byte, which is why this client
+    /// has no chunked request body.
+    pub(crate) length: u64,
+    /// The body in order.
+    pub(crate) pieces: Vec<Piece>,
+}
+
+impl Body {
+    /// Every piece of this body in one buffer, for a caller that is not a
+    /// socket.
+    ///
+    /// `rule:testing/an-outbound-call-is-answered-from-a-table`'s record is the
+    /// one such caller: a test asks what its subject *sent*, and the answer has
+    /// to be the framed octets rather than the options the program wrote, or a
+    /// case asserting on a multipart body would be asserting on this module's
+    /// arithmetic rather than on its output. It is the same writer the socket
+    /// gets, so what a faked call records and what a real one sends cannot
+    /// disagree.
+    ///
+    /// # Errors
+    ///
+    /// [`write_body`]'s, for a file piece that cannot be rewound or read.
+    pub(crate) fn collected(&self, member: &str) -> Result<Vec<u8>, Fault> {
+        let mut out = Vec::new();
+        match write_body(self, &mut out, member)? {
+            None => Ok(out),
+            // A `Vec` has no failure to report, so this arm is a bug in this
+            // module rather than anything a program or a network can cause.
+            Some(err) => Err(Fault::fatal(format!(
+                "{member} could not collect the body it framed — {err}"
+            ))),
+        }
+    }
+}
+
+/// One run of a [`Body`]: octets the framing built, or a file it did not read.
+pub(crate) enum Piece {
+    /// What the framing composed — a JSON document, an encoded form, a
+    /// multipart segment, or a raw body the program was already holding.
+    Held(Vec<u8>),
+    /// A file, written from disk at [`BODY_CHUNK`] a time.
+    ///
+    /// The descriptor is opened **once**, through the capability door in
+    /// [`super`] where a `Ctx` exists, and rewound for every attempt. Opening
+    /// it there rather than re-opening it here is what makes the octets sent
+    /// the ones the grant was checked against: a path re-resolved per attempt
+    /// is a name another process may have moved between them.
+    File {
+        /// The open handle, rewound before each attempt writes from it.
+        handle: RefCell<Box<dyn Rewindable>>,
+        /// Its size when the body was framed, which is the length the head has
+        /// already promised.
+        length: u64,
+    },
+}
+
+/// What a file piece is read through.
+///
+/// A handle and not a path, and a trait rather than the filesystem's own type:
+/// this module can rewind one and read it, and has no spelling for opening one.
+/// That is `rule:security/capability-check-at-the-door` where a transport meets
+/// a file — the door is [`super::part_of`]'s, where a `Ctx` exists to ask it,
+/// and what arrives here is already the thing the grant was checked against.
+pub(crate) trait Rewindable: Read + Seek {}
+
+impl<T: Read + Seek> Rewindable for T {}
 
 /// What came back: the two things `Core\Http\Response` holds, plus the headers
 /// the redirect and retry rules read.
@@ -293,10 +389,19 @@ fn exchange(
     request: &str,
     socket: SocketAddr,
 ) -> Result<Attempt, Fault> {
-    if let Err(err) = stream
-        .write_all(request.as_bytes())
-        .and_then(|()| stream.flush())
+    if let Err(err) = stream.write_all(request.as_bytes()) {
+        return Ok(Attempt::Failed(format!(
+            "sending to {socket} failed: {err}"
+        )));
+    }
+    if let Some(body) = &call.body
+        && let Some(err) = write_body(body, stream, call.member)?
     {
+        return Ok(Attempt::Failed(format!(
+            "sending to {socket} failed: {err}"
+        )));
+    }
+    if let Err(err) = stream.flush() {
         return Ok(Attempt::Failed(format!(
             "sending to {socket} failed: {err}"
         )));
@@ -359,11 +464,92 @@ fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
     {
         field(&mut out, "traceparent", traceparent, call.member)?;
     }
+    // Before the caller's own headers, so a program that wrote its own
+    // `Content-Type` beside a `json` body still sends one line rather than two
+    // — the last one written is the one an origin reads, and the program's is
+    // the one it meant.
+    if let Some(body) = &call.body {
+        if let Some(content_type) = &body.content_type {
+            field(&mut out, "Content-Type", content_type, call.member)?;
+        }
+        field(
+            &mut out,
+            "Content-Length",
+            &body.length.to_string(),
+            call.member,
+        )?;
+    }
     for (name, value) in &call.headers {
         field(&mut out, name, value, call.member)?;
     }
     out.push_str("\r\n");
     Ok(out)
+}
+
+/// The body out, piece by piece, after the head.
+///
+/// `Ok(None)` is a body that went out whole; `Ok(Some(..))` is the **sink**
+/// failing, which [`exchange`] names with its socket and hands on as transport
+/// weather; an `Err` is the **file** failing, which no second attempt would
+/// change. Which of the two halves failed is what decides whether this call is
+/// retried at all, so they are two shapes here rather than one message.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` where a file piece cannot be rewound or read, or
+/// where it holds fewer bytes than the `Content-Length` already sent — a head
+/// promising more than the body delivers leaves the other end waiting, so it is
+/// this end's failure and it is named here.
+fn write_body(
+    body: &Body,
+    stream: &mut impl Write,
+    member: &str,
+) -> Result<Option<std::io::Error>, Fault> {
+    for piece in &body.pieces {
+        match piece {
+            Piece::Held(octets) => {
+                if let Err(err) = stream.write_all(octets) {
+                    return Ok(Some(err));
+                }
+            }
+            Piece::File { handle, length } => {
+                let mut file = handle.borrow_mut();
+                file.rewind().map_err(|err| {
+                    Fault::thrown(format!(
+                        "{member}: the file this request sends could not be rewound for this \
+                         attempt — {err}"
+                    ))
+                })?;
+                let mut left = *length;
+                let mut buffer = [0_u8; BODY_CHUNK];
+                while left > 0 {
+                    let want = usize::try_from(left).unwrap_or(BODY_CHUNK).min(BODY_CHUNK);
+                    let read = match file.read(&mut buffer[..want]) {
+                        Ok(0) => {
+                            return Err(Fault::thrown(format!(
+                                "{member}: the file this request sends is {left} bytes shorter \
+                                 than the `Content-Length` already sent, and the other end is \
+                                 waiting for the rest"
+                            )));
+                        }
+                        Ok(read) => read,
+                        Err(err) if err.kind() == ErrorKind::Interrupted => continue,
+                        Err(err) => {
+                            return Err(Fault::thrown(format!(
+                                "{member}: reading the file this request sends failed partway \
+                                 through — {err}"
+                            )));
+                        }
+                    };
+                    if let Err(err) = stream.write_all(&buffer[..read]) {
+                        return Ok(Some(err));
+                    }
+                    left -= read as u64;
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// One header line, refused if either half could end it early.
@@ -658,6 +844,7 @@ mod tests {
             attempts: 1,
             backoff: Duration::from_millis(1),
             idempotency_key: None,
+            body: None,
             traceparent: None,
         }
     }
@@ -963,5 +1150,115 @@ mod tests {
         );
         let request = served.join().expect("the origin thread");
         assert!(request.starts_with("GET /ok HTTP/1.1\r\n"), "{request}");
+    }
+
+    /// A sink that keeps what it was given and how it was given it.
+    struct Chunks {
+        /// Every write's length, in order.
+        sizes: Vec<usize>,
+        /// Everything written, joined.
+        written: Vec<u8>,
+    }
+
+    impl Write for Chunks {
+        fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+            self.sizes.push(buffer.len());
+            self.written.extend_from_slice(buffer);
+            Ok(buffer.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// A body that is the file at `path`, whatever is in it now.
+    fn file_body(path: &std::path::Path) -> super::Body {
+        let handle = std::fs::File::open(path).expect("the file this test wrote");
+        let length = handle.metadata().expect("its size").len();
+        super::Body {
+            content_type: None,
+            length,
+            pieces: vec![super::Piece::File {
+                handle: RefCell::new(Box::new(handle)),
+                length,
+            }],
+        }
+    }
+
+    /// A file in this platform's temporary directory holding `content`.
+    fn scratch(name: &str, content: &[u8]) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(name);
+        std::fs::write(&path, content).expect("a scratch file");
+        path
+    }
+
+    /// `rule:http-server/an-outbound-request-carries-one-body`: a file part is
+    /// what a body larger than this process's own ceiling is written as, so the
+    /// buffer between the disk and the socket is one chunk however big the file
+    /// is.
+    #[test]
+    fn a_file_body_is_streamed_at_one_chunk_whatever_its_size() {
+        let content = vec![b'x'; super::BODY_CHUNK * 5 + 17];
+        let path = scratch("nvs-http-one-chunk.bin", &content);
+        let body = file_body(&path);
+
+        let mut sink = Chunks {
+            sizes: Vec::new(),
+            written: Vec::new(),
+        };
+        let failed = super::write_body(&body, &mut sink, "Core\\Http\\Client::put")
+            .expect("the file was readable");
+
+        assert!(failed.is_none(), "a `Vec` sink cannot fail");
+        assert_eq!(sink.written, content, "the whole file did not arrive");
+        assert_eq!(
+            body.length,
+            content.len() as u64,
+            "the `Content-Length` promised is not the file's size"
+        );
+        // The claim is the *ceiling*, not the count: a writer holding the file
+        // would show one write of five megabytes here and still arrive with the
+        // same octets.
+        assert!(
+            sink.sizes.iter().all(|size| *size <= super::BODY_CHUNK),
+            "a write carried more than one chunk: {:?}",
+            sink.sizes
+        );
+        assert!(
+            sink.sizes.len() > 1,
+            "a file larger than a chunk went out in one write"
+        );
+    }
+
+    /// `rule:http-server/an-outbound-request-carries-one-body`: the body is
+    /// built once and a file part is read again per attempt, so a retry holds
+    /// nothing between the two and sends what is on disk when it sends.
+    #[test]
+    fn a_file_body_is_re_read_on_every_attempt() {
+        let path = scratch("nvs-http-re-read.bin", b"the first attempt");
+        let body = file_body(&path);
+        let member = "Core\\Http\\Client::put";
+
+        let mut first = Chunks {
+            sizes: Vec::new(),
+            written: Vec::new(),
+        };
+        super::write_body(&body, &mut first, member).expect("the file was readable");
+        assert_eq!(first.written, b"the first attempt");
+
+        // The same length, so the head this attempt already sent is still the
+        // truth, and different octets, so a writer that kept the first read
+        // fails here.
+        std::fs::write(&path, b"the second effort").expect("the scratch file");
+        let mut second = Chunks {
+            sizes: Vec::new(),
+            written: Vec::new(),
+        };
+        super::write_body(&body, &mut second, member).expect("the file was readable");
+        assert_eq!(
+            second.written, b"the second effort",
+            "the second attempt sent what the first one read"
+        );
     }
 }
