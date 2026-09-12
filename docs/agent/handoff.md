@@ -2,52 +2,58 @@
 
 ## State
 
-**Goal `fmt` (M10), stage 5 is closed: every construct PER never saw has its one layout.** The
-qualifier's space, the `fn` closure's body brace, the one-line object literal's braces and now the
-`match` arm list are all landed, and the stage's other check — a close tag at its block's depth with
-markup byte-identical — has been green since the session before. Nothing is blocked.
+**Goal `fmt` (M10), stage 6 is closed: `nvs fmt` is a subcommand of the `nvs` binary.** Both of the
+stage's checks pass — the six named `nvs-cli` tests, and `nvs fmt --check tests/fmt/formatted` over
+the frozen half of the fixture tree. Nothing is blocked.
 
-**A `match` arm list is laid out by two halves, because a depth and a line break are different
-edits.** `crates/nvs-fmt/src/indent.rs`'s `arm_starts` reads the arm boundaries off the `Match`'s
-children — the walk gives an arm no node of its own, so the child after a body opens an arm and the
-`,` or `{` in front of it is where a `default` arm's keyword is found — and `of_line` places an arm
-that already opens a line, plus the brace that closes the list. `crates/nvs-fmt/src/space.rs`'s
-`arm_lines` contributes the `Runs` pair that gives an arm sharing a line with the one before it a
-line of its own, and only that case: a run written over an arm that already opens a line would take
-the blank line its author left above it too. `Match` has left `indent.rs`'s `OPAQUE` as a result, so
-a block written inside an arm is indented like any other now.
+**The command owns which files are read and where the text goes, and no layout rule at all.**
+`crates/nvs-cli/src/fmt.rs` resolves the paths (a directory is walked for `.nvs`, a named file is
+taken as named), calls `nvs_fmt::format` once per file, and dispatches on a three-variant `Mode`;
+`--stdin` is a second entry point beside it, because it resolves no path. A refusal names the file
+on standard error and never stops the walk, and nothing is written when the bytes already match.
+`--diff` builds its unified diff in that module from a longest-common-subsequence over lines split
+on `\n` — `str::lines` would call a file that differs only in its final newline unchanged, which is
+the one thing `--check` and `--diff` must never disagree about.
 
-The corpus absorbed this rule with no edit — `examples/match.nvs` was already what the rule asks for.
+**The fixture pairs are `tests/fmt/input/<name>.nvs` beside `tests/fmt/formatted/<name>.nvs`**,
+walked by `crates/nvs-fmt/tests/fixtures.rs`, which holds three things: the two directories name the
+same files, each input formats to its pair byte for byte, and each frozen file formats to itself.
+Adding a pair needs no Rust.
 
 ## Next group
 
-**Stage 6: the command** — one file set: `crates/nvs-cli/src/main.rs`, a new
-`crates/nvs-cli/src/fmt.rs`, a new `crates/nvs-cli/tests/fmt.rs`, and the fixture pairs under
-`tests/fmt/`.
+**Stage 7: the corpus, and the rulebook** — one file set: a new `crates/nvs-fmt/tests/corpus.rs`,
+one more fixture pair under `tests/fmt/`, and the `docs/rules/tooling/fmt-*.md` fragments.
 
-- [ ] **`nvs fmt <paths>` rewrites each named file in place, and refuses one that does not parse** —
-      `rule:tooling/fmt-is-one-canonical-style`. The subcommand is a variant in
-      `crates/nvs-cli/src/main.rs:228`'s `enum Command` with a module beside `crates/nvs-cli/src/check.rs:1`
-      to copy the shape from, and the one call it makes is `crates/nvs-fmt/src/lib.rs:184`'s `format`.
-      The test is `fmt_rewrites_each_named_file_in_place` in a new `crates/nvs-cli/tests/fmt.rs`.
-- [ ] **`--check`, `--diff` and `--stdin` are I/O modes and never style knobs** —
-      `rule:tooling/fmt-is-one-canonical-style` names the flag set. `--check` writes nothing and exits
-      non-zero naming each file, `--diff` prints the diff and writes nothing, `--stdin` writes the
-      formatted file to standard output and writes *nothing at all* for a file that does not parse
-      (`crates/nvs-fmt/src/lib.rs:191`'s `Refusal`). Four tests, one per mode, in
-      `crates/nvs-cli/tests/fmt.rs`.
-- [ ] **No compiler command formats anything** — `rule:tooling/fmt-is-never-a-diagnostic`. The test is
-      `nvs_check_never_reports_an_unformatted_file` over `crates/nvs-cli/src/check.rs:1`, which must not
-      gain a call into `nvs_fmt`.
-- [ ] **Every file under `tests/fmt/formatted/` is a fixed point** — the goal's § *Standing decisions*
-      pairs `tests/fmt/input/<name>.nvs` with `tests/fmt/formatted/<name>.nvs`, walked by one `nvs-fmt`
-      test; neither directory exists yet. The stage's command check runs `nvs fmt --check` over the
-      frozen half (`docs/agent/loop-goal.toml:8886`).
+- [ ] **Formatting the whole corpus twice changes nothing the second time** —
+      `rule:tooling/fmt-is-idempotent`. The walk to copy is the one
+      `crates/nvs-fmt/tests/identity.rs:49` already makes over `examples/` and `tests/` — including
+      the one directory it steps over, `tests/fmt/input`, which is unformatted on purpose — and the
+      call is `crates/nvs-fmt/src/lib.rs:184`'s `format`. The test is
+      `formatting_the_whole_corpus_twice_changes_nothing_the_second_time`, in a new
+      `crates/nvs-fmt/tests/corpus.rs`.
+- [ ] **Every formatted corpus file parses to the same tree as its input** — the goal's § *Standing
+      decisions*, "never a semantic change". Compare the walk rather than the text:
+      `crates/nvs-syntax/src/walk.rs:1` is what `nvs ast` renders a tree from, and a comparison of
+      the two renderings is what makes a difference readable. The test is
+      `every_formatted_corpus_file_parses_to_the_same_tree_as_its_input`, beside the one above.
+- [ ] **A comment in every position the grammar allows survives where it started** —
+      `rule:ide/tokens-plus-trivia-reproduce-the-file`. The natural shape is one more fixture pair,
+      `tests/fmt/input/comments.nvs` and its frozen half, plus the named test; the pair walker that
+      picks it up with no edit is `crates/nvs-fmt/tests/fixtures.rs:66`.
+- [ ] **The formatter's rules are shipped** — `python tools/rules.py --show
+      tooling/fmt-is-one-canonical-style` must print `shipped`, and it prints `designed` today.
+      Flip the `status:` line in `docs/rules/tooling/fmt-is-one-canonical-style.md:2` and in each
+      `fmt-*` sibling the goal landed, and say in `crates/nvs-fmt/src/lib.rs:55`'s `# Known gaps`
+      what is left.
 
 ## Backlog
 
-- A multi-line object literal's field lines keep the author's indentation — `ObjectLiteral` is in no
-  body list; `crates/nvs-fmt/src/lib.rs`'s known gap 2 is where it would be named.
-- A shape type's braces get neither the space nor the trailing comma — `crates/nvs-fmt/src/lib.rs`
-  known gap 5, and it needs a node in `crates/nvs-syntax/src/walk.rs` first.
-- Stage 7 is the corpus and the rulebook — `docs/agent/loop-goal.toml`, stage `7 the corpus`.
+- A multi-line **enum case list** gains no trailing comma, though an array or argument list does —
+  decide whether `rule:tooling/fmt-trailing-commas` covers it, in `crates/nvs-fmt/src/tokens.rs`.
+- A **`switch` case label** keeps the column its author wrote it at; `crates/nvs-fmt/src/indent.rs`
+  indents the body but not the label, and no rule under `docs/rules/tooling/` decides it.
+- `nvs fmt` **writes LF** for a file that arrived as CRLF, and nothing states that it does; the home
+  would be `rule:tooling/fmt-is-one-canonical-style` or the crate's module doc.
+- `initializes()` in `crates/nvs-cli/src/main.rs:216` has no `Fmt` row, because the formatter
+  resolves no configuration tree; its test names the commands it lists one by one.

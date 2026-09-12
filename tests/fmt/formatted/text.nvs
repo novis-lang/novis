@@ -1,0 +1,22 @@
+<?nvs
+var $raw = '  The Quick,  brown FOX  ';
+var $tidy = Core\Str::trim($raw);
+echo 'tidy=[' . $tidy . "]\n";
+
+var $parts = Core\Regex::split($tidy, "[,\\s]+");
+echo 'words=' . Core\Arr::count($parts) . "\n";
+
+var $slug = Core\Str::lower(Core\Regex::replace($tidy, '[^A-Za-z]+', '-'));
+echo 'slug=' . Core\Str::trim($slug, { characters: '-' }) . "\n";
+
+var $found = Core\Regex::match('order-4711-eu', "order-(\\d+)-(\\w+)");
+if ($found != null) {
+    echo 'id=' . $found->group(1) . ' region=' . $found->group(2) . "\n";
+}
+
+echo 'digits=' . Core\Arr::count(Core\Regex::matchAll('a1b2c3', "\\d")) . "\n";
+echo 'wrapped=' . Core\Str::replace(Core\Str::wrap('one two three four', 9), "\n", '/') . "\n";
+echo 'reversed=' . Core\Str::reverse('stressed') . "\n";
+echo 'formatted=' . Core\Str::format('%s has %d', 'fox', 2) . "\n";
+echo 'where=' . (Core\Str::indexOf($tidy, 'brown') ?? 0) . "\n";
+echo 'before=' . (Core\Str::before($tidy, ',') ?? '') . "\n";

@@ -48,6 +48,12 @@ fn the_identity_printer_reproduces_every_corpus_file() {
     let mut corpus = Vec::new();
     collect(&root.join("examples"), &mut corpus);
     collect(&root.join("tests"), &mut corpus);
+    // Every pair's input half is wrong about a rule on purpose, and the frozen
+    // half beside it is the claim about what it formats to
+    // (`crates/nvs-fmt/tests/fixtures.rs`). The frozen half stays in: it is a
+    // corpus file like any other, and a rule that moves it moves it here too.
+    let unformatted_on_purpose = root.join("tests").join("fmt").join("input");
+    corpus.retain(|path| !path.starts_with(&unformatted_on_purpose));
     corpus.sort();
 
     let accepting = std::env::var_os("NVS_FMT_ACCEPT").is_some();
