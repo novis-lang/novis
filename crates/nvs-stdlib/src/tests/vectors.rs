@@ -49,6 +49,12 @@ pub(crate) fn refusals(section: &str) -> &'static [Value] {
     list(section, "refusals")
 }
 
+/// A section's signing cases — the ones where this runtime writes the octets
+/// and WebCrypto's own output from the same inputs is what they are held to.
+pub(crate) fn signs(section: &str) -> &'static [Value] {
+    list(section, "signs")
+}
+
 /// One array out of one section, or a panic naming what was asked for: a test
 /// reaching a section the script does not write is a test asserting nothing,
 /// which is worse than a failing one.

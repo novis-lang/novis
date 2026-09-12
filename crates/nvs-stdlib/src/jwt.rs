@@ -1264,6 +1264,112 @@ fn claim_text(value: &serde_json::Value) -> Option<String> {
     }
 }
 
+/// What a call to `sign` has settled by the time a token is written, the clock
+/// included.
+///
+/// The clock is two fields rather than something [`signed_token`] reads off a
+/// `Ctx`, which is [`Issued`]'s reason in the write direction: the frozen
+/// WebCrypto set records the second each of its tokens was signed at, and a
+/// token signed at the wall clock carries an `iat` and an `exp` that no
+/// recorded token's bytes can be compared against. A program gets the same
+/// thing from `Core\Time`'s fixed clock; this is the form a `#[test]` with no
+/// program in it can use.
+struct Signing<'a> {
+    /// The caller's claims, written in their own order ahead of the registered
+    /// pair.
+    claims: &'a NvsArray,
+    /// The key, which is what chooses the algorithm
+    /// (`rule:security/algorithm-comes-from-the-key`).
+    signer: Signer<'a>,
+    /// `{kid: …}`, written into the header when a call names one.
+    kid: Option<&'a str>,
+    /// `{typ: …}`, [`TYP`] when a call names none.
+    typ: &'a str,
+    /// `{embedKey: …}`, which writes the pair's public half under `jwk`.
+    embed: bool,
+    /// The second the token is signed at, written as `iat`.
+    now: i64,
+    /// The second it expires at, written as `exp`.
+    exp: i64,
+}
+
+/// The compact token `sign` answers with — or the refusal saying the call
+/// cannot be signed as asked.
+///
+/// All of `sign` but its two ends: what a call site wrote is a [`Signing`] by
+/// the time it gets here, and what the member answers with is the text this
+/// returns.
+///
+/// **The order is what makes a token reproducible.** The header is settled
+/// before anything is encoded, so every byte that gets signed is fixed by the
+/// key, the bag and the clock and by nothing read later.
+///
+/// # Errors
+///
+/// A `LogicError` for `{embedKey: true}` under a shared secret, which has no
+/// public half to embed, and whatever [`embedded_jwk`], [`payload_of`] and
+/// [`pair_signature`] refuse. A resource refusal for a token larger than the
+/// request can still afford.
+fn signed_token(asked: Signing<'_>) -> Result<String, Fault> {
+    let Signing {
+        claims,
+        signer,
+        kid,
+        typ,
+        embed,
+        now,
+        exp,
+    } = asked;
+
+    let (alg, jwk) = match &signer {
+        Signer::Shared(_) => {
+            if embed {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!(
+                        "{NAME}::sign(): {{embedKey: true}} writes the signing key's public \
+                         half into the header, and a shared secret has no public half — it \
+                         is the key the recipient already holds. Sign under a \
+                         `Core\\Crypto\\KeyPair` to embed one."
+                    ),
+                ));
+            }
+            (ALG, None)
+        }
+        Signer::Pair(pair, alg) => {
+            let jwk = if embed {
+                Some(embedded_jwk(pair, "sign")?)
+            } else {
+                None
+            };
+            (*alg, jwk)
+        }
+    };
+    let header = header_of(alg, jwk.as_deref(), kid, typ);
+    let payload = payload_of(claims, now, exp)?;
+    let signing_input = format!(
+        "{}.{}",
+        URL_SAFE_NO_PAD.encode(&header),
+        URL_SAFE_NO_PAD.encode(&payload)
+    );
+    let signature = match signer {
+        Signer::Shared(key) => {
+            URL_SAFE_NO_PAD.encode(crate::hash::hmac_sha256(key, signing_input.as_bytes()))
+        }
+        Signer::Pair(pair, _) => pair_signature(pair, signing_input.as_bytes(), "sign")?,
+    };
+
+    // Asked once with the real number, as `crate::crypto::seal_under` does: the
+    // answer's size is known exactly here.
+    let len = signing_input.len() + 1 + signature.len();
+    nvs_runtime::affordable(Some(len), "Core\\Jwt::sign")?;
+    let mut token = String::with_capacity(len);
+    token.push_str(&signing_input);
+    token.push('.');
+    token.push_str(&signature);
+    Ok(token)
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Jwt::sign(array<string> $claims, Duration $lifetime, secret bytes|Crypto\KeyPair $key, {kid?, typ?, embedKey?}): string`
     /// — the write half of `rule:security/protocol-roster`'s fourth entry, replacing the
@@ -1275,9 +1381,11 @@ nvs_runtime::nvs_helper! {
     /// cannot leave out an argument that is not optional. The module doc's own
     /// section is the home of why `exp` is refused in `$claims` as well.
     ///
-    /// The order below is what makes a token reproducible: the header is
-    /// settled before anything is encoded, so every byte that gets signed is
-    /// fixed by the key, the bag and the clock and by nothing read later.
+    /// **What is left here is the call.** The token itself is written by
+    /// [`signed_token`], which takes the clock as an argument and owns the order
+    /// that makes a token reproducible; this arm reads the arguments and turns
+    /// `$lifetime` and the `Ctx`'s clock into the one `iat`/`exp` pair
+    /// [`registered_pair`] bounds.
     fn nvs_core_jwt_sign(ctx, args: [6]) {
         let raw = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
@@ -1293,53 +1401,16 @@ nvs_runtime::nvs_helper! {
         let typ = args[4].as_text().unwrap_or(TYP);
         let embed = args[5].as_bool().unwrap_or(false);
 
-        let (alg, jwk) = match &signer {
-            Signer::Shared(_) => {
-                if embed {
-                    return Err(Fault::thrown_as(
-                        ThrownClass::Logic,
-                        format!(
-                            "{NAME}::sign(): {{embedKey: true}} writes the signing key's public \
-                             half into the header, and a shared secret has no public half — it \
-                             is the key the recipient already holds. Sign under a \
-                             `Core\\Crypto\\KeyPair` to embed one."
-                        ),
-                    ));
-                }
-                (ALG, None)
-            }
-            Signer::Pair(pair, alg) => {
-                let jwk = if embed {
-                    Some(embedded_jwk(pair, "sign")?)
-                } else {
-                    None
-                };
-                (*alg, jwk)
-            }
-        };
-        let header = header_of(alg, jwk.as_deref(), kid, typ);
         let (now, exp) = registered_pair(ctx, lifetime, "sign")?;
-        let payload = payload_of(&claims, now, exp)?;
-        let signing_input = format!(
-            "{}.{}",
-            URL_SAFE_NO_PAD.encode(&header),
-            URL_SAFE_NO_PAD.encode(&payload)
-        );
-        let signature = match signer {
-            Signer::Shared(key) => {
-                URL_SAFE_NO_PAD.encode(crate::hash::hmac_sha256(key, signing_input.as_bytes()))
-            }
-            Signer::Pair(pair, _) => pair_signature(pair, signing_input.as_bytes(), "sign")?,
-        };
-
-        // Asked once with the real number, as `crate::crypto::seal_under`
-        // does: the answer's size is known exactly here.
-        let len = signing_input.len() + 1 + signature.len();
-        nvs_runtime::affordable(Some(len), "Core\\Jwt::sign")?;
-        let mut token = String::with_capacity(len);
-        token.push_str(&signing_input);
-        token.push('.');
-        token.push_str(&signature);
+        let token = signed_token(Signing {
+            claims: &claims,
+            signer,
+            kid,
+            typ,
+            embed,
+            now,
+            exp,
+        })?;
         Ok(Value::str(NvsStr::new(token.as_bytes())))
     }
 }
@@ -2553,7 +2624,7 @@ mod tests {
     /// ones a browser's own exports assemble into, and its `kids` are what an
     /// independent reading of the same rules admitted from them.
     #[test]
-    fn every_frozen_key_set_is_admitted_or_refused_as_the_set_says() {
+    fn webcrypto_jws_key_sets_admit_or_refuse_as_recorded() {
         let sets = webcrypto::node("/jws/keySets")
             .as_array()
             .expect("the vector set writes /jws/keySets as an array");
@@ -2689,7 +2760,7 @@ mod tests {
     /// are what an independent reading of the same rules admitted from them, so
     /// the file is the proof and there is no table here.
     #[test]
-    fn every_frozen_token_verifies_at_the_second_the_set_judged_it() {
+    fn webcrypto_jws_vectors_verify_to_their_claims() {
         let cases = webcrypto::vectors("jws");
         assert!(!cases.is_empty(), "the set carries JWS vectors at all");
 
@@ -2723,7 +2794,7 @@ mod tests {
     /// `rule:security/jwt-expiry-is-mandatory` rather than a claim the issuer
     /// and this program disagree about.
     #[test]
-    fn every_frozen_refusal_says_only_what_its_own_stage_may_say() {
+    fn webcrypto_jws_refusals_are_each_refused_with_their_recorded_kind() {
         let cases = webcrypto::refusals("jws");
         assert!(!cases.is_empty(), "the set carries JWS refusals at all");
         let Fault::Thrown(_, one_sentence) = not_issued() else {
@@ -2760,5 +2831,215 @@ mod tests {
                 other => panic!("{name} records a kind this test has no rule for: {other}"),
             }
         }
+    }
+
+    /// A boolean field of one case, or a panic naming it — [`whole`]'s reason:
+    /// a `deterministic` that defaulted to `false` would quietly move a case
+    /// out of the byte-for-byte test and into the weaker one.
+    fn flag(case: &serde_json::Value, at: &str) -> bool {
+        case.pointer(at)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or_else(|| panic!("the vector set has no boolean at {at}"))
+    }
+
+    /// The private key one signing case names, and the algorithm its kind
+    /// signs under.
+    ///
+    /// `/jws/keys` holds the PKCS#8 every case signs from, and the kind is
+    /// found by asking [`pair_alg`] which one carries the `alg` the set
+    /// recorded — so there is no table here to come to disagree with the one
+    /// the module signs by.
+    fn signing_key(case: &serde_json::Value) -> Signer<'static> {
+        let named = webcrypto::text(case, "/key");
+        let key = webcrypto::node(&format!("/jws/keys/{named}"));
+        let alg = webcrypto::text(key, "/alg");
+        let kind = [
+            KeyKind::P256,
+            KeyKind::X25519,
+            KeyKind::Ed25519,
+            KeyKind::RsaPkcs1,
+            KeyKind::RsaPss,
+        ]
+        .into_iter()
+        .find(|kind| pair_alg(*kind) == Some(alg))
+        .unwrap_or_else(|| panic!("{named} signs under {alg}, which no kind carries"));
+        let pair = PrivateKey::read(&webcrypto::octets(key, "/pkcs8"), kind)
+            .unwrap_or_else(|| panic!("{named}'s PKCS#8 is a key of its own kind"));
+        Signer::Pair(pair, alg)
+    }
+
+    /// The claims one signing case carries, as the array a call site wrote.
+    ///
+    /// The set writes them as `[[name, value], …]` rather than as an object,
+    /// because the payload's order is the caller's order and JSON does not
+    /// promise one.
+    fn claims_of(case: &serde_json::Value) -> NvsArray {
+        let written = case
+            .pointer("/claims")
+            .and_then(serde_json::Value::as_array)
+            .expect("a text-claims case carries its claims as pairs");
+        let mut claims = NvsArray::new();
+        for pair in written {
+            claims.set(
+                NvsStr::new(webcrypto::text(pair, "/0").as_bytes()),
+                Value::str(NvsStr::new(webcrypto::text(pair, "/1").as_bytes())),
+            );
+        }
+        claims
+    }
+
+    /// What one signing case asks for, as the value `sign` has settled by the
+    /// time it writes a token: `options` is the bag a call site wrote, and
+    /// `clock` and `lifetime` are the pair [`registered_pair`] would have
+    /// answered with.
+    fn signing_of<'a>(
+        case: &'a serde_json::Value,
+        claims: &'a NvsArray,
+        signer: Signer<'a>,
+    ) -> Signing<'a> {
+        let now = whole(case, "/clock");
+        Signing {
+            claims,
+            signer,
+            kid: case
+                .pointer("/options/kid")
+                .and_then(serde_json::Value::as_str),
+            typ: case
+                .pointer("/options/typ")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or(TYP),
+            embed: case
+                .pointer("/options/embedKey")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false),
+            now,
+            exp: now + whole(case, "/lifetime"),
+        }
+    }
+
+    /// A compact token without its signature — the two encoded segments, which
+    /// are what a randomized algorithm still fixes.
+    fn signing_input_of(token: &str) -> &str {
+        token
+            .rsplit_once('.')
+            .expect("a compact token has three segments")
+            .0
+    }
+
+    /// The token this module writes for a case the set signed deterministically
+    /// is WebCrypto's own token, octet for octet, at the second the set signed
+    /// it at.
+    ///
+    /// Replayed through [`signed_token`] rather than through a call, for
+    /// [`Signing`]'s reason: `iat` and `exp` are what the clock puts in the
+    /// payload, so a signature taken at the wall clock is a signature over
+    /// different bytes and asserts nothing about these. The set's structured
+    /// case is the one this cannot reach — its claims are a Novis object, which
+    /// only a program builds — and it is skipped out loud.
+    #[test]
+    fn webcrypto_jws_signs_reproduce_every_deterministic_token_byte_for_byte() {
+        let cases = webcrypto::signs("jws");
+        assert!(
+            !cases.is_empty(),
+            "the set carries JWS signing cases at all"
+        );
+
+        let mut replayed = 0;
+        for case in cases {
+            let name = webcrypto::text(case, "/name");
+            if !flag(case, "/deterministic") {
+                continue;
+            }
+            if case.pointer("/claims").is_none() {
+                assert!(
+                    case.pointer("/structured").is_some(),
+                    "{name} carries claims of one of the two kinds the set writes"
+                );
+                continue;
+            }
+
+            let claims = claims_of(case);
+            let token = match signed_token(signing_of(case, &claims, signing_key(case))) {
+                Ok(token) => token,
+                Err(Fault::Thrown(_, said)) => panic!("{name} signs, and was refused: {said}"),
+                Err(_) => panic!("{name} signs"),
+            };
+            let header = URL_SAFE_NO_PAD
+                .decode(token.split('.').next().expect("a compact token's header"))
+                .expect("this module writes url-safe base64");
+            assert_eq!(
+                String::from_utf8(header).expect("this module writes a header as UTF-8"),
+                webcrypto::text(case, "/header"),
+                "{name} writes the header the set recorded, canonically"
+            );
+            assert_eq!(
+                token,
+                webcrypto::text(case, "/token"),
+                "{name} is WebCrypto's own token"
+            );
+            replayed += 1;
+        }
+        assert!(
+            replayed > 0,
+            "the set carries a deterministic signing case with text claims"
+        );
+    }
+
+    /// The set's randomized signing case is replayed as far as a randomized
+    /// algorithm can be: the two encoded segments are the set's own octets, and
+    /// the signature this module wrote verifies under the pair's public half.
+    ///
+    /// `deterministic` is the set's own word for which cases those are, so the
+    /// test reads it rather than naming one. What the header segment carries
+    /// here is this case's whole point — `embedKey` writing the pair's public
+    /// half as RFC 7638's minimal JWK — so an embedded key that drifted from
+    /// the one that signs is a failure of the first assertion.
+    #[test]
+    fn webcrypto_jws_signs_reproduce_the_randomized_token_as_far_as_it_is_fixed() {
+        let mut checked = 0;
+        for case in webcrypto::signs("jws") {
+            let name = webcrypto::text(case, "/name");
+            if flag(case, "/deterministic") {
+                continue;
+            }
+
+            let claims = claims_of(case);
+            let signer = signing_key(case);
+            let (public, alg) = match &signer {
+                Signer::Pair(pair, alg) => (
+                    pair.public()
+                        .unwrap_or_else(|| panic!("{name}'s pair derives the half that checks it")),
+                    *alg,
+                ),
+                Signer::Shared(_) => panic!("{name} signs under a key pair"),
+            };
+            let token = match signed_token(signing_of(case, &claims, signer)) {
+                Ok(token) => token,
+                Err(Fault::Thrown(_, said)) => panic!("{name} signs, and was refused: {said}"),
+                Err(_) => panic!("{name} signs"),
+            };
+
+            let input = signing_input_of(&token);
+            assert_eq!(
+                input,
+                signing_input_of(webcrypto::text(case, "/token")),
+                "{name}'s header and payload are the set's own, under {alg}"
+            );
+            let signature = URL_SAFE_NO_PAD
+                .decode(&token[input.len() + 1..])
+                .expect("this module writes url-safe base64");
+            let verifying = public
+                .verifying()
+                .unwrap_or_else(|| panic!("{name}'s public half checks a signature"));
+            assert!(
+                crypto::verify_signature(&verifying, input.as_bytes(), &signature).is_some(),
+                "{name}'s signature verifies under the key that wrote it"
+            );
+            checked += 1;
+        }
+        assert!(
+            checked > 0,
+            "the set carries a signing case a randomized algorithm signed"
+        );
     }
 }
