@@ -4620,6 +4620,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `int` reaching one is `E0401 expected uint, found int` at the call rather than a widening, so a
   bounds sweep declared `array<int>` compiles everywhere except the line that matters. Declare the
   table `array<uint>` and the loop variable `uint`. [until: reviewed 2026-09-12]
+- **A claim that is a JSON object decodes into a deriving class and into nothing else.**
+  `Core\Json::decodeAs` and `Core\Jwt::verifyIssued` share one decoder, so a written type whose field
+  is an inline shape is a `FATAL` naming `rule:core-classes/derive-field-list`'s wider
+  codec-reachable set, and writing that field `array<string>` instead answers `1 field(s) … did not
+  match`, because an `array<T>` field reads a JSON array and never an object. Write the nested claim
+  as a `#[Core\Json\Derive]` class, whose own `tainted` text fields are what the call site owes under
+  `rule:security/derived-codec-qualifiers` anyway. [until: gone crates/nvs-stdlib/src/json.rs:has no case for yet]
 
 ## Splitting a file that got too big
 
