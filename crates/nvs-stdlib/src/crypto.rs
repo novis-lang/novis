@@ -33,11 +33,18 @@
 //! `crypto_secretbox` is built on, and the cost is 12 extra bytes per message
 //! and one extra HChaCha20 block per call.
 //!
-//! AES-GCM was the alternative and loses on two counts: its 96-bit nonce has
-//! the bound above with no extended variant, and its software fallback is a
-//! constant-time bitslice that is several times slower than ChaCha20 on any
-//! machine without AES-NI — of which a container host scheduling this runtime
-//! is still one often enough to matter.
+//! AES-256-GCM is in this module too, and it is not a second default: it is the
+//! **interop** cipher, and `rule:core-classes/crypto-interop-tier` is the whole
+//! of why it is here. `A256GCM` is what a browser's WebCrypto encrypts with and
+//! the one content encryption JWE has, so a runtime that cannot produce those
+//! bytes cannot read what the other end wrote. Where the choice is free it
+//! loses to XChaCha20-Poly1305 on two counts: a 96-bit nonce with the bound
+//! above and no extended variant, and a software fallback that is a
+//! constant-time bitslice several times slower than ChaCha20 on a machine
+//! without AES-NI — of which a container host scheduling this runtime is still
+//! one often enough to matter. So a program with Novis at both ends is *told*
+//! to prefer the extended-nonce construction, as advice in a member's doc and
+//! never as a default: nothing here picks a cipher for its caller.
 //!
 //! # What a sealed message is
 //!
@@ -48,6 +55,14 @@
 //! wants a protocol from `rule:security/protocol-roster`'s
 //! roster rather than this member's output. Stating it here is so that the
 //! *size* is predictable, not so that it is depended on.
+//!
+//! **The interop cipher's layout is the same shape and is a format on purpose.**
+//! Its nonce is [`GCM_NONCE_LEN`] octets rather than [`NONCE_LEN`], so a sealed
+//! message is `nonce ‖ ciphertext ‖ tag` with 12 in front and [`TAG_LEN`] at the
+//! back — exactly what WebCrypto's `encrypt` answers with the IV it was handed
+//! put before it, which is what lets the other end split at octet 12 and do
+//! nothing else. [`GCM_OVERHEAD`] is that promise as a number, and
+//! `rule:core-classes/crypto-interop-tier` is where it is made.
 //!
 //! **What this spends:** one buffer the size of the message plus 16 octets per
 //! `seal`, one the size of the plaintext per `open`, both allocated inside the
@@ -109,8 +124,18 @@
 //! construction with its own nonce policy and its own opinion about tags: there
 //! is exactly one `XChaCha20Poly1305::new_from_slice` in `nvs-stdlib`, and
 //! everything above reaches it through those three functions. Nothing outside
-//! this module reads a *field* of a sealed message, which is the sentence above
-//! and is still true — a caller gets the whole buffer or nothing.
+//! this module reads a *field* of an XChaCha-sealed message, which is the
+//! sentence above and is still true — a caller gets the whole buffer or
+//! nothing.
+//!
+//! The interop cipher has the same three — [`gcm_cipher`], [`gcm_seal_under`]
+//! and [`gcm_open_under`] — and the nonce is where they differ: this one is an
+//! argument rather than a draw. A member draws one through
+//! [`crate::random::draw`] before it calls, `Core\Jwe` supplies the one it has
+//! already written into a token's header, and a test replays WebCrypto's own
+//! input so the two implementations can be compared octet for octet. A nonce is
+//! never reused under one key, which is the caller's obligation here and the
+//! reason the argument is a fixed-width array rather than a slice.
 //!
 //! # The nonce is drawn through `Core\Random`'s seam
 //!
@@ -119,10 +144,36 @@
 //! goes through [`crate::random::draw`], whose own doc comment is the home of
 //! why, so this tree has one CSPRNG and a `#[Test(seed: …)]` reproduces a
 //! sealed message byte for byte along with every other draw the test made.
+//!
+//! # Two derivations, and PBKDF2's bounds are checked before the first HMAC
+//!
+//! [`derive_key`] is PBKDF2-HMAC-SHA256 and [`expand_key`] is HKDF-SHA256, both
+//! answering [`DERIVED_LEN`] octets, which is [`KEY_LEN`]: a derivation here
+//! answers a key for one of the ciphers above and there is nothing longer to
+//! key. They are not interchangeable. PBKDF2 stretches something a person chose
+//! and is slow on purpose; HKDF spreads something already uniform — the raw
+//! output of a key agreement, which is a coordinate rather than a key — and is
+//! two HMAC runs.
+//!
+//! The iteration count is the caller's, because the other end chose it, and it
+//! is refused outside [`MIN_ITERATIONS`]`..=`[`MAX_ITERATIONS`] with a salt
+//! shorter than [`MIN_SALT_LEN`] refused beside it, all of it before a single
+//! HMAC runs. The floor is the ordinary one. **The ceiling is the load-bearing
+//! half**: JWE's PBES2 takes its `p2c` from a token an attacker wrote, so
+//! without a ceiling one token buys unbounded CPU.
+//! `rule:security/jwe-compact-subset` is the rule, and these four constants are
+//! its one implementation — the bound is written here rather than twice, and
+//! `Core\Jwe` reads them rather than repeating the numbers.
 
-use chacha20poly1305::aead::Aead;
+use aes_gcm::Aes256Gcm;
+use chacha20poly1305::aead::{Aead, Nonce};
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
+use hkdf::Hkdf;
 use rand::Rng;
+// The 0.11 line of `sha2`, because `hkdf` and `pbkdf2` are generic over the
+// digest family's 0.11 traits and `Core\Hash`'s `sha2` is the 0.10 one. The
+// root manifest's row is where both majors being in this tree is argued.
+use sha2_v11::Sha256;
 
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
@@ -131,8 +182,9 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamD
 /// The class name, once, for the messages that all name it.
 const NAME: &str = r"Core\Crypto";
 
-/// A key's length in octets — XChaCha20-Poly1305's only key size, so this is
-/// the construction's number rather than a choice of ours.
+/// A key's length in octets — XChaCha20-Poly1305's only key size and AES-256's,
+/// so this is the constructions' number rather than a choice of ours, and one
+/// generated key keys either of them.
 ///
 /// It is also the length [`crate::keyring`] holds every entry of a key ring
 /// to, including at a door whose primitive would take any length; that module
@@ -143,13 +195,51 @@ pub(crate) const KEY_LEN: usize = 32;
 /// section is the whole of why it is 24 and not 12.
 const NONCE_LEN: usize = 24;
 
-/// Poly1305's authentication tag, in octets.
+/// An authentication tag's length in octets — Poly1305's and AES-GCM's alike,
+/// which is what lets one constant stand at the back of both layouts.
 const TAG_LEN: usize = 16;
 
 /// What a sealed message costs over its plaintext, and the shortest buffer
 /// [`nvs_core_crypto_open`] could authenticate — a nonce and a tag with an
 /// empty message between them.
 const OVERHEAD: usize = NONCE_LEN + TAG_LEN;
+
+// Everything from here to `expand_key` is reached by its own tests and by
+// nothing else yet: the `Core` rows that call it are stage 4's, and the
+// `#[expect]` is what will fail the day they land and this stops being true.
+// It is `cfg_attr(not(test), …)` because under `cfg(test)` the tests are the
+// caller, so the lint does not fire and an unconditional expectation would be
+// the unfulfilled one.
+
+/// AES-GCM's nonce length in octets, and an interop number rather than a
+/// choice: it is what WebCrypto emits as an IV and what a JWE header carries.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const GCM_NONCE_LEN: usize = 12;
+
+/// What an AES-GCM sealed message costs over its plaintext, and the shortest
+/// buffer [`gcm_open_under`] could authenticate.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const GCM_OVERHEAD: usize = GCM_NONCE_LEN + TAG_LEN;
+
+/// What a derivation answers, in octets — [`KEY_LEN`], for the module doc's
+/// *two derivations* reason.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const DERIVED_LEN: usize = KEY_LEN;
+
+/// The fewest PBKDF2 iterations this module will run.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const MIN_ITERATIONS: u32 = 100_000;
+
+/// The most PBKDF2 iterations this module will run, and the bound that makes
+/// PBES2 safe rather than the one that makes a password hard: the module doc's
+/// *two derivations* section is why a ceiling exists at all.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const MAX_ITERATIONS: u32 = 2_000_000;
+
+/// The shortest salt PBKDF2 will accept, in octets — enough that a table built
+/// against one derivation is worthless against the next.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const MIN_SALT_LEN: usize = 16;
 
 /// `rule:core-api/tier-roster`'s AEAD-only surface, as three rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -415,6 +505,167 @@ pub(crate) fn open_under(
     Ok(cipher.decrypt(&XNonce::from(*nonce), body).ok())
 }
 
+/// AES-256-GCM keyed by `key`, or `None` for a `bytes` that is not a key.
+///
+/// [`cipher`]'s counterpart for the interop cipher, and the one place in this
+/// tree an `Aes256Gcm` is built: `Core\Crypto`'s AES case and `Core\Jwe`'s
+/// `A256GCM` are both on the near side of it, so what a browser reads back was
+/// assembled by one piece of code either way.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn gcm_cipher(key: &[u8]) -> Option<Aes256Gcm> {
+    Aes256Gcm::new_from_slice(key).ok()
+}
+
+/// Seals `message` under `cipher` with the nonce it is handed, prefixing it.
+///
+/// The nonce is an argument where [`seal_under`]'s is a draw, and the module
+/// doc's *one home* section is why: a member draws one through
+/// [`crate::random::draw`] and a token's header supplies one that is already
+/// written down. It is never reused under one key — AES-GCM's 96 bits put the
+/// birthday bound around 2^32 messages, which is the whole of why the other
+/// construction exists.
+///
+/// # Errors
+///
+/// A `RuntimeError` when the sealed message is larger than this construction
+/// can produce or than this process can hold — both unreachable from source,
+/// for [`seal_under`]'s reasons.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn gcm_seal_under(
+    cipher: &Aes256Gcm,
+    nonce: &[u8; GCM_NONCE_LEN],
+    message: &[u8],
+    who: &str,
+) -> Result<Vec<u8>, Fault> {
+    let sealed_len = message.len().saturating_add(GCM_OVERHEAD);
+    nvs_runtime::affordable(Some(sealed_len), who)?;
+
+    // Unreachable from source, one bound lower than the other construction's:
+    // GCM stops at 2^36 - 32 octets under one nonce, and no `bytes` a request
+    // can hold comes near it under any memory cap.
+    let body = cipher
+        .encrypt(&Nonce::<Aes256Gcm>::from(*nonce), message)
+        .map_err(|_| {
+            Fault::thrown(format!(
+                "{who}(): the message could not be sealed — it is larger than this \
+                 construction can encrypt under one nonce"
+            ))
+        })?;
+
+    let mut sealed = Vec::new();
+    sealed.try_reserve_exact(sealed_len).map_err(|_| {
+        Fault::thrown(format!(
+            "{who}(): the sealed message is larger than any buffer this process could hold"
+        ))
+    })?;
+    sealed.extend_from_slice(nonce);
+    sealed.extend_from_slice(&body);
+    Ok(sealed)
+}
+
+/// Opens `sealed` under `cipher`: the plaintext, or `None` for anything that is
+/// not authentic under this key.
+///
+/// [`open_under`]'s counterpart, reading the layout [`gcm_seal_under`] writes,
+/// and `None` is one answer for every way of not being authentic for that
+/// function's reason — a caller that could tell a wrong key from an altered
+/// message apart would learn which half of a forgery attempt landed.
+///
+/// # Errors
+///
+/// A `RuntimeError` when this process cannot spare the plaintext's buffer.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn gcm_open_under(
+    cipher: &Aes256Gcm,
+    sealed: &[u8],
+    who: &str,
+) -> Result<Option<Vec<u8>>, Fault> {
+    let Some((nonce, body)) = sealed.split_first_chunk::<GCM_NONCE_LEN>() else {
+        return Ok(None);
+    };
+    if body.len() < TAG_LEN {
+        return Ok(None);
+    }
+
+    nvs_runtime::affordable(Some(body.len() - TAG_LEN), who)?;
+    Ok(cipher.decrypt(&Nonce::<Aes256Gcm>::from(*nonce), body).ok())
+}
+
+/// PBKDF2-HMAC-SHA256 over `password` and `salt`, `iterations` times.
+///
+/// The derivation with no bounds on it. [`derive_key`] is this plus the two the
+/// module doc states, and the split is what lets RFC 7914 § 11's published
+/// vectors — one iteration, a four-octet salt — run against the same code a
+/// member reaches rather than against a copy of it.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn pbkdf2_sha256(password: &[u8], salt: &[u8], iterations: u32) -> [u8; DERIVED_LEN] {
+    pbkdf2::pbkdf2_hmac_array::<Sha256, DERIVED_LEN>(password, salt, iterations)
+}
+
+/// A key stretched out of something a person chose, with both bounds checked
+/// before the first HMAC.
+///
+/// The refusal is a `LogicError` because the count and the salt are arguments
+/// the program passed, and a program passing 10 iterations has a bug rather
+/// than bad luck. `Core\Jwe`'s PBES2 reads a `p2c` off the wire instead, where
+/// the same number out of bounds is a verdict on the token: it compares against
+/// [`MIN_ITERATIONS`] and [`MAX_ITERATIONS`] itself and reaches
+/// [`pbkdf2_sha256`], so the bound has one home and two reports.
+///
+/// # Errors
+///
+/// A `LogicError` naming the bound that was missed. `who` is the member, spelled
+/// `Core\Class::member`.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn derive_key(
+    password: &[u8],
+    salt: &[u8],
+    iterations: u32,
+    who: &str,
+) -> Result<[u8; DERIVED_LEN], Fault> {
+    if !(MIN_ITERATIONS..=MAX_ITERATIONS).contains(&iterations) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{who}(): $iterations is {iterations}, and this derivation runs \
+                 {MIN_ITERATIONS} to {MAX_ITERATIONS} — under the floor the answer is cheap \
+                 to attack, and over the ceiling one call is a denial of service against \
+                 the process that made it"
+            ),
+        ));
+    }
+    if salt.len() < MIN_SALT_LEN {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{who}(): $salt is {} octets, and a salt is at least {MIN_SALT_LEN} — \
+                 Core\\Random::bytes({MIN_SALT_LEN}) answers one, and it is stored beside the \
+                 derived key rather than kept secret",
+                salt.len()
+            ),
+        ));
+    }
+
+    Ok(pbkdf2_sha256(password, salt, iterations))
+}
+
+/// HKDF-SHA256 over `material`, answering [`DERIVED_LEN`] octets.
+///
+/// The other derivation, for material that is already uniform: extract with
+/// `salt`, then expand under `info`, which is the context string separating two
+/// keys derived from one secret. An empty `salt` is RFC 5869's own default of a
+/// zero-filled one, since HMAC pads either to the same block. Handing a password
+/// to this rather than to [`derive_key`] is the mistake the module doc names,
+/// and no type here can catch it.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn expand_key(material: &[u8], salt: &[u8], info: &[u8]) -> [u8; DERIVED_LEN] {
+    let mut key = [0_u8; DERIVED_LEN];
+    Hkdf::<Sha256>::new(Some(salt), material)
+        .expand(info, &mut key)
+        .expect("expand refuses only an output past 255 SHA-256 blocks, and this one is 32 octets");
+    key
+}
+
 /// The cipher keyed by slot 1, or the `LogicError` a wrong-length key earns.
 ///
 /// Reachable from source despite the parameter's `secret bytes`: the qualifier
@@ -554,6 +805,193 @@ mod tests {
         assert!(
             XChaCha20Poly1305::new_from_slice(&[0_u8; KEY_LEN - 1]).is_err(),
             "a short key is refused by the construction, which is what `keyed` reports"
+        );
+    }
+
+    /// The hex a published vector is written in, as the octets it stands for.
+    fn hex(text: &str) -> Vec<u8> {
+        data_encoding::HEXLOWER
+            .decode(text.as_bytes())
+            .expect("a vector in this module is written in lower-case hex")
+    }
+
+    /// AES-256-GCM against the vectors published with the mode — McGrew and
+    /// Viega's specification, Appendix B, test cases 13 to 16, which are the
+    /// 256-bit-key half of the set NIST adopted the mode with.
+    ///
+    /// Run through [`gcm_seal_under`] rather than against the crate, because
+    /// what needs pinning is the whole layout
+    /// `rule:core-classes/crypto-interop-tier` promises — the nonce in front,
+    /// the tag at the back, nothing between — and not that the crate computes
+    /// GCM, which is its own test suite's job. Case 16 carries additional data,
+    /// which this seam takes none of, so it is asserted against the
+    /// construction: that is the path `Core\Jwe` reaches for a protected
+    /// header, and the vector is what will pin it.
+    #[test]
+    fn aes_gcm_matches_the_vectors_published_with_the_mode() {
+        let zeros = gcm_cipher(&[0_u8; KEY_LEN]).expect("a 32-octet key keys AES-256");
+        let zero_nonce = [0_u8; GCM_NONCE_LEN];
+        let who = "Core\\Crypto::seal";
+
+        assert_eq!(
+            gcm_seal_under(&zeros, &zero_nonce, b"", who).expect("the empty message seals"),
+            [
+                zero_nonce.as_slice(),
+                &hex("530f8afbc74536b9a963b4f1c4cb738b"),
+            ]
+            .concat(),
+            "case 13 — an empty message is its nonce and a bare tag"
+        );
+        assert_eq!(
+            gcm_seal_under(&zeros, &zero_nonce, &[0_u8; 16], who).expect("one block seals"),
+            [
+                zero_nonce.as_slice(),
+                &hex("cea7403d4d606b6e074ec5d3baf39d18d0d1c8a799996bf0265b98b5d48ab919"),
+            ]
+            .concat(),
+            "case 14 — one all-zero block under the same key"
+        );
+
+        let cipher = gcm_cipher(&hex(
+            "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+        ))
+        .expect("a 32-octet key keys AES-256");
+        let nonce = <[u8; GCM_NONCE_LEN]>::try_from(hex("cafebabefacedbaddecaf888").as_slice())
+            .expect("the vector's IV is 12 octets");
+        let message = hex(
+            "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a72\
+             1c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b391aafd255",
+        );
+
+        let sealed = gcm_seal_under(&cipher, &nonce, &message, who).expect("the vector seals");
+        assert_eq!(
+            sealed,
+            [
+                nonce.as_slice(),
+                &hex(
+                    "522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa\
+                     8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662898015ad\
+                     b094dac5d93471bdec1a502270e3cc6c"
+                ),
+            ]
+            .concat(),
+            "case 15 — 64 octets under a real key, no additional data"
+        );
+        assert_eq!(
+            gcm_open_under(&cipher, &sealed, who)
+                .expect("the plaintext is affordable")
+                .as_deref(),
+            Some(message.as_slice()),
+            "and what this module sealed it opens"
+        );
+
+        let mut forged = sealed.clone();
+        let tag_octet = forged.len() - 1;
+        forged[tag_octet] ^= 1;
+        assert!(
+            gcm_open_under(&cipher, &forged, who)
+                .expect("a forgery costs the same buffer")
+                .is_none(),
+            "one flipped bit in the tag is refused, which is what makes this an AEAD"
+        );
+
+        assert_eq!(
+            cipher
+                .encrypt(
+                    &Nonce::<Aes256Gcm>::from(nonce),
+                    chacha20poly1305::aead::Payload {
+                        msg: &message[..60],
+                        aad: &hex("feedfacedeadbeeffeedfacedeadbeefabaddad2"),
+                    },
+                )
+                .expect("the vector seals"),
+            hex(
+                "522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa\
+                 8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662\
+                 76fc6ece0f4e1768cddf8853bb2d551b"
+            ),
+            "case 16 — the same key and nonce with a header authenticated beside the message"
+        );
+    }
+
+    /// The two derivations against their own specifications' vectors: PBKDF2
+    /// against RFC 7914 § 11's SHA-256 pair, HKDF against RFC 5869 Appendix
+    /// A.1, A.2 and A.3.
+    ///
+    /// Each published output is longer than [`DERIVED_LEN`], and comparing
+    /// against its first 32 octets is exact rather than partial: both
+    /// constructions are a chain of HMAC blocks, so the opening 32 octets of a
+    /// 64- or 42-octet answer *are* the 32-octet answer.
+    #[test]
+    fn the_two_derivations_match_their_published_vectors() {
+        assert_eq!(
+            pbkdf2_sha256(b"passwd", b"salt", 1).as_slice(),
+            hex("55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"),
+            "RFC 7914 § 11, one iteration"
+        );
+        assert_eq!(
+            pbkdf2_sha256(b"Password", b"NaCl", 80_000).as_slice(),
+            hex("4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"),
+            "RFC 7914 § 11, eighty thousand"
+        );
+
+        assert_eq!(
+            expand_key(
+                &[0x0b; 22],
+                &hex("000102030405060708090a0b0c"),
+                &hex("f0f1f2f3f4f5f6f7f8f9"),
+            )
+            .as_slice(),
+            hex("3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf"),
+            "RFC 5869 A.1, the basic SHA-256 case"
+        );
+        let counted: Vec<u8> = (0..=0x4f_u8).collect();
+        let salt: Vec<u8> = (0x60..=0xaf_u8).collect();
+        let info: Vec<u8> = (0xb0..=0xff_u8).collect();
+        assert_eq!(
+            expand_key(&counted, &salt, &info).as_slice(),
+            hex("b11e398dc80327a1c8e7f78c596a49344f012eda2d4efad8a050cc4c19afa97c"),
+            "RFC 5869 A.2, eighty octets of each input"
+        );
+        assert_eq!(
+            expand_key(&[0x0b; 22], b"", b"").as_slice(),
+            hex("8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d"),
+            "RFC 5869 A.3, no salt and no info"
+        );
+    }
+
+    /// PBKDF2's two bounds at their edges, and the ceiling is the one that
+    /// matters: PBES2 reads its `p2c` out of a token, so a derivation with no
+    /// upper bound turns one token into unbounded CPU. Asserting the edges
+    /// rather than the middle is what stops either number being widened
+    /// quietly, which `rule:security/jwe-compact-subset` does not allow.
+    #[test]
+    fn a_derivation_refuses_a_count_or_a_salt_outside_its_bounds() {
+        let salt = [7_u8; MIN_SALT_LEN];
+        let who = "Core\\Crypto::deriveKey";
+
+        assert!(
+            derive_key(b"correct horse", &salt, MIN_ITERATIONS - 1, who).is_err(),
+            "one under the floor is refused"
+        );
+        assert!(
+            derive_key(b"correct horse", &salt, MAX_ITERATIONS + 1, who).is_err(),
+            "one over the ceiling is refused, and refused without running"
+        );
+        assert!(
+            derive_key(
+                b"correct horse",
+                &salt[..MIN_SALT_LEN - 1],
+                MIN_ITERATIONS,
+                who
+            )
+            .is_err(),
+            "one octet short of a salt is refused"
+        );
+        assert_eq!(
+            derive_key(b"correct horse", &salt, MIN_ITERATIONS, who).expect("the floor derives"),
+            pbkdf2_sha256(b"correct horse", &salt, MIN_ITERATIONS),
+            "inside the bounds it is the derivation above and nothing else"
         );
     }
 }

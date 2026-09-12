@@ -2,58 +2,53 @@
 
 ## State
 
-**Goal `webcrypto` — Novis reads what a browser encrypts and what an issuer signs. Stage 2 is
-landed; no Rust has been written yet.** Goal `template-format`'s whole list is this goal's Stage 1
-floor and is green.
+**Goal `webcrypto` — Novis reads what a browser encrypts and what an issuer signs. Stage 3 is half
+landed: the dependency graph and the first three primitives, all crate-private.** Goal
+`template-format`'s list is this goal's Stage 1 floor and is green; Stage 2 is
+[ADR 0179](../decisions/0179.md), which is the design and the one home for it.
 
-**[ADR 0179](../decisions/0179.md) is the design, accepted, and it is the one home for it** — the
-goal's § *Standing decisions* is now transcribed and argued there, with every open question closed.
-It creates `rule:core-classes/crypto-interop-tier`, `rule:security/jwe-compact-subset` and
-`rule:security/jws-issued-subset`, all `designed`, and amends `rule:security/protocol-roster`, whose
-roster now names `Core\Jwe`. `docs/spec/01-core-library.md` § 16's two rows carry the same surface.
+On disk in `crates/nvs-stdlib/src/crypto.rs`: `gcm_cipher`/`gcm_seal_under`/`gcm_open_under` under
+the GCM specification's Appendix B cases 13–16, `pbkdf2_sha256`/`derive_key` under RFC 7914 § 11 and
+`expand_key` under RFC 5869 A.1–A.3. No `Core` member is registered for any of them — that is stage
+4 — so each carries `#[cfg_attr(not(test), expect(dead_code, …))]`, which fails the day stage 4
+lands and is how the marker deletes itself.
 
-**The two questions the record was asked to settle, both answered from the checker rather than
-assumed — do not re-derive them, § *Investigation* carries the `file:line` for each.** A union may
-carry a `secret bytes` arm and it works, so `Jwt::sign`'s `secret bytes|Crypto\KeyPair` key is an
-ordinary row; a union may **not** carry a `secret string` arm, because `CoreTy` has no such atom and
-the `Qual::Reveal` mark that accepts one is closed to `Core\Secret` and `Core\Password` and is
-unavailable inside a union regardless. **So JWE's key takes the reserved fallback**: `Jwe\Key` with
-four statics — `shared`, `password`, `recipient`, `own` — and `Jwe` stays at two members. And
-structured claims are **a second member, `Jwt::signObject`**, not a union arm: a `CoreTy::Shape` may
-never be a union member and there is no `object` spelling, and the split lets that member's key be a
-`Crypto\KeyPair` alone, which turns a runtime `LogicError` into a compile-time mismatch.
+The manifest half is done and does not need revisiting: `aes-gcm`, `aes-kw`, `p256`, `x25519-dalek`,
+`hkdf`, `pbkdf2`, the `sha2-v11` row the playbook bullet explains, and `ring` reaching `nvs-stdlib`
+directly with its recorded C-dependency answer widened from TLS to JWS. Nothing is blocked.
 
 ## Next group
 
-**Stage 3: the primitives, under their published vectors** — one file set: `Cargo.toml`,
-`crates/nvs-stdlib/Cargo.toml`, `crates/nvs-stdlib/src/crypto.rs`, `THIRD-PARTY-LICENSES.txt`.
+**Stage 3: the key half, under their published vectors** — one file set:
+`crates/nvs-stdlib/src/crypto.rs`, appended after `expand_key` at
+`crates/nvs-stdlib/src/crypto.rs:661`, with the tests beside the three that are already there.
 
-- [ ] **The dependencies land, and `ring` reaches `nvs-stdlib` directly** — `aes-gcm` 0.11, `aes-kw`
-      0.3, `p256` 0.14 with `ecdh`, `x25519-dalek` 3.0, `hkdf` 0.13, `pbkdf2` 0.13, default features
-      off and no `getrandom`, pinned in the workspace manifest's `[workspace.dependencies]` block and
-      named at `crates/nvs-stdlib/Cargo.toml:11`; `ring` at the version the lockfile already
-      resolves. Regenerate `THIRD-PARTY-LICENSES.txt`
-      in the same commit (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`),
-      and widen `ring`'s recorded answer from TLS to JWS under
-      `rule:packaging/a-c-dependency-answers-two-questions` — ADR 0179 § 8 is the argument, already
-      made.
-- [ ] **AES-256-GCM, crate-private, against NIST's 256-bit-key GCM vectors plus a flipped tag
-      refused** — beside `seal_under` at `crates/nvs-stdlib/src/crypto.rs:342` and `open_under` at
-      `:399`, taking its nonce as an argument at the crate-private level so stage 7 can replay
-      WebCrypto's inputs. Layout `nonce(12) ‖ ciphertext ‖ tag(16)`, per
-      `rule:core-classes/crypto-interop-tier`. No `Core` member is registered yet — that is stage 4.
-- [ ] **PBKDF2-HMAC-SHA256 and HKDF-SHA256, with the bounds checked before the first HMAC** — RFC
-      7914 § 11 and RFC 5869 Appendix A.1–A.3 as test source with the section named beside each,
-      appended at `crates/nvs-stdlib/src/crypto.rs:559`. Iterations refused below 100,000 and above
-      2,000,000 and a salt below 16 octets, which is `rule:security/jwe-compact-subset`'s PBES2 bound
-      written once here rather than twice.
+- [ ] **Key agreement, crate-private: X25519 and ECDH over P-256** — appended at
+      `crates/nvs-stdlib/src/crypto.rs:661`, each taking raw scalars and a public point and answering
+      the shared secret `expand_key` is fed. An all-zero X25519 secret is refused and a P-256 point
+      off the curve, the point at infinity and a short encoding are refused where the point is read,
+      which is `rule:core-classes/crypto-interop-tier` and the goal's § *Standing decisions* under
+      *Keys*. RFC 7748 § 6.1 is X25519's vector.
+- [ ] **AES Key Wrap and Concat KDF, internal only and never a member** — appended at
+      `crates/nvs-stdlib/src/crypto.rs:661`, the two
+      pieces `rule:security/jwe-compact-subset` names as PBES2's and ECDH-ES's own. RFC 3394 § 4.1's
+      256-bit-key vector and RFC 7518 Appendix C's Concat KDF output, which
+      `tools/webcrypto-vectors.mjs` reproduces before it writes the set.
+- [ ] **The four signature algorithms through `ring`** — `Crypto::sign`/`verify`'s primitives,
+      appended at `crates/nvs-stdlib/src/crypto.rs:661`:
+      RSASSA-PKCS1-v1_5 and RSASSA-PSS over SHA-256, ECDSA P-256 as the 64-octet
+      `r ‖ s` and never DER, and Ed25519, with the algorithm coming from the key
+      (`rule:security/algorithm-comes-from-the-key`) and a verdict that throws rather than answers a
+      `bool` (`rule:security/verification-throws-and-compares-in-constant-time`). Confirm here
+      whether `ring` takes randomness from its caller for ES256 and PS256 and say so in the module
+      doc — the backlog has carried that as not checked.
 
 ## Backlog
 
-- Stage 3's remaining rows — X25519, ECDH P-256, AES Key Wrap, Concat KDF, the four signature
-  algorithms, the JWK thumbprint — `docs/agent/loop-goal.md` § *Stage 3* has the vector per row.
-- `ring` may take no randomness from its caller for ES256/PS256; stage 3 confirms it and says so in
-  the module doc (`docs/agent/loop-goal.md:136`, marked not checked).
+- `crates/nvs-stdlib/src/crypto.rs` is 997 lines and stage 3's remaining rows roughly double it;
+  whether the key material moves to a module of its own is a decision stage 4 should make rather
+  than discover — `docs/agent/playbook.md` § *Splitting a file that got too big*.
+- Stage 3's last row, the JWK thumbprint — `docs/agent/loop-goal.md` § *Stage 3* has its vector.
 - Structured claims under a *shared* key stay out of this goal — ADR 0179 § *Consequences*.
 - JWE-encrypted ID tokens and RSA-OAEP with them, skipped by the user — ADR 0179 § *Alternatives
   rejected*.
