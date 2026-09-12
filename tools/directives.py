@@ -710,11 +710,16 @@ def report(problems: list[str], keys: list[Key], green: str) -> int:
     return 0
 
 
-def roster() -> tuple[list[Key], dict[str, list[str]]]:
-    """The roster, and each block's own doc comment beside it -- what a generator reads."""
+def roster(readers: bool = True) -> tuple[list[Key], dict[str, list[str]]]:
+    """The roster, and each block's own doc comment beside it -- what a generator reads.
+
+    `readers=False` leaves every key's `readers` empty and skips `find_readers`, which is
+    nearly all of this script's time. Only `--check-template` asks for that: the default file
+    is judged against the key set and the trailers, never against who reads a key."""
     structs, enums, blocks = parse_tree(TREE.read_text(encoding="utf-8"))
     keys = walk(structs, enums, ROOT_STRUCT, [], [])
-    find_readers(keys)
+    if readers:
+        find_readers(keys)
     return keys, blocks
 
 
@@ -736,7 +741,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    keys, blocks = roster()
+    keys, blocks = roster(readers=args.check_template is None)
     if args.json:
         read_trailers(keys, [])
         # `doc` and `block_doc` are what `tree.rs` already says about the key and about
