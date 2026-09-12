@@ -185,7 +185,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "decrypt",
             names: &["token", "keys"],
-            params: &[CoreTy::Text(Qual::Contagious), CoreTy::Array(&KEY_TY)],
+            // The token is neutral on the way in because the payload is `tainted`
+            // on the way out whatever it was: contagion has nothing left to carry,
+            // and a contagious row would only refuse the token a request handed in
+            // — `admits_tainted_argument` takes a `tainted` argument at such a row
+            // only where the qualifier has somewhere new to go.
+            // `Core\Jwt::verify` reads the same way for the same reason.
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Array(&KEY_TY)],
             defaults: &[],
             // `rule:security/verification-does-not-launder`: decrypting proves
             // who wrote the payload and never that it is safe for a sink.
