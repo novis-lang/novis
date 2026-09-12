@@ -11,10 +11,10 @@
 //! brace sits rewrites the runs on either side of it.
 //!
 //! What a whitespace run has to be is [`Runs`], which every stage that decides
-//! one contributes to: the line a brace sits on ([`crate::brace`]) and the
-//! space a qualifier or a one-line object literal wants ([`crate::space`]) are
-//! the same answer to "what must precede this byte", and the run that is not
-//! there to rewrite is written into the code run instead.
+//! one contributes to: the line a brace sits on ([`crate::brace`]) and the run
+//! a qualifier, a one-line object literal or a `match` arm wants
+//! ([`crate::space`]) are the same answer to "what must precede this byte", and
+//! the run that is not there to rewrite is written into the code run instead.
 //!
 //! A code run is copied byte for byte, save for the edits that write something
 //! other than what is there, each of them a [`Rewrite`]: a modifier list goes
@@ -138,7 +138,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
     let text = file.text();
     let indent = Indent::new(&parsed.index, text);
     let mut wanted = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
-    wanted.extend(space::runs(&parsed.index, text, &parsed.trivia));
+    wanted.extend(space::runs(&parsed.index, &indent, text, &parsed.trivia));
     let runs = Runs::new(wanted, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
     edits.extend(runs.insertions());

@@ -88,6 +88,48 @@ echo $double(21), $shout('novis'), \"\\n\";
 }
 
 #[test]
+fn a_match_arm_list_written_across_lines_is_one_arm_per_line() {
+    // The tall list has two arms crammed onto the line its `{` opened, one at
+    // the wrong depth, and a `default` arm no condition node covers; the blank
+    // line an author left between two arms is theirs. The wide list was written
+    // on one line, so it stays on one — which is the choice
+    // `rule:tooling/fmt-never-reflows` leaves to its author.
+    let mangled = "\
+<?nvs
+class Grade
+{
+    public static function letter(int $score): string
+    {
+        return match (true) { $score >= 90 => 'A', $score >= 80 => 'B',
+                  $score >= 70 => 'C',
+
+    default => 'F',
+};
+    }
+}
+echo Grade::letter(84), match (1) { 1 => 'one', default => 'many' }, \"\\n\";
+";
+    let canonical = "\
+<?nvs
+class Grade
+{
+    public static function letter(int $score): string
+    {
+        return match (true) {
+            $score >= 90 => 'A',
+            $score >= 80 => 'B',
+            $score >= 70 => 'C',
+
+            default => 'F',
+        };
+    }
+}
+echo Grade::letter(84), match (1) { 1 => 'one', default => 'many' }, \"\\n\";
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
+#[test]
 fn an_object_literal_on_one_line_has_one_space_inside_each_brace() {
     // One literal with no space inside either brace and one with too much, and
     // a literal its author wrote across lines, whose fields are one per line

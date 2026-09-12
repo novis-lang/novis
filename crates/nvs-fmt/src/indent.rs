@@ -26,10 +26,10 @@
 //! [`Indent::of_line`] answers [`None`] for a line the tree does not place, and
 //! the printer then copies the author's own whitespace. That is what keeps a
 //! rule that has not landed yet from moving a byte: a continuation line inside
-//! a multi-line call, a `match` arm, a `switch` case and a template region's
-//! own text are all bytes some later rule owns, and answering [`None`] for them
-//! is how this one stays inside `rule:tooling/fmt-never-reflows` — an
-//! expression's interior is the author's, and this never sees it.
+//! a multi-line call, a `switch` case and a template region's own text are all
+//! bytes some later rule owns, and answering [`None`] for them is how this one
+//! stays inside `rule:tooling/fmt-never-reflows` — an expression's interior is
+//! the author's, and this never sees it.
 //!
 //! A line is placed when it opens a statement or a member that a body directly
 //! contains, when it opens that body's own closing brace, which sits at the
@@ -37,6 +37,18 @@
 //! that leaves code mode. That tag is the last code on its line and sits where
 //! the body's statements sit; every byte after it belongs to the text region,
 //! which is the program's own output and is copied.
+//!
+//! # A `match` arm list
+//!
+//! A `match` is the one expression whose interior is placed here. Its arm list
+//! is no brace-delimited body — the arms are the expression's own children — so
+//! `Match` is absent from [`BODIES`] and an arm's line comes from
+//! [`arm_starts`] instead: an arm sits one level in from the line the `match`
+//! keyword was written on, and the brace closing the list sits on that line's
+//! own depth (`rule:tooling/fmt-novis-constructs`). Everything else an arm
+//! holds is an expression's interior and stays the author's. The break that
+//! gives an arm a line of its own, where its author wrote two of them on one,
+//! is a run [`crate::space`] requires rather than a depth.
 //!
 //! # What it spends
 //!
@@ -50,7 +62,11 @@ use nvs_diagnostics::BytePos;
 use nvs_syntax::{IndexNode, SyntaxIndex};
 
 /// One level of indentation.
-const UNIT: &str = "    ";
+pub(crate) const UNIT: &str = "    ";
+
+/// The expression whose children are the arms of a `match`, spelled as
+/// `crates/nvs-syntax/src/walk.rs` spells it.
+pub(crate) const ARM_LIST: &str = "Match";
 
 /// The node kinds whose children are the statements or members of a brace-
 /// delimited body, spelled as `crates/nvs-syntax/src/walk.rs` spells them.
@@ -76,13 +92,12 @@ const BODIES: &[&str] = &[
 
 /// The node kinds whose interior layout no landed rule states yet.
 ///
-/// A `switch` indents its cases and their statements by different amounts and a
-/// `match` arm list is an expression, so neither is the `+1 per body` this
-/// module counts; inline HTML is a program's own output bytes and never a
-/// formatter's. A line anywhere inside one of these is left exactly as its
-/// author wrote it, which is the safe direction and the one an editor saving a
-/// file expects.
-const OPAQUE: &[&str] = &["Switch", "Match", "InlineHtml"];
+/// A `switch` indents its cases and their statements by different amounts, so
+/// it is not the `+1 per body` this module counts; inline HTML is a program's
+/// own output bytes and never a formatter's. A line anywhere inside one of
+/// these is left exactly as its author wrote it, which is the safe direction
+/// and the one an editor saving a file expects.
+const OPAQUE: &[&str] = &["Switch", "InlineHtml"];
 
 /// Where each line of a file sits, answered from that file's parse.
 pub(crate) struct Indent<'a> {
@@ -108,15 +123,27 @@ impl<'a> Indent<'a> {
 
         // A byte closing a body sits where that body's own opening was written,
         // and a statement or member the body contains sits one level in from it.
+        // A `match`'s arm list closes the same way, on the line its own `match`
+        // keyword was written on.
         let closing = (self.text.as_bytes().get(offset) == Some(&b'}'))
             .then(|| {
                 nodes.iter().position(|node| {
-                    BODIES.contains(&node.kind) && node.span.end as usize == offset + 1
+                    (BODIES.contains(&node.kind) || node.kind == ARM_LIST)
+                        && node.span.end as usize == offset + 1
                 })
             })
             .flatten();
         if let Some(body) = closing {
             return Some(self.opening_of(opener(nodes, body)));
+        }
+
+        // An arm is the arm list's and no body's, so it is placed before the
+        // question about bodies is asked at all.
+        let list = nodes.iter().find(|node| node.kind == ARM_LIST);
+        if let Some(list) =
+            list.filter(|list| arm_starts(self.index, self.text, **list).contains(&offset))
+        {
+            return Some(self.opening_of(list.span.start as usize) + UNIT);
         }
 
         let opens_child = nodes
@@ -168,6 +195,37 @@ impl<'a> Indent<'a> {
     }
 }
 
+/// Where each arm of the `match` at `node` begins, in source order.
+///
+/// An arm is a node to nobody: `crates/nvs-syntax/src/walk.rs`'s own doc
+/// decides that a match arm is a property of the expression holding it rather
+/// than a production of its own, so a `match`'s children are its subject
+/// followed by every condition and every body, flat. What tells one arm from
+/// the next is the `=>` between a condition list and the body it answers — the
+/// child after a body opens an arm, and the first child after the subject opens
+/// the first — and an arm begins where the code after the `{` or the `,` in
+/// front of it does. That last step is why this answers offsets rather than
+/// children: a `default` arm has no condition, so its first byte is a keyword
+/// no node covers.
+pub(crate) fn arm_starts(index: &SyntaxIndex, text: &str, node: IndexNode) -> Vec<usize> {
+    let children = index.children_of(node);
+    let mut starts = Vec::new();
+    let mut opens_an_arm = true;
+    for pair in children.windows(2) {
+        let from = pair[0].span.end as usize;
+        let Some(gap) = text.get(from..pair[1].span.start as usize) else {
+            break;
+        };
+        if opens_an_arm {
+            let after = gap.rfind([',', '{']).map_or(0, |at| at + 1);
+            let written = &gap[after..];
+            starts.push(from + after + written.len() - written.trim_start().len());
+        }
+        opens_an_arm = gap.contains("=>");
+    }
+    starts
+}
+
 /// Where the construct that opened `nodes[body]` starts.
 ///
 /// A `Block` is the braces of whatever holds it, so an `if` whose condition
@@ -175,7 +233,9 @@ impl<'a> Indent<'a> {
 /// from the continuation line the `{` happened to land on. Every other body in
 /// [`BODIES`] is its own opener — a closure's body belongs to the closure, and
 /// the closure is where the author put it. A block held by another body is a
-/// block statement of its own and opens where it is written.
+/// block statement of its own and opens where it is written. A `match`'s arm
+/// list is the `match` itself, which is what puts its closing brace on the line
+/// the keyword was written on.
 fn opener(nodes: &[IndexNode], body: usize) -> usize {
     let held_by = nodes.get(body + 1);
     match held_by {

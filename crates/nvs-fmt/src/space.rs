@@ -1,9 +1,10 @@
-//! The space a construct of Novis's own requires: one in front of a qualified
-//! type, one inside each brace of a one-line object literal.
+//! The whitespace a construct of Novis's own requires: one space in front of a
+//! qualified type, one inside each brace of a one-line object literal, and a
+//! line of its own for each arm of a `match` written across lines.
 //!
 //! `rule:tooling/fmt-novis-constructs` gives every construct PER never saw one
-//! layout, and two of them are a space between two tokens that the author may
-//! have written none, one or several of. So what this answers is the same
+//! layout, and three of them are the run between two tokens that the author may
+//! have written none, one or several bytes of. So what this answers is the same
 //! question [`crate::brace`] answers — "what does the run before this byte have
 //! to be" — for the bytes inside a construct rather than the brace that opens a
 //! body, and the printer applies both the same way: the whitespace run before
@@ -47,11 +48,23 @@
 //! here: a type is no node in that walk, so the `{` of `tainted {a: string}`
 //! cannot be told from the `{` of a block by asking the index what wrote it.
 //! That half is the same known gap the trailing comma has over the same fields.
+//!
+//! # A `match` arm list written across lines
+//!
+//! Each arm of a list its author wrote across lines gets a line of its own, at
+//! one level in from the line the `match` keyword was written on. Only an arm
+//! sharing a line with the one before it is this stage's: an arm already
+//! opening a line is a depth [`crate::indent`] answers, and a run written here
+//! would take the blank line its author left above it along with it. A list
+//! written wholly on one line is left on it, which is the half
+//! `rule:tooling/fmt-never-reflows` keeps — whether the list spans lines is the
+//! author's, and what the arms are laid out as once it does is this rule's.
 
 use nvs_diagnostics::BytePos;
 use nvs_syntax::{SyntaxIndex, Trivia};
 
 use crate::brace::is_word;
+use crate::indent::{ARM_LIST, Indent, UNIT, arm_starts};
 
 /// What this stage ever requires.
 const SPACE: &str = " ";
@@ -70,13 +83,19 @@ const TEXT: &[&str] = &["Str", "Interpolated", "Markup", "InlineHtml"];
 
 /// Everything these rules require of `text`, which must be `index`'s and
 /// `trivia`'s own file: the run that has to precede an offset, by that offset.
-pub(crate) fn runs(index: &SyntaxIndex, text: &str, trivia: &[Trivia]) -> Vec<(usize, String)> {
+pub(crate) fn runs(
+    index: &SyntaxIndex,
+    indent: &Indent<'_>,
+    text: &str,
+    trivia: &[Trivia],
+) -> Vec<(usize, String)> {
     let mut wanted = Vec::new();
     let mut cursor = 0_usize;
     for trivium in trivia {
         scan(
             &mut wanted,
             index,
+            indent,
             text,
             trivia,
             cursor,
@@ -84,15 +103,17 @@ pub(crate) fn runs(index: &SyntaxIndex, text: &str, trivia: &[Trivia]) -> Vec<(u
         );
         cursor = trivium.span.end as usize;
     }
-    scan(&mut wanted, index, text, trivia, cursor, text.len());
+    scan(&mut wanted, index, indent, text, trivia, cursor, text.len());
     wanted
 }
 
 /// Reads `text[from..to]`, which is code and nothing else, and records what
-/// each qualifier and each one-line object literal in it requires.
+/// each qualifier, each one-line object literal and each `match` arm list in it
+/// requires.
 fn scan(
     wanted: &mut Vec<(usize, String)>,
     index: &SyntaxIndex,
+    indent: &Indent<'_>,
     text: &str,
     trivia: &[Trivia],
     from: usize,
@@ -100,7 +121,10 @@ fn scan(
 ) {
     for (offset, byte) in text.as_bytes().iter().enumerate().take(to).skip(from) {
         match *byte {
-            b'{' => literal(wanted, index, text, trivia, offset),
+            b'{' => {
+                literal(wanted, index, text, trivia, offset);
+                arm_lines(wanted, index, indent, text, offset);
+            }
             b's' | b't' => qualifier(wanted, index, text, trivia, offset),
             _ => {}
         }
@@ -174,6 +198,44 @@ fn literal(
     }
     wanted.push((first, SPACE.to_owned()));
     wanted.push((end - 1, SPACE.to_owned()));
+}
+
+/// Records the line each arm of the `match` whose list opens at `offset` has to
+/// begin on, where its author wrote that list across lines.
+///
+/// The arm list's `{` is the one brace a `match` writes itself: its subject and
+/// every condition and body are children of it, so the innermost node at any
+/// other brace inside a `match` is one of them. An arm that already opens a
+/// line is left for [`crate::indent`] to place, because the run this would
+/// write over is the one holding whatever blank lines its author left there.
+fn arm_lines(
+    wanted: &mut Vec<(usize, String)>,
+    index: &SyntaxIndex,
+    indent: &Indent<'_>,
+    text: &str,
+    offset: usize,
+) {
+    let Ok(pos) = BytePos::try_from(offset) else {
+        return;
+    };
+    let Some(node) = index.at(pos).innermost() else {
+        return;
+    };
+    let Some(whole) = text.get(offset..node.span.end as usize) else {
+        return;
+    };
+    if node.kind != ARM_LIST || !whole.contains('\n') {
+        return;
+    }
+    let line_break = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let opening = indent.opening_of(node.span.start as usize);
+    for at in arm_starts(index, text, node) {
+        let written = &text[..at];
+        if written.trim_end_matches([' ', '\t']).ends_with('\n') {
+            continue;
+        }
+        wanted.push((at, format!("{line_break}{opening}{UNIT}")));
+    }
 }
 
 /// The offset of the first code byte at or after `from`, which is `from` itself
