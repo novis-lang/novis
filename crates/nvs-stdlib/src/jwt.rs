@@ -1571,26 +1571,23 @@ fn leeway_of(args: &[Value], slot: usize) -> Result<i64, Fault> {
 }
 
 /// The one key that may have signed this token, and the JWS algorithm its kind
-/// carries.
+/// carries — found in whichever of the two things argument 4 may be.
 ///
-/// **A key is found, never tried.** A `kid` is a lookup into the set and selects
-/// nothing else, and a token carrying none is answered only by a set holding
-/// exactly one key — so a token costs at most one signature check whatever the
-/// set holds. A `Core\Crypto\PublicKey` argument is that same rule with the set
-/// of one written by the program instead.
+/// The argument-shaped half of [`found_key`]: a `Core\Jwt\KeySet` is a frame to
+/// read a set out of, and a `Core\Crypto\PublicKey` is that same rule with the
+/// set of one written by the program instead.
 ///
 /// # Errors
 ///
-/// [`not_issued`]'s one sentence where the set names no such key, a `LogicError`
-/// for an `X25519` key, which verifies nothing, and a [`Fault::fatal`] for held
-/// material that no longer parses — unreachable from source, since it is what a
-/// reader of this module already read once.
+/// [`found_key`]'s and [`key_of`]'s, and a [`Fault::fatal`] for a set whose own
+/// frame will not read back — unreachable from source, since it is what
+/// `Core\Jwt\KeySet::read` wrote into the slot.
 fn verifying_key(
     args: &[Value],
     slot: usize,
     kid: Option<&str>,
 ) -> Result<(PublicKey, &'static str), Fault> {
-    let (spki, kind) = if crate::instance::is_instance(args[slot], &KEY_SET) {
+    if crate::instance::is_instance(args[slot], &KEY_SET) {
         let receiver = crate::instance::receiver(args[slot], &KEY_SET, "verifyIssued")?;
         let held = crate::instance::slot(receiver, KEY_SET_KEYS_SLOT);
         // Unreachable from source: `Core\Jwt\KeySet::read` is the only writer of
@@ -1606,20 +1603,47 @@ fn verifying_key(
                 "{NAME}::verifyIssued held a `{KEY_SET_NAME}` whose frame it cannot read back"
             ))
         })?;
-        let found = match kid {
-            Some(kid) => keys.iter().find(|(named, _, _)| *named == Some(kid)),
-            None => keys.first().filter(|_| keys.len() == 1),
-        };
-        let Some((_, kind, spki)) = found else {
-            return Err(not_issued());
-        };
-        (spki.to_vec(), *kind)
+        found_key(&keys, kid)
     } else {
         let (held, kind) = crypto::stored_key(args, slot, &crypto::PUBLIC_KEY, "verifyIssued")?;
         let spki = crypto::stored_octets(&held, &crypto::PUBLIC_KEY, "verifyIssued")?;
-        (spki.to_vec(), kind)
-    };
+        key_of(spki, kind)
+    }
+}
 
+/// The key a token asks a set for, and the JWS algorithm its kind carries.
+///
+/// **A key is found, never tried.** A `kid` is a lookup into the set and selects
+/// nothing else, and a token carrying none is answered only by a set holding
+/// exactly one key — so a token costs at most one signature check whatever the
+/// set holds.
+///
+/// # Errors
+///
+/// [`not_issued`]'s one sentence where the set names no such key, and
+/// [`key_of`]'s for the key it does name.
+fn found_key(keys: &[Held<'_>], kid: Option<&str>) -> Result<(PublicKey, &'static str), Fault> {
+    let found = match kid {
+        Some(kid) => keys.iter().find(|(named, _, _)| *named == Some(kid)),
+        None => keys.first().filter(|_| keys.len() == 1),
+    };
+    let Some((_, kind, spki)) = found else {
+        return Err(not_issued());
+    };
+    key_of(spki, *kind)
+}
+
+/// One key's `SubjectPublicKeyInfo` as the key it is, with the JWS algorithm its
+/// kind carries — which is the whole of `rule:security/algorithm-comes-from-the-key`
+/// for this member, since the header's `alg` is only ever compared against what
+/// this answers.
+///
+/// # Errors
+///
+/// A `LogicError` for an `X25519` key, which verifies nothing, and a
+/// [`Fault::fatal`] for material that no longer parses — unreachable from
+/// source, since it is what a reader of this module already read once.
+fn key_of(spki: &[u8], kind: KeyKind) -> Result<(PublicKey, &'static str), Fault> {
     let alg = pair_alg(kind).ok_or_else(|| {
         Fault::thrown_as(
             ThrownClass::Logic,
@@ -1630,7 +1654,7 @@ fn verifying_key(
             ),
         )
     })?;
-    let key = PublicKey::read(&spki, kind, KeyFormat::Spki).map_err(|_| {
+    let key = PublicKey::read(spki, kind, KeyFormat::Spki).map_err(|_| {
         Fault::fatal(format!(
             "{NAME}::verifyIssued held key material that is no longer a public key of its kind"
         ))
@@ -1673,6 +1697,174 @@ fn addressed_to(claims: &serde_json::Map<String, serde_json::Value>, audience: &
     }
 }
 
+/// What a call to `verifyIssued` asks of a token, the clock included.
+///
+/// The clock is a field rather than something [`issued_claims`] reads off a
+/// `Ctx`, because the frozen WebCrypto set records the instant each of its
+/// tokens is judged at, and a token with an `exp` replayed against the wall
+/// clock stops asserting anything the day it passes. A program gets the same
+/// thing from `Core\Time`'s fixed clock; this is the form a `#[test]` with no
+/// program in it can use.
+struct Issued<'a> {
+    /// The compact token, as it arrived.
+    token: &'a str,
+    /// The issuer this call named, which `iss` must equal.
+    issuer: &'a str,
+    /// The audience this call named, which `aud` must name.
+    audience: &'a str,
+    /// `{leeway: …}` in seconds, already bounded by [`leeway_of`].
+    leeway: i64,
+    /// `{typ: …}`, compared by [`same_typ`] when a call asks for one.
+    typ: Option<&'a str>,
+    /// `{nonce: …}`, compared in constant time when a call asks for one.
+    nonce: Option<&'a str>,
+    /// `{maxAge: …}` in seconds, which asks the token for an `auth_time`.
+    max_age: Option<i64>,
+    /// The second the token is judged at.
+    now: i64,
+}
+
+/// The claims of a token this issuer's key really signed, as the JSON document
+/// they arrived in — or the refusal saying it is not one.
+///
+/// All of `verifyIssued` but its two ends: what a call site wrote is an
+/// [`Issued`] and a closure by the time it gets here, and what `T` is decoded
+/// from is the document this answers with.
+///
+/// **The order is the whole design.** Shape, header policy, key, signature —
+/// and then the clock and the claims, which are reached only under a signature
+/// that held. `key` is asked for the one the header's `kid` names, after the
+/// policy and before the signature, so a set's lookup rule sits exactly where
+/// that order puts it.
+///
+/// # Errors
+///
+/// [`not_issued`]'s one sentence for everything up to and including the
+/// signature, because a forger chooses what it sees and telling one forgery from
+/// another is an oracle. Past it, [`outside_the_window`] for the clock and
+/// [`claim_refused`] for a registered claim, each saying what is wrong, because
+/// the only reader who gets there is holding a token the issuer really signed.
+fn issued_claims(
+    asked: &Issued<'_>,
+    key: impl FnOnce(Option<&str>) -> Result<(PublicKey, &'static str), Fault>,
+) -> Result<String, Fault> {
+    let token = asked.token;
+    if token.len() > MAX_TOKEN_LEN {
+        return Err(not_issued());
+    }
+
+    let mut parts = token.split('.');
+    let (Some(header_b64), Some(payload_b64), Some(signature_b64), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(not_issued());
+    };
+
+    // The header is read to *compare* and to refuse, never to choose.
+    let header_json = URL_SAFE_NO_PAD
+        .decode(header_b64)
+        .map_err(|_| not_issued())?;
+    let header: serde_json::Value =
+        serde_json::from_slice(&header_json).map_err(|_| not_issued())?;
+    let Some(header) = header.as_object() else {
+        return Err(not_issued());
+    };
+    if REFUSED_HEADER.iter().any(|name| header.contains_key(*name)) {
+        return Err(not_issued());
+    }
+    let Some(alg) = header.get("alg").and_then(serde_json::Value::as_str) else {
+        return Err(not_issued());
+    };
+
+    let kid = header.get("kid").and_then(serde_json::Value::as_str);
+    let (found, want_alg) = key(kid)?;
+    if alg != want_alg {
+        return Err(not_issued());
+    }
+
+    let signature = URL_SAFE_NO_PAD
+        .decode(signature_b64)
+        .map_err(|_| not_issued())?;
+    let signing_input = &token[..header_b64.len() + 1 + payload_b64.len()];
+    let verifying = found.verifying().ok_or_else(not_issued)?;
+    crypto::verify_signature(&verifying, signing_input.as_bytes(), &signature)
+        .ok_or_else(not_issued)?;
+
+    // Past here the token is authentic.
+    let payload_json = URL_SAFE_NO_PAD
+        .decode(payload_b64)
+        .map_err(|_| not_issued())?;
+    let document = String::from_utf8(payload_json).map_err(|_| not_issued())?;
+    let payload: serde_json::Value = serde_json::from_str(&document).map_err(|_| not_issued())?;
+    let Some(claims) = payload.as_object() else {
+        return Err(not_issued());
+    };
+
+    let (now, leeway) = (asked.now, asked.leeway);
+    let exp = claims
+        .get("exp")
+        .and_then(serde_json::Value::as_i64)
+        .ok_or_else(|| outside_the_window("carries no `exp`"))?;
+    if now >= exp.saturating_add(leeway) {
+        return Err(outside_the_window(&format!(
+            "expired at {exp}, and it is now {now} with {leeway}s of leeway"
+        )));
+    }
+    if let Some(nbf) = claims.get("nbf").and_then(serde_json::Value::as_i64)
+        && now < nbf.saturating_sub(leeway)
+    {
+        return Err(outside_the_window(&format!(
+            "is not valid before {nbf}, and it is now {now} with {leeway}s of leeway"
+        )));
+    }
+
+    let (issuer, audience) = (asked.issuer, asked.audience);
+    if claims.get("iss").and_then(serde_json::Value::as_str) != Some(issuer) {
+        return Err(claim_refused(&format!(
+            "its `iss` is not `{issuer}`, which is the issuer this call named"
+        )));
+    }
+    if !addressed_to(claims, audience) {
+        return Err(claim_refused(&format!(
+            "its `aud` does not name `{audience}` — or it names several audiences and its \
+             `azp` is not this one"
+        )));
+    }
+    if let Some(want) = asked.typ {
+        let got = header.get("typ").and_then(serde_json::Value::as_str);
+        if !got.is_some_and(|got| same_typ(got, want)) {
+            return Err(claim_refused(&format!(
+                "its header's `typ` is not `{want}`"
+            )));
+        }
+    }
+    if let Some(want) = asked.nonce {
+        let got = claims.get("nonce").and_then(serde_json::Value::as_str);
+        let matched = got.is_some_and(|got| bool::from(got.as_bytes().ct_eq(want.as_bytes())));
+        if !matched {
+            return Err(claim_refused(
+                "its `nonce` is not the one this call asked for",
+            ));
+        }
+    }
+    if let Some(oldest) = asked.max_age {
+        let authenticated = claims
+            .get("auth_time")
+            .and_then(serde_json::Value::as_i64)
+            .ok_or_else(|| {
+                claim_refused("carries no `auth_time`, which is what a `maxAge` is asked of")
+            })?;
+        if now.saturating_sub(authenticated) > oldest.saturating_add(leeway) {
+            return Err(claim_refused(&format!(
+                "was authenticated at {authenticated}, which is older than the {oldest}s \
+                 this call allows"
+            )));
+        }
+    }
+
+    Ok(document)
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Jwt::verifyIssued<T>(string $token, Jwt\KeySet|Crypto\PublicKey $keys, string $issuer, string $audience, {leeway?, typ?, nonce?, maxAge?}): T`
     /// — the read half for a token this program did not sign.
@@ -1684,13 +1876,12 @@ nvs_runtime::nvs_helper! {
     /// declared parameters, and that roster's docs own why. So the arity here is
     /// three more than the registry row's.
     ///
-    /// **The order is the whole design.** Shape, header policy, key, signature —
-    /// and then the clock and the claims, which are reached only under a
-    /// signature that held. Everything before that line answers with
-    /// [`not_issued`]'s one sentence, because a forger chooses what it sees and
-    /// telling one forgery from another is an oracle; everything after it may
-    /// say what is wrong, because the only reader who gets there is holding a
-    /// token the issuer really signed.
+    /// **What is left here is the call.** The token itself is judged by
+    /// [`issued_claims`], which takes the clock as an argument and owns the
+    /// order that judgement runs in; this arm reads the arguments, asks the
+    /// shape question — which is about the program rather than about the token —
+    /// reads the clock off `ctx`, and hands over the key lookup for whichever of
+    /// the two things argument 4 may be.
     ///
     /// The claims are handed to `T` by [`crate::json::decode_as`] and not by a
     /// second decoder written here, so what a token's payload may say is exactly
@@ -1731,112 +1922,19 @@ nvs_runtime::nvs_helper! {
                  names a document no token has. Write the type one token's claims decode into."
             )));
         }
-        if token.len() > MAX_TOKEN_LEN {
-            return Err(not_issued());
-        }
-
-        let mut parts = token.split('.');
-        let (Some(header_b64), Some(payload_b64), Some(signature_b64), None) =
-            (parts.next(), parts.next(), parts.next(), parts.next())
-        else {
-            return Err(not_issued());
-        };
-
-        // The header is read to *compare* and to refuse, never to choose.
-        let header_json = URL_SAFE_NO_PAD.decode(header_b64).map_err(|_| not_issued())?;
-        let header: serde_json::Value =
-            serde_json::from_slice(&header_json).map_err(|_| not_issued())?;
-        let Some(header) = header.as_object() else {
-            return Err(not_issued());
-        };
-        if REFUSED_HEADER.iter().any(|name| header.contains_key(*name)) {
-            return Err(not_issued());
-        }
-        let Some(alg) = header.get("alg").and_then(serde_json::Value::as_str) else {
-            return Err(not_issued());
-        };
-
-        let kid = header.get("kid").and_then(serde_json::Value::as_str);
-        let (key, want_alg) = verifying_key(args, 4, kid)?;
-        if alg != want_alg {
-            return Err(not_issued());
-        }
-
-        let signature = URL_SAFE_NO_PAD.decode(signature_b64).map_err(|_| not_issued())?;
-        let signing_input = &token[..header_b64.len() + 1 + payload_b64.len()];
-        let verifying = key.verifying().ok_or_else(not_issued)?;
-        crypto::verify_signature(&verifying, signing_input.as_bytes(), &signature)
-            .ok_or_else(not_issued)?;
-
-        // Past here the token is authentic.
-        let payload_json = URL_SAFE_NO_PAD.decode(payload_b64).map_err(|_| not_issued())?;
-        let payload: serde_json::Value =
-            serde_json::from_slice(&payload_json).map_err(|_| not_issued())?;
-        let Some(claims) = payload.as_object() else {
-            return Err(not_issued());
-        };
-
-        let now = now_seconds(ctx, "verifyIssued")?;
-        let exp = claims
-            .get("exp")
-            .and_then(serde_json::Value::as_i64)
-            .ok_or_else(|| outside_the_window("carries no `exp`"))?;
-        if now >= exp.saturating_add(leeway) {
-            return Err(outside_the_window(&format!(
-                "expired at {exp}, and it is now {now} with {leeway}s of leeway"
-            )));
-        }
-        if let Some(nbf) = claims.get("nbf").and_then(serde_json::Value::as_i64)
-            && now < nbf.saturating_sub(leeway)
-        {
-            return Err(outside_the_window(&format!(
-                "is not valid before {nbf}, and it is now {now} with {leeway}s of leeway"
-            )));
-        }
-
-        if claims.get("iss").and_then(serde_json::Value::as_str) != Some(issuer) {
-            return Err(claim_refused(&format!(
-                "its `iss` is not `{issuer}`, which is the issuer this call named"
-            )));
-        }
-        if !addressed_to(claims, audience) {
-            return Err(claim_refused(&format!(
-                "its `aud` does not name `{audience}` — or it names several audiences and its \
-                 `azp` is not this one"
-            )));
-        }
-        if let Some(want) = want_typ {
-            let got = header.get("typ").and_then(serde_json::Value::as_str);
-            if !got.is_some_and(|got| same_typ(got, want)) {
-                return Err(claim_refused(&format!(
-                    "its header's `typ` is not `{want}`"
-                )));
-            }
-        }
-        if let Some(want) = want_nonce {
-            let got = claims.get("nonce").and_then(serde_json::Value::as_str);
-            let matched = got
-                .is_some_and(|got| bool::from(got.as_bytes().ct_eq(want.as_bytes())));
-            if !matched {
-                return Err(claim_refused("its `nonce` is not the one this call asked for"));
-            }
-        }
-        if let Some(oldest) = max_age {
-            let authenticated = claims
-                .get("auth_time")
-                .and_then(serde_json::Value::as_i64)
-                .ok_or_else(|| claim_refused(
-                    "carries no `auth_time`, which is what a `maxAge` is asked of",
-                ))?;
-            if now.saturating_sub(authenticated) > oldest.saturating_add(leeway) {
-                return Err(claim_refused(&format!(
-                    "was authenticated at {authenticated}, which is older than the {oldest}s \
-                     this call allows"
-                )));
-            }
-        }
-
-        let document = std::str::from_utf8(&payload_json).map_err(|_| not_issued())?;
+        let document = issued_claims(
+            &Issued {
+                token,
+                issuer,
+                audience,
+                leeway,
+                typ: want_typ,
+                nonce: want_nonce,
+                max_age,
+                now: now_seconds(ctx, "verifyIssued")?,
+            },
+            |kid| verifying_key(args, 4, kid),
+        )?;
         #[expect(
             unsafe_code,
             reason = "the descriptor and the contract came out of the constants a \
@@ -1848,7 +1946,7 @@ nvs_runtime::nvs_helper! {
                 ctx,
                 class,
                 shape,
-                document,
+                &document,
                 crate::json::DEFAULT_MAX_DEPTH_U32,
                 false,
                 "Core\\Jwt::verifyIssued",
@@ -2375,6 +2473,77 @@ mod tests {
         );
     }
 
+    /// The scheme a key-set case names for an RSA key carrying no `alg`, and
+    /// `None` for a case naming none.
+    ///
+    /// A case spells it as the JWS algorithm, because that is what the document
+    /// would have carried; `{rsaScheme: …}` takes the kind.
+    fn rsa_scheme(case: &serde_json::Value, name: &str) -> Option<KeyKind> {
+        case.pointer("/rsaScheme")
+            .and_then(serde_json::Value::as_str)
+            .map(|alg| match alg {
+                "RS256" => KeyKind::RsaPkcs1,
+                "PS256" => KeyKind::RsaPss,
+                other => panic!("{name} names an rsaScheme this roster has no kind for: {other}"),
+            })
+    }
+
+    /// The keys one token is verified against, as the frame a `Core\Jwt\KeySet`
+    /// holds: the set its `keySet` names, or the first, which is the wide one.
+    ///
+    /// Through [`admitted_set`] and [`framed`] rather than assembled here, so a
+    /// replayed token is found a key by exactly the code a program's set answers
+    /// with.
+    fn key_frame(case: &serde_json::Value) -> Vec<u8> {
+        let at = case
+            .pointer("/keySet")
+            .and_then(serde_json::Value::as_u64)
+            .map_or(0, |at| usize::try_from(at).expect("a key set index"));
+        let set = webcrypto::node("/jws/keySets")
+            .as_array()
+            .and_then(|sets| sets.get(at))
+            .unwrap_or_else(|| panic!("the vector set has no key set {at}"));
+        let name = webcrypto::text(set, "/name");
+        let admitted = admitted_set(webcrypto::text(set, "/jwks"), rsa_scheme(set, name))
+            .unwrap_or_else(|_| panic!("{name} is a set a token is verified against"));
+        framed(&admitted).unwrap_or_else(|| panic!("{name} frames"))
+    }
+
+    /// A whole number the set records at `at`, or a panic naming where it is
+    /// missing — a case whose clock defaulted to zero would refuse every token
+    /// it holds and look like a passing test.
+    fn whole(node: &serde_json::Value, at: &str) -> i64 {
+        node.pointer(at)
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or_else(|| panic!("the vector set has no whole number at {at}"))
+    }
+
+    /// What one case asks of its token: its own `now` and options over
+    /// `/jws/defaults`, which is where a case naming neither gets its issuer,
+    /// audience, clock and leeway.
+    fn asked_of(case: &serde_json::Value) -> Issued<'_> {
+        let defaults = webcrypto::node("/jws/defaults");
+        Issued {
+            token: webcrypto::text(case, "/token"),
+            issuer: webcrypto::text(defaults, "/issuer"),
+            audience: webcrypto::text(defaults, "/audience"),
+            leeway: whole(defaults, "/leeway"),
+            typ: case
+                .pointer("/options/typ")
+                .and_then(serde_json::Value::as_str),
+            nonce: case
+                .pointer("/options/nonce")
+                .and_then(serde_json::Value::as_str),
+            max_age: case
+                .pointer("/options/maxAge")
+                .and_then(serde_json::Value::as_i64),
+            now: case
+                .pointer("/now")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or_else(|| whole(defaults, "/now")),
+        }
+    }
+
     /// Every key set the frozen vector file carries is admitted or refused
     /// exactly as the script that wrote it judged, and an admitted one holds
     /// exactly the keys it names, in order.
@@ -2392,17 +2561,7 @@ mod tests {
 
         for case in sets {
             let name = webcrypto::text(case, "/name");
-            let scheme = case
-                .pointer("/rsaScheme")
-                .and_then(serde_json::Value::as_str)
-                .map(|alg| match alg {
-                    "RS256" => KeyKind::RsaPkcs1,
-                    "PS256" => KeyKind::RsaPss,
-                    other => {
-                        panic!("{name} names an rsaScheme this roster has no kind for: {other}")
-                    }
-                });
-            let read = admitted_set(webcrypto::text(case, "/jwks"), scheme);
+            let read = admitted_set(webcrypto::text(case, "/jwks"), rsa_scheme(case, name));
 
             if webcrypto::text(case, "/outcome") == "refused" {
                 assert!(read.is_err(), "{name} is refused whole");
@@ -2518,5 +2677,88 @@ mod tests {
         let named: Vec<&str> = kinds.iter().copied().filter_map(pair_alg).collect();
         assert_eq!(named, ["ES256", "EdDSA", "RS256", "PS256"]);
         assert_eq!(pair_alg(KeyKind::X25519), None);
+    }
+
+    /// Every token the frozen set records as verifiable verifies at the second
+    /// the set judged it at, and answers exactly the claims it says it carries.
+    ///
+    /// Replayed through [`issued_claims`] rather than through a call, because
+    /// that is the level the clock is an argument at: every one of these tokens
+    /// carries an `exp`, so a replay against the wall clock asserts nothing from
+    /// the day it passes. The tokens are WebCrypto's own output and the claims
+    /// are what an independent reading of the same rules admitted from them, so
+    /// the file is the proof and there is no table here.
+    #[test]
+    fn every_frozen_token_verifies_at_the_second_the_set_judged_it() {
+        let cases = webcrypto::vectors("jws");
+        assert!(!cases.is_empty(), "the set carries JWS vectors at all");
+
+        for case in cases {
+            let name = webcrypto::text(case, "/name");
+            let blob = key_frame(case);
+            let keys = keys_in(&blob).expect("what this module framed, this module reads");
+            let claims = match issued_claims(&asked_of(case), |kid| found_key(&keys, kid)) {
+                Ok(claims) => claims,
+                Err(Fault::Thrown(_, said)) => panic!("{name} verifies, and was refused: {said}"),
+                Err(_) => panic!("{name} verifies"),
+            };
+            assert_eq!(
+                claims,
+                webcrypto::text(case, "/payload"),
+                "{name} answers the claims it carries, byte for byte"
+            );
+        }
+    }
+
+    /// Every token the frozen set records as refused is refused, and what the
+    /// refusal may say is decided by where it was refused rather than by what
+    /// was wrong with it.
+    ///
+    /// `policy` and `authenticity` are the two a forger picks between, so both
+    /// get [`not_issued`]'s one sentence, which names nothing about the case.
+    /// `time` and `claims` are reached only under a signature that held, so both
+    /// say what is wrong. The set records `claims` for a token carrying no
+    /// numeric `exp`, and this module answers that with the expiry error rather
+    /// than with [`claim_refused`]: a token with no `exp` is
+    /// `rule:security/jwt-expiry-is-mandatory` rather than a claim the issuer
+    /// and this program disagree about.
+    #[test]
+    fn every_frozen_refusal_says_only_what_its_own_stage_may_say() {
+        let cases = webcrypto::refusals("jws");
+        assert!(!cases.is_empty(), "the set carries JWS refusals at all");
+        let Fault::Thrown(_, one_sentence) = not_issued() else {
+            panic!("`not_issued` is a thrown refusal");
+        };
+
+        for case in cases {
+            let name = webcrypto::text(case, "/name");
+            let blob = key_frame(case);
+            let keys = keys_in(&blob).expect("what this module framed, this module reads");
+            let Err(Fault::Thrown(class, said)) =
+                issued_claims(&asked_of(case), |kid| found_key(&keys, kid))
+            else {
+                panic!("{name} is refused, and refused by a throw");
+            };
+            assert!(
+                matches!(class, ThrownClass::Runtime),
+                "{name} is a verdict on the token rather than a bug in the program"
+            );
+            match webcrypto::text(case, "/kind") {
+                "policy" | "authenticity" => assert_eq!(
+                    said, one_sentence,
+                    "{name} is refused before the signature held, so it says the one sentence"
+                ),
+                "time" => assert!(
+                    said.contains("Expiry is not optional"),
+                    "{name} is the expiry error: {said}"
+                ),
+                "claims" => assert!(
+                    said.contains("the token is authentic and")
+                        || said.contains("carries no `exp`"),
+                    "{name} names the claim it is about: {said}"
+                ),
+                other => panic!("{name} records a kind this test has no rule for: {other}"),
+            }
+        }
     }
 }
