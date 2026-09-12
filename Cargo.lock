@@ -2106,6 +2106,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-fmt"
+version = "0.0.1"
+dependencies = [
+ "nvs-diagnostics",
+ "nvs-syntax",
+]
+
+[[package]]
 name = "nvs-hir"
 version = "0.0.1"
 dependencies = [
