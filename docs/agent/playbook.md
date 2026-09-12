@@ -4509,6 +4509,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `rule:classes/no-free-functions-or-constants` too, so a top-level `function` in a fixture reads as a
   syntax error in the panic. Put a fixture's code in a class's `public static function`, the shape
   `examples/match.nvs` already has. [until: gone crates/nvs-fmt/src/lib.rs:d.is_error()]
+- **A second `#[cfg(test)]` in `crates/nvs-stdlib/src/lib.rs` fails a guard test, not the build.**
+  `tests/capability.rs`'s `nvs_stdlib_reaches_the_os_only_through_the_gate` scans a source file down
+  to its *first* one and asserts there is one, so a test-only `mod` among the shipped ones hides
+  everything under it. Declare a helper the whole crate's cases share inside the `mod tests` at the
+  foot of `lib.rs`, as `granting` is. [until: gone crates/nvs-stdlib/tests/capability.rs:has more than one]
 
 ## Splitting a file that got too big
 
