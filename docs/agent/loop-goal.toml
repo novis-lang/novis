@@ -108,6 +108,8 @@ modules = [
   "editors/vscode/src/extension.ts",
   # `binary()` (:15) -- the resolved `nvs` stage 3 starts `fmt --stdin` with.
   "editors/vscode/src/binary.ts",
+  # TODO: why a session opens this.
+  "editors/vscode/src/format.ts",
 ]
 
 # The three every stage works inside: the rule this goal ships, the `?>` layout it reads the base
