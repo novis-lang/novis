@@ -1,0 +1,55 @@
+--TEST--
+Core\Crypto::generateKeyPair draws the three kinds of the roster that are drawn and refuses both RSA kinds with one LogicError naming the member that reads one — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// The bound named on both sides: every case of `Core\Crypto\KeyKind` is asked
+// for, and each one either draws a pair or is the refusal. A member that had
+// grown a sixth kind, or lost one of the three, fails here while looking right
+// on whichever line it kept.
+array<Core\Crypto\KeyKind> $drawn = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+];
+array<Core\Crypto\KeyKind> $issued = [
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyKind::RsaPss,
+];
+
+int $pairs = 0;
+foreach (Core\Arr::range(0, 2) as int $slot) {
+    Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair($drawn[$slot]);
+    if ($pair->publicKey()->kind() == $drawn[$slot]) {
+        $pairs += 1;
+    }
+}
+echo "drawn ", $pairs, " of ", Core\Arr::count($drawn), "\n";
+
+// An RSA key is never generated: `ring` generates none, and a program is handed
+// its RSA key by whoever issued it. So this is a `LogicError` — a bug in the
+// call and not a verdict on anything — and its sentence names
+// `Core\Crypto\KeyPair::read`, which is the member that does take the file.
+array<string> $said = [];
+foreach (Core\Arr::range(0, 1) as int $slot) {
+    try {
+        Core\Crypto\KeyPair $never = Core\Crypto::generateKeyPair($issued[$slot]);
+        echo "an RSA kind was drawn", "\n";
+    } catch (LogicError $bug) {
+        $said = Core\Arr::append($said, $bug->message);
+    }
+}
+echo "refused ", Core\Arr::count($said), " of ", Core\Arr::count($issued), "\n";
+
+int $oneSentence = 0;
+foreach ($said as string $message) {
+    if ($message == $said[0]) {
+        $oneSentence += 1;
+    }
+}
+echo "one sentence ", $oneSentence, " of ", Core\Arr::count($said), "\n";
+echo $said[0], "\n";
+--EXPECT--
+drawn 3 of 3
+refused 2 of 2
+one sentence 2 of 2
+Core\Crypto::generateKeyPair(): an RSA key is never generated here. A program is handed its RSA key by whoever issued it, so read that file with `Core\Crypto\KeyPair::read`.

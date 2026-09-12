@@ -1,0 +1,61 @@
+--TEST--
+Core\Crypto::generateKeyPair draws a pair of each kind it draws at all, and every one's ->write is a PKCS#8 Core\Crypto\KeyPair::read takes back as the same pair, whose public half Core\Crypto\PublicKey::read validates — `rule:core-classes/crypto-interop-tier`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// A generated pair and a read pair are one value, which is what lets a server
+// keep the key it drew: `write` hands out the file, `read` takes it back, and
+// the pair that comes back holds the same file and derives the same public
+// half. Counted over every kind rather than read off a line — a member that
+// drew one kind properly and answered a plausible object for the rest prints a
+// right-looking row for each of them.
+array<Core\Crypto\KeyKind> $kinds = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+];
+
+int $readBack = 0;
+int $sameHalf = 0;
+int $keptKind = 0;
+int $onTheCurve = 0;
+foreach (Core\Arr::range(0, 2) as int $slot) {
+    Core\Crypto\KeyPair $drawn = Core\Crypto::generateKeyPair($kinds[$slot]);
+
+    // The file the draw wrote, read back under the kind it was drawn as.
+    Core\Crypto\KeyPair $stored = Core\Crypto\KeyPair::read($drawn->write(), $kinds[$slot]);
+    if ($stored->write() == $drawn->write()) {
+        $readBack += 1;
+    }
+
+    string $half = Core\Encoding::toHex($drawn->publicKey()->write(Core\Crypto\KeyFormat::Spki));
+    if (Core\Encoding::toHex($stored->publicKey()->write(Core\Crypto\KeyFormat::Spki)) == $half) {
+        $sameHalf += 1;
+    }
+
+    // The kind is the call's own word, carried from the draw to the public key.
+    if ($drawn->publicKey()->kind() == $kinds[$slot]) {
+        $keptKind += 1;
+    }
+
+    // Every public key is validated where it is read, so a drawn scalar whose
+    // point was not on the curve would be refused here rather than accepted as
+    // the pair's own half. That is the one assertion in this case that is about
+    // the *scalar* and not about the wrapper around it.
+    Core\Crypto\PublicKey $sent = Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex($half),
+        $kinds[$slot],
+        Core\Crypto\KeyFormat::Spki
+    );
+    if (Core\Encoding::toHex($sent->write(Core\Crypto\KeyFormat::Spki)) == $half) {
+        $onTheCurve += 1;
+    }
+}
+echo "read back ", $readBack, " of ", Core\Arr::count($kinds), "\n";
+echo "same public half ", $sameHalf, " of ", Core\Arr::count($kinds), "\n";
+echo "kinds kept ", $keptKind, " of ", Core\Arr::count($kinds), "\n";
+echo "public halves validated ", $onTheCurve, " of ", Core\Arr::count($kinds), "\n";
+--EXPECT--
+read back 3 of 3
+same public half 3 of 3
+kinds kept 3 of 3
+public halves validated 3 of 3

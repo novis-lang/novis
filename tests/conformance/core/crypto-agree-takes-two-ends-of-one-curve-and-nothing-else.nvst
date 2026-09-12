@@ -1,0 +1,70 @@
+--TEST--
+Core\Crypto::agree agrees over the two curves of the roster and refuses every other pairing of kinds — a kind that agrees nothing, or two keys on different curves — each with the one LogicError sentence, counted over the whole matrix — `rule:core-classes/crypto-interop-tier`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// Agreement over a sweep: every kind of `Core\Crypto\KeyKind` is offered to
+// every other, and each cell either agrees or is the one refusal. Asked one
+// cell at a time this looks right for whichever pairing a member happened to
+// implement; asked as a matrix, a member that had let an Ed25519 pair reach a
+// curve, or let two curves be crossed, fails here. The three drawn kinds are
+// drawn, since what a pair holds does not change which cells agree, and the RSA
+// rows are one issued file read under both schemes.
+string $rsaPkcs8 = "308204be020100300d06092a864886f70d0101010500048204a8308204a40201000282010100cfaa61932d8fd9e7858fa521617621f05bcb3411e174995d1fab033995201d0d9d72e5e8e133d88e8bec27e75068fb7c715eb712cae5750396d50af9ad2b5c45f0a7ab16bcf2cde4566873349a2407fa9452913e433b1d7f1ea74bda50d3f5d0ec2b0b50a4ea3023a2ae3ad4975390cd3b000d8020a578469f4bffa3e9864eb989e67a804a2cf08be53bba1bb0e9071f24156b0383730779d42efbf1daada62835a8e5e1891845cc782c322f9dc7f9eb6ff1c628c925f26ba29978a96cd10b2f61f03f361250261f860927632b6167bcba71f2e4d8df93e142c904a2515cd06af13c856bde1872ee30f3a19d8292cd2ce4b39c9788a0d3c5e3f33fe784c4e033020301000102820101008db4d56aaa4f9c41699990f44b5e6260733321b005ea1bf138f7e87675b5793dde301685288fc979d42f6d37625e9125e4f2ddf87bedc24095bf8102c9516a60eb8c6eaa507b5b5632448a40dde23273a29d0931b48cf55ed65b10dec4032f9dc65ac518ddc054e32c52ba2071b6fb7ba08433b23814d21357067446b4c70a9644ad5bbf4076288b3332e618359816eda4fc66b044df2159eba31feeb3929ddbaf2213c976c7af75f32a40ea862bdcd24eb61c0a6fa9226d96c1c992a474e8fec365eed79eaef543ad7e2c2e95d499df1516c4201c23829934cdfa834896a9bcb35aa82876f8e490f1c4d06d5626ef3630903d613a92111c53db60e7a876289102818100eb88f67fa78c0e41ac9859bf94e15607dcb4fe7daeeef9c36fca87f107299aa95b26fd35552385eaeebad6773498b0a65e4a3c1f9911c44d4f7dcda8b93bb60cd240201166b77001a11acc8674ee248bf229c40d2e56e554eca0d041a3e9e82dde0112a8ce9f5815b6228e9f6092590b83cdd16db5a0256dda4215c4468c8f6902818100e1b5839c174fd69078e934d921b95e285ae9e880d74bac412e088e707d2388fd4841b2ef4ff5782c7d03964c98ef6e485cf7bd3b4b862287361e1f319956f0a0d259a1703c1ddc5b936ab0b938b22cd3c4627081ecc464f392ccd19b91c2a55bcaa80f4b5fd5e94199b08d889d1bd644b8dc99bf72c7a5276d364aca1109db3b02818072cb25006063654b62d839dda2ad1465ee8e93fe23753b6ba21f7e93dd5ecc8f3feac7bbe78bd1a807c42de49950d5bfaff2d44cbe28a798da664106bb88bb98921c48c4d2601309e8400c7077aadd4b0bb28967b72f08c49433686ca57bc9fa18da4302dcf9524ffa9deb0f085d2b62ee5130821ce43979c9c72d9ea497bb09028180644a02f0986b212b908e0ead6c0eb187bcddb2318d785251a3e2a967d232b7ebd2ef5e527774dab0e9db6e2d1ac748795ed5b57f634f76881dc3c4988549dc219955ba25e490601950a7575ef59235d8e2a9dad3e02063bad6bfab6334a1085880f3abd811fd3a67aba28740ec8e31e6d73d2e13a32c9275b2512d6a1ba80581028181008ee45b866f4b33f26d50a78c930ffaabe8e773a2044cfd07127479b6b36c635e19f0a7284ce242bf28f9a498a54705aede4b8728d54f7c81f7731a69e6f8593aece62f2493e9a49ac00d12ccfe2ccc229f28a4d9c6d01ce60035414d4fe8807fb9613054c3226d4cb15613747a77ab566acb4987613db2e6fba64d67f89cd8d5";
+
+array<Core\Crypto\KeyKind> $kinds = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyKind::RsaPss,
+];
+
+array<Core\Crypto\KeyPair> $pairs = [];
+array<Core\Crypto\PublicKey> $publics = [];
+foreach (Core\Arr::range(0, 4) as int $kind) {
+    Core\Crypto\KeyPair $held = $kind < 3
+        ? Core\Crypto::generateKeyPair($kinds[$kind])
+        : Core\Crypto\KeyPair::read(Core\Encoding::fromHex($rsaPkcs8), $kinds[$kind]);
+    $pairs = Core\Arr::append($pairs, $held);
+    $publics = Core\Arr::append($publics, $held->publicKey());
+}
+
+// The two cells that agree are the two curves with themselves. Every other one
+// of the twenty-five is the same `LogicError`: both keys are the program's own,
+// so there is nobody a verdict could be about.
+int $cells = 0;
+int $secrets = 0;
+array<string> $said = [];
+foreach (Core\Arr::range(0, 4) as int $mine) {
+    foreach (Core\Arr::range(0, 4) as int $theirs) {
+        $cells += 1;
+        try {
+            secret bytes $shared = Core\Crypto::agree($pairs[$mine], $publics[$theirs]);
+            if ($mine == $theirs && $mine < 2) {
+                $secrets += 1;
+            } else {
+                echo "row ", $mine, " agreed with column ", $theirs, "\n";
+            }
+        } catch (LogicError $notAPair) {
+            $said = Core\Arr::append($said, $notAPair->message);
+        }
+    }
+}
+echo "cells ", $cells, "\n";
+echo "agreed ", $secrets, " of 2", "\n";
+echo "refused ", Core\Arr::count($said), " of ", $cells - 2, "\n";
+
+int $oneSentence = 0;
+foreach ($said as string $message) {
+    if ($message == $said[0]) {
+        $oneSentence += 1;
+    }
+}
+echo "one sentence ", $oneSentence, " of ", Core\Arr::count($said), "\n";
+echo $said[0], "\n";
+--EXPECT--
+cells 25
+agreed 2 of 2
+refused 23 of 23
+one sentence 23 of 23
+Core\Crypto::agree(): these two keys are not two ends of one agreement. Both have to be of one curve, `P256` or `X25519` — `Ed25519` signs and agrees nothing, and neither RSA kind agrees at all.

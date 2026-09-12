@@ -1,0 +1,66 @@
+--TEST--
+Core\Crypto::agree refuses an X25519 point of small order with one RuntimeError — a verdict on the peer that sent it, not a bug — while the same pair agrees with a real point — `rule:core-classes/crypto-interop-tier`, `rule:security/verification-throws-and-compares-in-constant-time`
+--FILE--
+<?nvs
+// Every 32-octet string is a well-formed X25519 u-coordinate, so there is
+// nothing for a read to refuse and the check is on the way out: a point of
+// small order drives the shared secret to zero whatever this program's scalar
+// is, which is a peer choosing the key for both ends. WebCrypto refuses these
+// two points as well — they are the frozen set's `ecdh` refusals — and here
+// they are a `RuntimeError`, because the point is the peer's doing and not this
+// program's.
+string $minePkcs8 = "302e020100300506032b656e042204200172af48574da59d306df1b27cc27457304669fb73e0630b9f84eac038695c2c";
+Core\Crypto\KeyPair $mine = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex($minePkcs8),
+    Core\Crypto\KeyKind::X25519
+);
+
+array<string> $contributeNothing = [
+    // The all-zero point.
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    // u = 1, whose order is 1 as well.
+    "0100000000000000000000000000000000000000000000000000000000000000",
+];
+
+array<string> $said = [];
+foreach ($contributeNothing as string $point) {
+    // The read accepts it: this is a public key, and the refusal is not here.
+    Core\Crypto\PublicKey $small = Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex($point),
+        Core\Crypto\KeyKind::X25519,
+        Core\Crypto\KeyFormat::Raw
+    );
+    try {
+        secret bytes $zero = Core\Crypto::agree($mine, $small);
+        echo "a point of small order agreed a secret", "\n";
+    } catch (RuntimeError $verdict) {
+        $said = Core\Arr::append($said, $verdict->message);
+    }
+}
+echo "refused ", Core\Arr::count($said), " of ", Core\Arr::count($contributeNothing), "\n";
+
+int $oneSentence = 0;
+foreach ($said as string $message) {
+    if ($message == $said[0]) {
+        $oneSentence += 1;
+    }
+}
+echo "one sentence ", $oneSentence, " of ", Core\Arr::count($said), "\n";
+echo $said[0], "\n";
+
+// The same pair and a real point: the refusal above is about the point and not
+// about this pair, which is what makes it a verdict on the peer.
+Core\Crypto\PublicKey $real = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex("9c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e"),
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyFormat::Raw
+);
+secret bytes $want = Core\Encoding::fromHex(
+    "34749db6e8052e771090b04ad9ba16459ac958541996589611b0930a4d5ff709"
+);
+echo Core\Crypto::agree($mine, $real) == $want ? "the same pair agrees\n" : "the pair is broken\n";
+--EXPECT--
+refused 2 of 2
+one sentence 2 of 2
+Core\Crypto::agree(): this X25519 public key contributes nothing to the shared secret, so the secret it would agree is not one this program's own key had any part in.
+the same pair agrees

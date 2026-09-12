@@ -280,7 +280,7 @@ use p256::pkcs8::der::{
 use p256::pkcs8::spki::{
     AlgorithmIdentifierRef, ObjectIdentifier, SubjectPublicKeyInfo, SubjectPublicKeyInfoRef,
 };
-use p256::pkcs8::{DecodePrivateKey, DecodePublicKey, PrivateKeyInfoRef};
+use p256::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, PrivateKeyInfoRef};
 use rand::Rng;
 use ring::rand::SystemRandom;
 use ring::signature::{
@@ -402,7 +402,6 @@ pub(crate) const MIN_SALT_LEN: usize = 16;
 /// It is [`KEY_LEN`] as a number and not as a meaning: a shared secret is a
 /// coordinate, and the module doc's *two curves agree* section is why it is
 /// never used as a key.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const SHARED_LEN: usize = 32;
 
 /// The shorter key-encryption key [`wrap_key`] takes, in octets.
@@ -705,6 +704,31 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_crypto_expand_key",
             doc: Some(&EXPAND_KEY_DOC),
         },
+        CoreMethod {
+            name: "generateKeyPair",
+            names: &["kind"],
+            params: &[CoreTy::Enum(KEY_KIND_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(KEY_PAIR_NAME),
+            symbol: "nvs_core_crypto_generate_key_pair",
+            doc: Some(&GENERATE_KEY_PAIR_DOC),
+        },
+        CoreMethod {
+            name: "agree",
+            // Neither key is contagious and the answer is `secret`: a shared
+            // secret is a key, and no octet of either argument reaches it —
+            // which is `deriveKey`'s reading of the same question, over an
+            // object here rather than over octets.
+            names: &["mine", "theirs"],
+            params: &[
+                CoreTy::Instance(KEY_PAIR_NAME),
+                CoreTy::Instance(PUBLIC_KEY_NAME),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::SecretBytes,
+            symbol: "nvs_core_crypto_agree",
+            doc: Some(&AGREE_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -869,6 +893,64 @@ const EXPAND_KEY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Crypto::generateKeyPair`'s reference card — `rule:core-api/reference-card`.
+const GENERATE_KEY_PAIR_DOC: MethodDoc = MethodDoc {
+    short: "Draws a fresh private key of the kind this call names and answers the pair it is, \
+            from the same CSPRNG `Core\\Random` uses. There is no key size argument: each kind \
+            has one size, and the kinds that would need one are the two this member refuses.",
+    params: &[ParamDoc {
+        name: "kind",
+        desc: "Which key to draw. `P256` agrees and signs, `X25519` agrees only, `Ed25519` \
+               signs only, and the two RSA kinds are read rather than drawn.",
+        shape: &[],
+    }],
+    ret: "The pair, ready to sign or to agree with, and answering `write` with a PKCS#8 \
+          `Core\\Crypto\\KeyPair::read` takes back.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$kind` is `RsaPkcs1` or `RsaPss`. An RSA key is never generated here — a \
+               program is handed one by whoever issued it, and `Core\\Crypto\\KeyPair::read` \
+               is the member that takes it.",
+    }],
+};
+
+/// `Core\Crypto::agree`'s reference card — `rule:core-api/reference-card`.
+const AGREE_DOC: MethodDoc = MethodDoc {
+    short: "Agrees a shared secret with a peer over ECDH, from this program's own pair and the \
+            public key the peer sent. The answer is the raw agreed value and is not a key: run it \
+            through `expandKey` with a context string, which is what turns one agreement into the \
+            keys a protocol needs.",
+    params: &[
+        ParamDoc {
+            name: "mine",
+            desc: "This program's pair, of kind `P256` or `X25519`. The other kinds sign rather \
+                   than agree.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "theirs",
+            desc: "The peer's public key, which has to be of the same kind: two keys on \
+                   different curves are not two ends of one agreement.",
+            shape: &[],
+        },
+    ],
+    ret: "32 octets as a `secret bytes` — the x-coordinate for P-256 and the u-coordinate for \
+          X25519, which is what WebCrypto's `deriveBits` answers over the same two keys.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The two keys are not two ends of one agreement: a pair of a kind that agrees \
+                   nothing — `Ed25519` and both RSA kinds — or two keys on different curves.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The peer's X25519 point contributes nothing, so the secret would be all-zero \
+                   whatever this program's scalar is. That is a point chosen by whoever sent it, \
+                   so it is a verdict on them rather than a bug here.",
+        },
+    ],
+};
+
 /// `rule:core-classes/crypto-interop-tier`'s public half, as registry rows: the
 /// key a program was handed, read once and answered in whichever encoding the
 /// other end asked for.
@@ -1024,10 +1106,11 @@ const PUBLIC_KEY_KIND_DOC: MethodDoc = MethodDoc {
 /// already hold, so a parsed key is not what an object keeps, and reading the
 /// stored octets back through [`PrivateKey::read`] leaves every member's key
 /// exactly as validated as the first read left it. The difference is that a
-/// PKCS#8 is stored as it arrived rather than re-encoded — one PEM block
-/// becomes its DER and nothing else moves — because `write`'s whole job is to
-/// hand a program back the key file it deployed, and because this module reads
-/// RSA's private components rather than writing them.
+/// PKCS#8 is stored as the pair received it rather than re-encoded — one PEM
+/// block becomes its DER and nothing else moves, and a drawn key keeps the file
+/// [`generated_pkcs8`] wrote — because `write`'s whole job is to hand a program
+/// back the key it deployed or drew, and because this module reads RSA's
+/// private components rather than writing them.
 ///
 /// **The rejected alternative was a per-core cache of parsed keys**, the way
 /// [`crate::regex`] keeps compiled patterns behind their source text. It buys
@@ -1145,6 +1228,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_crypto_open" => (nvs_core_crypto_open as *const ()).cast(),
         "nvs_core_crypto_derive_key" => (nvs_core_crypto_derive_key as *const ()).cast(),
         "nvs_core_crypto_expand_key" => (nvs_core_crypto_expand_key as *const ()).cast(),
+        "nvs_core_crypto_generate_key_pair" => {
+            (nvs_core_crypto_generate_key_pair as *const ()).cast()
+        }
+        "nvs_core_crypto_agree" => (nvs_core_crypto_agree as *const ()).cast(),
         "nvs_core_crypto_public_key_read" => (nvs_core_crypto_public_key_read as *const ()).cast(),
         "nvs_core_crypto_public_key_write" => {
             (nvs_core_crypto_public_key_write as *const ()).cast()
@@ -1499,7 +1586,6 @@ pub(crate) fn expand_key(material: &[u8], salt: &[u8], info: &[u8]) -> [u8; DERI
 /// point came from, which the member knows and this seam does not, and
 /// `rule:security/verification-throws-and-compares-in-constant-time` is what
 /// makes the difference worth keeping.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn agree_x25519(
     mine: &[u8; KEY_LEN],
     theirs: &[u8; SHARED_LEN],
@@ -1535,7 +1621,6 @@ pub(crate) fn read_p256_point(encoded: &[u8]) -> Option<P256PublicKey> {
 /// not scalars — because `theirs` came through [`read_p256_point`] and the group
 /// has prime order, so no product of the two is the identity and there is no
 /// all-zero answer to check for as there is on the other curve.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn agree_p256(mine: &[u8], theirs: &P256PublicKey) -> Option<[u8; SHARED_LEN]> {
     let secret = P256SecretKey::from_slice(mine).ok()?;
     let shared = diffie_hellman(secret.to_nonzero_scalar(), theirs.as_affine());
@@ -2017,9 +2102,9 @@ impl PublicKey {
     /// This key's `SubjectPublicKeyInfo`, in DER.
     fn spki(&self) -> Result<Vec<u8>, KeyRefusal> {
         match self {
-            Self::P256 { uncompressed, .. } => Ok(spki_over(&P256_SPKI_PREFIX, uncompressed)),
-            Self::X25519 { point } => Ok(spki_over(&X25519_SPKI_PREFIX, point)),
-            Self::Ed25519 { point } => Ok(spki_over(&ED25519_SPKI_PREFIX, point)),
+            Self::P256 { uncompressed, .. } => Ok(der_over(&P256_SPKI_PREFIX, uncompressed)),
+            Self::X25519 { point } => Ok(der_over(&X25519_SPKI_PREFIX, point)),
+            Self::Ed25519 { point } => Ok(der_over(&ED25519_SPKI_PREFIX, point)),
             Self::RsaPkcs1 { modulus, exponent } | Self::RsaPss { modulus, exponent } => {
                 let components = RsaComponents {
                     modulus: UintRef::new(modulus).map_err(|_| KeyRefusal::Bug)?,
@@ -2142,12 +2227,33 @@ const ED25519_SPKI_PREFIX: [u8; 12] = [
     0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
 ];
 
-/// `prefix` then `key`, which is the whole of writing a `SubjectPublicKeyInfo`
-/// whose every other octet is constant.
-fn spki_over(prefix: &[u8], key: &[u8]) -> Vec<u8> {
-    let mut der = Vec::with_capacity(prefix.len() + key.len());
+/// An X25519 private key's whole RFC 5958 version-1 PKCS#8 up to its scalar:
+/// the outer `SEQUENCE`, `version` 0, RFC 8410's parameterless algorithm
+/// identifier, and the two `OCTET STRING` headers a `CurvePrivateKey` sits
+/// under. It is a prefix for [`P256_SPKI_PREFIX`]'s reason — the scalar's width
+/// is fixed, so every other octet is — and it is the shortest form of the file
+/// rather than version 2 with the public key attached, because the point is
+/// derived from the scalar wherever one is wanted. [`x25519_scalar`] reads back
+/// what this writes, and it walks the structure rather than matching this
+/// constant, so a file another producer wrote is read just as well.
+const X25519_PKCS8_PREFIX: [u8; 16] = [
+    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x04, 0x22, 0x04, 0x20,
+];
+
+/// Ed25519's, the same file with RFC 8410's other OID, which `ring` reads
+/// through `Ed25519KeyPair::from_pkcs8_maybe_unchecked` — the door
+/// [`PrivateKey::read`] already takes for the version-1 file WebCrypto exports.
+const ED25519_PKCS8_PREFIX: [u8; 16] = [
+    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+];
+
+/// `prefix` then `body`, which is the whole of writing a DER wrapper whose
+/// every other octet is constant — a `SubjectPublicKeyInfo` over a
+/// fixed-width point, and an RFC 8410 PKCS#8 over a fixed-width scalar.
+fn der_over(prefix: &[u8], body: &[u8]) -> Vec<u8> {
+    let mut der = Vec::with_capacity(prefix.len() + body.len());
     der.extend_from_slice(prefix);
-    der.extend_from_slice(key);
+    der.extend_from_slice(body);
     der
 }
 
@@ -2568,6 +2674,122 @@ fn pkcs8_der(octets: &[u8]) -> Option<Vec<u8>> {
     STANDARD.decode(body).ok()
 }
 
+/// How many P-256 scalars are drawn before the generator is called broken.
+///
+/// A uniform 32-octet string is a scalar of this curve with probability about
+/// 1 − 2⁻³², so a second draw is already out of reach of anything that ever
+/// runs and this bound is here to keep the loop finite rather than because it
+/// is approached.
+const P256_DRAWS: usize = 8;
+
+/// A freshly drawn private key of `kind`, as the PKCS#8 a [`KEY_PAIR`] slot
+/// holds.
+///
+/// **The scalar is drawn through [`crate::random::draw`]** rather than through
+/// any crate's own generator, so this tree has one CSPRNG and a
+/// `#[Test(seed: …)]` reproduces a key pair exactly as it reproduces a nonce.
+/// The two RFC 8410 kinds take any 32 octets, so the draw *is* the key and the
+/// file around it is [`X25519_PKCS8_PREFIX`]'s constant. P-256's scalars are
+/// the integers below the group order, so a draw that is not one is discarded
+/// and another taken: reducing instead would bias the low end of the range,
+/// and `p256` is what says which draws are scalars.
+///
+/// # Errors
+///
+/// A `LogicError` for either RSA kind, which this member draws none of, and a
+/// [`Fault::fatal`] where the encoder or the generator fails — neither
+/// reachable from a program, and both explained where they are raised.
+fn generated_pkcs8(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> Result<Vec<u8>, Fault> {
+    let curve25519 = |ctx: &mut nvs_runtime::Ctx, prefix: &[u8]| {
+        let mut scalar = [0_u8; KEY_LEN];
+        crate::random::draw(ctx, |rng| rng.fill_bytes(&mut scalar));
+        der_over(prefix, &scalar)
+    };
+
+    match kind {
+        KeyKind::X25519 => Ok(curve25519(ctx, &X25519_PKCS8_PREFIX)),
+        KeyKind::Ed25519 => Ok(curve25519(ctx, &ED25519_PKCS8_PREFIX)),
+        KeyKind::P256 => {
+            let mut drawn = [0_u8; P256_COORDINATE_LEN];
+            for _ in 0..P256_DRAWS {
+                crate::random::draw(ctx, |rng| rng.fill_bytes(&mut drawn));
+                let Ok(secret) = P256SecretKey::from_slice(&drawn) else {
+                    continue;
+                };
+                // Unreachable from source: the encoder writes a fixed structure
+                // over a scalar and a point the crate has just produced itself.
+                let der = secret.to_pkcs8_der().map_err(|_| {
+                    Fault::fatal(format!(
+                        "{NAME}::generateKeyPair could not write a PKCS#8 for the P-256 scalar \
+                         it had just drawn"
+                    ))
+                })?;
+                return Ok(der.as_bytes().to_vec());
+            }
+            Err(Fault::fatal(format!(
+                "{NAME}::generateKeyPair drew {P256_DRAWS} strings and not one of them was a \
+                 P-256 scalar"
+            )))
+        }
+        KeyKind::RsaPkcs1 | KeyKind::RsaPss => Err(rsa_is_never_drawn()),
+    }
+}
+
+/// The refusal both RSA kinds get from `generateKeyPair`.
+///
+/// A `LogicError` for [`pair_refused`]'s reason — there is nobody a verdict
+/// could be about — and it names the member that does take an RSA key, because
+/// the program that asked for one has a key file it was issued and a call that
+/// cannot use it. `ring` generates no RSA key at all, so this is what the
+/// roster's *never generated* is made of rather than a policy laid over a
+/// generator that exists.
+fn rsa_is_never_drawn() -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        "Core\\Crypto::generateKeyPair(): an RSA key is never generated here. A program is \
+         handed its RSA key by whoever issued it, so read that file with \
+         `Core\\Crypto\\KeyPair::read`."
+            .to_owned(),
+    )
+}
+
+/// Why two keys agreed on nothing.
+///
+/// [`KeyRefusal`]'s split, drawn over a pair of keys rather than over one key's
+/// octets: which of the two a refusal is says who made the mistake, and that is
+/// what the member above turns into a `LogicError` or a `RuntimeError`.
+#[derive(Debug)]
+enum NoAgreement {
+    /// These two keys are not two ends of one agreement — a private key of a
+    /// kind that agrees nothing, or two keys on different curves. The call is
+    /// wrong however sound both keys are.
+    Keys,
+    /// The peer's point contributes nothing, so the secret is all-zero whatever
+    /// this program's scalar is. A point is chosen by whoever sent it.
+    Point,
+}
+
+/// The secret `mine` and `theirs` agree on, or why they agree on none.
+///
+/// Both curves of the roster and no other kind: Ed25519 signs and agrees
+/// nothing, RSA has no agreement at all, and a pair of keys on two different
+/// curves is not a pair. The two curves refuse in different places for
+/// [`agree_x25519`]'s reason — P-256 has already refused a bad point at the
+/// read, and X25519's refusal is on the way out — so the branch that can answer
+/// [`NoAgreement::Point`] is the X25519 one, and P-256's `None` is a scalar
+/// this module has itself already parsed twice and is therefore not reachable.
+fn agree(mine: &PrivateKey, theirs: &PublicKey) -> Result<[u8; SHARED_LEN], NoAgreement> {
+    match (mine, theirs) {
+        (PrivateKey::P256(secret), PublicKey::P256 { point, .. }) => {
+            agree_p256(&secret.to_bytes(), point).ok_or(NoAgreement::Keys)
+        }
+        (PrivateKey::X25519(secret), PublicKey::X25519 { point }) => {
+            agree_x25519(&secret.to_bytes(), point).ok_or(NoAgreement::Point)
+        }
+        _ => Err(NoAgreement::Keys),
+    }
+}
+
 /// The signature `key` writes over `message`, or `None` when it could not be
 /// produced.
 ///
@@ -2770,6 +2992,81 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Crypto::generateKeyPair(Crypto\KeyKind $kind): Crypto\KeyPair` —
+    /// replacing `openssl_pkey_new` and its configuration array, with the curve
+    /// named by a case and nothing else on the call.
+    ///
+    /// The answer is built the way [`nvs_core_crypto_key_pair_read`] builds
+    /// one, out of a PKCS#8 and the kind, so a generated pair and a read pair
+    /// are one value: this member is a second producer of that object and not
+    /// a second kind of it. [`generated_pkcs8`] owns where the scalar comes
+    /// from and which kinds there are none for.
+    fn nvs_core_crypto_generate_key_pair(ctx, args: [1]) {
+        let kind = key_kind_of(args, 0, NAME, "generateKeyPair")?;
+        let der = generated_pkcs8(ctx, kind)?;
+        nvs_runtime::affordable(Some(der.len()), "Core\\Crypto::generateKeyPair")?;
+        Ok(crate::instance::build(
+            &KEY_PAIR,
+            [Value::bytes(NvsStr::new(&der)), Value::int(kind.tag())],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Crypto::agree(Crypto\KeyPair $mine, Crypto\PublicKey $theirs): secret bytes`
+    /// — replacing `openssl_pkey_derive`, with the curve coming from the two
+    /// keys rather than from a call that could name a third.
+    ///
+    /// The answer is the raw agreed coordinate and is deliberately not a key:
+    /// [`expand_key`] under a context string is what a protocol keys from, and
+    /// the reference card says so. Which of the two refusals a failure is,
+    /// [`agree`] decides and this body only spells — a `LogicError` about the
+    /// program's own keys, and a `RuntimeError` about the point a peer chose.
+    fn nvs_core_crypto_agree(_ctx, args: [2]) {
+        let mine = pair_of(args, 0, "agree")?;
+        let theirs = key_of(args, 1, "agree")?;
+        let shared = agree(&mine, &theirs).map_err(|no| match no {
+            NoAgreement::Keys => not_one_agreement(),
+            NoAgreement::Point => point_contributes_nothing(),
+        })?;
+        Ok(Value::bytes(NvsStr::new(&shared)))
+    }
+}
+
+/// The refusal `Core\Crypto::agree` gives two keys that are not two ends of one
+/// agreement.
+///
+/// A `LogicError` because both keys are the program's own doing: the pair it
+/// generated or read, and a peer's key it chose to hand to this member. The
+/// sentence names the two curves rather than which of the two keys was wrong,
+/// since either way the call is the thing to fix.
+fn not_one_agreement() -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        "Core\\Crypto::agree(): these two keys are not two ends of one agreement. Both have to \
+         be of one curve, `P256` or `X25519` — `Ed25519` signs and agrees nothing, and neither \
+         RSA kind agrees at all."
+            .to_owned(),
+    )
+}
+
+/// The refusal `Core\Crypto::agree` gives a peer's X25519 point that drives the
+/// secret to zero.
+///
+/// A `RuntimeError` because it is a verdict on whoever sent the point: a point
+/// of small order makes the shared secret all-zero whatever this program's
+/// scalar is, which is a peer choosing the key for both ends. The module doc's
+/// *two curves check a peer's point in different places* owns why this is the
+/// check X25519 gets and P-256 gets at its read.
+fn point_contributes_nothing() -> Fault {
+    Fault::thrown(
+        "Core\\Crypto::agree(): this X25519 public key contributes nothing to the shared secret, \
+         so the secret it would agree is not one this program's own key had any part in."
+            .to_owned(),
+    )
+}
+
 /// The [`Fault`] a [`KeyRefusal`] becomes at the member that took the octets.
 ///
 /// `rule:core-classes/crypto-interop-tier`'s split, written once: octets that
@@ -2849,7 +3146,8 @@ fn key_format_of(args: &[Value], index: usize, member: &str) -> Result<KeyFormat
         })
 }
 
-/// The key the receiver in `args[0]` holds, read back out of its slots.
+/// The key the instance in slot `index` holds, read back out of its own slots
+/// — the receiver at `0` on an instance member, and an argument anywhere else.
 ///
 /// The re-read is [`PUBLIC_KEY`]'s decision rather than this reader's
 /// convenience, and that doc owns it: a slot holds a Novis value, so the parsed
@@ -2862,8 +3160,8 @@ fn key_format_of(args: &[Value], index: usize, member: &str) -> Result<KeyFormat
 /// A [`Fault::fatal`] on a receiver or a slot holding something else, which
 /// compiled code cannot produce: both slots are written by
 /// [`nvs_core_crypto_public_key_read`] and by nothing else.
-fn key_of(args: &[Value], member: &str) -> Result<PublicKey, Fault> {
-    let receiver = crate::instance::receiver(args[0], &PUBLIC_KEY, member)?;
+fn key_of(args: &[Value], index: usize, member: &str) -> Result<PublicKey, Fault> {
+    let receiver = crate::instance::receiver(args[index], &PUBLIC_KEY, member)?;
     let held = crate::instance::slot(receiver, PUBLIC_KEY_SPKI_SLOT);
     let encoded = held.as_bytes().ok_or_else(|| {
         Fault::fatal(format!(
@@ -2946,7 +3244,7 @@ nvs_runtime::nvs_helper! {
     /// 7638 defines whatever `ext` and `key_ops` the browser had put in the
     /// document this key was read from.
     fn nvs_core_crypto_public_key_write(_ctx, args: [2]) {
-        let key = key_of(args, "write")?;
+        let key = key_of(args, 0, "write")?;
         let format = key_format_of(args, 1, "write")?;
         let written = key.write(format).map_err(|_| {
             Fault::thrown_as(
@@ -2994,7 +3292,8 @@ fn pair_refused() -> Fault {
     )
 }
 
-/// The pair the receiver in `args[0]` holds, read back out of its slots.
+/// The pair the instance in slot `index` holds, read back out of its own slots
+/// — [`key_of`]'s reading of a slot number, over the other key class.
 ///
 /// The re-read is [`KEY_PAIR`]'s decision rather than this reader's
 /// convenience, and that doc owns it: a slot holds a Novis value, so the parsed
@@ -3005,8 +3304,8 @@ fn pair_refused() -> Fault {
 /// A [`Fault::fatal`] on a receiver or a slot holding something else, which
 /// compiled code cannot produce: both slots are written by
 /// [`nvs_core_crypto_key_pair_read`] and by nothing else.
-fn pair_of(args: &[Value], member: &str) -> Result<PrivateKey, Fault> {
-    let receiver = crate::instance::receiver(args[0], &KEY_PAIR, member)?;
+fn pair_of(args: &[Value], index: usize, member: &str) -> Result<PrivateKey, Fault> {
+    let receiver = crate::instance::receiver(args[index], &KEY_PAIR, member)?;
     let slot_fault = |slot: usize, wanted: &str| {
         Fault::fatal(format!(
             "{KEY_PAIR_NAME}::{member} expected {wanted} in its `{}` slot",
@@ -3070,7 +3369,7 @@ nvs_runtime::nvs_helper! {
     /// cannot hold a pair whose public half is a different key: the two cannot
     /// disagree if only one of them is kept.
     fn nvs_core_crypto_key_pair_public_key(_ctx, args: [1]) {
-        let pair = pair_of(args, "publicKey")?;
+        let pair = pair_of(args, 0, "publicKey")?;
         // Unreachable from source: every branch derives its point or its
         // components from material already parsed as a key of that kind, and
         // `ring` holds an RSA pair to the same width `PublicKey::rsa` does.

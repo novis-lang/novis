@@ -1,0 +1,56 @@
+--TEST--
+No two Core\Crypto::generateKeyPair draws of one kind are the same key, in the private file or in the public half it derives, counted over every pair of draws — `rule:core-classes/crypto-interop-tier`
+--FILE--
+<?nvs
+// Invariance over a sweep, counted. A `generateKeyPair` that had become a
+// constant, that drew once per kind and cached it, or that drew a scalar out of
+// a small table still reads back, still derives a public half and still answers
+// the kind it was asked for; what it cannot do is survive being asked about
+// every *pair* of draws. Both halves are counted because they fail apart: a
+// draw that lost its randomness repeats the file, and one that derived its
+// point from something other than the scalar repeats the half while the files
+// differ.
+array<Core\Crypto\KeyKind> $kinds = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+];
+
+int $pairs = 0;
+int $distinctFiles = 0;
+int $distinctHalves = 0;
+foreach (Core\Arr::range(0, 2) as int $kind) {
+    array<secret bytes> $files = [];
+    array<string> $halves = [];
+    foreach (Core\Arr::range(1, 5) as int $draw) {
+        Core\Crypto\KeyPair $fresh = Core\Crypto::generateKeyPair($kinds[$kind]);
+        $files = Core\Arr::append($files, $fresh->write());
+        $halves = Core\Arr::append(
+            $halves,
+            Core\Encoding::toHex($fresh->publicKey()->write(Core\Crypto\KeyFormat::Spki))
+        );
+    }
+
+    foreach (Core\Arr::range(0, 4) as int $left) {
+        foreach (Core\Arr::range(0, 4) as int $right) {
+            if ($left < $right) {
+                $pairs += 1;
+                if ($files[$left] == $files[$right]) {
+                    echo "two draws were the same private key", "\n";
+                } else {
+                    $distinctFiles += 1;
+                }
+                if ($halves[$left] == $halves[$right]) {
+                    echo "two draws derived the same public half", "\n";
+                } else {
+                    $distinctHalves += 1;
+                }
+            }
+        }
+    }
+}
+echo "distinct private keys ", $distinctFiles, " of ", $pairs, " pairs", "\n";
+echo "distinct public halves ", $distinctHalves, " of ", $pairs, " pairs", "\n";
+--EXPECT--
+distinct private keys 30 of 30 pairs
+distinct public halves 30 of 30 pairs
