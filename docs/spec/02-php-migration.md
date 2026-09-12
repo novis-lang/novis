@@ -792,7 +792,9 @@ it, and Novis spells it in the type and finds out while compiling.
 
 `openssl_*` and `sodium_*` are not here — the oracle build does not load either extension, so they are part
 of the known hole named above rather than rows this section is missing. What is decided about them is
-`Core\Crypto`'s entry in [01 § 16](01-core-library.md): AEAD only, and no cipher chosen by a string.
+`Core\Crypto`'s entry in [01 § 16](01-core-library.md): authenticated encryption with no cipher chosen by a
+string, the two key derivations these rows point at, and key pairs, agreement and signatures over a closed
+roster of kinds — each algorithm an enum case a call names, and none of them defaulted.
 
 | PHP | Outcome | Novis |
 |---|---|---|
