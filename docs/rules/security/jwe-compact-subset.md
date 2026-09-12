@@ -5,9 +5,13 @@ picks the key-management algorithm.
 `Jwe\Key::password` means `PBES2-HS256+A128KW`, and `Jwe\Key::recipient` and `Jwe\Key::own` mean
 `ECDH-ES` — direct agreement, no key wrap, empty `apu` and `apv`. The header's `alg` and `enc` are read
 **only to be compared**, and a mismatch is a refusal. A named constructor rather than a union because a
-shared key and a password are both confidential octets and there is no type that tells them apart; what
-the constructor buys back is that the algorithm now comes from a name the caller wrote rather than from
-an inference the caller cannot see.
+union parameter carries no qualifier classification and so refuses every `tainted` argument
+(`rule:security/unclassified-parameter-refuses-tainted`) — and a password is tainted, whether it came
+off a form or out of `Core\Cli::secret`. A union of `secret` arms is otherwise expressible; what
+disqualifies it is that the one key kind a human types could not be passed to it, where
+`Core\Crypto::deriveKey`'s whole-parameter `secret string` takes that same value today, a classification
+being read on a parameter and never on a union's member. What the constructor buys back is that the
+algorithm comes from a name the caller wrote rather than from an inference the caller cannot see.
 
 **The allowed protected-header parameters are `alg`, `enc`, `epk`, `p2s`, `p2c`, `kid`, `typ` and
 `cty`, and everything else is refused** — `zip` because it is a decompression bomb
