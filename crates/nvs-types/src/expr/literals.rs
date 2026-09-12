@@ -510,6 +510,15 @@ pub(crate) fn infer_markup_literal(
                 if !is_html_markup(ty, env) {
                     require_stringable(ty, e.span, env);
                 }
+                // Which of the two a hole is cannot be re-derived a phase down:
+                // a carrier and a `Stringable` object both erase to
+                // `nvs_ir::ty::Ty::Object`, and the answer decides between
+                // splicing the hole raw and escaping it. So it is recorded at
+                // the hole's own span, the arrangement
+                // [`crate::expr_table::ExprTypeTable::declared_ty`] already
+                // serves for an enum-named type atom and a `decimal`
+                // placement.
+                env.exprs.record_type(e.span, ty);
             }
             // A segment's escapes are the double-quoted grammar's, which is
             // what the lexer ran over it; the two the literal adds, `` \` ``

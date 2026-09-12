@@ -86,13 +86,44 @@ pub enum CookIssue {
 #[must_use]
 pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<CookIssue>) {
     let text = src.span_text(span).unwrap_or_default();
-    cook_double_quoted_chars(text, span, |s, e| {
+    cook_double_quoted_chars(text, span, span_of(span), &[])
+}
+
+/// The two escapes a markup literal adds to the double-quoted grammar, and the
+/// whole of what it adds: `` \` `` for a backtick in the body, and `\{` for the
+/// one case that wants a literal `{$` (`rule:core-classes/html-literal`).
+///
+/// Neither can be a row of the shared table: in a double-quoted string both are
+/// an unknown escape, which PHP passes through as the two characters written,
+/// and that pass-through is itself a rule the table states.
+const MARKUP_ESCAPES: &[char] = &['`', '{'];
+
+/// Cooks one [`nvs_syntax::ast::StringPart::Text`] run of a markup literal —
+/// ``html`…` ``'s segment grammar, which is [`cook_double_quoted_text`]'s plus
+/// [`MARKUP_ESCAPES`].
+///
+/// A segment is trusted bytes and nothing about it is escaped *for* HTML here:
+/// `rule:core-classes/html-literal` trusts a segment because the author wrote
+/// it, so what runs over one is the same source-escape grammar every other
+/// literal's text runs, and `<` stays `<`.
+#[must_use]
+pub fn cook_markup_text(src: &SourceFile, span: Span) -> (String, Vec<CookIssue>) {
+    let text = src.span_text(span).unwrap_or_default();
+    cook_double_quoted_chars(text, span, span_of(span), MARKUP_ESCAPES)
+}
+
+/// Maps a cooked run's own byte offsets back to spans in the file, for a run
+/// whose text is `span`'s verbatim — every caller but the heredoc one, whose
+/// text no longer corresponds byte-for-byte to any span at all
+/// ([`cook_double_quoted_text_str`]).
+fn span_of(span: Span) -> impl Fn(usize, usize) -> Span {
+    move |s, e| {
         Span::new(
             span.file,
             span.start + off_as_u32(s),
             span.start + off_as_u32(e),
         )
-    })
+    }
 }
 
 /// [`cook_double_quoted_text`]'s sibling for text that no longer corresponds
@@ -108,7 +139,7 @@ pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<Coo
 /// `nvs-ir`'s `cook_str_literal`/`Lowering::lower_interpolated_parts`.
 #[must_use]
 pub fn cook_double_quoted_text_str(text: &str, attribute_to: Span) -> (String, Vec<CookIssue>) {
-    cook_double_quoted_chars(text, attribute_to, |_, _| attribute_to)
+    cook_double_quoted_chars(text, attribute_to, |_, _| attribute_to, &[])
 }
 
 /// Cooks a whole [`nvs_syntax::ast::ExprKind::Str`] literal — delimiters
@@ -204,6 +235,7 @@ fn cook_double_quoted_chars(
     text: &str,
     whole_span_for_utf8_issue: Span,
     escape_span: impl Fn(usize, usize) -> Span,
+    extra: &[char],
 ) -> (String, Vec<CookIssue>) {
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let n = chars.len();
@@ -322,6 +354,14 @@ fn cook_double_quoted_chars(
                     bytes.extend_from_slice(b"\\u");
                     i += 2;
                 }
+            }
+            // A delimiter only this literal form has — the caller's own
+            // additions to the grammar, escaped to themselves so the backslash
+            // that kept the lexer from reading them structurally is not left in
+            // the value.
+            other if extra.contains(&other) => {
+                bytes.extend_from_slice(other.encode_utf8(&mut buf).as_bytes());
+                i += 2;
             }
             other => {
                 bytes.push(b'\\');
