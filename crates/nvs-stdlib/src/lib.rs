@@ -422,6 +422,13 @@ fn address_of(symbol: &'static str) -> *const u8 {
 mod tests {
     use super::*;
 
+    /// The frozen WebCrypto vector set, declared here for [`granting`]'s reason
+    /// and stated once in its own module doc: a helper every module's cases
+    /// share is declared inside this module rather than beside the modules that
+    /// ship, because the capability guard scans a file down to its first
+    /// `#[cfg(test)]`.
+    pub(crate) mod vectors;
+
     /// A snapshot built from the text an operator would have written, for the
     /// reason `nvs_runtime::capability`'s own cases state: the boot path
     /// deserializes, so a case that constructed the typed tree directly would

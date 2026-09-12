@@ -1,0 +1,77 @@
+//! The frozen WebCrypto vector set, read once and reached as JSON — the one
+//! door onto `crates/nvs-stdlib/tests/vectors/webcrypto.json`.
+//!
+//! `tools/webcrypto-vectors.mjs` wrote that file from Node's `crypto.subtle`,
+//! the W3C API a browser ships, and its own header is the home of how and of
+//! what makes it reproducible. What belongs here is why the tests read the file
+//! rather than carry its octets: a vector copied into a `#[test]` is a second
+//! copy of a number whose first copy is what the other implementation actually
+//! produced, and the copy is the one that goes stale. Every interop section —
+//! the key agreements, and the tokens `Core\Jwe` and `Core\Jwt` are held to —
+//! is asserted against the file itself, so regenerating it is what changes a
+//! test's expectations and nothing else is.
+//!
+//! A vector published *with a specification* is the other kind of evidence and
+//! stays inline where it is asserted: RFC 7748's exchange and RFC 5869's
+//! derivations are printed in their documents, so a reader checks them against
+//! the document rather than against this tree.
+//!
+//! It lives under `crate::tests` for `granting`'s reason, which
+//! `crates/nvs-stdlib/tests/capability.rs`'s own case states: that scan stops at
+//! a file's first `#[cfg(test)]` and asserts there is one, so a helper every
+//! module's cases share is declared inside the crate root's test module rather
+//! than beside the modules that ship. The JSON is therefore compiled into the
+//! test binary alone and parsed on first use.
+
+use std::sync::OnceLock;
+
+use serde_json::Value;
+
+/// The set as it sits in the tree, compiled into the test binary.
+const SOURCE: &str = include_str!("../../tests/vectors/webcrypto.json");
+
+/// The parsed set, built on the first call and shared by every test after it.
+fn set() -> &'static Value {
+    static SET: OnceLock<Value> = OnceLock::new();
+    SET.get_or_init(|| {
+        serde_json::from_str(SOURCE).expect("tools/webcrypto-vectors.mjs writes JSON")
+    })
+}
+
+/// A section's vectors — the cases where an operation has an answer.
+pub(crate) fn vectors(section: &str) -> &'static [Value] {
+    list(section, "vectors")
+}
+
+/// A section's refusals — the cases where WebCrypto itself refused, each of
+/// which this runtime has to refuse too.
+pub(crate) fn refusals(section: &str) -> &'static [Value] {
+    list(section, "refusals")
+}
+
+/// One array out of one section, or a panic naming what was asked for: a test
+/// reaching a section the script does not write is a test asserting nothing,
+/// which is worse than a failing one.
+fn list(section: &str, kind: &str) -> &'static [Value] {
+    set()[section][kind]
+        .as_array()
+        .unwrap_or_else(|| panic!("the vector set has no {section}/{kind} array"))
+        .as_slice()
+}
+
+/// A hex field of one case, as the octets it stands for.
+///
+/// `pointer` is RFC 6901's, so a nested field is `/a/raw` and a top-level one is
+/// `/secret` — the set nests a key pair under the party that holds it.
+pub(crate) fn octets(case: &Value, pointer: &str) -> Vec<u8> {
+    data_encoding::HEXLOWER
+        .decode(text(case, pointer).as_bytes())
+        .expect("the set writes every octet string in lower-case hex")
+}
+
+/// A text field of one case, by the same pointer [`octets`] takes.
+pub(crate) fn text<'a>(case: &'a Value, pointer: &str) -> &'a str {
+    case.pointer(pointer)
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("the vector set's case has no text at {pointer}"))
+}

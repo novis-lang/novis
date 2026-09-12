@@ -164,16 +164,60 @@
 //! `rule:security/jwe-compact-subset` is the rule, and these four constants are
 //! its one implementation — the bound is written here rather than twice, and
 //! `Core\Jwe` reads them rather than repeating the numbers.
+//!
+//! # Two curves agree, and what a peer sent is checked before it is multiplied
+//!
+//! [`agree_x25519`] and [`agree_p256`] are the roster's key agreements, and each
+//! answers a **coordinate rather than a key**: the low bits of an x-coordinate
+//! are not uniform, so either answer goes to [`expand_key`] and to nothing else,
+//! which is the section above's split between the two derivations doing its
+//! work. X25519 is the one to prefer where both ends are being written now;
+//! P-256 is here for `rule:core-classes/crypto-interop-tier`'s reason and only
+//! that one — it is the curve every browser's WebCrypto ships and the one JWE's
+//! ECDH-ES meets in the field.
+//!
+//! The two curves check a peer's point in different places, because the attack
+//! is in a different place. Every 32-octet string is a well-formed X25519
+//! u-coordinate, so there is nothing to read and the check is on the way *out*:
+//! a point of small order drives the shared secret to zero whatever the private
+//! scalar is — a peer choosing the key for both ends — and [`agree_x25519`]
+//! refuses that answer rather than expanding it. P-256 has the opposite shape:
+//! a point that is not on the curve is the invalid-curve attack, which recovers
+//! a private scalar a few bits per exchange, so [`read_p256_point`] is where an
+//! encoding becomes a point at all and nothing here multiplies by anything it
+//! did not read.
+//!
+//! # Two pieces JWE needs, and neither is ever a member
+//!
+//! [`wrap_key`]/[`unwrap_key`] are RFC 3394's key wrap and [`concat_kdf`] is
+//! RFC 7518 § 4.6.2's derivation, and `rule:security/jwe-compact-subset` is the
+//! whole of why either is in this tree: PBES2 wraps a content key under what a
+//! password derived, and ECDH-ES runs an agreement's coordinate through that
+//! derivation and not through [`expand_key`], because the other end is a browser
+//! and the browser does what the RFC says. Neither is reachable from source —
+//! there is no member and no row — for the reason the roster is closed at all: a
+//! program with a key wrap in reach writes the protocol that goes around it, and
+//! that protocol is the thing `Core\Jwe` exists to have written once.
+//!
+//! The derivation is **not** HKDF wearing a different name. It is SHA-256 over a
+//! counter, the secret and a length-prefixed context, with no extract step,
+//! which is weaker where the secret is not uniform and exactly right where it is
+//! a curve coordinate. [`expand_key`] stays the one a program reaches.
 
 use aes_gcm::Aes256Gcm;
+use aes_kw::{KwAes128, KwAes256};
 use chacha20poly1305::aead::{Aead, Nonce};
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
 use hkdf::Hkdf;
+use p256::PublicKey as P256PublicKey;
+use p256::SecretKey as P256SecretKey;
+use p256::ecdh::diffie_hellman;
 use rand::Rng;
 // The 0.11 line of `sha2`, because `hkdf` and `pbkdf2` are generic over the
 // digest family's 0.11 traits and `Core\Hash`'s `sha2` is the 0.10 one. The
 // root manifest's row is where both majors being in this tree is argued.
-use sha2_v11::Sha256;
+use sha2_v11::{Digest, Sha256};
+use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
@@ -240,6 +284,30 @@ pub(crate) const MAX_ITERATIONS: u32 = 2_000_000;
 /// against one derivation is worthless against the next.
 #[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const MIN_SALT_LEN: usize = 16;
+
+/// What a key agreement answers, in octets — X25519's u-coordinate and P-256's
+/// x-coordinate are both this long, which is what lets one constant stand for
+/// both and either answer reach [`expand_key`] unchanged.
+///
+/// It is [`KEY_LEN`] as a number and not as a meaning: a shared secret is a
+/// coordinate, and the module doc's *two curves agree* section is why it is
+/// never used as a key.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const SHARED_LEN: usize = 32;
+
+/// The shorter key-encryption key [`wrap_key`] takes, in octets.
+///
+/// It is 128 bits because `PBES2-HS256+A128KW` names that width and the other
+/// end implements the name, not because anything in this module encrypts under
+/// AES-128: a wrap is not a cipher a program can reach, and the roster's own
+/// ciphers are both 256-bit.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const KW_128_KEY_LEN: usize = 16;
+
+/// What a wrapped [`KEY_LEN`]-octet key is, in octets — RFC 3394 adds one
+/// 64-bit semiblock, which is the integrity check an unwrap verifies.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) const WRAPPED_LEN: usize = KEY_LEN + 8;
 
 /// `rule:core-api/tier-roster`'s AEAD-only surface, as three rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -666,6 +734,178 @@ pub(crate) fn expand_key(material: &[u8], salt: &[u8], info: &[u8]) -> [u8; DERI
     key
 }
 
+/// The secret two X25519 keys agree on, or `None` when it is the all-zero one.
+///
+/// RFC 7748's exchange, with the clamping the specification asks for applied to
+/// a copy of `mine` inside the multiplication rather than to the stored scalar,
+/// so a pair written back out answers the octets it was read from. `theirs` is
+/// a raw u-coordinate, which is what the curve's only encoding is and what a
+/// browser exports for this kind, so there is nothing to read and no reading
+/// function beside this one.
+///
+/// The refusal is the module doc's *two curves agree* section: a point of small
+/// order sends the shared secret to zero for every private scalar, so a peer
+/// sending one picks the key for both ends, and a zero answer is refused rather
+/// than expanded. It is an `Option` for [`cipher`]'s reason — whether that is a
+/// verdict on what a peer sent or a bug in the program depends on where the
+/// point came from, which the member knows and this seam does not, and
+/// `rule:security/verification-throws-and-compares-in-constant-time` is what
+/// makes the difference worth keeping.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn agree_x25519(
+    mine: &[u8; KEY_LEN],
+    theirs: &[u8; SHARED_LEN],
+) -> Option<[u8; SHARED_LEN]> {
+    let shared = StaticSecret::from(*mine).diffie_hellman(&X25519PublicKey::from(*theirs));
+    shared.was_contributory().then(|| shared.to_bytes())
+}
+
+/// A P-256 public key read out of its SEC 1 encoding, or `None` when the octets
+/// are not one.
+///
+/// **This is where all of P-256's validation happens**, and the module doc's
+/// *two curves agree* section is why it happens at all: the length, the leading
+/// tag, each coordinate being a field element and the point being *on the
+/// curve* are all `from_sec1_bytes`, and the point at infinity is refused beside
+/// them because `p256`'s `PublicKey` cannot hold the identity. A point that
+/// passes a length check and fails this one is the invalid-curve attack, which
+/// is why nothing in this module multiplies by a point it did not read here.
+///
+/// Both the compressed and the uncompressed encoding are read: a browser
+/// exports the uncompressed form, and a JWK's two coordinates assemble into it.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn read_p256_point(encoded: &[u8]) -> Option<P256PublicKey> {
+    P256PublicKey::from_sec1_bytes(encoded).ok()
+}
+
+/// The secret a P-256 scalar and a point already read agree on, or `None` when
+/// `mine` is not a scalar of this curve.
+///
+/// ECDH over P-256: the answer is the x-coordinate of `mine × theirs`, which is
+/// what WebCrypto's `deriveBits` answers over the same two keys and therefore
+/// what JWE's ECDH-ES has to feed its derivation. `SecretKey::from_slice` is the
+/// only refusal left here — zero and anything at or above the group order are
+/// not scalars — because `theirs` came through [`read_p256_point`] and the group
+/// has prime order, so no product of the two is the identity and there is no
+/// all-zero answer to check for as there is on the other curve.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn agree_p256(mine: &[u8], theirs: &P256PublicKey) -> Option<[u8; SHARED_LEN]> {
+    let secret = P256SecretKey::from_slice(mine).ok()?;
+    let shared = diffie_hellman(secret.to_nonzero_scalar(), theirs.as_affine());
+    let mut agreed = [0_u8; SHARED_LEN];
+    agreed.copy_from_slice(shared.raw_secret_bytes().as_slice());
+    Some(agreed)
+}
+
+/// A content key wrapped under a key-encryption key, or `None` when the wrapping
+/// key is neither [`KW_128_KEY_LEN`] nor [`KEY_LEN`] octets.
+///
+/// RFC 3394, which is a cipher run over the key data with a fixed integrity
+/// value woven through six passes, so an unwrap knows whether it unwrapped
+/// anything. Only a [`KEY_LEN`]-octet key is wrapped, because the only thing
+/// this wraps is a content key and every content key here is that long — a
+/// general key wrap would be a second surface with nothing behind it.
+///
+/// The two key-encryption key widths are JWE's, not a choice: `A128KW` is what
+/// `PBES2-HS256+A128KW` names, and the wider one is what the same wrap looks
+/// like under a key this module's own derivations answer.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn wrap_key(kek: &[u8], key: &[u8; KEY_LEN]) -> Option<[u8; WRAPPED_LEN]> {
+    let mut wrapped = [0_u8; WRAPPED_LEN];
+    let wrote = match kek.len() {
+        KW_128_KEY_LEN => KwAes128::new_from_slice(kek)
+            .ok()?
+            .wrap_key(key, &mut wrapped)
+            .is_ok(),
+        KEY_LEN => KwAes256::new_from_slice(kek)
+            .ok()?
+            .wrap_key(key, &mut wrapped)
+            .is_ok(),
+        _ => false,
+    };
+
+    wrote.then_some(wrapped)
+}
+
+/// The content key inside a wrap, or `None` for every way of it not being one.
+///
+/// A wrapping key of the wrong width, a wrap of the wrong length and a wrap
+/// whose integrity value does not come back are one answer, because they are one
+/// event at the door: the token did not open. `Core\Jwe` is where that becomes
+/// the single sentence `rule:security/verification-throws-and-compares-in-constant-time`
+/// asks for, and telling the three apart there would say which half of a forgery
+/// landed.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn unwrap_key(kek: &[u8], wrapped: &[u8]) -> Option<[u8; KEY_LEN]> {
+    if wrapped.len() != WRAPPED_LEN {
+        return None;
+    }
+
+    let mut key = [0_u8; KEY_LEN];
+    let unwrapped = match kek.len() {
+        KW_128_KEY_LEN => KwAes128::new_from_slice(kek)
+            .ok()?
+            .unwrap_key(wrapped, &mut key)
+            .is_ok(),
+        KEY_LEN => KwAes256::new_from_slice(kek)
+            .ok()?
+            .unwrap_key(wrapped, &mut key)
+            .is_ok(),
+        _ => false,
+    };
+
+    unwrapped.then_some(key)
+}
+
+/// RFC 7518 § 4.6.2's derivation, filling `derived` from `shared` and a context.
+///
+/// SHA-256 over `counter ‖ shared ‖ algorithm ‖ party_u ‖ party_v ‖ keydatalen`,
+/// one round per 32 octets wanted, with each of the three context fields carried
+/// behind its own 32-bit length so no two contexts can concatenate to the same
+/// input. `algorithm` is the JWE header's `enc` where the agreement is direct,
+/// and the two party fields are `apu` and `apv`, which
+/// `rule:security/jwe-compact-subset` holds empty.
+///
+/// The length wanted is `derived`'s, which is also what goes into the final
+/// field, so a caller cannot ask for one length and label it another. The module
+/// doc's *two pieces* section is why this exists beside [`expand_key`] rather
+/// than instead of it.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn concat_kdf(
+    shared: &[u8],
+    algorithm: &str,
+    party_u: &[u8],
+    party_v: &[u8],
+    derived: &mut [u8],
+) {
+    /// One context field, behind the 32-bit length the derivation counts it by.
+    fn prefixed(round: &mut Sha256, field: &[u8]) {
+        let len = u32::try_from(field.len()).expect(
+            "a context field comes out of a header this module's caller has already capped",
+        );
+        round.update(len.to_be_bytes());
+        round.update(field);
+    }
+
+    let bits =
+        u32::try_from(derived.len() * 8).expect("a derived key is at most a few hundred bits");
+    for (index, block) in derived
+        .chunks_mut(<Sha256 as Digest>::output_size())
+        .enumerate()
+    {
+        let counter = u32::try_from(index + 1).expect("one round answers 32 octets");
+        let mut round = Sha256::new();
+        round.update(counter.to_be_bytes());
+        round.update(shared);
+        prefixed(&mut round, algorithm.as_bytes());
+        prefixed(&mut round, party_u);
+        prefixed(&mut round, party_v);
+        round.update(bits.to_be_bytes());
+        let whole = round.finalize();
+        block.copy_from_slice(&whole[..block.len()]);
+    }
+}
+
 /// The cipher keyed by slot 1, or the `LogicError` a wrong-length key earns.
 ///
 /// Reachable from source despite the parameter's `secret bytes`: the qualifier
@@ -736,6 +976,7 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::vectors as webcrypto;
 
     /// Every cipher this class can reach is authenticated — stage 4's first
     /// named check, asked of the construction rather than of a roster, because
@@ -992,6 +1233,250 @@ mod tests {
             derive_key(b"correct horse", &salt, MIN_ITERATIONS, who).expect("the floor derives"),
             pbkdf2_sha256(b"correct horse", &salt, MIN_ITERATIONS),
             "inside the bounds it is the derivation above and nothing else"
+        );
+    }
+
+    /// A 32-octet vector as the array that takes it — a Curve25519 scalar, a
+    /// u-coordinate and a content key are all fixed-width here, and all the same
+    /// width, while a vector is hex of whatever length it was written at.
+    fn thirty_two(octets: &[u8]) -> [u8; KEY_LEN] {
+        octets
+            .try_into()
+            .expect("the field this vector stands in is 32 octets")
+    }
+
+    /// Both agreements against the published evidence for their curve: RFC 7748
+    /// § 6.1, which the document prints, and the frozen WebCrypto set, which is
+    /// where a P-256 exchange another implementation actually performed comes
+    /// from — `crate::tests::vectors` is the home of why those octets are read
+    /// from the file rather than copied into this one.
+    ///
+    /// Each direction is asserted, because an exchange that agrees one way round
+    /// and not the other is the argument-order slip a single assertion cannot
+    /// see. What is pinned is the whole seam a member will reach — the clamping,
+    /// the point validation, the coordinate that comes out — and not that either
+    /// crate computes its curve, which is its own test suite's job.
+    #[test]
+    fn the_two_agreements_match_their_published_vectors() {
+        let alice = thirty_two(&hex(
+            "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+        ));
+        let bob = thirty_two(&hex(
+            "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb",
+        ));
+        let alice_public = thirty_two(&hex(
+            "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
+        ));
+        let bob_public = thirty_two(&hex(
+            "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
+        ));
+        let published = thirty_two(&hex(
+            "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742",
+        ));
+        assert_eq!(
+            agree_x25519(&alice, &bob_public),
+            Some(published),
+            "RFC 7748 § 6.1, Alice's scalar against Bob's public key"
+        );
+        assert_eq!(
+            agree_x25519(&bob, &alice_public),
+            Some(published),
+            "RFC 7748 § 6.1, the same secret reached from the other end"
+        );
+
+        for vector in webcrypto::vectors("ecdh") {
+            let name = webcrypto::text(vector, "/name");
+            let mine = webcrypto::octets(vector, "/a/scalar");
+            let theirs = webcrypto::octets(vector, "/b/scalar");
+            let my_point = webcrypto::octets(vector, "/a/raw");
+            let their_point = webcrypto::octets(vector, "/b/raw");
+            let secret = webcrypto::octets(vector, "/secret");
+
+            match webcrypto::text(vector, "/curve") {
+                "X25519" => {
+                    assert_eq!(
+                        agree_x25519(&thirty_two(&mine), &thirty_two(&their_point))
+                            .expect("a WebCrypto public key is contributory")
+                            .as_slice(),
+                        secret,
+                        "{name}"
+                    );
+                    assert_eq!(
+                        agree_x25519(&thirty_two(&theirs), &thirty_two(&my_point))
+                            .expect("a WebCrypto public key is contributory")
+                            .as_slice(),
+                        secret,
+                        "{name}, from the other end"
+                    );
+                }
+                "P-256" => {
+                    let their_point =
+                        read_p256_point(&their_point).expect("a WebCrypto public key reads");
+                    let my_point =
+                        read_p256_point(&my_point).expect("a WebCrypto public key reads");
+                    assert_eq!(
+                        agree_p256(&mine, &their_point)
+                            .expect("a WebCrypto private key is a scalar of its curve")
+                            .as_slice(),
+                        secret,
+                        "{name}"
+                    );
+                    assert_eq!(
+                        agree_p256(&theirs, &my_point)
+                            .expect("a WebCrypto private key is a scalar of its curve")
+                            .as_slice(),
+                        secret,
+                        "{name}, from the other end"
+                    );
+                }
+                curve => panic!("the set carries {curve}, which this module does not agree over"),
+            }
+        }
+    }
+
+    /// Every point WebCrypto itself refused to agree under, refused here — and
+    /// on each curve at the place the module doc says it is refused: X25519's
+    /// small-order points at the answer, because the encoding is well formed and
+    /// the secret is what is wrong, and P-256's off-curve point, point at
+    /// infinity and short encoding at the read, before anything is multiplied.
+    ///
+    /// A refusal is a property of the point rather than of the scalar meeting
+    /// it, so each case reuses the vector set's own private key for that curve
+    /// rather than carrying one of its own.
+    #[test]
+    fn an_agreement_refuses_every_point_webcrypto_refuses() {
+        let scalar = |curve: &str| {
+            webcrypto::vectors("ecdh")
+                .iter()
+                .find(|vector| webcrypto::text(vector, "/curve") == curve)
+                .map(|vector| webcrypto::octets(vector, "/a/scalar"))
+                .expect("the set agrees over the curve it refuses points on")
+        };
+
+        for refusal in webcrypto::refusals("ecdh") {
+            let name = webcrypto::text(refusal, "/name");
+            let theirs = webcrypto::octets(refusal, "/theirs");
+            match webcrypto::text(refusal, "/curve") {
+                "X25519" => assert!(
+                    agree_x25519(&thirty_two(&scalar("X25519")), &thirty_two(&theirs)).is_none(),
+                    "{name}"
+                ),
+                "P-256" => assert!(read_p256_point(&theirs).is_none(), "{name}"),
+                curve => panic!("the set carries {curve}, which this module does not agree over"),
+            }
+        }
+    }
+
+    /// The key wrap against RFC 3394 § 4.6 — the published case whose key data
+    /// is the width every content key here is — and against the frozen
+    /// WebCrypto set for both key-encryption key widths. The set is the only
+    /// evidence for the narrow one: the RFC publishes no case that wraps 256
+    /// bits under a 128-bit key, and `PBES2-HS256+A128KW` is exactly that case.
+    ///
+    /// The refusals are beside it because an unwrap is the half that meets a
+    /// token: a wrap with an octet changed, one a semiblock short and one under
+    /// a key of no width this wraps under are each `None`, which is the one
+    /// answer the module doc says they share.
+    #[test]
+    fn the_key_wrap_matches_its_published_vectors_and_refuses_a_changed_wrap() {
+        let kek = hex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
+        let key = thirty_two(&hex(
+            "00112233445566778899aabbccddeeff000102030405060708090a0b0c0d0e0f",
+        ));
+        let wrapped = wrap_key(&kek, &key).expect("a 256-bit key-encryption key wraps");
+        assert_eq!(
+            wrapped.as_slice(),
+            hex("28c9f404c4b810f4cbccb35cfb87f8263f5786e2d80ed326cbc7f0e71a99f43bfb988b9b7a02dd21"),
+            "RFC 3394 § 4.6, 256 bits of key data under a 256-bit key"
+        );
+        assert_eq!(
+            unwrap_key(&kek, &wrapped),
+            Some(key),
+            "and the same wrap opens back to the key data"
+        );
+
+        for vector in webcrypto::vectors("aesKw") {
+            let name = webcrypto::text(vector, "/name");
+            let kek = webcrypto::octets(vector, "/kek");
+            let key = thirty_two(&webcrypto::octets(vector, "/key"));
+            assert_eq!(
+                wrap_key(&kek, &key)
+                    .expect("a WebCrypto key-encryption key is one of the two widths")
+                    .as_slice(),
+                webcrypto::octets(vector, "/wrapped"),
+                "{name}"
+            );
+            assert_eq!(
+                unwrap_key(&kek, &webcrypto::octets(vector, "/wrapped")),
+                Some(key),
+                "{name}, opened again"
+            );
+        }
+
+        let mut changed = wrapped;
+        changed[0] ^= 1;
+        assert!(
+            unwrap_key(&kek, &changed).is_none(),
+            "one octet of the integrity value changed is refused"
+        );
+        assert!(
+            unwrap_key(&kek, &wrapped[..WRAPPED_LEN - 1]).is_none(),
+            "a wrap one octet short is refused before any key is built"
+        );
+        assert!(
+            unwrap_key(&kek[..KEY_LEN - 1], &wrapped).is_none(),
+            "a key-encryption key of no width this wraps under is refused"
+        );
+        assert!(
+            wrap_key(&kek[..KW_128_KEY_LEN + 1], &key).is_none(),
+            "and refused on the way in as well as on the way out"
+        );
+    }
+
+    /// The derivation ECDH-ES runs, against RFC 7518 Appendix C, reached the way
+    /// the protocol reaches it: the appendix's own two keys through
+    /// [`agree_p256`], its published `Z` asserted on the way past, then the
+    /// context it names and the key it prints.
+    ///
+    /// `tools/webcrypto-vectors.mjs` reproduces this same output before it
+    /// writes the set, so the two implementations of one derivation are pinned
+    /// to one published answer rather than to each other.
+    ///
+    /// The length is asserted to be *inside* the derivation, not applied after
+    /// it: a 32-octet answer is not the opening 32 octets of a 64-octet one,
+    /// which is the difference between a length that is bound into the input and
+    /// one a caller could relabel.
+    #[test]
+    fn the_derivation_ecdh_es_runs_matches_rfc_7518_appendix_c() {
+        let mine = hex("d3f3716913d4310a0026de741b3f18893afc8114f0c84682ba677e313a13988a");
+        let theirs = read_p256_point(&hex(
+            "04c1e349cb61ec70248ce801034c3834e1b88ebe1161cb25af38741f785fcfc4c4\
+             7bc96708ef80952b53f8d2555fe72b841ed04588628b1d378a594939500ec9c9",
+        ))
+        .expect("the appendix's public key is a point on the curve");
+        let shared = agree_p256(&mine, &theirs).expect("the appendix's private key is a scalar");
+        assert_eq!(
+            shared.as_slice(),
+            hex("9e56d91d817135d372834283bf84269cfb316ea3da806a48f6daa7798cfe90c4"),
+            "RFC 7518 Appendix C's Z, the agreement the derivation runs over"
+        );
+
+        let mut derived = [0_u8; 16];
+        concat_kdf(&shared, "A128GCM", b"Alice", b"Bob", &mut derived);
+        assert_eq!(
+            derived.as_slice(),
+            hex("56aa8deaf8236d205c2228cd71a7101a"),
+            "RFC 7518 Appendix C's derived key"
+        );
+
+        let mut one_round = [0_u8; DERIVED_LEN];
+        let mut two_rounds = [0_u8; DERIVED_LEN * 2];
+        concat_kdf(&shared, "A256GCM", b"", b"", &mut one_round);
+        concat_kdf(&shared, "A256GCM", b"", b"", &mut two_rounds);
+        assert_ne!(
+            one_round.as_slice(),
+            &two_rounds[..DERIVED_LEN],
+            "the length wanted is an input to every round, so a shorter answer is not a prefix"
         );
     }
 }
