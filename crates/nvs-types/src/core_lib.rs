@@ -597,6 +597,12 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             };
             interner.core_shape(shape)
         }
+        // The top of the instance half of the lattice, and the one spelling a
+        // registry row has for "structured, whatever its declaration says":
+        // `crate::expr::is_assignable` satisfies it with a class instance and
+        // with a shape, so `Core\Jwt::signObject`'s claims are checked at the
+        // call rather than in the helper.
+        CoreTy::Object => interner.object(),
         // `Mixed` and anything a later registry variant adds: `mixed` is the
         // registry's own "unchecked position" spelling, and is the only safe
         // answer for a variant this arm has not learned yet, since `Ty` and

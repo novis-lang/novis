@@ -393,6 +393,26 @@ pub enum CoreTy {
     Void,
     /// `mixed` — `rule:types/grammar`'s one unchecked position.
     Mixed,
+    /// `object` — the top of the instance half of the lattice, which
+    /// `nvs_types::expr::is_assignable` satisfies with a class instance and a
+    /// shape and with nothing else.
+    ///
+    /// **Not [`Self::Mixed`] with a check in the body.** A member that takes a
+    /// structured value takes one that *is* structured, so `Core\Jwt::signObject`
+    /// refuses an `int` where the call is written rather than where the token
+    /// would have been assembled. The unchecked position is for a member whose
+    /// subject is genuinely any value — `Core\Json::encode`'s — and spelling a
+    /// structured parameter that way moves a refusal from the checker to a
+    /// throw the caller has to catch.
+    ///
+    /// It carries no classification for the reason it needs none: the
+    /// `tainted`/`secret` axes are written on `string` and `bytes`, and an
+    /// object is neither. `rule:security/tainted-qualifier` distributes
+    /// `tainted {…}` onto the shape's own text fields while checking, so a
+    /// claims shape built out of a request reaches this parameter as the
+    /// unqualified shape type it already is — and each field keeps the
+    /// qualifier it was given.
+    Object,
     /// `array<T>`, whose element type is the wrapped one.
     Array(&'static CoreTy),
     /// `callable` — `rule:types/callable-absorbs-closure`'s one closure type,
@@ -1123,6 +1143,7 @@ impl CoreTy {
             Self::SecretTaintedStr => "secret tainted string".into(),
             Self::Void => "void".into(),
             Self::Mixed => "mixed".into(),
+            Self::Object => "object".into(),
             Self::Array(elem) => format!("array<{}>", elem.spelled()),
             Self::Callable => "callable".into(),
             Self::ShapeOfCallables(_) => "{name: callable(): T, ...}".into(),

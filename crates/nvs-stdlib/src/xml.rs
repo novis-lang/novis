@@ -3349,6 +3349,7 @@ mod tests {
             | CoreTy::SecretTaintedStr
             | CoreTy::Void
             | CoreTy::Mixed
+            | CoreTy::Object
             | CoreTy::Callable
             | CoreTy::Entry
             | CoreTy::IntLiteral(_) => false,
@@ -3404,6 +3405,7 @@ mod tests {
             | CoreTy::SecretTaintedStr
             | CoreTy::Void
             | CoreTy::Mixed
+            | CoreTy::Object
             | CoreTy::Callable
             | CoreTy::Entry
             | CoreTy::IntLiteral(_) => true,
