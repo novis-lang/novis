@@ -729,6 +729,38 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_crypto_agree",
             doc: Some(&AGREE_DOC),
         },
+        CoreMethod {
+            name: "sign",
+            // The message is neutral rather than contagious for `deriveKey`'s
+            // reason: a signature is a digest run through a key, so not one
+            // octet of what was signed reaches it and a `tainted` body off the
+            // wire signs without making the signature tainted. It is plain
+            // `bytes` rather than `secret` because signing a secret is a
+            // written `Core\Secret::revealBytes`, exactly as sealing one is.
+            names: &["message", "key"],
+            params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Instance(KEY_PAIR_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_crypto_sign",
+            doc: Some(&SIGN_DOC),
+        },
+        CoreMethod {
+            name: "verify",
+            // The signature is as neutral as the message, and for a stronger
+            // reason than the row above: nothing is answered at all, so there
+            // is no value for a qualifier to reach. Both arrive from whoever
+            // sent them, which is the point of the member.
+            names: &["message", "signature", "key"],
+            params: &[
+                CoreTy::Blob(Qual::Neutral),
+                CoreTy::Blob(Qual::Neutral),
+                CoreTy::Instance(PUBLIC_KEY_NAME),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_crypto_verify",
+            doc: Some(&VERIFY_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -947,6 +979,78 @@ const AGREE_DOC: MethodDoc = MethodDoc {
             desc: "The peer's X25519 point contributes nothing, so the secret would be all-zero \
                    whatever this program's scalar is. That is a point chosen by whoever sent it, \
                    so it is a verdict on them rather than a bug here.",
+        },
+    ],
+};
+
+/// `Core\Crypto::sign`'s reference card — `rule:core-api/reference-card`.
+const SIGN_DOC: MethodDoc = MethodDoc {
+    short: "Signs `$message` under `$key`'s private half. There is no algorithm or digest \
+            argument: the scheme is the pair's own kind — `RsaPkcs1` and `RsaPss` over SHA-256, \
+            `P256` as ECDSA over SHA-256, `Ed25519` as itself — so a call cannot name one the key \
+            is not.",
+    params: &[
+        ParamDoc {
+            name: "message",
+            desc: "The octets to sign, whole. There is no pre-hashed spelling: a digest handed in \
+                   as a message is a signature over a digest, which is a different statement.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "key",
+            desc: "The pair to sign with, of any kind but `X25519`, which agrees rather than \
+                   signs.",
+            shape: &[],
+        },
+    ],
+    ret: "The signature: 64 octets for `P256` — the `r ‖ s` pair JWS and WebCrypto both use, never \
+          DER — 64 for `Ed25519`, and as many octets as the modulus is long for either RSA kind. \
+          `RsaPkcs1` and `Ed25519` sign a message the same way every time; `P256` and `RsaPss` \
+          draw randomness, so two signatures over one message differ and both verify.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$key` is an `X25519` pair, which signs nothing — the kind is chosen when the pair \
+               is generated or read, so this is the call to fix.",
+    }],
+};
+
+/// `Core\Crypto::verify`'s reference card — `rule:core-api/reference-card`.
+const VERIFY_DOC: MethodDoc = MethodDoc {
+    short: "Checks that `$signature` is `$key`'s over `$message`, and throws when it is not. The \
+            algorithm is the key's own, as `sign`'s is the pair's, so no part of what arrived \
+            chooses how it is checked.",
+    params: &[
+        ParamDoc {
+            name: "message",
+            desc: "The octets the signature is supposed to cover. `tainted` is accepted and \
+                   stays: checking what a peer sent is the point, and a signature that held says \
+                   who sent the octets rather than what is in them.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "signature",
+            desc: "The signature as `sign` answers one — `r ‖ s` for `P256`, never DER.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "key",
+            desc: "The public key to check against, of any kind but `X25519`.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. A check that held returns and a check that failed throws, so there is no \
+          falsy answer for a `==` to misread.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The signature is not this key's over this message — altered, the wrong length \
+                   for the key's algorithm, or made under another key. Every one of those is the \
+                   same sentence, so the refusal says nothing about which part was wrong.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$key` is an `X25519` key, which verifies nothing. That is the program's own \
+                   key rather than anything that arrived, so it is a bug and not a verdict.",
         },
     ],
 };
@@ -1232,6 +1336,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_crypto_generate_key_pair as *const ()).cast()
         }
         "nvs_core_crypto_agree" => (nvs_core_crypto_agree as *const ()).cast(),
+        "nvs_core_crypto_sign" => (nvs_core_crypto_sign as *const ()).cast(),
+        "nvs_core_crypto_verify" => (nvs_core_crypto_verify as *const ()).cast(),
         "nvs_core_crypto_public_key_read" => (nvs_core_crypto_public_key_read as *const ()).cast(),
         "nvs_core_crypto_public_key_write" => {
             (nvs_core_crypto_public_key_write as *const ()).cast()
@@ -1890,10 +1996,6 @@ impl PublicKey {
     /// cannot be asked to run an algorithm the key is not bound to:
     /// `rule:security/algorithm-comes-from-the-key` crosses from the read to
     /// the check as a type rather than as an argument.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "a later stage registers the member")
-    )]
     pub(crate) fn verifying(&self) -> Option<VerifyingKey<'_>> {
         Some(match self {
             Self::P256 { uncompressed, .. } => VerifyingKey::P256 {
@@ -2393,7 +2495,6 @@ pub(crate) fn concat_kdf(
 /// signatures* section made into a type. An RSA key appears twice because
 /// `RS256` and `PS256` are one key type and two algorithms: a reader picks the
 /// variant once, and no later site can pick again.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) enum VerifyingKey<'a> {
     /// RSASSA-PKCS1-v1_5 over SHA-256, from a JWK's `n` and `e` as big-endian
     /// octets with no leading zeros — which is what the base64url of those two
@@ -2441,7 +2542,6 @@ pub(crate) enum VerifyingKey<'a> {
 /// RSA's parameters carry the same 2048–8192 bit range that a `read` enforces,
 /// so a key narrower than the roster admits fails here too rather than relying
 /// on the door having been shut.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn verify_signature(
     key: &VerifyingKey<'_>,
     message: &[u8],
@@ -2564,10 +2664,6 @@ impl PrivateKey {
     /// `rule:security/algorithm-comes-from-the-key` crosses from the read to the
     /// signature as a type, exactly as [`PublicKey::verifying`] carries it to a
     /// check.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "a later stage registers the member")
-    )]
     pub(crate) fn signing(self) -> Option<SigningKey> {
         Some(match self {
             Self::RsaPkcs1(pair) => SigningKey::RsaPkcs1(pair),
@@ -2596,10 +2692,6 @@ impl PrivateKey {
 /// by nothing else, so the four variants here are exactly the kinds of the
 /// roster that sign: a key that signs nothing cannot be spelled as one of
 /// these.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "a later stage registers the member")
-)]
 pub(crate) enum SigningKey {
     /// RSASSA-PKCS1-v1_5 over SHA-256.
     RsaPkcs1(RsaKeyPair),
@@ -2802,7 +2894,6 @@ fn agree(mine: &PrivateKey, theirs: &PublicKey) -> Result<[u8; SHARED_LEN], NoAg
 /// ECDSA answers the 64-octet `r ‖ s` rather than DER, for the module doc's
 /// *four signatures* reason, and RSA answers as many octets as the modulus is
 /// long.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn sign(key: &SigningKey, message: &[u8]) -> Option<Vec<u8>> {
     /// One RSA signature under whichever padding the key is bound to, into a
     /// buffer the modulus's own width, which is the only width `ring` writes.
@@ -3063,6 +3154,100 @@ fn point_contributes_nothing() -> Fault {
     Fault::thrown(
         "Core\\Crypto::agree(): this X25519 public key contributes nothing to the shared secret, \
          so the secret it would agree is not one this program's own key had any part in."
+            .to_owned(),
+    )
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Crypto::sign(bytes $message, Crypto\KeyPair $key): bytes` —
+    /// replacing `openssl_sign`, whose digest is a further argument that can
+    /// disagree with the key it is written beside.
+    ///
+    /// There is nowhere here to name a scheme: [`PrivateKey::signing`] answers
+    /// the variant the pair was read as, which is
+    /// `rule:security/algorithm-comes-from-the-key` crossing from the read to
+    /// the signature as a type. [`sign`] owns what each kind answers, including
+    /// ECDSA's `r ‖ s` rather than DER.
+    fn nvs_core_crypto_sign(_ctx, args: [2]) {
+        let message = bytes_of(args, 0, "sign")?;
+        let key = pair_of(args, 1, "sign")?.signing().ok_or_else(signs_nothing)?;
+
+        // Unreachable from source: the two randomized algorithms are the only
+        // ones that can answer `None` here and they do it only where `ring`'s
+        // generator has failed, which is the machine and not the program. A key
+        // that reached this line is already a key, so there is nothing a
+        // `catch` could be about; [`sign`]'s own doc owns the rest.
+        let signature = sign(&key, message).ok_or_else(|| {
+            Fault::fatal("Core\\Crypto::sign could not draw the randomness a signature needs")
+        })?;
+        nvs_runtime::affordable(Some(signature.len()), "Core\\Crypto::sign")?;
+        Ok(Value::bytes(NvsStr::new(&signature)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Crypto::verify(bytes $message, bytes $signature, Crypto\PublicKey $key): void`
+    /// — replacing `openssl_verify`, which answers `1`, `0` or `-1` and leaves
+    /// the caller to tell the last two apart.
+    ///
+    /// Nothing is answered, so there is no value a loose comparison could
+    /// misread and no raw check for a call site to write its own `==` over:
+    /// `rule:security/verification-throws-and-compares-in-constant-time` is
+    /// kept by the return type rather than by a caller's discipline. Which
+    /// algorithm runs is [`PublicKey::verifying`]'s answer and never the
+    /// signature's shape.
+    fn nvs_core_crypto_verify(_ctx, args: [3]) {
+        let message = bytes_of(args, 0, "verify")?;
+        let signature = bytes_of(args, 1, "verify")?;
+        let key = key_of(args, 2, "verify")?;
+        let verifying = key.verifying().ok_or_else(verifies_nothing)?;
+        verify_signature(&verifying, message, signature).ok_or_else(not_this_signature)?;
+        Ok(Value::null())
+    }
+}
+
+/// The refusal `Core\Crypto::sign` gives the one kind of pair that signs
+/// nothing.
+///
+/// A `LogicError` because the pair is the program's own: it drew or read an
+/// X25519 key and then asked that key for a signature, so the call is the thing
+/// to fix. [`PrivateKey::signing`]'s `None` is the only way here.
+fn signs_nothing() -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        "Core\\Crypto::sign(): an `X25519` pair signs nothing — it is a key for \
+         `Core\\Crypto::agree` alone. `P256`, `Ed25519` and both RSA kinds sign."
+            .to_owned(),
+    )
+}
+
+/// The refusal `Core\Crypto::verify` gives the one kind of public key that
+/// verifies nothing.
+///
+/// A `LogicError` rather than the verdict below it, on the same line
+/// [`not_one_agreement`] draws: the key is one this program read and chose to
+/// check against, and no signature could have made it the right kind.
+fn verifies_nothing() -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        "Core\\Crypto::verify(): an `X25519` public key verifies nothing — it is a key for \
+         `Core\\Crypto::agree` alone. `P256`, `Ed25519` and both RSA kinds verify."
+            .to_owned(),
+    )
+}
+
+/// The one sentence every check that did not hold gives.
+///
+/// A forgery, a signature of the wrong width for the key's algorithm and a
+/// signature made under a different key are one refusal deliberately, for the
+/// reason `rule:security/verification-throws-and-compares-in-constant-time`
+/// gives and [`nvs_core_crypto_open`]'s refusal keeps for a sealed message:
+/// a message naming which part was wrong is an oracle over the part.
+fn not_this_signature() -> Fault {
+    Fault::thrown(
+        "Core\\Crypto::verify(): this signature is not $key's over $message — it has been \
+         altered, it is not the shape the key's algorithm signs, or it was made under another \
+         key."
             .to_owned(),
     )
 }
