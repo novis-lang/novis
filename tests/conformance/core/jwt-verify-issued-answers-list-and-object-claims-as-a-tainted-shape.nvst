@@ -1,0 +1,102 @@
+--TEST--
+Core\Jwt::verifyIssued answers a list claim and an object claim as the type its call site wrote, and that type answers what Core\Json::decodeAs reads out of the same payload — `rule:security/verification-does-not-launder`, `rule:security/derived-codec-qualifiers`
+--FILE--
+<?nvs
+// Agreement. One question — "what did the nested claims decode into?" — is
+// asked of `verifyIssued` in both spellings a written type has and of
+// `Core\Json::decodeAs` over the very same payload text. A member that grew a
+// decoder of its own beside `Core\Json`'s, or that flattened a structured
+// claim to text on the way out so that taint could be carried by force, prints
+// plausible values on any one of those lines alone; only the three together
+// say the claims a signature vouched for went through the one decoder.
+//
+// `tainted` is what the claims come back under either way: the shape writes it
+// once and it reaches the list's elements, and the class declares it on every
+// text field reachable from it, which is what the reject case beside this one
+// holds a call site to.
+#[Core\Json\Derive]
+final class Tenancy {
+    public tainted string $tenant;
+    public int $seats;
+
+    public function constructor(tainted string $tenant, int $seats) {
+        $this->tenant = $tenant;
+        $this->seats = $seats;
+    }
+}
+
+#[Core\Json\Derive]
+final class Issued {
+    public tainted string $iss;
+    public tainted string $aud;
+    public int $exp;
+    public array<tainted string> $roles;
+    public Tenancy $ctx;
+
+    public function constructor(
+        tainted string $iss,
+        tainted string $aud,
+        int $exp,
+        array<tainted string> $roles,
+        Tenancy $ctx
+    ) {
+        $this->iss = $iss;
+        $this->aud = $aud;
+        $this->exp = $exp;
+        $this->roles = $roles;
+        $this->ctx = $ctx;
+    }
+}
+
+Core\Crypto\KeyPair $issuer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+int $now = Core\Time::now()->toEpochSeconds();
+string $payload = "{\"iss\":\"https://issuer.example\",\"aud\":\"novis-app\",\"exp\":"
+    . (($now + 900) as string)
+    . ",\"roles\":[\"ops\",\"admin\"],\"ctx\":{\"tenant\":\"acme\",\"seats\":3}}";
+
+var $segment = fn (string $text): string => Core\Encoding::toBase64Url(
+    Core\Encoding::encodeText($text, Core\Charset::Utf8)
+);
+string $input = $segment("{\"alg\":\"EdDSA\",\"typ\":\"JWT\"}") . "." . $segment($payload);
+string $token = $input . "." . Core\Encoding::toBase64Url(
+    Core\Crypto::sign(Core\Encoding::encodeText($input, Core\Charset::Utf8), $issuer)
+);
+
+var $shaped = Core\Jwt::verifyIssued<
+    tainted {iss: string, aud: string, exp: int, roles: array<string>, ctx: Tenancy}
+>($token, $issuer->publicKey(), "https://issuer.example", "novis-app");
+
+Issued $declared = Core\Jwt::verifyIssued<Issued>(
+    $token,
+    $issuer->publicKey(),
+    "https://issuer.example",
+    "novis-app"
+);
+
+Issued $decoded = Core\Json::decodeAs<Issued>($payload);
+
+int $agreements = 0;
+if (Core\Arr::count($shaped->roles) == 2 && Core\Arr::count($declared->roles) == 2) {
+    $agreements = $agreements + 1;
+}
+foreach ($decoded->roles as string $at => tainted string $role) {
+    if ($shaped->roles[$at] == $role && $declared->roles[$at] == $role) {
+        $agreements = $agreements + 1;
+    }
+}
+if ($shaped->ctx->tenant == $decoded->ctx->tenant && $declared->ctx->tenant == $decoded->ctx->tenant) {
+    $agreements = $agreements + 1;
+}
+if ($shaped->ctx->seats == $decoded->ctx->seats && $declared->ctx->seats == $decoded->ctx->seats) {
+    $agreements = $agreements + 1;
+}
+if ($shaped->iss == $decoded->iss && $declared->iss == $decoded->iss) {
+    $agreements = $agreements + 1;
+}
+echo $agreements, " of 6 answers agree with the encoder's own decode", "\n";
+echo $declared->ctx->tenant, " has ", $declared->ctx->seats, " seats, and the second of ";
+echo Core\Arr::count($shaped->roles), " roles is ", $shaped->roles[1], "\n";
+--EXPECT--
+6 of 6 answers agree with the encoder's own decode
+acme has 3 seats, and the second of 2 roles is admin
