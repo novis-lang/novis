@@ -138,6 +138,10 @@ SETTING = re.compile(r"^(?P<out>#?)(?P<key>[A-Za-z_][\w\-]*(?:\.[A-Za-z_][\w\-]*
 #: reads it before the key rather than after writing the key.
 UNIMPLEMENTED = "NOT IMPLEMENTED"
 
+#: A line comment, dropped where the question is whether a file's *code* names a
+#: block: a rustdoc header naming another crate's business is prose, not a read.
+COMMENT = re.compile(r"//.*")
+
 #: What this workspace binds a block to when it is neither named after its key nor
 #: after its type. `written` is the idiom for *what the operator wrote*, and it is
 #: how `nvs_config::db` reads every `[db.<name>.pool]` bound.
@@ -447,6 +451,22 @@ def access_re(field: str, receivers: set[str]) -> re.Pattern:
     return re.compile(rf"\b(?:{recv})\b{CHAIN}\s*\.\s*{re.escape(field)}\b(?!\s*\()")
 
 
+def reads_field(code: str, key: Key, access: re.Pattern, narrow: re.Pattern, bare: str | None) -> bool:
+    """Whether one file reads `key` off a block it holds, generic bindings included.
+
+    A generic binding is not a name for *this* block -- `written` is what any
+    deserialized block is bound to -- so `written.idle` answers for `[db.<name>.pool]`
+    and for `[http.client]` alike. It is trusted where the field name identifies one
+    key on its own, which is `bare_names`' own reading, and otherwise only where the
+    file names the block somewhere in its **code**: a block named in a `//!` header and
+    nowhere else is prose about another crate's business, not a read."""
+    if bare:
+        return bool(access.search(code))
+    named = any(re.search(rf"\b{re.escape(r)}\b", COMMENT.sub("", code))
+                for r in key.receivers - BINDINGS)
+    return bool((access if named else narrow).search(code))
+
+
 def bare_names(keys: list[Key]) -> set[str]:
     """The field names that identify exactly one key in the roster.
 
@@ -475,12 +495,13 @@ def find_readers(keys: list[Key]) -> None:
     for key in keys:
         literal = literal_re(key.dotted)
         access = access_re(key.field.name, key.receivers)
+        narrow = access_re(key.field.name, key.receivers - BINDINGS)
         name = key.field.name
         bare = name if name in unique else None
         for rel, code, joined, texts in files:
             if rel not in REGISTRIES and literal.search(joined):
                 key.readers.append(f"{rel} (key)")
-            elif name in code and access.search(code):
+            elif name in code and reads_field(code, key, access, narrow, bare):
                 key.readers.append(f"{rel} (field)")
             elif bare and rel not in REGISTRIES and bare in texts:
                 key.readers.append(f"{rel} (name)")
