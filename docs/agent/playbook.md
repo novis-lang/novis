@@ -1885,6 +1885,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   correct reported as unwritten work. Run a red check's own `argv` and read its *last* line before
   touching the tree; the repair is the three lines `tools/rules.py:445-450` now carries, in whichever
   tool prints the prose. [until: reviewed 2026-09-12]
+- **A `loop-goal.toml` check name can cite an RFC section the tree deliberately stopped using as its
+  oracle, and a grep for that citation then finds nothing at all.** A test's doc comment is the only
+  place such a swap is recorded — `crates/nvs-stdlib/src/crypto.rs:4158-4162` says the P-256 exchange
+  is read from the frozen WebCrypto set, so five checks citing RFC 5903, 7515, 7520 and 8037 read as
+  unwritten work while every claim under them is asserted. When a grep for a check's cited RFC number
+  returns nothing at all, read the doc comment of the test covering that primitive before budgeting
+  the vectors. [until: reviewed 2026-09-12]
 
 ## Running things
 
