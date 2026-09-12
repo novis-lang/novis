@@ -203,6 +203,35 @@
 //! counter, the secret and a length-prefixed context, with no extract step,
 //! which is weaker where the secret is not uniform and exactly right where it is
 //! a curve coordinate. [`expand_key`] stays the one a program reaches.
+//!
+//! # Four signatures, and the key is what names the algorithm
+//!
+//! [`VerifyingKey`] holds a public key's material *inside* the variant naming
+//! its algorithm, and [`verify_signature`] takes nothing besides that key, its
+//! message and the signature. `rule:security/algorithm-comes-from-the-key` is
+//! therefore a property of the type rather than a check a call site performs:
+//! there is no parameter a scheme could arrive in, so an `alg` read off a token
+//! has nowhere to go but a comparison. RSA is two variants because it is one key
+//! type carrying two algorithms, and which one a key is bound to is settled when
+//! the key is read and never revisited.
+//!
+//! These four reach BoringSSL through `ring`, while every cipher, derivation and
+//! agreement above them stays RustCrypto; [ADR 0179](/docs/decisions/0179.md)
+//! § 8 is where that single exception is argued. An ECDSA signature here is the
+//! 64-octet `r ‖ s` that JWS and WebCrypto both write, so the DER form most
+//! other tooling prints is refused rather than re-encoded — one encoding on the
+//! wire is one fewer place for two implementations to disagree.
+//!
+//! **Signing is the one thing in this module that draws outside
+//! [`crate::random::draw`].** `ring`'s randomness trait is sealed to its own
+//! implementations, so the OS source it ships is the only one its signers
+//! accept, and PSS's salt and ECDSA's nonce come from there rather than through
+//! the seam the nonce above is drawn through. It is the same class of source and
+//! not a weaker one; what is given up is the single point a test could stand in
+//! front of, which is why the two algorithms that write the same octets every
+//! time — `RS256` and `EdDSA` — are the ones pinned to the frozen set octet for
+//! octet, and the two that do not are held to the property that survives being
+//! randomized.
 
 use aes_gcm::Aes256Gcm;
 use aes_kw::{KwAes128, KwAes256};
@@ -212,7 +241,15 @@ use hkdf::Hkdf;
 use p256::PublicKey as P256PublicKey;
 use p256::SecretKey as P256SecretKey;
 use p256::ecdh::diffie_hellman;
+use p256::elliptic_curve::sec1::ToSec1Point;
+use p256::pkcs8::DecodePrivateKey;
 use rand::Rng;
+use ring::rand::SystemRandom;
+use ring::signature::{
+    ECDSA_P256_SHA256_FIXED, ECDSA_P256_SHA256_FIXED_SIGNING, ED25519, EcdsaKeyPair,
+    Ed25519KeyPair, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256, RSA_PSS_2048_8192_SHA256,
+    RSA_PSS_SHA256, RsaEncoding, RsaKeyPair, RsaPublicKeyComponents, UnparsedPublicKey,
+};
 // The 0.11 line of `sha2`, because `hkdf` and `pbkdf2` are generic over the
 // digest family's 0.11 traits and `Core\Hash`'s `sha2` is the 0.10 one. The
 // root manifest's row is where both majors being in this tree is argued.
@@ -906,6 +943,211 @@ pub(crate) fn concat_kdf(
     }
 }
 
+/// The public half of a signing key, as the material a JWK carries, in the
+/// variant that names what it signs with.
+///
+/// One variant per roster algorithm, and there is no variant without material
+/// and no material without a variant, which is the module doc's *four
+/// signatures* section made into a type. An RSA key appears twice because
+/// `RS256` and `PS256` are one key type and two algorithms: a reader picks the
+/// variant once, and no later site can pick again.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) enum VerifyingKey<'a> {
+    /// RSASSA-PKCS1-v1_5 over SHA-256, from a JWK's `n` and `e` as big-endian
+    /// octets with no leading zeros — which is what the base64url of those two
+    /// members decodes to.
+    RsaPkcs1 {
+        /// The modulus, `n`.
+        modulus: &'a [u8],
+        /// The public exponent, `e`.
+        exponent: &'a [u8],
+    },
+    /// RSASSA-PSS over SHA-256, over the same two members, with the salt length
+    /// `PS256` fixes at the digest's own.
+    RsaPss {
+        /// The modulus, `n`.
+        modulus: &'a [u8],
+        /// The public exponent, `e`.
+        exponent: &'a [u8],
+    },
+    /// ECDSA over P-256 and SHA-256, over the uncompressed point `04 ‖ x ‖ y`
+    /// that a browser's raw export is and that a JWK's two coordinates assemble
+    /// into. The compressed form is not read here: a key this module answers is
+    /// written one way.
+    P256 {
+        /// The point, uncompressed.
+        point: &'a [u8],
+    },
+    /// Ed25519, over the 32 octets a JWK carries as `x`.
+    Ed25519 {
+        /// The point, in the curve's only encoding.
+        point: &'a [u8],
+    },
+}
+
+/// `Some(())` when `signature` is this key's over `message`, and `None` for
+/// every way of it not being.
+///
+/// One answer covers a signature that does not verify, a signature of a form
+/// this algorithm does not write and material that is not a key of its kind, for
+/// [`open_under`]'s reason: a caller able to tell them apart would learn which
+/// half of a forgery attempt landed. It is `Option<()>` and not a `bool` because
+/// the member above it turns `None` into the one sentence
+/// `rule:security/verification-throws-and-compares-in-constant-time` asks for,
+/// and a `bool` is the shape a call site can drop on the floor.
+///
+/// RSA's parameters carry the same 2048–8192 bit range that a `read` enforces,
+/// so a key narrower than the roster admits fails here too rather than relying
+/// on the door having been shut.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn verify_signature(
+    key: &VerifyingKey<'_>,
+    message: &[u8],
+    signature: &[u8],
+) -> Option<()> {
+    let verified = match key {
+        VerifyingKey::RsaPkcs1 { modulus, exponent } => RsaPublicKeyComponents {
+            n: *modulus,
+            e: *exponent,
+        }
+        .verify(&RSA_PKCS1_2048_8192_SHA256, message, signature),
+        VerifyingKey::RsaPss { modulus, exponent } => RsaPublicKeyComponents {
+            n: *modulus,
+            e: *exponent,
+        }
+        .verify(&RSA_PSS_2048_8192_SHA256, message, signature),
+        VerifyingKey::P256 { point } => {
+            UnparsedPublicKey::new(&ECDSA_P256_SHA256_FIXED, point).verify(message, signature)
+        }
+        VerifyingKey::Ed25519 { point } => {
+            UnparsedPublicKey::new(&ED25519, point).verify(message, signature)
+        }
+    };
+
+    verified.ok()
+}
+
+/// Which of the four a key signs with, and so what reading the key settles.
+///
+/// It is an argument to [`read_signing_key`] and to nothing after it, which is
+/// `rule:security/algorithm-comes-from-the-key` at the only door where a choice
+/// is left: PKCS#8 says whether a key is RSA, EC or Ed25519, but `RS256` and
+/// `PS256` are one key type and two algorithms, so the read is the last place
+/// they can be told apart and the program doing it is the only one that knows.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+#[derive(Clone, Copy)]
+pub(crate) enum SignatureKind {
+    /// RSASSA-PKCS1-v1_5 over SHA-256.
+    RsaPkcs1,
+    /// RSASSA-PSS over SHA-256.
+    RsaPss,
+    /// ECDSA over P-256 and SHA-256.
+    P256,
+    /// Ed25519.
+    Ed25519,
+}
+
+/// A private key parsed once out of its PKCS#8, in the variant naming what it
+/// signs with.
+///
+/// [`VerifyingKey`]'s counterpart, and parsed rather than borrowed because the
+/// parse is the expensive half for RSA and a server signs many tokens under one
+/// key: a `Crypto\KeyPair` holds one of these for as long as the program holds
+/// the object, and every signature after the first is arithmetic alone.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) enum SigningKey {
+    /// RSASSA-PKCS1-v1_5 over SHA-256.
+    RsaPkcs1(RsaKeyPair),
+    /// RSASSA-PSS over SHA-256.
+    RsaPss(RsaKeyPair),
+    /// ECDSA over P-256 and SHA-256.
+    P256(EcdsaKeyPair),
+    /// Ed25519.
+    Ed25519(Ed25519KeyPair),
+}
+
+/// A signing key read out of DER PKCS#8, or `None` when those octets are not a
+/// key of `kind`.
+///
+/// The refusal covers a key of another kind, a PKCS#1 body, an encrypted
+/// PKCS#8 and anything malformed, which the member above it reports by where
+/// the octets came from rather than by what was wrong with them.
+///
+/// **P-256 is read the long way round on purpose.** `ring`'s own PKCS#8 reader
+/// requires the optional public key that RFC 5958 leaves out, and what WebCrypto
+/// exports leaves it out, so the scalar is read with `p256`, the point is
+/// derived from it, and the pair is assembled from both. The point is written
+/// uncompressed because that is the encoding the rest of this module reads and
+/// writes.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn read_signing_key(pkcs8: &[u8], kind: SignatureKind) -> Option<SigningKey> {
+    let rng = SystemRandom::new();
+
+    Some(match kind {
+        SignatureKind::RsaPkcs1 => SigningKey::RsaPkcs1(RsaKeyPair::from_pkcs8(pkcs8).ok()?),
+        SignatureKind::RsaPss => SigningKey::RsaPss(RsaKeyPair::from_pkcs8(pkcs8).ok()?),
+        SignatureKind::P256 => {
+            let secret = P256SecretKey::from_pkcs8_der(pkcs8).ok()?;
+            let point = secret.public_key().to_sec1_point(false);
+            SigningKey::P256(
+                EcdsaKeyPair::from_private_key_and_public_key(
+                    &ECDSA_P256_SHA256_FIXED_SIGNING,
+                    &secret.to_bytes(),
+                    point.as_bytes(),
+                    &rng,
+                )
+                .ok()?,
+            )
+        }
+        // WebCrypto exports PKCS#8 v1, which carries no public key beside the
+        // seed, and `from_pkcs8` requires one; this reader derives the point
+        // from the seed instead of refusing the file every browser writes.
+        SignatureKind::Ed25519 => {
+            SigningKey::Ed25519(Ed25519KeyPair::from_pkcs8_maybe_unchecked(pkcs8).ok()?)
+        }
+    })
+}
+
+/// The signature `key` writes over `message`, or `None` when it could not be
+/// produced.
+///
+/// `None` here is not a verdict on anything — a key that reached this point is
+/// already a key — so the member above it reports a failure of the machine
+/// rather than of a message. It is reachable only through the entropy source
+/// failing, which the two randomized algorithms below need and the other two
+/// carry an unused argument for.
+///
+/// ECDSA answers the 64-octet `r ‖ s` rather than DER, for the module doc's
+/// *four signatures* reason, and RSA answers as many octets as the modulus is
+/// long.
+#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+pub(crate) fn sign(key: &SigningKey, message: &[u8]) -> Option<Vec<u8>> {
+    /// One RSA signature under whichever padding the key is bound to, into a
+    /// buffer the modulus's own width, which is the only width `ring` writes.
+    fn rsa(
+        pair: &RsaKeyPair,
+        padding: &'static dyn RsaEncoding,
+        rng: &SystemRandom,
+        message: &[u8],
+    ) -> Option<Vec<u8>> {
+        let mut signature = vec![0_u8; pair.public().modulus_len()];
+        pair.sign(padding, rng, message, &mut signature).ok()?;
+        Some(signature)
+    }
+
+    let rng = SystemRandom::new();
+
+    match key {
+        SigningKey::RsaPkcs1(pair) => rsa(pair, &RSA_PKCS1_SHA256, &rng, message),
+        SigningKey::RsaPss(pair) => rsa(pair, &RSA_PSS_SHA256, &rng, message),
+        SigningKey::P256(pair) => pair
+            .sign(&rng, message)
+            .ok()
+            .map(|signature| signature.as_ref().to_vec()),
+        SigningKey::Ed25519(pair) => Some(pair.sign(message).as_ref().to_vec()),
+    }
+}
+
 /// The cipher keyed by slot 1, or the `LogicError` a wrong-length key earns.
 ///
 /// Reachable from source despite the parameter's `secret bytes`: the qualifier
@@ -975,6 +1217,9 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use base64::Engine as _;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+
     use super::*;
     use crate::tests::vectors as webcrypto;
 
@@ -1477,6 +1722,165 @@ mod tests {
             one_round.as_slice(),
             &two_rounds[..DERIVED_LEN],
             "the length wanted is an input to every round, so a shorter answer is not a prefix"
+        );
+    }
+
+    /// The public half of one of the set's JWS keys, as the [`VerifyingKey`] its
+    /// own minimal JWK assembles into, handed to `body` because that key borrows
+    /// the coordinates it was built out of.
+    ///
+    /// The variant comes from the key's recorded `alg` and never from the case
+    /// under test, which is the direction
+    /// `rule:security/algorithm-comes-from-the-key` makes a member run in: a
+    /// refusal whose whole point is a signature written under another algorithm
+    /// has to meet the key's own binding rather than its own claim.
+    fn verifying<R>(id: &str, body: impl FnOnce(VerifyingKey<'_>) -> R) -> R {
+        let key = webcrypto::node(&format!("/jws/keys/{id}"));
+        let jwk: serde_json::Value = serde_json::from_str(webcrypto::text(key, "/jwkMinimal"))
+            .expect("the set writes a minimal JWK as JSON text");
+        let member = |name: &str| {
+            URL_SAFE_NO_PAD
+                .decode(jwk[name].as_str().expect("the JWK carries this member"))
+                .expect("a JWK member is base64url")
+        };
+
+        match webcrypto::text(key, "/alg") {
+            "RS256" => body(VerifyingKey::RsaPkcs1 {
+                modulus: &member("n"),
+                exponent: &member("e"),
+            }),
+            "PS256" => body(VerifyingKey::RsaPss {
+                modulus: &member("n"),
+                exponent: &member("e"),
+            }),
+            "ES256" => {
+                let mut point = vec![4_u8];
+                point.extend_from_slice(&member("x"));
+                point.extend_from_slice(&member("y"));
+                body(VerifyingKey::P256 { point: &point })
+            }
+            "EdDSA" => body(VerifyingKey::Ed25519 {
+                point: &member("x"),
+            }),
+            alg => panic!("the set carries {alg}, which this module does not verify"),
+        }
+    }
+
+    /// The private half of one of the set's JWS keys, read as the algorithm its
+    /// own `alg` names.
+    ///
+    /// The same direction [`verifying`] reads the public half in, so no case can
+    /// read one pair under two algorithms and call the disagreement a finding.
+    fn signing(id: &str) -> SigningKey {
+        let key = webcrypto::node(&format!("/jws/keys/{id}"));
+        let kind = match webcrypto::text(key, "/alg") {
+            "RS256" => SignatureKind::RsaPkcs1,
+            "PS256" => SignatureKind::RsaPss,
+            "ES256" => SignatureKind::P256,
+            "EdDSA" => SignatureKind::Ed25519,
+            alg => panic!("the set carries {alg}, which this module does not sign with"),
+        };
+
+        read_signing_key(&webcrypto::octets(key, "/pkcs8"), kind)
+            .expect("the set writes every private key as DER PKCS#8")
+    }
+
+    /// Every signature the frozen WebCrypto set holds, verified from the public
+    /// material a JWK carries, and every refusal beside them answering `None`.
+    ///
+    /// A case names its key rather than carrying one, so what is pinned is the
+    /// pairing another implementation actually produced: the same key, the same
+    /// message, the same octets. The refusals are the half that meets a token —
+    /// a flipped octet, another key's signature, a message edited after signing,
+    /// a signature in a form the algorithm does not write, and one made under
+    /// the algorithm the key is not bound to, which is the confusion
+    /// `rule:security/algorithm-comes-from-the-key` exists to close.
+    #[test]
+    fn the_four_signature_algorithms_verify_what_webcrypto_signed() {
+        for vector in webcrypto::vectors("signatures") {
+            let name = webcrypto::text(vector, "/name");
+            let message = webcrypto::octets(vector, "/message");
+            let signature = webcrypto::octets(vector, "/signature");
+            verifying(webcrypto::text(vector, "/key"), |key| {
+                assert_eq!(
+                    verify_signature(&key, &message, &signature),
+                    Some(()),
+                    "{name}"
+                );
+            });
+        }
+
+        for refusal in webcrypto::refusals("signatures") {
+            let name = webcrypto::text(refusal, "/name");
+            let message = webcrypto::octets(refusal, "/message");
+            let signature = webcrypto::octets(refusal, "/signature");
+            verifying(webcrypto::text(refusal, "/key"), |key| {
+                assert!(
+                    verify_signature(&key, &message, &signature).is_none(),
+                    "{name}"
+                );
+            });
+        }
+    }
+
+    /// Signing, against the frozen set on both sides of the line its
+    /// `deterministic` flag draws.
+    ///
+    /// `RS256` and `EdDSA` write the same octets every time, so those are held
+    /// to the set itself: a token signed here under an issuer's key is byte for
+    /// byte what WebCrypto would have written, which is what makes a signed
+    /// token reproducible at all. The other two salt and nonce their signatures,
+    /// so what is asserted there is what survives randomness — a fresh signature
+    /// verifies under the key's own public half, and two over one message
+    /// differ, which is the evidence the randomness reaches the algorithm rather
+    /// than being a constant nobody noticed.
+    #[test]
+    fn the_four_signature_algorithms_write_what_webcrypto_would_have() {
+        for vector in webcrypto::vectors("signatures") {
+            let name = webcrypto::text(vector, "/name");
+            let id = webcrypto::text(vector, "/key");
+            let message = webcrypto::octets(vector, "/message");
+            let published = webcrypto::octets(vector, "/signature");
+            let written = sign(&signing(id), &message).expect("a key of the set signs");
+
+            if vector["deterministic"]
+                .as_bool()
+                .expect("the set flags every signature one way or the other")
+            {
+                assert_eq!(written, published, "{name}");
+            } else {
+                let again = sign(&signing(id), &message).expect("a key of the set signs");
+                assert_ne!(written, again, "{name}, twice over one message");
+            }
+
+            verifying(id, |key| {
+                assert!(
+                    verify_signature(&key, &message, &written).is_some(),
+                    "{name}, verified against the key that wrote it"
+                );
+            });
+        }
+    }
+
+    /// A key read as an algorithm it cannot carry is refused at the read, so
+    /// nothing downstream re-checks what a key is.
+    ///
+    /// The one pairing that is not a mistake is an RSA key read as either
+    /// scheme: that is the single place `rule:security/algorithm-comes-from-the-key`
+    /// leaves a choice, and it is made here and nowhere later.
+    #[test]
+    fn a_key_read_as_a_kind_it_is_not_is_refused_at_the_read() {
+        let pkcs8 =
+            |id: &str| webcrypto::octets(webcrypto::node(&format!("/jws/keys/{id}")), "/pkcs8");
+
+        assert!(read_signing_key(&pkcs8("ed-1"), SignatureKind::RsaPkcs1).is_none());
+        assert!(read_signing_key(&pkcs8("ed-1"), SignatureKind::P256).is_none());
+        assert!(read_signing_key(&pkcs8("rsa-1"), SignatureKind::Ed25519).is_none());
+        assert!(read_signing_key(&pkcs8("ec-1"), SignatureKind::RsaPss).is_none());
+        assert!(read_signing_key(&pkcs8("ec-1"), SignatureKind::Ed25519).is_none());
+        assert!(
+            read_signing_key(&pkcs8("rsa-1"), SignatureKind::RsaPss).is_some(),
+            "one key type carries both RSA algorithms, and the reader is where that is settled"
         );
     }
 }

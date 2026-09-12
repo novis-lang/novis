@@ -59,6 +59,18 @@ fn list(section: &str, kind: &str) -> &'static [Value] {
         .as_slice()
 }
 
+/// One node of the set by its pointer from the root, or a panic naming it.
+///
+/// The door onto what a case *names* rather than carries: a signature vector
+/// says which key it was made under, so the key material sits once under
+/// `/jws/keys` and every case that uses it agrees with every other by
+/// construction.
+pub(crate) fn node(pointer: &str) -> &'static Value {
+    set()
+        .pointer(pointer)
+        .unwrap_or_else(|| panic!("the vector set has no node at {pointer}"))
+}
+
 /// A hex field of one case, as the octets it stands for.
 ///
 /// `pointer` is RFC 6901's, so a nested field is `/a/raw` and a top-level one is
