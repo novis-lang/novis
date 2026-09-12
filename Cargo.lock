@@ -2028,6 +2028,7 @@ dependencies = [
  "nvs-config",
  "nvs-db",
  "nvs-diagnostics",
+ "nvs-fmt",
  "nvs-hir",
  "nvs-host",
  "nvs-ir",
