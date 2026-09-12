@@ -60,21 +60,21 @@
 //!    and what lands in it is four spaces per enclosing body (`indent.rs`), one
 //!    canonical order for a declaration's modifiers (`modifiers.rs`), the line
 //!    each opening brace sits on (`brace.rs`), the order a run of imports goes
-//!    out in (`imports.rs`), the space a qualified type and a one-line object
-//!    literal are written with (`space.rs`), and the quote a plain string
+//!    out in (`imports.rs`), the run a qualified type, a one-line object
+//!    literal and each arm of a multi-line `match` are written with
+//!    (`space.rs`), and the quote a plain string
 //!    literal is delimited
 //!    by together with the comma a multi-line list ends its last element on and
-//!    the one case a reserved spelling has (`tokens.rs`). PER's blank lines and
-//!    the constructs PER never saw are still the author's, so a file that
-//!    disagrees with one of them comes back disagreeing with it.
+//!    the one case a reserved spelling has (`tokens.rs`). PER's blank lines are
+//!    still the author's, so a file that disagrees with them comes back
+//!    disagreeing with them.
 //!    — owner: M10
 //! 2. **A line the tree does not place keeps the author's own indentation.**
-//!    `indent.rs`'s own doc says which ones those are: a `switch`, a `match`
-//!    arm list, a template region's own text, and every continuation line
-//!    inside an expression. The first three are rules that have not landed —
-//!    the `?>` that opens a template region is code and is placed, the text
-//!    after it is not — and the last is `rule:tooling/fmt-never-reflows` and
-//!    stays the author's for good.
+//!    `indent.rs`'s own doc says which ones those are: a `switch`, a template
+//!    region's own text, and every continuation line inside an expression. The
+//!    first two are rules that have not landed — the `?>` that opens a template
+//!    region is code and is placed, the text after it is not — and the last is
+//!    `rule:tooling/fmt-never-reflows` and stays the author's for good.
 //!    — owner: M10
 //! 3. **A closing brace is moved onto a line of its own only where it already
 //!    opens one.** `brace.rs` decides the run before an *opening* brace and the
