@@ -131,6 +131,11 @@ modules = [
   # `Core\Jwe` — `rule:security/protocol-roster`'s JWE entry: compact JWE with `A256GCM` alone,
   # assembled out of `crate::crypto`'s primitives and holding none of its own.
   "crates/nvs-stdlib/src/jwe.rs",
+  # The frozen set and the one door onto it. Every slice of stage 7 reads both, and the JSON is
+  # never edited by a session -- what the pack owes is that they are named, not that they are
+  # printed. A stage table may not narrow `modules`, so they are named here.
+  "crates/nvs-stdlib/src/tests/vectors.rs",
+  "crates/nvs-stdlib/tests/vectors/webcrypto.json",
 ]
 
 # Every stage works inside these three: the key picks the algorithm, the roster JWE joins, and how a
@@ -218,12 +223,9 @@ rules = [
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.7]
-# The frozen set and the one door onto it. Every slice of this stage reads both, and the JSON is
-# never edited by a session -- what the pack owes is that they are named, not that they are printed.
-modules = [
-  "crates/nvs-stdlib/src/tests/vectors.rs",
-  "crates/nvs-stdlib/tests/vectors/webcrypto.json",
-]
+# The frozen set and the one door onto it are named in `[context] modules`, which is the only list
+# `orient.py` reads a path out of.
+#
 # The example is one of the four proofs a shipped feature owes.
 rules = ["testing/four-proofs"]
 shapes =["A feature's four proofs — an example, an attack, a bench, a `covers:` marker"]
