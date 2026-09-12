@@ -57,6 +57,7 @@ nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
 nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }
+nvs-fmt = { path = "crates/nvs-fmt", version = "0.0.1" }
 
 # --- codegen backend (versions validated by the M0 spikes) ---
 cranelift = "0.135"

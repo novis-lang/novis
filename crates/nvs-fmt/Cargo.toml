@@ -1,0 +1,23 @@
+[package]
+name = "nvs-fmt"
+description = "The `nvs fmt` formatter: one canonical layout for a `.nvs` file, printed from the lossless parse"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+# The file that goes in, and the sink its parse reports into. A file that does
+# not parse is refused rather than rewritten, and the diagnostics travel out
+# with the refusal so the caller renders them the way it renders `nvs check`'s.
+nvs-diagnostics.workspace = true
+# The one front end this crate has: `nvs_syntax::parse`, the lossless half of
+# the pair (`rule:ide/one-grammar-one-tree`). `parse_file` is never called from
+# here — it keeps no trivia, so a walk over it would delete every comment in the
+# file.
+nvs-syntax.workspace = true
+
+[lints]
+workspace = true
