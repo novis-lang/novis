@@ -19157,27 +19157,30 @@ Keywords: sign, verify
 
 | Member | Signature |
 |---|---|
-| [`Core\Jwt::sign`](#core-core-jwt-sign) | `sign(array<string> $claims, Core\Time\Duration $lifetime, secret bytes $key): string` |
+| [`Core\Jwt::sign`](#core-core-jwt-sign) | `sign(array<string> $claims, Core\Time\Duration $lifetime, secret bytes\|Core\Crypto\KeyPair $key, {kid?: string, typ?: string, embedKey?: bool}): string` |
 | [`Core\Jwt::verify`](#core-core-jwt-verify) | `verify(string $token, secret bytes $key): array<tainted string>` |
 
 <a id="core-core-jwt-sign"></a>
 #### `Core\Jwt::sign`
 
 ```nvs skip
-Core\Jwt::sign(array<string> $claims, Core\Time\Duration $lifetime, secret bytes $key): string
+Core\Jwt::sign(array<string> $claims, Core\Time\Duration $lifetime, secret bytes|Core\Crypto\KeyPair $key, {kid?: string, typ?: string, embedKey?: bool}): string
 ```
 
-Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and HMAC-SHA-256. The expiry is written here rather than passed in, so a token this member produces always carries one.
+Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and the one algorithm that key has. The expiry is written here rather than passed in, so a token this member produces always carries one.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$claims` | `array<string>` | The application's own claims, by name. `exp` and `iat` are written by this member and are refused here; every other name is carried through unchanged. |
 | `$lifetime` | `Core\Time\Duration` | How long the token stays valid — `15m`, `1h`, `7d`. It must be positive: a token that has already expired is a program bug, not a token. |
-| `$key` | `secret bytes` (neutral) | The shared secret, at least 32 octets. `Core\Crypto::generateKey()` answers one of exactly that length; a longer secret agreed with another service is accepted as it stands. |
+| `$key` | `secret bytes\|Core\Crypto\KeyPair` | A shared secret of at least 32 octets, which signs HS256 — `Core\Crypto::generateKey()` answers one, and a longer secret agreed with another service is accepted as it stands. Or a `Core\Crypto\KeyPair`, which signs ES256, EdDSA, RS256 or PS256 by its kind. There is no algorithm argument: the key is the choice. |
+| `{kid: …}` | `string` (default `null`, neutral) | The key's name in the header, for a recipient holding several. Omitted by default, and written verbatim — it names a key and selects nothing. |
+| `{typ: …}` | `string` (default `null`, neutral) | The header's `typ`, `JWT` when omitted. RFC 9068's access tokens spell it `at+jwt`. |
+| `{embedKey: …}` | `bool` (default `false`) | Writes the pair's public half into the header as RFC 7638's minimal JWK, which is what a DPoP proof carries. Off by default, and a bug under a shared secret, which has no public half. |
 
 **Returns** `string` — The three base64url parts and their two dots, as a header, a payload and a signature — a value a header, a query string and a JSON body all carry unescaped.
 
-**Throws** `LogicError` — `$key` is shorter than 32 octets; `$lifetime` is zero or negative; or `$claims` names `exp` or `iat`, which this member writes, or carries a positional entry, since a claim has a name.; `RuntimeError` — This process cannot spare a buffer the size of the token.
+**Throws** `LogicError` — `$key` is a secret shorter than 32 octets, or an `X25519` pair, which signs nothing; `{embedKey: true}` was written under a shared secret; `$lifetime` is zero or negative; or `$claims` names `exp` or `iat`, which this member writes, or carries a positional entry, since a claim has a name.; `RuntimeError` — This process cannot spare a buffer the size of the token.
 
 <a id="core-core-jwt-verify"></a>
 #### `Core\Jwt::verify`
