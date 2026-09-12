@@ -1,0 +1,20 @@
+--TEST--
+an enum case spelled as a lowercase keyword is still a case, so its one error is its casing — `rule:core-api/casing-checks-the-leading-character`
+--FILE--
+<?nvs
+enum Mode {
+    Plain,
+    default,
+    list,
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0110]: `default` must be PascalCase, e.g. `Default`
+  --> case.nvs:4:5
+%A
+error[E0110]: `list` must be PascalCase, e.g. `List`
+  --> case.nvs:5:5
+%A
+error: aborting due to 2 errors

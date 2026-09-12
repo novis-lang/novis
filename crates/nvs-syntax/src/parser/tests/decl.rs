@@ -205,9 +205,9 @@ fn enum_cases_and_explicit_backing_type() {
 /// An enum case is a `PascalCase` name (`rule:core-api/identifier-casing`), and every keyword is
 /// matched at its exact lower-case spelling (`rule:classes/reserved-spellings-are-lower-case`), so a case whose
 /// spelling *reads* as a keyword never collides with one. Swept rather than
-/// spot-checked: `parse_enum_body` admits only [`TokenKind::Ident`], so a
-/// single keyword that lexed at any other casing would send that row down the
-/// member path instead — which is what the lower-case half below pins.
+/// spot-checked, because a single keyword that lexed at any other casing would
+/// hand `parse_enum_body` a different token — and the lower-case half below
+/// pins what that token then gets.
 #[test]
 fn an_enum_case_named_with_a_keyword_parses() {
     let names = [
@@ -230,15 +230,20 @@ fn an_enum_case_named_with_a_keyword_parses() {
     };
     assert_eq!(e.cases.len(), names.len());
 
-    // The other side of the bound: the exact keyword spelling is not a case at
-    // all — it lexes as the keyword, so `parse_enum_body` takes the member path
-    // `rule:enums/no-class-machinery` refuses.
-    let (_, diags) = parse_stmt_with_diags("enum E { match }");
+    // The other side of the bound: the exact keyword spelling lexes as the
+    // keyword and is still a case, because only a case could follow it — so
+    // the casing check's `must be PascalCase` answers it, not the member
+    // refusal `rule:enums/no-class-machinery` owes a method.
+    let (s, diags) = parse_stmt_with_diags("enum E { match }");
+    let StmtKind::EnumDecl(e) = s.kind else {
+        panic!("expected an enum decl: {s:?}");
+    };
+    assert_eq!(e.cases.len(), 1, "`match` did not parse as a case");
     assert!(
-        diags
+        !diags
             .iter()
             .any(|d| d.code == Some(code::E_ENUM_MEMBER_UNSUPPORTED)),
-        "expected the enum-member refusal: {diags:?}"
+        "a keyword-spelled case drew the enum-member refusal: {diags:?}"
     );
 }
 

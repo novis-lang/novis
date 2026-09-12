@@ -1238,7 +1238,17 @@ impl<'src, 'd> Parser<'src, 'd> {
                 if self.eat(TokenKind::Semicolon).is_none() {
                     self.eat(TokenKind::Comma);
                 }
-            } else if matches!(self.peek().kind, TokenKind::Ident) {
+            } else if matches!(self.peek().kind, TokenKind::Ident)
+                || (matches!(self.peek().kind, TokenKind::Keyword(_))
+                    && matches!(
+                        self.peek_at(1).kind,
+                        TokenKind::Comma | TokenKind::Equals | TokenKind::RBrace
+                    ))
+            {
+                // A keyword spelling is a case when only a case could follow it:
+                // `default,` is one and `public function` is not. A mis-cased
+                // `default` then gets the casing check's one `must be PascalCase`
+                // rather than a member refusal aimed at the line above it.
                 cases.push(self.finish_enum_case(before, doc, attributes));
                 self.eat(TokenKind::Comma);
             } else {
