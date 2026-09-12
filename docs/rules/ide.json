@@ -69,7 +69,7 @@
         "ide/contributions-are-frozen-and-only-ever-added"
       ],
       "guardedBy": [
-        "crates/nvs-syntax/tests/corpus_parse.rs"
+        "crates/nvs-syntax/tests/prefixes.rs"
       ]
     },
     {

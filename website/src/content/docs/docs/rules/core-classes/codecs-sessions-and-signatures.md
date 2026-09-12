@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">One attribute generates a codec from the declared property list; sessions start explicitly; both rate-limit verbs are their own job.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">9</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">2</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">12</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">9</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">3</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">7</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#derive-attribute">One written attribute per format generates a codec, and it is matched by resolved name</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#derive-field-list">The field list is the declared property list, and every field is a constructor parameter of the same name</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#derive-reports-every-field">A generated decoder reports every failed field at once, before the constructor runs</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#derive-generates-what-is-missing">The derive generates only the half the class does not write, at compile time, storing nothing per object</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#queue-storage-is-a-table">The job queue is two tables in a connection the operator names, converged by an explicit command</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#session-is-started-explicitly">A session is opened by calling <code>Core\Session::start</code>, and there is no ambient session array</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#ratelimit-two-members"><code>consume</code> and <code>shed</code> are two jobs with two verbs, and neither is a tier of the other</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#ratelimit-gcra">Both tiers run GCRA over one stored timestamp per key, and the <code>Decision</code> computes <code>retryAfter</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#ratelimit-unreachable-store-throws">An unreachable shared store throws, because whether to fail open is knowledge only the call site has</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#signature"><code>Core\Signature</code> signs a canonicalized payload, and the lifetime rides inside the signed bytes</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#router-signed-url"><code>Core\Router</code> signs a route name and its parameters, so a signature survives a remount</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#derive-attribute">One written attribute per format generates a codec, and it is matched by resolved name</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#derive-field-list">The field list is the declared property list, and every field is a constructor parameter of the same name</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#derive-reports-every-field">A generated decoder reports every failed field at once, before the constructor runs</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#derive-generates-what-is-missing">The derive generates only the half the class does not write, at compile time, storing nothing per object</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#queue-storage-is-a-table">The job queue is two tables in a connection the operator names, converged by an explicit command</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#session-is-started-explicitly">A session is opened by calling <code>Core\Session::start</code>, and there is no ambient session array</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#ratelimit-two-members"><code>consume</code> and <code>shed</code> are two jobs with two verbs, and neither is a tier of the other</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#ratelimit-gcra">Both tiers run GCRA over one stored timestamp per key, and the <code>Decision</code> computes <code>retryAfter</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#ratelimit-unreachable-store-throws">An unreachable shared store throws, because whether to fail open is knowledge only the call site has</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#crypto-interop-tier"><code>Core\Crypto</code>'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#signature"><code>Core\Signature</code> signs a canonicalized payload, and the lifetime rides inside the signed bytes</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#router-signed-url"><code>Core\Router</code> signs a route name and its parameters, so a signature survives a remount</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
 
 <div class="nv-rule" id="derive-attribute">
 
@@ -331,6 +331,62 @@ can question.
 two are different members rather than one with a flag.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#ratelimit-two-members" title="consume and shed are two jobs with two verbs, and neither is a tier of the other"><code>core-classes/ratelimit-two-members</code></a> <a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#ratelimit-gcra" title="Both tiers run GCRA over one stored timestamp per key, and the Decision computes retryAfter"><code>core-classes/ratelimit-gcra</code></a> <a href="/docs/rules/errors/how-an-error-travels/#propagation" title="An error propagates as a checked return, never by unwinding"><code>errors/propagation</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0075.md">record 0075</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0002.md">record 0002</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/ratelimit-refuses-rather-than-deciding-allowed.nvst"><code>tests/conformance/core/ratelimit-refuses-rather-than-deciding-allowed.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="crypto-interop-tier">
+
+## `Core\Crypto`'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#crypto-interop-tier"><code>core-classes/crypto-interop-tier</code></a>
+</div>
+
+`Core\Crypto`'s algorithm roster is closed, every algorithm argument is required, and no member name
+carries an algorithm.
+
+The roster is AES-256-GCM beside XChaCha20-Poly1305, PBKDF2-HMAC-SHA256, HKDF-SHA256, ECDH over P-256
+and X25519, and four signature algorithms — RSASSA-PKCS1-v1_5 and RSASSA-PSS over SHA-256, ECDSA over
+P-256, and Ed25519. AES Key Wrap and the Concat KDF are internal to PBES2 and ECDH-ES and never members.
+Out, permanently: AES-CBC, AES-CTR, AES-128, RSA encryption in any form, RSA key generation, P-384,
+ES384, RS384, RS512, PS384, PS512, ES256K, and JWE's `A*CBC-HS*` content encryption. A closed roster that
+is only a habit reopens at the first ticket, so the list is written down.
+
+**Where two algorithms take the same parameters they are one member with a closed enum argument**, the
+way `Core\Hash::of` takes a `Core\Digest`; where the parameters differ they are separate members. **No
+algorithm argument has a default** — not a cipher, not a digest, not a curve. A default is how a call
+site copied from another file keeps an algorithm nobody re-read, and making the argument required buys a
+`grep` that finds every use of a primitive on the day it has to be retired. The one member answering a
+key with no algorithm in it, `generateKey()`, takes no algorithm argument at all: its 32 octets are the
+single length both ciphers and every roster protocol share.
+
+**AES-256-GCM is on the roster for interoperability and its sealed bytes say so**: `nonce(12) ‖
+ciphertext ‖ tag(16)`, which is exactly what WebCrypto's `encrypt` answers with its IV put in front, so
+a browser splits at byte 12 and does nothing else. XChaCha's stay `nonce(24) ‖ ciphertext ‖ tag(16)` and
+remain the pair to prefer when both ends are Novis — advice on the member's reference card, never a
+default. The nonce is drawn by the member and there is no nonce parameter, so AES-GCM carries its
+birthday bound around 2^32 messages under one key; that bound is the price of reading what a browser
+wrote, and the answer when a program approaches it is the other cipher rather than a counter the caller
+keeps.
+
+**A key is validated where it is read, not where it is used.** Every public key is checked at `read` — on
+the curve for P-256, inside 2048–8192 bits for RSA — and an all-zero X25519 shared secret is refused at
+`agree`, so there is no later site at which the check could be forgotten. An RSA key's scheme is fixed
+when it is read, which is [`security/algorithm-comes-from-the-key`](/docs/rules/security/protocols-and-tokens/#algorithm-comes-from-the-key "The algorithm comes from the key and never from the token") held for the one key type two JWS
+algorithms share, and an RSA pair is never generated. A key off the wire that fails is a `RuntimeError`;
+a malformed key the program built is a `LogicError`.
+
+The interop claim is checkable rather than intended: `tools/webcrypto-vectors.mjs` freezes WebCrypto's
+own output for every algorithm here, derived from labels so a rerun writes the same bytes.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>There is no cipher name in a string and no unauthenticated mode to reach for, so <code>aes-256-ecb</code> has no spelling</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/what-belongs-in-core/#tier-roster" title="Every subsystem's tier is recorded once in the roster, including the ones no milestone has built"><code>core-api/tier-roster</code></a> <a href="/docs/rules/security/protocols-and-tokens/#algorithm-comes-from-the-key" title="The algorithm comes from the key and never from the token"><code>security/algorithm-comes-from-the-key</code></a> <a href="/docs/rules/security/protocols-and-tokens/#jwe-compact-subset" title="Core\Jwe speaks compact JWE with A256GCM alone, and the static that built the key picks the algorithm"><code>security/jwe-compact-subset</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#secret-reveal" title="Core\Secret::reveal is the one named way out of secret, and it carries a written reason"><code>core-classes/secret-reveal</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0179.md">record 0179</a></dd></div></dl>
 
 </div>
 

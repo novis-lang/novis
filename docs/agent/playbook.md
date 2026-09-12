@@ -2004,12 +2004,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   exits 127. A `return`/`release_all_locals` exemption keyed on a name has to be re-read whenever a
   new binding representation enters `Env`; an exit 127 is worth `git stash`-ing before you assume it
   is yours. [until: reviewed 2026-09-06]
-- **A non-UTF-8 file in the PHP corpus failed `corpus_parse.rs` with no message at all**, and a
-  real-world corpus has them — Symfony ships a latin-1 class name and a binary string fixture. Any
-  `panic!` between the test's `panic::set_hook(Box::new(|_| {}))` and its matching
-  `set_hook(prev_hook)` reports nothing: a bare `FAILED`, no summary, no filename. A new failure
-  path in that loop must return a value the summary can print, as the `unreadable` count now does.
-  [until: reviewed 2026-09-06]
 - **A `static` method's slot 0 is the *called class*, not an empty receiver.** Calling one from Rust
   (`nvs_runtime::abi::call` on a `Unit::function("Class::method")` address) with a `null` first slot
   segfaults inside the callee, nowhere a message could print:

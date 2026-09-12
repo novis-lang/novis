@@ -87,8 +87,8 @@ def tracked_dirs():
     """Every tracked top-level directory.
 
     `git ls-files` rather than a directory listing, because the answer has to match what a fresh
-    clone holds: `target/` and `php-src/` are on this machine and in nobody's checkout, and a block
-    naming them would be wrong for every reader but the one who wrote it.
+    clone holds: `target/` is on this machine and in nobody's checkout, and a block naming it would
+    be wrong for every reader but the one who wrote it.
     """
     out = subprocess.run(
         ["git", "-C", str(ROOT), "ls-files"],

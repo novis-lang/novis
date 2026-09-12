@@ -76,8 +76,8 @@ One file set: `crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/token.rs`
    `trivia`; the `SyntaxIndex` field is **M4B's** and is not built here. The strict entry point stays a
    thin wrapper so no call site changes, exactly as `rule:ide/one-grammar-one-tree` requires.
 4. **Losslessness is the acceptance property, not an assertion** — concatenating every token's and every
-   trivium's source text in offset order equals the file byte-for-byte, over `examples/`, `tests/` and
-   the vendored `php-src` checkout `corpus_parse.rs` already walks.
+   trivium's source text in offset order equals the file byte-for-byte, over `examples/` and
+   `tests/`.
 
 ## Stage 3 — attachment, and the closed set
 

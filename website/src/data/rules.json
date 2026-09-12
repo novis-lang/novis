@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 962,
+    "total": 965,
     "shipped": 698,
-    "designed": 264,
-    "diverging": 563
+    "designed": 267,
+    "diverging": 566
   },
   "topics": [
     {
@@ -4012,10 +4012,10 @@
       "url": "/docs/rules/security/",
       "single": false,
       "counts": {
-        "total": 85,
+        "total": 87,
         "shipped": 68,
-        "designed": 17,
-        "diverging": 26
+        "designed": 19,
+        "diverging": 28
       },
       "sections": [
         {
@@ -4672,10 +4672,10 @@
           "blurb": "One TLS client, a closed protocol roster, an algorithm that comes from the key, and CSRF on by default.",
           "url": "/docs/rules/security/protocols-and-tokens/",
           "counts": {
-            "total": 9,
+            "total": 11,
             "shipped": 7,
-            "designed": 2,
-            "diverging": 3
+            "designed": 4,
+            "diverging": 5
           },
           "rules": [
             {
@@ -4733,6 +4733,22 @@
               "status": "shipped",
               "href": "/docs/rules/security/protocols-and-tokens/#verification-does-not-launder",
               "diverges": null
+            },
+            {
+              "id": "security/jwe-compact-subset",
+              "slug": "jwe-compact-subset",
+              "title": "`Core\\Jwe` speaks compact JWE with `A256GCM` alone, and the static that built the key picks the algorithm",
+              "status": "designed",
+              "href": "/docs/rules/security/protocols-and-tokens/#jwe-compact-subset",
+              "diverges": "there is no `zip`, no `jku` and no `x5u`, so a token cannot talk the verifier into a fetch or a decompression"
+            },
+            {
+              "id": "security/jws-issued-subset",
+              "slug": "jws-issued-subset",
+              "title": "A token another party issued verifies against a key found by `kid`, never one that is tried, and its claims come back as a `tainted` shape",
+              "status": "designed",
+              "href": "/docs/rules/security/protocols-and-tokens/#jws-issued-subset",
+              "diverges": "a token with no `kid` cannot be walked against a key set, so verification costs one signature check whatever the sender wrote"
             },
             {
               "id": "security/csrf-is-on-by-default",
@@ -6000,10 +6016,10 @@
       "url": "/docs/rules/core-classes/",
       "single": false,
       "counts": {
-        "total": 82,
+        "total": 83,
         "shipped": 58,
-        "designed": 24,
-        "diverging": 49
+        "designed": 25,
+        "diverging": 50
       },
       "sections": [
         {
@@ -6466,10 +6482,10 @@
           "blurb": "One attribute generates a codec from the declared property list; sessions start explicitly; both rate-limit verbs are their own job.",
           "url": "/docs/rules/core-classes/codecs-sessions-and-signatures/",
           "counts": {
-            "total": 11,
+            "total": 12,
             "shipped": 9,
-            "designed": 2,
-            "diverging": 6
+            "designed": 3,
+            "diverging": 7
           },
           "rules": [
             {
@@ -6543,6 +6559,14 @@
               "status": "shipped",
               "href": "/docs/rules/core-classes/codecs-sessions-and-signatures/#ratelimit-unreachable-store-throws",
               "diverges": null
+            },
+            {
+              "id": "core-classes/crypto-interop-tier",
+              "slug": "crypto-interop-tier",
+              "title": "`Core\\Crypto`'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads",
+              "status": "designed",
+              "href": "/docs/rules/core-classes/codecs-sessions-and-signatures/#crypto-interop-tier",
+              "diverges": "there is no cipher name in a string and no unauthenticated mode to reach for, so `aes-256-ecb` has no spelling"
             },
             {
               "id": "core-classes/signature",

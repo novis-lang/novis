@@ -107,8 +107,8 @@ machine's job.
 
 ## What a clone does not carry
 
-Four things sit outside what git tracks. The first is not optional, and neither is the trust flag in the
-fourth if anyone will work in this tree interactively.
+Three things sit outside what git tracks. The first is not optional, and neither is the trust flag in the
+third if anyone will work in this tree interactively.
 
 1. **The commit hooks.** git does not version `.git/hooks`, so `tools/git-hooks/` is inert until this clone
    is pointed at it:
@@ -121,26 +121,7 @@ fourth if anyone will work in this tree interactively.
    [docs/agent/conventions.md](agent/conventions.md) § *A commit message*.
 2. **A git identity**, if the machine has no global one — `git config user.name` and `user.email`. Every
    session ends in commits, so a machine that cannot commit cannot finish one.
-3. **The PHP corpus** — optional, and silently so. `crates/nvs-syntax/tests/corpus_parse.rs` walks a
-   directory tree of real-world `.php` files and asserts only that the parser does not panic; a file it
-   cannot read is counted and skipped, and with no corpus at all it **skips** rather than fails. Point
-   `NVS_PHP_CORPUS` at any tree of `.php` files, or drop one at `php-src/` in the workspace root, which is
-   gitignored for the purpose and needs no environment variable.
-
-   **`php-src/` is that path's name, not the `php/php-src` repository.** Cloning the interpreter's own
-   source yields 200 `.php` files — its 22,721 test cases are `.phpt`, an extension this test does not
-   match — so the directory holds application code instead, and the walk is recursive:
-
-   ```sh
-   mkdir php-src && cd php-src
-   for r in WordPress/WordPress symfony/symfony phpmyadmin/phpmyadmin composer/composer; do
-       git clone --depth 1 "https://github.com/$r.git"
-   done
-   ```
-
-   That is 15,039 files, and the spread is the point: WordPress is procedural legacy, Symfony modern
-   typed OO, phpMyAdmin a whole application, Composer a CLI tool.
-4. **Machine-local harness settings.** `.claude/settings.json` is committed and carries the shared
+3. **Machine-local harness settings.** `.claude/settings.json` is committed and carries the shared
    permission allowlist; `.claude/settings.local.json` is per-machine, is not, and is optional.
    **Trusting the workspace is not.** Until this clone is trusted the committed allowlist is ignored
    entirely — one `Ignoring N permissions.allow entries … this workspace has not been trusted` line, and

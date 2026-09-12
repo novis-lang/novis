@@ -2,10 +2,9 @@
 //!
 //! `rule:ide/tokens-plus-trivia-reproduce-the-file` is a property of the whole
 //! corpus rather than an assertion in the lexer, so this is where it is
-//! checked: `examples/`, every `.nvs` and `.nvst` case under `tests/`, and the
-//! vendored `php-src` checkout `corpus_parse.rs` already walks when it is
-//! present. A formatter rests on this (`rule:tooling/fmt-quotes` promises
-//! comments survive), and so does anything that reads a `///`.
+//! checked: `examples/`, and every `.nvs` and `.nvst` case under `tests/`. A
+//! formatter rests on this (`rule:tooling/fmt-quotes` promises comments
+//! survive), and so does anything that reads a `///`.
 //!
 //! **The check is tiling, not concatenation, and they are the same claim.** The
 //! spans are walked in order and each must begin exactly where the last one
@@ -15,7 +14,7 @@
 
 #![allow(
     clippy::print_stderr,
-    reason = "the skip notice and the corpus sizes are this test's report, as in `corpus_parse.rs`"
+    reason = "the corpus sizes are this test's report"
 )]
 
 use std::panic::resume_unwind;
@@ -118,8 +117,7 @@ fn first_hole(file: &SourceFile) -> Option<String> {
 /// Novis source inside it.
 fn hole_in(path: &Path, to_source: &impl Fn(&str) -> Option<String>) -> Option<String> {
     let Ok(text) = std::fs::read_to_string(path) else {
-        // Real-world PHP is not always UTF-8; `corpus_parse.rs`'s module
-        // doc is the home of why that is skipped rather than failed.
+        // A file that is not UTF-8 has no text for the lexer to tile.
         return None;
     };
     let source = to_source(&text)?;
@@ -131,12 +129,10 @@ fn hole_in(path: &Path, to_source: &impl Fn(&str) -> Option<String>) -> Option<S
 /// Reports every file in `paths` whose pieces do not tile it, one line each, in
 /// `paths`' order.
 ///
-/// The files are shared out over every core, as `corpus_parse.rs` shares out the
-/// same php-src checkout: libtest runs this test on one thread, and walked one
-/// file at a time the checkout made it the slowest test binary in the workspace.
-/// Each file is lexed into its own `SourceMap`, so the workers share nothing but
-/// the index of the next file, and sorting by that index gives back the order a
-/// single thread would report in.
+/// The files are shared out over every core, because libtest runs this test on
+/// one thread. Each file is lexed into its own `SourceMap`, so the workers share
+/// nothing but the index of the next file, and sorting by that index gives back
+/// the order a single thread would report in.
 fn holes_in(paths: &[PathBuf], to_source: impl Fn(&str) -> Option<String> + Sync) -> Vec<String> {
     let workers = thread::available_parallelism()
         .map_or(1, |n| n.get())
@@ -194,17 +190,8 @@ fn tokens_and_trivia_reproduce_every_corpus_file_byte_for_byte() {
         cases.len()
     );
 
-    let mut php = Vec::new();
-    collect(&root.join("php-src"), &["php"], &mut php);
-    php.sort();
-    if php.is_empty() {
-        // Gitignored and local-only, exactly as `corpus_parse.rs` treats it.
-        eprintln!("no php-src checkout: the PHP half of the corpus is skipped");
-    }
-
     let mut holes = holes_in(&novis, |text| Some(text.to_string()));
     holes.extend(holes_in(&cases, case_source));
-    holes.extend(holes_in(&php, |text| Some(text.to_string())));
 
     assert!(
         holes.is_empty(),
@@ -213,9 +200,8 @@ fn tokens_and_trivia_reproduce_every_corpus_file_byte_for_byte() {
         holes.join("\n")
     );
     eprintln!(
-        "losslessness: {} Novis file(s), {} case(s), {} PHP file(s)",
+        "losslessness: {} Novis file(s), {} case(s)",
         novis.len(),
-        cases.len(),
-        php.len()
+        cases.len()
     );
 }

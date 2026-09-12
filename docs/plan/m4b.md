@@ -136,8 +136,8 @@ not already compute. The last two of those look adjacent to what M4B does build 
 and inlay hints encode idioms still moving through M5–M9. No PhpStorm work at all — PhpStorm stays
 entirely at M10 per `rule:ide/one-server-two-thin-clients`.
 
-**Verify:** concatenating tokens and trivia in offset order reproduces every file in `examples/`, `tests/`
-and the vendored `php-src` corpus byte-for-byte. Parsing every prefix of every `examples/*.nvs` at a token
+**Verify:** concatenating tokens and trivia in offset order reproduces every file in `examples/` and `tests/`
+byte-for-byte. Parsing every prefix of every `examples/*.nvs` at a token
 boundary panics on none, answers a `SyntaxIndex` lookup at the final offset on all, and reports a
 diagnostic on each prefix that is genuinely incomplete; a fuzz target over truncated and mid-edit inputs
 finds no panic in five minutes. `nvs lsp-test tests/lsp/` reports `0 failed` and the coverage matrix has
