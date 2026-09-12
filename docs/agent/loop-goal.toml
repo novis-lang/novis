@@ -131,6 +131,9 @@ modules = [
   # more specific to be: member access, the nullsafe chain, `match`, the literals and the array
   # forms.
   "crates/nvs-ir/src/lower/expr.rs",
+  # The space a construct of Novis's own requires: one in front of a qualified type, one inside
+  # each brace of a one-line object literal.
+  "crates/nvs-fmt/src/space.rs",
 ]
 
 # The rules every stage works inside: what the formatter is, what it may not do to a line break, the
