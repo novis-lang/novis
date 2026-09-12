@@ -4647,6 +4647,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   than the literal's. Bind it to a typed variable one line up — `array<string> $lines = ["a", "b"];`
   — and pass that, which assigns cleanly and documents the arm at the call site.
   [until: test an_array_literal_is_placed_against_a_union_arm]
+- **A `TcpStream` accepted from a non-blocking `TcpListener` is non-blocking on Windows and blocking
+  on Linux.** Windows' accept inherits the listening socket's mode and Linux's does not, so a
+  handler that reads `WouldBlock` as the end of a connection closes it in the client's face and the
+  case fails with a reset it never asked for. Say `stream.set_nonblocking(false)` on every accepted
+  connection before reading it, as `transport.rs`'s `answer` does.
+  [until: gone crates/nvs-stdlib/src/http/transport.rs:set_nonblocking]
 
 ## Splitting a file that got too big
 

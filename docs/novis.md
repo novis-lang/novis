@@ -24172,6 +24172,8 @@ long-running host — at a reload, or only at boot.
 | `mode.ceiling` | operator only — a request cannot change it | at reload |
 | `capabilities` | a request may only narrow it | at reload |
 | `http` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
+| `http.client.pool_idle` | operator only — a request cannot change it | at reload |
+| `http.client.pool_idle_timeout` | operator only — a request cannot change it | at reload |
 | `log` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `log.handler` | operator only — a request cannot change it | at reload |
 | `log.handler_reserve_memory` | operator only — a request cannot change it | at reload |

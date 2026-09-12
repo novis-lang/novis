@@ -120,6 +120,7 @@
 //! `Core\Http\Part::file`, which is a descriptor and a chunk rather than the file
 //! ([`transport::Piece`]). What the exchange itself spends is [`transport`]'s to state.
 
+mod pool;
 pub(crate) mod stream;
 mod transport;
 
@@ -860,6 +861,15 @@ const DEFAULT_MAX_DURATION: Duration = Duration::from_secs(300);
 /// § 6's base delay, which the same section leaves out of the block because it
 /// is only reachable once a program has opted into retrying at all.
 const DEFAULT_BACKOFF: Duration = Duration::from_millis(100);
+/// See [`DEFAULT_DEADLINE`]. `[http.client] pool_idle`'s shipped value: enough
+/// idle connections for a handful of upstream APIs, per core
+/// (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`).
+const DEFAULT_POOL_IDLE: usize = 16;
+/// See [`DEFAULT_DEADLINE`]. `[http.client] pool_idle_timeout`'s shipped value,
+/// which sits under the idle timeout of every common proxy so that this client
+/// is normally the side that closes — the side that cannot lose a request to
+/// the race.
+const DEFAULT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, over `rule:security/outbound-url-is-a-sink`'s sink.
 ///
@@ -2136,6 +2146,7 @@ fn exchanged(
         )?,
         idempotency_key: args[RETRY_KEY].as_text().map(str::to_owned),
         body,
+        pool: pool_of(ctx),
         traceparent: traceparent_of(ctx),
     };
 
@@ -2417,6 +2428,30 @@ fn traceparent_of(ctx: &Ctx) -> Option<String> {
         .and_then(|config| config.get("trace.propagate"))
         .is_none_or(|text| text.trim() != "false")
         .then(|| ctx.trace_context().traceparent())
+}
+
+/// What this core's connection store is bounded by: `[http.client] pool_idle`
+/// and `pool_idle_timeout`, then the pair
+/// `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`
+/// ships.
+///
+/// No option slot and no `Result`, unlike [`bound_of`]: both directives are
+/// `System`-class (`rule:config/three-changeability-classes`), so the bag has
+/// no key for a request to widen a bound on memory it shares with every
+/// co-resident request, and a value that does not parse was refused where the
+/// configuration was loaded rather than being a failed request here.
+fn pool_of(ctx: &Ctx) -> pool::Caps {
+    let written = |directive| ctx.config().and_then(|config| config.get(directive));
+    pool::Caps {
+        idle: written("http.client.pool_idle")
+            .and_then(|text| text.trim().parse::<usize>().ok())
+            .unwrap_or(DEFAULT_POOL_IDLE),
+        timeout: written("http.client.pool_idle_timeout")
+            .and_then(|text| duration::parse(&text).ok())
+            .map_or(DEFAULT_POOL_IDLE_TIMEOUT, |nanos| {
+                Duration::from_nanos(nanos.unsigned_abs())
+            }),
+    }
 }
 
 /// How many redirect hops this call may follow: the option, then

@@ -19,19 +19,27 @@
 //! attempt of one call reuses the address the launderer approved, so there is
 //! no second resolution for a rebinding attack to answer differently.
 //!
-//! # One connection per attempt, closed by the reply
+//! # A connection outlives its call, under a key this module builds
 //!
-//! Every request carries `Connection: close` and the body ends at end of file,
-//! so there is no pool, no keep-alive and no second request sharing a socket.
-//! That costs a connection setup per attempt and buys the whole framing
-//! question: a reply that ends when the socket does needs no agreement about
-//! what comes after it. A pool is a later slice and a measurable one — it is
-//! `rule:programs/memory-priority` priority 3
-//! against priority 4, and nothing in this goal's acceptance is waiting on it.
+//! [`one`] draws from [`super::pool`] before it opens anything, and the reply's
+//! own reader gives the connection back once the body has been framed to its
+//! end. [`pool_key`] is what the two agree on, and
+//! `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`
+//! is why it is built here: the pinned address, the port, the scheme and the
+//! server name are the facts the door checked, and reuse under anything less
+//! would hand a call a connection its own check would have refused.
+//!
+//! A connection this core had been holding that fails with the request still
+//! going out is replaced once and costs no attempt — a server closing an idle
+//! connection is not a failed request — and every later failure is an attempt
+//! under the retry rules. That is the one asymmetry between a drawn connection
+//! and a fresh one; everything after the first byte of the reply is the same
+//! code for both.
 //!
 //! What a call spends is one buffer holding the whole reply, capped at
-//! [`REPLY_CEILING`], plus the request text. Per in-flight request and released
-//! with it; nothing here is retained across calls.
+//! [`REPLY_CEILING`], plus the request text, both released with the request.
+//! What outlives it is the connection itself, charged to the core under that
+//! module's two caps.
 //!
 //! # `https` is three lines, because the stream is a plain `Read`/`Write`
 //!
@@ -64,6 +72,8 @@ use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 use nvs_runtime::{Fault, ThrownClass};
 use rand::RngExt;
+
+use super::pool;
 
 /// The most reply a single call will hold, headers and body together.
 ///
@@ -144,6 +154,16 @@ pub(crate) struct Call<'a> {
     /// What this call sends after its head, or `None` for a verb that carries
     /// nothing — already framed, like every other field here.
     pub(crate) body: Option<Body>,
+    /// What this core's connection store is bounded by — `[http.client]
+    /// pool_idle` and `pool_idle_timeout`, already resolved like every other
+    /// field here.
+    ///
+    /// A call carries them rather than the pool reading them because that
+    /// module holds no configuration and this one holds no `Ctx`: the two
+    /// numbers are `System`-class (`rule:config/three-changeability-classes`),
+    /// so every call on a core arrives with the same pair and a request cannot
+    /// move them.
+    pub(crate) pool: pool::Caps,
     /// The W3C `traceparent` naming the request this call is made from, or
     /// `None` where `[trace] propagate` is off.
     ///
@@ -347,6 +367,22 @@ pub(crate) struct Incoming {
     until: Instant,
     /// What a refusal names, owned because a stream outlives its [`Call`].
     member: String,
+    /// Where the connection goes when the framing ends this body, or `None` for
+    /// a reply after which it is closed instead.
+    reuse: Option<Reuse>,
+}
+
+/// Where a connection goes once its reply is over: the key it is filed under
+/// and the caps its core holds it inside.
+///
+/// Carried by the reader rather than handed back to [`one`], because the
+/// instant the body ends is the instant the connection is good for another
+/// request, and only the reader is still there when a streamed one does.
+struct Reuse {
+    /// [`pool_key`]'s key for the call this reply answered.
+    key: String,
+    /// What this core's store is bounded by.
+    caps: pool::Caps,
 }
 
 impl nvs_runtime::HeldReader for Incoming {
@@ -385,6 +421,7 @@ impl Incoming {
         idle: Duration,
         until: Instant,
         member: &str,
+        reuse: Option<Reuse>,
     ) -> Result<Self, Fault> {
         let mut body = Self {
             source: Some(source),
@@ -395,12 +432,14 @@ impl Incoming {
             idle,
             until,
             member: member.to_owned(),
+            reuse,
         };
         // The octets that came with the head are already here, and a reply
-        // short enough to arrive in one read is over before the first `pull`.
+        // short enough to arrive in one read is over before the first `pull` —
+        // which is where its connection goes back, since there is nothing left
+        // for anyone to wait for.
         if body.deframe()? {
-            body.ended = true;
-            body.source = None;
+            body.finished();
         }
         Ok(body)
     }
@@ -424,6 +463,23 @@ impl Incoming {
             idle: Duration::ZERO,
             until: Instant::now(),
             member: member.to_owned(),
+            reuse: None,
+        }
+    }
+
+    /// Ends the body, and gives the connection back to this core where the
+    /// reply left it good for another request.
+    ///
+    /// `reuse` is `None` for every reply [`reusable`] refused, and the
+    /// connection is dropped instead — as it is for a body nobody read to the
+    /// end, since this runs only where the framing said there is no more.
+    fn finished(&mut self) {
+        self.ended = true;
+        let Some(connection) = self.source.take() else {
+            return;
+        };
+        if let Some(reuse) = self.reuse.take() {
+            pool::release(reuse.key, connection, reuse.caps, Instant::now());
         }
     }
 
@@ -488,8 +544,7 @@ impl Incoming {
                     self.source = Some(source);
                     self.raw.extend_from_slice(&buffer[..read]);
                     if self.deframe()? {
-                        self.ended = true;
-                        self.source = None;
+                        self.finished();
                     }
                 }
                 Err(err) if err.kind() == ErrorKind::Interrupted => self.source = Some(source),
@@ -619,6 +674,26 @@ enum Attempt {
     /// The other end answered, whatever it said.
     Answered(Streamed),
     /// The socket did not get there, with the sentence a refusal would carry.
+    Failed(String),
+}
+
+/// What one connection's exchange produced, before [`one`] has decided what a
+/// failure on *that* connection costs.
+///
+/// [`Attempt`] is the same question one level up, and the two are separate
+/// because the answer depends on where the connection came from: a fresh socket
+/// that closes before it answers is a statement about the other end, while the
+/// same silence on one this core had been holding idle is the far end retiring
+/// it. Only [`one`] knows which it was.
+enum Sent {
+    /// The other end answered, whatever it said.
+    Answered(Streamed),
+    /// It failed with the request still going out, so nothing complete reached
+    /// the other end.
+    WhileSending(String),
+    /// The connection ended before an octet of the reply arrived.
+    Silent(String),
+    /// Anything else the socket did, after the request was out.
     Failed(String),
 }
 
@@ -765,11 +840,29 @@ fn attempts(
     }
 }
 
-/// One connection, one request, one reply.
+/// One request and one reply, over a connection this core was already holding
+/// where it had one.
 fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<Attempt, Fault> {
     let parts = parts(url, call.member)?;
     let request = compose(call, &parts)?;
     let socket = SocketAddr::new(address, parts.port);
+    let key = pool_key(&parts, socket);
+
+    if let Some(mut held) = pool::take(&key, Instant::now()) {
+        // The drawn connection carries no bound of its own: the call's deadline
+        // is what every wait on it is under, exactly as on a fresh one.
+        held.bound_by(Some(call.deadline));
+        match exchange(call, held, &request, socket, bounds, &key)? {
+            Sent::Answered(reply) => return Ok(Attempt::Answered(reply)),
+            // The rule's *replaced once without spending an attempt*: the
+            // request did not leave this process whole, so the far end cannot
+            // have acted on it, and a connection it had already decided to
+            // retire is not a failed request. Falling through opens a fresh
+            // one under the same `attempt`.
+            Sent::WhileSending(_) => {}
+            Sent::Silent(why) | Sent::Failed(why) => return Ok(Attempt::Failed(why)),
+        }
+    }
 
     // The handshake's own bound, clamped by what is left of the total: a
     // `connectTimeout` longer than the remaining deadline would be the one
@@ -789,24 +882,53 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<At
     // and the deadline is what bounds every wait on it.
     stream.set_deadline(Some(call.deadline));
 
-    if !parts.tls {
-        return exchange(call, Box::new(stream), &request, socket, bounds);
-    }
-    match NvsTls::over(stream, &parts.host) {
-        Ok(tls) => exchange(call, Box::new(tls), &request, socket, bounds),
-        // A name or a certificate this build will not accept is settled: the
-        // module doc's second paragraph is why only one of these two shapes is
-        // handed back for another attempt.
-        Err(err) if matches!(err.kind(), ErrorKind::InvalidData | ErrorKind::InvalidInput) => {
-            Err(Fault::thrown(format!(
-                "{}: the TLS handshake with `{}` was refused and nothing was sent — {err}",
-                call.member, parts.host
-            )))
+    let connection: Box<dyn Connection> = if parts.tls {
+        match NvsTls::over(stream, &parts.host) {
+            Ok(tls) => Box::new(tls),
+            // A name or a certificate this build will not accept is settled:
+            // the module doc's paragraph on `https` is why only one of these
+            // two shapes is handed back for another attempt.
+            Err(err) if matches!(err.kind(), ErrorKind::InvalidData | ErrorKind::InvalidInput) => {
+                return Err(Fault::thrown(format!(
+                    "{}: the TLS handshake with `{}` was refused and nothing was sent — {err}",
+                    call.member, parts.host
+                )));
+            }
+            Err(err) => {
+                return Ok(Attempt::Failed(format!(
+                    "the TLS handshake with {socket} failed: {err}"
+                )));
+            }
         }
-        Err(err) => Ok(Attempt::Failed(format!(
-            "the TLS handshake with {socket} failed: {err}"
-        ))),
-    }
+    } else {
+        Box::new(stream)
+    };
+
+    Ok(
+        match exchange(call, connection, &request, socket, bounds, &key)? {
+            Sent::Answered(reply) => Attempt::Answered(reply),
+            // On a socket opened for this request, nothing arriving at all is a
+            // statement about the other end rather than weather: a second identical
+            // request gets the same non-reply.
+            Sent::Silent(_) => return Err(malformed(call.member, "no header section ended it")),
+            Sent::WhileSending(why) | Sent::Failed(why) => Attempt::Failed(why),
+        },
+    )
+}
+
+/// What a connection is filed under while it waits for the next call.
+///
+/// Built here and not in [`super::pool`] because
+/// `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`
+/// keys reuse on **what the door approved**: the address the URL was pinned to
+/// and the port the bytes go to, the scheme that decides whether a session
+/// wraps them, and the name the certificate had to be for. A key short of any
+/// of those is a connection served to a call whose own check would have
+/// refused it — a pool keyed on the URL's host, which is what most clients
+/// key on, quietly undoes the pin.
+fn pool_key(parts: &Parts, socket: SocketAddr) -> String {
+    let scheme = if parts.tls { "https" } else { "http" };
+    format!("{scheme}|{host}|{socket}", host = parts.host)
 }
 
 /// The request out and the reply's **head** back, over whatever is already
@@ -824,21 +946,22 @@ fn exchange(
     request: &str,
     socket: SocketAddr,
     bounds: Bounds,
-) -> Result<Attempt, Fault> {
+    key: &str,
+) -> Result<Sent, Fault> {
     if let Err(err) = stream.write_all(request.as_bytes()) {
-        return Ok(Attempt::Failed(format!(
+        return Ok(Sent::WhileSending(format!(
             "sending to {socket} failed: {err}"
         )));
     }
     if let Some(body) = &call.body
         && let Some(err) = write_body(body, &mut stream, call.member)?
     {
-        return Ok(Attempt::Failed(format!(
+        return Ok(Sent::WhileSending(format!(
             "sending to {socket} failed: {err}"
         )));
     }
     if let Err(err) = stream.flush() {
-        return Ok(Attempt::Failed(format!(
+        return Ok(Sent::WhileSending(format!(
             "sending to {socket} failed: {err}"
         )));
     }
@@ -857,18 +980,25 @@ fn exchange(
             )));
         }
         match stream.read(&mut buffer) {
-            // A connection that closed before the blank line is a statement
-            // about the other end, not weather: a second identical request
-            // gets the same non-reply, so it leaves as a `Fault`.
+            // Nothing at all, which [`one`] reads against where the connection
+            // came from. A head that started and then stopped is the other
+            // case: the other end did answer, and what it sent is not a reply,
+            // so a second identical request gets the same non-reply.
+            Ok(0) if raw.is_empty() => {
+                return Ok(Sent::Silent(format!(
+                    "{socket} closed the connection before answering"
+                )));
+            }
             Ok(0) => return Err(malformed(call.member, "no header section ended it")),
             Ok(read) => raw.extend_from_slice(&buffer[..read]),
             Err(err) if err.kind() == ErrorKind::Interrupted => {}
-            Err(err) => return Ok(Attempt::Failed(format!("reading {socket} failed: {err}"))),
+            Err(err) => return Ok(Sent::Failed(format!("reading {socket} failed: {err}"))),
         }
     };
 
     let (status, headers) = head_of(&raw[..end], call.member)?;
     let rest = raw.split_off(end + 4);
+    let frame = frame_of(&headers);
     let (idle, until) = match bounds {
         Bounds::Whole => (
             call.deadline.saturating_duration_since(Instant::now()),
@@ -876,12 +1006,44 @@ fn exchange(
         ),
         Bounds::Streamed { idle, until } => (idle, until),
     };
-    let body = Incoming::over(stream, rest, frame_of(&headers), idle, until, call.member)?;
-    Ok(Attempt::Answered(Streamed {
+    let reuse = reusable(&raw, &headers, frame).then(|| Reuse {
+        key: key.to_owned(),
+        caps: call.pool,
+    });
+    let body = Incoming::over(stream, rest, frame, idle, until, call.member, reuse)?;
+    Ok(Sent::Answered(Streamed {
         status,
         headers,
         body,
     }))
+}
+
+/// Whether the connection this reply arrived on may carry another request.
+///
+/// The rule's *only after its reply was read to the end under known framing*,
+/// asked before a byte of the body has been read, because all three of its
+/// answers are in the head. `head` is the status line and the fields, still as
+/// they arrived.
+///
+/// Every arm is a way for the two ends to disagree about where this reply stops
+/// and the next one starts. An HTTP/1.0 reply keeps a connection only where it
+/// says so and this client never asks, so one is finished with its reply; a body
+/// the close itself delimits has no end short of that close; and `close` from
+/// the origin is the origin saying this is its last. On any of them the
+/// connection is dropped, because one whose remaining octets are unknown is one
+/// that would hand the next request someone else's body.
+fn reusable(head: &[u8], headers: &[(String, String)], frame: Frame) -> bool {
+    if !head.starts_with(b"HTTP/1.1 ") {
+        return false;
+    }
+    if matches!(frame, Frame::UntilClose) {
+        return false;
+    }
+    !header(headers, "connection").is_some_and(|value| {
+        value
+            .split(',')
+            .any(|token| token.trim().eq_ignore_ascii_case("close"))
+    })
 }
 
 /// The request text — the line, the headers this module always sends, and the
@@ -903,7 +1065,7 @@ fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
     out.push_str(concat!(
         "User-Agent: novis/",
         env!("CARGO_PKG_VERSION"),
-        "\r\nAccept: */*\r\nConnection: close\r\n"
+        "\r\nAccept: */*\r\n"
     ));
     if let Some(key) = &call.idempotency_key {
         field(&mut out, "Idempotency-Key", key, call.member)?;
@@ -1318,31 +1480,110 @@ mod tests {
     use std::io::{Read, Write};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
     use std::rc::Rc;
-    use std::sync::mpsc;
+    use std::sync::{Arc, Mutex, mpsc};
     use std::time::{Duration, Instant};
 
-    /// A listener on loopback that answers each connection with the next of
-    /// `replies`, verbatim, and hands back what it was asked.
+    /// What an origin thread reports once it has served every reply it was
+    /// given: the requests in arrival order, and how many connections carried
+    /// them.
+    struct Served {
+        /// Each request as it arrived, whichever connection it came in on.
+        asked: Vec<String>,
+        /// How many connections were accepted to carry them, which is the
+        /// assertion every pooling case is written on.
+        connections: usize,
+    }
+
+    /// A listener on loopback that answers `replies` in order, keeping each
+    /// connection open for as many requests as the client sends on it.
     ///
     /// Loopback and a `std` listener on purpose: what is under test is the
     /// transport, and the address it is handed has already been through the
     /// door. Nothing here needs a `Ctx`.
-    fn origin(replies: Vec<&'static str>) -> (SocketAddr, std::thread::JoinHandle<Vec<String>>) {
+    ///
+    /// It stops as soon as the last reply is out, so the count a case asserts
+    /// on is the whole exchange. **A connection gets a thread of its own**,
+    /// because a client that pools holds one open with nothing on it while it
+    /// talks on another, and a single-threaded origin would be blocked reading
+    /// the idle one — a hang, where the failure a case is written to catch is a
+    /// count.
+    fn origin(replies: Vec<&'static str>) -> (SocketAddr, std::thread::JoinHandle<Served>) {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
         let at = listener.local_addr().expect("its own address");
+        listener
+            .set_nonblocking(true)
+            .expect("an accept that does not outlive the count");
+        let state = Arc::new(Mutex::new(Served {
+            asked: Vec::new(),
+            connections: 0,
+        }));
+        let mine = Arc::clone(&state);
         let served = std::thread::spawn(move || {
-            let mut asked = Vec::new();
-            for reply in replies {
-                let (mut stream, _) = listener.accept().expect("a connection");
-                let mut request = [0_u8; 4096];
-                let read = stream.read(&mut request).expect("a request");
-                asked.push(String::from_utf8_lossy(&request[..read]).into_owned());
-                stream.write_all(reply.as_bytes()).expect("a reply");
-                stream.flush().expect("a flushed reply");
+            // A case that never sends what it said it would ends here rather
+            // than holding the run: the assertion it fails is its own.
+            let ends = Instant::now() + Duration::from_secs(20);
+            while asked_so_far(&state) < replies.len() && Instant::now() < ends {
+                let Ok((stream, _)) = listener.accept() else {
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                };
+                let answering = Arc::clone(&state);
+                answering.lock().expect("the origin's count").connections += 1;
+                let replies = replies.clone();
+                std::thread::spawn(move || answer(stream, replies, answering));
             }
-            asked
+            let held = mine.lock().expect("the origin's count");
+            Served {
+                asked: held.asked.clone(),
+                connections: held.connections,
+            }
         });
         (at, served)
+    }
+
+    /// How many requests this origin has answered.
+    fn asked_so_far(state: &Mutex<Served>) -> usize {
+        state.lock().expect("the origin's count").asked.len()
+    }
+
+    /// One connection's worth of requests, answered from the shared queue until
+    /// the client closes it or stops asking.
+    ///
+    /// The reply goes out under the same lock that records the request, so a
+    /// case joining the moment the last one is counted has the octets that
+    /// answer it already on the wire.
+    fn answer(
+        mut stream: std::net::TcpStream,
+        replies: Vec<&'static str>,
+        state: Arc<Mutex<Served>>,
+    ) {
+        // Said rather than assumed: a connection accepted from a non-blocking
+        // listener inherits that mode on Windows and does not on Linux, and a
+        // handler that read `WouldBlock` as the end of a connection would close
+        // it in the client's face.
+        stream
+            .set_nonblocking(false)
+            .expect("a connection that waits for its request");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("a bound on this origin's own wait");
+        loop {
+            let mut request = [0_u8; 4096];
+            let Ok(read) = stream.read(&mut request) else {
+                return;
+            };
+            if read == 0 {
+                return;
+            }
+            let mut held = state.lock().expect("the origin's count");
+            let Some(reply) = replies.get(held.asked.len()) else {
+                return;
+            };
+            stream.write_all(reply.as_bytes()).expect("a reply");
+            stream.flush().expect("a flushed reply");
+            held.asked
+                .push(String::from_utf8_lossy(&request[..read]).into_owned());
+        }
     }
 
     /// A call to `at` with one attempt, no redirects and a generous deadline.
@@ -1362,6 +1603,10 @@ mod tests {
             backoff: Duration::from_millis(1),
             idempotency_key: None,
             body: None,
+            pool: super::pool::Caps {
+                idle: 16,
+                timeout: Duration::from_secs(30),
+            },
             traceparent: None,
         }
     }
@@ -1391,6 +1636,7 @@ mod tests {
             Duration::from_secs(1),
             Instant::now() + Duration::from_secs(10),
             "test",
+            None,
         )?;
         let octets = body.whole(super::REPLY_CEILING)?;
         Ok((
@@ -1412,7 +1658,7 @@ mod tests {
         assert_eq!(reply.status, 200);
         assert_eq!(reply.body, b"ok");
 
-        let asked = served.join().expect("the origin thread");
+        let asked = served.join().expect("the origin thread").asked;
         assert!(asked[0].starts_with("GET /ok HTTP/1.1\r\n"), "{}", asked[0]);
         assert!(
             asked[0].contains(&format!("Host: {at}\r\n")),
@@ -1451,7 +1697,12 @@ mod tests {
         written.headers = vec![("traceparent".to_owned(), theirs.to_owned())];
         send(&written, &mut never).expect("an answer");
 
-        let asked = served.join().expect("the origin thread");
+        let served = served.join().expect("the origin thread");
+        assert_eq!(
+            served.connections, 1,
+            "three calls to one key are three requests on one connection"
+        );
+        let asked = served.asked;
         let carried = |head: &String| {
             head.lines()
                 .filter(|line| line.to_ascii_lowercase().starts_with("traceparent:"))
@@ -1519,7 +1770,7 @@ mod tests {
         let reply = send(&retried, &mut never).expect("the second attempt's answer");
         assert_eq!(reply.status, 200);
         assert!(started.elapsed() < Duration::from_secs(5));
-        assert_eq!(served.join().expect("the origin thread").len(), 2);
+        assert_eq!(served.join().expect("the origin thread").asked.len(), 2);
 
         // Full jitter is a draw in `[0, base × 2^n]` and not the bound itself:
         // over enough draws the same number every time is the failure this
@@ -1567,6 +1818,7 @@ mod tests {
             Duration::from_secs(1),
             Instant::now() + Duration::from_secs(10),
             "test",
+            None,
         )
         .expect("nothing to frame")
     }
@@ -2111,11 +2363,138 @@ mod tests {
             "{cut:?}"
         );
 
-        let asked = served.join().expect("the origin thread");
+        let asked = served.join().expect("the origin thread").asked;
         assert_eq!(
             asked.len(),
             2,
             "the head was asked for twice and the body for never"
+        );
+    }
+
+    /// `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`:
+    /// a connection outlives its call, and serves only calls whose own key it
+    /// was filed under.
+    ///
+    /// The three draws are the three ways this can go wrong at once — the
+    /// second call must reuse, a second port must not, and a second name over
+    /// the **same** address must not either, which is the element a pool keyed
+    /// on the URL's host would have got right and the one keyed on the address
+    /// alone would not.
+    #[test]
+    fn pooled_connection_is_reused_for_one_pinned_address_and_never_across_two() {
+        let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+        let (first, one) = origin(vec![ok, ok, ok]);
+        let (second, two) = origin(vec![ok]);
+
+        send(&call(first, "test"), &mut never).expect("an answer");
+        send(&call(first, "test"), &mut never).expect("an answer on the connection it left");
+
+        send(&call(second, "test"), &mut never).expect("an answer from the other port");
+
+        let mut named = call(first, "test");
+        named.url = format!("http://localhost:{}/ok", first.port());
+        send(&named, &mut never).expect("an answer under the other name");
+
+        assert_eq!(
+            one.join().expect("the origin thread").connections,
+            2,
+            "the second call reused the first's connection and the third name did not"
+        );
+        assert_eq!(
+            two.join().expect("the origin thread").connections,
+            1,
+            "a port of its own is a key of its own"
+        );
+    }
+
+    /// The rule's *only after its reply was read to the end under known
+    /// framing*: a `Content-Length` reply hands its connection back, and a
+    /// `Connection: close` beside one takes it away again.
+    #[test]
+    fn pooled_connection_goes_back_only_after_a_fully_framed_reply() {
+        let framed = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+        let closing = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
+        let (at, served) = origin(vec![framed, closing, framed]);
+
+        send(&call(at, "test"), &mut never).expect("a framed reply");
+        send(&call(at, "test"), &mut never).expect("the origin's last reply on that connection");
+        send(&call(at, "test"), &mut never).expect("a framed reply on a new one");
+
+        assert_eq!(
+            served.join().expect("the origin thread").connections,
+            2,
+            "the `close` ended the first connection and the third call opened the second"
+        );
+
+        // The other two arms, asked of the head directly: a body the close
+        // itself delimits has no end short of that close, and an HTTP/1.0 reply
+        // keeps a connection only where it says so, which this client never
+        // asks for.
+        let head = b"HTTP/1.1 200 OK\r\n";
+        assert!(super::reusable(head, &[], super::Frame::Sized(2)));
+        assert!(super::reusable(head, &[], super::Frame::Chunked));
+        assert!(!super::reusable(head, &[], super::Frame::UntilClose));
+        assert!(!super::reusable(
+            b"HTTP/1.0 200 OK\r\n",
+            &[],
+            super::Frame::Sized(2)
+        ));
+    }
+
+    /// A connection whose far end has gone: every write fails, as a socket the
+    /// other end retired does once the kernel has seen the reset.
+    struct Retired;
+
+    impl Read for Retired {
+        fn read(&mut self, _into: &mut [u8]) -> std::io::Result<usize> {
+            Ok(0)
+        }
+    }
+
+    impl Write for Retired {
+        fn write(&mut self, _from: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+        }
+    }
+
+    impl super::Connection for Retired {
+        fn bound_by(&mut self, _at: Option<Instant>) {}
+    }
+
+    /// The rule's *replaced once without spending an attempt*: a connection the
+    /// far end retired while this core held it idle is not a failed request, so
+    /// a call with one attempt still gets its answer.
+    ///
+    /// The dead connection is filed by hand rather than produced by a listener
+    /// that closes, because whether a write to a socket the other end has just
+    /// closed fails on this write or the next one is the kernel's to decide,
+    /// and a case built on that would be asserting on the timing rather than on
+    /// the rule.
+    #[test]
+    fn stale_pooled_connection_is_replaced_once_without_spending_an_attempt() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let asking = call(at, "test");
+        assert_eq!(asking.attempts, 1, "the replacement is not an attempt");
+
+        let parts = super::parts(&asking.url, "test").expect("the URL this case wrote");
+        super::pool::release(
+            super::pool_key(&parts, SocketAddr::new(at.ip(), parts.port)),
+            Box::new(Retired),
+            asking.pool,
+            Instant::now(),
+        );
+
+        let reply = send(&asking, &mut never).expect("the replacement's answer");
+        assert_eq!(reply.status, 200);
+        assert_eq!(reply.body, b"ok");
+        assert_eq!(
+            served.join().expect("the origin thread").connections,
+            1,
+            "the one attempt bought the one connection that answered"
         );
     }
 }
