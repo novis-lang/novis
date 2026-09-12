@@ -26,8 +26,9 @@
 //! code path in which a string out of a token reaches a `match`, so `alg:
 //! none` and the RS256→HS256 confusion are not defended against here, they
 //! are unwritable. That member takes a shared key alone, so a token signed
-//! under a pair is not one it reads at all: the asymmetric half is for tokens
-//! another party verifies.
+//! under a pair is not one it reads at all; [`nvs_core_jwt_verify_issued`] is
+//! the asymmetric half of the same rule, comparing a header's `alg` against
+//! [`pair_alg`] of the kind the key it *found* was read as.
 //!
 //! That is also why no member takes a `Digest`. `Core\Hash::hmac` takes one
 //! because a program choosing a digest for its own protocol is choosing
@@ -142,6 +143,45 @@
 //! per-field qualifiers `rule:security/tainted-qualifier` distributed onto it,
 //! which is why a parameter that is neither `string` nor `bytes` needs no
 //! classification of its own.
+//!
+//! # A token another party issued is checked in one order, and the line is the signature
+//!
+//! [`nvs_core_jwt_verify_issued`] is the member for a token this program did
+//! not sign, and every rule it holds is a rule about *order*. Shape, header
+//! policy, key, signature — and then the clock and the registered claims, which
+//! are reached only under a signature that held. Everything before that line
+//! answers with [`not_issued`]'s one sentence, because a forger chooses all of
+//! it and telling one forgery from another is an oracle; everything after it
+//! may name the claim, because the only reader who gets there is holding a
+//! token the issuer really signed.
+//!
+//! **The header is read to refuse and to compare, never to choose.**
+//! [`REFUSED_HEADER`] is a deny-list rather than an allow-list, and that is the
+//! one place this member is deliberately looser than [`crate::jwe`]: an issuer
+//! sends hints a verifier does not read, and refusing what is merely unknown
+//! refuses real ID tokens. What is refused is what a verifier would have to
+//! *act* on — a key or a fetch the token brought, an extension it would have to
+//! understand, a payload that is not the one segment it looks like.
+//!
+//! **A key is found, never tried.** A `kid` is a lookup into the set and selects
+//! nothing else, and a token carrying none is answered only by a set holding
+//! exactly one key. So a token costs at most one signature check whatever the
+//! set holds, which is what keeps an RSA verification off a request's budget
+//! however many keys an issuer publishes.
+//!
+//! **The claims come back as a type, not as a table.** The payload is handed to
+//! [`crate::json::decode_as`], so what a token may say is exactly what a JSON
+//! document may say, and `rule:security/derived-codec-qualifiers` has already
+//! made the call site declare `tainted` on every text field reachable from the
+//! written type. That is how
+//! `rule:security/verification-does-not-launder` survives a structured answer
+//! without flattening every claim to text, which is the trade [`CLAIM`] makes
+//! for the member above it.
+//!
+//! **`leeway` widens the window and never removes it.** It is bounded at
+//! [`MAX_LEEWAY`] and refused below zero, because it is the one option here that
+//! makes an expired token verify and `rule:security/jwt-expiry-is-mandatory`
+//! leaves no room for a flag that removes the check.
 //!
 //! # A key set is an admission, and the two ways a document fails are not one
 //!
@@ -297,6 +337,87 @@ const SIGN_OPTIONS: &[CoreOption] = &[
 /// One verified claim, as `rule:security/verification-does-not-launder` requires it back.
 const CLAIM: CoreTy = CoreTy::TaintedStr;
 
+/// The keys `verifyIssued` checks a token against: a set to find one in by
+/// `kid`, or the single key the program was handed directly.
+///
+/// Both arms are a key that has already been read, so the algorithm is settled
+/// before the token is looked at — `rule:security/algorithm-comes-from-the-key`
+/// crossing into this member as a type rather than as an argument.
+const VERIFY_KEYS: CoreTy = CoreTy::Union(&[
+    CoreTy::Instance(KEY_SET_NAME),
+    CoreTy::Instance(crypto::PUBLIC_KEY_NAME),
+]);
+
+/// The longest token `verifyIssued` looks at, in octets, checked before the
+/// first segment is decoded.
+///
+/// An ID token carrying a name, an email and a handful of registered claims is
+/// a few hundred octets, and the header parameters that make a real token large
+/// — a certificate chain under `x5c` — are refused outright by
+/// [`REFUSED_HEADER`]. So the cap is reached only by something that is not a
+/// token, and reaching it costs one length comparison rather than a base64
+/// decode and a parse.
+const MAX_TOKEN_LEN: usize = 8 * 1024;
+
+/// The header parameters a token another party issued may not carry.
+///
+/// A key or a fetch the token brings with it (`jwk`, `jku`, `x5u`, `x5c`), an
+/// extension a verifier would have to understand to be safe (`crit`), and a
+/// payload that is not the one segment it looks like (`b64`, `zip`, `cty`).
+/// `zip` is a decompression bomb and the URL-bearing ones are outbound
+/// requests a token got this program to make.
+///
+/// Every other member is **ignored**, which is looser than
+/// [`crate::jwe`]'s allow-list on purpose: an issuer sends hints such as `x5t`
+/// and `nonce`, and a verifier refusing what it does not read refuses real ID
+/// tokens.
+const REFUSED_HEADER: &[&str] = &["jku", "x5u", "x5c", "jwk", "crit", "b64", "zip", "cty"];
+
+/// The `leeway` a call that names none gets, in seconds — RFC 7519 § 4.1.4's
+/// "small leeway, no more than a few minutes", at the small end of it.
+const DEFAULT_LEEWAY: i64 = 60;
+
+/// The widest `leeway` a call may ask for, in seconds.
+///
+/// A bound rather than a caller's choice because leeway is the one knob here
+/// that makes an expired token verify, and five minutes is already wider than
+/// any clock a server has business disagreeing with. A caller wanting more is
+/// asking for the check `rule:security/jwt-expiry-is-mandatory` refuses to have
+/// a flag for.
+const MAX_LEEWAY: i64 = 300;
+
+/// `verifyIssued`'s trailing bag — what a verifier may relax, and what it may
+/// additionally require.
+///
+/// Nothing here selects an algorithm or a key, which is the whole of why the
+/// bag is safe to widen later: every option is a bound on a claim the token
+/// already carries.
+const VERIFY_ISSUED_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "leeway",
+        ty: CoreTy::Instance(crate::time::DURATION_NAME),
+        default: Const::Null,
+    },
+    // Neutral for the header bag's reason: each of these is *compared* against
+    // a claim and written into nothing, so no byte of an argument crosses back
+    // out in the answer.
+    CoreOption {
+        name: "typ",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "nonce",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "maxAge",
+        ty: CoreTy::Instance(crate::time::DURATION_NAME),
+        default: Const::Null,
+    },
+];
+
 /// `rule:security/protocol-roster`'s fourth roster entry: the two ways of
 /// signing a token, and the one way of reading back a token this program
 /// signed under a shared key.
@@ -353,6 +474,29 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CLAIM),
             symbol: "nvs_core_jwt_verify",
             doc: Some(&VERIFY_DOC),
+        },
+        CoreMethod {
+            name: "verifyIssued",
+            names: &["token", "keys", "issuer", "audience"],
+            // Every parameter is neutral, and for `verify`'s reason rather than
+            // because nothing of the token reaches the answer: the claims come
+            // back inside a `T` whose text fields the call site has already been
+            // made to declare `tainted`
+            // (`rule:security/derived-codec-qualifiers`), so the qualifier is
+            // carried by the written type and not by this row. `$issuer`,
+            // `$audience` and the bag's two strings are compared and written
+            // into nothing at all.
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                VERIFY_KEYS,
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(VERIFY_ISSUED_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Written("T"),
+            symbol: "nvs_core_jwt_verify_issued",
+            doc: Some(&VERIFY_ISSUED_DOC),
         },
     ],
     instance: &[],
@@ -522,8 +666,92 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Jwt::verifyIssued`'s reference card — `rule:core-api/reference-card`.
+const VERIFY_ISSUED_DOC: MethodDoc = MethodDoc {
+    short: "Verifies a token another party issued and answers its claims as the written type, \
+            having checked the header's policy, found the one key that may have signed it, \
+            checked the signature, and then the clock and the registered claims in that order. \
+            It throws rather than answering an empty value.",
+    params: &[
+        ParamDoc {
+            name: "token",
+            desc: "The token as the request carried it, in its three-part form. It is refused \
+                   unread past 8 KiB.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The issuer's key set, in which the header's `kid` names exactly one key, or \
+                   one public key on its own. There is no try-every-key: a token naming no \
+                   `kid` verifies only against a set holding exactly one. The token's `alg` is \
+                   compared against the key's algorithm and never used to pick one.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "issuer",
+            desc: "What the token's `iss` must equal, exactly.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "audience",
+            desc: "What the token's `aud` must be, or must hold. A token listing more than one \
+                   audience must also carry an `azp` equal to this.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "leeway",
+            desc: "How far the clock may disagree, at both ends of the window: 60 seconds when \
+                   omitted, and refused when negative or wider than 5 minutes. It widens the \
+                   expiry check and never removes it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "typ",
+            desc: "The `typ` the header must carry, compared case-insensitively with any \
+                   `application/` prefix removed — `at+jwt` for RFC 9068's access tokens. Any \
+                   `typ` is accepted when this is omitted.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "nonce",
+            desc: "The value the token's `nonce` claim must equal, compared in constant time. A \
+                   token carrying none is refused when this is named.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxAge",
+            desc: "How old the token's `auth_time` may be. A token carrying none is refused \
+                   when this is named.",
+            shape: &[],
+        },
+    ],
+    ret: "An instance of the written type, decoded from the payload as `Core\\Json::decodeAs` \
+          decodes a document. Its text fields must be declared `tainted`, which the call site is \
+          held to: a signature proves who wrote a claim, not that it is safe for any sink.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`leeway` is negative or wider than 5 minutes; the written type is a list, \
+                   which no token's payload is; or the key is an `X25519` one, which verifies \
+                   nothing.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The token is not one this issuer's key signed, its header carries a \
+                   parameter a verifier may not honour, or no key was found for it — one \
+                   sentence for every way of not being verifiable; or it is authentic, and is \
+                   outside its validity window or carries a registered claim that is not what \
+                   was asked for, which names the claim.",
+        },
+    ],
+};
+
 /// The second class this module registers: the keys another party publishes.
 pub(crate) const KEY_SET_NAME: &str = r"Core\Jwt\KeySet";
+
+/// Which slot of a set holds its keys, which is the frame [`framed`] wrote and
+/// [`keys_in`] reads back.
+const KEY_SET_KEYS_SLOT: usize = 0;
 
 /// The most keys one set holds, which is what keeps a verification's cost a
 /// property of this program rather than of the document it fetched.
@@ -617,6 +845,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_jwt_sign" => (nvs_core_jwt_sign as *const ()).cast(),
         "nvs_core_jwt_sign_object" => (nvs_core_jwt_sign_object as *const ()).cast(),
         "nvs_core_jwt_verify" => (nvs_core_jwt_verify as *const ()).cast(),
+        "nvs_core_jwt_verify_issued" => (nvs_core_jwt_verify_issued as *const ()).cast(),
         "nvs_core_jwt_key_set_read" => (nvs_core_jwt_key_set_read as *const ()).cast(),
         _ => return None,
     })
@@ -1254,6 +1483,380 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The one sentence every token `verifyIssued` will not verify gets.
+///
+/// [`refused`]'s twin, and separate from it because the ways of not being
+/// verifiable are not the same set: a header carrying a parameter a verifier may
+/// not honour, a `kid` naming no key in the set, and an algorithm that is not
+/// the one the found key carries. What the two share is the reason they are one
+/// sentence — a forger picks every one of them, so telling them apart is an
+/// oracle.
+fn not_issued() -> Fault {
+    Fault::thrown(format!(
+        "{NAME}::verifyIssued(): $token is not a token this issuer's key signed. Every way of \
+         not being one — a shape that is not three base64url parts, a header carrying a \
+         parameter a verifier may not honour, a `kid` that names no key in the set, an `alg` \
+         that is not the one that key carries, a signature under another key, and an altered \
+         payload — is this one sentence, so a forgery says nothing about which half of it \
+         failed."
+    ))
+}
+
+/// The refusal a token that is outside its own validity window gets, saying
+/// which end of it and by how much.
+///
+/// Its own sentence rather than [`refused`]'s, for the reason `verify`'s expiry
+/// message has one: it is reached only under a signature that held, so the only
+/// reader who ever sees it is holding a token the issuer really signed.
+fn outside_the_window(said: &str) -> Fault {
+    Fault::thrown(format!(
+        "{NAME}::verifyIssued(): the token {said}. Expiry is not optional \
+         (`rule:security/jwt-expiry-is-mandatory`) and `leeway` widens the window at both ends \
+         rather than removing it."
+    ))
+}
+
+/// The refusal a registered claim that is not what was asked for gets, naming
+/// the claim.
+///
+/// Safe for [`outside_the_window`]'s reason and no other: it is reached past the
+/// signature check, so it tells a forger nothing it could not have written
+/// itself.
+fn claim_refused(said: &str) -> Fault {
+    Fault::thrown(format!(
+        "{NAME}::verifyIssued(): the token is authentic and {said}. A claim this member checks \
+         is one the issuer and this program had to agree on beforehand, so a mismatch is a \
+         token meant for somebody else rather than a forgery."
+    ))
+}
+
+/// A `Duration` option in whole seconds, and [`None`] for one the call omitted.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot holding something that is not a `Duration`,
+/// which [`crate::time::nanos_of`]'s own doc says no program reaches.
+fn seconds_option(args: &[Value], slot: usize, member: &str) -> Result<Option<i64>, Fault> {
+    if matches!(args[slot].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    Ok(Some(
+        crate::time::nanos_of(args, slot, member)? / 1_000_000_000,
+    ))
+}
+
+/// `{leeway: …}` in whole seconds, bounded on both sides.
+///
+/// # Errors
+///
+/// A `LogicError` for a negative leeway — a window that closes before it opens
+/// — and for one wider than [`MAX_LEEWAY`], which is the bound that keeps this
+/// option from becoming the flag `rule:security/jwt-expiry-is-mandatory`
+/// refuses to have.
+fn leeway_of(args: &[Value], slot: usize) -> Result<i64, Fault> {
+    let Some(seconds) = seconds_option(args, slot, "verifyIssued")? else {
+        return Ok(DEFAULT_LEEWAY);
+    };
+    if !(0..=MAX_LEEWAY).contains(&seconds) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{NAME}::verifyIssued(): {{leeway: …}} is {seconds}s, and it is a clock \
+                 disagreement rather than an extension of the token's life — it is refused \
+                 below zero and above {MAX_LEEWAY}s."
+            ),
+        ));
+    }
+    Ok(seconds)
+}
+
+/// The one key that may have signed this token, and the JWS algorithm its kind
+/// carries.
+///
+/// **A key is found, never tried.** A `kid` is a lookup into the set and selects
+/// nothing else, and a token carrying none is answered only by a set holding
+/// exactly one key — so a token costs at most one signature check whatever the
+/// set holds. A `Core\Crypto\PublicKey` argument is that same rule with the set
+/// of one written by the program instead.
+///
+/// # Errors
+///
+/// [`not_issued`]'s one sentence where the set names no such key, a `LogicError`
+/// for an `X25519` key, which verifies nothing, and a [`Fault::fatal`] for held
+/// material that no longer parses — unreachable from source, since it is what a
+/// reader of this module already read once.
+fn verifying_key(
+    args: &[Value],
+    slot: usize,
+    kid: Option<&str>,
+) -> Result<(PublicKey, &'static str), Fault> {
+    let (spki, kind) = if crate::instance::is_instance(args[slot], &KEY_SET) {
+        let receiver = crate::instance::receiver(args[slot], &KEY_SET, "verifyIssued")?;
+        let held = crate::instance::slot(receiver, KEY_SET_KEYS_SLOT);
+        // Unreachable from source: `Core\Jwt\KeySet::read` is the only writer of
+        // this slot and what it writes is the frame `framed` answered.
+        let blob = held.as_bytes().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{NAME}::verifyIssued expected a `bytes` in the set's `keys` slot, got tag {}",
+                held.tag_byte()
+            ))
+        })?;
+        let keys = keys_in(blob).ok_or_else(|| {
+            Fault::fatal(format!(
+                "{NAME}::verifyIssued held a `{KEY_SET_NAME}` whose frame it cannot read back"
+            ))
+        })?;
+        let found = match kid {
+            Some(kid) => keys.iter().find(|(named, _, _)| *named == Some(kid)),
+            None => keys.first().filter(|_| keys.len() == 1),
+        };
+        let Some((_, kind, spki)) = found else {
+            return Err(not_issued());
+        };
+        (spki.to_vec(), *kind)
+    } else {
+        let (held, kind) = crypto::stored_key(args, slot, &crypto::PUBLIC_KEY, "verifyIssued")?;
+        let spki = crypto::stored_octets(&held, &crypto::PUBLIC_KEY, "verifyIssued")?;
+        (spki.to_vec(), kind)
+    };
+
+    let alg = pair_alg(kind).ok_or_else(|| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{NAME}::verifyIssued(): an `X25519` key verifies nothing — it is a key for \
+                 Core\\Crypto::agree alone. A `P256` key checks ES256, an `Ed25519` key EdDSA, \
+                 and the two RSA kinds RS256 and PS256."
+            ),
+        )
+    })?;
+    let key = PublicKey::read(&spki, kind, KeyFormat::Spki).map_err(|_| {
+        Fault::fatal(format!(
+            "{NAME}::verifyIssued held key material that is no longer a public key of its kind"
+        ))
+    })?;
+    Ok((key, alg))
+}
+
+/// Whether a token's `typ` is the one a call asked for — RFC 7519 § 5.1's
+/// comparison, which is case-insensitive with any `application/` prefix
+/// dropped, so `at+jwt`, `AT+JWT` and `application/at+jwt` are one value.
+fn same_typ(got: &str, want: &str) -> bool {
+    let bare = |value: &str| {
+        let lower = value.to_ascii_lowercase();
+        lower
+            .strip_prefix("application/")
+            .unwrap_or(&lower)
+            .to_owned()
+    };
+    bare(got) == bare(want)
+}
+
+/// Whether `aud` names this audience, and whether an `azp` is owed for it.
+///
+/// A token addressed to more than one audience requires `azp` to equal the one
+/// this program is: OpenID Connect's own rule, and the case where a token
+/// issued for a different party's use would otherwise be accepted here.
+fn addressed_to(claims: &serde_json::Map<String, serde_json::Value>, audience: &str) -> bool {
+    match claims.get("aud") {
+        Some(serde_json::Value::String(one)) => one == audience,
+        Some(serde_json::Value::Array(many)) => {
+            let named = many
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .any(|one| one == audience);
+            let authorized = many.len() == 1
+                || claims.get("azp").and_then(serde_json::Value::as_str) == Some(audience);
+            named && authorized
+        }
+        _ => false,
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Jwt::verifyIssued<T>(string $token, Jwt\KeySet|Crypto\PublicKey $keys, string $issuer, string $audience, {leeway?, typ?, nonce?, maxAge?}): T`
+    /// — the read half for a token this program did not sign.
+    ///
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
+    /// not values: `crate::registry::WRITTEN_CLASS_MEMBERS` puts this member on
+    /// the roster whose helper is handed a `nvs_runtime::ClassDesc`, the
+    /// `array<...>` flag and an inline shape's wire contract ahead of its
+    /// declared parameters, and that roster's docs own why. So the arity here is
+    /// three more than the registry row's.
+    ///
+    /// **The order is the whole design.** Shape, header policy, key, signature —
+    /// and then the clock and the claims, which are reached only under a
+    /// signature that held. Everything before that line answers with
+    /// [`not_issued`]'s one sentence, because a forger chooses what it sees and
+    /// telling one forgery from another is an oracle; everything after it may
+    /// say what is wrong, because the only reader who gets there is holding a
+    /// token the issuer really signed.
+    ///
+    /// The claims are handed to `T` by [`crate::json::decode_as`] and not by a
+    /// second decoder written here, so what a token's payload may say is exactly
+    /// what a JSON document may say. `rule:security/derived-codec-qualifiers`
+    /// has already made the call site declare `tainted` on every text field
+    /// reachable from `T`, which is how
+    /// `rule:security/verification-does-not-launder` survives a structured
+    /// answer.
+    fn nvs_core_jwt_verify_issued(ctx, args: [11]) {
+        // Unreachable from source, on `Core\Json::decodeAs`'s reasoning:
+        // arguments 0 to 2 are not a program's values but the constants
+        // `nvs_ir::lower` writes out of the type argument, and a call naming
+        // none is `E0442` before any of this runs.
+        let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Jwt::verifyIssued` was called with no class in argument 0",
+        ))?;
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Jwt::verifyIssued` was called with no list flag in argument 1",
+        ))?;
+        let shape = args[2].as_shape_codec();
+        let token = text_at(args, 3, "verifyIssued", "$token")?;
+        let issuer = text_at(args, 5, "verifyIssued", "$issuer")?;
+        let audience = text_at(args, 6, "verifyIssued", "$audience")?;
+        let leeway = leeway_of(args, 7)?;
+        let want_typ = args[8].as_text();
+        let want_nonce = args[9].as_text();
+        let max_age = seconds_option(args, 10, "verifyIssued")?;
+
+        // The shape question, asked first because it is a question about the
+        // program rather than about the token: a payload is one JSON object, so
+        // there is no document a list could have decoded from.
+        if list {
+            return Err(Fault::thrown_as(ThrownClass::Logic, format!(
+                "{NAME}::verifyIssued(): a token carries one payload object, so `<array<…>>` \
+                 names a document no token has. Write the type one token's claims decode into."
+            )));
+        }
+        if token.len() > MAX_TOKEN_LEN {
+            return Err(not_issued());
+        }
+
+        let mut parts = token.split('.');
+        let (Some(header_b64), Some(payload_b64), Some(signature_b64), None) =
+            (parts.next(), parts.next(), parts.next(), parts.next())
+        else {
+            return Err(not_issued());
+        };
+
+        // The header is read to *compare* and to refuse, never to choose.
+        let header_json = URL_SAFE_NO_PAD.decode(header_b64).map_err(|_| not_issued())?;
+        let header: serde_json::Value =
+            serde_json::from_slice(&header_json).map_err(|_| not_issued())?;
+        let Some(header) = header.as_object() else {
+            return Err(not_issued());
+        };
+        if REFUSED_HEADER.iter().any(|name| header.contains_key(*name)) {
+            return Err(not_issued());
+        }
+        let Some(alg) = header.get("alg").and_then(serde_json::Value::as_str) else {
+            return Err(not_issued());
+        };
+
+        let kid = header.get("kid").and_then(serde_json::Value::as_str);
+        let (key, want_alg) = verifying_key(args, 4, kid)?;
+        if alg != want_alg {
+            return Err(not_issued());
+        }
+
+        let signature = URL_SAFE_NO_PAD.decode(signature_b64).map_err(|_| not_issued())?;
+        let signing_input = &token[..header_b64.len() + 1 + payload_b64.len()];
+        let verifying = key.verifying().ok_or_else(not_issued)?;
+        crypto::verify_signature(&verifying, signing_input.as_bytes(), &signature)
+            .ok_or_else(not_issued)?;
+
+        // Past here the token is authentic.
+        let payload_json = URL_SAFE_NO_PAD.decode(payload_b64).map_err(|_| not_issued())?;
+        let payload: serde_json::Value =
+            serde_json::from_slice(&payload_json).map_err(|_| not_issued())?;
+        let Some(claims) = payload.as_object() else {
+            return Err(not_issued());
+        };
+
+        let now = now_seconds(ctx, "verifyIssued")?;
+        let exp = claims
+            .get("exp")
+            .and_then(serde_json::Value::as_i64)
+            .ok_or_else(|| outside_the_window("carries no `exp`"))?;
+        if now >= exp.saturating_add(leeway) {
+            return Err(outside_the_window(&format!(
+                "expired at {exp}, and it is now {now} with {leeway}s of leeway"
+            )));
+        }
+        if let Some(nbf) = claims.get("nbf").and_then(serde_json::Value::as_i64)
+            && now < nbf.saturating_sub(leeway)
+        {
+            return Err(outside_the_window(&format!(
+                "is not valid before {nbf}, and it is now {now} with {leeway}s of leeway"
+            )));
+        }
+
+        if claims.get("iss").and_then(serde_json::Value::as_str) != Some(issuer) {
+            return Err(claim_refused(&format!(
+                "its `iss` is not `{issuer}`, which is the issuer this call named"
+            )));
+        }
+        if !addressed_to(claims, audience) {
+            return Err(claim_refused(&format!(
+                "its `aud` does not name `{audience}` — or it names several audiences and its \
+                 `azp` is not this one"
+            )));
+        }
+        if let Some(want) = want_typ {
+            let got = header.get("typ").and_then(serde_json::Value::as_str);
+            if !got.is_some_and(|got| same_typ(got, want)) {
+                return Err(claim_refused(&format!(
+                    "its header's `typ` is not `{want}`"
+                )));
+            }
+        }
+        if let Some(want) = want_nonce {
+            let got = claims.get("nonce").and_then(serde_json::Value::as_str);
+            let matched = got
+                .is_some_and(|got| bool::from(got.as_bytes().ct_eq(want.as_bytes())));
+            if !matched {
+                return Err(claim_refused("its `nonce` is not the one this call asked for"));
+            }
+        }
+        if let Some(oldest) = max_age {
+            let authenticated = claims
+                .get("auth_time")
+                .and_then(serde_json::Value::as_i64)
+                .ok_or_else(|| claim_refused(
+                    "carries no `auth_time`, which is what a `maxAge` is asked of",
+                ))?;
+            if now.saturating_sub(authenticated) > oldest.saturating_add(leeway) {
+                return Err(claim_refused(&format!(
+                    "was authenticated at {authenticated}, which is older than the {oldest}s \
+                     this call allows"
+                )));
+            }
+        }
+
+        let document = std::str::from_utf8(&payload_json).map_err(|_| not_issued())?;
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor and the contract came out of the constants a \
+                      compiled unit owns, so both outlive this call and every \
+                      object made from it"
+        )]
+        unsafe {
+            crate::json::decode_as(
+                ctx,
+                class,
+                shape,
+                document,
+                crate::json::DEFAULT_MAX_DEPTH_U32,
+                false,
+                "Core\\Jwt::verifyIssued",
+            )
+        }
+    }
+}
+
 /// One key a document offered and this class admitted.
 struct Admitted {
     /// The name the document gave it, and `None` for a key carrying none —
@@ -1535,10 +2138,6 @@ type Held<'a> = (Option<&'a str>, KeyKind, &'a [u8]);
 /// Borrowing rather than owning: a lookup reads one key out of a set and the
 /// set outlives the call, so nothing here is copied to answer a question about
 /// it.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "`verifyIssued` is this frame's reader")
-)]
 fn keys_in(blob: &[u8]) -> Option<Vec<Held<'_>>> {
     let mut out = Vec::new();
     let mut at = 0_usize;

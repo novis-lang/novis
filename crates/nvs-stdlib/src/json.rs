@@ -1193,6 +1193,11 @@ nvs_runtime::nvs_helper! {
 /// rather than a class name, and `None` where it wrote one — [`Contract`] owns
 /// what the two answer differently.
 ///
+/// `Core\Jwt::verifyIssued` is the one caller outside this module: a token's
+/// payload is a JSON document by the time its signature has held, so what that
+/// member owes its `T` is exactly this decode and not a second one written
+/// beside it.
+///
 /// # Safety
 ///
 /// `class` must refer to a live descriptor whose method table `nvs-codegen`
@@ -1201,7 +1206,7 @@ nvs_runtime::nvs_helper! {
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
-unsafe fn decode_as(
+pub(crate) unsafe fn decode_as(
     ctx: &mut nvs_runtime::Ctx,
     class: *const nvs_runtime::ClassDesc,
     shape: Option<*const nvs_runtime::ShapeCodec>,
@@ -2497,7 +2502,7 @@ nvs_runtime::nvs_helper! {
     reason = "DEFAULT_MAX_DEPTH is a small constant; `the_default_depth_is_below_the_ceiling` \
               pins it under DEPTH_CEILING"
 )]
-const DEFAULT_MAX_DEPTH_U32: u32 = DEFAULT_MAX_DEPTH as u32;
+pub(crate) const DEFAULT_MAX_DEPTH_U32: u32 = DEFAULT_MAX_DEPTH as u32;
 
 /// One `string` argument, as text.
 ///

@@ -2705,9 +2705,9 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// to build a `User`, which means reaching that class's
 /// `nvs_runtime::ClassDesc` from native Rust.
 ///
-/// A roster rather than a field on [`CoreMethod`] because it is four entries
-/// today against two hundred member rows, and a field would be `false` on
-/// every one of them. `nvs-ir` reads this to decide whether to emit the block
+/// A roster rather than a field on [`CoreMethod`] because it names a handful of
+/// members against two hundred member rows, and a field would be `false` on
+/// nearly every one of them. `nvs-ir` reads this to decide whether to emit the block
 /// of constants ahead of the call's own arguments; the helper's `args: [N]`
 /// therefore counts **three** more than [`CoreMethod::params`] does.
 ///
@@ -2745,6 +2745,7 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Arr", "shapeAs"),
     (r"Core\Json", "decodeAs"),
+    (r"Core\Jwt", "verifyIssued"),
     (r"Core\Request", "jsonAs"),
     (r"Core\Request", "queryAs"),
     (r"Core\Request", "postAs"),
