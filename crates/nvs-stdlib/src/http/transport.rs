@@ -206,20 +206,25 @@ pub(crate) trait Rewindable: Read + Seek {}
 
 impl<T: Read + Seek> Rewindable for T {}
 
-/// What came back: the two things `Core\Http\Response` holds, plus the headers
-/// the redirect and retry rules read.
+/// What came back: the three things `Core\Http\Response` holds.
 ///
-/// The header list is not handed to a program — the class has no member for it
-/// yet — but a `Location` and a `Retry-After` are decisions this module makes,
-/// so they are parsed once here rather than twice at two call sites.
+/// The header list is read twice from here — a `Location` and a `Retry-After`
+/// are decisions this module makes, so they are parsed once rather than at two
+/// call sites, and the whole list becomes the response's header slot, where
+/// `header` and `headers` read it back.
 #[derive(Debug)]
 pub(crate) struct Reply {
     /// The status line's code.
     pub(crate) status: i64,
-    /// The body, decoded. See [`decode`].
-    pub(crate) body: String,
-    /// Every header, names lower-cased, values trimmed.
-    headers: Vec<(String, String)>,
+    /// The body's octets, exactly as they arrived once any transfer coding was
+    /// undone — a `Vec<u8>` and not a `String` because whether they are text is
+    /// `Core\Http\Response::text`'s question and not this module's, and a reply
+    /// a program only wanted the bytes of must not throw on the way here.
+    pub(crate) body: Vec<u8>,
+    /// Every header, names lower-cased, values trimmed, in arrival order — a
+    /// list rather than a map because a field the origin sent twice is two
+    /// lines, and `Core\Http\Response::headers` is the member that says so.
+    pub(crate) headers: Vec<(String, String)>,
 }
 
 /// What one attempt produced: an answer, or a failure worth trying again.
@@ -722,7 +727,7 @@ fn parse(raw: &[u8], member: &str) -> Result<Reply, Fault> {
 
     let reply = Reply {
         status,
-        body: String::new(),
+        body: Vec::new(),
         headers,
     };
     let rest = &raw[end + 4..];
@@ -740,10 +745,7 @@ fn parse(raw: &[u8], member: &str) -> Result<Reply, Fault> {
         rest.to_vec()
     };
 
-    Ok(Reply {
-        body: decode(body, member)?,
-        ..reply
-    })
+    Ok(Reply { body, ..reply })
 }
 
 /// A chunked body, joined.
@@ -765,25 +767,6 @@ fn dechunk(mut rest: &[u8], malformed: &dyn Fn(&str) -> Fault) -> Result<Vec<u8>
         out.extend_from_slice(&rest[..size]);
         rest = &rest[size + 2..];
     }
-}
-
-/// The body as a `string`, which is UTF-8 by
-/// `rule:types/bytes`.
-///
-/// Bytes that are not text are **refused** rather than repaired: replacing them
-/// would hand a program a body that is not what the origin sent and give it no
-/// way to tell, which is
-/// `rule:errors/ambiguous-input-refused`'s
-/// whole rule. The member that answers `bytes` instead is the one this class
-/// does not have yet, and it is where a binary body belongs.
-fn decode(body: Vec<u8>, member: &str) -> Result<String, Fault> {
-    String::from_utf8(body).map_err(|err| {
-        Fault::thrown(format!(
-            "{member}: the reply's body is not valid UTF-8, so it is not a `string` — byte {} is \
-             where it stops being text",
-            err.utf8_error().valid_up_to()
-        ))
-    })
 }
 
 /// Where `needle` starts in `haystack`.
@@ -861,7 +844,7 @@ mod tests {
         let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
         let reply = send(&call(at, "test"), &mut never).expect("an answer");
         assert_eq!(reply.status, 200);
-        assert_eq!(reply.body, "ok");
+        assert_eq!(reply.body, b"ok");
 
         let asked = served.join().expect("the origin thread");
         assert!(asked[0].starts_with("GET /ok HTTP/1.1\r\n"), "{}", asked[0]);
@@ -1006,17 +989,19 @@ mod tests {
         let raw = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n\
                     2\r\nok\r\n3\r\n ay\r\n0\r\n\r\n";
         let reply = parse(raw, "test").expect("a chunked reply");
-        assert_eq!(reply.body, "ok ay");
+        assert_eq!(reply.body, b"ok ay");
     }
 
-    /// A body that is not UTF-8 is refused rather than repaired — `rule:errors/ambiguous-input-refused`,
-    /// and the reason `text()` can promise a `string` at all.
+    /// A body that is not UTF-8 arrives whole and is not repaired here —
+    /// whether it is text is `Core\Http\Response::text`'s question
+    /// (`rule:errors/ambiguous-input-refused`), and a reply the program only
+    /// wanted the octets of must not fail on the way to `bytes()`.
     #[test]
-    fn a_body_that_is_not_text_is_refused_rather_than_repaired() {
+    fn a_body_that_is_not_text_arrives_whole() {
         let mut raw = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n".to_vec();
         raw.extend_from_slice(&[0xff, 0xfe]);
-        let refused = parse(&raw, "test").expect_err("bytes that are not text");
-        assert!(format!("{refused:?}").contains("UTF-8"), "{refused:?}");
+        let reply = parse(&raw, "test").expect("bytes that are not text");
+        assert_eq!(reply.body, [0xff, 0xfe]);
     }
 
     /// A header a caller wrote cannot end its own line: a value carrying
@@ -1107,7 +1092,9 @@ mod tests {
         let answered = Rc::clone(&outcome);
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_ctx| {
             let answer = match send(&call(at, "test"), &mut never) {
-                Ok(reply) => format!("{} {}", reply.status, reply.body),
+                Ok(reply) => {
+                    format!("{} {}", reply.status, String::from_utf8_lossy(&reply.body))
+                }
                 Err(fault) => format!("{fault:?}"),
             };
             *answered.borrow_mut() = Some(answer);

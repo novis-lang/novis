@@ -211,6 +211,17 @@ const MESSAGE: &[CoreOption] = &[CoreOption {
 /// The status is a parameter and not an option because every answer has one —
 /// `rule:core-api/shape-rules` R2's bag is for what a call may leave out, and a
 /// reply with no status is not a reply.
+/// What a registered answer's `body` may be: text, or the octets of a reply
+/// that is not text at all.
+const ANSWER_BODY: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::Neutral)];
+
+/// What one entry of a registered answer's `headers` may be: the field's one
+/// line, or every line a reply carried under that name.
+const ANSWER_HEADER: &[CoreTy] = &[
+    CoreTy::Text(Qual::Neutral),
+    CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+];
+
 const ANSWER: &[CoreOption] = &[
     // `Const::NeverWritten` and not a `Null`, which is what a `mixed` option
     // owes `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`:
@@ -221,17 +232,23 @@ const ANSWER: &[CoreOption] = &[
         ty: CoreTy::Mixed,
         default: Const::NeverWritten,
     },
+    // `string|bytes` because a reply is where the two differ: an image or an
+    // archive is a body a test has to be able to register, and
+    // `Core\Http\Response::bytes` is the member that reads one back.
     CoreOption {
         name: "body",
-        ty: CoreTy::Text(Qual::Neutral),
+        ty: CoreTy::Union(ANSWER_BODY),
         default: Const::Null,
     },
-    // The same `array<string>` shape `Core\Http\Options` writes its request
-    // headers as, one door over, so a test registering a reply and a program
-    // making a call spell a header map the same way.
+    // The `array<string>` shape `Core\Http\Options` writes its request headers
+    // as, one door over, so a test registering a reply and a program making a
+    // call spell a header map the same way — widened by one arm, because a
+    // reply is the direction where a field arrives twice and a map keyed by
+    // name could hold only the second of them. A list under one key is those
+    // lines, and `Core\Http\Response::headers` is what reads them back.
     CoreOption {
         name: "headers",
-        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        ty: CoreTy::Array(&CoreTy::Union(ANSWER_HEADER)),
         default: Const::EmptyArray,
     },
 ];
@@ -705,15 +722,19 @@ const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "body",
-            desc: "The bytes the answer carries, for a reply that is not a JSON document. An \
-                   answer may name this or `json` and not both.",
+            desc: "The body the answer carries, for a reply that is not a JSON document — text, \
+                   or the octets of a reply that is not text at all, which is what \
+                   `Core\\Http\\Response::bytes` reads back and `::text` refuses. An answer may \
+                   name this or `json` and not both.",
             shape: &[],
         },
         ParamDoc {
             name: "headers",
             desc: "The headers the answer carries, keyed by name — the same shape \
-                   `Core\\Http\\Options` writes a request's headers in. A name is matched \
-                   case-insensitively, as a header name is.",
+                   `Core\\Http\\Options` writes a request's headers in, plus one arm it has no \
+                   use for: an array of strings under a name is a reply that carried that field \
+                   on that many lines, which is what `Core\\Http\\Response::headers` reads back. \
+                   A name is matched case-insensitively, as a header name is.",
             shape: &[],
         },
     ],
@@ -1281,6 +1302,65 @@ const STATUS_CEILING: u64 = 999;
 /// The `content-type` an answer written from `json` declares for itself.
 const JSON_CONTENT_TYPE: &str = "application/json";
 
+/// A registered answer's `headers` bag, as the field lines a reply carries:
+/// names lower-cased, and one entry per line rather than per name.
+///
+/// The lower-casing happens here and not in [`crate::http::headers_of`], which
+/// reads the *request* half of the same shape and keeps the names the program
+/// wrote. What this adds beyond that walk is [`ANSWER_HEADER`]'s second arm: a
+/// value that is itself a list registers that name's lines in order, which is
+/// the only way a table can say what a reply that repeated a field said.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a bag, an entry or a line that is not what
+/// [`ANSWER`] declares — all of them refused by `E0401` a phase earlier, so
+/// none is reachable from source.
+fn answer_headers_of(bag: Value, member: &str) -> Result<Vec<(String, String)>, Fault> {
+    let mistyped = |what: &str, value: Value| {
+        Fault::fatal(format!(
+            "{member} expected {what} for `headers`, got tag {}",
+            value.tag_byte()
+        ))
+    };
+    let array = bag.array_ptr().ok_or_else(|| mistyped("an `array`", bag))?;
+    let array = crate::arr::borrowed(array);
+    let mut headers = Vec::new();
+    let mut from = 0_usize;
+    while let Some(slot) = array.next_slot(from) {
+        from = slot + 1;
+        let key = array
+            .key_at(slot)
+            .expect("next_slot only names live entries");
+        // An array key is `int|string` and neither can be invalid UTF-8, for
+        // the reasons `Core\Str::replaceAll`'s own cursor states in full.
+        let name = std::str::from_utf8(key.as_bytes())
+            .map_err(|_| Fault::fatal(format!("{member} found a header name that is not text")))?
+            .to_ascii_lowercase();
+        let held = array
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        if let Some(line) = held.as_text() {
+            headers.push((name, line.to_owned()));
+            continue;
+        }
+        let lines = held
+            .array_ptr()
+            .ok_or_else(|| mistyped("a `string` or an `array<string>`", held))?;
+        let lines = crate::arr::borrowed(lines);
+        let mut at = 0_usize;
+        while let Some(inner) = lines.next_slot(at) {
+            at = inner + 1;
+            let line = lines
+                .value_at(inner)
+                .expect("next_slot only names live entries");
+            let line = line.as_text().ok_or_else(|| mistyped("a `string`", line))?;
+            headers.push((name.clone(), line.to_owned()));
+        }
+    }
+    Ok(headers)
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Test::answerHttp(string $url, uint $status, {json?, body?, headers?}): void`
     /// — `rule:testing/an-outbound-call-is-answered-from-a-table`, and the
@@ -1326,7 +1406,7 @@ nvs_runtime::nvs_helper! {
             ));
         }
 
-        let written = matches!(args[3].tag(), Some(Tag::Str));
+        let written = matches!(args[3].tag(), Some(Tag::Str | Tag::Bytes));
         let encoded = if matches!(args[2].tag(), Some(Tag::Unset)) {
             None
         } else {
@@ -1342,10 +1422,7 @@ nvs_runtime::nvs_helper! {
             ));
         }
 
-        let mut headers: Vec<(String, String)> = crate::http::headers_of(args, 4, member)?
-            .into_iter()
-            .map(|(name, value)| (name.to_ascii_lowercase(), value))
-            .collect();
+        let mut headers = answer_headers_of(args[4], member)?;
         let body = match encoded {
             Some(document) => {
                 if !headers.iter().any(|(name, _)| name == "content-type") {
@@ -1353,7 +1430,11 @@ nvs_runtime::nvs_helper! {
                 }
                 document.into_bytes()
             }
-            None => args[3].as_text().unwrap_or_default().as_bytes().to_vec(),
+            None => args[3]
+                .as_bytes()
+                .or_else(|| args[3].as_text().map(str::as_bytes))
+                .unwrap_or_default()
+                .to_vec(),
         };
 
         ctx.faked_http_mut().answer(nvs_runtime::HttpAnswer {

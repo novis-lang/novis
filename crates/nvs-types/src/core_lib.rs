@@ -1293,6 +1293,14 @@ mod tests {
     /// rather than over a signature. `Core\SignedCookie::open` is the one
     /// deliberate absence from that pair and is a launderer instead, because a
     /// payload this program sealed itself was already plain when it went in.
+    /// `Core\Http\Response`'s four are the roster read over a reply the program
+    /// itself asked for: pinning an address settles which host sent the bytes
+    /// and says nothing about what is in them, so the body carries the mark as
+    /// text and as octets, and so does every header line — a `Location` or a
+    /// `Content-Disposition` filename is attacker-shaped in exactly the way a
+    /// body is. Their sibling `status()` is the deliberate absence, and it is
+    /// this test read the other way once more: three digits carry nothing a
+    /// sink can misread.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1337,6 +1345,17 @@ mod tests {
                 (r"Core\Cli", "secret", "secret tainted string".to_owned(),),
                 (r"Core\Env", "all", "array<tainted string>".to_owned()),
                 (r"Core\Env", "get", "null|tainted string".to_owned()),
+                (r"Core\Http\Response", "bytes", "tainted bytes".to_owned(),),
+                (
+                    r"Core\Http\Response",
+                    "header",
+                    "null|tainted string".to_owned(),
+                ),
+                (
+                    r"Core\Http\Response",
+                    "headers",
+                    "array<tainted string>".to_owned(),
+                ),
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
                 (r"Core\IO", "stdin", "tainted string".to_owned()),
                 (r"Core\Jwe", "decrypt", "tainted string".to_owned()),
@@ -1418,7 +1437,8 @@ mod tests {
             ]),
             "the roster of members whose *answer* is qualified `tainted` is closed — a \
              verified claim, a verified signature's payload, a decrypted payload, an \
-             outbound reply's body, \
+             outbound reply's body as text and as octets, the two readers of that \
+             reply's header lines, \
              the two environment \
              reads, the two prompts that answer what a person typed, the words the program \
              was started with, everything attached to its standard input, the five reads of \

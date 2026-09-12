@@ -127,7 +127,7 @@ use std::time::{Duration, Instant};
 
 use fluent_uri::UriRef;
 use fluent_uri::component::{Authority, Scheme};
-use nvs_runtime::{Ctx, Fault, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 use nvs_syntax::duration;
 use rand::RngExt;
 
@@ -215,6 +215,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_http_part_bytes" => (nvs_core_http_part_bytes as *const ()).cast(),
         "nvs_core_http_response_status" => (nvs_core_http_response_status as *const ()).cast(),
         "nvs_core_http_response_text" => (nvs_core_http_response_text as *const ()).cast(),
+        "nvs_core_http_response_bytes" => (nvs_core_http_response_bytes as *const ()).cast(),
+        "nvs_core_http_response_header" => (nvs_core_http_response_header as *const ()).cast(),
+        "nvs_core_http_response_headers" => (nvs_core_http_response_headers as *const ()).cast(),
         _ => return None,
     })
 }
@@ -881,13 +884,23 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
 };
 
 /// What every request member answers with — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/retry-is-opt-in-jittered-and-closed`'s reply, as the
-/// two slots a transport fills and the two members that read them back.
+/// slots a transport fills and the members that read them back.
 ///
 /// `status` is a member rather than a property and `text` answers a `tainted`
-/// string; this module's own docs are the home of both decisions. The roster
-/// stops at two because a slot and the member that reads it are one decision
-/// — `a_class_with_slots_has_instance_members_and_the_reverse` is that rule —
-/// so the header map arrives with the transport that fills it.
+/// string; this module's own docs are the home of both decisions. **The body
+/// slot holds octets and `text` is what asks whether they are UTF-8**, so a
+/// reply that is not text is a reply `bytes` reads and `text` refuses, rather
+/// than a call that failed before either was written. Each slot arrives with
+/// the member that reads it —
+/// `a_class_with_slots_has_instance_members_and_the_reverse` is that rule — so
+/// the header map is a slot because `header` and `headers` are members.
+///
+/// **The header pair is two members and not one**, because a field the origin
+/// sent twice is two values: `header` joins them the way RFC 9110 § 5.3 makes
+/// them equivalent, and `headers` is the reading that answer cannot be
+/// recovered from. `Core\Request` splits the same question the same way, and
+/// `Set-Cookie` is the field where the join is wrong rather than lossy, so
+/// `header` refuses it by name.
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
     methods: &[],
@@ -910,8 +923,35 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
             symbol: "nvs_core_http_response_text",
             doc: Some(&TEXT_DOC),
         },
+        CoreMethod {
+            name: "bytes",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedBytes,
+            symbol: "nvs_core_http_response_bytes",
+            doc: Some(&BYTES_DOC),
+        },
+        CoreMethod {
+            name: "header",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            symbol: "nvs_core_http_response_header",
+            doc: Some(&HEADER_DOC),
+        },
+        CoreMethod {
+            name: "headers",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::TaintedStr),
+            symbol: "nvs_core_http_response_headers",
+            doc: Some(&HEADERS_DOC),
+        },
     ],
-    slots: &["status", "body"],
+    slots: &["status", "body", "headers"],
     constants: &[],
 };
 
@@ -920,6 +960,17 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
 const STATUS_SLOT: usize = 0;
 /// [`RESPONSE`]'s body slot. See [`STATUS_SLOT`].
 const BODY_SLOT: usize = 1;
+/// [`RESPONSE`]'s header slot, holding [`header_map`]'s array. See
+/// [`STATUS_SLOT`].
+const HEADERS_SLOT: usize = 2;
+
+/// The field `header` will not join, and the member it names instead.
+///
+/// A `Set-Cookie` line is not a comma-separated list: RFC 6265 § 3 exempts it
+/// from RFC 9110 § 5.3's equivalence, and an `Expires` attribute writes a comma
+/// of its own, so joining two of them produces a string that parses as neither
+/// cookie. Every other field either does not repeat or repeats as a list.
+const UNJOINABLE_FIELD: &str = "set-cookie";
 
 /// `Core\Http\Response::status`'s reference card — `rule:core-api/reference-card`.
 const STATUS_DOC: MethodDoc = MethodDoc {
@@ -939,6 +990,56 @@ const TEXT_DOC: MethodDoc = MethodDoc {
     ret: "The body, `tainted`: it is bytes another host chose, and a pinned address settles where \
           they came from rather than what is in them. A sink's own launderer is the way out of \
           it, and there is no generic one.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The body is not valid UTF-8, so it is not a `string`. It is not repaired: a \
+               replacement byte would hand a program a body that is not what the origin sent and \
+               no way to tell. `bytes` reads the same body without asking.",
+    }],
+};
+
+/// `Core\Http\Response::bytes`'s reference card — `rule:core-api/reference-card`.
+const BYTES_DOC: MethodDoc = MethodDoc {
+    short: "The reply's body as the octets that arrived, for the replies that are not text at all \
+            — an image, an archive, a signature.",
+    params: &[],
+    ret: "Every byte of the body, `tainted` for `text`'s reason and asking nothing of them: a \
+          reply that is not UTF-8 is read here and refused there, so which of the two a program \
+          calls is what decides whether the question is asked.",
+    errors: &[],
+};
+
+/// `Core\Http\Response::header`'s reference card — `rule:core-api/reference-card`.
+const HEADER_DOC: MethodDoc = MethodDoc {
+    short: "One reply header, read by a name that matches however the origin capitalised it — \
+            replacing `curl_getinfo`'s header string and the hand-written parse under it.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The field name, matched case-insensitively as RFC 9110 § 5.1 defines it.",
+        shape: &[],
+    }],
+    ret: "The field's value, `tainted` as every byte another host chose is, with a field the \
+          origin sent more than once joined by `, ` in arrival order; `null` where the reply \
+          carried no such field.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`Set-Cookie`, which is the one field that does not join — two cookies read as one \
+               are neither, so `headers` is what reads it.",
+    }],
+};
+
+/// `Core\Http\Response::headers`'s reference card — `rule:core-api/reference-card`.
+const HEADERS_DOC: MethodDoc = MethodDoc {
+    short: "Every line the reply carried under one name, kept apart — the reading a joined value \
+            cannot be recovered from, and the only way to read `Set-Cookie`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The field name, matched case-insensitively exactly as `header` matches it.",
+        shape: &[],
+    }],
+    ret: "One `tainted` entry per line, in arrival order, and an empty array where the reply \
+          carried no such field — so a field that arrived once answers a list of one rather than \
+          anything a caller has to tell apart.",
     errors: &[],
 };
 
@@ -1074,8 +1175,9 @@ const REQUEST_ERRORS: &[ErrorDoc] = &[
                duration, or a `retryAttempts` of zero. A header name or value carries a control \
                byte, which would end the line early. An `https` host presented a certificate that \
                does not verify against the authorities Novis carries, or one that is not valid for \
-               that name. Or the reply is not HTTP, is larger than one request may hold, \
-               or has a body that is not valid UTF-8. Where the verb is handed in rather than \
+               that name. Or the reply is not HTTP or is larger than one request may hold — \
+               a body that is not text is not one of these, and is refused at \
+               `Core\\Http\\Response::text` rather than here. Where the verb is handed in rather than \
                named — `request` — the two questions the other rows answer while compiling are \
                asked before the first attempt instead: a `Get` or a `Head` given a body key, and \
                a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.",
@@ -1823,9 +1925,67 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Va
         &RESPONSE,
         [
             Value::int(reply.status),
-            Value::str(NvsStr::new(reply.body.as_bytes())),
+            Value::bytes(NvsStr::new(&reply.body)),
+            header_map(&reply.headers),
         ],
     ))
+}
+
+/// The field lines of a reply, as [`RESPONSE`]'s header slot holds them: one
+/// entry per lower-cased name, each an array of that name's lines in arrival
+/// order.
+///
+/// Grouped here rather than read back out of a flat list at every call, because
+/// both readers of the slot ask the same question of it and a program asking
+/// twice would pay for the walk twice. The names arrive lower-cased from the
+/// parse and from the answer table alike, so the case rule RFC 9110 § 5.1
+/// states is one `to_ascii_lowercase` at the lookup and none here.
+///
+/// A linear scan over the groups already seen rather than a map, for
+/// `Core\Request`'s reason: one reply carries few distinct names, and a map
+/// would cost an allocation per group to save a comparison per line.
+fn header_map(lines: &[(String, String)]) -> Value {
+    let mut grouped: Vec<(&str, NvsArray)> = Vec::new();
+    for (name, value) in lines {
+        let held = Value::str(NvsStr::new(value.as_bytes()));
+        match grouped.iter_mut().find(|(seen, _)| *seen == name) {
+            Some((_, values)) => values.append(held),
+            None => {
+                let mut values = NvsArray::new();
+                values.append(held);
+                grouped.push((name, values));
+            }
+        }
+    }
+    let mut out = NvsArray::new();
+    for (name, values) in grouped {
+        out.set(NvsStr::new(name.as_bytes()), Value::array(values));
+    }
+    Value::array(out)
+}
+
+/// Every line the reply carried under `name`, as the two readers of
+/// [`HEADERS_SLOT`] both see them, or `None` where it carried no such field.
+///
+/// The lookup lower-cases what the caller wrote and nothing else: the slot's
+/// keys were lower-cased where they were parsed, so the comparison RFC 9110
+/// § 5.1 asks for is one allocation at the call rather than a walk that
+/// compares case-insensitively at every entry.
+fn field_lines(object: *mut nvs_runtime::ObjHeader, name: &str) -> Option<Vec<Vec<u8>>> {
+    let map = crate::instance::slot(object, HEADERS_SLOT).array_ptr()?;
+    let map = crate::arr::borrowed(map);
+    let values = map.get(name.to_ascii_lowercase().as_bytes())?.array_ptr()?;
+    let values = crate::arr::borrowed(values);
+    let mut lines = Vec::new();
+    let mut from = 0_usize;
+    while let Some(slot) = values.next_slot(from) {
+        from = slot + 1;
+        let held = values
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        lines.push(held.as_text().unwrap_or_default().as_bytes().to_vec());
+    }
+    Some(lines)
 }
 
 /// One call answered from a test's table —
@@ -1910,7 +2070,8 @@ fn faked(ctx: &mut Ctx, args: &[Value], named: &str, verb: &str) -> Result<Value
         &RESPONSE,
         [
             Value::int(i64::from(answer.status)),
-            Value::str(NvsStr::new(&answer.body)),
+            Value::bytes(NvsStr::new(&answer.body)),
+            header_map(&answer.headers),
         ],
     ))
 }
@@ -2052,22 +2213,79 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\Response::text(): tainted string` — `rule:http-server/retry-is-opt-in-jittered-and-closed`, `rule:security/tainted-qualifier`
     /// .
     ///
-    /// The slot is handed straight back with a reference taken, since the
-    /// transport decoded once already; `crate::instance::slot` borrows, and a
+    /// **The UTF-8 question is asked here and not by the transport**, because
+    /// it is this member's question: a reply that is not text still has octets
+    /// [`nvs_core_http_response_bytes`] can hand back, and a demand made while
+    /// reading the socket would refuse the whole call over a body the program
+    /// never meant to read as a string. Bytes that are not text are refused
+    /// rather than repaired (`rule:errors/ambiguous-input-refused`) — a
+    /// replacement byte is a body the origin did not send, with nothing to tell
+    /// a program so.
+    ///
+    /// The answer is the slot's own allocation retagged rather than copied: a
+    /// `string` and a `bytes` share one heap shape, the grapheme count is
+    /// computed on the first ask rather than at construction, and the tag is
+    /// the UTF-8 promise this member has just discharged.
+    ///
+    /// # Errors
+    ///
+    /// A `RuntimeError` for a body that is not UTF-8. A [`Fault::fatal`] naming
+    /// the member if the receiver is not a `Core\Http\Response` or its `body`
+    /// slot holds no `bytes` — both unreachable from source, exactly as in
+    /// [`nvs_core_http_response_status`].
+    fn nvs_core_http_response_text(_ctx, args: [1]) {
+        let object = crate::instance::receiver(args[0], &RESPONSE, "text")?;
+        let body = crate::instance::slot(object, BODY_SLOT);
+        let (octets, payload) = body
+            .as_bytes()
+            .zip(body.buffer_ptr())
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{RESPONSE_NAME}::text found a non-`bytes` `body` slot"
+                ))
+            })?;
+        if let Err(err) = std::str::from_utf8(octets) {
+            return Err(Fault::thrown(format!(
+                "{RESPONSE_NAME}::text: the reply's body is not valid UTF-8, so it is not a \
+                 `string` — byte {} is where it stops being text, and `bytes()` reads it whole",
+                err.valid_up_to()
+            )));
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the receiver owns a reference for the length of the call, so the \
+                      slot it holds is live, which is `Value::retain`'s whole obligation, \
+                      and the payload the fresh reference belongs to was just checked to \
+                      be well-formed UTF-8, which is `NvsStr`'s own invariant for a `Tag::Str`"
+        )]
+        unsafe {
+            body.retain();
+            Ok(Value::str(NvsStr::from_raw(payload)))
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Response::bytes(): tainted bytes` — the body's octets, and
+    /// the reader that asks nothing of them.
+    ///
+    /// The slot already holds them: [`nvs_core_http_response_text`] is where
+    /// the UTF-8 demand lives, so this is the tag the transport wrote handed
+    /// back with a reference taken. `crate::instance::slot` borrows, and a
     /// value returned to Novis code owes the retain.
     ///
     /// # Errors
     ///
     /// A [`Fault::fatal`] naming the member if the receiver is not a
-    /// `Core\Http\Response` or its `body` slot holds no `string` — both
+    /// `Core\Http\Response` or its `body` slot holds no `bytes` — both
     /// unreachable from source, exactly as in
     /// [`nvs_core_http_response_status`].
-    fn nvs_core_http_response_text(_ctx, args: [1]) {
-        let object = crate::instance::receiver(args[0], &RESPONSE, "text")?;
+    fn nvs_core_http_response_bytes(_ctx, args: [1]) {
+        let object = crate::instance::receiver(args[0], &RESPONSE, "bytes")?;
         let body = crate::instance::slot(object, BODY_SLOT);
-        if body.as_text().is_none() {
+        if body.as_bytes().is_none() {
             return Err(Fault::fatal(format!(
-                "{RESPONSE_NAME}::text found a non-`string` `body` slot"
+                "{RESPONSE_NAME}::bytes found a non-`bytes` `body` slot"
             )));
         }
         #[expect(
@@ -2082,6 +2300,80 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Response::header(string $name): ?tainted string` —
+    /// `rule:security/tainted-qualifier`'s reply half, read one field at a time.
+    ///
+    /// The join is RFC 9110 § 5.3's own equivalence, in arrival order, and it
+    /// is the reading a program almost always wants: a `content-type` the
+    /// origin sent twice means what the two lines say together. `Set-Cookie` is
+    /// the field the equivalence does not cover ([`UNJOINABLE_FIELD`]), so it
+    /// throws rather than answering a string that parses as neither cookie —
+    /// and it throws whether or not the reply carried one, because a rule that
+    /// depended on what arrived is a rule no program could be written against.
+    ///
+    /// # Errors
+    ///
+    /// A `LogicError` naming `headers` for `Set-Cookie`. A [`Fault::fatal`]
+    /// naming the member for a receiver that is not a `Core\Http\Response` or a
+    /// `$name` that is not text, both unreachable from source exactly as in
+    /// [`nvs_core_http_response_status`].
+    fn nvs_core_http_response_header(_ctx, args: [2]) {
+        let object = crate::instance::receiver(args[0], &RESPONSE, "header")?;
+        let name = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{RESPONSE_NAME}::header expected a `string` name, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        if name.eq_ignore_ascii_case(UNJOINABLE_FIELD) {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{RESPONSE_NAME}::header(): a `Set-Cookie` line is not part of RFC 9110 \
+                     § 5.3's comma equivalence and two of them joined parse as neither cookie \
+                     — `headers(\"set-cookie\")` answers them one line each"
+                ),
+            ));
+        }
+        Ok(match field_lines(object, name) {
+            None => Value::null(),
+            Some(lines) => Value::str(NvsStr::new(&lines.join(&b", "[..]))),
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Response::headers(string $name): array<tainted string>` —
+    /// [`nvs_core_http_response_header`]'s other half, keeping apart what that
+    /// one joins.
+    ///
+    /// A field that arrived once answers a list of one and a field that never
+    /// arrived an empty list, so nothing here is nullable: the absence a caller
+    /// asks about is `Core\Arr::count`'s zero, and a `?array` would add a
+    /// second spelling of the same emptiness
+    /// (`rule:core-api/shape-rules` R5).
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_core_http_response_header`]'s two fatals, and no throw: `headers`
+    /// is what that member's `Set-Cookie` refusal names.
+    fn nvs_core_http_response_headers(_ctx, args: [2]) {
+        let object = crate::instance::receiver(args[0], &RESPONSE, "headers")?;
+        let name = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{RESPONSE_NAME}::headers expected a `string` name, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        let mut out = NvsArray::new();
+        for line in field_lines(object, name).unwrap_or_default() {
+            out.append(Value::str(NvsStr::new(&line)));
+        }
+        Ok(Value::array(out))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::ErrorKind;
@@ -2093,9 +2385,9 @@ mod tests {
 
     use super::{
         BODY_OPTION, BODY_OPTIONS, BODY_SLOT, CONNECT_TIMEOUT, CONTENT_TYPE_OPTION, DEADLINE,
-        FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, JSON_OPTION, MULTIPART_OPTION, OPTIONS,
-        REQUEST_ARITY, RESPONSE, RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION, RETRY_BACKOFF, RETRY_KEY,
-        RETRY_KEY_OPTION, STATUS_SLOT, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT,
+        FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, HEADERS_SLOT, JSON_OPTION, MULTIPART_OPTION,
+        OPTIONS, REQUEST_ARITY, RESPONSE, RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION, RETRY_BACKOFF,
+        RETRY_KEY, RETRY_KEY_OPTION, STATUS_SLOT, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT,
     };
 
     /// The grant every case here starts from: the host is reachable and no
@@ -2119,6 +2411,7 @@ mod tests {
     fn a_responses_slot_constants_are_the_names_it_declares() {
         assert_eq!(STATUS_SLOT, RESPONSE.slot("status"));
         assert_eq!(BODY_SLOT, RESPONSE.slot("body"));
+        assert_eq!(HEADERS_SLOT, RESPONSE.slot("headers"));
     }
 
     /// Every option's ABI slot is its own position in the bag — the two tests
