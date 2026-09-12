@@ -359,6 +359,14 @@ const KEY_PAIR_PKCS8_SLOT: usize = 0;
 /// given, which a PKCS#8 no more carries than a `SubjectPublicKeyInfo` does.
 const KEY_PAIR_KIND_SLOT: usize = 1;
 
+// The two key classes have one layout between them — the encoded key, then its
+// kind — which is what lets [`stored_key`] read either of them. A slot pair that
+// drifted apart would make that function silently read a kind out of a key.
+const _: () = assert!(
+    PUBLIC_KEY_SPKI_SLOT == KEY_PAIR_PKCS8_SLOT && PUBLIC_KEY_KIND_SLOT == KEY_PAIR_KIND_SLOT,
+    "the two key classes are read by one function, so their slots are one layout"
+);
+
 /// A key's length in octets — XChaCha20-Poly1305's only key size and AES-256's,
 /// so this is the constructions' number rather than a choice of ours, and one
 /// generated key keys either of them.
@@ -428,24 +436,10 @@ pub(crate) const SHARED_LEN: usize = 32;
 /// end implements the name, not because anything in this module encrypts under
 /// AES-128: a wrap is not a cipher a program can reach, and the roster's own
 /// ciphers are both 256-bit.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
-    )
-)]
 pub(crate) const KW_128_KEY_LEN: usize = 16;
 
 /// What a wrapped [`KEY_LEN`]-octet key is, in octets — RFC 3394 adds one
 /// 64-bit semiblock, which is the integrity check an unwrap verifies.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
-    )
-)]
 pub(crate) const WRAPPED_LEN: usize = KEY_LEN + 8;
 
 /// A P-256 point's length in octets in the uncompressed SEC1 encoding: the
@@ -2420,13 +2414,6 @@ fn trimmed(octets: &[u8]) -> &[u8] {
 /// The two key-encryption key widths are JWE's, not a choice: `A128KW` is what
 /// `PBES2-HS256+A128KW` names, and the wider one is what the same wrap looks
 /// like under a key this module's own derivations answer.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
-    )
-)]
 pub(crate) fn wrap_key(kek: &[u8], key: &[u8; KEY_LEN]) -> Option<[u8; WRAPPED_LEN]> {
     let mut wrapped = [0_u8; WRAPPED_LEN];
     let wrote = match kek.len() {
@@ -2452,13 +2439,6 @@ pub(crate) fn wrap_key(kek: &[u8], key: &[u8; KEY_LEN]) -> Option<[u8; WRAPPED_L
 /// the single sentence `rule:security/verification-throws-and-compares-in-constant-time`
 /// asks for, and telling the three apart there would say which half of a forgery
 /// landed.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
-    )
-)]
 pub(crate) fn unwrap_key(kek: &[u8], wrapped: &[u8]) -> Option<[u8; KEY_LEN]> {
     if wrapped.len() != WRAPPED_LEN {
         return None;
@@ -2493,13 +2473,6 @@ pub(crate) fn unwrap_key(kek: &[u8], wrapped: &[u8]) -> Option<[u8; KEY_LEN]> {
 /// field, so a caller cannot ask for one length and label it another. The module
 /// doc's *two pieces* section is why this exists beside [`expand_key`] rather
 /// than instead of it.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
-    )
-)]
 pub(crate) fn concat_kdf(
     shared: &[u8],
     algorithm: &str,
@@ -2839,7 +2812,11 @@ const P256_DRAWS: usize = 8;
 /// A `LogicError` for either RSA kind, which this member draws none of, and a
 /// [`Fault::fatal`] where the encoder or the generator fails — neither
 /// reachable from a program, and both explained where they are raised.
-fn generated_pkcs8(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> Result<Vec<u8>, Fault> {
+pub(crate) fn generated_pkcs8(
+    ctx: &mut nvs_runtime::Ctx,
+    kind: KeyKind,
+    who: &str,
+) -> Result<Vec<u8>, Fault> {
     let curve25519 = |ctx: &mut nvs_runtime::Ctx, prefix: &[u8]| {
         let mut scalar = [0_u8; KEY_LEN];
         crate::random::draw(ctx, |rng| rng.fill_bytes(&mut scalar));
@@ -2860,15 +2837,13 @@ fn generated_pkcs8(ctx: &mut nvs_runtime::Ctx, kind: KeyKind) -> Result<Vec<u8>,
                 // over a scalar and a point the crate has just produced itself.
                 let der = secret.to_pkcs8_der().map_err(|_| {
                     Fault::fatal(format!(
-                        "{NAME}::generateKeyPair could not write a PKCS#8 for the P-256 scalar \
-                         it had just drawn"
+                        "{who} could not write a PKCS#8 for the P-256 scalar it had just drawn"
                     ))
                 })?;
                 return Ok(der.as_bytes().to_vec());
             }
             Err(Fault::fatal(format!(
-                "{NAME}::generateKeyPair drew {P256_DRAWS} strings and not one of them was a \
-                 P-256 scalar"
+                "{who} drew {P256_DRAWS} strings and not one of them was a P-256 scalar"
             )))
         }
         KeyKind::RsaPkcs1 | KeyKind::RsaPss => Err(rsa_is_never_drawn()),
@@ -2899,7 +2874,7 @@ fn rsa_is_never_drawn() -> Fault {
 /// octets: which of the two a refusal is says who made the mistake, and that is
 /// what the member above turns into a `LogicError` or a `RuntimeError`.
 #[derive(Debug)]
-enum NoAgreement {
+pub(crate) enum NoAgreement {
     /// These two keys are not two ends of one agreement — a private key of a
     /// kind that agrees nothing, or two keys on different curves. The call is
     /// wrong however sound both keys are.
@@ -2918,7 +2893,10 @@ enum NoAgreement {
 /// read, and X25519's refusal is on the way out — so the branch that can answer
 /// [`NoAgreement::Point`] is the X25519 one, and P-256's `None` is a scalar
 /// this module has itself already parsed twice and is therefore not reachable.
-fn agree(mine: &PrivateKey, theirs: &PublicKey) -> Result<[u8; SHARED_LEN], NoAgreement> {
+pub(crate) fn agree(
+    mine: &PrivateKey,
+    theirs: &PublicKey,
+) -> Result<[u8; SHARED_LEN], NoAgreement> {
     match (mine, theirs) {
         (PrivateKey::P256(secret), PublicKey::P256 { point, .. }) => {
             agree_p256(&secret.to_bytes(), point).ok_or(NoAgreement::Keys)
@@ -3143,7 +3121,7 @@ nvs_runtime::nvs_helper! {
     /// from and which kinds there are none for.
     fn nvs_core_crypto_generate_key_pair(ctx, args: [1]) {
         let kind = key_kind_of(args, 0, NAME, "generateKeyPair")?;
-        let der = generated_pkcs8(ctx, kind)?;
+        let der = generated_pkcs8(ctx, kind, "Core\\Crypto::generateKeyPair")?;
         nvs_runtime::affordable(Some(der.len()), "Core\\Crypto::generateKeyPair")?;
         Ok(crate::instance::build(
             &KEY_PAIR,
@@ -3558,6 +3536,70 @@ fn pair_of(args: &[Value], index: usize, member: &str) -> Result<PrivateKey, Fau
     // Unreachable from source: the slot holds the DER the read above stored,
     // after a parse that had already succeeded over the same kind.
     PrivateKey::read(der, kind).ok_or_else(|| slot_fault(KEY_PAIR_PKCS8_SLOT, "a private key"))
+}
+
+/// The encoded key and the kind a [`PUBLIC_KEY`] or [`KEY_PAIR`] receiver in
+/// `args[index]` holds, without parsing either of them.
+///
+/// One function over both classes because they are one layout — the assertion
+/// beside the slot constants is what holds that — and it is borrowed rather
+/// than parsed because its caller is [`crate::jwe`], which **stores** the
+/// octets in a `Jwe\Key` rather than using them: a key validated at
+/// `Core\Crypto\PublicKey::read` is copied across as it stands, so nothing is
+/// re-derived and nothing is less checked on the other side.
+///
+/// The [`Value`] is borrowed from the receiver, which the argument slot holds a
+/// reference to for the length of the call, so the caller reads it in passing
+/// and owes it nothing ([`crate::instance::slot`]).
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver or a kind slot of the wrong tag, neither of
+/// which compiled code produces: the parameter's declared type is checked before
+/// any of this runs, and the slots are this module's own.
+pub(crate) fn stored_key(
+    args: &[Value],
+    index: usize,
+    class: &'static CoreClass,
+    member: &str,
+) -> Result<(Value, KeyKind), Fault> {
+    let receiver = crate::instance::receiver(args[index], class, member)?;
+    let held = crate::instance::slot(receiver, PUBLIC_KEY_SPKI_SLOT);
+    // Unreachable from source: both classes' readers write a `KEY_KIND`
+    // constant into this slot and nothing else writes one at all.
+    let kind = crate::instance::slot(receiver, PUBLIC_KEY_KIND_SLOT)
+        .as_int()
+        .and_then(KeyKind::from_tag)
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{}::{member} expected a `{KEY_KIND_NAME}` case in its `{}` slot",
+                class.name, class.slots[PUBLIC_KEY_KIND_SLOT]
+            ))
+        })?;
+    Ok((held, kind))
+}
+
+/// The octets the [`stored_key`] value holds.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot that is not a `bytes`, which [`stored_key`]'s
+/// doc says no program reaches.
+pub(crate) fn stored_octets<'a>(
+    held: &'a Value,
+    class: &'static CoreClass,
+    member: &str,
+) -> Result<&'a [u8], Fault> {
+    // Unreachable from source: both classes' readers write a `Value::bytes`
+    // into this slot, having parsed the key first.
+    held.as_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{}::{member} expected a `bytes` in its `{}` slot, got tag {}",
+            class.name,
+            class.slots[PUBLIC_KEY_SPKI_SLOT],
+            held.tag_byte()
+        ))
+    })
 }
 
 nvs_runtime::nvs_helper! {
