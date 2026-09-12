@@ -808,8 +808,8 @@ of the known hole named above rather than rows this section is missing. What is 
 | `hash_file` | member | `Core\Hash::of` over `Core\IO::read` where the file fits, `Core\Hash::stream` fed from `Core\IO::open`'s handle where it does not. Reading and digesting are two jobs (R17) |
 | `hash_update_file` | member | the same pair |
 | `hash_update_stream` | member | `$stream->update`, given the bytes. There is no stream type to hand it, because anything that yields `bytes` already qualifies (`rule:iteration/two-interfaces`) |
-| `hash_hkdf` | member | `Core\Crypto` ([01 § 16](01-core-library.md)), where deriving a key sits beside the primitives that consume one |
-| `hash_pbkdf2` | dropped | storing a password is `Core\Password::hash`, which writes Argon2id and takes no cost parameters from the call site (`rule:security/bcrypt-read-roster`). Where PBKDF2 derived a key rather than stored a password, that is `Core\Crypto` |
+| `hash_hkdf` | member | `Core\Crypto::expandKey` ([01 § 16](01-core-library.md)), where deriving a key sits beside the primitives that consume one. The digest and the output length are the library's; what stays on the call is `$info`, the context that separates two keys drawn from one secret |
+| `hash_pbkdf2` | member | `Core\Crypto::deriveKey`, whose iteration count is required and bounded on both sides and whose digest, length and raw-or-hex flag are gone. Storing a password is not this member: that is `Core\Password::hash`, which writes Argon2id and takes no cost parameters from the call site (`rule:security/bcrypt-read-roster`) |
 | `md5` | member | `Core\Hash::of` with `Digest::Md5`, which the roster keeps for interop and labels collision-broken |
 | `md5_file` | member | the same, over `Core\IO::read` |
 | `sha1` | member | `Core\Hash::of` with `Digest::Sha1` |

@@ -2,46 +2,56 @@
 
 ## State
 
-**Goal `webcrypto` — stage 4 has opened: `Core\Crypto::seal` and `::open` take a required
-`Core\Crypto\Cipher`.** The enum is `crates/nvs-stdlib/src/crypto.rs:407` — `XChaCha20Poly1305` and
-`Aes256Gcm`, no default — registered in `ENUMS` at `crates/nvs-stdlib/src/registry.rs:2515`, and `keyed`
-splits on it, so `gcm_cipher`, `gcm_seal_under` and `gcm_open_under` are reachable from a member and have
-dropped their `expect(dead_code)` markers. Every call site moved in the same commit: `examples/crypto.nvs`,
-the six conformance cases (one renamed, as the goal's stage-4 check names it) and
-`docs/reference/core/Crypto.md`'s example.
+**Goal `webcrypto` — stage 4's member half is on disk.** `Core\Crypto` holds five rows
+(`crates/nvs-stdlib/src/crypto.rs:402`): `generateKey`, `seal`, `open`, and now `deriveKey` and
+`expandKey` over the crate-private `derive_key`/`expand_key`, which have dropped their
+`expect(dead_code)` markers along with `DERIVED_LEN`, the two iteration bounds, `MIN_SALT_LEN` and
+`pbkdf2_sha256`. `derive_key` takes its count as a `u64` so a number past the ceiling is reported as
+the number that was written rather than wrapped into a plausible one.
 
-**Stage 3's one unbuilt row is still the JWK thumbprint** — no function, no test. Everything else stage 3
-names is on disk and asserted against published vectors, still carrying
-`#[cfg_attr(not(test), expect(dead_code, …))]` until its row lands. Nothing is blocked.
+**A row can now spell `secret string`**: `CoreTy::SecretText(Qual)`
+(`crates/nvs-stdlib/src/registry.rs:319`), `SecretBlob`'s twin on the text base, interned as
+`Ty::SecretString` by `crates/nvs-types/src/core_lib.rs:431`. It exists because `deriveKey`'s
+password is `secret` and nothing could write one: `CoreTy::Text` refuses a `secret` argument, and
+`Qual::Reveal` — the only mark that admits one — is closed to `Core\Secret` and `Core\Password`
+because it *removes* the qualifier.
+
+Stage 3's one unbuilt row is still the JWK thumbprint. `examples/webcrypto.nvs`, which the driver's
+acceptance check names, is stage 7's fixture and is written last. Nothing is blocked.
 
 ## Next group
 
-**Stage 4: the two derivations take their rows** — one file set: `crates/nvs-stdlib/src/crypto.rs` and
-two new `tests/conformance/core/crypto-*.nvst` cases. The five edits are
-`docs/agent/conventions.md` § *A `Core` member*, and `seal`'s new row is the worked example for a
-required enum argument with `defaults: &[]`.
+**Stage 4: the key kinds and the two key classes** — one file set:
+`crates/nvs-stdlib/src/crypto.rs`, `crates/nvs-stdlib/src/registry.rs` and new
+`tests/conformance/core/crypto-*.nvst` cases. The goal's § *Standing decisions* fixes every signature;
+`docs/agent/conventions.md` § *A `Core` member* is the five edits, and `deriveKey`'s row is the worked
+example of a required argument with `defaults: &[]`.
 
-- [ ] **`deriveKey` and `expandKey` become rows** — `crates/nvs-stdlib/src/crypto.rs:402`'s `methods`
-      gains both before `instance: &[]` at `crates/nvs-stdlib/src/crypto.rs:447`, with cards beside
-      `OPEN_DOC` and arms in `address` at `crates/nvs-stdlib/src/crypto.rs:543`. The bodies wrap
-      `derive_key` at `crates/nvs-stdlib/src/crypto.rs:793` and `expand_key` at
-      `crates/nvs-stdlib/src/crypto.rs:834`, both of which already hold the bounds and answer
-      `CoreTy::SecretBytes`; the `expect(dead_code)` on each is what deletes itself.
-      `rule:security/secret-qualifier` is what the answers' type is held to, and the goal's
-      § *Standing decisions* fixes that the iteration count is required and unbounded by no default.
-- [ ] **`crypto-pbkdf2-refuses-an-iteration-count-or-salt-outside-its-bounds.nvst`** — the bound named on
-      both sides at each edge: 99,999 refused beside 100,000 accepted, 2,000,001 beside 2,000,000, and a
-      15-octet salt beside a 16-octet one, each a `LogicError` because the program chose the number.
-      `crates/nvs-stdlib/src/crypto.rs:793` raises them; `rule:core-api/failure-throws` is the shape.
-- [ ] **`crypto-derived-and-agreed-keys-are-secret-bytes.nvst`** — one question asked of `generateKey`,
-      `deriveKey` and `expandKey`: each answer keys a `seal` and none of them assigns to a plain `bytes`.
-      `rule:security/secret-qualifier` is the rule; `crates/nvs-stdlib/src/crypto.rs:402` is the roster it
-      is asked of. The agreement half waits on `generateKeyPair`, so this case takes the derivations now
-      and the name still fits.
+- [ ] **`Crypto\KeyKind` becomes an enum** beside `CIPHER` at `crates/nvs-stdlib/src/crypto.rs:366`,
+      registered in `ENUMS` at `crates/nvs-stdlib/src/registry.rs:2522` with its `EnumDoc` — `P256`,
+      `X25519`, `Ed25519`, `RsaPkcs1` and `RsaPss`, no default. It maps onto `SignatureKind` at
+      `crates/nvs-stdlib/src/crypto.rs:1241`, which already holds the four signature schemes, and the
+      two RSA cases are `rule:security/algorithm-comes-from-the-key` held for the one key type two
+      JWS algorithms share.
+- [ ] **`Crypto\PublicKey` and `Crypto\KeyPair` become classes** in `crypto.rs`, over
+      `read_p256_point` at `crates/nvs-stdlib/src/crypto.rs:1016` and `read_signing_key` at
+      `crates/nvs-stdlib/src/crypto.rs:1285`. `Core\Hash\Stream` at
+      `crates/nvs-stdlib/src/hash.rs:447` is the worked example of a class with `instance:` members
+      and `slots:`; `rule:core-api/shape-rules` R14 is why a key is an object at all. Every public key
+      is validated at `read` — the goal's § *Standing decisions* fixes which failure is a
+      `RuntimeError` and which a `LogicError`.
+- [ ] **`generateKeyPair` and `agree` become rows**, over `agree_x25519` at
+      `crates/nvs-stdlib/src/crypto.rs:994` and `agree_p256` at `crates/nvs-stdlib/src/crypto.rs:1031`,
+      both of which already refuse the all-zero shared secret. `generateKeyPair` refuses both RSA
+      kinds with a `LogicError` naming `KeyPair::read`, and `agree` answers a coordinate meant for
+      `expandKey` — `rule:security/secret-qualifier` is what the answer's type is held to.
 
 ## Backlog
 
-- The JWK thumbprint, stage 3's unbuilt row — `docs/agent/goals/47-webcrypto.md` § stage 3.
-- `Crypto\KeyKind`, `Crypto\KeyFormat` and the two key classes — the same five edits, stage 4's larger half.
-- `Core\Crypto::sign` and `::verify` over the four signature algorithms already on disk — stage 4.
-- `examples/webcrypto.nvs`, the goal's one missing fixture — stage 7, and the acceptance check that fails today.
+- `Crypto::sign`/`verify` rows over `sign` (`crates/nvs-stdlib/src/crypto.rs:1326`) and
+  `verify_signature` (`:1205`) — stage 4's last pair, after the key classes.
+- The JWK thumbprint, stage 3's one unbuilt row — no function, no test (docs/agent/loop-goal.md § Stage 3).
+- `examples/webcrypto.nvs`, the goal's stage 7 `exact` fixture (docs/agent/loop-goal.md § Stage 7).
+- No reject case pins the *admission* side of `CoreTy::SecretText`: that a `secret string` reaches
+  `deriveKey` where a plain `string` parameter would refuse it (`rule:security/secret-qualifier`).
+- `docs/reference/core/Crypto.md` owes a third section when the key classes land.

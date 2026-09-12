@@ -1,6 +1,6 @@
 ---
 summary: authenticated encryption under a cipher named by a closed enum, with no mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted
-keywords: crypto, encrypt, decrypt, seal, open, generateKey, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated
+keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf
 ---
 
 `Core\Crypto` names its cipher with a case of `Core\Crypto\Cipher` and never with a string.
@@ -90,4 +90,62 @@ a fresh nonce every time
 tamper refused
 the wrong key is refused
 the wrong cipher is refused
+```
+
+## Two derivations, and which one a value belongs to
+
+A key comes from one of three places: it is drawn, it is stretched out of something a person chose, or
+it is spread out of something already uniform. `::generateKey` draws, `::deriveKey` stretches with
+PBKDF2-HMAC-SHA256, and `::expandKey` spreads with HKDF-SHA256. All three answer the same 32 octets, so
+whichever one produced a key, `::seal` takes it.
+
+**They are not interchangeable, and the difference is what the input is.** A password has little entropy
+and is guessed offline, so stretching it is slow on purpose: the iteration count is a required argument,
+refused below 100,000 and above 2,000,000, and the salt is at least 16 octets. Nothing about a
+`Core\Crypto::expandKey` call is slow — it is two HMAC runs — because the secret going into it is already
+uniform, which a password is not. No type tells the two apart, so this is the one choice here a program
+makes for itself.
+
+`$info` is what makes one root secret into as many keys as a program has uses for. Two calls over one
+secret with different context strings answer unrelated keys, which is how a service stops reusing one
+secret at two call sites without storing a second one.
+
+```nvs
+<?nvs
+// A password is stretched. The count is the call's, because whoever wrote a
+// derived key down is the one who chose what it was derived under.
+bytes $salt = Core\Random::bytes(16);
+secret bytes $fromPassword = Core\Crypto::deriveKey("correct horse battery staple", $salt, 100000);
+
+// Material that is already uniform is spread instead, and `$info` keeps two
+// uses of one secret apart.
+secret bytes $root = Core\Crypto::generateKey();
+secret bytes $forCookies = Core\Crypto::expandKey($root, $salt, "cookies");
+secret bytes $forTokens = Core\Crypto::expandKey($root, $salt, "tokens");
+if ($forCookies != $forTokens) {
+    echo "one secret, two keys\n";
+}
+
+// Either answer is a key like any other, and is a `secret bytes` like any
+// other: neither derivation is a way out of the qualifier.
+bytes $message = "attack at dawn" as bytes;
+bytes $sealed = Core\Crypto::seal($message, $fromPassword, Core\Crypto\Cipher::XChaCha20Poly1305);
+if (Core\Crypto::open($sealed, $fromPassword, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+    echo "a derived key seals like a drawn one\n";
+}
+
+// The count is bounded on both sides. Under the floor the answer is cheap to
+// attack; over the ceiling one call is a denial of service against the process
+// that made it, which is what stops a token naming its own.
+try {
+    secret bytes $cheap = Core\Crypto::deriveKey("correct horse battery staple", $salt, 1000);
+    echo "1000 rounds accepted\n";
+} catch (LogicError $outside) {
+    echo "1000 rounds refused\n";
+}
+```
+```output
+one secret, two keys
+a derived key seals like a drawn one
+1000 rounds refused
 ```

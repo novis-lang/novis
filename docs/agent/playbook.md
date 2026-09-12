@@ -6386,6 +6386,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   is generic over before pinning it, and name the matching hash through the root manifest's
   `sha2-v11` row rather than downgrading the crate, which would only add a duplicate.
   [until: gone Cargo.toml:sha2-v11]
+- **A new `CoreTy` variant is one edit in `registry.rs` and four outside it.** The enum is
+  `#[non_exhaustive]`, which does nothing inside its own crate, so `ast.rs`'s `mentions` walk and
+  `xml.rs`'s two — `mentions` and `every_text_position_is_tainted` — and `nvs-types`'
+  `core_lib::lower` all stop compiling, while `classification`, `spelled` and `is_text_like` in
+  `registry.rs` itself keep compiling and quietly answer wrong for the new spelling. Grep a rare
+  variant (`CoreTy::SecretTaintedStr`) to get every arm in one call rather than chasing the compiler
+  through them one at a time, and check the three `registry.rs` methods by hand.
+  [until: reviewed 2026-09-12]
 
 ## Divergences and refusals already pinned
 

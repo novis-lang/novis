@@ -18503,7 +18503,7 @@ Reports whether `$hash` is weaker than what `hash` would write today — a diffe
 <a id="core-core-crypto"></a>
 ### `Core\Crypto`
 
-Keywords: crypto, encrypt, decrypt, seal, open, generateKey, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, generateKey, seal, open
+Keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf, generateKey, seal, open, deriveKey, expandKey
 
 `Core\Crypto` names its cipher with a case of `Core\Crypto\Cipher` and never with a string.
 `openssl_encrypt($data, "aes-256-cbc", $key, 0, $iv)` puts the primitive in a string and the nonce at
@@ -18594,11 +18594,71 @@ the wrong key is refused
 the wrong cipher is refused
 ```
 
+##### Two derivations, and which one a value belongs to
+
+A key comes from one of three places: it is drawn, it is stretched out of something a person chose, or
+it is spread out of something already uniform. `::generateKey` draws, `::deriveKey` stretches with
+PBKDF2-HMAC-SHA256, and `::expandKey` spreads with HKDF-SHA256. All three answer the same 32 octets, so
+whichever one produced a key, `::seal` takes it.
+
+**They are not interchangeable, and the difference is what the input is.** A password has little entropy
+and is guessed offline, so stretching it is slow on purpose: the iteration count is a required argument,
+refused below 100,000 and above 2,000,000, and the salt is at least 16 octets. Nothing about a
+`Core\Crypto::expandKey` call is slow — it is two HMAC runs — because the secret going into it is already
+uniform, which a password is not. No type tells the two apart, so this is the one choice here a program
+makes for itself.
+
+`$info` is what makes one root secret into as many keys as a program has uses for. Two calls over one
+secret with different context strings answer unrelated keys, which is how a service stops reusing one
+secret at two call sites without storing a second one.
+
+```nvs
+<?nvs
+// A password is stretched. The count is the call's, because whoever wrote a
+// derived key down is the one who chose what it was derived under.
+bytes $salt = Core\Random::bytes(16);
+secret bytes $fromPassword = Core\Crypto::deriveKey("correct horse battery staple", $salt, 100000);
+
+// Material that is already uniform is spread instead, and `$info` keeps two
+// uses of one secret apart.
+secret bytes $root = Core\Crypto::generateKey();
+secret bytes $forCookies = Core\Crypto::expandKey($root, $salt, "cookies");
+secret bytes $forTokens = Core\Crypto::expandKey($root, $salt, "tokens");
+if ($forCookies != $forTokens) {
+    echo "one secret, two keys\n";
+}
+
+// Either answer is a key like any other, and is a `secret bytes` like any
+// other: neither derivation is a way out of the qualifier.
+bytes $message = "attack at dawn" as bytes;
+bytes $sealed = Core\Crypto::seal($message, $fromPassword, Core\Crypto\Cipher::XChaCha20Poly1305);
+if (Core\Crypto::open($sealed, $fromPassword, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+    echo "a derived key seals like a drawn one\n";
+}
+
+// The count is bounded on both sides. Under the floor the answer is cheap to
+// attack; over the ceiling one call is a denial of service against the process
+// that made it, which is what stops a token naming its own.
+try {
+    secret bytes $cheap = Core\Crypto::deriveKey("correct horse battery staple", $salt, 1000);
+    echo "1000 rounds accepted\n";
+} catch (LogicError $outside) {
+    echo "1000 rounds refused\n";
+}
+```
+```output
+one secret, two keys
+a derived key seals like a drawn one
+1000 rounds refused
+```
+
 | Member | Signature |
 |---|---|
 | [`Core\Crypto::generateKey`](#core-core-crypto-generatekey) | `generateKey(): secret bytes` |
 | [`Core\Crypto::seal`](#core-core-crypto-seal) | `seal(bytes $message, secret bytes $key, Core\Crypto\Cipher $cipher): bytes` |
 | [`Core\Crypto::open`](#core-core-crypto-open) | `open(bytes $sealed, secret bytes $key, Core\Crypto\Cipher $cipher): bytes` |
+| [`Core\Crypto::deriveKey`](#core-core-crypto-derivekey) | `deriveKey(secret string $password, bytes $salt, uint $iterations): secret bytes` |
+| [`Core\Crypto::expandKey`](#core-core-crypto-expandkey) | `expandKey(secret bytes $material, bytes $salt, string $info): secret bytes` |
 
 <a id="core-core-crypto-generatekey"></a>
 #### `Core\Crypto::generateKey`
@@ -18648,6 +18708,42 @@ Authenticates `$sealed` under `$key` and `$cipher` and answers the plaintext, or
 **Returns** `bytes` — The original plaintext, byte for byte.
 
 **Throws** `LogicError` — `$key` is not 32 octets long — a `bytes` that was never a key.; `RuntimeError` — `$sealed` is not an authentic message under `$key` and `$cipher` — it was altered, it is too short to be one at all, or the key or the cipher is the wrong one. They are one message on purpose: telling them apart tells a forger which half landed.
+
+<a id="core-core-crypto-derivekey"></a>
+#### `Core\Crypto::deriveKey`
+
+```nvs skip
+Core\Crypto::deriveKey(secret string $password, bytes $salt, uint $iterations): secret bytes
+```
+
+Derives a key from a password with PBKDF2-HMAC-SHA256, stretching `$password` and `$salt` over `$iterations` rounds. This is the member for a value a person typed; `expandKey` is the one for material that is already uniform, and handing a password to it is the mistake no type here can catch.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$password` | `secret string` (neutral) | The password to stretch. A `secret` is accepted and nothing is revealed: the answer is a `secret bytes` carrying no octet of it. |
+| `$salt` | `bytes` (neutral) | At least 16 octets, drawn once per password and stored beside the key it derived. `Core\Random::bytes(16)` answers one; it is not a secret. |
+| `$iterations` | `uint` | How many rounds to stretch for, between 100,000 and 2,000,000. Required and without a default, because a key derived to be read back has to be derived under the count whoever wrote it chose. |
+
+**Returns** `secret bytes` — 32 octets as a `secret bytes`, the width `seal` and `open` key under. The same three arguments always answer the same key — that is what makes it a derivation rather than a draw.
+
+**Throws** `LogicError` — `$iterations` is outside 100,000 to 2,000,000, or `$salt` is shorter than 16 octets. Under the floor the answer is cheap to attack, and over the ceiling one call is a denial of service against the process that made it.
+
+<a id="core-core-crypto-expandkey"></a>
+#### `Core\Crypto::expandKey`
+
+```nvs skip
+Core\Crypto::expandKey(secret bytes $material, bytes $salt, string $info): secret bytes
+```
+
+Derives a key from material that is already uniform with HKDF-SHA256 — a shared secret out of a key agreement, or a root key one service holds. `$info` is what separates two keys derived from one secret, so a program names the use rather than reusing the secret at two call sites.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$material` | `secret bytes` (neutral) | The secret to expand. Uniform already: a password belongs at `deriveKey`, which stretches it. |
+| `$salt` | `bytes` (neutral) | The extract step's salt, which is not a secret and may be empty — RFC 5869's own default of a zero-filled one. |
+| `$info` | `string` (neutral) | The context string. Two calls over one `$material` with different `$info` answer unrelated keys, which is how one secret keys two things. |
+
+**Returns** `secret bytes` — 32 octets as a `secret bytes`, the width `seal` and `open` key under, and the same for the same three arguments.
 
 <a id="core-core-signedcookie"></a>
 ### `Core\SignedCookie`
@@ -24490,7 +24586,8 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `hash_init` | member | `Core\Hash::stream` |
 | `hash_copy` | dropped | a `Hash\Stream` does not fork. Two digests of one input are two streams — PHP's copy exists only because `hash_final` invalidates the context, which is the same rule stated as a workaround |
 | `hash_file` | member | `Core\Hash::of` over `Core\IO::read` where the file fits, `Core\Hash::stream` fed from `Core\IO::open`'s handle where it does not. Reading and digesting are two jobs (R17) |
-| `hash_pbkdf2` | dropped | storing a password is `Core\Password::hash`, which writes Argon2id and takes no cost parameters from the call site (`rule:security/bcrypt-read-roster`). Where PBKDF2 derived a key rather than stored a password, that is `Core\Crypto` |
+| `hash_hkdf` | member | `Core\Crypto::expandKey` ([01 § 16](spec/01-core-library.md)), where deriving a key sits beside the primitives that consume one. The digest and the output length are the library's; what stays on the call is `$info`, the context that separates two keys drawn from one secret |
+| `hash_pbkdf2` | member | `Core\Crypto::deriveKey`, whose iteration count is required and bounded on both sides and whose digest, length and raw-or-hex flag are gone. Storing a password is not this member: that is `Core\Password::hash`, which writes Argon2id and takes no cost parameters from the call site (`rule:security/bcrypt-read-roster`) |
 | `md5` | member | `Core\Hash::of` with `Digest::Md5`, which the roster keeps for interop and labels collision-broken |
 | `md5_file` | member | the same, over `Core\IO::read` |
 | `sha1` | member | `Core\Hash::of` with `Digest::Sha1` |
