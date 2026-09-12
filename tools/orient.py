@@ -526,11 +526,10 @@ def triage_applies() -> bool:
 def doc_gate_failure() -> tuple[str, str] | None:
     """The rustdoc gate's standing verdict, out of `.loop/doc-gate.json`, or `None` when green.
 
-    `tools/loop.py` runs `verify.py --doc` once every `DOC_GATE_EVERY` sessions rather than inside
-    every verification -- `tools/verify.py`'s *Why `doc` is a periodic gate* is the argument -- and
-    re-runs it after every session until it is green again. A red gate stops nothing, which is
-    exactly why it has to be printed here: no session's own `verify.py` will mention it, and the
-    comment that broke it may be nine sessions old."""
+    `tools/loop.py` runs `verify.py --doc` only on an acceptance sweep that would reach the goal,
+    and holds the goal open while it is red -- `tools/verify.py`'s *Why `doc` runs when a goal
+    ends* is the argument. It has to be printed here because no session's own `verify.py` will
+    mention it, and the comment that broke it may be as old as the goal."""
     try:
         state = json.loads(read(DOCGATE))
     except ValueError:
@@ -772,12 +771,12 @@ def run_marker() -> None:
         return
     since, why = gate
     emit()
-    emit(f"THE RUSTDOC GATE IS RED, since session {since}:")
+    emit(f"THE RUSTDOC GATE IS RED, as of session {since}:")
     emit(f"  {why}")
-    emit("`python tools/verify.py --doc` is the whole check, and rustdoc names the file and the")
-    emit("line. It is not part of a session's verification -- tools/verify.py says why -- so it")
-    emit("stays red until someone fixes it, and the driver re-runs it after every session until")
-    emit("that happens. Fix it inside whatever group you take, and say so in the handoff.")
+    emit("The driver runs it only on a sweep where every acceptance check passed, and the goal is")
+    emit("not reached while it is red. `python tools/verify.py --doc` is the whole check, and")
+    emit("rustdoc names the file and the line. Fix every finding, run `--doc` until it is green,")
+    emit("and say so in the handoff.")
 
 
 def run_numbers() -> None:

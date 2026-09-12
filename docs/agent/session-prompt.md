@@ -38,7 +38,9 @@ changes about them, and step 6.
 5. **Commit one slice at a time**, staging each slice's own files.
 6. **Write one line to `.loop/status.txt`** (overwrite), then exit:
    - `CONTINUE <what you landed>` — the normal case.
-   - `DONE <what goal was reached>` — the goal in `docs/agent/loop-goal.md` is met.
+   - `DONE <what goal was reached>` — the goal in `docs/agent/loop-goal.md` is met. Run `python
+     tools/verify.py --doc` first and fix every broken doc link it names: it is the one gate a goal
+     meets only at its end, and the driver does not reach the goal while it is red.
    - `BLOCKED <the decision only the user can make>` — a tradeoff expensive to reverse. Prefer the safe
      option and a note in the handoff; the driver **holds** the run on this, waiting for the person who
      can answer it, and carries on from the tree as it stands when they lift the hold.

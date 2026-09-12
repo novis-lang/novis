@@ -10,8 +10,8 @@ line per step; a failure prints that step's output and nothing else. `fmt` is th
 *writes*: it formats rather than checks, and *Why `fmt` formats* below is the measurement.
 
 `cargo doc` with rustdoc's broken-link lint denied is the one gate deliberately **not** in that
-list. It is `--doc`, run alone, and `tools/loop.py` runs it periodically rather than every
-verification -- see *Why `doc` is a periodic gate* below.
+list. It is `--doc`, run alone, and `tools/loop.py` runs it when a goal's acceptance list is
+green rather than on every verification -- see *Why `doc` runs when a goal ends* below.
 
 The `conformance` and `differential` steps run `target/debug/nvs test tests/<tree>`, which is
 exactly what `tools/loop.py`'s acceptance check runs, and they print the two counts the plan's
@@ -29,7 +29,7 @@ green verification is one call and about ten lines.
     python tools/verify.py                  # every step
     python tools/verify.py -p nvs-ir        # scope build/test/clippy to one package
     python tools/verify.py --fast           # build and test only, for a mid-work check
-    python tools/verify.py --doc            # the rustdoc gate alone; the driver's periodic call
+    python tools/verify.py --doc            # the rustdoc gate alone; the driver's goal-end call
     python tools/verify.py --start          # run it detached and return at once
     python tools/verify.py --wait           # collect what --start left, with its exit status
     python tools/verify.py --full           # do not truncate the failing step's output
@@ -120,35 +120,24 @@ reported as that failure, red, rather than retried into green. The fix is always
 its own resource, never to run it apart: a clash that serial running hides is the same clash waiting
 for the loop and a person to run the suite at the same moment.
 
-## Why `doc` is a periodic gate rather than a step
+## Why `doc` runs when a goal ends rather than as a step
 
 `cargo doc --no-deps --workspace` resolves every ``[`Foo::bar`]`` in a doc comment. The lint it
 denies, `broken_intra_doc_links`, is warn-by-default and invisible to `build` and to `clippy`
 alike -- 391 of them had accumulated when it was first run, 96 naming an item that does not
 exist -- so it has to run somewhere.
 
-It ran here, as a step, until it was measured. Over the 72 sessions in `.loop/logs` it averaged
-**41.8s**, against 24.0s for `test`, 12.6s for `differential` and 7.5s for `clippy`; the comment
-beside it still claimed twelve, which is what it cost when it was written. That made it 40% of a
-green run, and a session reaches a green run about twice -- ~85 seconds a session, 7% of the
-loop's entire wall clock, for a lint that fires a handful of times a month.
+Not here, because it is the dearest gate for the least consequential finding. A broken link stops
+no build and changes no behaviour -- the code examples in a doc comment are `test`'s `doc-tests`
+job, which does run every time. And its price is set by the crate graph, not the edit: rustdoc
+re-documents the edited crate and every workspace crate above it, one after another, so an edit
+low in the graph pays for most of the workspace on every run.
 
-Two things put it in the wrong place. Its inputs are doc *comments*, which most re-runs of this
-script never touch: a re-run after fixing a clippy lint paid the 42 seconds again for an answer
-that could not have changed. And `.github/workflows/ci.yml` runs the identical command with the
-identical `RUSTDOCFLAGS`, so a push was never going to carry a broken link either way.
-
-So it is `--doc`, alone, and `tools/loop.py` runs it between sessions, where the seconds are the
-driver's rather than a session's, and keeps running it every session until it is green again.
-*When* it runs is that file's `doc_gate`, and it asks the cheap question first: a hash of every
-doc comment under `crates/` and `benches/`, so the session that edited one pays the 42 seconds
-and the session that did not pays nothing. `DOC_GATE_EVERY` is the backstop underneath it, for
-the break a doc comment's own text cannot show -- a link left stale by the *item* it names being
-renamed.
-
-What that still trades away is in-session detection: the finding lands in the ledger and the next
-pack, named by file and line, rather than in front of the session that caused it. It was a window
-of up to `DOC_GATE_EVERY` sessions wide, and it let two red `lint` jobs reach CI on 2026-09-06.
+So it is `--doc`, alone, and `tools/loop.py`'s `doc_gate` runs it once, on the acceptance sweep
+that would declare a goal reached, and holds the goal open while it is red. The tree a goal leaves
+behind is what has to be clean; between those points a goal may carry stale links, and the session
+that writes `DONE` runs `--doc` first and fixes them (`docs/agent/session-prompt.md`). One that did
+not finds the finding in the next pack under *THE RUSTDOC GATE IS RED*.
 
 ## Why the documentation gates are not steps here
 
@@ -517,7 +506,7 @@ def doc_step(opts):
     publishes, a link to a crate-private item is a correct reference that rustdoc simply will not
     turn into an anchor, and denying it would be a rule against citing the code by name.
 
-    One home for the command, with two callers -- `tools/loop.py`'s periodic gate and a by-hand
+    One home for the command, with two callers -- `tools/loop.py`'s goal-end gate and a by-hand
     `--doc`. The module docstring says why it is not one of `steps_for`'s steps."""
     scope = ["--workspace"] if not opts.package else ["-p", opts.package]
     return Step("doc", ["doc", "--no-deps", *scope], summarize_doc,
@@ -873,7 +862,7 @@ def main():
     ap.add_argument("-p", "--package", help="scope build/test/clippy to one package")
     ap.add_argument("--fast", action="store_true", help="build and test only")
     ap.add_argument("--doc", action="store_true",
-                    help="the rustdoc gate alone; tools/loop.py runs it periodically")
+                    help="the rustdoc gate alone; tools/loop.py runs it when a goal's checks pass")
     ap.add_argument("--full", action="store_true", help="do not truncate the failing step")
     ap.add_argument("--no-cache", action="store_true",
                     help="re-run the steps even if the tree is provably unchanged")

@@ -241,12 +241,11 @@ output is
 written to `.agent-tmp/verify-<step>.log` either way. It judges nothing: a step's own exit status is the
 whole verdict.
 
-**`cargo doc` is not one of those steps.** It is `--doc`, run alone, and `tools/loop.py` runs it after
-every tenth session instead — measured at 41.8s over 72 sessions, 40% of a green verification and ~7% of
-the loop's whole wall clock, for a lint whose inputs are doc comments and which CI runs on every push
-anyway. Nobody needs to type it: the driver's `DOC_GATE_EVERY` fires it between sessions, keeps firing it
-every session while it is red, and a red gate arrives in the next pack under *THE RUSTDOC GATE IS RED*.
-`tools/verify.py` § *Why `doc` is a periodic gate rather than a step* is the whole argument.
+**`cargo doc` is not one of those steps.** It is `--doc`, run alone, and `tools/loop.py` runs it only on
+the acceptance sweep that would reach a goal, holding the goal open while it is red. A goal in progress
+may carry broken doc links; the session that writes `DONE` runs `--doc` and fixes them, and a red gate
+arrives in the next pack under *THE RUSTDOC GATE IS RED*. `tools/verify.py` § *Why `doc` runs when a
+goal ends rather than as a step* is the whole argument.
 
 `fmt` is first, and it **formats rather than checks**: a `--check` was the red step in 15 of 39 loop
 sessions, each fixed with `cargo fmt` and a second run, and write mode costs the same two seconds. Its
