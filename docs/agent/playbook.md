@@ -1807,6 +1807,20 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   with `git status` still clean, because the commit-side normalization makes them equal. Run `git
   ls-files --eol <path>` before believing such a diff, and build a frozen fixture with the Write
   tool rather than `cp`, because `nvs fmt` writes LF. [until: reviewed 2026-10-12]
+- **A `[1 floor]` example check can be red because a container is not listening, and the ledger shows
+  a config *warning* as the reason.** `[docker] memoize_on` in `docs/agent/loop-goal.toml` skips the
+  compose bring-up while those crates are untouched, so a host that rebooted mid-run leaves postgres
+  and redis down and every store-backed example fails at its first connection — with a `W1008` or
+  another warning reported in its place, because only the first line of stderr is shown. Run `docker
+  compose -f tests/db/compose.yaml up -d` and the example by hand before reading the tree.
+  [until: gone docs/agent/loop-goal.toml:memoize_on]
+- **A `nvs-fmt` stage that reads the text between two nodes is reading comments too.** The gap
+  between two children of one production is trivia as well as code, so a scan for a separator in it
+  finds the `,`, `{` or `=>` inside a comment — and an arm boundary taken from one puts a rewrite in
+  the middle of a run the printer copies whole, which trips `print.rs`'s ordering assertion in debug
+  and corrupts the file in release. Mask the trivia out with `indent.rs`'s `commented` before
+  searching a gap, the way `arm_starts` and `imports.rs` both do.
+  [until: gone crates/nvs-fmt/src/indent.rs:arm_starts]
 
 ## Running things
 
