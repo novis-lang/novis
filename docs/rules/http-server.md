@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*8 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
+*17 of 74 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -877,6 +877,37 @@ deadline it reports is the one that covers the whole call
 
 <sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`types/duration-literal`](types.md#types-duration-literal), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0074](../decisions/0074.md).</sub>
 
+<a id="http-server-an-outbound-request-carries-one-body"></a>
+
+## An outbound request carries at most one body, named by which of four flat keys it is written under, and a second key or a body on `get` is a compile-time diagnostic  *(designed — not yet in the compiler)*
+
+`rule:http-server/an-outbound-request-carries-one-body`
+
+An outbound request carries at most one body, and which of four flat keys in `Core\Http\Options` it was
+written under is what says how it is sent: `json` encodes the value as `application/json`, `form` encodes
+a map as `application/x-www-form-urlencoded`, `body` sends the octets as given under an optional
+`contentType`, and `multipart` sends a map as `multipart/form-data`. Four keys rather than one with a
+mode beside it, because a mode string is refused ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)) and sniffing cannot
+tell a form from a JSON object by looking at an `array<string, string>`.
+
+**Two body keys, a body on `get` or `head`, and `contentType` without `body` are compile-time
+diagnostics**, each naming the key. Both halves of the question are in front of the checker: the bag is a
+compile-time-constant shape literal ([`core-api/shape-rules`](core-api.md#core-api-shape-rules) R2) and the verb is the member's own
+name, which is exactly why the missing idempotency key is a diagnostic too
+([`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key)). Where the verb is dynamic, the same
+two checks throw before the first attempt.
+
+A body position admits `tainted`, because posting what a user sent is ordinary and the qualifier is a
+question about sinks a request body does not have; and it admits `secret`, as a header already does
+([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)'s outbound exemption), which is why a `json` value is walked with
+that exemption applied rather than handed to `Core\Json::encode`. `Core\Http\Part` is how a body is sent
+without being held: `Part::file` streams from disk under `fs.read` with `Content-Length` from the file's
+size. `Content-Length` is always written — every body's size is known before the first byte — so there is
+no chunked request body. The body is built once per call and resent unchanged on every attempt, and a
+file part is re-read per attempt.
+
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse). Decided in [0180](../decisions/0180.md).</sub>
+
 <a id="http-server-one-deadline-covers-the-whole-call"></a>
 
 ## One `deadline` covers the whole call: the connection, every redirect hop, every retry attempt and every backoff between them
@@ -899,6 +930,37 @@ itself more time ([`http-server/redirects-are-off-and-every-hop-is-re-pinned`](h
 
 <sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0074](../decisions/0074.md), [0058](../decisions/0058.md).</sub>
 
+<a id="http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime"></a>
+
+## `deadline` ends at the head of a streamed reply, its body runs under `idle` and `maxDuration`, and the body is read one way, once  *(designed — not yet in the compiler)*
+
+`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
+
+`deadline` covers a streamed call's connection and its head and ends there; the body runs under two
+further `Duration`s, `idle` — the longest silence allowed — and `maxDuration` — the longest the body may
+take at all. Both inherit `[http.client] idle` and `max_duration` when a call omits them, and neither has
+an unbounded spelling, so a stream has no more way to say *forever* than a buffered call does
+([`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait)). Either key on a buffered member is a compile-time
+diagnostic.
+
+Two bounds rather than one because they catch different failures. A server that stops sending is caught
+by `idle` in seconds. A server that dribbles one byte per second forever passes every idle check ever
+written, and only a lifetime ends it — which is the case a single timeout on a streaming client always
+misses.
+
+`Client::stream(Core\Http\Method $method, $url, {…})` answers a `Core\Http\Stream` once the head has
+arrived, with `status()`, `header()`, `headers()` and `tls()` readable and the body not yet read. **The
+body is then read one way, once** — `events()`, `lines()`, `chunks()` or `saveTo($path, $max)` under
+`fs.write`, whose bound is required for [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream)'s reason — and a second read
+throws, the same division the inbound half already makes between readers that share a body and readers
+that consume it ([`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it)).
+Every piece a reader yields is `tainted`, a line and one event's accumulated `data` are each
+length-capped as a constant rather than a directive, and **a stream is retried only before its head**:
+after the first byte of body a failure ends the stream, because the caller has already seen a prefix of
+one answer and re-requesting would hand it the prefix of another.
+
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0180](../decisions/0180.md).</sub>
+
 <a id="http-server-retry-is-opt-in-jittered-and-closed"></a>
 
 ## Retry is opt-in, exponential with full jitter that cannot be turned off, and retries only a connection failure, a timeout, `429`, `502`, `503` and `504`
@@ -915,14 +977,17 @@ mode retry is supposed to relieve.
 What is retried is a closed set: a connection failure, a timeout, and status `429`, `502`, `503`
 and `504`. Nothing else — a `400` or a `403` is an answer, and retrying it is a load generator; a
 `500` is usually a real application error and is deliberately not on the list. A `Retry-After`
-header on a `429` or `503` replaces the computed backoff, clamped to the remaining deadline.
+header on a `429` or `503` replaces the computed backoff in either of its forms, delay-seconds or
+an HTTP-date, clamped to the remaining deadline — and a date already past keeps the jittered
+backoff rather than becoming a zero wait, so the clients one date was handed to do not retry in
+step.
 
 Every attempt runs under the one deadline ([`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call))
 and reuses the `Core\Http\Target` the launderer pinned, so a retry performs no second resolution
 ([`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned)). A `POST` or `PATCH` is not
 retried at all without a key ([`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key)).
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait). Decided in [0074](../decisions/0074.md), [0058](../decisions/0058.md).</sub>
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait). Decided in [0074](../decisions/0074.md), [0058](../decisions/0058.md), [0180](../decisions/0180.md).</sub>
 
 <a id="http-server-a-non-idempotent-retry-needs-an-idempotency-key"></a>
 
@@ -940,18 +1005,18 @@ R2) and the verb is the member's own name (`Client::post`), both halves are stat
 an ordinary call site, and a `post` that asks for retries without the key is a **diagnostic**
 naming the field. It is the verb that decides, asked of every member rather than of one.
 
-Where the verb is genuinely dynamic — `Client::send($request)` with a runtime method — the check
+Where the verb is genuinely dynamic — `Client::request($method, $url)` — the check
 moves to the call and **throws before the first attempt** rather than before the second, so a test
 run finds it rather than production finding it on the one retry that matters. A key supplied for
 a verb that does not need one is accepted and sent; some servers want it regardless, and refusing
 it would buy nothing. A key is never generated automatically: one minted per call is a different
 key on the next request, which makes the header present and useless.
 
-<sub>See also [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0074](../decisions/0074.md), [0180](../decisions/0180.md).</sub>
 
 <a id="http-server-allow-url-pins-the-address"></a>
 
-## `Core\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and the one approved address, and the connection is made to that address
+## `Core\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and every approved address, and the connection is made to one of them
 
 `rule:http-server/allow-url-pins-the-address`
 
@@ -960,25 +1025,79 @@ Core\Http::allowUrl(tainted string $url): Core\Http\Target
 ```
 
 The launderer parses the URL, refuses a scheme outside the grant, resolves the host, checks every
-resolved address against [`security/net-address-policy`](security.md#security-net-address-policy), and answers a `Target` carrying
-**both the URL and the specific address that was approved**. It throws, naming which check
+resolved address against [`security/net-address-policy`](security.md#security-net-address-policy) — one denied refuses the host — and
+answers a `Target` carrying **the URL and every address that was approved**
+([`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address)). It throws, naming which check
 failed, rather than returning a falsy value. The text is judged before the deployment is asked,
 so a refusal on the URL itself never depends on a grant.
 
 The `Target` return is the load-bearing part. A launderer answering a plain `string` would leave a
 gap between the check and the connection in which a second DNS resolution could return a
 different address — the classic rebinding attack. Because every `Core\Http\Client` member
-connects to the address inside the `Target`, there is no second resolution to poison. That is why
+connects to an address inside the `Target`, there is no second resolution to poison. That is why
 this is the one launderer in [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)'s roster whose output is a
-value, and why `Target` has no members: a program that could read the approved address back out
-could rebuild a request around a different one.
+value, and why `Target` has no members: a program that could read the approved addresses back out
+could rebuild a request around an address that was never approved.
 
 A plain `string` URL — the form kept for a URL the program itself authored — passes the same four
 questions at the member that connects, so there is one implementation of the policy and not two,
 and it lives in the capability rather than the client
 ([`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability)).
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0058](../decisions/0058.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0058](../decisions/0058.md), [0074](../decisions/0074.md), [0180](../decisions/0180.md).</sub>
+
+<a id="http-server-an-outbound-call-tries-every-approved-address"></a>
+
+## Every address a name resolves to is checked, one denied refuses the host, and the call falls back across the approved set without ever resolving twice  *(designed — not yet in the compiler)*
+
+`rule:http-server/an-outbound-call-tries-every-approved-address`
+
+Every address a name resolves to is checked against [`security/net-address-policy`](security.md#security-net-address-policy), and **one denied
+address refuses the whole host**, naming it. A name that answers both a public address and one the policy
+denies is what a rebinding attack looks like from the resolver's side, so the denied answer is not
+quietly dropped from the set and the rest used; `net.internal`'s exceptions still apply per address. An
+IP literal, and a `connectTo` value ([`http-server/an-outbound-call-names-its-address-only-under-a-grant`](http-server.md#http-server-an-outbound-call-names-its-address-only-under-a-grant)),
+are a set of one.
+
+`Core\Http\Target` carries **the approved set**, in the resolver's order and at most eight of it, and
+still has no members, for [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)'s reason: a program that could
+read the set back out could rebuild a request around an address nothing approved. A retry reuses the set
+and never re-resolves, so a retried call still performs exactly one resolution; a redirect hop resolves
+and checks anew.
+
+The connection falls back across the set RFC 8305's way — families interleaved from the resolver's first
+answer, the next attempt started when the previous one has not connected within a fixed attempt delay,
+the first to connect kept and the rest closed — all under the one `connectTimeout`, itself clamped by the
+deadline ([`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call)), so falling back introduces no new
+bound. Every address failing is one `IOError` naming each, because an error naming only the last one
+sends the reader to the wrong host. The lookup itself runs on the blocking pool per
+[`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), with the grant asked on the core before it and
+the address check back on the core after it.
+
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0180](../decisions/0180.md).</sub>
+
+<a id="http-server-an-outbound-call-names-its-address-only-under-a-grant"></a>
+
+## `connectTo` names an outbound call's address only where `net.connect_to` names the host, and the address policy and the certificate's host check still apply  *(designed — not yet in the compiler)*
+
+`rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`
+
+A call may name the address it connects to with `connectTo: string`, and only where a `net.connect_to`
+grant lists the URL's host. The value is an IP literal; the call connects there instead of resolving the
+host, and the certificate is still checked against the host the URL named.
+
+The option widens nothing, and that is what makes it grantable. The address is judged by
+[`security/net-address-policy`](security.md#security-net-address-policy) and by `net.internal`'s exceptions exactly as a resolved one is, so
+`connectTo` chooses *among addresses the deployment already allows* — it is `curl --resolve` with the
+address policy still underneath, which is how a program reaches one node of a cluster, or a canary behind
+a shared name, without the deployment having to loosen anything else.
+
+A `Core\Http\Target` already carries the addresses its laundering approved
+([`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address)), so `connectTo` beside one is a
+`LogicError` rather than a silent override of the pin: the two are answers to the same question, and a
+call that supplies both has not decided which one it meant.
+
+<sub>See also [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address). Decided in [0180](../decisions/0180.md).</sub>
 
 <a id="http-server-redirects-are-off-and-every-hop-is-re-pinned"></a>
 
@@ -1003,6 +1122,139 @@ Both the redirect chain and every retry attempt are covered by one `deadline`
 ([`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call)).
 
 <sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/net-address-policy`](security.md#security-net-address-policy). Decided in [0058](../decisions/0058.md), [0074](../decisions/0074.md).</sub>
+
+<a id="http-server-an-https-redirect-never-becomes-plaintext"></a>
+
+## A redirect from `https` to `http` needs `net.downgrade` for its host and `redirectToHttp` at the call; a plain `http` URL asked for directly stays allowed  *(designed — not yet in the compiler)*
+
+`rule:http-server/an-https-redirect-never-becomes-plaintext`
+
+A redirect hop from `https` to `http` is refused unless its target host is in a `net.downgrade` grant
+*and* the call says `redirectToHttp: true`. A plain `http` URL asked for directly stays allowed, and the
+refusal names the grant.
+
+Without this, a server can strip a call's TLS with one `Location` header and the caller still sees a
+`200` — the credentials are gone by then only because
+[`http-server/a-cross-origin-redirect-drops-credentials`](http-server.md#http-server-a-cross-origin-redirect-drops-credentials) takes them, and the body still travels in
+the clear. Following a redirect is already opt-in
+([`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned)), so this is not a new decision for a
+program to make: it is the one hop that opting in cannot silently include.
+
+A direct `http` URL is untouched because the program chose it — an internal endpoint or a local service
+is not being attacked by the code that asked for it — and because the address it reaches is judged the
+same way either scheme is. Two conditions rather than one for [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)'s
+reason: the deployment says where a downgrade may happen, and the call says it expects one here.
+
+<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/a-cross-origin-redirect-drops-credentials`](http-server.md#http-server-a-cross-origin-redirect-drops-credentials). Decided in [0180](../decisions/0180.md).</sub>
+
+<a id="http-server-a-cross-origin-redirect-drops-credentials"></a>
+
+## A redirect hop to another origin drops `Authorization`, `Cookie`, `Proxy-Authorization` and every header whose value was `secret`  *(designed — not yet in the compiler)*
+
+`rule:http-server/a-cross-origin-redirect-drops-credentials`
+
+A redirect hop to another origin — the scheme, the host or the port differing — drops `Authorization`,
+`Cookie` and `Proxy-Authorization`, and with them every header whose value was `secret`. A hop inside one
+origin keeps them all.
+
+Forwarding a bearer token to whatever host a `Location` header names is a credential-exfiltration
+primitive with one line of setup, and it is reached through a feature the caller asked for: following
+redirects, which is why redirects are off until a count is written
+([`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned)). The `secret` clause is what makes the
+rule general rather than a list: a program's own API-key header is dropped for the same reason the three
+named ones are, without anyone having to enumerate the spelling each partner invented
+([`security/secret-qualifier`](security.md#security-secret-qualifier)).
+
+No header value is written into a trace span, an access log record or an error message, on any hop. A
+header guard that names the header and never the value is already how the transport reports a refusal,
+and this is what makes that a tested property rather than a habit.
+
+<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`http-server/an-https-redirect-never-becomes-plaintext`](http-server.md#http-server-an-https-redirect-never-becomes-plaintext). Decided in [0180](../decisions/0180.md).</sub>
+
+<a id="http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned"></a>
+
+## An outbound connection is pooled per core under a key carrying everything the check approved, and returns to the pool only after a reply read to the end under known framing  *(designed — not yet in the compiler)*
+
+`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`
+
+An outbound HTTP/1.1 connection is kept alive in a **per-core** pool, keyed by the pinned address, the
+port, the scheme, the TLS server name, the call's client identity and the call's TLS policy. Per core
+because a core owns its requests and a shared pool is a lock on the request path, and because a bound per
+core is a bound this process can state: O(cores × `pool_idle`), never O(requests served), which is the
+accounting [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary) already holds the database pool to.
+
+**The key is the load-bearing part**, and every element of it is there because leaving it out lets reuse
+hand a call a connection its own check would have refused. The pinned address keeps
+[`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address) true *through* reuse; the server name keeps two hosts behind
+one address from sharing a session; the identity keeps a call presenting no certificate from reusing one
+that did; the policy keeps a connection opened under a relaxed verification
+([`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant)) from ever serving a call that verifies. A
+pool keyed on the URL's host — which is what most clients key on — would quietly undo the pin.
+
+A connection returns to the pool **only** after its reply was read to the end under known framing —
+`Content-Length` or chunked's last chunk — with no `Connection: close` from either side; on any doubt it
+is closed, because a connection whose remaining bytes are unknown is one that will hand the next request
+someone else's body. A reused connection that fails before the request's last byte is written is replaced
+once **without spending an attempt**, a server closing an idle connection not being a failed request; any
+later failure is an attempt under [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed). The two caps
+are `[http.client] pool_idle`, the idle connections one core may hold, and `pool_idle_timeout`, how long
+one may sit idle before it is closed — both `System` class, because they bound a core's memory rather
+than a request's ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)).
+
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0180](../decisions/0180.md).</sub>
+
+<a id="http-server-the-client-trust-roots-are-the-operators"></a>
+
+## `[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`  *(designed — not yet in the compiler)*
+
+`rule:http-server/the-client-trust-roots-are-the-operators`
+
+Which certificates the outbound client believes is the operator's decision and has no code-side spelling
+at all. `[http.client.tls]` carries three keys, every one of them `System` class
+([`config/three-changeability-classes`](config.md#config-three-changeability-classes)) because they configure the one `ClientConfig` the process
+shares ([`security/one-tls-client`](security.md#security-one-tls-client)):
+
+| Key | Ships | Allows |
+|---|---|---|
+| `roots` | `["bundled"]` | Each entry is `"bundled"` — the compiled-in Mozilla set — or a PEM file. `["bundled", "/etc/novis/corp-ca.pem"]` adds a company CA; a list without `"bundled"` trusts only its files. Each file is resolved and trust-checked at boot exactly as `[db.<name>] tls_ca_file` is, and parsed by `nvs_host::tls` alone. |
+| `min_version` | `"1.2"` | `"1.3"` raises the floor for every call. There is nothing below `1.2` to write. |
+| `keylog` | unset | A file every session's secrets are appended to in the `SSLKEYLOGFILE` format, so an operator can read their own traffic. **Refused at boot in `production`**, naming the key; in `development` the boot says it is on, every start. |
+
+`1.2` as the shipped floor is the one place the client trades a stronger default for reach: a great many
+corporate and payment endpoints still speak nothing else, and a client that cannot reach them is a client
+a deployment replaces with `curl`. Raising the floor is one line, and `nvs config dump` says what it
+currently is.
+
+`keylog` is refused rather than warned about, because a file of live session secrets is not a
+configuration mistake a warning improves — the process must not start with it. A program relaxes *its
+own* call's verification only through [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), and
+never through any of these three keys.
+
+<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0180](../decisions/0180.md).</sub>
+
+<a id="http-server-a-reply-reports-its-tls-session"></a>
+
+## `Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none  *(designed — not yet in the compiler)*
+
+`rule:http-server/a-reply-reports-its-tls-session`
+
+`Core\Http\Response::tls(): ?Core\Http\TlsInfo` reports the session a reply arrived over, read through
+members as every `Core` instance is ([`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object)): `version()`, `cipher()`,
+`verified(): bool` — `true` only when the chain *and* the name were checked — `peerChain(): array<tainted
+string>` as PEM, and the leaf's `subject()`, `issuer()` and `expiry()`. It answers `null` for a plain
+`http` reply and for one a test's table answered
+([`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table)), because neither had a session.
+
+`verified()` is the member this exists for. A deployment that relaxed verification for one partner host
+([`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant)) needs a way to assert, in a test and in
+production telemetry, that every *other* call still verified — and without a reply-side answer the grant
+is unobservable from inside the language.
+
+The chain is `tainted` and the timings are not here: where a call's time went is the `http` trace event's
+([`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind)), and a second surface for one measurement is the copy
+that disagrees.
+
+<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0180](../decisions/0180.md).</sub>
 
 <a id="http-server-a-requests-blast-radius-is-bounded-at-four-tiers"></a>
 

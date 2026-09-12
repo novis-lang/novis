@@ -3,7 +3,7 @@
 
 # Testing
 
-*15 of 53 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 54 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -343,6 +343,36 @@ the test that asked for it has joined. It serves under the **default** policy ra
 reading a deployment's configuration would make the test's subject the deployment.
 
 <sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md), [0058](../decisions/0058.md), [0051](../decisions/0051.md).</sub>
+
+<a id="testing-an-outbound-call-is-answered-from-a-table"></a>
+
+## One registered answer makes every outbound call in that test come from the table, and an unmatched one throws rather than reaching the network  *(designed — not yet in the compiler)*
+
+`rule:testing/an-outbound-call-is-answered-from-a-table`
+
+Once a test registers one answer with `Core\Test::answerHttp(string $url, uint $status, {json?, body?,
+headers?})`, **every** outbound call that test makes is answered from the table, and an unmatched one
+throws a `LogicError` naming the URL. A `$url` matches exactly, or as a prefix ending in `*`, and
+`Core\Test::sentHttp(): array<Core\Test\SentRequest>` hands back what the program sent, in order.
+
+All-or-nothing is the whole point. A table that answers the calls it knows and lets the rest reach the
+network is a suite that passes on a laptop, talks to a partner's production API from CI, and says nothing
+about either — so the first registered answer takes the test off the network entirely. A faked call is
+still judged where the judging is about *text* — the scheme and the outbound grant, per
+[`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink) — while resolution and the address check are skipped, there being
+no connection for an address to be pinned to
+([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)). It files no `http` trace event either: nothing crossed a
+network.
+
+`SentRequest` is readonly — `method()`, `url()`, `header()` and `body()` — and nothing on it is
+`tainted`, unlike every member of a real reply: a sent request is text the program itself authored, which
+is the one question [`security/tainted-qualifier`](security.md#security-tainted-qualifier) answers. This is what makes the client's own
+conformance cases writable with no listener and no outbound grant, the same way
+[`testing/in-process-request`](testing.md#testing-in-process-request) makes a request testable with no socket; what it cannot reach is
+everything below the table — the pool, the framing, a content coding, a redirect hop, a handshake — which
+is proved against a loopback origin instead.
+
+<sub>See also [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/doubles`](testing.md#testing-doubles), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address). Decided in [0180](../decisions/0180.md).</sub>
 
 <a id="testing-property-testing"></a>
 

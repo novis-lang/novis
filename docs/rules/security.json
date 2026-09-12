@@ -1310,17 +1310,36 @@
       "because": [
         "0132",
         "0067",
-        "0058"
+        "0058",
+        "0180"
       ],
       "seeAlso": [
         "security/db-pool-reset-is-a-boundary",
         "security/the-policy-lives-in-the-capability",
+        "security/tls-trust-is-relaxed-only-under-a-host-grant",
         "core-classes/db-safe-connection-defaults",
         "core-classes/db-crate-boundary"
       ],
       "guardedBy": [
         "crates/nvs-db/tests/handshake.rs"
       ]
+    },
+    {
+      "id": "security/tls-trust-is-relaxed-only-under-a-host-grant",
+      "title": "Verification is relaxed only where a `capabilities.tls` grant names the host and the call asks for it, and no such grant has a `true` spelling",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "`CURLOPT_SSL_VERIFYPEER = false` is one line of userland; here the same effect needs the deployment to name the host in a grant and the call to ask for it, and the boot prints every grant that was written",
+      "seeAlso": [
+        "security/one-tls-client",
+        "security/capability-question-is-grant-and-scope",
+        "http-server/the-client-trust-roots-are-the-operators",
+        "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
+        "http-server/a-reply-reports-its-tls-session"
+      ],
+      "guardedBy": []
     },
     {
       "id": "security/protocol-roster",

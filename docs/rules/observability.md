@@ -311,29 +311,33 @@ other kind was placed off of on purpose ([`observability/gc-pause-is-its-own-eve
 
 <a id="observability-trace-events-carry-a-kind"></a>
 
-## A trace event carries one of four kinds — `call`, `gc`, `spawn`, `query` — and a `call` keeps its probe shape
+## A trace event carries one of five kinds — `call`, `gc`, `spawn`, `query`, `http` — and a `call` keeps its probe shape
 
 `rule:observability/trace-events-carry-a-kind`
 
-Every trace event carries a `kind` tag, and the tag is one of exactly four: `call`, `gc`, `spawn`,
-`query`. A `call` event is [`testing/debug-probes`](testing.md#testing-debug-probes)'s probe pair unchanged — callee, arguments,
-entry and exit timestamp, checked-return status, result. The three other kinds are emitted from
+Every trace event carries a `kind` tag, and the tag is one of exactly five: `call`, `gc`, `spawn`,
+`query`, `http`. A `call` event is [`testing/debug-probes`](testing.md#testing-debug-probes)'s probe pair unchanged — callee,
+arguments, entry and exit timestamp, checked-return status, result. The other kinds are emitted from
 routines of their own, not from the per-statement or per-call probe: a `gc` from the collector's run
 routine ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event)), a `spawn` from the three isolate-spawn
-routines ([`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)), and a `query` from inside `Core\Db`'s own
-statement routine.
+routines ([`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)), a `query` from inside `Core\Db`'s own
+statement routine, and an `http` from `Core\Http\Client`'s transport, filed once per call whatever
+its attempt count.
 
 A `query` carries the duration, the driver, the connection name, the truncated SQL text, the rows
 returned and the rows affected — and **never a bound parameter value**, because a trace is a
-`secret` sink ([`security/secret-qualifier`](security.md#security-secret-qualifier)). Every one of the three sits in a routine that is
-already rare and already slow, so tracing costs nothing on the hot path the probes measure, and
-nothing at all when the flag is off.
+`secret` sink ([`security/secret-qualifier`](security.md#security-secret-qualifier)). An `http` event answers the same question about an
+outbound call: the method, the scheme, host and port, the path without its query, the status, the
+attempt and hop counts, the address connected to, and where the time went — and never a query
+string, a header value or a body, for the same reason. Every one of those kinds sits in a routine
+that is already rare and already slow, so tracing costs nothing on the hot path the probes measure,
+and nothing at all when the flag is off.
 
 The tag is what lets one stream serve every consumer: the timeline export, the profiler's
-attribution, and production telemetry all read these four kinds and add no instrumentation of their
+attribution, and production telemetry all read these kinds and add no instrumentation of their
 own.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md), [0067](../decisions/0067.md), [0180](../decisions/0180.md).</sub>
 
 <a id="observability-a-query-is-a-trace-event"></a>
 

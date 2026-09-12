@@ -8,7 +8,10 @@ mode retry is supposed to relieve.
 What is retried is a closed set: a connection failure, a timeout, and status `429`, `502`, `503`
 and `504`. Nothing else — a `400` or a `403` is an answer, and retrying it is a load generator; a
 `500` is usually a real application error and is deliberately not on the list. A `Retry-After`
-header on a `429` or `503` replaces the computed backoff, clamped to the remaining deadline.
+header on a `429` or `503` replaces the computed backoff in either of its forms, delay-seconds or
+an HTTP-date, clamped to the remaining deadline — and a date already past keeps the jittered
+backoff rather than becoming a zero wait, so the clients one date was handed to do not retry in
+step.
 
 Every attempt runs under the one deadline (`rule:http-server/one-deadline-covers-the-whole-call`)
 and reuses the `Core\Http\Target` the launderer pinned, so a retry performs no second resolution

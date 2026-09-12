@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*17 of 87 rules below are **designed** rather than shipped, and are marked where they appear.*
+*18 of 88 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1602,13 +1602,52 @@ than building a second session of its own.
 
 A second TLS session inside a driver crate would be a second answer to a question already decided at
 length, and the failure mode is not a compile error: it is one client verifying peers strictly and
-another not. Full verification is the default with no spelling for turning it off, so the plaintext
-phase of a connection is only ever the upgrade request itself.
+another not. Verification is strict by default, and relaxed only where a `capabilities.tls` grant names
+the host and the call asks for it ([`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant)) — which
+a caller reaches by handing in a policy value the module builds a session from, never a session of its
+own. The plaintext phase of a connection is only ever the upgrade request itself.
 
 What does not generalise is what belongs to the socket rather than to the session — the deadline and
 the peer address — so there is still one clock, on the thing that waits.
 
-<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0058](../decisions/0058.md).</sub>
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0058](../decisions/0058.md), [0180](../decisions/0180.md).</sub>
+
+<a id="security-tls-trust-is-relaxed-only-under-a-host-grant"></a>
+
+## Verification is relaxed only where a `capabilities.tls` grant names the host and the call asks for it, and no such grant has a `true` spelling  *(designed — not yet in the compiler)*
+
+`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`
+
+Certificate verification on an outbound call is strict by default and is relaxed only when two
+independent things agree: a `[capabilities.tls]` grant names the host, and the call itself asks. Four
+options, four grants:
+
+| Option | Grant | Does |
+|---|---|---|
+| `tlsCa: string` | `tls.anchors` | trusts exactly the PEM certificates given, for this call, in place of `[http.client.tls] roots` |
+| `tlsPin: string\|array<string>` | `tls.pin` | accepts a peer whose SubjectPublicKeyInfo hashes to one of the `sha256//<base64>` values, with no chain |
+| `tlsVerifyHost: false` | `tls.any_name` | builds and checks the chain, and skips only the name |
+| `tlsVerify: false` | `tls.insecure` | checks neither |
+
+**No grant has a `true` spelling.** Each is a list of hosts, matched as `net.connect` matches them, for
+`net.internal`'s reason: what a deployment relaxed stays legible host by host in review, where a boolean
+is one line nobody reads again. The grant and the option are both owed — a grant changes nothing about a
+call that does not ask, and an option whose host the grant does not list throws before a connection is
+made, naming the grant, asked of the request's own configuration snapshot per
+[`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Two halves because each answers a different
+party's question: the deployment says *where* this may happen, the code says *here*.
+
+A relaxed session still checks the handshake signature against the key the peer presented, so the peer
+does hold that key; what is skipped is only the question of whose key it is. The verifiers plug into
+`rustls`'s custom-verifier seam inside `nvs_host::tls`, so [`security/one-tls-client`](security.md#security-one-tls-client) still holds and
+a caller still cannot hand in a session — it hands in a policy value the module builds one from, and that
+policy is part of the pool key
+([`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned)), so a connection opened
+under `tlsVerify: false` never serves a call that verifies. `tlsMinVersion: "1.3"` needs no grant,
+because it can only tighten. And the boot prints every relaxed grant, every start, one line per grant and
+host: a weakening nobody is reminded of outlives the incident it was added for.
+
+<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/a-reply-reports-its-tls-session`](http-server.md#http-server-a-reply-reports-its-tls-session). Decided in [0180](../decisions/0180.md).</sub>
 
 <a id="security-protocol-roster"></a>
 

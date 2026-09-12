@@ -954,6 +954,23 @@
       ]
     },
     {
+      "id": "http-server/an-outbound-request-carries-one-body",
+      "title": "An outbound request carries at most one body, named by which of four flat keys it is written under, and a second key or a body on `get` is a compile-time diagnostic",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "curl takes `CURLOPT_POSTFIELDS` as a string, an array or a file handle and infers the encoding from which one it got; here the key names what is sent, two keys are refused before the program runs, and a `Part::file` streams from disk rather than being held whole",
+      "seeAlso": [
+        "core-api/shape-rules",
+        "core-api/options-bag",
+        "core-api/no-mode-strings",
+        "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
+        "security/secret-sinks-refuse"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "http-server/one-deadline-covers-the-whole-call",
       "title": "One `deadline` covers the whole call: the connection, every redirect hop, every retry attempt and every backoff between them",
       "status": "shipped",
@@ -973,12 +990,30 @@
       ]
     },
     {
+      "id": "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime",
+      "title": "`deadline` ends at the head of a streamed reply, its body runs under `idle` and `maxDuration`, and the body is read one way, once",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "a PHP stream has `default_socket_timeout` and nothing that bounds how long a body may take; here a streamed body has two finite bounds it cannot be without, and reading it twice throws",
+      "seeAlso": [
+        "http-server/one-deadline-covers-the-whole-call",
+        "http-server/no-spelling-for-an-unbounded-wait",
+        "http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it",
+        "core-classes/io-write-stream",
+        "config/three-changeability-classes"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "http-server/retry-is-opt-in-jittered-and-closed",
       "title": "Retry is opt-in, exponential with full jitter that cannot be turned off, and retries only a connection failure, a timeout, `429`, `502`, `503` and `504`",
       "status": "shipped",
       "because": [
         "0074",
-        "0058"
+        "0058",
+        "0180"
       ],
       "divergesFromPhp": "PHP's clients have no retry, so every application writes its own loop; here it is three flat options, the jitter is not configurable, and a `Retry-After` header replaces the computed wait",
       "seeAlso": [
@@ -997,7 +1032,8 @@
       "title": "A `POST` or `PATCH` is not retried without `retryIdempotencyKey`, and at an ordinary call site the missing key is a compile-time diagnostic",
       "status": "shipped",
       "because": [
-        "0074"
+        "0074",
+        "0180"
       ],
       "divergesFromPhp": "a retried `POST` in PHP does whatever the loop the developer wrote does, including charging a card twice; here the missing key is a red squiggle before the program runs",
       "seeAlso": [
@@ -1012,11 +1048,12 @@
     },
     {
       "id": "http-server/allow-url-pins-the-address",
-      "title": "`Core\\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and the one approved address, and the connection is made to that address",
+      "title": "`Core\\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and every approved address, and the connection is made to one of them",
       "status": "shipped",
       "because": [
         "0058",
-        "0074"
+        "0074",
+        "0180"
       ],
       "divergesFromPhp": "`file_get_contents($userUrl)` and `curl_setopt(CURLOPT_URL, $userUrl)` are a compile-time diagnostic, and the laundered value is a `Target` the program cannot read an address back out of, not a string",
       "seeAlso": [
@@ -1031,6 +1068,38 @@
         "tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst",
         "tests/conformance/core/an-outbound-url-is-judged-before-the-capability-is-consulted.nvst"
       ]
+    },
+    {
+      "id": "http-server/an-outbound-call-tries-every-approved-address",
+      "title": "Every address a name resolves to is checked, one denied refuses the host, and the call falls back across the approved set without ever resolving twice",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "curl tries every address a name answers and checks none of them; here each is checked before any is tried, one denied refuses the whole host, and the lookup runs off the core",
+      "seeAlso": [
+        "http-server/allow-url-pins-the-address",
+        "security/net-address-policy",
+        "http-server/a-core-is-never-blocked-on-a-syscall",
+        "http-server/redirects-are-off-and-every-hop-is-re-pinned"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "http-server/an-outbound-call-names-its-address-only-under-a-grant",
+      "title": "`connectTo` names an outbound call's address only where `net.connect_to` names the host, and the address policy and the certificate's host check still apply",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "`CURLOPT_RESOLVE` takes any host-to-address mapping a script writes; here the host must be granted, the address is judged by the same policy a resolved one is, and the certificate is still checked against the URL's host",
+      "seeAlso": [
+        "http-server/an-outbound-call-tries-every-approved-address",
+        "security/net-address-policy",
+        "security/capability-question-is-grant-and-scope",
+        "http-server/allow-url-pins-the-address"
+      ],
+      "guardedBy": []
     },
     {
       "id": "http-server/redirects-are-off-and-every-hop-is-re-pinned",
@@ -1051,6 +1120,87 @@
         "crates/nvs-stdlib/src/http/transport.rs",
         "crates/nvs-config/tests/tree.rs"
       ]
+    },
+    {
+      "id": "http-server/an-https-redirect-never-becomes-plaintext",
+      "title": "A redirect from `https` to `http` needs `net.downgrade` for its host and `redirectToHttp` at the call; a plain `http` URL asked for directly stays allowed",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "curl follows a hop from `https` to `http` silently, so one `Location` header strips a call's TLS; here it needs a grant and a call-site option, and the refusal names the grant",
+      "seeAlso": [
+        "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+        "security/capability-question-is-grant-and-scope",
+        "security/tls-trust-is-relaxed-only-under-a-host-grant",
+        "http-server/a-cross-origin-redirect-drops-credentials"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "http-server/a-cross-origin-redirect-drops-credentials",
+      "title": "A redirect hop to another origin drops `Authorization`, `Cookie`, `Proxy-Authorization` and every header whose value was `secret`",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "an `Authorization` header set in a stream context is re-sent to whatever host a `Location` names; here a hop to another origin drops it, and every `secret` value with it",
+      "seeAlso": [
+        "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+        "security/secret-qualifier",
+        "security/secret-sinks-refuse",
+        "http-server/an-https-redirect-never-becomes-plaintext"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
+      "title": "An outbound connection is pooled per core under a key carrying everything the check approved, and returns to the pool only after a reply read to the end under known framing",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "curl reuses a connection keyed on host and port inside one handle, and PHP's stream functions reuse nothing; here the key carries the pinned address, the client identity and the call's TLS policy, so reuse cannot widen what a check approved",
+      "seeAlso": [
+        "http-server/allow-url-pins-the-address",
+        "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+        "security/db-pool-reset-is-a-boundary",
+        "security/tls-trust-is-relaxed-only-under-a-host-grant",
+        "config/three-changeability-classes"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "http-server/the-client-trust-roots-are-the-operators",
+      "title": "`[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "`curl.cainfo` and `openssl.cafile` are `ini` settings a script can widen with `ini_set`; here the three keys are `System` class and no code-side spelling for any of them exists",
+      "seeAlso": [
+        "security/one-tls-client",
+        "security/tls-trust-is-relaxed-only-under-a-host-grant",
+        "config/three-changeability-classes",
+        "http-server/an-unsafe-or-unbounded-default-is-a-defect"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "http-server/a-reply-reports-its-tls-session",
+      "title": "`Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none",
+      "status": "designed",
+      "because": [
+        "0180"
+      ],
+      "divergesFromPhp": "`curl_getinfo` answers a flat array of thirty-odd keys mixing timings, sizes and TLS facts; here the session is an object read through members and the timings are the trace's",
+      "seeAlso": [
+        "security/tls-trust-is-relaxed-only-under-a-host-grant",
+        "http-server/the-client-trust-roots-are-the-operators",
+        "security/tainted-qualifier",
+        "core-api/a-lifetime-is-an-object"
+      ],
+      "guardedBy": []
     },
     {
       "id": "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",

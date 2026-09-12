@@ -5,8 +5,10 @@ than building a second session of its own.
 
 A second TLS session inside a driver crate would be a second answer to a question already decided at
 length, and the failure mode is not a compile error: it is one client verifying peers strictly and
-another not. Full verification is the default with no spelling for turning it off, so the plaintext
-phase of a connection is only ever the upgrade request itself.
+another not. Verification is strict by default, and relaxed only where a `capabilities.tls` grant names
+the host and the call asks for it (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`) — which
+a caller reaches by handing in a policy value the module builds a session from, never a session of its
+own. The plaintext phase of a connection is only ever the upgrade request itself.
 
 What does not generalise is what belongs to the socket rather than to the session — the deadline and
 the peer address — so there is still one clock, on the thing that waits.
