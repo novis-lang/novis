@@ -615,6 +615,153 @@ fn compact(protected: &str, encrypted_key: &str, iv: &str, body: &[u8]) -> Resul
     Ok(token)
 }
 
+/// The token, sealed under `cek` with `iv`: the AEAD half of `encrypt`.
+///
+/// Every value that has to be random is an argument rather than a draw, so a
+/// test reproducing a frozen token hands the vector's own IV in and gets the
+/// token the member would have written.
+///
+/// `protected` is the header as it was **written**, not as it is encoded. The
+/// additional data is the encoded form, which is what binds `alg`, `enc` and
+/// the `epk` to the ciphertext: editing any of them after sealing makes the tag
+/// fail rather than changing how the token is read.
+///
+/// # Errors
+///
+/// A `RuntimeError` when this process cannot spare the sealed payload's buffer
+/// or the token's, and a [`Fault::fatal`] for a key or a payload no program
+/// reaches.
+fn sealed(
+    cek: &[u8; crypto::KEY_LEN],
+    iv: &[u8; crypto::GCM_NONCE_LEN],
+    protected: &str,
+    encrypted_key: &str,
+    payload: &[u8],
+) -> Result<String, Fault> {
+    let protected = URL_SAFE_NO_PAD.encode(protected);
+
+    // Unreachable from source: every caller answers exactly 32 octets, which is
+    // the one length AES-256 has.
+    let cipher = crypto::gcm_cipher(cek).ok_or_else(|| {
+        Fault::fatal("Core\\Jwe::encrypt built no cipher from a 32-octet key".to_owned())
+    })?;
+    nvs_runtime::affordable(
+        Some(payload.len().saturating_add(TAG_LEN)),
+        "Core\\Jwe::encrypt",
+    )?;
+    let body = cipher
+        .encrypt(
+            &Nonce::<Aes256Gcm>::from(*iv),
+            Payload {
+                msg: payload,
+                aad: protected.as_bytes(),
+            },
+        )
+        .map_err(|_| {
+            // Unreachable from source: AES-GCM stops at 2^36 - 32 octets under
+            // one nonce, and no `string` a request can hold under any memory
+            // cap comes near it.
+            Fault::fatal(
+                "Core\\Jwe::encrypt was given a payload larger than one nonce can seal".to_owned(),
+            )
+        })?;
+
+    compact(
+        &protected,
+        encrypted_key,
+        &URL_SAFE_NO_PAD.encode(iv),
+        &body,
+    )
+}
+
+/// `dir`'s header, which is the whole of that algorithm's key management: the
+/// key the caller was already holding is the content key, so there is nothing
+/// to draw and nothing to put in the encrypted-key segment.
+fn direct() -> String {
+    format!(r#"{{"alg":"{DIR}","enc":"{ENC}"}}"#)
+}
+
+/// `PBES2-HS256+A128KW`'s header and its encrypted key, over a salt and a
+/// content key the caller drew.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the wrap fails, which no program reaches.
+fn wrapped(
+    password: &[u8],
+    salt: &[u8; P2S_LEN],
+    cek: &[u8; crypto::KEY_LEN],
+) -> Result<(String, String), Fault> {
+    let kek = pbes2_key(password, salt, P2C);
+    // Unreachable from source: `wrap_key` refuses only a key-encryption key
+    // that is neither 16 nor 32 octets, and `pbes2_key` answers exactly 16 of
+    // them.
+    let encrypted_key = crypto::wrap_key(&kek, cek).ok_or_else(|| {
+        Fault::fatal(
+            "Core\\Jwe::encrypt could not wrap a content key under a key-encryption key it had \
+             just derived"
+                .to_owned(),
+        )
+    })?;
+    Ok((
+        format!(
+            r#"{{"alg":"{PBES2}","enc":"{ENC}","p2c":{P2C},"p2s":"{}"}}"#,
+            URL_SAFE_NO_PAD.encode(salt)
+        ),
+        URL_SAFE_NO_PAD.encode(encrypted_key),
+    ))
+}
+
+/// `ECDH-ES`'s header and content key, over an ephemeral pair the caller drew
+/// as `der` and a recipient key of the same kind.
+///
+/// There is no encrypted-key segment to answer: the agreement is direct, so the
+/// derived key *is* the content key ([`agreed_key`]).
+///
+/// # Errors
+///
+/// A `LogicError` for a recipient key that contributes no shared secret, and a
+/// [`Fault::fatal`] where the drawn pair does not read back or its public half
+/// does not write.
+fn ephemeral(theirs: &PublicKey, der: &[u8]) -> Result<(String, [u8; crypto::KEY_LEN]), Fault> {
+    // Unreachable from source: the DER was written by the generator over a
+    // scalar of the recipient key's own kind.
+    let (mine, epk) = PrivateKey::read(der, theirs.kind())
+        .and_then(|mine| mine.public().map(|epk| (mine, epk)))
+        .ok_or_else(|| {
+            Fault::fatal(
+                "Core\\Jwe::encrypt could not read back the ephemeral key it had just drawn"
+                    .to_owned(),
+            )
+        })?;
+    let cek = agreed_key(&mine, theirs).ok_or_else(|| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            "Core\\Jwe::encrypt(): this key agrees on nothing. Its point contributes no shared \
+             secret whatever scalar is put against it, so there is no content key to seal under \
+             — a key of that shape is not one a peer should have sent."
+                .to_owned(),
+        )
+    })?;
+    // Unreachable from source: a JWK is written from a key this module has
+    // already read, and it is ASCII by construction.
+    let jwk = epk
+        .write(KeyFormat::Jwk)
+        .ok()
+        .and_then(|octets| String::from_utf8(octets).ok())
+        .ok_or_else(|| {
+            Fault::fatal(
+                "Core\\Jwe::encrypt could not write a JWK for the ephemeral key it had just \
+                 derived"
+                    .to_owned(),
+            )
+        })?;
+    Ok((
+        format!(r#"{{"alg":"{ECDH_ES}","enc":"{ENC}","epk":{jwk}}}"#),
+        cek,
+    ))
+}
+
 /// The instance one of the four constructors answers.
 fn built(picked: i64, material: &[u8], kind: i64) -> Value {
     crate::instance::build(
@@ -722,9 +869,15 @@ nvs_runtime::nvs_helper! {
     /// in that order. That is what lets a token be held to the frozen vector
     /// set byte for byte rather than only round-tripped against this module.
     ///
-    /// There is no `alg` argument to get wrong: which of the three branches
-    /// below runs is which static built `$key`, and the header states it rather
-    /// than being asked for it.
+    /// **The randomness is drawn here and nowhere below.** The IV, and the
+    /// PBES2 salt and content key, and the ephemeral pair come out of
+    /// [`crate::random::draw`] in this member; [`wrapped`], [`ephemeral`] and
+    /// [`sealed`] take them as arguments, which is what lets a test seal under
+    /// a vector's own values and get the token this member would have written.
+    ///
+    /// There is no `alg` argument to get wrong: which branch below runs is
+    /// which static built `$key`, and the header states it rather than being
+    /// asked for it.
     fn nvs_core_jwe_encrypt(ctx, args: [2]) {
         let payload = text_at(args, 0, "encrypt", "$payload")?;
         let (picked, held, kind) = opened(args[1], "encrypt")?;
@@ -738,69 +891,14 @@ nvs_runtime::nvs_helper! {
                     rng.fill_bytes(&mut salt);
                     rng.fill_bytes(&mut cek);
                 });
-                let kek = pbes2_key(material, &salt, P2C);
-                // Unreachable from source: `wrap_key` refuses only a
-                // key-encryption key that is neither 16 nor 32 octets, and
-                // `pbes2_key` answers exactly 16 of them.
-                let wrapped = crypto::wrap_key(&kek, &cek).ok_or_else(|| {
-                    Fault::fatal(
-                        "Core\\Jwe::encrypt could not wrap a content key under a \
-                         key-encryption key it had just derived"
-                            .to_owned(),
-                    )
-                })?;
-                (
-                    format!(
-                        r#"{{"alg":"{PBES2}","enc":"{ENC}","p2c":{P2C},"p2s":"{}"}}"#,
-                        URL_SAFE_NO_PAD.encode(salt)
-                    ),
-                    URL_SAFE_NO_PAD.encode(wrapped),
-                    cek,
-                )
+                let (protected, encrypted_key) = wrapped(material, &salt, &cek)?;
+                (protected, encrypted_key, cek)
             }
             USE_RECIPIENT | USE_OWN => {
                 let theirs = public_half(picked, material, kind, "encrypt")?;
-                let kind = theirs.kind();
-                let der = crypto::generated_pkcs8(ctx, kind, "Core\\Jwe::encrypt")?;
-                // Unreachable from source: the DER was written by the generator
-                // one line above, over a scalar of the same kind.
-                let (mine, epk) = PrivateKey::read(&der, kind)
-                    .and_then(|mine| mine.public().map(|epk| (mine, epk)))
-                    .ok_or_else(|| {
-                        Fault::fatal(
-                            "Core\\Jwe::encrypt could not read back the ephemeral key it had \
-                             just drawn"
-                                .to_owned(),
-                        )
-                    })?;
-                let cek = agreed_key(&mine, &theirs).ok_or_else(|| {
-                    Fault::thrown_as(
-                        ThrownClass::Logic,
-                        "Core\\Jwe::encrypt(): this key agrees on nothing. Its point \
-                         contributes no shared secret whatever scalar is put against it, so \
-                         there is no content key to seal under — a key of that shape is not \
-                         one a peer should have sent."
-                            .to_owned(),
-                    )
-                })?;
-                // Unreachable from source: a JWK is written from a key this
-                // module has already read, and it is ASCII by construction.
-                let jwk = epk
-                    .write(KeyFormat::Jwk)
-                    .ok()
-                    .and_then(|octets| String::from_utf8(octets).ok())
-                    .ok_or_else(|| {
-                        Fault::fatal(
-                            "Core\\Jwe::encrypt could not write a JWK for the ephemeral key it \
-                             had just derived"
-                                .to_owned(),
-                        )
-                    })?;
-                (
-                    format!(r#"{{"alg":"{ECDH_ES}","enc":"{ENC}","epk":{jwk}}}"#),
-                    String::new(),
-                    cek,
-                )
+                let der = crypto::generated_pkcs8(ctx, theirs.kind(), "Core\\Jwe::encrypt")?;
+                let (protected, cek) = ephemeral(&theirs, &der)?;
+                (protected, String::new(), cek)
             }
             _ => {
                 // Unreachable from source: the four constructors write the four
@@ -811,55 +909,14 @@ nvs_runtime::nvs_helper! {
                         "Core\\Jwe::encrypt held a shared key that is not 32 octets".to_owned(),
                     ));
                 };
-                (
-                    format!(r#"{{"alg":"{DIR}","enc":"{ENC}"}}"#),
-                    String::new(),
-                    cek,
-                )
+                (direct(), String::new(), cek)
             }
         };
 
-        let protected = URL_SAFE_NO_PAD.encode(protected);
         let mut iv = [0_u8; crypto::GCM_NONCE_LEN];
         crate::random::draw(ctx, |rng| rng.fill_bytes(&mut iv));
 
-        // Unreachable from source: every branch above answers exactly 32
-        // octets, which is the one length AES-256 has.
-        let cipher = crypto::gcm_cipher(&cek).ok_or_else(|| {
-            Fault::fatal("Core\\Jwe::encrypt built no cipher from a 32-octet key".to_owned())
-        })?;
-        nvs_runtime::affordable(
-            Some(payload.len().saturating_add(TAG_LEN)),
-            "Core\\Jwe::encrypt",
-        )?;
-        // The additional data is the encoded header itself, which is what binds
-        // `alg`, `enc` and the `epk` to the ciphertext: editing any of them
-        // after sealing makes the tag fail rather than changing how the token
-        // is read.
-        let body = cipher
-            .encrypt(
-                &Nonce::<Aes256Gcm>::from(iv),
-                Payload {
-                    msg: payload.as_bytes(),
-                    aad: protected.as_bytes(),
-                },
-            )
-            .map_err(|_| {
-                // Unreachable from source: AES-GCM stops at 2^36 - 32 octets
-                // under one nonce, and no `string` a request can hold under any
-                // memory cap comes near it.
-                Fault::fatal(
-                    "Core\\Jwe::encrypt was given a payload larger than one nonce can seal"
-                        .to_owned(),
-                )
-            })?;
-
-        let token = compact(
-            &protected,
-            &encrypted_key,
-            &URL_SAFE_NO_PAD.encode(iv),
-            &body,
-        )?;
+        let token = sealed(&cek, &iv, &protected, &encrypted_key, payload.as_bytes())?;
         Ok(Value::str(NvsStr::new(token.as_bytes())))
     }
 }
@@ -1092,6 +1149,266 @@ fn content_key(
                 return Ok(None);
             }
             Ok(<[u8; crypto::KEY_LEN]>::try_from(material).ok())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::vectors as webcrypto;
+
+    /// One of the set's octet strings as the fixed-width array a seam takes.
+    fn fixed<const N: usize>(octets: &[u8], what: &str) -> [u8; N] {
+        <[u8; N]>::try_from(octets)
+            .unwrap_or_else(|_| panic!("the set's {what} is {N} octets, not {}", octets.len()))
+    }
+
+    /// The kind a vector's curve name stands for.
+    fn curve(name: &str) -> KeyKind {
+        match name {
+            "P-256" => KeyKind::P256,
+            "X25519" => KeyKind::X25519,
+            curve => panic!("the set agrees over {curve}, which ECDH-ES here does not"),
+        }
+    }
+
+    /// A token's protected header as the text it was encoded from, which is
+    /// the form [`sealed`] takes and the form a header is canonical in.
+    fn protected_of(token: &str) -> String {
+        let encoded = segments(token).expect("the set writes compact tokens")[0];
+        String::from_utf8(
+            URL_SAFE_NO_PAD
+                .decode(encoded)
+                .expect("a header is base64url"),
+        )
+        .expect("a JOSE header is text")
+    }
+
+    /// Every `dir` token in the frozen set, written again out of the vector's
+    /// own key, IV and payload, and compared to the last character.
+    ///
+    /// This is the assertion a `.nvst` case cannot make. `encrypt` draws its
+    /// own IV, so a case can only open a token this module has just written —
+    /// which holds whatever the module does. Holding the whole string to
+    /// another implementation's pins the header's canonical order, the empty
+    /// encrypted-key segment, and the split of the AEAD's output into a
+    /// ciphertext and a tag, none of which a round trip can tell apart from
+    /// its own mirror image.
+    ///
+    /// One of the set's `dir` vectors carries a `kid`, which this class does
+    /// not write: `rule:security/jwe-compact-subset` gives `Jwe\Key`'s
+    /// constructors one parameter each and none of them is a key name, so that
+    /// token is one this class opens and cannot produce. What holds for it is
+    /// the rest of its header — strike the member, and it is character for
+    /// character the one written here.
+    #[test]
+    fn encrypt_writes_the_dir_tokens_webcrypto_sealed() {
+        let mut written = 0;
+        for vector in webcrypto::vectors("jwe") {
+            if webcrypto::text(vector, "/key/kind") != "shared" {
+                continue;
+            }
+            let name = webcrypto::text(vector, "/name");
+            let token = webcrypto::text(vector, "/token");
+            let header = header_of(segments(token).expect("the set writes compact tokens")[0])
+                .expect("the set's header is one this class admits");
+
+            if let Some(kid) = text_member(&header, "kid") {
+                assert_eq!(
+                    protected_of(token),
+                    format!("{},\"kid\":\"{kid}\"}}", direct().trim_end_matches('}')),
+                    "{name}, which is this header and the one member this class does not write"
+                );
+                continue;
+            }
+
+            assert_eq!(protected_of(token), direct(), "{name}, the header");
+            assert_eq!(
+                sealed(
+                    &fixed(&webcrypto::octets(vector, "/key/key"), "content key"),
+                    &fixed(&webcrypto::octets(vector, "/randomness/iv"), "IV"),
+                    &direct(),
+                    "",
+                    webcrypto::text(vector, "/payload").as_bytes(),
+                )
+                .expect("a vector's token is affordable"),
+                token,
+                "{name}"
+            );
+            written += 1;
+        }
+        assert!(
+            written > 0,
+            "the set seals `dir` tokens, and this is the loop that writes them again"
+        );
+    }
+
+    /// The set's PBES2 token, written again out of the password, the salt, the
+    /// content key and the IV it was sealed under.
+    ///
+    /// Three things are in that one string: PBKDF2 over RFC 7518 § 4.8.1.1's
+    /// prefixed salt, AES Key Wrap under the derivation truncated to 128 bits,
+    /// and a header whose `p2c` is a number rather than text. The count is
+    /// asserted against [`P2C`] first, because this class writes the floor and
+    /// a vector taken at any other count would reproduce nothing here however
+    /// right the derivation was.
+    #[test]
+    fn encrypt_writes_the_pbes2_token_webcrypto_sealed() {
+        let vector = webcrypto::vectors("jwe")
+            .iter()
+            .find(|vector| webcrypto::text(vector, "/key/kind") == "password")
+            .expect("the set seals one token under a password");
+        let name = webcrypto::text(vector, "/name");
+        let token = webcrypto::text(vector, "/token");
+        let iterations = vector
+            .pointer("/randomness/p2c")
+            .and_then(serde_json::Value::as_u64)
+            .expect("the set writes its iteration count as a number");
+        assert_eq!(
+            iterations,
+            u64::from(P2C),
+            "{name}, at the count this class writes"
+        );
+
+        let cek = fixed(&webcrypto::octets(vector, "/randomness/cek"), "content key");
+        let (protected, encrypted_key) = wrapped(
+            webcrypto::text(vector, "/key/password").as_bytes(),
+            &fixed(&webcrypto::octets(vector, "/randomness/p2s"), "PBES2 salt"),
+            &cek,
+        )
+        .expect("a derived key is one of the two widths the wrap takes");
+        assert_eq!(protected, protected_of(token), "{name}, the header");
+
+        assert_eq!(
+            sealed(
+                &cek,
+                &fixed(&webcrypto::octets(vector, "/randomness/iv"), "IV"),
+                &protected,
+                &encrypted_key,
+                webcrypto::text(vector, "/payload").as_bytes(),
+            )
+            .expect("a vector's token is affordable"),
+            token,
+            "{name}"
+        );
+    }
+
+    /// Both `ECDH-ES` tokens in the set, written again out of the recipient's
+    /// own public key and the ephemeral pair WebCrypto drew.
+    ///
+    /// The randomness here is a key pair rather than a value, which is why
+    /// [`ephemeral`] takes a PKCS#8 instead of drawing one: handed the
+    /// vector's pair, the `epk` is the set's `epk`, and the token then holds
+    /// the Concat KDF, the JWK writer's member order and the empty
+    /// encrypted-key segment to another implementation's answer at once.
+    #[test]
+    fn encrypt_writes_the_ecdh_es_tokens_webcrypto_sealed() {
+        let mut written = 0;
+        for vector in webcrypto::vectors("jwe") {
+            if webcrypto::text(vector, "/key/kind") != "keyPair" {
+                continue;
+            }
+            let name = webcrypto::text(vector, "/name");
+            let token = webcrypto::text(vector, "/token");
+            let kind = curve(webcrypto::text(vector, "/key/curve"));
+            let theirs = PublicKey::read(
+                &webcrypto::octets(vector, "/key/public"),
+                kind,
+                KeyFormat::Raw,
+            )
+            .unwrap_or_else(|_| panic!("{name}, whose recipient key is a point on its curve"));
+
+            let (protected, cek) = ephemeral(
+                &theirs,
+                &webcrypto::octets(vector, "/randomness/ephemeralPkcs8"),
+            )
+            .expect("the set's ephemeral pair agrees with its recipient");
+            assert_eq!(protected, protected_of(token), "{name}, the header");
+            assert_eq!(
+                sealed(
+                    &cek,
+                    &fixed(&webcrypto::octets(vector, "/randomness/iv"), "IV"),
+                    &protected,
+                    "",
+                    webcrypto::text(vector, "/payload").as_bytes(),
+                )
+                .expect("a vector's token is affordable"),
+                token,
+                "{name}"
+            );
+
+            // The read half against the write half's own answer: the ring
+            // entry holding the recipient's pair agrees on the content key
+            // with the agreement that sealed under it, which is what makes
+            // the refusals below `None` for the reason they say.
+            let parts = segments(token).expect("the set writes compact tokens");
+            let header = header_of(parts[0]).expect("the set's header passes the allow-list");
+            assert!(
+                matches!(
+                    content_key(
+                        USE_OWN,
+                        &webcrypto::octets(vector, "/key/pkcs8"),
+                        Some(kind),
+                        &header,
+                        parts[1],
+                    ),
+                    Ok(Some(found)) if found == cek
+                ),
+                "{name}, agreed again by the pair it was sealed for"
+            );
+            written += 1;
+        }
+        assert!(
+            written > 0,
+            "the set seals `ECDH-ES` tokens, and this is the loop that writes them again"
+        );
+    }
+
+    /// The three refusals in the set that no `.nvst` case can reach, each
+    /// asserted where it is decided rather than on the sentence it produces.
+    ///
+    /// A case only ever sees `decrypt`'s one sentence, which every refusal
+    /// shares on purpose (`rule:security/verification-throws-and-compares-in-constant-time`),
+    /// so a case cannot tell a token refused for the right reason from one
+    /// refused for another. [`content_key`] is where the reason lives: an
+    /// `epk` that is not a point, one of low order and a `p2s` under the floor
+    /// each leave a ring entry with no content key to try, and `None` is that
+    /// branch named.
+    #[test]
+    fn no_ring_entry_answers_a_content_key_for_the_tokens_the_set_refuses() {
+        for wanted in [
+            "an epk off the P-256 curve",
+            "an X25519 epk of low order",
+            "p2s one octet short",
+        ] {
+            let case = webcrypto::refusals("jwe")
+                .iter()
+                .find(|case| webcrypto::text(case, "/name") == wanted)
+                .unwrap_or_else(|| panic!("the set refuses {wanted}"));
+            let parts =
+                segments(webcrypto::text(case, "/token")).expect("the set writes compact tokens");
+            let header = header_of(parts[0]).expect("this refusal's header passes the allow-list");
+
+            let (picked, material) = match webcrypto::text(case, "/key/kind") {
+                "password" => (
+                    USE_PASSWORD,
+                    webcrypto::text(case, "/key/password").as_bytes().to_vec(),
+                ),
+                "keyPair" => (USE_OWN, webcrypto::octets(case, "/key/pkcs8")),
+                kind => {
+                    panic!("{wanted} is held against a {kind} key, which this loop has no arm for")
+                }
+            };
+            let kind = (picked == USE_OWN).then(|| curve(webcrypto::text(case, "/key/curve")));
+
+            assert!(
+                matches!(
+                    content_key(picked, &material, kind, &header, parts[1]),
+                    Ok(None)
+                ),
+                "{wanted}"
+            );
         }
     }
 }
