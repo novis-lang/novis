@@ -2,60 +2,58 @@
 
 ## State
 
-**Goal `webcrypto` — stage 4's public-key codec is on disk; neither key class is.**
-`crate::crypto` holds `PublicKey` (`crates/nvs-stdlib/src/crypto.rs:1389`) beside the `KeyKind`,
-`KeyFormat` and `KeyRefusal` Rust enums (`:1258`, `:1321`, `:1359`) and the `impl` that reads and
-writes all five kinds in all three encodings (`:1428`). Every check a public key gets is at the
-read; the module doc's *one key, three encodings* section is the home of why, and
-`rule:core-classes/crypto-interop-tier` is the rule. No new dependency — `p256`'s `pkcs8` feature
-already carries `spki`, `der` and their `alloc`, so only RSA's wrapper is parsed and the three
-curve kinds' `SubjectPublicKeyInfo` is a constant prefix over a fixed-width key.
+**Goal `webcrypto` — stage 4's `Crypto\PublicKey` is a registered class; `Crypto\KeyPair` is not.**
+`crate::crypto::PUBLIC_KEY` (`crates/nvs-stdlib/src/crypto.rs:885`) declares `read` as a static and
+`write`/`kind` as instance members, registered by one line in `registry::CLASSES`
+(`crates/nvs-stdlib/src/registry.rs:1712`) and by no `lib.rs` edit at all. Three conformance cases
+under `tests/conformance/core/crypto-public-key-*.nvst` hold it. `Core\Crypto` itself still has only
+its five AEAD and KDF rows (`crates/nvs-stdlib/src/crypto.rs:617`).
 
-**The design question stage 4 must answer, pre-authorized and not blocked.** A `Core` instance slot
-holds a Novis `Value` and never native state (`crates/nvs-stdlib/src/instance.rs:15`). So
-`Crypto\PublicKey`'s slots are its canonical SPKI plus its kind tag, and each member re-reads
-through `PublicKey::read` — a DER parse and a point validation per call, on no hot path, never less
-validated than the first read. `Crypto\KeyPair` cannot do the same *and* keep `SigningKey`'s doc
-claim that a pair holds its parsed key across calls (`crates/nvs-stdlib/src/crypto.rs:2084`): item
-2 below either takes `crate::regex`'s per-core cache, which `instance.rs:17` names as the blessed
-answer, or rewrites that sentence. Nothing is blocked.
+**The design question stage 4 asked is answered and on disk.** The slots are the canonical SPKI and
+the kind's `KEY_KIND` constant, and every member goes back through `PublicKey::read`; `PUBLIC_KEY`'s
+own doc is the home of why, and `key_of` (`crates/nvs-stdlib/src/crypto.rs:2598`) is the reader.
+`PublicKey::kind` is therefore still `expect(dead_code)`: the member answers from the slot, and what
+will reach the Rust method is a signature check picking its scheme or an agreement refusing two
+curves.
+
+**What the next session must not assume.** `read_signing_key` (`crates/nvs-stdlib/src/crypto.rs:2282`)
+takes a `SignatureKind` (`:2238`), whose cases are the roster's four **signing** kinds — there is no
+`X25519` in it, because an X25519 pair signs nothing. So a `Crypto\KeyPair` covering all five kinds
+cannot be `read_signing_key` with a class around it: the X25519 private-key path, `write()` back to
+PKCS#8, and `publicKey()` for every kind are new codec work, not registration work. Nothing is
+blocked; this is scope, not a decision.
 
 ## Next group
 
-**Stage 4: the two key classes** — one file set: `crates/nvs-stdlib/src/crypto.rs`,
-`crates/nvs-stdlib/src/registry.rs` and new `tests/conformance/core/crypto-*.nvst` cases. Four
-discoveries this session paid for, so the next does not. `crypto::address` is already in
-`address_of`'s chain (`crates/nvs-stdlib/src/lib.rs:358`), so **a second class in this module costs
-no `lib.rs` edit at all** — one line in `registry::CLASSES` beside `crate::io::FILE`
-(`crates/nvs-stdlib/src/registry.rs:1428`) is the whole registration. `io::FILE`
-(`crates/nvs-stdlib/src/io.rs:1330`) is the worked example of `methods:`/`instance:`/`slots:`
-together, and `io::handle_of` (`crates/nvs-stdlib/src/io.rs:2201`) is the shape a slot reader
-takes — `instance::receiver`, then `instance::slot`, then a `Fault::fatal` naming the slot.
-`every_registry_rows_names_are_the_specs_signature_column` reads only spec §§ 1–12
-(`crates/nvs-stdlib/tests/spec_registry_coverage.rs:694`), so § 16's prose row needs no signature
-table. And the conformance floor is three cases per member, each asking a *different* question
-(`crates/nvs-stdlib/tests/conformance_coverage.rs:137`), which three files calling all of one
-class's members satisfy at once.
+**Stage 4: the key pair and the two `Core\Crypto` rows** — one file set:
+`crates/nvs-stdlib/src/crypto.rs`, `crates/nvs-stdlib/src/registry.rs` and new
+`tests/conformance/core/crypto-key-pair-*.nvst` cases. `PUBLIC_KEY`
+(`crates/nvs-stdlib/src/crypto.rs:885`) is now the worked example for all of it — a `CoreClass` with
+`methods:`, `instance:` and `slots:` together, its cards beneath it, `key_of` (`:2598`) for the slot
+reader and `nvs_core_crypto_public_key_read` (`:2634`) for a static that answers an instance. A
+second class in this module still costs no `lib.rs` edit and one line in `registry::CLASSES`
+(`crates/nvs-stdlib/src/registry.rs:1712`). Registering a class deletes its line from
+`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`, which otherwise fails as a stale
+line.
 
-- [ ] **`Crypto\PublicKey` becomes a class** over the codec — `read` as a static, `write` and
-      `kind` as instance members, slots holding the SPKI and the kind tag — beside `Core\Crypto`'s
-      own roster at `crates/nvs-stdlib/src/crypto.rs:609`, with `PublicKey::read`
-      (`crates/nvs-stdlib/src/crypto.rs:1428`) under it and `KeyRefusal::Bug` becoming the
-      `LogicError`. `rule:core-classes/crypto-interop-tier`, `rule:core-api/shape-rules`.
-- [ ] **`Crypto\KeyPair` becomes a class** over `read_signing_key`
-      (`crates/nvs-stdlib/src/crypto.rs:2109`) — `read` and `write` over PKCS#8 as DER or one PEM
-      block, `publicKey()` through the codec — and answers the `SigningKey` question in § State
-      above. `rule:security/algorithm-comes-from-the-key`.
-- [ ] **`generateKeyPair` and `agree` become rows** on `Core\Crypto`, over `agree_x25519`
-      (`crates/nvs-stdlib/src/crypto.rs:1205`) and `agree_p256`
-      (`crates/nvs-stdlib/src/crypto.rs:1242`), with `PublicKey::p256_point` as the point the
-      second takes and both RSA kinds a `LogicError` at generation.
+- [ ] **`Crypto\KeyPair` becomes a class** — `read(secret bytes $pkcs8, Crypto\KeyKind $kind)` as a
+      static, `write()` and `publicKey()` as instance members, over `read_signing_key`
+      (`crates/nvs-stdlib/src/crypto.rs:2282`) widened past `SignatureKind`'s four signing cases
+      (`:2238`) to carry X25519 too. Decide there whether the slots hold the PKCS#8 and re-read, as
+      `PUBLIC_KEY` (`:885`) does, or take `crate::regex`'s per-core cache that
+      `crates/nvs-stdlib/src/instance.rs:17` names — and if the first, rewrite `SigningKey`'s doc
+      claim that a pair holds its parsed key across calls (`crates/nvs-stdlib/src/crypto.rs:2257`).
+      `rule:core-classes/crypto-interop-tier`, `rule:core-api/shape-rules`.
+- [ ] **`generateKeyPair` and `agree` become rows on `Core\Crypto`** — beside the five at
+      `crates/nvs-stdlib/src/crypto.rs:617`, over `agree_x25519` (`:1364`) and `agree_p256` (`:1400`),
+      with `generateKeyPair` refusing both RSA kinds as a `LogicError` naming `KeyPair::read`.
       `rule:core-classes/crypto-interop-tier`.
 
 ## Backlog
 
-- `examples/webcrypto.nvs`, the driver's acceptance fixture, is stage 7's and is written last.
-- Stage 3's JWK thumbprint is closed by this session; nothing of stage 3 is left open.
-- JWE-encrypted ID tokens, RSA-OAEP with them, and key-set fetching stay out —
-  `docs/agent/loop-goal.md` § *Not this goal*.
-- `p256`'s curve arithmetic is unaudited and accepted; `Cargo.toml:583` is the home.
+- `examples/webcrypto.nvs` is the acceptance fixture the driver reports missing every session; it
+  needs the whole stage-4 surface before it can be written — `docs/agent/loop-goal.md`.
+- `Crypto\PublicKey::write` answers a plain `bytes` from a key read out of `tainted` octets. The
+  standing decisions fix that signature, and the octets are a re-encoded validated key rather than
+  anything the sender chose, but no rule states the reading — `rule:security/verification-does-not-launder`.
+- JWK export of a private key stays out of this goal — `docs/agent/loop-goal.md` § *Not this goal*.
