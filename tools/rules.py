@@ -441,6 +441,15 @@ def main() -> int:
     ap.add_argument("--stats", action="store_true", help="one line per topic")
     args = ap.parse_args()
 
+    # A rule's body is markdown a person wrote, so it carries whatever character the
+    # prose needed -- `nonce ‖ ciphertext ‖ tag` is one -- and a console here is
+    # cp1252, which has no encoding for that. Without this, `--show` prints the
+    # metadata and then dies in a traceback on the body.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+    except AttributeError:
+        pass
+
     book = Rulebook()
 
     if args.list:
