@@ -2,55 +2,44 @@
 
 ## State
 
-**Goal `template-format` (M10) — stage 3 has landed: format-on-save starts `nvs fmt`.**
-`editors/vscode/src/format.ts` registers the client's one `DocumentFormattingEditProvider` for the
-`nvs` selector, runs `nvs fmt --stdin` through `binary()` and answers one whole-document edit; it is
-installed from `activate` beside `regions.install`. What the edit is — nothing on a refusal, nothing
-on an already-canonical buffer, otherwise the formatter's text whole — is `formatted`
-(`editors/vscode/src/template.ts:136`), the half that imports no `vscode` and runs headless.
-
-Stage 0's three prose corrections are done (`editors/vscode/src/regions.ts:10`,
-`crates/nvs-lsp/src/regions.rs:66`, and the suite's registration assertion, narrowed to *one
-provider, in `format.ts`*). Stage 0's fourth item, the rule id rename, is stage 6's.
-
-Nothing of stages 4–6 exists: `template.ts` has no chunking, `format.ts` asks `nvs/regions` nothing,
-and `nvs.template.format` is not in the manifest. **The stage-4 check's `want` list interleaves the
-two remaining stages** — its `formats only the Novis half when nvs.template.format is false` names
-stage 5's setting, and the case for it can be written at stage 4 by passing `false` to the pure
-decision, the way `forwarded(enabled, …)` already takes the services setting. Nothing is blocked;
-the design is ADR 0173's and is not re-opened.
+**Goal `template-format` (M10) — stages 4 and 5 have landed; only stage 6, the rulebook, is left.**
+The markup half is `editors/vscode/src/template.ts`: `chunks` builds them from the formatted text, the
+server's regions and the text's line breaks alone, `hidden` shows a formatter a stand-in of each hole's
+own length, `merged` re-bases an answer onto the chunk's base and drops whole a chunk whose stand-ins
+did not survive, and `edited` is the one conversion from a formatter's edits to a text.
+`editors/vscode/src/format.ts` runs ADR 0173 § 1's order — `nvs fmt`, `nvs/regions` over its answer,
+the editor's `html` **range** formatter over one virtual document per chunk at `{ tabSize: 4,
+insertSpaces: true }` — and `editors/vscode/src/regions.ts` now exports `regions(document, text?)` and
+`embedding(document, language, as, text)` for it. `nvs.template.format` is contributed, default `true`,
+read where the file is, and in `docs/reference/tools/40-editor.md`'s table, which
+`crates/nvs-lsp/tests/extension_reference.rs` holds to the manifest. The headless suite is 222 passing
+and carries the stage-4 check's titles in its order. Nothing is blocked.
 
 ## Next group
 
-**Stage 4: the markup half — chunks, the base, and the holes** — one file set:
-`editors/vscode/src/template.ts`, `editors/vscode/src/format.ts`, and the suite beside them.
+**Stage 6: the rulebook — the id, the status, the guards** — one file set: `docs/rules/ide.json`, the
+fragment beside it, and the 32 files that cite the old id.
 
-- [ ] **The chunks and the base** — `editors/vscode/src/template.ts:107` (beside `virtual`): the
-      markup between a `?>` that ends its line and the `<?nvs` that reopens code, holes included,
-      built from the formatted text and the server's regions and from nothing else; the base is the
-      indentation of the `?>` line, column zero before a file's first open tag, and the closing
-      `<?nvs` line sits at the base too (ADR 0173 §§ 2–3;
-      `rule:ide/a-template-region-gets-services-but-no-second-formatter`).
-- [ ] **The stand-in and the merge** — `editors/vscode/src/template.ts:136` (beside `formatted`,
-      which grows the markup half of its decision): a hole is shown to the formatter as a stand-in
-      of its own length so every position maps back, the output is re-based onto the chunk's base
-      whatever column the formatter started at, and a chunk whose edit would reach a hole is left as
-      written (ADR 0173 § 2; the goal's § *Standing decisions*, *Refuse, never guess*).
-- [ ] **The pass** — `editors/vscode/src/format.ts:63`: after `nvs fmt`, ask `nvs/regions` with the
-      formatted text (the client is `editors/vscode/src/regions.ts:278`'s shape, plus `text`), run
-      the editor's `html` **range** formatter over a virtual document per chunk with
-      `{ tabSize: 4, insertSpaces: true }`, and hand the results to the pure half. A regions request
-      that fails leaves the markup as `nvs fmt` wrote it.
-- [ ] **The cases** — `editors/vscode/test/surfaces/template.test.ts:119`, under the existing
-      `describe("the template format")` and after its two cases: the stage-4 check's remaining
-      titles in its order, with the HTML formatter injected as a stub
-      (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`). The floor pins
-      `the template regions` and its first two titles *before* these, so nothing moves above them.
+- [ ] **The rename** — `docs/rules/ide.json:596`: the id becomes
+      `ide/a-template-region-gets-the-editors-services-and-formatter`, in the record, in the chapter's
+      own list (`docs/rules/ide.json:246`), in the fragment's filename, and in every `rule:` citation
+      of it under `docs/`, `crates/`, `editors/` and `tools/` — 32 files — then `python tools/rules.py
+      --render`. The goal's § *Stage 6* is the item; the check is `rules.py --show <new id>`.
+- [ ] **Shipped, with its guards** — `docs/rules/ide.json:596`: status `shipped`, `guardedBy` filled
+      from this goal's tests and goal `editor-surfaces`'s —
+      `editors/vscode/test/surfaces/template.test.ts:202` (the format cases) and
+      `editors/vscode/test/contributions/contributions.test.ts:83` (the frozen roster).
+- [ ] **The sentences stages 3–5 settled** —
+      `docs/rules/ide/a-template-region-gets-services-but-no-second-formatter.md:18`: the formatting
+      paragraph is now shipped behaviour, so read it against `editors/vscode/src/format.ts:106` and the
+      two settings' names against `editors/vscode/package.json:133`, and correct what it says rather
+      than adding to it.
 
 ## Backlog
 
-- Stage 5: `nvs.template.format`, boolean, default `true`, into the manifest's frozen roster and
-  read — the goal's § *Stage 5*, `rule:ide/contributions-are-frozen-and-only-ever-added`.
-- Stage 6: rename the rule id, fill `guardedBy`, `python tools/rules.py --render` — the goal's
-  § *Stage 6*.
-- Emmet and HTML validation inside a region are still unreached — `docs/agent/carried-gaps.md`.
+- A hole written across lines becomes one long line of stand-in, so a formatter that wraps it leaves
+  that chunk as written — `editors/vscode/src/template.ts`'s `hidden` owns that trade.
+- A real HTML formatter over a real template is the milestone's host run, never headless —
+  `docs/plan/m10.md` § *Verify*.
+- A markup literal's body is still not a region, so `nvs fmt` alone lays one out —
+  `crates/nvs-lsp/src/regions.rs` § *What is not a region yet*.

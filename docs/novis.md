@@ -23646,7 +23646,8 @@ as nothing.
 | `nvs.lsp.trace.server` | `"off"` | log the frames exchanged with the server into the Novis output channel — `off`, `messages`, or `verbose` for the frame bodies too |
 | `nvs.check.scope` | `"open"` | which files diagnostics are published for — `open` for the open documents and what they require or autoload, `workspace` for every file the index holds, which is also the only scope an unreferenced private member is dimmed at |
 | `nvs.codeLens.enable` | `true` | whether a declaration carries its reference, implementor and override counts as a lens |
-| `nvs.template.services` | `true` | whether the editor's own HTML, CSS and JavaScript services answer inside an inline-HTML region. Formatting is never among them — see below |
+| `nvs.template.services` | `true` | whether the editor's own HTML, CSS and JavaScript services answer inside an inline-HTML region |
+| `nvs.template.format` | `true` | whether the editor's own HTML formatter lays out the markup of a template after `nvs fmt` has laid out the Novis — see below |
 | `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
 | `nvs.completion.phpNames` | `"all"` | which PHP built-ins are offered beside a half-written name — `all`, `resolved` for only the ones whose `Core` member exists, or `off`. Whatever the value, an item inserts a member only where the registry holds it |
@@ -23655,8 +23656,8 @@ as nothing.
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
 already running.
 
-The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark` and
-`nvs.template.services` are the client's own and take effect on the next redraw or the next request,
+The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`
+and `nvs.template.format` are the client's own and take effect on the next redraw, request or save,
 and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under. `nvs.check.scope`, `nvs.codeLens.enable` and
 `nvs.completion.phpNames` are the server's: the client hands it the whole `nvs` section once, in
 `initialize`, so a change to one of those reaches it when it next starts — **Novis: Restart Language
@@ -23736,10 +23737,21 @@ them. Outside a region nothing is forwarded and Novis answers, which includes th
 
 `nvs.template.services` is `false` to turn all of it off, for a project with its own HTML tooling.
 
-**No formatting, in either direction.** The embedded services are not registered as formatters and
-the server declares no formatting provider, so a `.nvs` file has exactly one formatter and it is
-`nvs fmt` over the whole file. Two things the HTML service does for an `.html` file do not reach a
-region: Emmet abbreviation expansion, and HTML validation.
+**Formatting is `nvs fmt` first, then the editor's HTML formatter over the markup.** A format request
+runs `nvs fmt` over the whole buffer, asks `nvs/regions` where the markup in what it answered is, and
+hands the editor's own HTML formatter each chunk: the markup between a `?>` that ends its line and the
+`<?nvs` that reopens code, `<?= … ?>` holes included. A chunk's lines start at the indentation of its
+`?>` line — which `nvs fmt` has put at the depth of the block it sits in — so markup nests from the
+code around it, and the line holding the closing `<?nvs` starts there too. Nesting inside a chunk is
+the HTML formatter's, in `nvs fmt`'s four-space unit whatever the editor's `tabSize` says, so a chunk
+and the code around it agree on what a level is. A hole's bytes are Novis's and are never edited: a
+chunk whose layout would move one is left exactly as written, and `nvs fmt --check` passes over every
+file this pass formatted. `nvs.template.format` is `false` to leave the markup alone, and then a
+format request is `nvs fmt` and nothing else.
+
+Novis has exactly one formatter of its own either way: the embedded services are not registered as
+formatters and the server declares no formatting provider. Two things the HTML service does for an
+`.html` file do not reach a region: Emmet abbreviation expansion, and HTML validation.
 
 #### What it does not do
 
