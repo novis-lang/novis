@@ -1,0 +1,53 @@
+--TEST--
+`Core\Http\Response::header` finds a field however the origin capitalised it and joins every repeat with `, `, while `::headers` hands the same lines back one at a time — `rule:security/tainted-sources`
+--FILE--
+<?nvs
+// The claim is *agreement*: one reply is asked the same question by both
+// readers, and what is asserted is that they answer the same lines — a
+// `header` that dropped a repeat still prints plausibly on its own row, and so
+// does a `headers` that joined one.
+//
+// A list under one name is a reply that carried that field on that many lines,
+// which is the only thing a table can say that a map keyed by name cannot.
+array<string> $trace = ["one", "two", "three"];
+Core\Test::answerHttp("https://api.example.com/thing", 200, {body: "ok", headers: ["Content-Type" => "text/plain", "X-Trace" => $trace]});
+
+var $reply = Core\Http\Client::get("https://api.example.com/thing");
+
+// RFC 9110 § 5.1: a field name is case-insensitive, on the wire and at the
+// lookup alike, so all three of these are one field.
+echo $reply->header("content-type") ?? "absent", "\n";
+echo $reply->header("CONTENT-TYPE") ?? "absent", "\n";
+echo $reply->header("Content-Type") ?? "absent", "\n";
+
+// RFC 9110 § 5.3: repeated lines of one field mean what they say joined by
+// `, `, in arrival order.
+echo $reply->header("x-trace") ?? "absent", "\n";
+
+// The reading that join cannot be recovered from — and the binding is what
+// pins the qualifier: a reply is bytes another host chose
+// (`rule:security/tainted-sources`), so every line of it is `tainted`.
+echo Core\Arr::count($reply->headers("X-TRACE")), "\n";
+foreach ($reply->headers("x-trace") as tainted string $line) {
+    echo $line, "|";
+}
+echo "\n";
+
+// A field the reply never carried: `null` from the one, and an empty list
+// rather than a second spelling of absence from the other.
+echo $reply->header("x-missing") ?? "absent", "\n";
+echo Core\Arr::count($reply->headers("x-missing")), "\n";
+
+// A field that arrived once is a list of one, so a caller reading `headers`
+// has nothing to tell apart.
+echo Core\Arr::count($reply->headers("content-type")), "\n";
+--EXPECT--
+text/plain
+text/plain
+text/plain
+one, two, three
+3
+one|two|three|
+absent
+0
+1

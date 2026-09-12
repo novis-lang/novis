@@ -1,0 +1,55 @@
+--TEST--
+`Core\Http\Response::header` refuses `Set-Cookie` by name and says which member reads it, whether the reply carried one or not, and `::headers` answers each cookie whole — `rule:security/tainted-sources`
+--FILE--
+<?nvs
+// The claim is *the edge*: the one field name where joining is wrong rather
+// than lossy. RFC 6265 § 3 exempts `Set-Cookie` from RFC 9110 § 5.3's comma
+// equivalence, and an `Expires` attribute writes a comma of its own — so two
+// cookies joined by `, ` parse as neither, and a member that answered one
+// would look right on every reply that carried a single cookie.
+array<string> $jar = ["sid=abc; Path=/; Expires=Wed, 21 Oct 2026 07:28:00 GMT", "theme=dark; Path=/"];
+Core\Test::answerHttp("https://api.example.com/login", 200, {body: "ok", headers: ["Set-Cookie" => $jar]});
+Core\Test::answerHttp("https://api.example.com/ping", 204, {body: ""});
+
+var $login = Core\Http\Client::post("https://api.example.com/login", {form: ["user" => "ada"]});
+
+// Refused, and the refusal names the member that does read it — the case of
+// the name is no more part of this rule than of any other lookup.
+try {
+    echo $login->header("Set-Cookie") ?? "absent", "\n";
+} catch (LogicError $joined) {
+    echo "set-cookie: refused\n";
+}
+try {
+    echo $login->header("set-cookie") ?? "absent", "\n";
+} catch (LogicError $lowercased) {
+    echo "set-cookie: refused\n";
+}
+
+// Each cookie whole, in arrival order, commas and all.
+foreach ($login->headers("Set-Cookie") as tainted string $cookie) {
+    echo $cookie, "\n";
+}
+
+// The reply that carried no cookie at all is refused at the same line: a rule
+// that depended on what arrived is a rule no program could be written against,
+// and this is the half a reply-shaped refusal would get wrong.
+var $ping = Core\Http\Client::get("https://api.example.com/ping");
+try {
+    echo $ping->header("set-cookie") ?? "absent", "\n";
+} catch (LogicError $none) {
+    echo "set-cookie: refused\n";
+}
+echo Core\Arr::count($ping->headers("set-cookie")), "\n";
+
+// Every other field the same reply carried still joins, so the refusal is one
+// name and not a rule about repeats.
+echo $login->header("content-length") ?? "absent", "\n";
+--EXPECT--
+set-cookie: refused
+set-cookie: refused
+sid=abc; Path=/; Expires=Wed, 21 Oct 2026 07:28:00 GMT
+theme=dark; Path=/
+set-cookie: refused
+0
+absent

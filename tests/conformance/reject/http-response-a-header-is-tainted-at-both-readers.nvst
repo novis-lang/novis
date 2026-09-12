@@ -1,0 +1,43 @@
+--TEST--
+`Core\Http\Response::header` answers `?tainted string` and `::headers` an `array<tainted string>`, so a plain binding refuses the value at either reader — `rule:security/tainted-sources`, `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// The claim is *a bound asserted on both sides*, twice: for each reader, the
+// binding the qualifier reaches and the one just narrower than it, named
+// together. A reader that quietly lost the qualifier passes half of this and
+// fails the other half, which is what a case asserting only the refusals could
+// not tell apart.
+//
+// A reply's header is its bytes exactly as its body is: pinning an address
+// settles which host sent them and says nothing about what is in them.
+Core\Http\Target $pinned = Core\Http::allowUrl("http://93.184.216.34/ok");
+Core\Http\Response $r = Core\Http\Client::get($pinned);
+
+// Accepted: absence is `null` and the value is what another host chose.
+tainted string $found = $r->header("content-type") ?? "";
+echo $found, "\n";
+
+// Accepted: the qualifier rides on each line and the list itself is an
+// ordinary array — there is no `tainted array<T>` for it to ride on instead.
+array<tainted string> $lines = $r->headers("x-trace");
+echo Core\Arr::count($lines), "\n";
+
+// Refused: narrowing through an assignment is the one direction the qualifier
+// never goes, and there is no generic launderer to put in front of it.
+string $plain = $r->header("content-type") ?? "";
+echo $plain, "\n";
+
+// Refused one element deep, for the same reason: a list that dropped the
+// qualifier would launder every reply header a program reads at once.
+array<string> $flattened = $r->headers("x-trace");
+echo Core\Arr::count($flattened), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `string|tainted string`
+   --> case.nvs:24:17
+%A
+error[E0401]: expected `array<string>`, found `array<tainted string>`
+   --> case.nvs:29:28
+%A
+error: aborting due to 2 errors
