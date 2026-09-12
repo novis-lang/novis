@@ -118,9 +118,10 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
+use rustls::client::WantsClientCert;
 use rustls::pki_types::pem::PemObject;
-use rustls::pki_types::{CertificateDer, ServerName};
-use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName};
+use rustls::{ClientConfig, ClientConnection, ConfigBuilder, RootCertStore, StreamOwned};
 
 use crate::net::NvsTcp;
 
@@ -196,6 +197,124 @@ impl<T: Read + Write> NvsTls<T> {
     /// cannot be opened or holds no certificate.
     pub fn over_bundle(stream: T, name: &str, bundle: &Path) -> io::Result<Self> {
         upgraded(stream, name, anchors_from(bundle)?)
+    }
+
+    /// [`over`](Self::over), presenting `identity` when the server asks the
+    /// client for a certificate.
+    ///
+    /// Presenting is the server's decision: a handshake that carries no
+    /// `CertificateRequest` sends nothing, so the same call is a plain session
+    /// against a server that does not want one. The anchors are still the
+    /// compiled-in set — an identity says who *this* end is and changes nothing
+    /// about whom this end believes.
+    ///
+    /// # Errors
+    ///
+    /// [`over`](Self::over)'s. The chain and the key were parsed and matched
+    /// when the identity was read, so nothing about them can fail here.
+    pub fn over_identity(stream: T, name: &str, identity: &NvsIdentity) -> io::Result<Self> {
+        upgraded(stream, name, Arc::clone(&identity.config))
+    }
+}
+
+/// A client identity: the certificate chain a handshake presents when a server
+/// asks for one, and the private key that proves the leaf is this client's.
+///
+/// **Built once and shared by every session that presents it.** What it holds
+/// is a whole [`ClientConfig`] rather than the chain and the key, because that
+/// is the value `rustls` takes and building one costs a key parse and a chain
+/// parse. The anchor set inside it is [`root_store`]'s `Arc`, so an identity
+/// re-parses no certificate of the compiled-in set.
+///
+/// **The leaf is public and the key is not.** [`NvsIdentity::leaf`] answers the
+/// end-entity certificate's DER, which is what a caller names an identity by —
+/// a connection pool keyed on it never hands one identity's connection to
+/// another's call, and the value that decides it is one the server was going to
+/// be sent anyway. Nothing here answers the key.
+///
+/// What it spends, per `rule:programs/memory-priority`: one parsed chain, one
+/// parsed private key and one `ClientConfig` per identity, plus an `Arc` onto
+/// the process's anchor set. Held as long as the identity is and released with
+/// it, which is O(identities in flight) and never O(requests served).
+pub struct NvsIdentity {
+    /// The configuration every session under this identity handshakes with.
+    config: Arc<ClientConfig>,
+    /// The end-entity certificate, kept as the identity's public name.
+    leaf: CertificateDer<'static>,
+}
+
+impl std::fmt::Debug for NvsIdentity {
+    /// The leaf's length and nothing else: the configuration holds the private
+    /// key, so no rendering of this type reaches it.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NvsIdentity")
+            .field("leaf", &self.leaf.as_ref().len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl NvsIdentity {
+    /// Reads a PEM certificate chain over the PKCS#8 private key that goes with
+    /// it, refusing a chain whose leaf belongs to a different key.
+    ///
+    /// `chain_pem` is the end-entity certificate first and then whatever
+    /// intermediates a server needs to build a path, which is the order every
+    /// other client takes a chain in. The match is a comparison of
+    /// `SubjectPublicKeyInfo` between that leaf and the key, and it is the only
+    /// check that can be made here at all: whether the chain is *trusted* is the
+    /// far end's decision, and it arrives as a handshake that fails.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` for a `chain_pem` that is not PEM or holds no certificate,
+    /// a key this provider cannot sign with — an X25519 key agrees rather than
+    /// signs, so it is one of these — and a leaf whose public key is not this
+    /// key's. Each is a mistake in what the program was deployed with rather
+    /// than a verdict on anybody, which is the reading
+    /// `Core\Crypto\KeyPair::read` already takes of the same material.
+    pub fn read(chain_pem: &[u8], pkcs8: &[u8]) -> io::Result<Self> {
+        let refused = |why: String| io::Error::new(io::ErrorKind::InvalidData, why);
+        let chain = CertificateDer::pem_slice_iter(chain_pem)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| refused(format!("the chain is not a PEM certificate chain: {err}")))?;
+        let Some(leaf) = chain.first().cloned() else {
+            return Err(refused("the chain holds no certificate".to_owned()));
+        };
+
+        let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(pkcs8.to_vec()));
+        let config = verifying(root_store())
+            .with_client_auth_cert(chain, key)
+            .map_err(|err| {
+                refused(match err {
+                    rustls::Error::InconsistentKeys(_) => "the chain's leaf certificate carries a \
+                                                           different public key than this key pair"
+                        .to_owned(),
+                    other => format!("this key cannot sign a TLS handshake: {other}"),
+                })
+            })?;
+        Ok(Self {
+            config: Arc::new(config),
+            leaf,
+        })
+    }
+
+    /// The end-entity certificate's DER, which is this identity's public name.
+    #[must_use]
+    pub fn leaf(&self) -> &[u8] {
+        self.leaf.as_ref()
+    }
+
+    /// Whether a handshake under this identity answers a server's certificate
+    /// request with a certificate.
+    ///
+    /// The *when asked* half of a client identity, as something a caller can
+    /// assert rather than infer: a session presents nothing until the server
+    /// sends a `CertificateRequest`, and what it presents then is whatever this
+    /// answers. A configuration built by [`config_over`] answers `false` here,
+    /// which is what "and never otherwise" is.
+    #[must_use]
+    pub fn presents(&self) -> bool {
+        self.config.client_auth_cert_resolver.has_certs()
     }
 }
 
@@ -313,10 +432,21 @@ fn upgraded<T: Read + Write>(
 /// it across cores costs an `Arc` clone and no lock.
 fn anchors() -> Arc<ClientConfig> {
     static DEFAULT: OnceLock<Arc<ClientConfig>> = OnceLock::new();
-    Arc::clone(DEFAULT.get_or_init(|| {
+    Arc::clone(DEFAULT.get_or_init(|| Arc::new(config_over(root_store()))))
+}
+
+/// The compiled-in anchor set, parsed once for the process.
+///
+/// Separate from [`anchors`] because the builder takes the store by `Arc`: that
+/// configuration and every [`NvsIdentity`]'s are built over this one parse, so
+/// an identity costs a chain and a key rather than the whole Mozilla set a
+/// second time.
+fn root_store() -> Arc<RootCertStore> {
+    static ROOTS: OnceLock<Arc<RootCertStore>> = OnceLock::new();
+    Arc::clone(ROOTS.get_or_init(|| {
         let mut roots = RootCertStore::empty();
         roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-        Arc::new(config_over(roots))
+        Arc::new(roots)
     }))
 }
 
@@ -391,12 +521,22 @@ fn anchors_from(path: &Path) -> io::Result<Arc<ClientConfig>> {
 /// the same versions, the same cipher suites and the same verifier a shipped
 /// session gets — a test on a configuration of its own would be asserting
 /// against something Novis does not run.
-fn config_over(roots: RootCertStore) -> ClientConfig {
+fn config_over(roots: impl Into<Arc<RootCertStore>>) -> ClientConfig {
+    verifying(roots).with_no_client_auth()
+}
+
+/// The shipped builder, stopped at the point where a client certificate is or
+/// is not named.
+///
+/// The seam [`NvsIdentity`] plugs into, and the reason it is a seam rather than
+/// a second builder: an identity changes what this end presents and nothing
+/// about the versions, the cipher suites or the verifier, so a session that
+/// presents one and a session that does not are the same session either way.
+fn verifying(roots: impl Into<Arc<RootCertStore>>) -> ConfigBuilder<ClientConfig, WantsClientCert> {
     ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
         .with_safe_default_protocol_versions()
         .expect("the ring provider refused the default protocol versions")
         .with_root_certificates(roots)
-        .with_no_client_auth()
 }
 
 #[cfg(test)]
@@ -466,6 +606,50 @@ mod tests {
             "the bundle was parsed a second time for the same path"
         );
         std::fs::remove_file(&path).ok();
+    }
+
+    /// An identity is the chain **and** the key, and the one check that can be
+    /// made without asking a server anything is that they are each other's.
+    ///
+    /// The mismatch is the case worth having: a deployment that renews a
+    /// certificate and leaves the old key beside it otherwise finds out during
+    /// a handshake against a live server, as an alert about the far end.
+    #[test]
+    fn an_identity_reads_a_chain_over_its_own_key_and_refuses_another_key() {
+        let mine = rcgen::generate_simple_self_signed(vec!["client.example".to_owned()])
+            .expect("the certificate could not be generated");
+        let theirs = rcgen::generate_simple_self_signed(vec!["client.example".to_owned()])
+            .expect("the second certificate could not be generated");
+        let chain = mine.cert.pem();
+
+        let identity = NvsIdentity::read(chain.as_bytes(), &mine.signing_key.serialize_der())
+            .expect("the chain and its own key were refused");
+        assert_eq!(
+            identity.leaf(),
+            mine.cert.der().as_ref(),
+            "the leaf is the first certificate of the chain"
+        );
+        assert!(
+            identity.presents(),
+            "an identity answers a server that asks for a certificate"
+        );
+        assert!(
+            !config_over(root_store())
+                .client_auth_cert_resolver
+                .has_certs(),
+            "a session with no identity presents nothing to a server that asks"
+        );
+
+        let mismatched = NvsIdentity::read(chain.as_bytes(), &theirs.signing_key.serialize_der())
+            .expect_err("a leaf carrying a different public key than the key was accepted");
+        assert!(
+            mismatched.to_string().contains("different public key"),
+            "the refusal says which half does not match: {mismatched}"
+        );
+
+        let empty = NvsIdentity::read(b"", &mine.signing_key.serialize_der())
+            .expect_err("a chain with no certificate in it was accepted");
+        assert!(empty.to_string().contains("no certificate"), "{empty}");
     }
 
     /// A bundle holding no certificate is refused where it is read.
