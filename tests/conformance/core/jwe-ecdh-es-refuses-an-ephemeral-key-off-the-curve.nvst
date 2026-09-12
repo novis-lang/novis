@@ -1,0 +1,103 @@
+--TEST--
+Core\Jwe::decrypt reads a token's epk through Core\Crypto\PublicKey::read on the curve this program's own key is on, so an off-curve point, a point of small order and a curve the token names are each refused as a key that does not read — `rule:security/jwe-compact-subset`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// Under `ECDH-ES` the token brings half of the agreement with it: the `epk` is
+// a public key an attacker writes, handed to this program to multiply its own
+// private scalar by. That is the one place in the roster where a token supplies
+// a *key*, and it is why the `epk` goes through the same
+// `Core\Crypto\PublicKey::read` a peer's key does rather than through a reader
+// of its own — there is no second validation to keep in step, and no path by
+// which a point reaches an agreement without having been on the curve.
+Core\Crypto\KeyPair $p256 = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex("3041020100301306072a8648ce3d020106082a8648ce3d0301070427302502010104201273ae38c9225cb4b3a0525f528f86fb130c7d29d1c1a48f433c8fac3dca9ecd"),
+    Core\Crypto\KeyKind::P256
+);
+Core\Crypto\KeyPair $x25519 = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex("302e020100300506032b656e042204201135b8655ccc4ea0b976d3a303d6b64b90e9f0b643f65e52288c25bdcebe4fa4"),
+    Core\Crypto\KeyKind::X25519
+);
+
+// The control: WebCrypto's own P-256 token, whose `epk` is a point on the
+// curve. Everything refused below differs from it in one field of one key.
+tainted string $card = Core\Jwe::decrypt(
+    "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6InQ1RThMSTZHYmQ5ejYyZGNhUFpjbHpyUTg0dmpxemh4SVpKNXluS0FOR2siLCJ5IjoicGF0S2pUVEFGY1JOYkVXcnh0UzRNUDMyZ3JmY3djSW1BeEZsVWpJMFNNNCJ9fQ..tcyhbkNF3cmmBPoI.GOeTEUQ9srGec1ozeK17lr5HwIjd_2IY53AMz2Zi.cr9tWOfsMB_k-XeAgAi2MA",
+    [Core\Jwe\Key::own($p256)]
+);
+echo $card == "{\"card\":\"4111 1111 1111 1111\"}" ? "a point on the curve opens" : "opened wrong", "\n";
+
+int $verdicts = 0;
+array<string> $sentences = [];
+
+// The same token with two octets of the `epk`'s `y` transposed: both
+// coordinates are still field elements and the pair is on nothing. A member
+// that multiplied first and validated afterwards would have handed the sender a
+// scalar it chose the group for.
+try {
+    tainted string $off = Core\Jwe::decrypt(
+        "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6InQ1RThMSTZHYmQ5ejYyZGNhUFpjbHpyUTg0dmpxemh4SVpKNXluS0FOR2siLCJ5IjoicEt0S2pUVEFGY1JOYkVXcnh0UzRNUDMyZ3JmY3djSW1BeEZsVWpJMFNNNCJ9fQ..9lNwSr6eXK7mJMc_.czEX2OjV-WAxK1o.ace941nvHyQm50kKAJ8gNw",
+        [Core\Jwe\Key::own($p256)]
+    );
+    echo "an off-curve epk agreed", "\n";
+} catch (RuntimeError $verdict) {
+    $verdicts += 1;
+    $sentences[$verdict->message] = "";
+}
+
+// X25519's version of the same attack, which reads rather than refuses: every
+// 32 octets is a u-coordinate, so the all-zero point becomes a key and the
+// agreement is where it stops, with a shared secret the sender knew in advance.
+try {
+    tainted string $low = Core\Jwe::decrypt(
+        "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJYMjU1MTkiLCJrdHkiOiJPS1AiLCJ4IjoiQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQSJ9fQ..9lNwSr6eXK7mJMc_.-GZl112gY9KmyKM.YIAvEX8DFccFLRCzSZIu-A",
+        [Core\Jwe\Key::own($x25519)]
+    );
+    echo "a point of small order agreed", "\n";
+} catch (RuntimeError $verdict) {
+    $verdicts += 1;
+    $sentences[$verdict->message] = "";
+}
+
+// And the curve is this program's, never the token's: the honest P-256 token
+// above, offered to the X25519 pair, is not a second curve to switch to — its
+// `epk` is read as X25519 and is a key that does not read.
+try {
+    tainted string $crossed = Core\Jwe::decrypt(
+        "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkdDTSIsImVwayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6InQ1RThMSTZHYmQ5ejYyZGNhUFpjbHpyUTg0dmpxemh4SVpKNXluS0FOR2siLCJ5IjoicGF0S2pUVEFGY1JOYkVXcnh0UzRNUDMyZ3JmY3djSW1BeEZsVWpJMFNNNCJ9fQ..tcyhbkNF3cmmBPoI.GOeTEUQ9srGec1ozeK17lr5HwIjd_2IY53AMz2Zi.cr9tWOfsMB_k-XeAgAi2MA",
+        [Core\Jwe\Key::own($x25519)]
+    );
+    echo "a token chose the curve", "\n";
+} catch (RuntimeError $verdict) {
+    $verdicts += 1;
+    $sentences[$verdict->message] = "";
+}
+echo "refused ", $verdicts, " of 3", "\n";
+echo "distinct sentences ", Core\Arr::count($sentences), "\n";
+
+// The agreement that makes this one validation rather than two: the very JWKs
+// out of those headers, handed to the member a program calls on a peer's key,
+// are answered the same way — the point on the curve reads, the transposed one
+// does not. A class that grew its own `epk` reader would keep the lines above
+// green and fail here the day the two drifted.
+Core\Crypto\PublicKey $sender = Core\Crypto\PublicKey::read(
+    "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"t5E8LI6Gbd9z62dcaPZclzrQ84vjqzhxIZJ5ynKANGk\",\"y\":\"patKjTTAFcRNbEWrxtS4MP32grfcwcImAxFlUjI0SM4\"}" as bytes,
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyFormat::Jwk
+);
+echo $sender->kind() == Core\Crypto\KeyKind::P256 ? "the same jwk reads" : "read another kind", "\n";
+try {
+    Core\Crypto\PublicKey $never = Core\Crypto\PublicKey::read(
+        "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"t5E8LI6Gbd9z62dcaPZclzrQ84vjqzhxIZJ5ynKANGk\",\"y\":\"pKtKjTTAFcRNbEWrxtS4MP32grfcwcImAxFlUjI0SM4\"}" as bytes,
+        Core\Crypto\KeyKind::P256,
+        Core\Crypto\KeyFormat::Jwk
+    );
+    echo "the transposed jwk read as a key", "\n";
+} catch (RuntimeError $verdict) {
+    echo "and the transposed one does not", "\n";
+}
+--EXPECT--
+a point on the curve opens
+refused 3 of 3
+distinct sentences 1
+the same jwk reads
+and the transposed one does not
