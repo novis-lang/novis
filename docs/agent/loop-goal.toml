@@ -109,6 +109,8 @@ modules = [
   "crates/nvs-cli/src/main.rs",
   # A subcommand that already reads the lossless tree (:66), which is the shape `fmt`'s takes.
   "crates/nvs-cli/src/ast.rs",
+  # The printer: a parsed file written back out, one run at a time.
+  "crates/nvs-fmt/src/print.rs",
 ]
 
 # The rules every stage works inside: what the formatter is, what it may not do to a line break, the
