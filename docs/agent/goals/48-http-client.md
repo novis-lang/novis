@@ -8,11 +8,14 @@ a body — JSON, a form, raw bytes or multipart — `patch` joins the verbs, and
 `Core\Http\Method` for a verb chosen at run time. A reply is read through its headers, as a `tainted`
 shape through `jsonAs<T>`, or as bytes, and a long or large one is **streamed** — SSE events, lines,
 chunks, or saved to a file — rather than held whole. Connections are reused from a per-core pool that
-keeps every address pinned, a gzip reply is decoded under the bomb bound `Core\Compress` already has, a
+keeps every address pinned, a gzip, brotli or zstd reply is decoded under the bomb bound `Core\Compress`
+already has, a
 redirect to another origin drops the caller's credentials, a call can present a client certificate, the
 deployment decides which certificates are trusted and for which hosts a program may relax that, and a
 test answers outbound calls from a table
-instead of standing up a listener. Everything the REST package (`nvs/rest`, not on this chain) needs from
+instead of standing up a listener. A name is resolved off the core, every address it answers is checked
+and tried in turn, and every call is a trace event whose span says where its time went. Everything the
+REST package (`nvs/rest`, not on this chain) needs from
 `Core`'s HTTP half is then on disk.
 
 ## Why here
@@ -27,11 +30,15 @@ run.
 What it needs already built, all on disk: the five request rows and their one options bag
 (`crates/nvs-stdlib/src/http.rs:343-386`, `:423-470`); the transport's exchange, framing and header guard
 (`crates/nvs-stdlib/src/http/transport.rs:290-375`, `:543-548`); the reply's parsed header list the class
-never exposed (`transport.rs:113-126`); gzip under a bound (`crates/nvs-stdlib/src/compress.rs:522-533`);
+never exposed (`transport.rs:113-126`); gzip, brotli and zstd under one bound
+(`crates/nvs-stdlib/src/compress.rs:522-539`);
 `Core\Http\Method`'s eight cases (`crates/nvs-stdlib/src/router.rs:123-151`); `Core\Request::jsonAs`'s
 decode-site check (`crates/nvs-types/src/expr/args.rs:1517-1528`); the in-process request `Core\Test`
 already answers (`crates/nvs-stdlib/src/test.rs:357-373`); and the SSE framing goal `event-streams` fixed
-on the writing side (`docs/agent/goals/42-event-streams.md:100-109`).
+on the writing side (`docs/agent/goals/42-event-streams.md:100-109`); the blocking pool a name lookup
+belongs on (`crates/nvs-host/src/blocking.rs:1-10`), which this crate already reaches
+(`crates/nvs-stdlib/src/process.rs:394`); and the trace kinds a fifth joins
+(`crates/nvs-runtime/src/ctx/trace.rs:54-67`).
 
 ## Stage 0 — the catch-up
 
@@ -66,6 +73,21 @@ editing: these are anchors, and files move.
 - `crates/nvs-config/src/default.toml:260-268` — the `[http.client]` comment block. Stage 9 adds
   `[http.client.tls]` beside it, and stages 10 and 11 the grants under `[capabilities.tls]` and
   `[capabilities.net]`.
+- `crates/nvs-stdlib/src/http/transport.rs:467-476` — `Retry-After`'s HTTP-date form "is not read", and
+  `:211` reads the header after a `502` or a `504` where
+  `rule:http-server/retry-is-opt-in-jittered-and-closed` names `429` and `503` alone. Stage 5.
+- `docs/rules/http-server/allow-url-pins-the-address.md:5-7` — "checks every resolved address" and
+  answers "the specific address that was approved"; the code has only ever resolved one
+  (`crates/nvs-runtime/src/capability.rs:201-205`). Stage 2, by `changes.modifies`: a set, every member
+  checked.
+- `crates/nvs-runtime/src/capability.rs:152-155` — "The resolution is synchronous", put off until the
+  client ran over the parking stream, which it now does (`transport.rs:1-2`). Stage 12 rewrites it, and
+  `resolve_host`'s and `pinned_address`'s docs (`:172-237`) with it.
+- `crates/nvs-stdlib/src/http.rs:185-196` — `Core\Http\Target` is "a URL and the one address it was
+  approved at", with slots `url` and `address`. Stage 12.
+- `docs/rules/observability/trace-events-carry-a-kind.md:1` — "one of exactly four", while
+  `rule:observability/four-kinds-become-a-span` already makes an outbound call a span that no event
+  feeds. Stage 2, by `changes.modifies`; `crates/nvs-runtime/src/ctx/trace.rs:54-67` follows in stage 13.
 
 ## Stage 1 — the floor
 
@@ -74,7 +96,7 @@ Goal `webcrypto`'s whole acceptance list, carried in verbatim by `tools/goal-swi
 ## Stage 2 — the record
 
 One new record, and no other number. Its body is § *Standing decisions* below, argued: this is
-transcription, not design. It creates ten rules, all `designed`:
+transcription, not design. It creates eleven rules, all `designed`:
 
 | Rule | Says |
 |---|---|
@@ -88,9 +110,13 @@ transcription, not design. It creates ten rules, all `designed`:
 | `http-server/an-outbound-call-names-its-address-only-under-a-grant` | `connectTo` under `net.connect_to`: an IP literal, still judged by the address policy, the certificate still checked against the URL's host |
 | `http-server/an-https-redirect-never-becomes-plaintext` | a hop from `https` to `http` needs `net.downgrade` for its host and `redirectToHttp: true`; a plain `http` URL asked for directly stays allowed |
 | `http-server/a-reply-reports-its-tls-session` | `Response::tls()` — version, cipher, whether the peer was verified, and its chain — and `null` for a plain or a faked reply |
+| `http-server/an-outbound-call-tries-every-approved-address` | every address a name resolves to is checked and one denied refuses the host; the `Target` carries the approved set; a connection falls back across it under `connectTimeout`; a retry reuses the set and never re-resolves |
 
-It modifies `http-server/a-non-idempotent-retry-needs-an-idempotency-key` (`send` becomes `request`) and
-`security/one-tls-client` (stage 0's sentence), and the spec row at `docs/spec/01-core-library.md:1167`
+It modifies `http-server/a-non-idempotent-retry-needs-an-idempotency-key` (`send` becomes `request`),
+`security/one-tls-client` (stage 0's sentence), `http-server/allow-url-pins-the-address` (a set of
+addresses, each checked), `http-server/retry-is-opt-in-jittered-and-closed` (`Retry-After` in either
+form, and a date already past keeps the jitter) and `observability/trace-events-carry-a-kind` (a fifth
+kind, `http`), and the spec row at `docs/spec/01-core-library.md:1167`
 moves with it. The record fixes the spellings the
 surface leaves open — anything `rule:core-api/verb-lexicon` refuses — and the numbers it tunes stay inside
 the bounds given below.
@@ -149,6 +175,14 @@ roster (`crates/nvs-types/src/expr/args.rs:1517-1528`): `T` a `tainted` shape, o
 declare `tainted`, per `rule:security/derived-codec-qualifiers`. A `4xx` or `5xx` is still an answer
 (`crates/nvs-stdlib/src/http.rs:595-598`).
 
+**`Retry-After` is read in both of its forms**, delay-seconds and an HTTP-date, in
+`crates/nvs-stdlib/src/http/transport.rs` (`retry_after`, `:467-476`). The date form was left unread for
+want of a clock agreement, and the deadline already is one: a date past the remaining deadline throws
+now (`rule:http-server/one-deadline-covers-the-whole-call`), and a date already past keeps the jittered
+backoff rather than becoming a zero wait, so the clients a failing service handed one date do not retry
+in step. The header is read after a `429` or a `503` alone, as
+`rule:http-server/retry-is-opt-in-jittered-and-closed` says; `:211` reads it after all four today.
+
 ## Stage 6 — streaming
 
 `Client::stream(Core\Http\Method $method, $url, {…})` answers once the head has arrived, with the status
@@ -167,7 +201,7 @@ the reader's shape, and the record says whether the four are members of one `Cor
   a buffered member either key is a diagnostic.
 - **A stream is retried only before its head.** After the first byte of body, a failure ends the stream.
 
-## Stage 7 — the pool and gzip
+## Stage 7 — the pool and compression
 
 `crates/nvs-stdlib/src/http/transport.rs`. **HTTP/1.1 keep-alive over a per-core pool**, keyed by the
 pinned address, the port, the scheme, the TLS server name and the call's TLS policy (stage 10) — so a
@@ -178,7 +212,7 @@ framing — `Content-Length` or chunked's last chunk — with no `Connection: cl
 doubt it is closed. A reused connection that fails before the request's last byte is written is replaced
 once without spending an attempt; any later failure is an attempt under the retry rules. The pool holds
 at most `[http.client] pool_idle` idle connections per core and closes one idle past
-`pool_idle_timeout`. `Connection: close` leaves the request; `Accept-Encoding: gzip` joins it.
+`pool_idle_timeout`. `Connection: close` leaves the request; `Accept-Encoding: gzip, br, zstd` joins it.
 
 **A client identity (mTLS).** `identity?: Core\Http\Identity` joins the bag, built by
 `Http\Identity::read(bytes $chainPem, Crypto\KeyPair $key)` over goal `webcrypto`'s key pair, whose kind
@@ -188,9 +222,14 @@ so two identities never share a connection and a call without one never reuses a
 presented one. One `ClientConfig` serves the whole process today (`crates/nvs-host/src/tls.rs:87`,
 `:314`); an identity is a second config, built once per `Identity` and held as long as it is.
 
-**gzip is decoded under `crate::compress::decompress_within`'s bound**, the one `Core\Compress` already
-applies, so the ratio and the ceiling are one number with one home. A streamed reply decodes
-incrementally under the same ratio.
+**gzip, brotli and zstd are decoded under `crate::compress::decompress_within`'s bound**, the one
+`Core\Compress` already applies, so the ratio and the ceiling are one number with one home — and by the
+three decoders that module already links (`crates/nvs-stdlib/src/compress.rs:526-539`), so no
+dependency is added. A streamed reply decodes incrementally under the same ratio. A decoder's window is
+bounded before it is allocated: brotli's is at most 16 MiB by RFC 7932's own format, and a zstd frame
+whose `Window_Size` passes 8 MiB — RFC 9659's ceiling for the `zstd` content coding — is refused naming
+the limit. A `Content-Encoding` the request did not offer, `deflate` among them, is a `RuntimeError`
+naming it, never bytes handed on still encoded.
 
 ## Stage 8 — credentials on a redirect
 
@@ -266,22 +305,77 @@ in review, host by host.
   issuer and expiry. The record says whether those three come from a parser already in the lock file or
   from a new dependency. `null` for a plain `http` reply and for a reply `Core\Test`'s table answered.
 
-## Stage 12 — the rulebook
+## Stage 12 — a name resolved off the core, and every address it answers
 
-Flip stage 2's ten rules to `shipped`, with `guardedBy` filled from this goal's cases and tests, and
+`crates/nvs-runtime/src/capability.rs` (`pin_host` `:167`, `resolve_host` `:190`, `pinned_address`
+`:237`), `crates/nvs-stdlib/src/http.rs` (`pin` `:252`, `TARGET` `:185-196`) and
+`crates/nvs-stdlib/src/http/transport.rs` (`Call::address` `:88-89`, the connect in `one` `:241-259`).
+Stage 11's file set, so it can follow in that group.
+
+- **The lookup leaves the core.** `rule:http-server/a-core-is-never-blocked-on-a-syscall` already sends
+  name resolution to the blocking pool; `capability.rs:152-155` put that off until this client ran over
+  the parking stream, and it does. `nvs-runtime` cannot reach `nvs_host` — its manifest names
+  `nvs-config` and `nvs-render` — so the grant is still asked on the core before any lookup
+  (`capability.rs:164-166`), the lookup runs through `nvs_host::blocking::run` as
+  `crates/nvs-stdlib/src/process.rs:394` already does, and the address check runs back on the core.
+  `Core\Net` and `Core\Db::open` pass the same door and move with it. If a caller-supplied resolver will
+  not fit `pin_host`'s signature, the fallback is a resolver `nvs-host` installs into `nvs-runtime` once
+  at boot.
+- **Every address is checked, and one denied refuses the host.** A name answering both a public address
+  and one `rule:security/net-address-policy` denies is what a rebinding attack looks like, so the whole
+  host is refused naming that address, and `net.internal`'s exceptions apply per address exactly as
+  today. An IP literal and a `connectTo` value are a set of one.
+- **`Core\Http\Target` carries the approved set**, in the resolver's order and at most eight of it, and
+  still has no members. A retry reuses the set and never re-resolves; a redirect hop resolves and
+  checks anew.
+- **The connection falls back across the set, RFC 8305's way**: families interleaved from the
+  resolver's first answer, the next attempt started when the previous has not connected within a fixed
+  attempt delay the record sets (RFC 8305 recommends 250 ms), the first to connect kept and the rest
+  closed, all under the one `connectTimeout` clamped by the deadline — no new bound. If the parking
+  stream cannot hold two connects in flight, the fallback is sequential, in the same order and under
+  the same bound. Every address failing is one `IOError` naming each. A pooled connection to any
+  address of the set may serve the call, since each was approved.
+
+## Stage 13 — an outbound call is a trace event, and its span says where the time went
+
+`crates/nvs-runtime/src/ctx/trace.rs` (`TraceKind` `:54-67`, the `query` filing `:149`) and
+`transport.rs`, with `crates/nvs-db/src/span.rs` as the precedent for a kind's fixed field set. Its own
+session.
+
+- **A fifth kind, `http`**, filed once per call from the transport's own routine, which is rare and
+  already slow — `rule:observability/trace-events-carry-a-kind`'s reason for the other three. It is the
+  event `rule:observability/four-kinds-become-a-span` already derives the outbound span from, and a
+  retried call is one event carrying its attempt count, as that rule says.
+- **Its fields**: the method; the scheme, host and port; the path without its query; the status; the
+  attempt count and the redirect hops; the address connected to; and the time spent resolving,
+  connecting, in the TLS handshake, to the first byte and in total — curl's `-w` timings, with one home.
+  Never a query string, a header value or a body, because a trace is a `secret` sink; stage 8's test
+  widens to cover this event.
+- **No timing member on `Core\Http\Response`.** A program that wants the numbers reads the trace; a
+  second surface for one measurement is the copy that disagrees.
+- A call `Core\Test`'s table answered files no `http` event: nothing crossed a network.
+
+## Stage 14 — the rulebook
+
+Flip stage 2's eleven rules to `shipped`, with `guardedBy` filled from this goal's cases and tests, and
 `python tools/rules.py --render`.
 
 ## Standing decisions
 
 - **Settled with the user, not to re-decide:** bodies are flat keys of the one bag; `request(Method, …)`
   replaces `send(Request)`, and there is no `Core\Http\Request`; a stream is bounded by `idle` and
-  `maxDuration` from `[http.client]`; gzip only; the pool is per core; a client identity is an option and
+  `maxDuration` from `[http.client]`; gzip, brotli and zstd and no other coding; the pool is per core; a
+  client identity is an option and
   part of the pool key; the redirect credential rule; outbound calls in a test are answered from a table.
   And TLS: strict by default; the operator widens trust in `[http.client.tls]` and names, in six host-list
   grants with no `true` spelling, the hosts code may relax it for; code relaxes it only there, and only by
   asking in the call. A plain `http` URL stays allowed, and only a redirect from `https` to `http` needs a
   grant. `keylog` is refused at boot in `production`. The design was argued before the goal was written
   and its argument is the record's body.
+- **Also settled with the user:** brotli and zstd join gzip, because `Core\Compress` already decodes
+  both; name resolution runs on the blocking pool; every resolved address is checked, one denied refuses
+  the host, and a call falls back across the rest; `Retry-After` is read in both forms; an outbound call
+  is an `http` trace event, and the reply has no timing member.
 - **What stays exactly as it is:** the pin and `Core\Http::allowUrl`, one deadline over the whole
   buffered call, jittered opt-in retry and its closed status set, the idempotency key's compile-time
   check, redirects off by default, `traceparent`, and a `4xx`/`5xx` answered rather than thrown. The five
@@ -296,14 +390,19 @@ Flip stage 2's ten rules to `shipped`, with `guardedBy` filled from this goal's 
   `tls.anchors`, `tls.pin`, `tls.any_name`, `tls.insecure`, `net.connect_to` and `net.downgrade`.
 - **What it spends**: per call, a request body built once and charged to the request, a file part —
   a multipart one or the whole `body` — streamed at one chunk, and a buffered reply under `REPLY_CEILING` or a streamed one at one chunk
-  plus the SSE line cap. Per core, at most `pool_idle` idle connections — a socket and a TLS session each
+  plus the SSE line cap, and a streamed compressed reply its decoder's window — 32 KiB for gzip, at most
+  8 MiB for zstd and 16 MiB for brotli — charged to the request and released with the stream. A
+  `Target` holds at most eight addresses, a call falling back across them at most one socket per address
+  until one connects, and a lookup one blocking-pool job under that pool's own bound. Per core, at most
+  `pool_idle` idle connections — a socket and a TLS session each
   — held between requests and charged to the core, which is `rule:security/db-pool-reset-is-a-boundary`'s
   shape: O(cores × pool_idle), never O(requests served). Per call that names a stage 10 option, one
   `ClientConfig` — parsed anchors or a verifier — released with the call, O(in-flight). Per process, the
   `roots` files, parsed once at boot beside or in place of the bundled set.
 - **ADR slots**: the one record of stage 2.
 - **Not this goal**: the REST package and OAuth; where a token lives between requests (goal
-  `process-cache`); HTTP/2 and HTTP/3; brotli and zstd; a forward proxy, which is goal `outbound-proxy`,
+  `process-cache`); HTTP/2 and HTTP/3; a `deflate` content coding, which the request never offers; DNS
+  over HTTPS or a resolver of Novis's own; a forward proxy, which is goal `outbound-proxy`,
   and TLS *to* that proxy, which it excludes; a passphrase-protected client key; CRL and OCSP; the OS
   certificate store as a `roots` entry; cipher-suite and curve selection; HSTS;
   a cookie jar; generating a client from an OpenAPI document, which the user deferred to the package; parsing `Link`, `Retry-After` for a program, or RFC 9457 problem details —
