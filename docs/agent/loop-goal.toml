@@ -120,6 +120,14 @@ modules = [
   "crates/nvs-types/src/expr/args.rs",
   # `check_decode_sites` (:803-830) and `check_shape_decode_site` (:910), the qualifier check. Stage 6.
   "crates/nvs-types/src/derive.rs",
+  # `Core\Ast` — `rule:core-classes/ast-is-inert`'s door onto the compiler's own parser, and the
+  # inert tree it answers with.
+  "crates/nvs-stdlib/src/ast.rs",
+  # `Core\Xml` — spec § 17's one API for documents, and the node family
+  # `rule:core-classes/html-parsing` makes both parsers produce.
+  "crates/nvs-stdlib/src/xml.rs",
+  # Seeding the checker's signature table with `Core`.
+  "crates/nvs-types/src/core_lib.rs",
 ]
 
 # Every stage works inside these three: the key picks the algorithm, the roster JWE joins, and how a
