@@ -2,68 +2,48 @@
 
 ## State
 
-**Goal `webcrypto`, stage 7: the sign direction replays.** `sign`'s clock-taking half is
-`signed_token` over a `Signing` (`crates/nvs-stdlib/src/jwt.rs:1277` and `:1313`); the member keeps the
-argument reads and `registered_pair` (`crates/nvs-stdlib/src/jwt.rs:1389`). The set's two deterministic
-text-claims cases come back as WebCrypto's own tokens octet for octet
-(`crates/nvs-stdlib/src/jwt.rs:2940`), and the ES256 DPoP proof, whose `deterministic` is false, matches
-both encoded segments — the embedded JWK included — and verifies under the half its own pair derives
-(`crates/nvs-stdlib/src/jwt.rs:2998`). `webcrypto::signs` (`crates/nvs-stdlib/src/tests/vectors.rs:54`)
-is the door onto the section.
+**Goal `webcrypto`, stage 7: every test name stage 7's `cargo-named` check lists now runs and is
+green.** All fourteen at `docs/agent/loop-goal.toml:9145-9160` appear in `cargo test -p nvs-stdlib`'s
+output, and `python tools/verify.py` is 11 of 11 green.
 
-**The set's fourth signing case is not reachable from Rust.** Its claims are `structured`, and
-`object_payload_of` (`crates/nvs-stdlib/src/jwt.rs:1204`) takes a Novis object, which only a program
-builds — so that one is a `.nvst` case at a fixed clock rather than a `#[test]`. The byte-for-byte test
-skips it out loud.
+Two of them were not renames. `Core\Jwe::decrypt`'s verdict is now `plaintext`
+(`crates/nvs-stdlib/src/jwe.rs:1134`), which leaves the member one `refused()` call site and gives
+Rust a door onto the read direction: the set's payloads (`crates/nvs-stdlib/src/jwe.rs:1262`) and all
+of its refusals (`:1473`) are now asserted through the member's own path, where before only the
+`.nvst` side ever opened a token. The ECDH replay (`crates/nvs-stdlib/src/crypto.rs:4175`) gained the
+every-key-form agreement its name claims and the goal's § *Stage 7* asks for — `raw`, `spki` and
+`jwk` read and agreed through `agree`.
 
-**Stage 7's `cargo-named` check names its tests verbatim and none of the landed ones did.** The four in
-`jwt.rs` now carry the names `docs/agent/loop-goal.toml:9145-9160` lists; `crypto.rs`'s and `jwe.rs`'s
-still do not, which is the next group. The trap itself is already `playbook.md`'s, twice.
+**`examples/webcrypto.nvs` is stage 7's last item**, and it is what the driver's acceptance sweep
+dies on, so no `[[check]]` after it has run yet. Stage 8 — the rulebook — is behind it.
 
-Still red, and expected: `examples/webcrypto.nvs`, which the goal's § *Stage 7* puts last. It is also
-what the driver's sweep dies on, so no `[[check]]` after it has run yet.
-
-**`verify.py`'s `test` step is red on a crate this work does not touch**: one of `nvs-host`'s two
-CPU-charging watchdog tests fails per run and passes alone, a different one each time. `nvs-stdlib`'s
-own binary is green — the five `webcrypto_jws_*` tests included — and `cargo clippy -p nvs-stdlib
---all-targets` is clean. The playbook bullet is what stops the next session hunting its own change in
-it.
+`nvs-host`'s two CPU-charging watchdog tests are the known flake (`crates/nvs-host/src/watchdog.rs:1051`
+and `:1103`): one of them fails per run under load and passes alone, a different one each time. This
+session's run was green, so a red one there is not evidence of a change in `nvs-stdlib`.
 
 ## Next group
 
-**Stage 7: the names stage 7's `cargo-named` check lists** — one file set:
-`crates/nvs-stdlib/src/crypto.rs`, with `crates/nvs-stdlib/src/jwe.rs` and
-`docs/agent/loop-goal.toml:9145-9160` read-only. Every assertion below is green on disk already under
-its own spelling; what is missing is the name, and `tools/loop.py:2434` matches it as a substring of the
-run's output. `rule:testing/four-proofs`.
+**Stage 7: the example, which is the stage's last item** — one file set: `examples/webcrypto.nvs`,
+new, with `docs/agent/loop-goal.toml:9162-9175`,
+`tests/conformance/core/jwe-opens-every-token-webcrypto-sealed.nvst:1` and `examples/crypto.nvs:1`
+read-only. `rule:testing/four-proofs`, and `docs/examples/README.md` owns what an example is.
 
-- [ ] **Rename the AES-GCM, ECDH, signature and JWE replays to the check's names.**
-      `crates/nvs-stdlib/src/crypto.rs:3863` → `webcrypto_aes_gcm_vectors_open_and_reseal_byte_for_byte`,
-      `:4105` → `webcrypto_ecdh_vectors_agree_the_same_secret_from_every_key_form` (with `:4616`, which
-      holds the every-form half), `:4401` and `:4440` →
-      `webcrypto_signature_vectors_verify_and_deterministic_ones_resign_byte_for_byte`, `:4415` →
-      `webcrypto_signature_refusals_are_each_refused_with_one_runtime_error`, and
-      `crates/nvs-stdlib/src/jwe.rs:1206`, `:1306`, `:1379` → the three `webcrypto_jwe_*` names. Two
-      tests cannot share one required name, so where a name covers two of them, fold them or give it to
-      the one it describes — `playbook.md`'s bullet at *a `cargo-named` check matches its name as a
-      substring* is the rule.
-- [ ] **Fold the three key-derivation replays into
-      `webcrypto_pbkdf2_hkdf_and_aes_kw_vectors_derive_the_same_keys`** —
-      `crates/nvs-stdlib/src/crypto.rs:4014` (PBKDF2), `:4065` (HKDF) and `:4226` (AES-KW) are the three
-      halves, each green. One name for three sections is the check's own wording, so the fold is the
-      design call it asks for rather than a twin beside them.
-- [ ] **Give the refusal replays
-      `webcrypto_primitive_refusal_vectors_are_each_refused_by_the_member_that_owns_the_rule`** —
-      `crates/nvs-stdlib/src/crypto.rs:3896` (AES-GCM), `:3964` (PBKDF2's bounds) and `:4192`/`:4838`
-      (a point off the curve, a low-order point) are what the name covers.
+- [ ] **Write `examples/webcrypto.nvs`.** The `exact` check freezes seven lines in order —
+      `sealed`, `opened`, `tamper refused`, `jwe round trip`, `header swap refused`,
+      `id token verified`, `algorithm swap refused` — at `docs/agent/loop-goal.toml:9166-9174`. The
+      goal's § *Stage 7* says it opens one of the frozen set's own tokens and verifies one of its ID
+      tokens, then refuses that same token with its `alg` swapped, so the example is itself a
+      browser's output being read. `tests/conformance/core/jwe-opens-every-token-webcrypto-sealed.nvst:1`
+      is where a frozen token is already inlined in Novis source to copy one from, and
+      `examples/crypto.nvs:1` is the shape and comment register an example in this tree has. Nothing
+      in `examples/` carries an `.out`, so there is nothing to bless — run it with
+      `target/debug/nvs.exe examples/webcrypto.nvs` and read the seven lines back.
+- [ ] **Then stage 8, the rulebook** — `rule:core-classes/crypto-interop-tier` still reads
+      `designed` (`docs/agent/loop-goal.toml:9180`), which is a separate file set and its own group.
 
 ## Backlog
 
-- `examples/webcrypto.nvs`, stage 7's last item — the seven lines `docs/agent/loop-goal.toml:9166-9174`
-  freezes, one of them opening one of the set's own tokens.
-- The `structured` signing case as a `.nvst` case at a fixed clock — `docs/agent/loop-goal.md` § *Stage
-  7*, `jws.signs`.
-- Stage 8, the rulebook: `rule:core-classes/crypto-interop-tier` still reads `designed`
-  (`docs/agent/loop-goal.toml:9180`).
+- The `structured` signing case as a `.nvst` case at a fixed clock — `docs/agent/loop-goal.md` §
+  *Stage 7*, `jws.signs`; `object_payload_of` takes a Novis object, so no `#[test]` reaches it.
 - `nvs-host`'s two CPU-charging watchdog tests need a measurement they own —
   `crates/nvs-host/src/watchdog.rs:1051` and `:1103`, outside this goal.
