@@ -18505,7 +18505,7 @@ Reports whether `$hash` is weaker than what `hash` would write today — a diffe
 <a id="core-core-crypto"></a>
 ### `Core\Crypto`
 
-Keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf, generateKey, seal, open, deriveKey, expandKey, generateKeyPair, agree
+Keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf, generateKey, seal, open, deriveKey, expandKey, generateKeyPair, agree, sign, verify
 
 `Core\Crypto` names its cipher with a case of `Core\Crypto\Cipher` and never with a string.
 `openssl_encrypt($data, "aes-256-cbc", $key, 0, $iv)` puts the primitive in a string and the nonce at
@@ -18663,6 +18663,8 @@ a derived key seals like a drawn one
 | [`Core\Crypto::expandKey`](#core-core-crypto-expandkey) | `expandKey(secret bytes $material, bytes $salt, string $info): secret bytes` |
 | [`Core\Crypto::generateKeyPair`](#core-core-crypto-generatekeypair) | `generateKeyPair(Core\Crypto\KeyKind $kind): Core\Crypto\KeyPair` |
 | [`Core\Crypto::agree`](#core-core-crypto-agree) | `agree(Core\Crypto\KeyPair $mine, Core\Crypto\PublicKey $theirs): secret bytes` |
+| [`Core\Crypto::sign`](#core-core-crypto-sign) | `sign(bytes $message, Core\Crypto\KeyPair $key): bytes` |
+| [`Core\Crypto::verify`](#core-core-crypto-verify) | `verify(bytes $message, bytes $signature, Core\Crypto\PublicKey $key): void` |
 
 <a id="core-core-crypto-generatekey"></a>
 #### `Core\Crypto::generateKey`
@@ -18783,6 +18785,43 @@ Agrees a shared secret with a peer over ECDH, from this program's own pair and t
 **Returns** `secret bytes` — 32 octets as a `secret bytes` — the x-coordinate for P-256 and the u-coordinate for X25519, which is what WebCrypto's `deriveBits` answers over the same two keys.
 
 **Throws** `LogicError` — The two keys are not two ends of one agreement: a pair of a kind that agrees nothing — `Ed25519` and both RSA kinds — or two keys on different curves.; `RuntimeError` — The peer's X25519 point contributes nothing, so the secret would be all-zero whatever this program's scalar is. That is a point chosen by whoever sent it, so it is a verdict on them rather than a bug here.
+
+<a id="core-core-crypto-sign"></a>
+#### `Core\Crypto::sign`
+
+```nvs skip
+Core\Crypto::sign(bytes $message, Core\Crypto\KeyPair $key): bytes
+```
+
+Signs `$message` under `$key`'s private half. There is no algorithm or digest argument: the scheme is the pair's own kind — `RsaPkcs1` and `RsaPss` over SHA-256, `P256` as ECDSA over SHA-256, `Ed25519` as itself — so a call cannot name one the key is not.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$message` | `bytes` (neutral) | The octets to sign, whole. There is no pre-hashed spelling: a digest handed in as a message is a signature over a digest, which is a different statement. |
+| `$key` | `Core\Crypto\KeyPair` | The pair to sign with, of any kind but `X25519`, which agrees rather than signs. |
+
+**Returns** `bytes` — The signature: 64 octets for `P256` — the `r ‖ s` pair JWS and WebCrypto both use, never DER — 64 for `Ed25519`, and as many octets as the modulus is long for either RSA kind. `RsaPkcs1` and `Ed25519` sign a message the same way every time; `P256` and `RsaPss` draw randomness, so two signatures over one message differ and both verify.
+
+**Throws** `LogicError` — `$key` is an `X25519` pair, which signs nothing — the kind is chosen when the pair is generated or read, so this is the call to fix.
+
+<a id="core-core-crypto-verify"></a>
+#### `Core\Crypto::verify`
+
+```nvs skip
+Core\Crypto::verify(bytes $message, bytes $signature, Core\Crypto\PublicKey $key): void
+```
+
+Checks that `$signature` is `$key`'s over `$message`, and throws when it is not. The algorithm is the key's own, as `sign`'s is the pair's, so no part of what arrived chooses how it is checked.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$message` | `bytes` (neutral) | The octets the signature is supposed to cover. `tainted` is accepted and stays: checking what a peer sent is the point, and a signature that held says who sent the octets rather than what is in them. |
+| `$signature` | `bytes` (neutral) | The signature as `sign` answers one — `r ‖ s` for `P256`, never DER. |
+| `$key` | `Core\Crypto\PublicKey` | The public key to check against, of any kind but `X25519`. |
+
+**Returns** `void` — Nothing. A check that held returns and a check that failed throws, so there is no falsy answer for a `==` to misread.
+
+**Throws** `RuntimeError` — The signature is not this key's over this message — altered, the wrong length for the key's algorithm, or made under another key. Every one of those is the same sentence, so the refusal says nothing about which part was wrong.; `LogicError` — `$key` is an `X25519` key, which verifies nothing. That is the program's own key rather than anything that arrived, so it is a bug and not a verdict.
 
 <a id="core-core-crypto-publickey"></a>
 ### `Core\Crypto\PublicKey`

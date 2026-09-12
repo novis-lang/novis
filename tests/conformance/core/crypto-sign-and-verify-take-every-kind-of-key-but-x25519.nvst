@@ -1,0 +1,89 @@
+--TEST--
+Core\Crypto::sign signs under every kind of the roster but X25519, which is a LogicError, and Core\Crypto::verify takes a signature only under the key that made it and refuses an X25519 key as a bug — the whole matrix of kinds, counted — `rule:security/algorithm-comes-from-the-key`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// Which kinds sign, asked as a matrix: every kind signs one message, and each
+// signature is offered to every kind's public key. A cell either holds under
+// the key that made it, is a verdict on a signature that key did not make, or
+// is a bug about a key that verifies nothing at all — and the three are
+// different classes on purpose, which is only visible across the whole grid.
+// The three curve kinds are drawn, since what a pair holds does not change
+// which cells hold, and the two RSA rows are issued files read under their own
+// scheme.
+array<string> $issued = [
+    "",
+    "",
+    "",
+    "308204be020100300d06092a864886f70d0101010500048204a8308204a40201000282010100cfaa61932d8fd9e7858fa521617621f05bcb3411e174995d1fab033995201d0d9d72e5e8e133d88e8bec27e75068fb7c715eb712cae5750396d50af9ad2b5c45f0a7ab16bcf2cde4566873349a2407fa9452913e433b1d7f1ea74bda50d3f5d0ec2b0b50a4ea3023a2ae3ad4975390cd3b000d8020a578469f4bffa3e9864eb989e67a804a2cf08be53bba1bb0e9071f24156b0383730779d42efbf1daada62835a8e5e1891845cc782c322f9dc7f9eb6ff1c628c925f26ba29978a96cd10b2f61f03f361250261f860927632b6167bcba71f2e4d8df93e142c904a2515cd06af13c856bde1872ee30f3a19d8292cd2ce4b39c9788a0d3c5e3f33fe784c4e033020301000102820101008db4d56aaa4f9c41699990f44b5e6260733321b005ea1bf138f7e87675b5793dde301685288fc979d42f6d37625e9125e4f2ddf87bedc24095bf8102c9516a60eb8c6eaa507b5b5632448a40dde23273a29d0931b48cf55ed65b10dec4032f9dc65ac518ddc054e32c52ba2071b6fb7ba08433b23814d21357067446b4c70a9644ad5bbf4076288b3332e618359816eda4fc66b044df2159eba31feeb3929ddbaf2213c976c7af75f32a40ea862bdcd24eb61c0a6fa9226d96c1c992a474e8fec365eed79eaef543ad7e2c2e95d499df1516c4201c23829934cdfa834896a9bcb35aa82876f8e490f1c4d06d5626ef3630903d613a92111c53db60e7a876289102818100eb88f67fa78c0e41ac9859bf94e15607dcb4fe7daeeef9c36fca87f107299aa95b26fd35552385eaeebad6773498b0a65e4a3c1f9911c44d4f7dcda8b93bb60cd240201166b77001a11acc8674ee248bf229c40d2e56e554eca0d041a3e9e82dde0112a8ce9f5815b6228e9f6092590b83cdd16db5a0256dda4215c4468c8f6902818100e1b5839c174fd69078e934d921b95e285ae9e880d74bac412e088e707d2388fd4841b2ef4ff5782c7d03964c98ef6e485cf7bd3b4b862287361e1f319956f0a0d259a1703c1ddc5b936ab0b938b22cd3c4627081ecc464f392ccd19b91c2a55bcaa80f4b5fd5e94199b08d889d1bd644b8dc99bf72c7a5276d364aca1109db3b02818072cb25006063654b62d839dda2ad1465ee8e93fe23753b6ba21f7e93dd5ecc8f3feac7bbe78bd1a807c42de49950d5bfaff2d44cbe28a798da664106bb88bb98921c48c4d2601309e8400c7077aadd4b0bb28967b72f08c49433686ca57bc9fa18da4302dcf9524ffa9deb0f085d2b62ee5130821ce43979c9c72d9ea497bb09028180644a02f0986b212b908e0ead6c0eb187bcddb2318d785251a3e2a967d232b7ebd2ef5e527774dab0e9db6e2d1ac748795ed5b57f634f76881dc3c4988549dc219955ba25e490601950a7575ef59235d8e2a9dad3e02063bad6bfab6334a1085880f3abd811fd3a67aba28740ec8e31e6d73d2e13a32c9275b2512d6a1ba80581028181008ee45b866f4b33f26d50a78c930ffaabe8e773a2044cfd07127479b6b36c635e19f0a7284ce242bf28f9a498a54705aede4b8728d54f7c81f7731a69e6f8593aece62f2493e9a49ac00d12ccfe2ccc229f28a4d9c6d01ce60035414d4fe8807fb9613054c3226d4cb15613747a77ab566acb4987613db2e6fba64d67f89cd8d5",
+    "308204bd020100300d06092a864886f70d0101010500048204a7308204a30201000282010100dbf86da3ac0cef1802722bd65d2861b324291b8b4319cdc2316e940fd7e2e0168a38236e1a6be5d93cf2ac472c3c57642807d563021ab82ad7cc0bfcd9006e9521cb7b0ca85242138997271b819ce74becfcfb6ef130d939c7ac96803871cbbd6a6e023fe45f0390303f58eaa2f7afdd2b4af396fd481fb8eb4715f437b6df9e13ceba60a053c22787c29ec7f91a442e1ae0600eacce7ee825d762f08649c00293bf020f5cb80c4f636cdfb3a8e219f364c11292a56cd12e6ca0589b7bda053cee8c4e203c1d8f8f208ab42949bfcaa23f72eabf7d62abe2e90941e111c26e40b0bf4e5b37d1f317ef9491e4b01362a39038394dc5235d73788c952613d5e6d702030100010282010003251d242eec8c6a9276616c122ee69eb210a8652853711eaaa84313aae9827cb003377676883e6409bc0a7c860462d77abf09ecfd75b6565e797b5e6517dd7ce25bcf6991ea8329565943e4dfc887820d645c8fec80df4a3531a18139cd5eb55995331108c9d6fa33c664160eb86dda42a932ac60f8ac036fd1b75da38248d629f63c1e37a651fba802296b60f6ed199fe8e8d5c3b3e858f8504409fc6ef12cdb0f056a7c84eb8e751aaa02e17f5f88eb9e52e9a03634d5a7e0d739c70780f707b9bc7bf46d965608265289094d5c46c136adc12a4bde74e68c70c61cb01207da3d475e6e4684cabe30505e76e27b3bd07d37d0dd5428b58c64770a8a4390a902818100f56023e50125101067cbd42bac65a44e7b8bb7c3942ebd6875fbbb6b43b383824fba070b4004141c6011eb8db007067f4348dce4539228bbe85bf5443837d60f0da9819cd45fca38e64406914a736c7b757727781b9982efd4435fffeabc529a321985b1c268680acd4e803093cc97d3d0c5a2f7fbbfa96d79193e9b842a874b02818100e57eaf7eb0cb58c19c993c64759aa6d3992c909ce9b89abc6ec4e1a55ebf533ba0202c0e3d1aad3c6521d21f00b5a31548bed39c86e7368e30874bf2ecf2c89424fac8c5d1df70bebc3a783824e4a986d36d6d88648231357866fd52aec2b393d7add06428ed368ea44ea8d9be945a2acda552485c191b1abbf6a27e2eec6b2502818055940f50ca626bc4dcfe98e4167f689bbab9130152482ee524e90407b817fed0cf0f996f52075a203f5d60a30cf6964c826202305bf948dda87f91fe16015b55eab4e8b092dd49c1288627283b282078ba923120d1b76b944b9aa7fbb099b7d17191b730351686dae599f05980e2c53d29be14459af6d0978eb9c03d2b0e4e1b0281801cd0e46e4efaa9815e0d6ba4dd9376a119199c6ae779f38bf788a720a19dfa708131a8f67cbbadc6e897ef8f4f027fa0bb8aa27d83fee23dc66026ac310e671b1aed966a28691afa081e7b5be95e00df5a0ae276fecfce27fd9f48eda9ddeeb8809b65903e075313641430656ee5a7d0ba13a91a46de2c261635e8bf595afc3502818100b580e1951e66dfbd6636c39827eec6f086df4daa0b622fac714635904c86ab7e4ec3b2b745fdd72b36dfd701f86ae5dfd6d4f0dfc8c87ee705669cd70d42a95c6e9f12fa5688751b1ab0db0f436cab50c52656c8f5f4f907b969bec9a1294023fc23859db7c58c0913faf4d6c906d7470a6707d13204db803c19a72ac0e8dd31",
+];
+array<Core\Crypto\KeyKind> $kinds = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyKind::RsaPss,
+];
+bytes $message = Core\Encoding::fromHex("61206d65737361676520612070656572207369676e6564");
+
+array<Core\Crypto\KeyPair> $pairs = [];
+array<Core\Crypto\PublicKey> $publics = [];
+foreach (Core\Arr::range(0, 4) as int $k) {
+    Core\Crypto\KeyPair $held = $k < 3
+        ? Core\Crypto::generateKeyPair($kinds[$k])
+        : Core\Crypto\KeyPair::read(Core\Encoding::fromHex($issued[$k]), $kinds[$k]);
+    $pairs = Core\Arr::append($pairs, $held);
+    $publics = Core\Arr::append($publics, $held->publicKey());
+}
+
+// X25519 is a key for `agree`, so it is the one row with no signature in it.
+// An empty `bytes` stands in its slot, and the matrix below never offers it.
+array<bytes> $signed = [];
+array<string> $bugs = [];
+foreach (Core\Arr::range(0, 4) as int $k) {
+    try {
+        $signed = Core\Arr::append($signed, Core\Crypto::sign($message, $pairs[$k]));
+    } catch (LogicError $signsNothing) {
+        $bugs = Core\Arr::append($bugs, $signsNothing->message);
+        $signed = Core\Arr::append($signed, Core\Encoding::fromHex(""));
+    }
+}
+echo "kinds that signed ", 5 - Core\Arr::count($bugs), " of 5", "\n";
+
+array<int> $signers = [0, 2, 3, 4];
+int $cells = 0;
+int $ownKey = 0;
+int $verdicts = 0;
+int $keyBugs = 0;
+foreach ($signers as int $s) {
+    foreach (Core\Arr::range(0, 4) as int $v) {
+        $cells += 1;
+        try {
+            Core\Crypto::verify($message, $signed[$s], $publics[$v]);
+            if ($s == $v) {
+                $ownKey += 1;
+            } else {
+                echo "kind ", $s, "'s signature was taken under kind ", $v, "\n";
+            }
+        } catch (LogicError $verifiesNothing) {
+            $keyBugs += 1;
+            $bugs = Core\Arr::append($bugs, $verifiesNothing->message);
+        } catch (RuntimeError $notThisKeys) {
+            $verdicts += 1;
+        }
+    }
+}
+echo "cells ", $cells, "\n";
+echo "its own key took it ", $ownKey, " of 4", "\n";
+echo "another key's is a verdict ", $verdicts, " of 12", "\n";
+echo "an X25519 key is a bug ", $keyBugs, " of 4", "\n";
+echo $bugs[0], "\n";
+echo $bugs[Core\Arr::count($bugs) - 1], "\n";
+--EXPECT--
+kinds that signed 4 of 5
+cells 20
+its own key took it 4 of 4
+another key's is a verdict 12 of 12
+an X25519 key is a bug 4 of 4
+Core\Crypto::sign(): an `X25519` pair signs nothing — it is a key for `Core\Crypto::agree` alone. `P256`, `Ed25519` and both RSA kinds sign.
+Core\Crypto::verify(): an `X25519` public key verifies nothing — it is a key for `Core\Crypto::agree` alone. `P256`, `Ed25519` and both RSA kinds verify.
