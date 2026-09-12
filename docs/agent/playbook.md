@@ -1852,6 +1852,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `io.open(path, encoding='utf-8')` — in any throwaway `python -c` that reads a file out of the tree,
   which is one more reason to reach for `tools/peek.py` whenever the thing you want is nameable as a
   target. [until: reviewed 2026-09-12]
+- **A goal's § *Standing decisions* can pose a question its own record already closed.** `webcrypto`'s
+  fallback clause asks whether a member row may declare a union with `secret` members and says "the
+  record says whether it held", and ADR 0179 § *Investigation* had answered it two stages before the
+  handoff item that asked for it again — the rule fragment the stage created was already written to the
+  answer. Before deciding anything a goal leaves open, read the fragment with `python tools/rules.py
+  --show <topic>/<rule>`: a fragment is always currently true, so it, and not the goal file, says what
+  is still open. [until: gone docs/agent/loop-goal.md:The record says whether it]
 
 ## Running things
 
@@ -6401,18 +6408,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   variant (`CoreTy::SecretTaintedStr`) to get every arm in one call rather than chasing the compiler
   through them one at a time, and check the three `registry.rs` methods by hand.
   [until: reviewed 2026-09-12]
-- **An `#[expect(dead_code)]` on a type does not cover a field nothing ever *reads*.** rustc reports
-  an unread field as its own diagnostic, so a stage-gated enum whose `cfg_attr(not(test),
-  expect(dead_code, …))` silences the type still warns about a field only its constructor writes,
-  and the `not(test)` means that warning lands in the test build. Add the accessor the field exists
-  for and have a case call it, rather than widening the attribute.
-  [until: gone crates/nvs-stdlib/src/crypto.rs:stage 4 registers the members]
-- **Registering a row fulfils `expect(dead_code)` on more than the functions it calls, and the
-  warning that fires can be on a `const`.** `Core\Crypto::agree` reached `agree_p256` and
-  `agree_x25519`, and clearing their attributes left `SHARED_LEN`'s unfulfilled two thousand lines
-  above, because only those two signatures name it. Run `cargo check -p <crate>` after a row and
-  clear whatever it names, rather than grepping for the functions you think you reached.
-  [until: gone crates/nvs-stdlib/src/crypto.rs:stage 4 registers the members]
 
 ## Divergences and refusals already pinned
 
