@@ -30,6 +30,12 @@ fn carriers_built(source: &str) -> usize {
     })
 }
 
+/// How many constants `source` folds a whole literal into — the shape that
+/// builds no carrier because it needs none.
+fn constants_folded(source: &str) -> usize {
+    count_insts(source, |kind| matches!(kind, InstKind::ConstMarkup(_)))
+}
+
 /// How many writes `source` makes to the output — one per piece is what a
 /// literal in a sink position lowers to.
 fn writes(source: &str) -> usize {
@@ -42,6 +48,25 @@ fn writes(source: &str) -> usize {
             }
         )
     })
+}
+
+/// How many allocation requests the **run** of `source` makes — the compile is
+/// outside the window on purpose, and so is whatever the runtime initializes on
+/// its first pass through a shape, which the warm-up call pays for.
+///
+/// The counter is `nvs_runtime::budget`'s, which every build maintains because
+/// the memory limit is read off it. Nothing here pins a number: the assertion
+/// is one run's count against another's, so an inlining difference moves both
+/// sides of it. `tests/arrays.rs` measures the packed array the same way and
+/// pins numbers instead, which is why that copy is gated to a debug build.
+fn allocations_of_run(source: &str) -> usize {
+    let unit = compile(source).expect("the fixture compiles");
+    let entry = unit.script().expect("the script frame was compiled");
+    let mut ctx = Ctx::buffered();
+    entry.call(&mut ctx).expect("the script ran to completion");
+    let before = nvs_runtime::budget::allocations();
+    entry.call(&mut ctx).expect("the script ran to completion");
+    nvs_runtime::budget::allocations() - before
 }
 
 /// A literal held in a local: the value escapes the sink, so the carrier is
@@ -68,6 +93,13 @@ echo Core\Html::toSource(Page::badge("<x>"), "the test reads back the bytes the 
 const ECHOED: &str = r#"<?nvs
 string $name = "<b>Ann</b>";
 echo html`<span>posted by {$name}</span>`;
+"#;
+
+/// A literal with nothing to fill in, held in a local — the shape whose bytes
+/// are known while it is being compiled.
+const FOLDED: &str = r#"<?nvs
+Core\Html\Markup $posted = html`<span>posted by Ann</span>`;
+echo Core\Html::toSource($posted, "the test reads back the bytes the literal built");
 "#;
 
 #[test]
@@ -107,7 +139,8 @@ Core\Html\Markup $posted = html`<span>posted by {$inner}</span>`;
 echo Core\Html::toSource($posted, "the test reads back the bytes the literal built");
 "#;
     assert_eq!(output_of(source), "<span>posted by <em>Ann</em></span>");
-    assert_eq!(carriers_built(source), 2);
+    assert_eq!(carriers_built(source), 1);
+    assert_eq!(constants_folded(source), 1);
 }
 
 #[test]
@@ -120,4 +153,45 @@ Core\Html\Markup $m = html`<b>a\`b</b> \{not a hole} &amp; \t`;
 echo Core\Html::toSource($m, "the test reads back the bytes the literal built");
 "#;
     assert_eq!(output_of(source), "<b>a`b</b> {not a hole} &amp; \t");
+}
+
+/// `rule:core-classes/html-literal`'s *What it costs to run*, first half: a
+/// literal with no hole in it is constant-pool data, so it is one
+/// `InstKind::ConstMarkup` and no lift at all — where the same literal with a
+/// hole is the join and the carrier the tests above count.
+#[test]
+fn a_hole_free_markup_literal_folds_to_one_constant() {
+    assert_eq!(output_of(FOLDED), "<span>posted by Ann</span>");
+    assert_eq!(constants_folded(FOLDED), 1);
+    assert_eq!(carriers_built(FOLDED), 0);
+
+    // The control, and the reason this test can fail at all: nothing folds a
+    // literal whose bytes are not known until it runs.
+    assert_eq!(constants_folded(ASSIGNED), 0);
+}
+
+/// The second half, which a loop is what actually exposes: the constant is
+/// built once, while compiling, so what a run spends does not depend on how
+/// many times the literal is evaluated.
+#[test]
+fn a_hole_free_markup_literal_in_a_loop_allocates_once_for_the_whole_loop() {
+    let loops = |rounds: u32| {
+        format!(
+            r#"<?nvs
+Core\Html\Markup $m = html`<i>start</i>`;
+int $i = 0;
+while ($i < {rounds}) {{
+    $m = html`<b>hi</b>`;
+    $i = $i + 1;
+}}
+"#
+        )
+    };
+    assert_eq!(constants_folded(&loops(4)), 2);
+    assert_eq!(carriers_built(&loops(4)), 0);
+    assert_eq!(
+        allocations_of_run(&loops(4)),
+        allocations_of_run(&loops(40)),
+        "the loop allocated per iteration, so the literal is not one constant"
+    );
 }

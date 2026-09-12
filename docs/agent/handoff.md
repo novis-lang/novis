@@ -2,58 +2,49 @@
 
 ## State
 
-**Goal `markup-literal`, stage 4: the fold's floor is on disk, the fold itself is not.** A hole-free
-`` html`…` `` still lowers to `ConstStr` + `CoreCall{CORE_HTML_MARKUP}` and allocates one carrier per
-execution, which is the one stage-4 check still red.
+**Goal `markup-literal`, stage 4 is on disk and both its checks' tests pass.** A hole-free
+`` html`…` `` is now constant-pool data: `nvs_ir::ir::InstKind::ConstMarkup` carries the cooked
+bytes, and `nvs-codegen` writes the whole `Core\Html\Markup` into the unit's own data section — the
+header from `nvs_runtime::immortal_object_bytes`, the class word and the one text slot as two
+relocations — so it costs one address and no call per execution. A literal with holes is untouched:
+its bytes are not known until it runs, so it stays the join and the lift.
 
-What the floor is. An object header can carry `nvs_runtime::IMMORTAL_REFCOUNT`, at one compare and a
-not-taken branch in `bump` and `drop_one` — the same price `crate::string` already pays, and
-load-bearing rather than an optimization, because a compiled unit is shared across cores and the word
-must never be *written*. `nvs_runtime::object`'s § *Decision: an immortal instance is on no list at
-all* is that decision's home and states what it spends; `immortal_object_bytes` and `OBJ_ALIGN` are
-what `nvs-codegen` writes such a constant with, leaving the `class` word and each slot payload zero
-for the emitting side to relocate.
+The descriptor route that made the fold possible. `nvs_stdlib::class_descriptors` publishes the one
+address the process leaked for a `Core` class with instances (`nvs_stdlib::instance` § *Decision:
+the descriptors are one leaked table for the process*), and `nvs-codegen`'s `core_desc_symbols`
+mints `class_desc_symbol`'s name for it. Both ends that resolve a descriptor read it: the JIT's own
+symbol table, and `Descriptors::resolve`, which is what a warm cache hit relocates a stored payload
+against. It could not come from `Classes`, which holds only the classes a unit declares.
 
-The blocker that shaped it, and it is settled: a `Core` class's `ClassDesc` was built and leaked once
-**per core**, so no one address existed for a shared unit to bake into a data section. That table is
-now one per process (`nvs_stdlib::instance` § *Decision: the descriptors are one leaked table for the
-process*), which `ClassTable` was already `Send + Sync` for, and which also spends less memory than it
-did. `nvs-codegen` already reaches `nvs_stdlib` — `crates/nvs-codegen/src/lib.rs:1656` feeds
-`nvs_stdlib::symbols()` to `builder.symbol` — so the descriptor address has a route to a relocation.
+Nothing is blocked, and `python tools/verify.py` is green across the tree.
 
 ## Next group
 
-**Stage 4: the hole-free fold** — one file set: `crates/nvs-codegen/src/lib.rs`,
-`crates/nvs-codegen/src/emit.rs`, `crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/lower/expr.rs` and
-`crates/nvs-stdlib/src/instance.rs`.
+**Stage 5: `Core\Html::join`** — one file set: `crates/nvs-stdlib/src/html.rs`, with
+`crates/nvs-stdlib/src/registry.rs` for the one spelling question.
 
-- [ ] **The unit publishes `Core\Html\Markup`'s descriptor** — `crates/nvs-codegen/src/lib.rs:1656`
-      is the JIT path where `nvs_stdlib::symbols()` already feeds `builder.symbol`, and
-      `crates/nvs-codegen/src/lib.rs:1769` is the object path's twin; both need
-      `class_desc_symbol(nvs_runtime::CARRIER_HTML_MARKUP)` bound to the address a new `pub fn` beside
-      `crates/nvs-stdlib/src/instance.rs:301` hands out. `rule:core-classes/html-literal`. Note that
-      `Classes::desc` answers `None` for it, so `emit`'s `class_desc_const` is the wrong door — the
-      symbol is an import this unit never defines.
-- [ ] **The instruction that names one** — `crates/nvs-ir/src/ir.rs:604`: an `InstKind::ConstMarkup`
-      carrying the joined bytes, `Ty::Object`, sited beside `ConstStr`. A const instruction has exactly
-      three homes, which `ConstBytes` is the map of: the enum here, `crates/nvs-ir/src/print.rs:147`,
-      and `crates/nvs-codegen/src/emit.rs:560`.
-- [ ] **The data object with two relocations** — `crates/nvs-codegen/src/emit.rs:1152`, beside
-      `emit_immortal_str`: `nvs_runtime::immortal_object_bytes(&[Tag::Str])` at `OBJ_ALIGN`, then
-      `DataDescription::declare_data_in_data` + `write_data_addr` at `nvs_runtime::OBJ_CLASS_OFFSET`
-      and at `field_offset(0) + Value::BITS_OFFSET` — the second pointing at the immortal `StrHeader`
-      `emit_immortal_str` already builds, which wants a sibling returning its `DataId` rather than a
-      materialized address. `crates/nvs-runtime/src/object.rs:3799`'s `immortal_unit` is the same two
-      words filled in by hand, and is what the emitted bytes must match.
-- [ ] **The fold at the arm that already exists** — `crates/nvs-ir/src/lower/expr.rs:2196`: a `parts`
-      holding no `StringPart::Expr` cooks its segments at compile time and emits the one instruction
-      instead of the `ConstStr`/`Concat`/`CoreCall` run, with no temporary staged and no release. The
-      two red tests go in `crates/nvs-codegen/src/lib.rs:2282`, whose `lower` and `compiled` helpers
-      are what they assert on.
+- [ ] **What spells `array<Core\Html\Markup>` in a row** — `crates/nvs-stdlib/src/html.rs:160`
+      shows `CoreTy::Instance` already works as a parameter, so the open half is the *list*: read
+      the `CoreTy` roster at `crates/nvs-stdlib/src/registry.rs:225` for an array-of-instance arm
+      before writing the signature, and add one there if it has none.
+      `rule:core-classes/html-literal`.
+- [ ] **`join`'s row and its helper** — a `CoreMethod` beside `toSource`'s at
+      `crates/nvs-stdlib/src/html.rs:157`, its `MethodDoc` beside
+      `crates/nvs-stdlib/src/html.rs:301`, and the helper beside the `nvs_helper!` at
+      `crates/nvs-stdlib/src/html.rs:645`. It escapes nothing and trusts nothing: every element is
+      already a carrier, so it is a walk of the list and the separator between.
+      `rule:core-classes/html-literal`.
+- [ ] **The three tests the check names** — in `mod tests` at
+      `crates/nvs-stdlib/src/html.rs:1633`: `html_join_writes_every_part_in_order_with_its_separator_between`,
+      `html_join_over_an_empty_list_answers_an_empty_markup`, and
+      `html_join_escapes_nothing_because_every_part_is_already_a_carrier`.
 
 ## Backlog
 
-- Identical literals each mint their own data object — `nvs-codegen`'s own known gaps.
-- `Core\Cli\Text` gets no literal form by decision — `rule:tooling/styling-is-a-value-not-a-grammar`.
-- `nvs fmt`, the LSP region and `nvs convert` are rules with no tool to edit — the goal's § *Standing
-  decisions*.
+- Stage 5's second check is seven `.nvst` documents, none of them on disk yet —
+  `docs/agent/loop-goal.toml:8801`.
+- `crates/nvs-stdlib/src/response.rs:12`'s known gap says a carrier is not spellable in a registry
+  row, but `toSource` spells one at `crates/nvs-stdlib/src/html.rs:160` — that note is stale or means
+  something narrower than it says.
+- Two identical string literals are still two data objects, and a folded markup constant now makes
+  two of them at a time — `nvs-codegen`'s module doc, known gap 4.

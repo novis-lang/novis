@@ -471,6 +471,22 @@ pub enum InstKind {
     /// (`nvs_types::defaults::ConstArg::Bytes`). `Core\Bytes::join`'s
     /// `$separator = ""` is such a default.
     ConstBytes(Vec<u8>),
+    /// A hole-free `` html`…` ``'s cooked bytes, as the whole
+    /// `Core\Html\Markup` they denote: one immortal instance in the unit's own
+    /// data section, its class word and its one text slot both relocations
+    /// (`nvs_runtime::immortal_object_bytes`), so the literal costs nothing per
+    /// execution where the lift it replaces costs an object per evaluation —
+    /// `rule:core-classes/html-literal`'s *What it costs to run*.
+    ///
+    /// [`Ty::Object`], and a fresh value on the same terms
+    /// [`InstKind::ConstStr`] is one: the reference it starts with is implicit,
+    /// and every retain and release of it is the compare against
+    /// `nvs_runtime::IMMORTAL_REFCOUNT` that steps over the word.
+    ///
+    /// A literal with holes never reaches here. Its bytes are not known until
+    /// it runs, so it stays the join and the lift
+    /// [`crate::lower::Lowering::lower_markup_literal`] emits.
+    ConstMarkup(String),
     /// Reads the function's own parameter at this positional index.
     Param(u32),
     /// A binary arithmetic or comparison operator over two already-lowered

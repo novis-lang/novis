@@ -2170,7 +2170,14 @@ impl<'a> Lowering<'a> {
     /// the literal assigned, returned or put in an array rather than written
     /// straight to a sink.
     ///
-    /// **One carrier, however many pieces.** Each piece becomes bytes first — a
+    /// **A literal with no hole is a constant.** Its bytes are known while it
+    /// is being compiled, so it lowers to one [`InstKind::ConstMarkup`] — an
+    /// immortal instance in the unit's own data section — and allocates nothing
+    /// per execution, which is what that rule's *What it costs to run* promises
+    /// of this shape where it promises one object of the next.
+    ///
+    /// **One carrier, however many pieces**, for a literal that has holes. Each
+    /// piece becomes bytes first — a
     /// segment cooked by `nvs_types::string_lit::cook_markup_text`, a hole by
     /// [`Self::lower_markup_hole`] — and the join is the same n-ary
     /// [`InstKind::Concat`] an interpolated string's parts fold to. Only the
@@ -2194,6 +2201,18 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        if parts.iter().all(|part| matches!(part, StringPart::Text(_))) {
+            let mut text = String::new();
+            for part in parts {
+                if let StringPart::Text(span) = part {
+                    // The issues are discarded for the reason the pieces below
+                    // discard theirs: `nvs_types::check_program` has already
+                    // reported them against this same span.
+                    text.push_str(&nvs_types::string_lit::cook_markup_text(self.src, *span).0);
+                }
+            }
+            return self.emit(*cur, Ty::Object, InstKind::ConstMarkup(text));
+        }
         let mark = self.temporaries_mark();
         let mut pieces: Vec<ValueId> = Vec::with_capacity(parts.len());
         for part in parts {

@@ -145,6 +145,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::ConstUnset => "const.unset".to_owned(),
         InstKind::ConstStr(s) => format!("const.str {s:?}"),
         InstKind::ConstBytes(b) => format!("const.bytes {b:?}"),
+        InstKind::ConstMarkup(s) => format!("const.markup {s:?}"),
         InstKind::Param(i) => format!("param {i}"),
         InstKind::BinOp { op, lhs, rhs } => {
             format!("{} v{}, v{}", bin_op_name(*op), lhs.index(), rhs.index())

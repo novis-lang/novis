@@ -63,7 +63,7 @@
 //! loop; see `Emitter::emit_int_pow`.
 
 use cranelift::prelude::*;
-use cranelift_module::{DataDescription, FuncId, Linkage, Module};
+use cranelift_module::{DataDescription, DataId, FuncId, Linkage, Module};
 use nvs_ir::Ty;
 use nvs_ir::ids::{BlockId, ValueId};
 use nvs_ir::ir::{
@@ -555,6 +555,13 @@ impl Emitter<'_, '_> {
                 let tag = self.b.ins().iconst(types::I64, i64::from(Tag::Unset as u8));
                 let bits = self.b.ins().iconst(types::I64, 0);
                 let value = self.join_tagged(tag, bits);
+                self.define(inst, value)?;
+            }
+            // `rule:core-classes/html-literal`'s folded literal: a whole
+            // `Core\Html\Markup` in the data section, which costs the one
+            // address a string literal costs and no call at all.
+            InstKind::ConstMarkup(text) => {
+                let value = self.emit_const_markup(text.as_bytes())?;
                 self.define(inst, value)?;
             }
             InstKind::ConstStr(text) => {
@@ -1150,6 +1157,15 @@ impl Emitter<'_, '_> {
     /// shared, which the crate docs carry as a known gap and costs a few bytes
     /// of unit rather than anything on the request path.
     fn emit_immortal_str(&mut self, bytes: &[u8]) -> Result<Value, CodegenError> {
+        let data = self.immortal_str_data(bytes)?;
+        Ok(self.literal_address(data))
+    }
+
+    /// The data object [`Self::emit_immortal_str`] materializes the address of,
+    /// as the definition itself — which is what a *second* data object holding
+    /// this string in one of its slots relocates against, a relocation naming a
+    /// `DataId` and never a value in some function.
+    fn immortal_str_data(&mut self, bytes: &[u8]) -> Result<DataId, CodegenError> {
         let mut object =
             Vec::with_capacity(nvs_runtime::PAYLOAD_OFFSET.saturating_add(bytes.len()));
         object.extend_from_slice(&nvs_runtime::immortal_header_bytes(bytes));
@@ -1161,7 +1177,55 @@ impl Emitter<'_, '_> {
             u64::try_from(nvs_runtime::HEADER_ALIGN)
                 .map_err(|_| internal("a string header's alignment past u64"))?,
         );
-        self.define_literal(&desc)
+        self.define_literal_data(&desc)
+    }
+
+    /// A hole-free markup literal: the whole `Core\Html\Markup` in the unit's
+    /// data section, at the cost of the two relocations that make it one.
+    ///
+    /// `rule:core-classes/html-literal` promises this shape allocates nothing
+    /// per execution, and an instance is only as immortal as what its slots
+    /// point at — so the text is [`Self::immortal_str_data`]'s own constant and
+    /// the object points at that. [`nvs_runtime::immortal_object_bytes`] writes
+    /// the header, the pinned refcount and the one slot's tag, and leaves both
+    /// addresses zero because neither is a number this side can know: the class
+    /// word is the descriptor `nvs_stdlib` leaked for the whole process,
+    /// reached through the import [`crate::class_desc_symbol`] names, and the
+    /// payload is the string object beside this one. Addresses written as
+    /// relocations are what lets the same emission be an artifact some later
+    /// process loads
+    /// (`rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`).
+    fn emit_const_markup(&mut self, text: &[u8]) -> Result<Value, CodegenError> {
+        let text_data = self.immortal_str_data(text)?;
+
+        let mut desc = DataDescription::new();
+        desc.define(nvs_runtime::immortal_object_bytes(&[Tag::Str]).into_boxed_slice());
+        desc.set_align(
+            u64::try_from(nvs_runtime::OBJ_ALIGN)
+                .map_err(|_| internal("an object header's alignment past u64"))?,
+        );
+
+        let class = self.class_desc_data(nvs_runtime::CARRIER_HTML_MARKUP)?;
+        let class_ref = self.module.declare_data_in_data(class, &mut desc);
+        desc.write_data_addr(
+            u32::try_from(nvs_runtime::OBJ_CLASS_OFFSET)
+                .map_err(|_| internal("an object's class word past u32"))?,
+            class_ref,
+            0,
+        );
+
+        let slot = nvs_runtime::field_offset(0)
+            .checked_add(nvs_runtime::Value::BITS_OFFSET)
+            .ok_or_else(|| internal("an object's slot payload past the address space"))?;
+        let text_ref = self.module.declare_data_in_data(text_data, &mut desc);
+        desc.write_data_addr(
+            u32::try_from(slot).map_err(|_| internal("an object's slot payload past u32"))?,
+            text_ref,
+            0,
+        );
+
+        let object = self.define_literal_data(&desc)?;
+        Ok(self.literal_address(object))
     }
 
     /// Puts `bytes` in the unit's data section and materializes its address
@@ -1195,6 +1259,15 @@ impl Emitter<'_, '_> {
     /// stays that way. Anything that did write one would be a bug in two
     /// requests at once, so the mapping is the place to catch it.
     fn define_literal(&mut self, desc: &DataDescription) -> Result<Value, CodegenError> {
+        let data = self.define_literal_data(desc)?;
+        Ok(self.literal_address(data))
+    }
+
+    /// [`Self::define_literal`]'s first half: the definition alone, under the
+    /// same fresh name and the same read-only linkage, for a caller that wants
+    /// the `DataId` rather than an address — a data object that *contains*
+    /// another one names it that way.
+    fn define_literal_data(&mut self, desc: &DataDescription) -> Result<DataId, CodegenError> {
         let name = format!("nvs_bytes_{}", *self.literals);
         *self.literals += 1;
 
@@ -1211,10 +1284,14 @@ impl Emitter<'_, '_> {
                 function: self.f.name.clone(),
                 source: Box::new(source),
             })?;
+        Ok(data)
+    }
 
+    /// One defined data object's address, in the function being emitted.
+    fn literal_address(&mut self, data: DataId) -> Value {
         let global = self.module.declare_data_in_func(data, self.b.func);
         self.clear_colocated(global);
-        Ok(self.b.ins().symbol_value(types::I64, global))
+        self.b.ins().symbol_value(types::I64, global)
     }
 
     /// Clears `colocated` on a `Symbol` global, for the reason
@@ -2280,18 +2357,28 @@ impl Emitter<'_, '_> {
         if let Some(global) = self.desc_globals.get(class) {
             return Ok(self.b.ins().symbol_value(types::I64, *global));
         }
-        let name = crate::class_desc_symbol(class);
-        let data = self
-            .module
-            .declare_data(&name, Linkage::Import, false, false)
-            .map_err(|source| CodegenError::Cranelift {
-                function: self.f.name.clone(),
-                source: Box::new(source),
-            })?;
+        let data = self.class_desc_data(class)?;
         let global = self.module.declare_data_in_func(data, self.b.func);
         self.clear_colocated(global);
         self.desc_globals.insert(class.to_owned(), global);
         Ok(self.b.ins().symbol_value(types::I64, global))
+    }
+
+    /// The imported data object one descriptor's address arrives through —
+    /// [`Self::class_desc_value`]'s declaration half, shared with
+    /// [`Self::emit_const_markup`], whose relocation is written into another
+    /// data object and so names the `DataId` rather than a value.
+    ///
+    /// The declaration is idempotent: `cranelift-module` merges a repeat, so
+    /// every site that wants a descriptor asks for it here.
+    fn class_desc_data(&mut self, class: &str) -> Result<DataId, CodegenError> {
+        let name = crate::class_desc_symbol(class);
+        self.module
+            .declare_data(&name, Linkage::Import, false, false)
+            .map_err(|source| CodegenError::Cranelift {
+                function: self.f.name.clone(),
+                source: Box::new(source),
+            })
     }
 
     /// The `nvs_runtime::ShapeCodec` address a call site's written shape
