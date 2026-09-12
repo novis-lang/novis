@@ -316,6 +316,20 @@ pub enum CoreTy {
     /// still owes `rule:security/unclassified-parameter-refuses-tainted`'s separate answer about where the value came
     /// from.
     SecretBlob(Qual),
+    /// `secret string` — [`Self::SecretBlob`] on the text base, and a *demand*
+    /// in parameter position for that variant's reason: `nvs_types`'
+    /// assignment relation widens onto a qualifier bit and narrows through
+    /// none, so a plain `string` argument reaches this parameter and a `secret
+    /// string` one does too, with nothing laundered either way.
+    ///
+    /// The argument that has nowhere else to go is a **password**, which is
+    /// `secret` where a key is: `Core\Crypto::deriveKey` takes one and answers
+    /// [`Self::SecretBytes`], carrying no octet of it either way.
+    /// [`Qual::Reveal`] is the only other spelling that admits a `secret` text,
+    /// and that roster is closed at two classes because the mark *removes* the
+    /// qualifier — a derivation removes nothing, so the parameter says what the
+    /// value **is** rather than what the member is allowed to do to it.
+    SecretText(Qual),
     /// `tainted string` — `rule:security/tainted-qualifier`'s
     /// qualifier written into a row's own signature, and
     /// [`Self::SecretBytes`]'s opposite number on the other axis.
@@ -1058,7 +1072,10 @@ impl CoreTy {
     #[must_use]
     pub const fn classification(&self) -> Option<Qual> {
         match self {
-            Self::Text(qual) | Self::Blob(qual) | Self::SecretBlob(qual) => Some(*qual),
+            Self::Text(qual)
+            | Self::Blob(qual)
+            | Self::SecretBlob(qual)
+            | Self::SecretText(qual) => Some(*qual),
             // The one spelling whose classification is fixed by the variant
             // rather than written beside it: an entry's content becomes the
             // instruction "execute this file", so `rule:security/sink-predicate` makes every one
@@ -1100,6 +1117,7 @@ impl CoreTy {
             Self::Str | Self::Text(_) | Self::Entry => "string".into(),
             Self::Bytes | Self::Blob(_) => "bytes".into(),
             Self::SecretBytes | Self::SecretBlob(_) => "secret bytes".into(),
+            Self::SecretText(_) => "secret string".into(),
             Self::TaintedStr => "tainted string".into(),
             Self::TaintedBytes => "tainted bytes".into(),
             Self::SecretTaintedStr => "secret tainted string".into(),
@@ -1158,6 +1176,7 @@ impl CoreTy {
                 | Self::Blob(_)
                 | Self::SecretBytes
                 | Self::SecretBlob(_)
+                | Self::SecretText(_)
         )
     }
 }

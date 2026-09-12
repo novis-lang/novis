@@ -3343,6 +3343,7 @@ mod tests {
             | CoreTy::Blob(_)
             | CoreTy::SecretBytes
             | CoreTy::SecretBlob(_)
+            | CoreTy::SecretText(_)
             | CoreTy::TaintedStr
             | CoreTy::TaintedBytes
             | CoreTy::SecretTaintedStr
@@ -3368,7 +3369,8 @@ mod tests {
             | CoreTy::Text(_)
             | CoreTy::Blob(_)
             | CoreTy::SecretBytes
-            | CoreTy::SecretBlob(_) => false,
+            | CoreTy::SecretBlob(_)
+            | CoreTy::SecretText(_) => false,
             CoreTy::Array(inner)
             | CoreTy::Nullable(inner)
             | CoreTy::Iterated(inner)

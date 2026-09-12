@@ -312,22 +312,18 @@ pub(crate) const GCM_OVERHEAD: usize = GCM_NONCE_LEN + TAG_LEN;
 
 /// What a derivation answers, in octets — [`KEY_LEN`], for the module doc's
 /// *two derivations* reason.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const DERIVED_LEN: usize = KEY_LEN;
 
 /// The fewest PBKDF2 iterations this module will run.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const MIN_ITERATIONS: u32 = 100_000;
 
 /// The most PBKDF2 iterations this module will run, and the bound that makes
 /// PBES2 safe rather than the one that makes a password hard: the module doc's
 /// *two derivations* section is why a ceiling exists at all.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const MAX_ITERATIONS: u32 = 2_000_000;
 
 /// The shortest salt PBKDF2 will accept, in octets — enough that a table built
 /// against one derivation is worthless against the next.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) const MIN_SALT_LEN: usize = 16;
 
 /// What a key agreement answers, in octets — X25519's u-coordinate and P-256's
@@ -443,6 +439,40 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_crypto_open",
             doc: Some(&OPEN_DOC),
         },
+        CoreMethod {
+            name: "deriveKey",
+            names: &["password", "salt", "iterations"],
+            // Not one parameter here is contagious, and the reason is the same
+            // for all three: a derivation answers a PRF output that carries no
+            // octet of any argument, so a `tainted` password off a form and a
+            // `tainted` salt read back out of a row both reach it and the key
+            // is neither. The password is spelled `secret string` because that
+            // is what a password *is* — the qualifier belongs to the value
+            // rather than being a licence this member takes to reveal one,
+            // which is what `Qual::Reveal` would have said instead.
+            params: &[
+                CoreTy::SecretText(Qual::Neutral),
+                CoreTy::Blob(Qual::Neutral),
+                CoreTy::Uint,
+            ],
+            defaults: &[],
+            return_ty: CoreTy::SecretBytes,
+            symbol: "nvs_core_crypto_derive_key",
+            doc: Some(&DERIVE_KEY_DOC),
+        },
+        CoreMethod {
+            name: "expandKey",
+            names: &["material", "salt", "info"],
+            params: &[
+                CoreTy::SecretBlob(Qual::Neutral),
+                CoreTy::Blob(Qual::Neutral),
+                CoreTy::Text(Qual::Neutral),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::SecretBytes,
+            symbol: "nvs_core_crypto_expand_key",
+            doc: Some(&EXPAND_KEY_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -538,6 +568,75 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Crypto::deriveKey`'s reference card — `rule:core-api/reference-card`.
+const DERIVE_KEY_DOC: MethodDoc = MethodDoc {
+    short: "Derives a key from a password with PBKDF2-HMAC-SHA256, stretching `$password` and \
+            `$salt` over `$iterations` rounds. This is the member for a value a person typed; \
+            `expandKey` is the one for material that is already uniform, and handing a password \
+            to it is the mistake no type here can catch.",
+    params: &[
+        ParamDoc {
+            name: "password",
+            desc: "The password to stretch. A `secret` is accepted and nothing is revealed: the \
+                   answer is a `secret bytes` carrying no octet of it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "salt",
+            desc: "At least 16 octets, drawn once per password and stored beside the key it \
+                   derived. `Core\\Random::bytes(16)` answers one; it is not a secret.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "iterations",
+            desc: "How many rounds to stretch for, between 100,000 and 2,000,000. Required and \
+                   without a default, because a key derived to be read back has to be derived \
+                   under the count whoever wrote it chose.",
+            shape: &[],
+        },
+    ],
+    ret: "32 octets as a `secret bytes`, the width `seal` and `open` key under. The same three \
+          arguments always answer the same key — that is what makes it a derivation rather than \
+          a draw.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$iterations` is outside 100,000 to 2,000,000, or `$salt` is shorter than 16 \
+               octets. Under the floor the answer is cheap to attack, and over the ceiling one \
+               call is a denial of service against the process that made it.",
+    }],
+};
+
+/// `Core\Crypto::expandKey`'s reference card — `rule:core-api/reference-card`.
+const EXPAND_KEY_DOC: MethodDoc = MethodDoc {
+    short: "Derives a key from material that is already uniform with HKDF-SHA256 — a shared \
+            secret out of a key agreement, or a root key one service holds. `$info` is what \
+            separates two keys derived from one secret, so a program names the use rather than \
+            reusing the secret at two call sites.",
+    params: &[
+        ParamDoc {
+            name: "material",
+            desc: "The secret to expand. Uniform already: a password belongs at `deriveKey`, \
+                   which stretches it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "salt",
+            desc: "The extract step's salt, which is not a secret and may be empty — RFC 5869's \
+                   own default of a zero-filled one.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "info",
+            desc: "The context string. Two calls over one `$material` with different `$info` \
+                   answer unrelated keys, which is how one secret keys two things.",
+            shape: &[],
+        },
+    ],
+    ret: "32 octets as a `secret bytes`, the width `seal` and `open` key under, and the same for \
+          the same three arguments.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -545,6 +644,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_crypto_generate_key" => (nvs_core_crypto_generate_key as *const ()).cast(),
         "nvs_core_crypto_seal" => (nvs_core_crypto_seal as *const ()).cast(),
         "nvs_core_crypto_open" => (nvs_core_crypto_open as *const ()).cast(),
+        "nvs_core_crypto_derive_key" => (nvs_core_crypto_derive_key as *const ()).cast(),
+        "nvs_core_crypto_expand_key" => (nvs_core_crypto_expand_key as *const ()).cast(),
         _ => return None,
     })
 }
@@ -553,13 +654,43 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] naming the member: every parameter of this class is a
-/// `bytes`, so a value of another tag is a compiled-code bug rather than
-/// anything a program can write.
+/// A [`Fault::fatal`] naming the member: the slot's type is written in the row
+/// above, so a value of another tag is a compiled-code bug rather than anything
+/// a program can write — `nvs_types` answers `E0401` to a call that gets one
+/// wrong before any of this runs. [`text_of`] and [`rounds_of`] are the same
+/// reader on the class's other two parameter types.
 fn bytes_of<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8], Fault> {
     args[index].as_bytes().ok_or_else(|| {
         Fault::fatal(format!(
             "{NAME}::{member} expected a `bytes`, got tag {}",
+            args[index].tag_byte()
+        ))
+    })
+}
+
+/// The `string` in slot `index`, for [`bytes_of`]'s reason.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member.
+fn text_of<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a str, Fault> {
+    args[index].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected a `string`, got tag {}",
+            args[index].tag_byte()
+        ))
+    })
+}
+
+/// The `uint` in slot `index`, for [`bytes_of`]'s reason.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member.
+fn rounds_of(args: &[Value], index: usize, member: &str) -> Result<u64, Fault> {
+    args[index].as_uint().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected a `uint`, got tag {}",
             args[index].tag_byte()
         ))
     })
@@ -770,7 +901,6 @@ pub(crate) fn gcm_open_under(
 /// module doc states, and the split is what lets RFC 7914 § 11's published
 /// vectors — one iteration, a four-octet salt — run against the same code a
 /// member reaches rather than against a copy of it.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn pbkdf2_sha256(password: &[u8], salt: &[u8], iterations: u32) -> [u8; DERIVED_LEN] {
     pbkdf2::pbkdf2_hmac_array::<Sha256, DERIVED_LEN>(password, salt, iterations)
 }
@@ -789,14 +919,13 @@ pub(crate) fn pbkdf2_sha256(password: &[u8], salt: &[u8], iterations: u32) -> [u
 ///
 /// A `LogicError` naming the bound that was missed. `who` is the member, spelled
 /// `Core\Class::member`.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn derive_key(
     password: &[u8],
     salt: &[u8],
-    iterations: u32,
+    iterations: u64,
     who: &str,
 ) -> Result<[u8; DERIVED_LEN], Fault> {
-    if !(MIN_ITERATIONS..=MAX_ITERATIONS).contains(&iterations) {
+    if !(u64::from(MIN_ITERATIONS)..=u64::from(MAX_ITERATIONS)).contains(&iterations) {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
@@ -819,7 +948,13 @@ pub(crate) fn derive_key(
         ));
     }
 
-    Ok(pbkdf2_sha256(password, salt, iterations))
+    // The count is taken in the width a caller can write one in — a `uint`
+    // argument and a JWE header's `p2c` are both wider than this construction's
+    // — so that a number past the ceiling is *reported* as the number it was
+    // rather than wrapped into a plausible one on the way in. Past the check
+    // above it is three orders of magnitude below `u32::MAX`.
+    let rounds = u32::try_from(iterations).expect("the ceiling is far below u32::MAX");
+    Ok(pbkdf2_sha256(password, salt, rounds))
 }
 
 /// HKDF-SHA256 over `material`, answering [`DERIVED_LEN`] octets.
@@ -830,7 +965,6 @@ pub(crate) fn derive_key(
 /// zero-filled one, since HMAC pads either to the same block. Handing a password
 /// to this rather than to [`derive_key`] is the mistake the module doc names,
 /// and no type here can catch it.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
 pub(crate) fn expand_key(material: &[u8], salt: &[u8], info: &[u8]) -> [u8; DERIVED_LEN] {
     let mut key = [0_u8; DERIVED_LEN];
     Hkdf::<Sha256>::new(Some(salt), material)
@@ -1333,6 +1467,51 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Crypto::deriveKey(secret string $password, bytes $salt, uint $iterations): secret bytes`
+    /// — replacing `hash_pbkdf2("sha256", …, $length, $raw)`, whose digest, output
+    /// length and raw-or-hex flag are four ways to get one derivation wrong.
+    ///
+    /// The count is a required argument and the two bounds are
+    /// [`derive_key`]'s, which is also PBES2's door onto the same construction:
+    /// a `p2c` a token carries and a number a program wrote are the same
+    /// question asked of one check.
+    fn nvs_core_crypto_derive_key(_ctx, args: [3]) {
+        let password = text_of(args, 0, "deriveKey")?;
+        let salt = bytes_of(args, 1, "deriveKey")?;
+        let iterations = rounds_of(args, 2, "deriveKey")?;
+
+        let key = derive_key(
+            password.as_bytes(),
+            salt,
+            iterations,
+            "Core\\Crypto::deriveKey",
+        )?;
+        Ok(Value::bytes(NvsStr::new(&key)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Crypto::expandKey(secret bytes $material, bytes $salt, string $info): secret bytes`
+    /// — replacing `hash_hkdf`, which is the one PHP twin here that is already
+    /// the right shape, with its digest argument taken off the call for
+    /// [`CIPHER`]'s reason.
+    ///
+    /// No bound to check and nothing to refuse: [`expand_key`] answers 32
+    /// octets for any three arguments, and the mistake it cannot catch —
+    /// a password handed to the derivation for uniform material — is named in
+    /// both reference cards and in the module doc rather than reported here,
+    /// because no type tells the two secrets apart.
+    fn nvs_core_crypto_expand_key(_ctx, args: [3]) {
+        let material = bytes_of(args, 0, "expandKey")?;
+        let salt = bytes_of(args, 1, "expandKey")?;
+        let info = text_of(args, 2, "expandKey")?;
+
+        let key = expand_key(material, salt, info.as_bytes());
+        Ok(Value::bytes(NvsStr::new(&key)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use base64::Engine as _;
@@ -1575,25 +1754,26 @@ mod tests {
         let who = "Core\\Crypto::deriveKey";
 
         assert!(
-            derive_key(b"correct horse", &salt, MIN_ITERATIONS - 1, who).is_err(),
+            derive_key(b"correct horse", &salt, u64::from(MIN_ITERATIONS) - 1, who).is_err(),
             "one under the floor is refused"
         );
         assert!(
-            derive_key(b"correct horse", &salt, MAX_ITERATIONS + 1, who).is_err(),
+            derive_key(b"correct horse", &salt, u64::from(MAX_ITERATIONS) + 1, who).is_err(),
             "one over the ceiling is refused, and refused without running"
         );
         assert!(
             derive_key(
                 b"correct horse",
                 &salt[..MIN_SALT_LEN - 1],
-                MIN_ITERATIONS,
+                u64::from(MIN_ITERATIONS),
                 who
             )
             .is_err(),
             "one octet short of a salt is refused"
         );
         assert_eq!(
-            derive_key(b"correct horse", &salt, MIN_ITERATIONS, who).expect("the floor derives"),
+            derive_key(b"correct horse", &salt, u64::from(MIN_ITERATIONS), who)
+                .expect("the floor derives"),
             pbkdf2_sha256(b"correct horse", &salt, MIN_ITERATIONS),
             "inside the bounds it is the derivation above and nothing else"
         );
