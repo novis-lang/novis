@@ -34,6 +34,7 @@ import {
 
 import * as ast from "./ast";
 import { binary } from "./binary";
+import * as format from "./format";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
 import * as tasks from "./tasks";
@@ -99,6 +100,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
   // The providers are registered from activation because a document with markup in it is often the
   // one the window opened on (`rule:ide/a-template-region-gets-services-but-no-second-formatter`).
   regions.install(context);
+  // The formatter, which is a process rather than a request: it starts `nvs fmt` and needs no
+  // server, so it is installed here beside the rest and not in `start`.
+  format.install(context);
   // The provider is what makes a hand-written `"type": "nvs"` entry in a `tasks.json` resolve;
   // `contributes.taskDefinitions` alone only describes the shape of one.
   tasks.install(context);
