@@ -1795,12 +1795,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nothing. Take the break from the text once per file, the way `crates/nvs-fmt/src/brace.rs`'s
   `line_break` does, rather than writing `"\n"` at each site.
   [until: gone crates/nvs-fmt/src/brace.rs:line_break]
-- **`nvs fmt` never sees the two spellings `rule:tooling/fmt-normalizes-only-reserved-spellings`
-  asks it to lower-case: `<?NVS` is `E0231` and `5Min` is `E0101` and `E0319`, so the file does not
-  parse.** The parse reports before the printer runs, and `crates/nvs-fmt/src/lib.rs:142` refuses a
-  file that holds an error. Decide which gives — a refusal the formatter may repair in place, or a
-  fragment handing both spellings to `nvs convert` — before writing that stage's test.
-  [until: test a_mis_cased_open_tag_and_duration_unit_are_lower_cased]
 - **A `Rewrite` that moves a declaration has to cover one code run, and `use Core\Str;` is not one.**
   `crates/nvs-fmt/src/print.rs` tiles a file into trivia and the code between two of them and applies
   each edit inside one of those runs, so an edit spanning the space after a keyword is never taken and
@@ -4465,6 +4459,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   as a check that stopped passing. Before writing a new test file, check whether the goal's other
   checks name tests that would live in it, and if a `Write` reports "updated", recover the original
   with `git show HEAD:<path>` and append instead. [until: reviewed 2026-09-12]
+- **An `nvs fmt` case that asserts a file is unchanged fails on a rule it was not written about.**
+  `assert_eq!(formatted(source), source)` holds only if the input is already canonical under *every*
+  landed rule, so a control-structure brace on its own line, or a `?>` at column 0 inside a block,
+  fails the case for a reason that has nothing to do with what it asserts. Write the input as the
+  formatter already answers it and vary only the bytes under test — the assertion prints both whole
+  files, and the line that differs names the rule that actually moved.
+  [until: reviewed 2026-09-12]
 
 ## Splitting a file that got too big
 

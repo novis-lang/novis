@@ -26,14 +26,17 @@
 //! [`Indent::of_line`] answers [`None`] for a line the tree does not place, and
 //! the printer then copies the author's own whitespace. That is what keeps a
 //! rule that has not landed yet from moving a byte: a continuation line inside
-//! a multi-line call, a `match` arm, a `switch` case and a template region are
-//! all bytes some later rule owns, and answering [`None`] for them is how this
-//! one stays inside `rule:tooling/fmt-never-reflows` — an expression's interior
-//! is the author's, and this never sees it.
+//! a multi-line call, a `match` arm, a `switch` case and a template region's
+//! own text are all bytes some later rule owns, and answering [`None`] for them
+//! is how this one stays inside `rule:tooling/fmt-never-reflows` — an
+//! expression's interior is the author's, and this never sees it.
 //!
 //! A line is placed when it opens a statement or a member that a body directly
-//! contains, or when it opens that body's own closing brace, which sits at the
-//! body's own depth rather than its contents'.
+//! contains, when it opens that body's own closing brace, which sits at the
+//! body's own depth rather than its contents', or when it opens with the `?>`
+//! that leaves code mode. That tag is the last code on its line and sits where
+//! the body's statements sit; every byte after it belongs to the text region,
+//! which is the program's own output and is copied.
 //!
 //! # What it spends
 //!
@@ -122,7 +125,15 @@ impl<'a> Indent<'a> {
             || nodes
                 .last()
                 .is_some_and(|outermost| outermost.span.start == at);
-        if !opens_child {
+        // A close tag opens a line the way a statement does, and no node starts
+        // at one: the inline HTML that follows begins past the tag, so nothing
+        // in the path answers for these two bytes and the question is asked of
+        // the text itself.
+        let closes_code = self
+            .text
+            .get(offset..)
+            .is_some_and(|rest| rest.starts_with("?>"));
+        if !opens_child && !closes_code {
             return None;
         }
         let enclosing = nodes
