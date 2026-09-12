@@ -101,11 +101,11 @@
 //!
 //! # What is not here yet, and why each is deliberate rather than forgotten
 //!
-//! **A request body on the wire.** `rule:http-server/an-outbound-request-carries-one-body`'s four
-//! keys are declared in [`OPTIONS`] and refused where that rule refuses them — two at one call, any
-//! of them on `get` or `head`, a `contentType` with no octets to type — but nothing under
-//! [`request`] reads the slots yet, so a call that writes one sends the request without it. The
-//! composition and the framing are [`transport`]'s, and land with it.
+//! **A verb chosen at run time.** [`CLIENT`] is five rows whose verb is the row's own name, which
+//! is what makes `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s question
+//! answerable while compiling. `patch`, and the `request(Core\Http\Method, …)` row where a verb a
+//! program computes belongs, are not here yet; the same two checks move to the call when they
+//! arrive.
 //!
 //! **The reply's headers.** [`RESPONSE`] answers `status()` and `text()` and nothing else: a slot
 //! and the member that reads it are one decision, and a `header()` over a map nothing fills would
@@ -115,8 +115,10 @@
 //! to the request that laundered it — and one synchronous resolution per call, which
 //! `pin_host`'s own docs own. A request member allocates nothing of its own before the transport:
 //! a `Target` argument is borrowed, and a `string` one is pinned without building a target, since
-//! nothing downstream of the check would read it. What the exchange itself spends is
-//! [`transport`]'s to state.
+//! nothing downstream of the check would read it. A call that writes a body spends that body once,
+//! charged to the request and held until the last attempt is done with it — except a
+//! `Core\Http\Part::file`, which is a descriptor and a chunk rather than the file
+//! ([`transport::Piece`]). What the exchange itself spends is [`transport`]'s to state.
 
 mod transport;
 
@@ -127,6 +129,7 @@ use fluent_uri::UriRef;
 use fluent_uri::component::{Authority, Scheme};
 use nvs_runtime::{Ctx, Fault, NvsStr, Tag, ThrownClass, Value};
 use nvs_syntax::duration;
+use rand::RngExt;
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -206,6 +209,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_http_client_put" => (nvs_core_http_client_put as *const ()).cast(),
         "nvs_core_http_client_delete" => (nvs_core_http_client_delete as *const ()).cast(),
         "nvs_core_http_client_head" => (nvs_core_http_client_head as *const ()).cast(),
+        "nvs_core_http_part_file" => (nvs_core_http_part_file as *const ()).cast(),
+        "nvs_core_http_part_bytes" => (nvs_core_http_part_bytes as *const ()).cast(),
         "nvs_core_http_response_status" => (nvs_core_http_response_status as *const ()).cast(),
         "nvs_core_http_response_text" => (nvs_core_http_response_text as *const ()).cast(),
         _ => return None,
@@ -433,9 +438,16 @@ const OPTIONS: &[CoreOption] = &[
         ty: CoreTy::Array(&CoreTy::SecretTaintedStr),
         default: Const::Null,
     },
+    // The third arm is the one that does not have to be held: a `Core\Http\Part`
+    // names a file the framing reads while it sends, so an upload larger than
+    // this process's own ceiling is still a body a program can write.
     CoreOption {
         name: BODY_OPTION,
-        ty: CoreTy::Union(&[CoreTy::SecretTaintedStr, CoreTy::SecretTaintedBytes]),
+        ty: CoreTy::Union(&[
+            CoreTy::SecretTaintedStr,
+            CoreTy::SecretTaintedBytes,
+            CoreTy::Instance(PART_NAME),
+        ]),
         default: Const::Null,
     },
     // Unqualified, as a header value is and for the same reason: this text is
@@ -446,12 +458,20 @@ const OPTIONS: &[CoreOption] = &[
         ty: CoreTy::Text(Qual::Neutral),
         default: Const::Null,
     },
+    // Every field is a value or a part, which is the same union `body` takes
+    // one element of: a form that uploads a file is the case multipart exists
+    // for, and a map admitting only text could not express one.
     CoreOption {
         name: MULTIPART_OPTION,
-        ty: CoreTy::Array(&CoreTy::SecretTaintedStr),
+        ty: CoreTy::Array(&MULTIPART_FIELD),
         default: Const::Null,
     },
 ];
+
+/// What one key of [`MULTIPART_OPTION`]'s map holds: a value, or a part sent
+/// under its own name and type.
+const MULTIPART_FIELD: CoreTy =
+    CoreTy::Union(&[CoreTy::SecretTaintedStr, CoreTy::Instance(PART_NAME)]);
 
 /// `rule:http-server/an-outbound-request-carries-one-body`'s body keys, named once: [`OPTIONS`] declares them,
 /// [`crate::registry::request_body_rule`] hands the same spellings to the
@@ -467,11 +487,263 @@ pub(crate) const MULTIPART_OPTION: &str = "multipart";
 /// The key that types [`BODY_OPTION`]'s octets and means nothing without them —
 /// see [`JSON_OPTION`].
 pub(crate) const CONTENT_TYPE_OPTION: &str = "contentType";
+/// The header the framing writes that key into, lower-cased as a record's names
+/// are — see [`faked`].
+const CONTENT_TYPE_HEADER: &str = "content-type";
 
 /// The four keys of [`JSON_OPTION`]'s family, in [`OPTIONS`]' own order: at most
 /// one of them may be written at a call, and a member whose verb carries no body
 /// admits none.
 pub(crate) const BODY_OPTIONS: &[&str] = &[JSON_OPTION, FORM_OPTION, BODY_OPTION, MULTIPART_OPTION];
+
+// --------------------------------------------------------------- a part of a body
+
+/// [`PART`]'s name, written once — see [`NAME`].
+pub(crate) const PART_NAME: &str = r"Core\Http\Part";
+
+/// The octets a raw body carries, as the two arms every such position admits.
+///
+/// One spelling for [`BODY_OPTION`]'s text half and for `Core\Http\Part::bytes`'
+/// first parameter, because the two are the same question — what may be sent
+/// verbatim — and a second copy of the union is the one that stops matching.
+const OCTETS: CoreTy = CoreTy::Union(&[CoreTy::SecretTaintedStr, CoreTy::SecretTaintedBytes]);
+
+/// `Core\Http\Part::file`'s bag: the two things a part says about itself that
+/// its path does not already say.
+const PART_FILE_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "filename",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: CONTENT_TYPE_OPTION,
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+];
+
+/// `Core\Http\Part::bytes`' bag, which is [`PART_FILE_OPTIONS`] without the
+/// key that row takes as a required argument.
+const PART_BYTES_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: CONTENT_TYPE_OPTION,
+    ty: CoreTy::Text(Qual::Neutral),
+    default: Const::Null,
+}];
+
+/// `rule:http-server/an-outbound-request-carries-one-body`'s part: a body, or one field of a
+/// multipart body, described rather than held.
+///
+/// **Two constructors and no member**, which is [`TARGET`]'s shape for a
+/// different reason. A part is what a request is *told to send*; handing the
+/// octets back out would make `file` hold the file it exists to avoid holding,
+/// and the whole reason a large upload is written as a part is that nothing
+/// between the disk and the socket ever has all of it.
+///
+/// `filename` is required on `bytes` and optional on `file` because a path
+/// already carries one: an omitted `filename` is the path's last component,
+/// while octets a program composed have no name until it writes one.
+pub(crate) const PART: CoreClass = CoreClass {
+    name: PART_NAME,
+    methods: &[
+        CoreMethod {
+            name: "file",
+            names: &["path"],
+            // A sink in the path, as every path in `Core\IO` is and for that
+            // class's reason: `..` and the separators direct the resolver, so a
+            // `tainted` path is refused where it is written.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(PART_FILE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(PART_NAME),
+            symbol: "nvs_core_http_part_file",
+            doc: Some(&PART_FILE_DOC),
+        },
+        CoreMethod {
+            name: "bytes",
+            names: &["data", "filename"],
+            params: &[
+                OCTETS,
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(PART_BYTES_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(PART_NAME),
+            symbol: "nvs_core_http_part_bytes",
+            doc: Some(&PART_BYTES_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &["path", "data", "filename", "contentType"],
+    constants: &[],
+};
+
+/// `Core\Http\Part::file`'s reference card — `rule:core-api/reference-card`.
+const PART_FILE_DOC: MethodDoc = MethodDoc {
+    short: "A body, or one field of a multipart body, read from the file at `$path` while the \
+            request is being sent rather than held in memory first. Needs the `fs.read` \
+            capability, which is checked here so that an ungranted path is refused where it is \
+            written.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "The file to send, absolute or relative to the working directory.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "filename",
+            desc: "The name the other end is told, defaulting to the path's last component.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "contentType",
+            desc: "The media type this part is sent under. Omitted, a multipart field is sent \
+                   as `application/octet-stream` and a whole body under the call's own \
+                   `contentType`.",
+            shape: &[],
+        },
+    ],
+    ret: "A part, to be written to `body` or to one key of `multipart`.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `fs.read` for this path.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "There is nothing at `$path`, or the operating system refused to describe it.",
+        },
+    ],
+};
+
+/// `Core\Http\Part::bytes`' reference card — `rule:core-api/reference-card`.
+const PART_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "A body, or one field of a multipart body, sent from octets the program is already \
+            holding, under the name it gives them.",
+    params: &[
+        ParamDoc {
+            name: "data",
+            desc: "The octets to send, as a `string` or a `bytes`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "filename",
+            desc: "The name the other end is told. Required, because octets carry none.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "contentType",
+            desc: "The media type this part is sent under, defaulting as `file`'s does.",
+            shape: &[],
+        },
+    ],
+    ret: "A part, to be written to `body` or to one key of `multipart`.",
+    errors: &[],
+};
+
+/// [`PART`]'s slots, by index — see [`TARGET_URL_SLOT`].
+///
+/// A part is one of two kinds and the empty slot is which: a `file` part holds
+/// its path and no octets, a `bytes` part its octets and no path. One class
+/// rather than two, because every position that takes a part takes both kinds
+/// and a union of two instance types at each of them would say the same thing
+/// twice.
+const PART_PATH_SLOT: usize = 0;
+/// See [`PART_PATH_SLOT`].
+const PART_DATA_SLOT: usize = 1;
+/// See [`PART_PATH_SLOT`].
+const PART_FILENAME_SLOT: usize = 2;
+/// See [`PART_PATH_SLOT`].
+const PART_CONTENT_TYPE_SLOT: usize = 3;
+
+/// How many arguments each [`PART`] row takes: its own parameters plus one per
+/// option of its bag, which is three for both of them.
+const PART_ARITY: usize = 3;
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Part::file(string $path, Core\Http\FilePartOptions): Core\Http\Part`
+    /// — `rule:http-server/an-outbound-request-carries-one-body`.
+    ///
+    /// The capability is asked **here**, where the program named the path, and
+    /// asked again where the file is opened. Neither is redundant: a part is
+    /// built from a name a program wrote and sent from a call somewhere else, so
+    /// a grant that covers neither should fail at the line that wrote the path
+    /// rather than inside a request that has already been composed. The `stat`
+    /// this door performs is also the answer to whether there is a file there at
+    /// all, which is the other thing worth learning before a socket is opened.
+    ///
+    /// The size is deliberately not kept: `Content-Length` is read when the
+    /// body is framed, so a part built early and sent late reports what is on
+    /// disk rather than what was there when it was named.
+    fn nvs_core_http_part_file(ctx, args: [PART_ARITY]) {
+        const MEMBER: &str = r"Core\Http\Part::file";
+
+        let path = text_of(args, "file")?.to_owned();
+        nvs_runtime::capability::metadata(ctx, std::path::Path::new(&path), MEMBER)?;
+
+        let filename = args[1].as_text().map(str::to_owned).or_else(|| {
+            std::path::Path::new(&path)
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        });
+        Ok(crate::instance::build(
+            &PART,
+            [
+                Value::str(NvsStr::new(path.as_bytes())),
+                Value::null(),
+                text_slot(filename.as_deref()),
+                text_slot(args[2].as_text()),
+            ],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Part::bytes(string|bytes $data, string $filename, Core\Http\BytesPartOptions): Core\Http\Part`
+    /// — `rule:http-server/an-outbound-request-carries-one-body`.
+    ///
+    /// The octets are copied into the part under `Tag::Bytes` whichever arm
+    /// carried them, because what a body is made of is octets and the
+    /// distinction the two arms draw — is this text — has no bearing on what
+    /// goes onto the wire.
+    fn nvs_core_http_part_bytes(_ctx, args: [PART_ARITY]) {
+        // Both refusals below are unreachable from source: the row's own
+        // parameters are `string|bytes` and `string`, so `E0401` refuses the
+        // call before a compiled one can arrive here with another tag.
+        let data = args[0]
+            .as_str_bytes()
+            .or_else(|| args[0].as_bytes())
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Http\\Part::bytes expected a `string` or a `bytes`, got tag {}",
+                    args[0].tag_byte()
+                ))
+            })?;
+        // Unreachable from source for the reason above: `E0401` refuses a
+        // `filename` that is not a `string` at the row's second parameter.
+        let filename = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Http\\Part::bytes expected a `string` for `filename`, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+
+        Ok(crate::instance::build(
+            &PART,
+            [
+                Value::null(),
+                Value::bytes(NvsStr::new(data)),
+                Value::str(NvsStr::new(filename.as_bytes())),
+                text_slot(args[2].as_text()),
+            ],
+        ))
+    }
+}
+
+/// One optional slot of a [`PART`]: the text, or the `null` that says the
+/// program wrote none.
+fn text_slot(text: Option<&str>) -> Value {
+    text.map_or_else(Value::null, |text| Value::str(NvsStr::new(text.as_bytes())))
+}
 
 /// The ABI slot each of [`OPTIONS`]'s bounds flattens into — the bag expands to
 /// one argument per option, in declaration order, after the URL at slot 0.
@@ -482,6 +754,16 @@ const FOLLOW_REDIRECTS: usize = 4;
 const RETRY_ATTEMPTS: usize = 5;
 const RETRY_BACKOFF: usize = 6;
 const RETRY_KEY: usize = 7;
+/// The body keys' own slots, in [`OPTIONS`]' order — see [`DEADLINE`].
+const JSON: usize = 8;
+/// See [`JSON`].
+const FORM: usize = 9;
+/// See [`JSON`].
+const BODY: usize = 10;
+/// See [`JSON`].
+const CONTENT_TYPE: usize = 11;
+/// See [`JSON`].
+const MULTIPART: usize = 12;
 
 /// How many arguments a request member takes: the URL plus one per option, which
 /// is what every `nvs_helper!` row below writes as its arity. Derived rather
@@ -1005,6 +1287,323 @@ fn given_url(args: &[Value], member: &str) -> Result<String, Fault> {
         .to_owned())
 }
 
+/// `rule:http-server/an-outbound-request-carries-one-body`'s body, framed: which
+/// of the four keys the call wrote is what says how the octets are composed and
+/// what type they are sent under.
+///
+/// **At most one of them is written**, and that is a diagnostic rather than a
+/// check here — [`crate::registry::request_body_rule`] hands the same spellings
+/// to `nvs_types::expr::args`, which refuses two keys at one call and any of
+/// them on a verb that carries no body. So this reads them in [`OPTIONS`]' own
+/// order and takes the first it finds, and there is no "and also" branch for a
+/// combination the compiler has already refused.
+///
+/// The whole body is built **once per call**, before the first connection: a
+/// retry resends these pieces rather than encoding the document again, and a
+/// file is opened once here — where a `Ctx` exists to ask the capability door —
+/// and rewound per attempt.
+///
+/// # Errors
+///
+/// [`crate::json::written`]'s `LogicError` for a `json` value this encoder
+/// refuses, [`nvs_runtime::capability::open_read`]'s refusal and `IOError` for a
+/// file part, and a thrown `RuntimeError` for a field name or filename that
+/// could end a header line early.
+fn body_of(ctx: &Ctx, args: &[Value], member: &str) -> Result<Option<transport::Body>, Fault> {
+    if !matches!(args[JSON].tag(), Some(Tag::Unset)) {
+        // `Tag::Unset` and not `Tag::Null`: the document `null` is a body a
+        // program may mean, which is what [`OPTIONS`]' `json` row states.
+        let document = crate::json::written(args[JSON], member)?;
+        return Ok(Some(held(
+            Some("application/json".to_owned()),
+            document.into_bytes(),
+        )));
+    }
+    if args[FORM].array_ptr().is_some() {
+        let mut encoded = String::new();
+        for (name, value) in fields_of(args, FORM, "form", member)? {
+            let text = value.as_text().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{member} expected a `string` in `form`, got tag {}",
+                    value.tag_byte()
+                ))
+            })?;
+            if !encoded.is_empty() {
+                encoded.push('&');
+            }
+            encoded.push_str(&crate::uri::encode(
+                name.as_bytes(),
+                crate::uri::Form::FormValue,
+            ));
+            encoded.push('=');
+            encoded.push_str(&crate::uri::encode(
+                text.as_bytes(),
+                crate::uri::Form::FormValue,
+            ));
+        }
+        return Ok(Some(held(
+            Some("application/x-www-form-urlencoded".to_owned()),
+            encoded.into_bytes(),
+        )));
+    }
+    if args[MULTIPART].array_ptr().is_some() {
+        return multipart(ctx, args, member).map(Some);
+    }
+    if matches!(args[BODY].tag(), Some(Tag::Object)) {
+        let part = part_of(ctx, args[BODY], member)?;
+        // The call's own `contentType` wins over the part's: a part carries one
+        // so that a multipart field can be typed, and a body written beside an
+        // explicit key is the program saying what it means this time.
+        let content_type = args[CONTENT_TYPE]
+            .as_text()
+            .map(str::to_owned)
+            .or(part.content_type);
+        return Ok(Some(transport::Body {
+            content_type,
+            length: part.length,
+            pieces: vec![part.piece],
+        }));
+    }
+    if let Some(octets) = octets_of(&args[BODY]) {
+        return Ok(Some(held(
+            args[CONTENT_TYPE].as_text().map(str::to_owned),
+            octets.to_vec(),
+        )));
+    }
+    Ok(None)
+}
+
+/// A body that is one run of octets the framing is holding.
+fn held(content_type: Option<String>, octets: Vec<u8>) -> transport::Body {
+    transport::Body {
+        content_type,
+        length: octets.len() as u64,
+        pieces: vec![transport::Piece::Held(octets)],
+    }
+}
+
+/// `multipart/form-data` over the map at [`MULTIPART`]: one segment per field,
+/// a part sent under its own name and type, and a boundary no field carries.
+///
+/// The boundary is drawn at random per call rather than derived from what is
+/// being sent. A predictable one is a body an attacker can write a second part
+/// into — the field content is theirs whenever an upload is — and checking that
+/// a derived boundary does not occur in the content would mean reading the file
+/// this framing exists in order not to read.
+///
+/// # Errors
+///
+/// [`part_of`]'s, and a thrown `RuntimeError` for a field name or filename
+/// holding a quote or a control byte.
+fn multipart(ctx: &Ctx, args: &[Value], member: &str) -> Result<transport::Body, Fault> {
+    let boundary = format!(
+        "----NovisBoundary{:016x}{:016x}",
+        rand::rng().random_range(0..=u64::MAX),
+        rand::rng().random_range(0..=u64::MAX)
+    );
+    let mut pieces: Vec<transport::Piece> = Vec::new();
+    let mut length = 0_u64;
+
+    for (name, value) in fields_of(args, MULTIPART, "multipart", member)? {
+        quotable(&name, "field name", member)?;
+        let mut head = format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"");
+        if matches!(value.tag(), Some(Tag::Object)) {
+            let part = part_of(ctx, value, member)?;
+            let filename = part.filename.unwrap_or_else(|| name.clone());
+            let content_type = part
+                .content_type
+                .unwrap_or_else(|| "application/octet-stream".to_owned());
+            quotable(&filename, "filename", member)?;
+            quotable(&content_type, "media type", member)?;
+            head.push_str(&format!(
+                "; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n"
+            ));
+            length += head.len() as u64 + part.length;
+            pieces.push(transport::Piece::Held(head.into_bytes()));
+            pieces.push(part.piece);
+        } else {
+            let text = value.as_text().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{member} expected a `string` or a `Core\\Http\\Part` in `multipart`, got \
+                     tag {}",
+                    value.tag_byte()
+                ))
+            })?;
+            head.push_str("\r\n\r\n");
+            head.push_str(text);
+            length += head.len() as u64;
+            pieces.push(transport::Piece::Held(head.into_bytes()));
+        }
+        length += 2;
+        pieces.push(transport::Piece::Held(b"\r\n".to_vec()));
+    }
+
+    let close = format!("--{boundary}--\r\n").into_bytes();
+    length += close.len() as u64;
+    pieces.push(transport::Piece::Held(close));
+
+    Ok(transport::Body {
+        content_type: Some(format!("multipart/form-data; boundary={boundary}")),
+        length,
+        pieces,
+    })
+}
+
+/// `text` refused where it could end a multipart part's own header early.
+///
+/// [`transport::field`]'s refusal one level down, and a priority-1 one for the
+/// same reason: a quote closes the `name="…"` a segment is identified by, and a
+/// control byte ends the line, so either is a second part the caller did not
+/// write. There is no escaping that makes one safe here either — RFC 7578 gives
+/// none — only a rejection that makes it visible.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` naming the text and what it was being used as.
+fn quotable(text: &str, what: &str, member: &str) -> Result<(), Fault> {
+    if text
+        .bytes()
+        .any(|byte| byte < 0x20 || byte == 0x7f || byte == b'"')
+    {
+        return Err(Fault::thrown(format!(
+            "{member}: `{text}` is not a {what} this request can carry — a quote or a control \
+             byte in it would end the part's own header early, which is a second part the caller \
+             did not write"
+        )));
+    }
+    Ok(())
+}
+
+/// One [`PART`] read back out: what it sends, how long it is, and the two
+/// things it says about itself.
+struct Framed {
+    /// The octets, or the file they will be read from.
+    piece: transport::Piece,
+    /// How many of them, which is what the head promises.
+    length: u64,
+    /// The name the other end is told, where the part carries one.
+    filename: Option<String>,
+    /// The media type it is sent under, where the part names one.
+    content_type: Option<String>,
+}
+
+/// The [`PART`] in `value`, opened if it names a file.
+///
+/// # Errors
+///
+/// [`nvs_runtime::capability::open_read`]'s refusal and `IOError`, and a
+/// [`Fault::fatal`] for a value that is not a part or a part whose slots this
+/// crate did not write — both unreachable from source.
+fn part_of(ctx: &Ctx, value: Value, member: &str) -> Result<Framed, Fault> {
+    let part = crate::instance::receiver(value, &PART, member)?;
+    let filename = crate::instance::slot(part, PART_FILENAME_SLOT)
+        .as_text()
+        .map(str::to_owned);
+    let content_type = crate::instance::slot(part, PART_CONTENT_TYPE_SLOT)
+        .as_text()
+        .map(str::to_owned);
+
+    let path = crate::instance::slot(part, PART_PATH_SLOT);
+    if let Some(path) = path.as_text() {
+        // The door again, and at the open rather than at the `stat`: the
+        // descriptor this returns is the one every attempt writes from, so the
+        // octets sent are the ones the grant was checked against.
+        let file = nvs_runtime::capability::open_read(ctx, std::path::Path::new(path), member)?;
+        let length = file
+            .metadata()
+            .map_err(|err| {
+                Fault::thrown(format!(
+                    "{member}: the size of `{path}` could not be read, and it is the \
+                     `Content-Length` this request has to send — {err}"
+                ))
+            })?
+            .len();
+        return Ok(Framed {
+            piece: transport::Piece::File {
+                handle: std::cell::RefCell::new(Box::new(file)),
+                length,
+            },
+            length,
+            filename,
+            content_type,
+        });
+    }
+
+    let data = crate::instance::slot(part, PART_DATA_SLOT);
+    let octets = octets_of(&data)
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{member} found a `Core\\Http\\Part` it cannot read"
+            ))
+        })?
+        .to_vec();
+    Ok(Framed {
+        length: octets.len() as u64,
+        piece: transport::Piece::Held(octets),
+        filename,
+        content_type,
+    })
+}
+
+/// The octets in `value`, whichever of the two arms of [`OCTETS`] carried them,
+/// or `None` for a value that is neither.
+fn octets_of(value: &Value) -> Option<&[u8]> {
+    value.as_str_bytes().or_else(|| value.as_bytes())
+}
+
+/// The `array<string, …>` at `at`, as its keys and its values in written order.
+///
+/// [`headers_of`]'s walk over a map whose values are not all text: a multipart
+/// field is a `string` or a `Core\Http\Part`, so the reading is left to the
+/// caller and only the key is text here.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for an argument that is not an array or a key that is not
+/// text, both ruled out by the row's own type.
+fn fields_of(
+    args: &[Value],
+    at: usize,
+    key: &str,
+    member: &str,
+) -> Result<Vec<(String, Value)>, Fault> {
+    let Some(array) = args[at].array_ptr() else {
+        return Err(Fault::fatal(format!(
+            "{member} expected {:?} for `{key}`, got tag {}",
+            Tag::Array,
+            args[at].tag_byte()
+        )));
+    };
+    let mut fields = Vec::new();
+    let mut from = 0_usize;
+    loop {
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live allocation, \
+                      so it is live for the length of this call, and `from` only \
+                      ever advances past a slot this same cursor reported"
+        )]
+        let (slot, name, value) = unsafe {
+            let slot = nvs_runtime::nvs_array_next_slot(array, from);
+            let Ok(slot) = usize::try_from(slot) else {
+                break;
+            };
+            let name = NvsStr::from_raw(nvs_runtime::nvs_array_key_at(array, slot));
+            let mut value = Value::null();
+            nvs_runtime::nvs_array_value_at(array, slot, &raw mut value);
+            (slot, name, value)
+        };
+        from = slot + 1;
+
+        // An array key is `int|string` and neither can be invalid UTF-8, for
+        // the reasons `Core\Str::replaceAll`'s own cursor states in full.
+        let name = std::str::from_utf8(name.as_bytes())
+            .map_err(|_| Fault::fatal(format!("{member} found a `{key}` key that is not text")))?;
+        fields.push((name.to_owned(), value));
+    }
+    Ok(fields)
+}
+
 /// Every request member's body: the URL through the outbound policy, the
 /// options through § 5's bounds, and then the exchange itself.
 ///
@@ -1029,6 +1628,11 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
     judge_bound(args, CONNECT_TIMEOUT, "connectTimeout", &named)?;
     judge_bound(args, RETRY_BACKOFF, "retryBackoff", &named)?;
     judge_attempts(args, &named)?;
+
+    // Framed before the clock below starts: the encode and the open are this
+    // end's work, and a budget spent on them is not a budget the other end was
+    // given.
+    let body = body_of(ctx, args, &named)?;
 
     // The verb is the row's own name, which is what makes § 7's idempotency
     // question answerable while compiling.
@@ -1071,6 +1675,7 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
             DEFAULT_BACKOFF,
         )?,
         idempotency_key: args[RETRY_KEY].as_text().map(str::to_owned),
+        body,
         traceparent: traceparent_of(ctx),
     };
 
@@ -1100,9 +1705,15 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
 /// that takes its subject off the network keeps every refusal its subject
 /// would have met on it, so a wrong URL fails the same way faked and real.
 ///
-/// What the record holds is what the *program* composed — its verb, its URL
-/// and its own `headers` bag. The headers a request grows while it is being
-/// framed are the transport's, and nothing is framed here.
+/// **The body is framed here too**, by the one function a real call frames with,
+/// because what a test asks its subject is what it *sent* — and a body
+/// recomposed from the options at the point of asking would be a second writer
+/// agreeing with the first until it did not. The `Content-Type` that framing
+/// chose joins the record beside the program's own headers, since the program
+/// never wrote it and a case asserting a JSON body would otherwise have no way
+/// to see that one was sent. The rest of what a request grows on the wire — the
+/// `Host`, the `User-Agent`, the `Content-Length` — is the transport's, and
+/// nothing connects here.
 ///
 /// # Errors
 ///
@@ -1116,15 +1727,33 @@ fn faked(ctx: &mut Ctx, args: &[Value], named: &str, member: &str) -> Result<Val
     judge_bound(args, RETRY_BACKOFF, "retryBackoff", named)?;
     judge_attempts(args, named)?;
 
-    let headers = headers_of(args, HEADERS, named)?
+    let mut headers: Vec<(String, String)> = headers_of(args, HEADERS, named)?
         .into_iter()
         .map(|(name, value)| (name.to_ascii_lowercase(), value))
         .collect();
+    // The same framing a real call sends, collected instead of written: a case
+    // asserting on a multipart body is asserting on what left the program, and
+    // a faked path that recomposed it from the options would be a second writer
+    // agreeing with the first until it did not. The `Content-Type` it chose
+    // joins the record for the same reason — it is the framing's answer, and
+    // the program never wrote it.
+    let body = body_of(ctx, args, named)?;
+    let octets = match &body {
+        Some(body) => {
+            if let Some(content_type) = &body.content_type
+                && !headers.iter().any(|(name, _)| name == CONTENT_TYPE_HEADER)
+            {
+                headers.push((CONTENT_TYPE_HEADER.to_owned(), content_type.clone()));
+            }
+            body.collected(named)?
+        }
+        None => Vec::new(),
+    };
     ctx.faked_http_mut().record(nvs_runtime::HttpSent {
         verb: member.to_ascii_uppercase(),
         url: url.clone(),
         headers,
-        body: Vec::new(),
+        body: octets,
     });
 
     let Some(answer) = ctx.faked_http().answer_for(&url) else {

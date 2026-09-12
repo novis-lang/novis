@@ -1897,6 +1897,11 @@ pub const CLASSES: &[CoreClass] = &[
     // with the transport that fills them, and [`crate::http`]'s module doc is
     // the home of that list.
     crate::http::RESPONSE,
+    // `rule:http-server/an-outbound-request-carries-one-body`'s part, which is
+    // the arm of `body` and of a `multipart` field that names a file instead of
+    // holding one. Two constructors and no member, for the reason
+    // [`crate::http::PART`] states.
+    crate::http::PART,
     // § 16's socket half, beside the HTTP client because the two are the same
     // door at two heights: `rule:core-classes/net-one-api-three-transports`
     // replaces `socket_*`, `stream_socket_*` and `fsockopen` with one class over
@@ -2228,6 +2233,18 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "allowUrl",
         Some(nvs_config::Cap::NetConnect),
     ),
+    // `fs.read` and at the constructor rather than at the send: naming a file as
+    // a body is what decides which file leaves the process, and the split above
+    // makes measuring one a read of it. The framing asks the same door again
+    // when it opens the file, so the grant covers both the name and the octets.
+    (
+        crate::http::PART_NAME,
+        "file",
+        Some(nvs_config::Cap::FsRead),
+    ),
+    // Octets the program is already holding reach nothing, and the declaration
+    // is what says so — a class is a door once any one of its members is one.
+    (crate::http::PART_NAME, "bytes", None),
     // `rule:security/net-listen-is-a-separate-grant-from-net-connect`: the two
     // rows below are the whole of that rule in this table. Which grant a door
     // asks is decided by what the program is *doing* and never by the transport
@@ -5170,7 +5187,11 @@ mod tests {
     /// members and by nothing else, and a member handing the material back
     /// would be the accessor whose absence is the whole point of the class —
     /// `rule:security/jwe-compact-subset` writes four constructors and no
-    /// member on what they answer ([`crate::jwe`]). Two have left this list,
+    /// member on what they answer ([`crate::jwe`]). `Core\Http\Part` is that
+    /// shape over a request body: its slots are read where the body is framed
+    /// and nowhere else, and a member answering the octets back would make a
+    /// `file` part hold the file it exists in order not to hold
+    /// ([`crate::http`]). Two have left this list,
     /// both the same way:
     /// `Core\Db\Connection` when `query` landed on it, and `Core\Db\Rows` when
     /// its readers did.
@@ -5207,6 +5228,7 @@ mod tests {
             crate::io::LINES_NAME,
             crate::io::WALK_NAME,
             crate::http::TARGET_NAME,
+            crate::http::PART_NAME,
             crate::cli::COLOR_NAME,
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,

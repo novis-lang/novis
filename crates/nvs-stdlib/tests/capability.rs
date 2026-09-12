@@ -460,14 +460,34 @@ fn no_member_dispatches_on_a_uri_scheme() {
     // scheme's name — a bare `:` is not the pattern, because `Core\Path` parses a Windows drive
     // letter on every platform (see its module doc) and reads one legitimately.
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+
+    /// The file under `src` that implements `class`.
+    ///
+    /// A nested class is written in one of three places and this scan has to
+    /// read whichever it is: its own module under its parent's directory, its
+    /// own module at the top, or its parent's module — which is where a class
+    /// that is a *value* of another one usually lives, `Core\Http\Part` in
+    /// `http.rs` being the case in hand. The first candidate that is there is
+    /// the answer, and the first one named is what a failure reports.
+    fn module_of(src: &Path, class: &str) -> std::path::PathBuf {
+        let mut segments = class.split('\\').skip(1).map(str::to_ascii_lowercase);
+        let first = segments.next().expect("a class name has a segment");
+        let mut candidates = vec![src.join(format!("{first}.rs"))];
+        let mut directory = src.join(&first);
+        for segment in segments {
+            candidates.insert(0, directory.join(format!("{segment}.rs")));
+            candidates.insert(1, src.join(format!("{segment}.rs")));
+            directory = directory.join(&segment);
+        }
+        candidates
+            .iter()
+            .find(|candidate| candidate.is_file())
+            .unwrap_or(&candidates[0])
+            .clone()
+    }
+
     for class in &path_taking {
-        let module = class
-            .name
-            .rsplit('\\')
-            .next()
-            .expect("a class name has a last segment")
-            .to_ascii_lowercase();
-        let file = src.join(format!("{module}.rs"));
+        let file = module_of(&src, class.name);
         let text = std::fs::read_to_string(&file).unwrap_or_else(|error| {
             panic!(
                 "`{}` is implemented by `{}`, which this scan has to read: {error}",
