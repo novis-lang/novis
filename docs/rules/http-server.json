@@ -968,7 +968,11 @@
         "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
         "security/secret-sinks-refuse"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/reject/http-client-two-body-keys-are-refused.nvst",
+        "tests/conformance/reject/http-client-a-body-on-get-or-head-is-refused.nvst",
+        "tests/conformance/reject/http-client-a-content-type-without-a-body-is-refused.nvst"
+      ]
     },
     {
       "id": "http-server/one-deadline-covers-the-whole-call",

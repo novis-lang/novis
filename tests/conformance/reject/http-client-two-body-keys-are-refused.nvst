@@ -1,0 +1,31 @@
+--TEST--
+`Core\Http\Client` carries at most one body, and two keys written at one call are refused while compiling — `rule:http-server/an-outbound-request-carries-one-body`
+--FILE--
+<?nvs
+// `rule:http-server/an-outbound-request-carries-one-body`: which key a body is written under is what says
+// how it is sent, so two of them is not a request with two bodies but a call
+// site that has not decided what it is sending. Both halves of the question
+// are written out — `rule:core-api/shape-rules` R2 makes the bag a literal — so it is refused
+// here rather than by whatever the server made of the first key it read.
+string $url = "https://example.test/orders";
+
+// The accepted half first: each key alone is a body, and `contentType` types
+// the raw one. A refusal written one condition too wide fails here rather than
+// at a review.
+var $a = Core\Http\Client::post($url, {json: ["id" => 7]});
+var $b = Core\Http\Client::post($url, {form: ["id" => "7"]});
+var $c = Core\Http\Client::post($url, {body: "raw", contentType: "text/plain"});
+var $d = Core\Http\Client::put($url, {multipart: ["part" => "value"]});
+
+// And the refusal, which names the two keys that were *written* rather than
+// the first two the bag declares.
+var $e = Core\Http\Client::post($url, {form: ["id" => "7"], json: ["id" => 7]});
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0815]: `Core\Http\Client::post` is given two bodies, `form` and `json`
+   --> case.nvs:19:61
+%A
+   = help: which key a body is written under is what says how it is sent, so exactly one of `json`, `form`, `body` and `multipart` may be written: keep the one whose encoding the server expects
+%A
+error: aborting due to 1 error

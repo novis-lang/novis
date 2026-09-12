@@ -1,0 +1,34 @@
+--TEST--
+`contentType` written without `body` is refused while compiling, because the other three body keys each carry the type their own key named — `rule:http-server/an-outbound-request-carries-one-body`
+--FILE--
+<?nvs
+// `rule:http-server/an-outbound-request-carries-one-body`: `contentType` types the octets `body`
+// sends and nothing else. Beside a `json`, a `form` or a `multipart` body it is
+// a second opinion the request will not send, and alone it is a `body` the call
+// site forgot to write — both of which are answerable while compiling, since
+// `rule:core-api/shape-rules` R2 makes the bag a literal.
+string $url = "https://example.test/orders";
+
+// The accepted half: the one key it types, and the three that type themselves.
+var $a = Core\Http\Client::post($url, {body: "raw", contentType: "text/plain"});
+var $b = Core\Http\Client::post($url, {body: "raw"});
+var $c = Core\Http\Client::post($url, {json: ["id" => 7]});
+
+// And the refusal, on both shapes: alone, and beside a body that names its own
+// type.
+var $d = Core\Http\Client::post($url, {contentType: "text/plain"});
+var $e = Core\Http\Client::post($url, {json: ["id" => 7], contentType: "application/json"});
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0817]: `contentType` is written without `body`
+   --> case.nvs:16:40
+%A
+   = help: `contentType` names the media type `body`'s octets are sent under: write the octets, or drop it — a `json`, `form` or `multipart` body already carries the type its own key named
+%A
+error[E0817]: `contentType` is written without `body`
+   --> case.nvs:17:59
+%A
+   = help: `contentType` names the media type `body`'s octets are sent under: write the octets, or drop it — a `json`, `form` or `multipart` body already carries the type its own key named
+%A
+error: aborting due to 2 errors

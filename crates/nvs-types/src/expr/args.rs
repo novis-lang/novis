@@ -1001,6 +1001,125 @@ pub(crate) fn reject_keyless_retry(
     }
 }
 
+/// The body keys as a sentence reads them — `` `a`, `b` and `c` `` — for
+/// [`reject_ill_formed_body`]'s help text, which names the whole roster rather
+/// than the one key at fault. The conjunction is the caller's, because the two
+/// refusals mean opposite things by the list: one of them may be written, or a
+/// body was written under one of them.
+fn spelled_keys(keys: &[&str], conjunction: &str) -> String {
+    let quoted: Vec<String> = keys.iter().map(|key| format!("`{key}`")).collect();
+    match quoted.split_last() {
+        Some((last, [])) => last.clone(),
+        Some((last, rest)) => format!("{} {conjunction} {last}", rest.join(", ")),
+        None => String::new(),
+    }
+}
+
+/// `rule:http-server/an-outbound-request-carries-one-body` at its compile-time
+/// half: a request member carries at most one body, a verb that carries none
+/// refuses every key, and `contentType` types octets that have to be there.
+///
+/// **Reportable for [`reject_keyless_retry`]'s reason, and asked the same way.**
+/// The verb is the member's own name and `rule:core-api/shape-rules` R2 makes the bag a literal at
+/// the call site, so both halves are in hand while compiling; and the question
+/// is put to every object literal in the call rather than to the trailing
+/// argument, because a bag written by name is not last and re-deriving which
+/// argument filled the [`Ty::CoreShape`] parameter is a slot mapping this
+/// function is deliberately not handed.
+///
+/// Which keys those are, and which verbs carry no body, are
+/// `nvs_stdlib::registry::request_body_rule`'s — the rows and the refusal read
+/// one set of spellings, so a renamed key cannot leave this looking for a name
+/// no row writes.
+pub(crate) fn reject_ill_formed_body(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    env: &mut Env<'_>,
+) {
+    let Some(rule) = nvs_stdlib::registry::request_body_rule(&qname.to_string(), member) else {
+        return;
+    };
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    for arg in list {
+        let ExprKind::ObjectLiteral(fields) = &arg.value.kind else {
+            continue;
+        };
+        let mut bodies = Vec::new();
+        let mut content_type = None;
+        for field in fields {
+            let name = span_text(env.src, field.name);
+            if rule.keys.contains(&name) {
+                bodies.push((name, field.span));
+            } else if name == rule.content_type {
+                content_type = Some(field.span);
+            }
+        }
+        if bodies.is_empty() && content_type.is_none() {
+            continue;
+        }
+        if rule.bodyless {
+            if let Some((name, span)) = bodies.first() {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_BODY_ON_A_BODYLESS_VERB,
+                        format!("`{qname}::{member}` sends no body, and `{name}` is one"),
+                    )
+                    .with_primary(*span, "this verb carries no body")
+                    .with_help(format!(
+                        "a `{}` asks a question rather than carrying one, and a server reads no \
+                         body off it: put the value in the URL's query, or send it with the \
+                         member whose verb takes a body",
+                        member.to_uppercase()
+                    )),
+                );
+            }
+        } else if let [(first, _), (second, span), ..] = bodies.as_slice() {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_TWO_REQUEST_BODIES,
+                    format!("`{qname}::{member}` is given two bodies, `{first}` and `{second}`"),
+                )
+                .with_primary(*span, "a second body")
+                .with_help(format!(
+                    "which key a body is written under is what says how it is sent, so exactly \
+                     one of {} may be written: keep the one whose encoding the server expects",
+                    spelled_keys(rule.keys, "and")
+                )),
+            );
+        }
+        if let Some(span) = content_type
+            && !bodies.iter().any(|(name, _)| *name == rule.raw)
+        {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_CONTENT_TYPE_WITHOUT_A_BODY,
+                    format!("`{}` is written without `{}`", rule.content_type, rule.raw),
+                )
+                .with_primary(span, "there are no octets for it to type")
+                .with_help(format!(
+                    "`{}` names the media type `{}`'s octets are sent under: write the octets, or \
+                     drop it — a {} body already carries the type its own key named",
+                    rule.content_type,
+                    rule.raw,
+                    spelled_keys(
+                        &rule
+                            .keys
+                            .iter()
+                            .copied()
+                            .filter(|key| *key != rule.raw)
+                            .collect::<Vec<_>>(),
+                        "or"
+                    )
+                )),
+            );
+        }
+        return;
+    }
+}
+
 /// The declared option names, comma-separated — the help text every
 /// [`check_options_arg`] diagnostic ends with, so a typo is answered with the
 /// list rather than with a type spelling nobody wrote.

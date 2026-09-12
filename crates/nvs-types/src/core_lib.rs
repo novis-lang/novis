@@ -451,6 +451,12 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // 0086 § 4's prompt answers a password that is confidential and came
         // from outside, and only a qualified result type can say both.
         CoreTy::SecretTaintedStr => interner.secret_tainted_string(),
+        // The same arm on the octet axis. Both of these are written in an
+        // options bag as well as in return position, and there they are the
+        // *only* way to admit a qualifier: `qual_of` above answers `None` for an
+        // option, so `Core\Http\Client`'s body keys say in the type what a
+        // parameter would have said with a [`Qual`].
+        CoreTy::SecretTaintedBytes => interner.secret_tainted_bytes(),
         CoreTy::Void => interner.void(),
         CoreTy::Array(elem) => {
             let elem = lower(elem, interner);

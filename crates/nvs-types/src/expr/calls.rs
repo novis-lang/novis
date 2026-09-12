@@ -382,6 +382,10 @@ pub(crate) fn infer_static_call(
         // [`infer_method_call`] has no arm of this hook rather than a missing
         // one. See [`reject_keyless_retry`].
         reject_keyless_retry(owner, name, args, env);
+        // `rule:http-server/an-outbound-request-carries-one-body`'s two refusals, over the same members and by
+        // the same reading of the same literal — a body key the verb has no use
+        // for, or two of them at one call. See [`reject_ill_formed_body`].
+        reject_ill_formed_body(owner, name, args, env);
         // `rule:testing/inline-snapshots`'s updater material, taken at the one site that can see
         // it: the `$expected` literal's span, which no runtime record holds.
         // Records rather than refuses, like every other hook here that reads a

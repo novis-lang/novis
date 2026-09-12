@@ -3394,6 +3394,36 @@ pub mod code {
     /// an operand outside the tree.
     pub const E_CATCH_ARM_NAMES_THE_FINISH_MARKER: Code = Code::new("E0814");
 
+    /// Two of `Core\Http\Client`'s four body keys written at one call.
+    ///
+    /// `rule:http-server/an-outbound-request-carries-one-body`: which key a body
+    /// was written under is what says how it is sent, so two of them is not a
+    /// request with two bodies but a call site that has not decided what it is
+    /// sending. Reportable while compiling for
+    /// [`E_RETRY_WITHOUT_IDEMPOTENCY_KEY`]'s reason — `rule:core-api/shape-rules` R2 makes the bag
+    /// a literal — and where the verb is dynamic the same question throws
+    /// before the first attempt rather than after it.
+    pub const E_TWO_REQUEST_BODIES: Code = Code::new("E0815");
+
+    /// A body key written at a `Core\Http\Client` member whose verb carries no
+    /// body.
+    ///
+    /// `rule:http-server/an-outbound-request-carries-one-body` again, at its
+    /// other half: a `GET` and a `HEAD` ask a question, and octets attached to
+    /// one are read by no server the request was worth making to. Distinct from
+    /// [`E_TWO_REQUEST_BODIES`], where the keys are legal for the verb and it is
+    /// their number that is the defect.
+    pub const E_BODY_ON_A_BODYLESS_VERB: Code = Code::new("E0816");
+
+    /// `contentType` written at a `Core\Http\Client` member with no `body`.
+    ///
+    /// The key types [`E_TWO_REQUEST_BODIES`]'s raw octets and nothing else: a
+    /// `json`, a `form` and a `multipart` body each carry the media type their
+    /// key already named, so a `contentType` beside one is either a second
+    /// opinion the request will not send or a `body` the call site forgot to
+    /// write.
+    pub const E_CONTENT_TYPE_WITHOUT_A_BODY: Code = Code::new("E0817");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

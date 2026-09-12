@@ -101,10 +101,11 @@
 //!
 //! # What is not here yet, and why each is deliberate rather than forgotten
 //!
-//! **A request body.** `post` and `put` take a URL and options and nothing else, because a body's
-//! `tainted` behaviour is a decision the spec's own `send(Core\Http\Request)` row owns and the
-//! transport is what makes it testable — posting user-supplied data is ordinary, so the answer is
-//! not the URL's answer, and guessing it here would pin the wrong one in a signature.
+//! **A request body on the wire.** `rule:http-server/an-outbound-request-carries-one-body`'s four
+//! keys are declared in [`OPTIONS`] and refused where that rule refuses them — two at one call, any
+//! of them on `get` or `head`, a `contentType` with no octets to type — but nothing under
+//! [`request`] reads the slots yet, so a call that writes one sends the request without it. The
+//! composition and the framing are [`transport`]'s, and land with it.
 //!
 //! **The reply's headers.** [`RESPONSE`] answers `status()` and `text()` and nothing else: a slot
 //! and the member that reads it are one decision, and a `header()` over a map nothing fills would
@@ -403,7 +404,74 @@ const OPTIONS: &[CoreOption] = &[
         ty: CoreTy::Text(Qual::Neutral),
         default: Const::Null,
     },
+    // `rule:http-server/an-outbound-request-carries-one-body`'s four body keys, and the fifth that types a raw
+    // one. Which key the body was written under is what says how it is sent, so
+    // there is no mode string beside one value (`rule:core-api/no-mode-strings`) and no
+    // sniffing an `array<string>` for whether it meant a form or an object.
+    //
+    // `mixed` rather than a structured type: what a JSON body may hold is what
+    // JSON may hold, and the walk that encodes it is `crate::json`'s with the
+    // outbound `secret` exemption applied. That admits `null`, so the omission
+    // is `Const::NeverWritten` and not `Const::Null`
+    // (`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`): the
+    // document `null` is a body a program may mean, and it arrives under
+    // `Tag::Null` where writing no `json` at all arrives under `Tag::Unset`.
+    CoreOption {
+        name: JSON_OPTION,
+        ty: CoreTy::Mixed,
+        default: Const::NeverWritten,
+    },
+    // Every body position admits both qualifiers, and the *type* is what says
+    // so: `nvs_types::core_lib`'s `qual_of` reads no mark through an options
+    // bag, so a `Qual` here would be documentation the checker never consults.
+    // `secret tainted string` is what `nvs_types::expr::assign` widens a plain,
+    // a `tainted` and a `secret` argument onto alike, which is the admission
+    // `rule:security/secret-sinks-refuse` grants an outbound request and `rule:http-server/an-outbound-request-carries-one-body` grants a body
+    // written out of what a user sent.
+    CoreOption {
+        name: FORM_OPTION,
+        ty: CoreTy::Array(&CoreTy::SecretTaintedStr),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: BODY_OPTION,
+        ty: CoreTy::Union(&[CoreTy::SecretTaintedStr, CoreTy::SecretTaintedBytes]),
+        default: Const::Null,
+    },
+    // Unqualified, as a header value is and for the same reason: this text is
+    // copied verbatim into a header line, and it names a media type the program
+    // itself knows rather than anything a reply or a user supplied.
+    CoreOption {
+        name: CONTENT_TYPE_OPTION,
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: MULTIPART_OPTION,
+        ty: CoreTy::Array(&CoreTy::SecretTaintedStr),
+        default: Const::Null,
+    },
 ];
+
+/// `rule:http-server/an-outbound-request-carries-one-body`'s body keys, named once: [`OPTIONS`] declares them,
+/// [`crate::registry::request_body_rule`] hands the same spellings to the
+/// checker, and the transport reads them out of the slots below. A renamed key
+/// therefore cannot leave the refusal looking for a name no row writes.
+pub(crate) const JSON_OPTION: &str = "json";
+/// See [`JSON_OPTION`].
+pub(crate) const FORM_OPTION: &str = "form";
+/// See [`JSON_OPTION`].
+pub(crate) const BODY_OPTION: &str = "body";
+/// See [`JSON_OPTION`].
+pub(crate) const MULTIPART_OPTION: &str = "multipart";
+/// The key that types [`BODY_OPTION`]'s octets and means nothing without them —
+/// see [`JSON_OPTION`].
+pub(crate) const CONTENT_TYPE_OPTION: &str = "contentType";
+
+/// The four keys of [`JSON_OPTION`]'s family, in [`OPTIONS`]' own order: at most
+/// one of them may be written at a call, and a member whose verb carries no body
+/// admits none.
+pub(crate) const BODY_OPTIONS: &[&str] = &[JSON_OPTION, FORM_OPTION, BODY_OPTION, MULTIPART_OPTION];
 
 /// The ABI slot each of [`OPTIONS`]'s bounds flattens into — the bag expands to
 /// one argument per option, in declaration order, after the URL at slot 0.
@@ -414,6 +482,13 @@ const FOLLOW_REDIRECTS: usize = 4;
 const RETRY_ATTEMPTS: usize = 5;
 const RETRY_BACKOFF: usize = 6;
 const RETRY_KEY: usize = 7;
+
+/// How many arguments a request member takes: the URL plus one per option, which
+/// is what every `nvs_helper!` row below writes as its arity. Derived rather
+/// than written, so a key added to [`OPTIONS`] cannot leave a helper declaring
+/// an arity the call site does not pass. The body keys hold the slots after
+/// [`RETRY_KEY`] and are named where they are read.
+const REQUEST_ARITY: usize = OPTIONS.len() + 1;
 
 /// [`TARGET`]'s two slots, by index — see [`STATUS_SLOT`].
 const TARGET_URL_SLOT: usize = 0;
@@ -607,6 +682,36 @@ const REQUEST_PARAMS: &[ParamDoc] = &[
         name: "retryIdempotencyKey",
         desc: "Sent as `Idempotency-Key`, identical across attempts. Required for `post` when \
                `retryAttempts` is given, and accepted by every other member.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "json",
+        desc: "The value to send as `application/json`, encoded once for the whole call. A \
+               `secret` inside it is sent, as it is at a header, and a written `null` is the \
+               document `null` rather than no body.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "form",
+        desc: "The fields to send as `application/x-www-form-urlencoded`, by name.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "body",
+        desc: "The octets to send exactly as given, under `contentType`. At most one of `json`, \
+               `form`, `body` and `multipart` may be written, and none of them on `get` or \
+               `head`; both refusals are made while compiling.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "contentType",
+        desc: "The media type `body`'s octets are sent under. It means nothing without `body`, \
+               and writing it alone is refused while compiling.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "multipart",
+        desc: "The parts to send as `multipart/form-data`, by name.",
         shape: &[],
     },
 ];
@@ -1088,7 +1193,7 @@ fn redirects_of(ctx: &Ctx, args: &[Value]) -> u32 {
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::get(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. [`request`] is the body; the verb is this row's own name.
-    fn nvs_core_http_client_get(ctx, args: [8]) {
+    fn nvs_core_http_client_get(ctx, args: [REQUEST_ARITY]) {
         request(ctx, args, "get")
     }
 }
@@ -1096,7 +1201,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::post(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`. See [`nvs_core_http_client_get`].
-    fn nvs_core_http_client_post(ctx, args: [8]) {
+    fn nvs_core_http_client_post(ctx, args: [REQUEST_ARITY]) {
         request(ctx, args, "post")
     }
 }
@@ -1104,7 +1209,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::put(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
-    fn nvs_core_http_client_put(ctx, args: [8]) {
+    fn nvs_core_http_client_put(ctx, args: [REQUEST_ARITY]) {
         request(ctx, args, "put")
     }
 }
@@ -1112,7 +1217,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::delete(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
-    fn nvs_core_http_client_delete(ctx, args: [8]) {
+    fn nvs_core_http_client_delete(ctx, args: [REQUEST_ARITY]) {
         request(ctx, args, "delete")
     }
 }
@@ -1120,7 +1225,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::head(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
     /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
-    fn nvs_core_http_client_head(ctx, args: [8]) {
+    fn nvs_core_http_client_head(ctx, args: [REQUEST_ARITY]) {
         request(ctx, args, "head")
     }
 }
@@ -1194,7 +1299,12 @@ mod tests {
 
     use crate::tests::granting;
 
-    use super::{BODY_SLOT, RESPONSE, STATUS_SLOT, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT};
+    use super::{
+        BODY_OPTION, BODY_OPTIONS, BODY_SLOT, CONNECT_TIMEOUT, CONTENT_TYPE_OPTION, DEADLINE,
+        FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, JSON_OPTION, MULTIPART_OPTION, OPTIONS,
+        REQUEST_ARITY, RESPONSE, RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION, RETRY_BACKOFF, RETRY_KEY,
+        RETRY_KEY_OPTION, STATUS_SLOT, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT,
+    };
 
     /// The grant every case here starts from: the host is reachable and no
     /// address is excepted, which is § 3's table exactly as it ships.
@@ -1217,6 +1327,45 @@ mod tests {
     fn a_responses_slot_constants_are_the_names_it_declares() {
         assert_eq!(STATUS_SLOT, RESPONSE.slot("status"));
         assert_eq!(BODY_SLOT, RESPONSE.slot("body"));
+    }
+
+    /// Every option's ABI slot is its own position in the bag — the two tests
+    /// above's pairing, over the one layout no member can see it get wrong. An
+    /// option inserted anywhere but the end renumbers every slot after it, and a
+    /// body then reads a `followRedirects` count out of the `headers` argument,
+    /// which is a mismatch the ABI has no tag to catch.
+    #[test]
+    fn every_option_slot_is_its_position_in_the_bag() {
+        for (slot, name) in [
+            (DEADLINE, "deadline"),
+            (CONNECT_TIMEOUT, "connectTimeout"),
+            (HEADERS, "headers"),
+            (FOLLOW_REDIRECTS, "followRedirects"),
+            (RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION),
+            (RETRY_BACKOFF, "retryBackoff"),
+            (RETRY_KEY, RETRY_KEY_OPTION),
+        ] {
+            assert_eq!(OPTIONS[slot - 1].name, name, "slot {slot}");
+        }
+        assert_eq!(REQUEST_ARITY, OPTIONS.len() + 1);
+    }
+
+    /// Every body key is an option of the bag, and `contentType` with them —
+    /// the refusal in `nvs_types::expr::args` is written over
+    /// [`BODY_OPTIONS`]'s spellings alone, so a key that is not also declared
+    /// here would be refused at a call site that could never have written it.
+    #[test]
+    fn every_body_key_the_refusal_reads_is_an_option_of_the_bag() {
+        assert_eq!(
+            BODY_OPTIONS,
+            [JSON_OPTION, FORM_OPTION, BODY_OPTION, MULTIPART_OPTION]
+        );
+        for name in BODY_OPTIONS.iter().chain(&[CONTENT_TYPE_OPTION]) {
+            assert!(
+                OPTIONS.iter().any(|option| option.name == *name),
+                "`{name}` is not an option of the bag"
+            );
+        }
     }
 
     /// `rule:security/the-policy-lives-in-the-capability`, asserted as **agreement** rather than as a value: the

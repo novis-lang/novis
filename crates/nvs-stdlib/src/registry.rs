@@ -385,10 +385,23 @@ pub enum CoreTy {
     /// `rule:tooling/a-prompt-is-a-core-member`
     /// writes the return type with both words for that reason.
     ///
-    /// Return position, exactly as its two halves are: in parameter position
-    /// it would demand what `nvs_types`' assignment relation already grants,
-    /// which [`Self::SecretBytes`]'s docs work through.
+    /// Return position for `Core\Cli::secret`, and **options-bag position** for
+    /// `Core\Http\Client`'s body keys, which is where the two words earn
+    /// something an ordinary parameter cannot get from them. At an ordinary
+    /// parameter a [`Qual`] already decides what the slot admits, so this
+    /// spelling would demand what `nvs_types`' assignment relation grants
+    /// anyway ([`Self::SecretBytes`]'s docs work that through). Inside a bag
+    /// there is no mark to read — `nvs_types::core_lib`'s `qual_of` answers
+    /// `None` for an option, and `None` refuses a qualified argument exactly as
+    /// [`Qual::Sink`] does — so the **type** is the whole of what says a request
+    /// body may carry a credential or something a user sent
+    /// (`rule:http-server/an-outbound-request-carries-one-body`).
     SecretTaintedStr,
+    /// `secret tainted bytes` — [`Self::SecretTaintedStr`] on the other of
+    /// `rule:types/bytes`'s two octet types, and it exists for the same slot:
+    /// `Core\Http\Client`'s `body` takes octets as readily as text, and a key
+    /// out of `Core\Crypto` or a payload off a request reaches it unlaundered.
+    SecretTaintedBytes,
     /// `void`, return position only.
     Void,
     /// `mixed` — `rule:types/grammar`'s one unchecked position.
@@ -847,9 +860,11 @@ pub enum Const {
     /// own not-given path.
     ///
     /// This is the only default whose value is not of its option's declared
-    /// type, and deliberately: `?callable` would be a union, and
-    /// `a_union_is_only_ever_a_parameter` records why an option cannot be
-    /// one.
+    /// type, and deliberately: writing the type as `?callable` instead would
+    /// make it admit `null`, and an option that admits `null` states its
+    /// omission with [`Self::NeverWritten`] — which is the pairing
+    /// [`tests::a_nullable_option_omits_as_the_never_written_marker`] holds, and
+    /// the reason the declared type stays what a call site may write.
     Null,
     /// **Not a value**: the never-written marker, which is what an omitting
     /// call site materializes for a **nullable** option or shape field —
@@ -1141,6 +1156,7 @@ impl CoreTy {
             Self::TaintedStr => "tainted string".into(),
             Self::TaintedBytes => "tainted bytes".into(),
             Self::SecretTaintedStr => "secret tainted string".into(),
+            Self::SecretTaintedBytes => "secret tainted bytes".into(),
             Self::Void => "void".into(),
             Self::Mixed => "mixed".into(),
             Self::Object => "object".into(),
@@ -3068,6 +3084,46 @@ pub fn idempotent_retry_rule(class: &str, member: &str) -> Option<IdempotentRetr
             key: crate::http::RETRY_KEY_OPTION,
         },
     )
+}
+
+/// `rule:http-server/an-outbound-request-carries-one-body`'s one-body rule, as
+/// the key names it is written over — [`IdempotentRetry`]'s shape, for its
+/// reason: the checker that reports the refusal holds no copy of a spelling that
+/// `crate::http`'s [`CoreOption`]s declare.
+#[derive(Clone, Copy, Debug)]
+pub struct RequestBody {
+    /// The keys a body may be written under, of which at most one may appear at
+    /// a call.
+    pub keys: &'static [&'static str],
+    /// The one of [`Self::keys`] that carries raw octets, and so the only one
+    /// [`Self::content_type`] has anything to say about.
+    pub raw: &'static str,
+    /// The key that types those octets and says nothing on its own.
+    pub content_type: &'static str,
+    /// Whether this member's verb carries no body at all, which makes any of
+    /// [`Self::keys`] a refusal rather than a choice.
+    pub bodyless: bool,
+}
+
+/// Which body keys `class::member` accepts — `None` for every member that takes
+/// no body option, which is every other one in `Core`.
+///
+/// Asked by name for [`idempotent_retry_rule`]'s reason, and it answers `Some`
+/// for a member that accepts a body as well as for one that refuses every key:
+/// `get` and `head` are the verbs `rule:http-server/an-outbound-request-carries-one-body`
+/// has no body for, and a rule that answered `None` for them would read as "this
+/// member is outside the rule" where what is meant is "this member's answer is
+/// no".
+#[must_use]
+pub fn request_body_rule(class: &str, member: &str) -> Option<RequestBody> {
+    (class == crate::http::CLIENT_NAME
+        && matches!(member, "get" | "post" | "put" | "patch" | "delete" | "head"))
+    .then_some(RequestBody {
+        keys: crate::http::BODY_OPTIONS,
+        raw: crate::http::BODY_OPTION,
+        content_type: crate::http::CONTENT_TYPE_OPTION,
+        bodyless: matches!(member, "get" | "head"),
+    })
 }
 
 #[cfg(test)]
