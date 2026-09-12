@@ -6394,6 +6394,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   variant (`CoreTy::SecretTaintedStr`) to get every arm in one call rather than chasing the compiler
   through them one at a time, and check the three `registry.rs` methods by hand.
   [until: reviewed 2026-09-12]
+- **An `#[expect(dead_code)]` on a type does not cover a field nothing ever *reads*.** rustc reports
+  an unread field as its own diagnostic, so a stage-gated enum whose `cfg_attr(not(test),
+  expect(dead_code, …))` silences the type still warns about a field only its constructor writes,
+  and the `not(test)` means that warning lands in the test build. Add the accessor the field exists
+  for and have a case call it, rather than widening the attribute.
+  [until: gone crates/nvs-stdlib/src/crypto.rs:stage 4 registers the members]
 
 ## Divergences and refusals already pinned
 
