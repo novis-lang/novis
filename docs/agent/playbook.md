@@ -1865,6 +1865,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `a_verified_signature_does_not_launder_its_claims` until it joins that roster. Run `cargo test -p
   nvs-stdlib -p nvs-types`, not just the first, and write the sentence each list wants beside the entry.
   [until: reviewed 2026-09-12]
+- **A `[context]` gap is closed by adding the path to `modules`, and there is no `files` field.**
+  `tools/orient.py`'s `named_files` resolves every leftover `modules` pattern against `git ls-files`,
+  so a goal may name a fixture, a tool or a `.nvst` case there, while a key the loader does not know
+  is silently nothing at all. Put the path in `[context] modules`, or in a `[context.stage.N]
+  modules` overlay when only one stage reads it, with the one-line comment the other entries carry.
+  [until: gone tools/orient.py:named_files]
 
 ## Running things
 

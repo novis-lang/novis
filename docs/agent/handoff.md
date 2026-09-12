@@ -2,59 +2,53 @@
 
 ## State
 
-**Goal `webcrypto`, stage 6 is complete: `Core\Jwt::verifyIssued<T>` is on disk, registered and
-reachable** (`crates/nvs-stdlib/src/jwt.rs:1702`). It checks in one order — shape, header policy,
-key, signature, then the clock and the claims — and everything before the signature answers with
-`not_issued()`'s one sentence (`crates/nvs-stdlib/src/jwt.rs:1494`), which is `verify`'s `refused()`
-rewritten for this member's own set of ways to be unverifiable.
+**Goal `webcrypto`, stage 7 is most of the way through.** `Core\Jwt::verifyIssued` now has a
+crate-private entry point that takes the clock as an argument — `issued_claims`
+(`crates/nvs-stdlib/src/jwt.rs:1676`) is all of the member but its two ends, and the arm at
+`crates/nvs-stdlib/src/jwt.rs:1854` is left with the arguments, the shape question, the clock read off
+`ctx` and the key lookup. The key half split with it: `found_key` is the lookup rule over a set's
+frame and `key_of` turns one SPKI into a key and its algorithm, so a test finds a key by exactly the
+code a program's `Core\Jwt\KeySet` answers with.
 
-**A key is found, never tried** (`crates/nvs-stdlib/src/jwt.rs:1588`): `kid` is a lookup into the
-set, a token naming none is answered only by a set of one, and a `Crypto\PublicKey` argument is that
-same rule with the set of one written by the program. The payload is handed to
-`crate::json::decode_as`, now `pub(crate)`, so what a token may say is what a JSON document may say.
+**The frozen set's whole JWS half is replayed.** All 10 `jws.vectors` verify at the second the set
+judged them at and answer their payload byte for byte, and all 34 `jws.refusals` are refused with the
+sentence their stage may say (`crates/nvs-stdlib/src/jwt.rs:2680`). `jws.keys` and `jws.keySets` were
+already on disk — nothing was owed there.
 
-**The one change outside `nvs-stdlib` landed too.** `verifyIssued` joined `jsonAs` on the decode-site
-roster (`crates/nvs-types/src/expr/args.rs:1526`), and a `DecodeSite` now carries the member that
-asked (`crates/nvs-types/src/derive.rs:785`) — the old message said "a decoded request body" for
-whichever member recorded the site, which was about to be wrong for half of them. One reject case's
-expected output moved with it.
+**One thing the set and this module classify differently, and neither is wrong.** The set records
+`claims` for a token carrying no numeric `exp`; this module answers it with the expiry error rather
+than with `claim_refused`, because a token with no `exp` is `rule:security/jwt-expiry-is-mandatory`
+rather than a claim the two parties disagree about. The refusal test says so where it asserts it.
 
-`rule:security/protocol-roster`'s closing paragraph was stale on more than this member — it named
-`Core\Jwe` and `Core\Signature` as having no member at all, and both are registered — so it now says
-what is on disk. The failing acceptance check (`examples/webcrypto.nvs`) stays red until stage 7.
-
-**A `[context]` gap, still open:** no field points at `crates/nvs-stdlib/tests/vectors/webcrypto.json`
-or `crates/nvs-stdlib/src/tests/vectors.rs`, and the whole of the next group reads them. Add a
-`files` selector for both.
+Still red, and expected: `examples/webcrypto.nvs`, which the goal's § *Stage 7* puts last.
 
 ## Next group
 
-**Stage 7: replaying the frozen set's JWS half** — one file set:
-`crates/nvs-stdlib/src/tests/vectors.rs`, `crates/nvs-stdlib/src/jwt.rs`, and
-`crates/nvs-stdlib/tests/vectors/webcrypto.json` read-only. The goal's § *Stage 7* is the list; the
-set is never edited by a session.
+**Stage 7: the primitives the frozen set records** — one file set:
+`crates/nvs-stdlib/src/crypto.rs`, with `crates/nvs-stdlib/src/tests/vectors.rs` and
+`crates/nvs-stdlib/tests/vectors/webcrypto.json` read-only. The goal's § *Stage 7* first two bullets
+are the list; `webcrypto::vectors("<section>")` and `webcrypto::refusals("<section>")` are the door,
+and `crates/nvs-stdlib/src/jwt.rs:2680` is the replay shape to follow.
 
-- [ ] **Split a crate-private entry point out of `crates/nvs-stdlib/src/jwt.rs:1702` that takes the
-      clock as an argument.** The goal's § *Stage 7* asks for `verifyIssued` "at the crate-private
-      level where the clock is an argument", and the helper reads it from `ctx` through
-      `now_seconds` today, so `jws.vectors` and `jws.refusals` cannot be replayed at their recorded
-      `clock` without one. Everything from the header policy down is already clock-free except the
-      two window checks and `maxAge`.
-- [ ] **Replay `jws.keys` and `jws.keySets` beside `crates/nvs-stdlib/src/tests/vectors.rs:42`.**
-      Every key reads from `pkcs8`, `pem`, `spki` and `jwk`, the forms agree,
-      `write(KeyFormat::Jwk)` answers `jwkMinimal`, `thumbprint` is base64url of its SHA-256
-      (`crates/nvs-stdlib/src/crypto.rs:2010`), and `Jwt\KeySet::read` admits exactly `kids` or
-      refuses the set whole.
-- [ ] **Replay `jws.vectors` and `jws.refusals` through the new entry point.** Each payload's
-      claims, the structured ones included; each refusal with its recorded kind — `policy` and
-      `authenticity` the one sentence, `time` the expiry error, `claims` a refusal naming the claim,
-      which is `claim_refused` at `crates/nvs-stdlib/src/jwt.rs:1507`.
+- [ ] **Replay `aesGcm`'s 7 vectors and 5 refusals in `crates/nvs-stdlib/src/crypto.rs:1565`'s own
+      tests.** `gcm_seal_under` handed the recorded nonce answers `sealed` byte for byte, and
+      `gcm_open_under` (`crates/nvs-stdlib/src/crypto.rs:1608`) answers the plaintext; every refusal
+      is the one forgery `RuntimeError`, which `rule:security/verification-throws-and-compares-in-constant-time`
+      is the home of. The layout is `nonce(12) ‖ ciphertext ‖ tag(16)`, as the set's `about` says.
+- [ ] **Replay `pbkdf2`'s 2 vectors and 3 refusals against
+      `crates/nvs-stdlib/src/crypto.rs:1630`.** The bounds are refused before the first HMAC in
+      `derive_key` (`crates/nvs-stdlib/src/crypto.rs:1648`), and the goal's § *Standing decisions*
+      fixes both numbers — a refusal at each edge is in the set, so neither may move here.
+- [ ] **Replay `hkdf`'s 3 vectors against `crates/nvs-stdlib/src/crypto.rs:1694`.** RFC 5869's own
+      derivations stay inline where they are asserted (`crates/nvs-stdlib/src/tests/vectors.rs:14`
+      says why); these are the browser's, so they come from the file.
 
 ## Backlog
 
-- `jws.signs` and `signatures.*` replay — the goal's § *Stage 7*, after the JWS verify half.
-- `examples/webcrypto.nvs`, the failing acceptance check — the goal's § *Stage 7*, last.
-- `rule:security/protocol-roster` still carries the status *designed, not yet shipped* while every
-  entry is registered with cases; whether that metadata moves is `docs/rules/security.json`'s.
-- `MAX_TOKEN_LEN` is this member's alone; `Core\Jwe`'s protected-header cap is its own
-  (`rule:security/jwe-compact-subset`).
+- `jws.signs`, 4 cases: `sign` at `clock` answers `token` byte for byte where `deterministic` —
+  needs the same clock-as-argument split on `sign` that `verifyIssued` now has
+  (docs/agent/loop-goal.md § *Stage 7*).
+- `examples/webcrypto.nvs` and its `exact` check — the goal's § *Stage 7* closing paragraph, and the
+  acceptance check the driver reports red every session.
+- The four proofs beyond the example — an attack, a bench, a `covers:` marker for
+  `Core\Jwt::verifyIssued` (`rule:testing/four-proofs`, `python tools/dossier.py --id`).

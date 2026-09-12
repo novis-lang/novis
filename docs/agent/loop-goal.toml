@@ -218,6 +218,12 @@ rules = [
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.7]
+# The frozen set and the one door onto it. Every slice of this stage reads both, and the JSON is
+# never edited by a session -- what the pack owes is that they are named, not that they are printed.
+modules = [
+  "crates/nvs-stdlib/src/tests/vectors.rs",
+  "crates/nvs-stdlib/tests/vectors/webcrypto.json",
+]
 # The example is one of the four proofs a shipped feature owes.
 rules = ["testing/four-proofs"]
 shapes =["A feature's four proofs — an example, an attack, a bench, a `covers:` marker"]
