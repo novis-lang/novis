@@ -17,13 +17,16 @@
 //! being misread.
 
 use nvs_diagnostics::SourceFile;
-use nvs_syntax::Parsed;
+use nvs_syntax::{Parsed, Trivia, TriviaKind};
+
+use crate::indent::Indent;
 
 /// Writes `parsed` back out as the text of a formatted file.
 ///
 /// `parsed` must be `file`'s own parse: the spans are offsets into its text.
 pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
     let text = file.text();
+    let indent = Indent::new(&parsed.index, text);
     let mut out = String::with_capacity(text.len());
     let mut cursor = 0_usize;
     for trivium in &parsed.trivia {
@@ -34,9 +37,35 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
             "trivia arrive in source order and no two of them overlap"
         );
         out.push_str(&text[cursor..start]);
-        out.push_str(&text[start..end]);
+        push_trivium(&mut out, &indent, text, *trivium);
         cursor = end;
     }
     out.push_str(&text[cursor..]);
     out
+}
+
+/// Writes one trivium, re-indenting the line it leaves the printer on.
+///
+/// A whitespace run that carries a line break ends by opening a line, and what
+/// opens that line is the one thing in the run this stage decides: everything
+/// up to and including the last break is the author's — blank lines and all —
+/// and what follows it is four spaces per enclosing body
+/// (`rule:tooling/fmt-base-style-is-per`). A run the tree does not place, and
+/// every comment, go out exactly as they came in.
+fn push_trivium(out: &mut String, indent: &Indent<'_>, text: &str, trivium: Trivia) {
+    let start = trivium.span.start as usize;
+    let end = trivium.span.end as usize;
+    let run = &text[start..end];
+    let opens_a_line = trivium.kind == TriviaKind::Whitespace;
+    let placed = opens_a_line
+        .then(|| run.rfind('\n'))
+        .flatten()
+        .zip(indent.of_line(end));
+    match placed {
+        Some((last_break, opening)) => {
+            out.push_str(&run[..=last_break]);
+            out.push_str(&opening);
+        }
+        None => out.push_str(run),
+    }
 }

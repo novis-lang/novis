@@ -1,6 +1,6 @@
 //! `nvs fmt` — the Novis formatter.
 //!
-//! One entry, [`format`]: a [`SourceFile`] goes in, and that file's canonical
+//! One entry, [`format()`]: a [`SourceFile`] goes in, and that file's canonical
 //! text comes out or a [`Refusal`] does. `--check`, `--diff` and `--stdin` are
 //! I/O modes around that one call, and an editor's formatting request is the
 //! same call again — `rule:ide/one-server-two-thin-clients` puts every layout
@@ -34,7 +34,7 @@
 //! diagnostics, and no text at all. The safe direction is the whole reason: an
 //! editor saving a half-written file gets it back unchanged rather than
 //! rearranged around a bracket its author has not typed yet. The parse is
-//! [`format`]'s own, so a caller walking a directory hands each file in
+//! [`format()`]'s own, so a caller walking a directory hands each file in
 //! separately and one file's errors can never refuse the next one.
 //!
 //! # What it spends
@@ -45,19 +45,27 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The printer is the identity.** It walks a file as the runs
-//!    `rule:ide/tokens-plus-trivia-reproduce-the-file` names and writes each one
-//!    back as it found it. That walk is the frame every layout rule under
-//!    `docs/rules/tooling/fmt-*` hangs off — PER's indentation and braces, the
-//!    quote and trailing-comma rules, the `use` block's order, and the
-//!    constructs PER never saw — and none of them is written into it yet, so
-//!    `nvs fmt` answers the file it was given.
+//! 1. **Indentation is the only layout rule written into the printer.** The
+//!    run walk `rule:ide/tokens-plus-trivia-reproduce-the-file` names is the
+//!    frame every rule under `docs/rules/tooling/fmt-*` hangs off, and what
+//!    lands in it so far is four spaces per enclosing body (`indent.rs`).
+//!    Brace placement, modifier order, PER's blank lines, the quote and
+//!    trailing-comma rules, the `use` block's order and the constructs PER
+//!    never saw are still the author's, so a file that disagrees with one of
+//!    them comes back disagreeing with it.
+//!    — owner: M10
+//! 2. **A line the tree does not place keeps the author's own indentation.**
+//!    `indent.rs`'s own doc says which ones those are: a `switch`, a `match`
+//!    arm list, a template region, and every continuation line inside an
+//!    expression. The first three are rules that have not landed; the last is
+//!    `rule:tooling/fmt-never-reflows` and stays the author's for good.
 //!    — owner: M10
 
 use std::fmt;
 
 use nvs_diagnostics::{Diagnostics, SourceFile};
 
+mod indent;
 mod print;
 
 /// A file `nvs fmt` will not rewrite, because it does not parse.
