@@ -1,5 +1,5 @@
-// Which of the editor's services owns a position in a `.nvs` file, and the document one of them is
-// asked about.
+// Which of the editor's services owns a position in a `.nvs` file, the document one of them is
+// asked about, and what a format request leaves in the buffer.
 //
 // The boundaries are the server's answer to `nvs/regions` and nothing here derives one
 // (`rule:ide/a-template-region-gets-services-but-no-second-formatter`): a client that read a
@@ -8,9 +8,13 @@
 // decided here is the half the server deliberately left open — which spelling maps to which service,
 // whether the user asked for any of this at all, and what the service is shown.
 //
+// Formatting is here on the same split. What a format request does to the buffer is decided from
+// two texts — what the user has and what `nvs fmt` answered — and that is a decision, not an
+// editor call; running the process and handing the editor an edit is `src/format.ts`.
+//
 // Nothing here imports `vscode`, for the reason `src/concealment.ts` gives: the headless tier runs
 // it in plain Node, and a decision whose test needs a display is a decision nobody tests. The
-// `vscode` half is `src/regions.ts`, which asks, registers and forwards.
+// `vscode` halves are `src/regions.ts`, which asks, registers and forwards, and `src/format.ts`.
 
 /** A position on the wire, in the encoding the client negotiated at `initialize`. */
 export interface Position {
@@ -117,6 +121,20 @@ export function virtual(
   }
   return Array.from(text, (character, index) =>
     shown[index] || character === "\n" || character === "\r" ? character : " ").join("");
+}
+
+/**
+ * The text a format request replaces the buffer with, or nothing where the buffer stands as
+ * written.
+ *
+ * `novis` is what `nvs fmt --stdin` answered, and nothing is its refusal: a file it will not parse
+ * keeps every byte its author typed rather than being replaced by a partial rendering of one they
+ * have not finished (`crates/nvs-cli/src/fmt.rs`'s `stdin`). A buffer already in the canonical
+ * layout is left alone as well — an edit replacing a text with itself still marks the document
+ * dirty and lands on the undo stack, so a save would do something the user can see for nothing.
+ */
+export function formatted(text: string, novis: string | undefined): string | undefined {
+  return novis === undefined || novis === text ? undefined : novis;
 }
 
 /** Whether `left` is strictly before `right`. */
