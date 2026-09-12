@@ -117,7 +117,7 @@ refused by that rule and not by this one.
 
 | refused | code | why |
 |---|---|---|
-| `$x is tainted string`, `is secret bytes` | `E0810` | [`security/tainted-qualifier`](/docs/rules/security/tainted-data/#tainted-qualifier "tainted is a compile-time qualifier on string, bytes and a shape of them, spellable in any declaration and erased before codegen") erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one |
+| `$x is tainted string`, `is secret bytes` | `E0813` | [`security/tainted-qualifier`](/docs/rules/security/tainted-data/#tainted-qualifier "tainted is a compile-time qualifier on string, bytes and a shape of them, spellable in any declaration and erased before codegen") erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one |
 | `$x is void`, `$x is never` | `E0811` | no value inhabits either |
 | `$x is $cls` | `E0812` | that is a *value*, not a type. `$x instanceof $cls` is the dynamic class test ([`types/class-reference-sites`](/docs/rules/types/objects-and-shapes/#class-reference-sites "Three sites accept a class<T>, and every other operand is still refused there")), and the spelling stays refused because PHP's grammar binds a variable there ([`php-migration/is-takes-pattern-matchings-type-patterns`](/docs/rules/php-migration/divergences/#is-takes-pattern-matchings-type-patterns "is implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it")) |
 

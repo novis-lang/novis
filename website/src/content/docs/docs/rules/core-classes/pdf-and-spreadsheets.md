@@ -46,7 +46,7 @@ read through a `<img src>` — is thereby absent by construction: there is nothi
 fetching, because there is no fetching. Fonts follow the same rule, with a small embedded default set
 so a plain document renders out of the box, and the guest needs no clock.
 
-**Not shipped.** There is no PDF package in the tree, and no milestone owns it.
+**Not shipped.** There is no PDF package in the tree; M17 builds it.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
@@ -253,7 +253,7 @@ cached value is a claim by the author rather than a computation by us. VBA and e
 are inert payload the reader may enumerate but can never execute. Cells read from `tainted` bytes are
 `tainted`.
 
-**Not shipped.** There is no spreadsheet package in the tree, and no milestone owns it.
+**Not shipped.** There is no spreadsheet package in the tree; M17 builds it.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>

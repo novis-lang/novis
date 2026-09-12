@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Four tiers between a failing request and a dead server, none of them retried, ending at a native floor that gives up.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">3</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">8</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">3</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#on-limit">Tier 1 — a resource limit reaches the request that spent it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#escalation-ladder">A failure escalates through four tiers, and no tier is retried</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#on-uncaught-throw">Tier 2 — an uncaught throw reaches the request root as itself</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#handler-script">Tier 3 — the configured handler is an ordinary isolate on the engine's own budget</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#engine-floor">Tier 4 — the floor is native, bounded, and gives up rather than escalating</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#panics-bypass-user-code">An internal panic never runs the failing request's own code</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#compile-failure">A compile failure is catchable mid-execution and reaches the ladder at entry</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#on-limit">Tier 1 — a resource limit reaches the request that spent it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#an-allocation-past-the-ceiling-is-refused-in-front-of-itself">An allocation past the memory ceiling is refused before it is made, and the refusal is a complete no-op</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#escalation-ladder">A failure escalates through four tiers, and no tier is retried</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#on-uncaught-throw">Tier 2 — an uncaught throw reaches the request root as itself</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#handler-script">Tier 3 — the configured handler is an ordinary isolate on the engine's own budget</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#engine-floor">Tier 4 — the floor is native, bounded, and gives up rather than escalating</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#panics-bypass-user-code">An internal panic never runs the failing request's own code</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#compile-failure">A compile failure is catchable mid-execution and reaches the ladder at entry</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="on-limit">
 
@@ -53,6 +53,52 @@ takes a later field without changing the signature of a handler already written.
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/the-escalation-ladder/#escalation-ladder" title="A failure escalates through four tiers, and no tier is retried"><code>errors/escalation-ladder</code></a> <a href="/docs/rules/errors/how-an-error-travels/#stack-depth" title="Recursion is bounded twice: a catchable error, then a fatal"><code>errors/stack-depth</code></a> <a href="/docs/rules/errors/the-escalation-ladder/#panics-bypass-user-code" title="An internal panic never runs the failing request's own code"><code>errors/panics-bypass-user-code</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0020.md">record 0020</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/fatal-on-limit-registers-a-handler-without-running-it.nvst"><code>tests/conformance/core/fatal-on-limit-registers-a-handler-without-running-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/fatal-on-uncaught-throw-and-on-limit-are-two-independent-slots.nvst"><code>tests/conformance/core/fatal-on-uncaught-throw-and-on-limit-are-two-independent-slots.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/tests/configured_limits.rs"><code>crates/nvs-runtime/tests/configured_limits.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="an-allocation-past-the-ceiling-is-refused-in-front-of-itself">
+
+## An allocation past the memory ceiling is refused before it is made, and the refusal is a complete no-op
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#an-allocation-past-the-ceiling-is-refused-in-front-of-itself"><code>errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself</code></a>
+</div>
+
+An allocation that would carry a request past `[limits] memory` is refused **before** the block is
+taken, and the refusal is a complete no-op. A published flag bounds a *loop* of allocations, because
+there is a next one to stop; it cannot bound a single allocation, because there is none. So the
+ceiling is asked twice: once behind every growing allocation, where crossing it raises the memory bit
+in the word compiled code polls, and once in front of a value allocation, where the size is known and
+the caller is ours.
+
+**The refusal is not in the global allocator.** A null there reaches a `Vec`'s or `Box`'s own path
+and `handle_alloc_error`, which aborts the process and every request on it — worse than the breach.
+It sits one level up, in the allocators that make a Novis `string`, `array` or object, and the
+aborting wrappers beside them do not exist: the fallible constructor is the only way to make one.
+
+**A primitive that carries no `ctx` refuses by returning a degenerate value, and acquires no status
+channel to say so.** `nvs_str_append` answers its target unchanged, which exactly balances the one
+reference it consumes; `nvs_str_concat` and `nvs_str_concat_n` answer the immortal empty string,
+whose release is already a no-op; `nvs_array_set` and `nvs_array_set_index` answer their array
+unchanged, having released the key and value they were handed. This is sound because **the request is
+already dead**: the refusal is recorded and the memory bit published before the value is returned, so
+the program runs only to its next poll, and in that window it can build wrong values and compare them
+and do nothing else. It can write no output, reach no `Core` member and touch nothing durable,
+because each of those passes `run_helper`, which asks the ceiling ahead of the body and reports the
+breach instead of running it.
+
+**Complete no-op means the refused write does none of the work of the write.** In particular it does
+not separate a shared array: `foreach` walks the snapshot it started on, and a refused write that
+separated without writing — or wrote into the shared original — is the one way a refusal reaches a
+live cursor's entry expectation. It also holds no partial allocation and leaves no half-grown buffer.
+
+The refusal is sticky for the rest of the request: a request refused once is over, and nothing it
+does afterwards brings it back under a ceiling it never held the bytes against. Objects are outside
+the pre-check by design — an object's allocation is sized by its class, so no program drives one
+unbounded — and they stay bounded by the published flag.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/the-escalation-ladder/#on-limit" title="Tier 1 — a resource limit reaches the request that spent it"><code>errors/on-limit</code></a> <a href="/docs/rules/errors/the-escalation-ladder/#escalation-ladder" title="A failure escalates through four tiers, and no tier is retried"><code>errors/escalation-ladder</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#a-cross-request-stores-bytes-are-its-own-balance" title="A cross-request store's bytes go on a balance of their own, and no request is charged or credited for them"><code>concurrency/a-cross-request-stores-bytes-are-its-own-balance</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0174.md">record 0174</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst"><code>tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst"><code>tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/tests/refusal.rs"><code>crates/nvs-runtime/tests/refusal.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/tests/allocator_ceiling.rs"><code>crates/nvs-runtime/tests/allocator_ceiling.rs</code></a></dd></div></dl>
 
 </div>
 

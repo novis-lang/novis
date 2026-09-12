@@ -304,6 +304,12 @@ on), `file_cache_dir` (a path, root-owned, defaulting to a fixed per-build locat
 `session.gc_probability`/`gc_divisor` because eviction rides the cold-compile path at a small
 probability rather than costing a warm hit anything.
 
+`file_cache_dir` is the **only** spelling of where that cache lives. `[cache]` is `Core\Cache`'s two
+tiers and holds nothing about compiled artifacts, so `[cache] dir` is `E0601` like any other key the
+registry does not know (`docs/decisions/0175.md` § 4). It is also the one of the five that applies at
+boot rather than at reload, which is [`config/reloadability-is-its-own-field`](/docs/rules/config/changeability-classes/#reloadability-is-its-own-field "Reloadability is a second registry field, Reload or Boot, orthogonal to the changeability class")'s second field
+answering a second question and not this rule's class.
+
 **All five are `System`-class**, for the identical reason `opcache.validate` is: a script that could
 redirect where the process reads "already-compiled, about-to-be-trusted" native code from would be
 handing itself a code-injection primitive, not a performance knob. A request cannot tighten them
@@ -319,7 +325,7 @@ world-writable directory are the packaging chapter's; this rule is only the rost
 <p><code>opcache.file_cache</code> and <code>opcache.file_cache_dir</code> cannot be moved by <code>ini_set</code> or <code>.user.ini</code>; only the root-owned file sets them</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/config/scheduled-work/#every-schedule-key-is-system" title="Every [[schedule]] key is System, and not even RuntimeTighten reaches one"><code>config/every-schedule-key-is-system</code></a> <a href="/docs/rules/config/changeability-classes/#three-changeability-classes" title="nvs.toml states defaults, not ceilings, and every directive carries one of three changeability classes"><code>config/three-changeability-classes</code></a> <a href="/docs/rules/config/stores-and-caches/#opcache-revalidation-is-system-class" title="opcache.validate and its rate cap are System, and validate's startup default is chosen by the run mode"><code>config/opcache-revalidation-is-system-class</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0042.md">record 0042</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0005.md">record 0005</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0017.md">record 0017</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-config/tests/directives.rs"><code>crates/nvs-config/tests/directives.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/config/scheduled-work/#every-schedule-key-is-system" title="Every [[schedule]] key is System, and not even RuntimeTighten reaches one"><code>config/every-schedule-key-is-system</code></a> <a href="/docs/rules/config/changeability-classes/#three-changeability-classes" title="nvs.toml states defaults, not ceilings, and every directive carries one of three changeability classes"><code>config/three-changeability-classes</code></a> <a href="/docs/rules/config/stores-and-caches/#opcache-revalidation-is-system-class" title="opcache.validate and its rate cap are System, and validate's startup default is chosen by the run mode"><code>config/opcache-revalidation-is-system-class</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0042.md">record 0042</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0005.md">record 0005</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0017.md">record 0017</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0175.md">record 0175</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-config/tests/directives.rs"><code>crates/nvs-config/tests/directives.rs</code></a></dd></div></dl>
 
 </div>
 

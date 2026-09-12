@@ -103,8 +103,10 @@ Every component present is covered, so appending any parameter invalidates the s
 option naming which parameters are signed, because that option is where every framework's bypass has lived.
 The fragment is never signed, since it is not sent to the server.
 
-**Designed, not shipped.** No signature class is registered in `crates/nvs-stdlib/src/registry.rs`, and
-`crates/nvs-stdlib/src/uri.rs` carries the canonical form with only its comparison caller.
+**Two doors of the three are on disk.** `Core\Signature` signs and verifies a payload map, and
+`$uri->sign`/`$uri->verifySignature` sign the form `$uri->compareTo` normalizes, reserving the `_sig`
+query parameter for the token. `Core\Router`'s pair — the one that signs a route's name and parameters,
+so a signature survives a remount — is not registered yet.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/lifetimes-and-absences/#a-lifetime-is-written" title="A signature's lifetime is a required key and null is the forever spelling"><code>core-api/a-lifetime-is-written</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#one-refusal-except-expiry" title="Every way of failing a signature check is one refusal, and expiry is the single distinguishable one"><code>core-api/one-refusal-except-expiry</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#each-door-takes-a-different-thing" title="Two members are not a second spelling when each takes a different thing and answers a different thing"><code>core-api/each-door-takes-a-different-thing</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0146.md">record 0146</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0060.md">record 0060</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0058.md">record 0058</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0097.md">record 0097</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/uri.rs"><code>crates/nvs-stdlib/src/uri.rs</code></a></dd></div></dl>
 

@@ -217,10 +217,24 @@ a separate axis and this member makes no claim about it.
 <a class="nv-rule-id" href="#response-body-is-one-typed-member"><code>security/response-body-is-one-typed-member</code></a>
 </div>
 
-A response body is written by one of five typed members, each owning a body shape and setting its own
+A response body is written by one of seven typed members, each owning a body shape and setting its own
 content type. The HTML member takes the carrier and so has nothing to refuse; the JSON and text
 members are contagious; the bytes member is contagious in its body and a sink in its content type; the
 file member's path is a sink.
+
+**Two of the seven write their body over time rather than at once, and classification follows the
+shape and not the timing.** The streaming member declares a media type it is told, so that argument
+is the bytes member's sink for the bytes member's reason — it becomes an instruction the peer obeys
+about how to read everything after it — while each chunk is a union of text and bytes, which carries
+no classification at all and therefore refuses a tainted argument outright. That is the fail-closed
+direction of the two: the text member accepts a tainted body and a chunk does not.
+
+The event-stream member takes no media type — the protocol's is the only one it could have — and its
+`send` splits three ways. The payload is contagious, for the JSON member's reason: framing belongs to
+us and to the serializer, and normalization happens before the payload is split across `data:` lines,
+so it cannot reach any other line. The event name and the id are **sinks**: a client dispatches on
+the name and echoes the id back in its next request's `Last-Event-ID`, so an attacker-chosen one is
+the cross-tenant hazard a tainted topic name is.
 
 The JSON member accepts a tainted value freely, because the framing belongs to the serializer and
 never to concatenation — a tainted string becomes a JSON string value and cannot escape it. The text
@@ -232,7 +246,7 @@ change to two rules.
 type and its content type, and silently letting the last one win is how a JSON endpoint acquires an
 HTML prelude.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/tainted-data/#sink-predicate" title="A string or bytes parameter is a sink when its content becomes an instruction a parser executes"><code>security/sink-predicate</code></a> <a href="/docs/rules/security/laundering/#capture-answers-the-carrier" title="Capturing a sink yields that sink's carrier, never a plain string"><code>security/capture-answers-the-carrier</code></a> <a href="/docs/rules/security/laundering/#launderer-answers-a-carrier" title="A launderer answers its sink's carrier when that sink launders on its own and the transform is not idempotent, and a plain type otherwise"><code>security/launderer-answers-a-carrier</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#html-auto-escape" title="echo in an HTTP request escapes everything it is given, and Core\Html\Markup is the only raw-write bypass"><code>core-classes/html-auto-escape</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md">record 0088</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0074.md">record 0074</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-response-json-body-frames-a-tainted-value.nvst"><code>tests/conformance/core/a-response-json-body-frames-a-tainted-value.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-response-text-body-accepts-a-tainted-argument.nvst"><code>tests/conformance/core/a-response-text-body-accepts-a-tainted-argument.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/response.rs"><code>crates/nvs-types/tests/response.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/tainted-data/#sink-predicate" title="A string or bytes parameter is a sink when its content becomes an instruction a parser executes"><code>security/sink-predicate</code></a> <a href="/docs/rules/security/laundering/#capture-answers-the-carrier" title="Capturing a sink yields that sink's carrier, never a plain string"><code>security/capture-answers-the-carrier</code></a> <a href="/docs/rules/security/laundering/#launderer-answers-a-carrier" title="A launderer answers its sink's carrier when that sink launders on its own and the transform is not idempotent, and a plain type otherwise"><code>security/launderer-answers-a-carrier</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#html-auto-escape" title="echo in an HTTP request escapes everything it is given, and Core\Html\Markup is the only raw-write bypass"><code>core-classes/html-auto-escape</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md">record 0088</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0074.md">record 0074</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0177.md">record 0177</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-response-json-body-frames-a-tainted-value.nvst"><code>tests/conformance/core/a-response-json-body-frames-a-tainted-value.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-response-text-body-accepts-a-tainted-argument.nvst"><code>tests/conformance/core/a-response-text-body-accepts-a-tainted-argument.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/response.rs"><code>crates/nvs-types/tests/response.rs</code></a></dd></div></dl>
 
 </div>
 

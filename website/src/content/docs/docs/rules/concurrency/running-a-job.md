@@ -156,6 +156,15 @@ thread-per-core server does not multiply an operator's number by its core count 
 32-core host is four workers and four connections. A deployment that wants thirty-two writes
 thirty-two.
 
+**On SQLite the count stops buying throughput at the file's single writer.** That backend admits one
+writer at a time, so workers above one against a `[queue]` whose connection is a SQLite file take the
+claim's immediate transaction in turn and wait out the busy timeout rather than draining in parallel
+([`concurrency/claiming-is-one-statement`](/docs/rules/concurrency/the-job-queue/#claiming-is-one-statement "A worker claims a job with one statement the database arbitrates, so a fleet needs no lease protocol")). Every job still runs and the contention is waited out
+rather than reported as an error; what the higher count buys there is a worker ready the moment the
+file is free, and not two jobs claimed at once. That is a property of the database and not a defect of
+the queue, so there is no key here to raise: a deployment that needs its jobs drained in parallel
+names a connection whose backend has concurrent writers.
+
 Both spellings drive the identical isolate ([`concurrency/a-job-runs-as-a-root-isolate`](/docs/rules/concurrency/running-a-job/#a-job-runs-as-a-root-isolate "A job runs as a root isolate, and there is no second execution path")) over the
 identical claim statement ([`concurrency/claiming-is-one-statement`](/docs/rules/concurrency/the-job-queue/#claiming-is-one-statement "A worker claims a job with one statement the database arbitrates, so a fleet needs no lease protocol")), so moving work between them
 is an operational decision and never a behavioural one. There is nothing to install beside the runtime

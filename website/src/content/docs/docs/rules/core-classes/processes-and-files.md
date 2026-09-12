@@ -146,10 +146,16 @@ input rather than mangling it into replacement characters. The two captures stay
 exit keeps both, and a result answers the same thing every time it is asked.
 
 What it spends, per call: the child's whole stdout and stderr, once each, held for as long as the
-program holds the result, plus one object allocation — charged to the request that asked. The record
-reuses the request's existing `max_output` directive to bound that capture; nothing reads it in the
-tree today, so what bounds a capture is the request's memory limit, which the buffers are charged
-against like any other allocation (`crates/nvs-stdlib/src/process.rs`, gap 1).
+program holds the result, plus one object allocation — charged to the request that asked. That
+capture is bounded by the request's existing `max_output` directive rather than by a cap of this
+member's own: the same number the response ceiling is, read once per call, and a child that keeps
+writing past it is killed while `run` throws.
+
+**That refusal is catchable, and is not [`errors/on-limit`](/docs/rules/errors/the-escalation-ladder/#on-limit "Tier 1 — a resource limit reaches the request that spent it")'s `FATAL`.** Nothing reached the
+response, so the request exceeded no limit — the member declined to hold more than the request is
+allowed to produce, which is a refusal in [`security/denial-is-a-runtime-error`](/docs/rules/security/scopes-and-denial/#denial-is-a-runtime-error "A denied capability is a catchable RuntimeError naming the capability, never a fatal")'s shape. A caller
+who ran a chattier child than it meant to can catch it and run a different one. `Core\IO::read` holds
+a file to the same directive out of the same pair of methods, so the two answer a program alike.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>

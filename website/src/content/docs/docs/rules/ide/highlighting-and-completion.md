@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Two highlighting layers that ship names and no colours, and completion that offers only what the compiler already derived.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">8</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">1</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">7</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#highlighting-is-two-layers">Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#rejected-syntax-gets-no-colour">Nothing Novis rejects is coloured as though it were valid</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#semantic-tokens-carry-the-qualifiers">Semantic tokens use LSP's standard types plus two modifiers of Novis's own, <code>tainted</code> and <code>secret</code>, and the client's legend must equal the server's</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#novis-ships-names-not-colours">Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#five-features-are-one-reference-index">Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#completion-offers-only-what-the-compiler-derived">The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#three-of-four-item-shapes-insert-nothing">A PHP-name completion item takes one of four shapes, and three of them insert nothing</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-template-region-gets-services-but-no-second-formatter">An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside <code>nvs fmt</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#highlighting-is-two-layers">Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#rejected-syntax-gets-no-colour">Nothing Novis rejects is coloured as though it were valid</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#semantic-tokens-carry-the-qualifiers">Semantic tokens use LSP's standard types plus two modifiers of Novis's own, <code>tainted</code> and <code>secret</code>, and the client's legend must equal the server's</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#novis-ships-names-not-colours">Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#five-features-are-one-reference-index">Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#completion-offers-only-what-the-compiler-derived">The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#three-of-four-item-shapes-insert-nothing">A PHP-name completion item takes one of four shapes, and three of them insert nothing</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-template-region-gets-the-editors-services-and-formatter">An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after <code>nvs fmt</code>, indented from the Novis code around it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="highlighting-is-two-layers">
 
@@ -278,14 +278,14 @@ reaches a file, which is what [`statements/nothing-gets-a-second-name`](/docs/ru
 
 </div>
 
-<div class="nv-rule" id="a-template-region-gets-services-but-no-second-formatter">
+<div class="nv-rule" id="a-template-region-gets-the-editors-services-and-formatter">
 
-## An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside `nvs fmt`
+## An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after `nvs fmt`, indented from the Novis code around it
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <span class="nv-rule-flag">Differs from PHP</span>
-<a class="nv-rule-id" href="#a-template-region-gets-services-but-no-second-formatter"><code>ide/a-template-region-gets-services-but-no-second-formatter</code></a>
+<a class="nv-rule-id" href="#a-template-region-gets-the-editors-services-and-formatter"><code>ide/a-template-region-gets-the-editors-services-and-formatter</code></a>
 </div>
 
 The extension forwards requests inside an inline-HTML region to VS Code's built-in HTML, CSS and
@@ -294,27 +294,44 @@ closing and renaming, the colour picker, hover and validation. Since
 [`programs/first-party-framework`](/docs/rules/programs/the-framework/#first-party-framework "Novis ships the framework, split by the standard-library placement tests") makes inline HTML the template engine, that region is where a web
 application's markup is written, not an edge case.
 
+**A markup literal's body is a region too.** ``html`…` `` ([`core-classes/html-literal`](/docs/rules/core-classes/regex-html-and-introspection/#html-literal "html…  is a Core\Html\Markup whose segments are trusted and whose holes are escaped")) is markup
+written in expression position rather than at file scope, so it gets the same services on the same
+terms — the holes are Novis and the segments are HTML, which is the boundary the lexer already knows.
+
 **The region list comes from the server**, as one request of Novis's own, `nvs/regions`, beside
 `nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
 grammar, for the reason [`ide/redaction-ranges-come-from-the-server`](/docs/rules/ide/security-in-the-editor/#redaction-ranges-come-from-the-server "The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess") gives for redaction
 ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
-the extension did not write is not language logic in the client.
+the extension did not write is not language logic in the client. The request carries an optional `text`,
+and then answers for that text rather than the open buffer.
 
-**Formatting is excluded, and this is the load-bearing half.** The embedded services are not registered as
-formatting providers, and `editor.formatOnSave` in a `.nvs` file runs `nvs fmt` over the whole file and
-nothing else. A second, configurable formatter inside a file whose formatter is unconfigurable by
-decision would make `nvs fmt --check` fail for a second reason. `nvs fmt` treats an inline-HTML region as
-any other span it does not reflow, so formatting a `.nvs` file with markup in it is byte-identical to
-`nvs fmt`.
+**Formatting is `nvs fmt` first, then the editor's own HTML formatter over the markup, starting where the
+Novis code is.** A format request runs `nvs fmt` over the whole file, asks `nvs/regions` for the regions
+of the result, and hands the editor's HTML formatter one chunk at a time: the markup between a `?>` that
+ends its line and the `<?nvs` that reopens code, `<?= … ?>` holes included. A chunk's lines start at the
+indentation of its `?>` line, which [`tooling/fmt-novis-constructs`](/docs/rules/tooling/the-formatter/#fmt-novis-constructs "Every construct PER never saw — qualifiers, lateinit, fn closures, match, object literals, shape types, enum cases, markup literals, a ?> on its own line — has exactly one layout") puts at the depth of its block,
+so markup nests from the Novis code around it and the file does not jump between the two; the line
+holding the closing `<?nvs` starts there too. Nesting inside a chunk is the HTML formatter's, in
+`nvs fmt`'s four-space unit whatever the editor's own `tabSize` is, because a chunk and the code around
+it have to agree on what one level is. A hole's bytes are Novis's and are never edited: a chunk whose
+formatting would change one is left as written, and a regions request nothing answers leaves every chunk
+as `nvs fmt` wrote it.
 
-`nvs.template.services` (default `true`) disables the forwarding, because a user with their own HTML
-tooling has to be able to get out of the way of ours.
+**`nvs fmt` stays the only formatter of Novis and never touches markup**, so `nvs fmt --check` passes over
+a file this pass formatted. What is given up is a canonical layout for markup: it reads the user's
+`html.format.*` settings, and it re-indents bytes a program prints — which a browser ignores and a
+program printing text through inline HTML does not.
+
+Each half is turned off by a setting of its own, both of them `true` by default: `nvs.template.services`
+off stops the forwarding, `nvs.template.format` off stops the markup pass. A user with their own HTML
+tooling, or with markup whose whitespace is output, has to be able to get out of the way of ours. With
+the second off, format-on-save is `nvs fmt` and nothing else.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
-<p>The markup half of a file gets Emmet, tag closing and the colour picker as in a PHP editor, but never the editor's HTML formatter — format-on-save is <code>nvs fmt</code> over the whole file and nothing else</p>
+<p>The markup half of a file gets Emmet, tag closing, the colour picker and the HTML formatter as in a PHP editor, but each markup chunk is indented from the <code>?&gt;</code> that opened it — the Novis block's depth — rather than from the markup's own nesting alone</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/security-in-the-editor/#redaction-ranges-come-from-the-server" title="The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess"><code>ide/redaction-ranges-come-from-the-server</code></a> <a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/tooling/the-formatter/#fmt-is-never-a-diagnostic" title="nvs fmt is a separate opt-in tool: no compiler command runs it, an unformatted file is never a diagnostic, and an editor composes it with quick fixes in the client"><code>tooling/fmt-is-never-a-diagnostic</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/security-in-the-editor/#redaction-ranges-come-from-the-server" title="The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess"><code>ide/redaction-ranges-come-from-the-server</code></a> <a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/tooling/the-formatter/#fmt-is-never-a-diagnostic" title="nvs fmt is a separate opt-in tool: no compiler command runs it, an unformatted file is never a diagnostic, and an editor composes it with quick fixes in the client"><code>tooling/fmt-is-never-a-diagnostic</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting of Novis have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0169.md">record 0169</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0173.md">record 0173</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-lsp/tests/regions.rs"><code>crates/nvs-lsp/tests/regions.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/editors/vscode/test/contributions/contributions.test.ts"><code>editors/vscode/test/contributions/contributions.test.ts</code></a> <a href="https://github.com/novis-lang/novis/blob/main/editors/vscode/test/surfaces/template.test.ts"><code>editors/vscode/test/surfaces/template.test.ts</code></a></dd></div></dl>
 
 </div>

@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 957,
-    "shipped": 676,
-    "designed": 281,
-    "diverging": 562
+    "total": 962,
+    "shipped": 698,
+    "designed": 264,
+    "diverging": 563
   },
   "topics": [
     {
@@ -1926,8 +1926,8 @@
       "url": "/docs/rules/errors/",
       "single": false,
       "counts": {
-        "total": 28,
-        "shipped": 26,
+        "total": 29,
+        "shipped": 27,
         "designed": 2,
         "diverging": 18
       },
@@ -1992,8 +1992,8 @@
           "blurb": "Four tiers between a failing request and a dead server, none of them retried, ending at a native floor that gives up.",
           "url": "/docs/rules/errors/the-escalation-ladder/",
           "counts": {
-            "total": 7,
-            "shipped": 7,
+            "total": 8,
+            "shipped": 8,
             "designed": 0,
             "diverging": 3
           },
@@ -2005,6 +2005,14 @@
               "status": "shipped",
               "href": "/docs/rules/errors/the-escalation-ladder/#on-limit",
               "diverges": "the handler is request-local rather than global, and runs on a reserve carved out before execution started"
+            },
+            {
+              "id": "errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself",
+              "slug": "an-allocation-past-the-ceiling-is-refused-in-front-of-itself",
+              "title": "An allocation past the memory ceiling is refused before it is made, and the refusal is a complete no-op",
+              "status": "shipped",
+              "href": "/docs/rules/errors/the-escalation-ladder/#an-allocation-past-the-ceiling-is-refused-in-front-of-itself",
+              "diverges": null
             },
             {
               "id": "errors/escalation-ladder",
@@ -2221,8 +2229,8 @@
       "single": false,
       "counts": {
         "total": 60,
-        "shipped": 25,
-        "designed": 35,
+        "shipped": 38,
+        "designed": 22,
         "diverging": 40
       },
       "sections": [
@@ -2421,8 +2429,8 @@
           "url": "/docs/rules/tooling/the-formatter/",
           "counts": {
             "total": 13,
-            "shipped": 0,
-            "designed": 13,
+            "shipped": 13,
+            "designed": 0,
             "diverging": 10
           },
           "rules": [
@@ -2430,7 +2438,7 @@
               "id": "tooling/fmt-is-one-canonical-style",
               "slug": "fmt-is-one-canonical-style",
               "title": "`nvs fmt` has one style, takes no configuration, and its output is a pure function of the file it is given",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-is-one-canonical-style",
               "diverges": "there is no `.php-cs-fixer.php`, no ruleset and no style flag; every knob php-cs-fixer and PHP_CodeSniffer expose is one fixed answer here"
             },
@@ -2438,7 +2446,7 @@
               "id": "tooling/fmt-base-style-is-per",
               "slug": "fmt-base-style-is-per",
               "title": "The base style is PER: four-space indentation, K&R braces on control structures, Allman braces on declarations, and one canonical modifier order",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-base-style-is-per",
               "diverges": "PER's modifier order is enforced rather than recommended, and `else if` is always written `elseif`"
             },
@@ -2446,7 +2454,7 @@
               "id": "tooling/fmt-never-reflows",
               "slug": "fmt-never-reflows",
               "title": "`nvs fmt` never decides where an expression breaks: the author's own line breaks are kept and only what surrounds them is normalized",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-never-reflows",
               "diverges": "php-cs-fixer and Prettier-style tools re-wrap to a column limit; here there is no line-length rule at all, soft or hard"
             },
@@ -2454,7 +2462,7 @@
               "id": "tooling/fmt-quotes",
               "slug": "fmt-quotes",
               "title": "A string literal is rewritten to single quotes unless it interpolates or contains a single quote, and heredoc bodies and comments are never touched",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-quotes",
               "diverges": null
             },
@@ -2462,7 +2470,7 @@
               "id": "tooling/fmt-trailing-commas",
               "slug": "fmt-trailing-commas",
               "title": "A comma-separated list that spans more than one line gets a trailing comma, and a list on one line never does",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-trailing-commas",
               "diverges": "php-cs-fixer's `trailing_comma_in_multiline` is a choice; here it is the only layout"
             },
@@ -2470,15 +2478,15 @@
               "id": "tooling/fmt-sorts-the-use-block",
               "slug": "fmt-sorts-the-use-block",
               "title": "Consecutive `use` declarations are sorted by full path, ascending and case-sensitive, with no blank line between them",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-sorts-the-use-block",
               "diverges": "there is no grouped `use A\\{B, C};` form to order, because Novis's `use` names exactly one path"
             },
             {
               "id": "tooling/fmt-novis-constructs",
               "slug": "fmt-novis-constructs",
-              "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases — has exactly one layout",
-              "status": "designed",
+              "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-novis-constructs",
               "diverges": null
             },
@@ -2486,7 +2494,7 @@
               "id": "tooling/fmt-normalizes-only-reserved-spellings",
               "slug": "fmt-normalizes-only-reserved-spellings",
               "title": "`nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-normalizes-only-reserved-spellings",
               "diverges": "PHP's case-insensitive keywords are not normalized; `IF` is a legal class name and fixing an identifier's case is a rename, not a layout"
             },
@@ -2494,7 +2502,7 @@
               "id": "tooling/fmt-never-inserts-visibility",
               "slug": "fmt-never-inserts-visibility",
               "title": "`nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-never-inserts-visibility",
               "diverges": "php-cs-fixer's `visibility_required` fixer writes the missing `public`; the formatter here never changes meaning, and the insertion happens only in `nvs convert`"
             },
@@ -2502,7 +2510,7 @@
               "id": "tooling/fmt-never-reorders-members",
               "slug": "fmt-never-reorders-members",
               "title": "`nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-never-reorders-members",
               "diverges": "php-cs-fixer's `ordered_class_elements` has no counterpart; a member's position is kept"
             },
@@ -2510,7 +2518,7 @@
               "id": "tooling/fmt-is-idempotent",
               "slug": "fmt-is-idempotent",
               "title": "`nvs fmt` is a fixed point over the input bytes: byte-stable on every machine, and deliberately not source-independent",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-is-idempotent",
               "diverges": null
             },
@@ -2518,7 +2526,7 @@
               "id": "tooling/fmt-is-never-a-diagnostic",
               "slug": "fmt-is-never-a-diagnostic",
               "title": "`nvs fmt` is a separate opt-in tool: no compiler command runs it, an unformatted file is never a diagnostic, and an editor composes it with quick fixes in the client",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-is-never-a-diagnostic",
               "diverges": "no `php -l`-style check ever holds a stylistic opinion, and formatting never lands in the same report as an error"
             },
@@ -2526,7 +2534,7 @@
               "id": "tooling/fmt-check-writes-nothing",
               "slug": "fmt-check-writes-nothing",
               "title": "`nvs fmt` rewrites in place; `--check` writes nothing and exits non-zero naming every file that would change; `--diff` prints the diff instead",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/the-formatter/#fmt-check-writes-nothing",
               "diverges": "`php-cs-fixer fix --dry-run` is the habit; the flag is `--check` and its exit status is the whole contract"
             }
@@ -2798,9 +2806,9 @@
       "url": "/docs/rules/ide/",
       "single": false,
       "counts": {
-        "total": 67,
-        "shipped": 1,
-        "designed": 66,
+        "total": 68,
+        "shipped": 4,
+        "designed": 64,
         "diverging": 23
       },
       "sections": [
@@ -2889,8 +2897,8 @@
           "url": "/docs/rules/ide/the-language-server/",
           "counts": {
             "total": 9,
-            "shipped": 0,
-            "designed": 9,
+            "shipped": 1,
+            "designed": 8,
             "diverging": 1
           },
           "rules": [
@@ -2921,7 +2929,7 @@
             {
               "id": "ide/the-request-set-is-closed",
               "slug": "the-request-set-is-closed",
-              "title": "M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing",
+              "title": "M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing",
               "status": "designed",
               "href": "/docs/rules/ide/the-language-server/#the-request-set-is-closed",
               "diverges": null
@@ -2953,8 +2961,8 @@
             {
               "id": "ide/check-json-is-the-diagnostic-record-as-a-document",
               "slug": "check-json-is-the-diagnostic-record-as-a-document",
-              "title": "`nvs check --json` writes the same diagnostic records the terminal renderer prints, as one document with a frozen schema",
-              "status": "designed",
+              "title": "`nvs check --json` writes the same diagnostic records the terminal renderer prints, as one `schemaVersion: 1` document",
+              "status": "shipped",
               "href": "/docs/rules/ide/the-language-server/#check-json-is-the-diagnostic-record-as-a-document",
               "diverges": null
             },
@@ -3061,8 +3069,8 @@
           "url": "/docs/rules/ide/highlighting-and-completion/",
           "counts": {
             "total": 8,
-            "shipped": 0,
-            "designed": 8,
+            "shipped": 1,
+            "designed": 7,
             "diverging": 6
           },
           "rules": [
@@ -3123,12 +3131,12 @@
               "diverges": "typing a PHP built-in's name offers an item that may say dropped, waiting on a milestone or undecided and type nothing, rather than inserting the PHP call"
             },
             {
-              "id": "ide/a-template-region-gets-services-but-no-second-formatter",
-              "slug": "a-template-region-gets-services-but-no-second-formatter",
-              "title": "An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside `nvs fmt`",
-              "status": "designed",
-              "href": "/docs/rules/ide/highlighting-and-completion/#a-template-region-gets-services-but-no-second-formatter",
-              "diverges": "the markup half of a file gets Emmet, tag closing and the colour picker as in a PHP editor, but never the editor's HTML formatter — format-on-save is `nvs fmt` over the whole file and nothing else"
+              "id": "ide/a-template-region-gets-the-editors-services-and-formatter",
+              "slug": "a-template-region-gets-the-editors-services-and-formatter",
+              "title": "An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after `nvs fmt`, indented from the Novis code around it",
+              "status": "shipped",
+              "href": "/docs/rules/ide/highlighting-and-completion/#a-template-region-gets-the-editors-services-and-formatter",
+              "diverges": "the markup half of a file gets Emmet, tag closing, the colour picker and the HTML formatter as in a PHP editor, but each markup chunk is indented from the `?>` that opened it — the Novis block's depth — rather than from the markup's own nesting alone"
             }
           ]
         },
@@ -3209,7 +3217,7 @@
             {
               "id": "ide/one-server-two-thin-clients",
               "slug": "one-server-two-thin-clients",
-              "title": "Language smarts and formatting have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either",
+              "title": "Language smarts and formatting of Novis have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either",
               "status": "designed",
               "href": "/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients",
               "diverges": "PhpStorm's PHP support is a native PSI plugin with its own formatter and refactorings, whereas its Novis plugin is a bridge to the same server VS Code drives, so nothing about `.nvs` is decided in the editor"
@@ -3278,8 +3286,8 @@
           "blurb": "What the extension contributes, why it builds no UI the editor already has, and where its clients live in the tree.",
           "url": "/docs/rules/ide/the-vs-code-extension/",
           "counts": {
-            "total": 7,
-            "shipped": 0,
+            "total": 8,
+            "shipped": 1,
             "designed": 7,
             "diverging": 1
           },
@@ -3288,7 +3296,7 @@
               "id": "ide/tasks-carry-a-problem-matcher",
               "slug": "tasks-carry-a-problem-matcher",
               "title": "`nvs run` and `nvs test` are Tasks with a `problemMatcher` over the renderer's own format, so a diagnostic is a Problems-panel entry",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/ide/the-vs-code-extension/#tasks-carry-a-problem-matcher",
               "diverges": null
             },
@@ -3323,6 +3331,14 @@
               "status": "designed",
               "href": "/docs/rules/ide/the-vs-code-extension/#the-extension-builds-no-ui-the-editor-already-has",
               "diverges": "Xdebug's profiler writes cachegrind for KCachegrind or PhpStorm's own viewer; a Novis profile is speedscope JSON and opens in speedscope.app or an embedded view of it"
+            },
+            {
+              "id": "ide/the-test-tree-is-discovered-and-run-through-the-cli",
+              "slug": "the-test-tree-is-discovered-and-run-through-the-cli",
+              "title": "The Test Explorer is `nvs test --list` and `nvs test --format=json` projected: the client matches records to items and derives nothing",
+              "status": "designed",
+              "href": "/docs/rules/ide/the-vs-code-extension/#the-test-tree-is-discovered-and-run-through-the-cli",
+              "diverges": null
             },
             {
               "id": "ide/the-ast-panel-shells-out-to-the-cli",
@@ -3669,7 +3685,7 @@
             {
               "id": "testing/report-formats",
               "slug": "report-formats",
-              "title": "One verdict, three renderings, and a machine format owns stdout alone",
+              "title": "One verdict, three renderings, a machine format owns stdout alone, and the JSON one locates every test it reports",
               "status": "shipped",
               "href": "/docs/rules/testing/doubles-and-the-runner/#report-formats",
               "diverges": null
@@ -4830,9 +4846,9 @@
       "url": "/docs/rules/concurrency/",
       "single": false,
       "counts": {
-        "total": 61,
-        "shipped": 49,
-        "designed": 12,
+        "total": 62,
+        "shipped": 51,
+        "designed": 11,
         "diverging": 46
       },
       "sections": [
@@ -4928,8 +4944,8 @@
           "blurb": "Work that outlives the response but not the request, and the only way a value outlives the request that made it.",
           "url": "/docs/rules/concurrency/deferred-and-cross-request-state/",
           "counts": {
-            "total": 10,
-            "shipped": 9,
+            "total": 11,
+            "shipped": 10,
             "designed": 1,
             "diverging": 8
           },
@@ -5007,6 +5023,14 @@
               "diverges": "`apc.shm_size` exhaustion makes a store fail; here the cap forgets an older entry and the write succeeds"
             },
             {
+              "id": "concurrency/a-cross-request-stores-bytes-are-its-own-balance",
+              "slug": "a-cross-request-stores-bytes-are-its-own-balance",
+              "title": "A cross-request store's bytes go on a balance of their own, and no request is charged or credited for them",
+              "status": "shipped",
+              "href": "/docs/rules/concurrency/deferred-and-cross-request-state/#a-cross-request-stores-bytes-are-its-own-balance",
+              "diverges": null
+            },
+            {
               "id": "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
               "slug": "the-local-tier-cannot-hold-what-must-be-coherent",
               "title": "Anything a program relies on the value of goes to the shared tier, and the local tier is not offered for it",
@@ -5023,8 +5047,8 @@
           "url": "/docs/rules/concurrency/connections/",
           "counts": {
             "total": 11,
-            "shipped": 8,
-            "designed": 3,
+            "shipped": 9,
+            "designed": 2,
             "diverging": 7
           },
           "rules": [
@@ -5080,7 +5104,7 @@
               "id": "concurrency/a-stream-that-outlives-its-request-is-a-connection",
               "slug": "a-stream-that-outlives-its-request-is-a-connection",
               "title": "A stream that ends with its response is a streaming response; one that outlives it is a connection isolate",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/concurrency/connections/#a-stream-that-outlives-its-request-is-a-connection",
               "diverges": "the choice is made by lifetime rather than by protocol, and there is no `flush`-in-a-loop shape that keeps a request alive"
             },
@@ -5976,10 +6000,10 @@
       "url": "/docs/rules/core-classes/",
       "single": false,
       "counts": {
-        "total": 80,
-        "shipped": 55,
-        "designed": 25,
-        "diverging": 48
+        "total": 82,
+        "shipped": 58,
+        "designed": 24,
+        "diverging": 49
       },
       "sections": [
         {
@@ -6082,10 +6106,10 @@
           "blurb": "A two-tier regex engine, auto-escaping output with one typed bypass, read-only reflection, and an inert parse tree.",
           "url": "/docs/rules/core-classes/regex-html-and-introspection/",
           "counts": {
-            "total": 15,
-            "shipped": 15,
+            "total": 16,
+            "shipped": 16,
             "designed": 0,
-            "diverging": 11
+            "diverging": 12
           },
           "rules": [
             {
@@ -6119,6 +6143,14 @@
               "status": "shipped",
               "href": "/docs/rules/core-classes/regex-html-and-introspection/#html-auto-escape",
               "diverges": "output is escaped by the sink rather than by a call the developer remembers, and a runtime-computed string can never become `Markup` through `as`"
+            },
+            {
+              "id": "core-classes/html-literal",
+              "slug": "html-literal",
+              "title": "``html`…` `` is a `Core\\Html\\Markup` whose segments are trusted and whose holes are escaped",
+              "status": "shipped",
+              "href": "/docs/rules/core-classes/regex-html-and-introspection/#html-literal",
+              "diverges": "there is no template literal in PHP; the nearest thing is `<?= ?>` in an inline-HTML region, and this is that rule available in expression position"
             },
             {
               "id": "core-classes/html-escape-answers-markup",
@@ -6536,9 +6568,9 @@
           "blurb": "An image is an immutable value carrying a plan — nothing decodes until a terminal runs it, under a cap read off the header.",
           "url": "/docs/rules/core-classes/uris-and-images/",
           "counts": {
-            "total": 8,
-            "shipped": 1,
-            "designed": 7,
+            "total": 9,
+            "shipped": 3,
+            "designed": 6,
             "diverging": 7
           },
           "rules": [
@@ -6546,9 +6578,17 @@
               "id": "core-classes/uri-removable-components",
               "slug": "uri-removable-components",
               "title": "`Core\\Uri` spends the omitted-versus-null distinction on three components and on one query parameter at a time",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-classes/uris-and-images/#uri-removable-components",
               "diverges": "there is no `parse_url`/`http_build_query` round trip to lose a component in — removing one is a written `null`, and an empty query is a different value from no query"
+            },
+            {
+              "id": "core-classes/output-that-scales-with-its-input-bounds-the-input",
+              "slug": "output-that-scales-with-its-input-bounds-the-input",
+              "title": "A member whose output scales with its input either allocates through the guarded value allocator or bounds the input",
+              "status": "shipped",
+              "href": "/docs/rules/core-classes/uris-and-images/#output-that-scales-with-its-input-bounds-the-input",
+              "diverges": null
             },
             {
               "id": "core-classes/decompression-bound",
@@ -8216,7 +8256,7 @@
               "title": "A ceiling is a `System` directive with the default's key name, and `false` removes it",
               "status": "shipped",
               "href": "/docs/rules/config/changeability-classes/#ceilings-are-their-own-directives",
-              "diverges": "there is no `-1` meaning unlimited; a ceiling is removed with `false` in a root-owned block, and never from a script"
+              "diverges": "there is no `-1` meaning unlimited; a ceiling is removed with `false` in a root-owned block, and never from a script — and PHP's one `max_execution_time`, CPU time on Linux and elapsed time on Windows, is two keys: `cpu_time` and `wall_time`"
             },
             {
               "id": "config/system-means-a-request-may-not-set-it",

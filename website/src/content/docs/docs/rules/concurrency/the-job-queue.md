@@ -203,6 +203,17 @@ an immediate transaction on SQLite, whose single-writer model makes contention m
 provides the mutual exclusion, so two instances of a fleet cannot claim the same job, and the runtime
 writes no lease protocol, no heartbeat and no coordinator of its own.
 
+**On SQLite the exclusion is that transaction itself, so the claim carries no locking clause and
+cannot be given one.** That backend has a single writer: inside an immediate transaction no second
+connection is writing at all, so two workers cannot come back with one row — which is what `for
+update skip locked` buys on a backend that has row locks and concurrent writers to need them from.
+The worker that arrives second waits for the write lock, and by the time it proceeds the row the
+first one took is no longer due. `skip locked` is a syntax error there, and the reason not to reach
+for one is that there is nothing left for it to do. The transaction has to be an *immediate* one
+rather than the deferred transaction a bare `BEGIN` opens: a transaction that reads a row and then
+writes it back asks to upgrade a shared lock, and SQLite refuses an upgrade without honouring the
+busy timeout, so a deferred claim fails under exactly the concurrency it exists to survive.
+
 A claimed job carries a **visibility timeout**: the claim is keyed on the instant it was taken, and a
 worker that dies — or that overruns the window — matches no row when it tries to report, so the job
 becomes claimable again. That is what makes delivery at-least-once
@@ -214,7 +225,7 @@ advice.
 <p>A fleet needs no supervisor, no heartbeat and no coordinator process — the database provides the mutual exclusion</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/connecting-to-a-database/#db-one-api" title="Core\Db is the only database API, and every statement it runs is prepared"><code>core-classes/db-one-api</code></a> <a href="/docs/rules/concurrency/the-job-queue/#delivery-is-at-least-once" title="Delivery is at-least-once, and idempotency is the job's own obligation"><code>concurrency/delivery-is-at-least-once</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0084.md">record 0084</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0073.md">record 0073</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/queue.rs"><code>crates/nvs-stdlib/tests/queue.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/connecting-to-a-database/#db-one-api" title="Core\Db is the only database API, and every statement it runs is prepared"><code>core-classes/db-one-api</code></a> <a href="/docs/rules/concurrency/the-job-queue/#delivery-is-at-least-once" title="Delivery is at-least-once, and idempotency is the job's own obligation"><code>concurrency/delivery-is-at-least-once</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0084.md">record 0084</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0073.md">record 0073</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0170.md">record 0170</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/queue.rs"><code>crates/nvs-stdlib/tests/queue.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/queue_sqlite.rs"><code>crates/nvs-stdlib/tests/queue_sqlite.rs</code></a></dd></div></dl>
 
 </div>
 

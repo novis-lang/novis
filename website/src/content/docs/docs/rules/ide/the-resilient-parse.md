@@ -30,16 +30,20 @@ next:
 </div>
 
 There is one grammar and one tree. The resilient parse is not a second parser mode or a `rowan`-shaped
-CST beside the AST; it is the same `parse` returning a `Parsed { stmts, trivia, index }` — the statements
-whose spans cover the file, every comment and whitespace run by span in source order, and an offset-to-node
-index. `nvs check`, `nvs run` and every other compile path are that same parse followed by "refuse if
+CST beside the AST; it is the same `parse` returning a `Parsed { stmts, trivia, modifiers, index }` — the
+statements whose spans cover the file, every comment and whitespace run by span in source order, where each
+declaration's modifiers were written, and an offset-to-node index. `nvs check`, `nvs run` and every other compile path are that same parse followed by "refuse if
 anything was reported", which is what they already do, so no call site changes and nothing has to be kept
 in step with a grammar that is still moving.
 
 The parser is already infallible — every production returns a node, never a `Result`, a missing token is
 reported at its empty span without consuming what follows, and every bare-sequence loop forces a token of
 progress. What the strict tree lacked was the trivia the lexer discards in `skip_trivia`, its single site,
-and an index. Those two additions are the whole resilient mode.
+an index, and the span each modifier was written at — recorded by the one loop every declaration's
+modifiers already go through, because a `Modifier` says what a declaration is and a formatter putting a
+list in one order ([`tooling/fmt-base-style-is-per`](/docs/rules/tooling/the-formatter/#fmt-base-style-is-per "The base style is PER: four-space indentation, K&R braces on control structures, Allman braces on declarations, and one canonical modifier order")) has to know where the word is. Those additions
+are the whole resilient mode: each is a side channel a compile path collects none of, and none of them is
+a node.
 
 The trade is named: without `rowan`'s red/green design there is no free incremental reparse, so each
 analysis reparses the document, and [`ide/a-full-reanalysis-stays-under-a-bound`](/docs/rules/ide/the-resilient-parse/#a-full-reanalysis-stays-under-a-bound "A full re-analysis of a ~1,000-line document stays under a named bound, and the guard is a test rather than an assumption") is what keeps that a
@@ -181,7 +185,7 @@ The index is rebuilt per analysis. Making it incremental belongs with the rest o
 ancestor paths are what would make item-level caching expressible if [`ide/a-full-reanalysis-stays-under-a-bound`](/docs/rules/ide/the-resilient-parse/#a-full-reanalysis-stays-under-a-bound "A full re-analysis of a ~1,000-line document stays under a named bound, and the guard is a test rather than an assumption")
 ever fails.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-resilient-parse/#one-grammar-one-tree" title="The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree"><code>ide/one-grammar-one-tree</code></a> <a href="/docs/rules/ide/the-language-server/#the-request-set-is-closed" title="M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing"><code>ide/the-request-set-is-closed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-resilient-parse/#one-grammar-one-tree" title="The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree"><code>ide/one-grammar-one-tree</code></a> <a href="/docs/rules/ide/the-language-server/#the-request-set-is-closed" title="M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing"><code>ide/the-request-set-is-closed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a></dd></div></dl>
 
 </div>
 
