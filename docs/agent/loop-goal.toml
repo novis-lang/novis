@@ -146,6 +146,12 @@ modules = [
   # only) and each `Text` piece of `Interpolated`'s `nvs_syntax::ast::StringPart` vector — into
   # the runtime bytes they name.
   "crates/nvs-types/src/string_lit.rs",
+  # Novis's class instance: one heap allocation, a four-word header, and the object's fields
+  # inline behind it — plus the `ClassDesc` every instance points back at.
+  "crates/nvs-runtime/src/object.rs",
+  # The value behind `registry::CoreTy::Instance`: what a native member returns when the spec
+  # writes a `Core`-owned object, and how another member reads one back.
+  "crates/nvs-stdlib/src/instance.rs",
 ]
 
 # The two every stage works inside: the rule this goal ships, and the sink it is written against.
