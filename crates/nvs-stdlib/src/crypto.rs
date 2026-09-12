@@ -1,25 +1,36 @@
-//! `Core\Crypto` — `rule:core-api/tier-roster`'s "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string",
-//! as members that take a key, a message and a cipher named by a closed enum.
+//! `Core\Crypto` — `rule:core-api/tier-roster`'s "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string"
+//! and `rule:core-classes/crypto-interop-tier`'s primitives in one class: sealing and opening, the two
+//! key derivations, key pairs and the half of one that is sent, agreement over the roster's curves, and
+//! signatures — each algorithm a case of a closed enum the call names, and not one of them defaulted.
 //!
 //! § 3 places the class and states the roster's one rule; what belongs here is
-//! which construction that rule picked, what the sealed bytes are, and why a
+//! which constructions that rule picked, what the sealed bytes are, and why a
 //! `secret` key crosses this surface without any of it being a laundering.
 //!
-//! # The cipher is a closed enum, required, and never a string
+//! # An algorithm is a case of a closed enum, required, and never a string
 //!
 //! `openssl_encrypt($data, "aes-256-cbc", …)` names its primitive in a string,
 //! which is how a program ends up with `aes-256-ecb` in one file and a
 //! typo-silent fallback in another — the cipher is chosen by whichever call
 //! site was copied last, and "encrypted" and "authenticated" become two
-//! decisions a caller can get half right. Here the choice is [`CIPHER`], a
-//! closed enum with no default anywhere: [`seal`](nvs_core_crypto_seal) and
-//! [`open`](nvs_core_crypto_open) take a message, a key and one of its cases,
-//! a misspelled case is a compile error rather than a silent fallback, and
-//! every case there is to name authenticates. What stays off the call is
-//! everything the library is entitled to choose — no mode, no padding, no IV,
-//! and no unauthenticated spelling to reach for. [`crate::password`]'s module
-//! doc makes the same argument about cost parameters, where the roster is one
-//! entry and so the argument is absent rather than closed.
+//! decisions a caller can get half right. Here every algorithm is a case of a
+//! closed enum: [`CIPHER`] for a cipher, [`KEY_KIND`] for what a key is, and
+//! [`KEY_FORMAT`] for the encoding one travels in. A misspelled case is a
+//! compile error rather than a silent fallback, every cipher case
+//! authenticates, and no row in this module carries a default. What stays off
+//! the call is everything the library is entitled to choose — no mode, no
+//! padding, no IV, and no unauthenticated spelling to reach for.
+//!
+//! **A caller choosing here is safe, and a token choosing is not.** A program
+//! that names `Aes256Gcm` or `Ed25519` is choosing nothing an attacker
+//! supplied, which is the distinction [`crate::jwt`]'s module doc draws: a
+//! JWT's `alg` is attacker-supplied by construction, so that class reads the
+//! field only to compare it against the key. The same line runs through the
+//! members here that take a key rather than a cipher — a signature's scheme is
+//! the pair's kind and is never a parameter — so an enum a call names selects a
+//! primitive and never a verifier. [`crate::password`]'s module doc makes the
+//! argument about cost parameters, where the roster is one entry and so the
+//! argument is absent rather than closed.
 //!
 //! # XChaCha20-Poly1305, and why the extended nonce
 //!
@@ -36,18 +47,18 @@
 //! `crypto_secretbox` is built on, and the cost is 12 extra bytes per message
 //! and one extra HChaCha20 block per call.
 //!
-//! AES-256-GCM is in this module too, and it is not a second default: it is the
-//! **interop** cipher, and `rule:core-classes/crypto-interop-tier` is the whole
-//! of why it is here. `A256GCM` is what a browser's WebCrypto encrypts with and
-//! the one content encryption JWE has, so a runtime that cannot produce those
-//! bytes cannot read what the other end wrote. Where the choice is free it
-//! loses to XChaCha20-Poly1305 on two counts: a 96-bit nonce with the bound
-//! above and no extended variant, and a software fallback that is a
-//! constant-time bitslice several times slower than ChaCha20 on a machine
-//! without AES-NI — of which a container host scheduling this runtime is still
-//! one often enough to matter. So a program with Novis at both ends is *told*
-//! to prefer the extended-nonce construction, as advice in a member's doc and
-//! never as a default: nothing here picks a cipher for its caller.
+//! AES-256-GCM is the **interop** cipher, and
+//! `rule:core-classes/crypto-interop-tier` is the whole of why it is here:
+//! `A256GCM` is what a browser's WebCrypto encrypts with and the one content
+//! encryption JWE has, so a runtime that cannot produce those bytes cannot read
+//! what the other end wrote. Which of the two a call names is the call's, and
+//! where the choice is free the extended-nonce construction is the one to
+//! prefer — its nonce carries the bound above, and its software path is
+//! ChaCha20 rather than the constant-time bitslice AES falls back to on a
+//! machine without AES-NI, of which a container host scheduling this runtime is
+//! still one often enough to matter. That preference is written in
+//! [`seal`](nvs_core_crypto_seal)'s reference card as advice and nowhere as a
+//! default: nothing here picks a cipher for its caller.
 //!
 //! # What a sealed message is
 //!
@@ -118,27 +129,34 @@
 //! greppable, and encryption is not an exemption from it — it is the case it
 //! was written for.
 //!
-//! # This construction has one home, and two classes are on the near side of it
+//! # Every primitive has one home, and its callers sit on the near side of it
 //!
 //! [`cipher`], [`seal_under`] and [`open_under`] are `pub(crate)`, and
 //! [`crate::signed_cookie`] — `rule:security/protocol-roster`
 //! 's first roster entry — is their second caller. That is what makes a
 //! signed cookie *this* AEAD with a key ring over it rather than a second
-//! construction with its own nonce policy and its own opinion about tags: there
-//! is exactly one `XChaCha20Poly1305::new_from_slice` in `nvs-stdlib`, and
-//! everything above reaches it through those three functions. Nothing outside
-//! this module reads a *field* of an XChaCha-sealed message, which is the
-//! sentence above and is still true — a caller gets the whole buffer or
+//! construction with its own nonce policy and its own opinion about tags: one
+//! `XChaCha20Poly1305::new_from_slice` in `nvs-stdlib`, and everything above
+//! reaches it through those three functions. Nothing outside this module reads
+//! a *field* of an XChaCha-sealed message — a caller gets the whole buffer or
 //! nothing.
 //!
 //! The interop cipher has the same three — [`gcm_cipher`], [`gcm_seal_under`]
 //! and [`gcm_open_under`] — and the nonce is where they differ: this one is an
 //! argument rather than a draw. A member draws one through
-//! [`crate::random::draw`] before it calls, `Core\Jwe` supplies the one it has
-//! already written into a token's header, and a test replays WebCrypto's own
-//! input so the two implementations can be compared octet for octet. A nonce is
-//! never reused under one key, which is the caller's obligation here and the
-//! reason the argument is a fixed-width array rather than a slice.
+//! [`crate::random::draw`] before it calls, a token's header carries the one it
+//! was written with, and a test replays WebCrypto's own input so the two
+//! implementations can be compared octet for octet. A nonce is never reused
+//! under one key, which is the caller's obligation here and the reason the
+//! argument is a fixed-width array rather than a slice.
+//!
+//! The rest of the roster keeps the same shape. [`derive_key`] and
+//! [`expand_key`] are the derivations, [`agree_x25519`] and [`agree_p256`] the
+//! agreements, [`sign`] over a [`SigningKey`] and [`verify_signature`] over a
+//! [`VerifyingKey`] the signatures, and [`wrap_key`], [`unwrap_key`] and
+//! [`concat_kdf`] the JOSE constructions that are no member's surface. Each is
+//! written once and takes its bounds with it, so a class that needs one calls
+//! it rather than keeping a second copy that can disagree about them.
 //!
 //! # The nonce is drawn through `Core\Random`'s seam
 //!
