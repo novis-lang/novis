@@ -133,7 +133,12 @@
         "nvs.template.services": {
           "type": "boolean",
           "default": true,
-          "description": "Answer inside an inline-HTML region with the editor's own HTML, CSS and JavaScript services. Formatting is never among them: nvs fmt formats the whole file."
+          "description": "Answer inside an inline-HTML region with the editor's own HTML, CSS and JavaScript services. Formatting is the other template setting's: nvs fmt lays out every byte of Novis, here and everywhere."
+        },
+        "nvs.template.format": {
+          "type": "boolean",
+          "default": true,
+          "description": "Lay out the markup of a template with the editor's own HTML formatter, after nvs fmt and indented from the Novis code around it. With this off, formatting a .nvs file is nvs fmt and nothing else."
         },
         "nvs.secrets.redact": {
           "type": "boolean",
