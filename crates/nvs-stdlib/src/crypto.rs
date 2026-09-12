@@ -3840,6 +3840,75 @@ mod tests {
         );
     }
 
+    /// Every AES-GCM message the frozen set records seals to exactly the octets
+    /// WebCrypto produced, opens back to its plaintext, and every forgery the
+    /// set records is not authentic under the key it names.
+    ///
+    /// The nonce is the recorded one rather than a draw, which is what
+    /// [`gcm_seal_under`] takes it as an argument for: a construction that drew
+    /// its own could only be held to a set that had agreed on the draw. So the
+    /// layout the set's `about` states — `nonce(12) ‖ ciphertext ‖ tag(16)` — is
+    /// asserted whole, as one comparison against the file's octets, rather than
+    /// as three lengths that happen to add up.
+    ///
+    /// A refusal answers `None` here because this seam has no member to speak
+    /// for: the one forgery sentence
+    /// `rule:security/verification-throws-and-compares-in-constant-time` asks
+    /// for belongs to `Core\Crypto::open`, which is what turns this `None` into
+    /// it. What the set's five refusals pin is that every way of not being
+    /// authentic — a tag flipped, a ciphertext flipped, a nonce flipped, a
+    /// message too short to hold either, the right bytes under another key —
+    /// arrives there as the same answer, so there is one sentence to say.
+    #[test]
+    fn every_frozen_aes_gcm_message_seals_and_opens_to_the_sets_own_octets() {
+        let sealing = "Core\\Crypto::seal";
+        let opening = "Core\\Crypto::open";
+        let vectors = webcrypto::vectors("aesGcm");
+        assert!(
+            !vectors.is_empty(),
+            "the set carries AES-GCM vectors at all"
+        );
+
+        for vector in vectors {
+            let name = webcrypto::text(vector, "/name");
+            let cipher = gcm_cipher(&webcrypto::octets(vector, "/key"))
+                .expect("the set keys AES-256 with 32 octets");
+            let nonce =
+                <[u8; GCM_NONCE_LEN]>::try_from(webcrypto::octets(vector, "/nonce").as_slice())
+                    .expect("the set writes a 12-octet nonce");
+            let message = webcrypto::octets(vector, "/plaintext");
+            let sealed = webcrypto::octets(vector, "/sealed");
+
+            assert_eq!(
+                gcm_seal_under(&cipher, &nonce, &message, sealing).expect("the vector seals"),
+                sealed,
+                "{name} seals to the octets WebCrypto answered with"
+            );
+            assert_eq!(
+                gcm_open_under(&cipher, &sealed, opening)
+                    .expect("the plaintext is affordable")
+                    .as_deref(),
+                Some(message.as_slice()),
+                "{name} opens back to its own plaintext"
+            );
+        }
+
+        let refusals = webcrypto::refusals("aesGcm");
+        assert!(!refusals.is_empty(), "and the forgeries it records");
+
+        for refusal in refusals {
+            let name = webcrypto::text(refusal, "/name");
+            let cipher = gcm_cipher(&webcrypto::octets(refusal, "/key"))
+                .expect("the set keys AES-256 with 32 octets");
+            assert!(
+                gcm_open_under(&cipher, &webcrypto::octets(refusal, "/sealed"), opening)
+                    .expect("a forgery costs the same buffer as a message")
+                    .is_none(),
+                "{name} is not authentic under the key it is offered to"
+            );
+        }
+    }
+
     /// The two derivations against their own specifications' vectors: PBKDF2
     /// against RFC 7914 § 11's SHA-256 pair, HKDF against RFC 5869 Appendix
     /// A.1, A.2 and A.3.
@@ -3920,6 +3989,96 @@ mod tests {
             pbkdf2_sha256(b"correct horse", &salt, MIN_ITERATIONS),
             "inside the bounds it is the derivation above and nothing else"
         );
+    }
+
+    /// A derivation case's iteration count, in the width [`derive_key`] takes
+    /// one in.
+    fn rounds(case: &serde_json::Value) -> u64 {
+        webcrypto::number(case, "/iterations")
+    }
+
+    /// Every PBKDF2 derivation the frozen set records answers exactly the key
+    /// WebCrypto derived, and each count and salt it records as refused is
+    /// refused here too.
+    ///
+    /// Replayed through [`derive_key`] rather than through [`pbkdf2_sha256`],
+    /// because what the set's refusals are about is the bounds rather than the
+    /// arithmetic: each sits one step outside one of them, so the file is what
+    /// stops either number moving. The vectors take the same path, so the halves
+    /// cannot come to disagree about where the check is.
+    ///
+    /// A password is UTF-8 octets, which is what a browser's `TextEncoder` hands
+    /// `importKey`, and the set's second vector is not ASCII — so the encoding
+    /// is pinned here rather than assumed.
+    #[test]
+    fn every_frozen_pbkdf2_derivation_answers_the_sets_own_key() {
+        let who = "Core\\Crypto::deriveKey";
+        let vectors = webcrypto::vectors("pbkdf2");
+        assert!(!vectors.is_empty(), "the set carries PBKDF2 vectors at all");
+
+        for vector in vectors {
+            let name = webcrypto::text(vector, "/name");
+            assert_eq!(
+                derive_key(
+                    webcrypto::text(vector, "/password").as_bytes(),
+                    &webcrypto::octets(vector, "/salt"),
+                    rounds(vector),
+                    who,
+                )
+                .expect("a recorded derivation is inside the bounds")
+                .as_slice(),
+                webcrypto::octets(vector, "/key"),
+                "{name} derives the key WebCrypto answered with"
+            );
+        }
+
+        let refusals = webcrypto::refusals("pbkdf2");
+        assert!(
+            !refusals.is_empty(),
+            "and the bounds it records at the edge"
+        );
+
+        for refusal in refusals {
+            let name = webcrypto::text(refusal, "/name");
+            assert!(
+                derive_key(
+                    webcrypto::text(refusal, "/password").as_bytes(),
+                    &webcrypto::octets(refusal, "/salt"),
+                    rounds(refusal),
+                    who,
+                )
+                .is_err(),
+                "{name} is outside a bound this derivation enforces"
+            );
+        }
+    }
+
+    /// Every HKDF expansion the frozen set records answers exactly the key
+    /// WebCrypto derived, the empty salt and the empty info among them.
+    ///
+    /// RFC 5869's own vectors are the test above; these are the same
+    /// construction asked the way a program asks it, with `info` a context
+    /// string rather than octets — so it is replayed as the UTF-8 of the text
+    /// the set carries, which is what `TextEncoder` hands `deriveBits` and what
+    /// the long case's non-ASCII label makes a real assertion.
+    #[test]
+    fn every_frozen_hkdf_expansion_answers_the_sets_own_key() {
+        let vectors = webcrypto::vectors("hkdf");
+        assert!(!vectors.is_empty(), "the set carries HKDF vectors at all");
+
+        for vector in vectors {
+            let name = webcrypto::text(vector, "/name");
+            assert_eq!(
+                expand_key(
+                    &webcrypto::octets(vector, "/material"),
+                    &webcrypto::octets(vector, "/salt"),
+                    webcrypto::text(vector, "/info").as_bytes(),
+                )
+                .as_slice(),
+                webcrypto::octets(vector, "/key"),
+                "{name} expands to the key WebCrypto answered with"
+            );
+        }
     }
 
     /// A 32-octet vector as the array that takes it — a Curve25519 scalar, a

@@ -4566,6 +4566,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   moment it exists until three cases call it. Cut the slices so the whole member — row, card, helper,
   `address()` arm and cases — lands under one verification, and let the per-slice commits be the
   seam instead. [until: reviewed 2026-12-12]
+- **A field of `webcrypto.json` is not text just because a dump printed it as one.** `iterations`,
+  `clock` and `lifetime` are JSON numbers and `deterministic` is a bool, so
+  `webcrypto::text(case, "/iterations")` compiles and then panics at run time with *has no text at
+  /iterations*, and a Python dump through `str()` prints all four as quoted strings and hides it. Read a
+  count with `webcrypto::number` (`crates/nvs-stdlib/src/tests/vectors.rs:89`) and print
+  `type(v[k]).__name__` rather than the value when checking what a pointer will answer.
+  [until: reviewed 2026-09-12]
 
 ## Splitting a file that got too big
 

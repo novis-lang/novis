@@ -81,6 +81,17 @@ pub(crate) fn octets(case: &Value, pointer: &str) -> Vec<u8> {
         .expect("the set writes every octet string in lower-case hex")
 }
 
+/// A whole-number field of one case, by the same pointer [`octets`] takes.
+///
+/// The set writes a count as a number rather than as text — an iteration count
+/// is the one field a reader compares against a bound rather than against
+/// octets.
+pub(crate) fn number(case: &Value, pointer: &str) -> u64 {
+    case.pointer(pointer)
+        .and_then(Value::as_u64)
+        .unwrap_or_else(|| panic!("the vector set's case has no whole number at {pointer}"))
+}
+
 /// A text field of one case, by the same pointer [`octets`] takes.
 pub(crate) fn text<'a>(case: &'a Value, pointer: &str) -> &'a str {
     case.pointer(pointer)
