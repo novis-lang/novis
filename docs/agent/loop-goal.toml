@@ -120,6 +120,9 @@ modules = [
   # Declarations: classes, interfaces and enums with their members, attributes, and the file-scope
   # forms that sit alongside a statement without being one.
   "crates/nvs-syntax/src/parser/decl.rs",
+  # Where a brace sits: on its own line after a declaration, on the keyword's line after a control
+  # structure.
+  "crates/nvs-fmt/src/brace.rs",
 ]
 
 # The rules every stage works inside: what the formatter is, what it may not do to a line break, the
