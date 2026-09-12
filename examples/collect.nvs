@@ -1,8 +1,10 @@
 <?nvs
-class Tag {
+class Tag
+{
     public string $name;
 
-    public function constructor(string $name) {
+    public function constructor(string $name)
+    {
         $this->name = $name;
     }
 }

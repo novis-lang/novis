@@ -7,10 +7,12 @@
 // pointer handoff, then hands it back — so the parent reads, after this context
 // is gone, an allocation this context was holding.
 
-class Holder {
+class Holder
+{
     public mixed $held;
 
-    public function constructor() {
+    public function constructor()
+    {
         $this->held = null;
     }
 }

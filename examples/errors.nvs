@@ -1,9 +1,12 @@
 <?nvs
-class ConfigError extends Throwable {
+class ConfigError extends Throwable
+{
 }
 
-class Loader {
-    public static function load(string $key): string {
+class Loader
+{
+    public static function load(string $key): string
+    {
         if ($key == "bad") {
             throw new ConfigError("bad key");
         }
@@ -15,7 +18,8 @@ class Loader {
         return "value-of-" . $key;
     }
 
-    public static function guarded(string $key): string {
+    public static function guarded(string $key): string
+    {
         try {
             return Loader::load($key);
         } finally {

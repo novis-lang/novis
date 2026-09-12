@@ -1,10 +1,13 @@
 <?nvs
-class Ops {
-    public static function widen(int $n, float $f): float {
+class Ops
+{
+    public static function widen(int $n, float $f): float
+    {
         return $n + $f;
     }
 
-    public static function overflows(int $n): string {
+    public static function overflows(int $n): string
+    {
         try {
             int $doubled = $n * 2;
             return "no throw: " . $doubled;

@@ -28,7 +28,8 @@ use Core\Db\Row;
 // `Db\Derive` name the attribute (ADR 0113 § 1 — a qualified name is
 // absolute).
 #[Core\Db\Derive]
-class Person {
+class Person
+{
     public int $id;
     // ADR 0067 § 6: a text column is always `tainted`, so a `T` whose
     // text-carrying fields are unqualified is a diagnostic at the `queryAs<T>`
@@ -36,7 +37,8 @@ class Person {
     // at the other end.
     public tainted string $name;
 
-    public function constructor(int $id, tainted string $name) {
+    public function constructor(int $id, tainted string $name)
+    {
         $this->id = $id;
         $this->name = $name;
     }
@@ -47,10 +49,12 @@ class Person {
 // declarable on a `#[Core\Db\Derive]` class as an `int` is, and hydration
 // checks the instance the driver built against the class the field named.
 #[Core\Db\Derive]
-class Day {
+class Day
+{
     public Core\Time\Date $day;
 
-    public function constructor(Core\Time\Date $day) {
+    public function constructor(Core\Time\Date $day)
+    {
         $this->day = $day;
     }
 }

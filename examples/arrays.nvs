@@ -1,6 +1,8 @@
 <?nvs
-class Ordered {
-    public static function render(array<int> $a): string {
+class Ordered
+{
+    public static function render(array<int> $a): string
+    {
         var $out = "";
         foreach ($a as string $k => int $v) {
             $out = $out . $k . "=" . $v . ";";

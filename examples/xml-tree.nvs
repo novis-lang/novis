@@ -13,8 +13,10 @@
 // The five kinds are a closed enum, so this `match` names all of them and needs
 // no `default` — a sixth kind would stop this program compiling rather than
 // quietly fall into a case that does not describe it.
-class Kind {
-    public static function name(Core\Xml\NodeKind $kind): string {
+class Kind
+{
+    public static function name(Core\Xml\NodeKind $kind): string
+    {
         return match ($kind) {
             Core\Xml\NodeKind::Document => "document",
             Core\Xml\NodeKind::Element => "element",
@@ -28,8 +30,10 @@ class Kind {
 // The whole tree, one line per node. Each member is a slot read — the document
 // was read by the time a node exists — so a walk computes nothing and cannot
 // fail partway through.
-class Outline {
-    public static function show(Core\Xml\Node $node, string $indent): void {
+class Outline
+{
+    public static function show(Core\Xml\Node $node, string $indent): void
+    {
         echo $indent, Kind::name($node->kind());
         if ($node->kind() == Core\Xml\NodeKind::Element) {
             echo " ", $node->name();
@@ -63,8 +67,10 @@ Outline::show($document, "");
 // The document node is the one a program is handed rather than one it reaches,
 // so the root element is found by its kind: the prolog's instruction is a child
 // of the document as well.
-class Root {
-    public static function of(Core\Xml\Node $document): Core\Xml\Node {
+class Root
+{
+    public static function of(Core\Xml\Node $document): Core\Xml\Node
+    {
         foreach ($document->children() as Core\Xml\Node $child) {
             if ($child->kind() == Core\Xml\NodeKind::Element) {
                 return $child;

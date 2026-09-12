@@ -1,6 +1,8 @@
 <?nvs
-class Grade {
-    public static function letter(int $score): string {
+class Grade
+{
+    public static function letter(int $score): string
+    {
         return match (true) {
             $score >= 90 => "A",
             $score >= 80 => "B",
@@ -9,7 +11,8 @@ class Grade {
         };
     }
 
-    public static function tier(string $letter): string {
+    public static function tier(string $letter): string
+    {
         switch ($letter) {
             case "A":
             case "B":

@@ -21,11 +21,13 @@
 use Core\Db;
 use Core\Db\Transaction;
 
-class Accounts {
+class Accounts
+{
     // § 6's typed readers answer `?T`, a `null` being a NULL column — so a
     // count is unwrapped once, here, rather than at each of the two places
     // this program prints one.
-    public static function count(Core\Db\Connection $db): int {
+    public static function count(Core\Db\Connection $db): int
+    {
         var $row = $db->query("select count(*) as n from accounts", [])->first();
         if ($row == null) {
             return -1;

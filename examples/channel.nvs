@@ -7,7 +7,8 @@
 // are this fixture's proposal and the session that lands the type owns the
 // final one — what it may not change is that a send into a full channel
 // suspends rather than growing the buffer.
-class Meter {
+class Meter
+{
     public static int $produced = 0;
     public static int $consumed = 0;
     public static bool $suspended = false;

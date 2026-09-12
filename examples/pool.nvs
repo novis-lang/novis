@@ -35,12 +35,14 @@
 use Core\Db;
 use Core\Db\Connection;
 
-class Ceiling {
+class Ceiling
+{
     // The verdict as one line, so that a failure says which half failed rather
     // than printing a `false` three ways. `$waited` is milliseconds and 500 is
     // `[db.tight.pool] acquire` — the fixture reads the bound it was written
     // against, and a config that lowers it makes this line say so.
-    public static function verdict(int $waited, bool $acquire, bool $ceiling): string {
+    public static function verdict(int $waited, bool $acquire, bool $ceiling): string
+    {
         if ($waited < 500) {
             return "refused after only " . $waited . "ms, which is inside `acquire`";
         }
@@ -58,7 +60,8 @@ class Ceiling {
     // child ended with, and `$elapsed` the whole `Core\Task::all` in
     // milliseconds — 500 of `acquire` and 300 of sibling work, which a park
     // overlaps and a spin adds up.
-    public static function park(int $elapsed, string $blocked, int $beside): string {
+    public static function park(int $elapsed, string $blocked, int $beside): string
+    {
         if ($blocked != "refused") {
             return "a child opened a second connection, which `max = 1` forbids";
         }
@@ -77,7 +80,8 @@ class Ceiling {
     // The first column of the first row, or -1. The shape
     // `examples/transaction.nvs` uses and for the same reason: `?Row` and then
     // `?int` is two unwraps, and this program prints the number twice.
-    public static function one(Connection $db, string $sql): int {
+    public static function one(Connection $db, string $sql): int
+    {
         var $row = $db->query($sql, [])->first();
         if ($row == null) {
             return -1;

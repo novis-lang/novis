@@ -27,13 +27,15 @@
 use Core\Queue;
 use Core\Queue\State;
 
-class Poll {
+class Poll
+{
     // Waiting for a worker on the same core is the one thing this program does
     // that is not a `Core\Queue` call, and it is `examples/queue.nvs`'s wait
     // for `examples/queue.nvs`'s reason: bounded rather than open-ended, since
     // a fixture that hangs when the feature regresses is worse than one that
     // prints the wrong line.
-    public static function until(callable $test): bool {
+    public static function until(callable $test): bool
+    {
         var $turns = 0;
         while ($turns < 200) {
             if ($test() as bool) {
@@ -46,12 +48,14 @@ class Poll {
     }
 }
 
-class Said {
+class Said
+{
     // `echo` writes a `bool` as PHP does — `1` and the empty string — so the
     // two lines that report what `delete` answered say the word themselves.
     // What they pin is *which* of the two answers came back, and an empty tail
     // after the `=` would pin one of them by absence.
-    public static function word(bool $answer): string {
+    public static function word(bool $answer): string
+    {
         if ($answer) {
             return "true";
         }

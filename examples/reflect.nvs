@@ -22,7 +22,8 @@
 // The five lines this prints are frozen in `docs/agent/loop-goal.toml`
 // (stage 8); the source is not.
 
-class Point {
+class Point
+{
     public int $x = 3;
     public int $y = 4;
     private int $scratch = 0;

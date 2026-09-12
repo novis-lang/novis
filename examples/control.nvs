@@ -1,6 +1,8 @@
 <?nvs
-class Walk {
-    public static function digits(): string {
+class Walk
+{
+    public static function digits(): string
+    {
         var $out = "";
         var $n = 0;
         do {
@@ -11,7 +13,8 @@ class Walk {
         return $out;
     }
 
-    public static function scan(array<int> $rows): string {
+    public static function scan(array<int> $rows): string
+    {
         var $seen = "";
         foreach ($rows as int $row) {
             var $inner = 0;
@@ -28,7 +31,8 @@ class Walk {
         return $seen;
     }
 
-    public static function guarded(string $mode): string {
+    public static function guarded(string $mode): string
+    {
         try {
             throw new LogicError("first");
         } catch (LogicError $caught) {
@@ -43,8 +47,10 @@ class Walk {
     }
 }
 
-class Source {
-    public static function counting(): Iterator<int> {
+class Source
+{
+    public static function counting(): Iterator<int>
+    {
         try {
             yield 1;
             yield 2;

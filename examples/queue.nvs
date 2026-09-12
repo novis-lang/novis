@@ -29,12 +29,14 @@
 use Core\Queue;
 use Core\Queue\State;
 
-class Poll {
+class Poll
+{
     // Waiting for a worker on another core is the one thing this program does
     // that is not a `Core\Queue` call. Bounded rather than open-ended: a
     // fixture that hangs when the feature regresses is worse than one that
     // prints the wrong line, because the sweep has nothing to report about it.
-    public static function until(callable $test): bool {
+    public static function until(callable $test): bool
+    {
         var $turns = 0;
         while ($turns < 200) {
             if ($test() as bool) {
@@ -51,7 +53,8 @@ class Poll {
     // waited for it: `claimed` is a state a job passes through, so asking again
     // after the wait returned is a second instant, and a worker that has since
     // finished the job answers `0` to a question that was already true.
-    public static function counted(callable $test): uint {
+    public static function counted(callable $test): uint
+    {
         var $turns = 0;
         while ($turns < 200) {
             var $seen = $test() as uint;

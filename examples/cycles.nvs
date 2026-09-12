@@ -17,11 +17,13 @@
 // The isolate at the foot is the other half: a second context, torn down while
 // this one keeps running, with an object crossing between the two.
 
-class Node {
+class Node
+{
     public string $label = "";
     public ?Node $peer;
 
-    public function constructor(string $label) {
+    public function constructor(string $label)
+    {
         $this->label = $label;
         $this->peer = null;
     }
@@ -50,7 +52,8 @@ for (int $i = 0; $i < 1000; $i += 1) {
 // fixture's stdout is frozen by the acceptance check and what these iterations
 // add is invisible in it — the WSL `valgrind --leak-check=full` leg is the
 // whole check on them, exactly as it is on the pairs above.
-class Ring {
+class Ring
+{
     public ?Ring $peer = null;
     public array<Ring> $group = [];
     public array<array<Ring>> $grid = [];

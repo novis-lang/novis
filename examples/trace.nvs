@@ -1,10 +1,13 @@
 <?nvs
-class Deep {
-    public static function inner(): void {
+class Deep
+{
+    public static function inner(): void
+    {
         throw new LogicError("traced");
     }
 
-    public static function outer(): void {
+    public static function outer(): void
+    {
         Deep::inner();
     }
 }

@@ -1,26 +1,32 @@
 <?nvs
-class Registry {
+class Registry
+{
     public static int $hits = 0;
 
-    public static function bump(int $by): int {
+    public static function bump(int $by): int
+    {
         Registry::$hits = Registry::$hits + $by;
 
         return Registry::$hits;
     }
 }
 
-class Point {
+class Point
+{
     public int $x;
     public int $y;
 
-    public function constructor(int $x, int $y) {
+    public function constructor(int $x, int $y)
+    {
         $this->x = $x;
         $this->y = $y;
     }
 }
 
-class Any {
-    public static function pass(mixed $value): mixed {
+class Any
+{
+    public static function pass(mixed $value): mixed
+    {
         return $value;
     }
 }

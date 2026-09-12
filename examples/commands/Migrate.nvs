@@ -9,7 +9,8 @@ class Migrate implements Command
     #[Core\Command(name: "migrate", about: "Apply pending migrations")]
     public static function migrate(
         #[Core\Option(about: "Print what would happen")] bool $pretend,
-    ): uint {
+    ): uint
+    {
         // § 6: a `#[Command]` method returns `void` (status 0) or the `uint`
         // process exit status. That is the one place ADR 0086 diverges from
         // 0077 — a CLI has one entry point and no pipeline to own, so this

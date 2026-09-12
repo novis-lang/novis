@@ -1,12 +1,15 @@
 <?nvs
-class Lookup {
+class Lookup
+{
     private array<string> $entries;
 
-    public function constructor(array<string> $entries) {
+    public function constructor(array<string> $entries)
+    {
         $this->entries = $entries;
     }
 
-    public function get(string $key): ?string {
+    public function get(string $key): ?string
+    {
         if (Core\Arr::hasKey($this->entries, $key)) {
             return $this->entries[$key];
         }

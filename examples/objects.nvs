@@ -1,58 +1,74 @@
 <?nvs
-interface Greets {
+interface Greets
+{
     public function name(): string;
 
-    public function greet(): string {
+    public function greet(): string
+    {
         return "Hello, " . $this->name() . "!";
     }
 }
 
-class Animal implements Greets {
+class Animal implements Greets
+{
     protected string $animalName;
     protected int $legs;
 
-    public function constructor(string $animalName, int $legs) {
+    public function constructor(string $animalName, int $legs)
+    {
         $this->animalName = $animalName;
         $this->legs = $legs;
     }
 
-    public function name(): string {
+    public function name(): string
+    {
         return $this->animalName;
     }
 
-    public function describe(): string {
+    public function describe(): string
+    {
         return $this->animalName . " has " . $this->legs . " legs";
     }
 }
 
-class Dog extends Animal {
-    public function describe(): string {
+class Dog extends Animal
+{
+    public function describe(): string
+    {
         return parent::describe() . ", and barks";
     }
 }
 
-class Registry {
-    public static function tag(): string {
+class Registry
+{
+    public static function tag(): string
+    {
         return "base";
     }
 
-    public static function make(): static {
+    public static function make(): static
+    {
         return new static();
     }
 
-    public function label(): string {
+    public function label(): string
+    {
         return static::tag();
     }
 }
 
-class MidRegistry extends Registry {
-    public static function tag(): string {
+class MidRegistry extends Registry
+{
+    public static function tag(): string
+    {
         return "mid";
     }
 }
 
-class LeafRegistry extends MidRegistry {
-    public static function tag(): string {
+class LeafRegistry extends MidRegistry
+{
+    public static function tag(): string
+    {
         return "leaf";
     }
 }

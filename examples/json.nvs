@@ -1,12 +1,14 @@
 <?nvs
 #[Core\Json\Derive]
-class User {
+class User
+{
     public string $name;
     public int $age;
     #[Core\Json\Field(name: "is_admin")]
     public bool $isAdmin;
 
-    public function constructor(string $name, int $age, bool $isAdmin) {
+    public function constructor(string $name, int $age, bool $isAdmin)
+    {
         $this->name = $name;
         $this->age = $age;
         $this->isAdmin = $isAdmin;

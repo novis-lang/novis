@@ -1,10 +1,13 @@
 <?nvs
-class Math {
-    public static function double(int $n): int {
+class Math
+{
+    public static function double(int $n): int
+    {
         return $n * 2;
     }
 
-    public static function quadruple(int $n): int {
+    public static function quadruple(int $n): int
+    {
         return Math::double(Math::double($n));
     }
 }

@@ -3,16 +3,19 @@
 // `T`, answers `bool` for every subject, and never refuses because the answer
 // happens to be knowable.
 
-enum Rank {
+enum Rank
+{
     Bronze,
     Silver,
     Gold,
 }
 
-class Animal {
+class Animal
+{
     public string $animalName;
 
-    public function constructor(string $animalName) {
+    public function constructor(string $animalName)
+    {
         $this->animalName = $animalName;
     }
 }

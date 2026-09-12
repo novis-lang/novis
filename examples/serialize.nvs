@@ -7,10 +7,12 @@
 // `__sleep` or a `__wakeup`, and not because this fixture omits them: § 2
 // says no hook fires, so the shape that crosses is exactly the class's own
 // declared properties, every time.
-class Slot {
+class Slot
+{
     public int $n = 0;
 
-    public function constructor(int $n) {
+    public function constructor(int $n)
+    {
         $this->n = $n;
     }
 }
@@ -18,11 +20,13 @@ class Slot {
 // § 2: a *graph*, not a tree — a cycle terminates instead of recursing
 // forever, which is the case a naive walk hangs on and the reason this class
 // is here at all.
-class Ring {
+class Ring
+{
     public int $id = 0;
     public ?Ring $self;
 
-    public function constructor(int $id) {
+    public function constructor(int $id)
+    {
         $this->id = $id;
         $this->self = null;
     }

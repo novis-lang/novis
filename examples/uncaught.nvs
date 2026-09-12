@@ -1,10 +1,13 @@
 <?nvs
-class Boom {
-    public static function inner(): void {
+class Boom
+{
+    public static function inner(): void
+    {
         throw new LogicError("unhandled");
     }
 
-    public static function outer(): void {
+    public static function outer(): void
+    {
         Boom::inner();
     }
 }

@@ -1,6 +1,8 @@
 <?nvs
-class Fatal {
-    public static function trigger(): string {
+class Fatal
+{
+    public static function trigger(): string
+    {
         return "value: " . 42;
     }
 }

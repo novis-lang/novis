@@ -1,14 +1,18 @@
 <?nvs
-class Deep {
-    public static function level3(): void {
+class Deep
+{
+    public static function level3(): void
+    {
         throw new LogicError("boom");
     }
 
-    public static function level2(): void {
+    public static function level2(): void
+    {
         Deep::level3();
     }
 
-    public static function level1(): void {
+    public static function level1(): void
+    {
         Deep::level2();
     }
 }

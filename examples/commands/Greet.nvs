@@ -11,7 +11,8 @@ class Greet implements Command
     public static function greet(
         tainted string $name,
         #[Core\Option(short: "l", about: "Shout it")] bool $loud,
-    ): void {
+    ): void
+    {
         // ADR 0088 § 2: `Core\Str::upper`'s parameter carries no
         // classification, so it *refuses* a tainted argument — the default is
         // refusal and contagion is something an author writes. `echo` binds to

@@ -28,9 +28,11 @@
 // arguments anywhere in it, so there is no instance for a handler to be called
 // on. A parameter is a positional argument unless it carries `#[Core\Option]`
 // — one sentence, with no inference from defaults or types.
-class Greeter {
+class Greeter
+{
     #[Core\Command(name: "greet", about: "Greet somebody by name")]
-    public static function greet(string $name, #[Core\Option] bool $loud = false): uint {
+    public static function greet(string $name, #[Core\Option] bool $loud = false): uint
+    {
         string $greeting = "Hello, " . $name . "!";
         if ($loud) {
             $greeting = Core\Str::upper($greeting);

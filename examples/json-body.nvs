@@ -25,11 +25,13 @@
 // the declaration, and a plain `string $name` here is `E0810` at the call
 // below rather than a silent laundering.
 #[Core\Json\Derive]
-class Author {
+class Author
+{
     public tainted string $name;
     public int $tags;
 
-    public function constructor(tainted string $name, int $tags) {
+    public function constructor(tainted string $name, int $tags)
+    {
         $this->name = $name;
         $this->tags = $tags;
     }

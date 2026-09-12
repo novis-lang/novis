@@ -49,7 +49,8 @@ try {
 // throws, deliberately unlike § 4's `max_concurrent`, which is a host bound.
 // What proves the shaping is the peak, not the total: six children each hold
 // the gauge across a sleep, so a `limit` that was ignored would print 6.
-class Gauge {
+class Gauge
+{
     public static int $live = 0;
     public static int $peak = 0;
 }

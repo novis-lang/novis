@@ -29,13 +29,15 @@
 use Core\Queue;
 use Core\Queue\State;
 
-class Poll {
+class Poll
+{
     // Waiting for a worker is the one thing this program does that is not a
     // `Core\Queue` call, and it is `examples/queue.nvs`'s wait for that
     // fixture's reason: bounded rather than open-ended, since a fixture that
     // hangs when the feature regresses is worse than one that prints the wrong
     // line.
-    public static function until(callable $test): bool {
+    public static function until(callable $test): bool
+    {
         var $turns = 0;
         while ($turns < 200) {
             if ($test() as bool) {
@@ -52,7 +54,8 @@ class Poll {
     // program prints has to be read by the wait that waited for it: asking
     // again afterwards is a second instant, and a worker that has since
     // finished answers `0` to a question that was already true.
-    public static function counted(callable $test): uint {
+    public static function counted(callable $test): uint
+    {
         var $turns = 0;
         while ($turns < 200) {
             var $seen = $test() as uint;

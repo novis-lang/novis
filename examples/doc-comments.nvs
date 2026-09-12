@@ -11,12 +11,14 @@
 ///
 /// @see Line::render
 /// @example ../examples/doc-comments.nvs
-class Line {
+class Line
+{
     /// The text this line carries.
     public string $text;
 
     /// Builds a line over its own text.
-    public function constructor(string $text) {
+    public function constructor(string $text)
+    {
         $this->text = $text;
     }
 
@@ -26,14 +28,16 @@ class Line {
     /// above, and a signature cannot drift from itself.
     ///
     /// @see Line::$text
-    public function render(): string {
+    public function render(): string
+    {
         return $this->text;
     }
 
     // An ordinary comment, and it documents nothing. Two slashes are what a
     // note to the next reader of this file is written with; `nvs meta --json`
     // and `nvs doc` never see one.
-    private function hidden(): string {
+    private function hidden(): string
+    {
         return "";
     }
 }

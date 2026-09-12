@@ -9,19 +9,24 @@
 // substitution, or a parse that never ends.
 // hostile: timeout-ms 20000
 
-class Attack {
-    public static function twice(int $v): int { return $v * 2; }
-    public static function add(int $a, int $b): int { return $a + $b; }
+class Attack
+{
+    public static function twice(int $v): int
+    { return $v * 2; }
+    public static function add(int $a, int $b): int
+    { return $a + $b; }
 
     /// A pipeline on the right side of a pipeline. The inner one takes the
     /// slot, finishes, and the outer one's hole must still be waiting.
-    public static function nestedRightSides(int $a, int $b): int {
+    public static function nestedRightSides(int $a, int $b): int
+    {
         return $a |> Attack::add($b |> Attack::twice($_), $_);
     }
 
     /// A closure written on a right side, with a pipeline of its own inside it.
     /// The closure body is parsed while the outer hole is parked.
-    public static function holeUnderAClosure(array<int> $xs): int {
+    public static function holeUnderAClosure(array<int> $xs): int
+    {
         return $xs
             |> Core\Arr::map($_, fn(int $x): int => $x |> Attack::twice($_))
             |> Core\Arr::sum($_) as int;
@@ -29,7 +34,8 @@ class Attack {
 
     /// A `match` in argument position on a right side: every arm is parsed
     /// with the outer value still waiting, and one arm pipes on its own.
-    public static function holeUnderAMatch(int $n): int {
+    public static function holeUnderAMatch(int $n): int
+    {
         return $n |> Attack::add(match ($n % 2) {
             0 => 10 |> Attack::twice($_),
             default => 3,
@@ -40,7 +46,8 @@ class Attack {
     /// A chain is a loop in the parser, so nothing charges its stages to the
     /// recursion guard the nested spelling trips — what bounds the tree this
     /// builds is the length of the line.
-    public static function longChain(int $seed): int {
+    public static function longChain(int $seed): int
+    {
         return $seed
             |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
             |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
@@ -54,14 +61,16 @@ class Attack {
 
     /// A right side nested sixteen deep in parentheses, each level a hole of
     /// its own, so the substitution has to walk down to the innermost one.
-    public static function deepParentheses(int $seed): int {
+    public static function deepParentheses(int $seed): int
+    {
         return $seed |> ((((((((((((((((($_ + 1))))))))))))))))) ;
     }
 
     /// Megabytes through a chain, so the substituted tree is evaluated with
     /// something the allocator notices. The result feeds the next round, so
     /// nothing here can be folded away.
-    public static function bigStringsThroughAChain(uint $mib, uint $rounds): uint {
+    public static function bigStringsThroughAChain(uint $mib, uint $rounds): uint
+    {
         var $chunk = Core\Str::repeat("a b ", 262144);
         var $s = Core\Str::repeat($chunk, $mib);
         uint $total = 0;
@@ -79,7 +88,8 @@ class Attack {
 
     /// The refcount edge: the piped value is an array element, and the array is
     /// rewritten while the pipeline that read it is still in flight.
-    public static function pipedElementReplaced(uint $rounds): uint {
+    public static function pipedElementReplaced(uint $rounds): uint
+    {
         array<string> $held = ["one", "two", "three"];
         uint $total = 0;
         uint $i = 0;
