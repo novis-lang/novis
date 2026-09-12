@@ -111,12 +111,13 @@ modules = [
   "crates/nvs-cli/src/ast.rs",
 ]
 
-# The three every stage works inside: what the formatter is, what it may not do to a line break, and
-# the one tree it reads.
+# The rules every stage works inside: what the formatter is, what it may not do to a line break, the
+# one tree it reads, and the tiling property the printer walks a file as.
 rules = [
   "tooling/fmt-is-one-canonical-style",
   "tooling/fmt-never-reflows",
   "ide/one-grammar-one-tree",
+  "ide/tokens-plus-trivia-reproduce-the-file",
 ]
 
 adrs = []

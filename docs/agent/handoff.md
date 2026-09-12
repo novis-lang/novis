@@ -2,35 +2,43 @@
 
 ## State
 
-**Goal 45 — nvs fmt rewrites a file into its one canonical layout — has just started; nothing of it has landed yet.** Goal `markup-literal`'s whole list is this goal's Stage 1 floor.
+**Goal `fmt` (M10), stage 2 has landed.** `crates/nvs-fmt/` is a workspace member and
+`nvs_fmt::format` is its one entry: a `SourceFile` in, that file's canonical text out, or a `Refusal`
+naming the file and carrying its parse's diagnostics. The printer is the identity — it reproduces every
+`.nvs` file in the corpus byte for byte — and stage 2's two acceptance names are pinned in
+`crates/nvs-fmt/tests/identity.rs`.
 
 **The style is decided and landed.** [ADR 0039](../decisions/0039.md) and the fragments under
-`docs/rules/tooling/fmt-*` are the spec, and [ADR 0173](../decisions/0173.md) added the `?>` bullet
-to `rule:tooling/fmt-novis-constructs`. No session writes a record for this goal. The one thing not to
-re-decide: `nvs fmt` has no configuration and never touches a byte a program prints.
+`docs/rules/tooling/fmt-*` are the spec, and [ADR 0173](../decisions/0173.md) added the `?>` bullet to
+`rule:tooling/fmt-novis-constructs`. No session writes a record for this goal.
 
-The printer reads `nvs_syntax::parse` (`crates/nvs-syntax/src/parser/mod.rs:883`), which already keeps
-every comment and whitespace run as trivia, and `crates/nvs-syntax/tests/lossless.rs:140-168` already
-proves the tokens and trivia reproduce every corpus file. The identity printer is that proof turned
-into a program.
+**Not wired yet, and not meant to be until stage 6:** `nvs fmt` is not a subcommand, `nvs-cli` does not
+name `nvs-fmt`, and there are no `tests/fmt/input/` ↔ `tests/fmt/formatted/` fixture pairs. Nothing is
+blocked.
 
 ## Next group
 
-**Stage 2: the identity printer** — one file set: the new `crates/nvs-fmt/` and the workspace
-`Cargo.toml`.
+**Stage 3: the base style, PER wherever the grammar matches PHP's** — one file set:
+`crates/nvs-fmt/src/print.rs`, `crates/nvs-fmt/src/lib.rs` and `crates/nvs-fmt/tests/`. Every rule
+below is written into the run walk at `crates/nvs-fmt/src/print.rs:26`, which today copies each run
+back unchanged. The four names are stage 3's `cargo-named` check verbatim.
 
-- [ ] **The crate** — `crates/nvs-fmt/`, a library whose one entry takes a `SourceFile` and answers the
-      formatted text or a refusal, added to the workspace members.
-- [ ] **The identity printer** — reads `nvs_syntax::parse` and writes every token and trivia item back;
-      `the_identity_printer_reproduces_every_corpus_file` walks the corpus `lossless.rs:140-168` walks.
-- [ ] **The refusal** — a parse that reports an error answers a refusal and no text;
-      `a_file_with_a_syntax_error_is_refused_and_left_unchanged`.
+- [ ] **`indentation_is_four_spaces_per_block_depth`** — `rule:tooling/fmt-base-style-is-per`. The
+      whitespace trivium that opens a line is rewritten from the depth of the `Block` containing it;
+      `crates/nvs-fmt/src/print.rs:26` is the walk, `crates/nvs-syntax/src/ast.rs:1097` is `Block`.
+- [ ] **`a_declaration_brace_is_allman_and_a_control_brace_is_k_and_r`** — same rule: the run before a
+      `{` is what carries the decision, at `crates/nvs-fmt/src/print.rs:26`.
+- [ ] **`modifiers_are_written_in_the_canonical_order`** — same rule, and the one item that reorders
+      tokens rather than whitespace: `crates/nvs-syntax/src/ast.rs:516` is `Modifier`.
+- [ ] **`an_authors_line_break_inside_an_expression_is_kept`** — `rule:tooling/fmt-never-reflows`: a
+      newline inside a whitespace run is the author's, and only the indentation after it is this
+      tool's. Guards the three above, at `crates/nvs-fmt/src/print.rs:26`.
 
 ## Backlog
 
-- Stages 3 to 5, the style — `crates/nvs-fmt/` only, with pairs under `tests/fmt/input/` and
-  `tests/fmt/formatted/`. One rule family per session is the expected size.
-- Stage 6, the command — `crates/nvs-cli/src/main.rs:193` and a new `crates/nvs-cli/tests/fmt.rs`. Its
-  own file set.
-- Stage 7, the corpus and the rulebook — `crates/nvs-fmt/tests/` and `docs/rules/tooling.json`.
-- When this goal's last check goes green the driver takes goal `template-format`.
+- Token boundaries: `Parsed` carries none, and inserting a space where the source has none needs them —
+  decide it when stage 3 or 4 first requires it (`crates/nvs-fmt/src/print.rs` module doc).
+- `nvs fmt` as a subcommand, with `--check`, `--diff` and `--stdin` — stage 6, `crates/nvs-cli/src/main.rs:193`.
+- The frozen fixture pairs under `tests/fmt/` — goal `fmt` § *Standing decisions*.
+- `nvs-fmt` has no `[context] modules` pattern yet; `tools/context-sync.py` sweeps it from this
+  session's commits.
