@@ -10,12 +10,14 @@
 //! indentation or spacing rewrites a whitespace run, and one about where a
 //! brace sits rewrites the runs on either side of it.
 //!
-//! A code run is copied byte for byte, save for the one rewrite that only
-//! reorders what is already in it: a modifier list goes out in its canonical
-//! order ([`crate::modifiers`]). `rule:tooling/fmt-never-reflows` leaves what is
-//! inside an expression to the author, and bytes a program prints — inline
-//! HTML, a heredoc body, a markup literal's body — are never a formatter's to
-//! touch, so a rule that appears to require rewriting one is being misread.
+//! A code run is copied byte for byte, save for the two edits that write
+//! something other than what is there: a modifier list goes out in its
+//! canonical order ([`crate::modifiers`]), and a brace the author left no room
+//! in front of gets the run [`crate::brace`] requires
+//! ([`Rewrite`]). `rule:tooling/fmt-never-reflows` leaves what is inside an
+//! expression to the author, and bytes a program prints — inline HTML, a
+//! heredoc body, a markup literal's body — are never a formatter's to touch, so
+//! a rule that appears to require rewriting one is being misread.
 
 use std::iter::Peekable;
 use std::vec::IntoIter;
@@ -23,8 +25,23 @@ use std::vec::IntoIter;
 use nvs_diagnostics::SourceFile;
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
+use crate::brace::{self, Placements};
 use crate::indent::Indent;
-use crate::modifiers::{self, Rewrite};
+use crate::modifiers;
+
+/// One run of bytes, and what the printer writes in its place.
+///
+/// An empty range inserts: a rule that has to put a byte where its author wrote
+/// none — the line break a declaration's brace needs in `class Queue{` — is
+/// this same edit with `start` and `end` equal.
+pub(crate) struct Rewrite<'t> {
+    /// Where the run this replaces begins.
+    pub(crate) start: usize,
+    /// One past that run's last byte, and equal to `start` for an insertion.
+    pub(crate) end: usize,
+    /// What belongs there.
+    pub(crate) written: &'t str,
+}
 
 /// Writes `parsed` back out as the text of a formatted file.
 ///
@@ -32,8 +49,12 @@ use crate::modifiers::{self, Rewrite};
 pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
     let text = file.text();
     let indent = Indent::new(&parsed.index, text);
+    let braces = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
+    let mut edits = modifiers::rewrites(parsed, text);
+    edits.extend(braces.insertions());
+    edits.sort_by_key(|edit| edit.start);
     let mut out = String::with_capacity(text.len());
-    let mut moved = modifiers::rewrites(parsed, text).into_iter().peekable();
+    let mut moved = edits.into_iter().peekable();
     let mut cursor = 0_usize;
     for trivium in &parsed.trivia {
         let start = trivium.span.start as usize;
@@ -43,7 +64,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
             "trivia arrive in source order and no two of them overlap"
         );
         push_code(&mut out, text, cursor, start, &mut moved);
-        push_trivium(&mut out, &indent, text, *trivium);
+        push_trivium(&mut out, &indent, &braces, text, *trivium);
         cursor = end;
     }
     push_code(&mut out, text, cursor, text.len(), &mut moved);
@@ -79,17 +100,30 @@ fn push_code<'t>(
 
 /// Writes one trivium, re-indenting the line it leaves the printer on.
 ///
-/// A whitespace run that carries a line break ends by opening a line, and what
-/// opens that line is the one thing in the run this stage decides: everything
-/// up to and including the last break is the author's — blank lines and all —
-/// and what follows it is four spaces per enclosing body
-/// (`rule:tooling/fmt-base-style-is-per`). A run the tree does not place, and
-/// every comment, go out exactly as they came in.
-fn push_trivium(out: &mut String, indent: &Indent<'_>, text: &str, trivium: Trivia) {
+/// A whitespace run carrying a brace's own line break is that brace's, whole:
+/// [`crate::brace`] decides both how many of them there are and what follows
+/// the last one, because a declaration's opener and a control structure's are
+/// the same run written two ways. Every other whitespace run that carries a
+/// line break ends by opening a line, and what opens that line is the one thing
+/// in the run this stage decides: everything up to and including the last break
+/// is the author's — blank lines and all — and what follows it is four spaces
+/// per enclosing body (`rule:tooling/fmt-base-style-is-per`). A run the tree
+/// does not place, and every comment, go out exactly as they came in.
+fn push_trivium(
+    out: &mut String,
+    indent: &Indent<'_>,
+    braces: &Placements,
+    text: &str,
+    trivium: Trivia,
+) {
     let start = trivium.span.start as usize;
     let end = trivium.span.end as usize;
     let run = &text[start..end];
     let opens_a_line = trivium.kind == TriviaKind::Whitespace;
+    if let Some(carried) = opens_a_line.then(|| braces.before(end)).flatten() {
+        out.push_str(carried);
+        return;
+    }
     let placed = opens_a_line
         .then(|| run.rfind('\n'))
         .flatten()

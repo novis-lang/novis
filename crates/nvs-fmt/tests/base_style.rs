@@ -20,14 +20,16 @@ fn formatted(source: &str) -> String {
 fn indentation_is_four_spaces_per_block_depth() {
     let mangled = "\
 <?nvs
-class Tag {
+class Tag
+{
       public string $name;
 
-  public function rename(string $name): void {
+  public function rename(string $name): void
+    {
 $this->name = $name;
         if ($name == \"\") {
   $this->name = \"untitled\";
-            }
+          }
   }
 }
 
@@ -36,10 +38,12 @@ $tag->rename(\"\");
 ";
     let canonical = "\
 <?nvs
-class Tag {
+class Tag
+{
     public string $name;
 
-    public function rename(string $name): void {
+    public function rename(string $name): void
+    {
         $this->name = $name;
         if ($name == \"\") {
             $this->name = \"untitled\";
@@ -57,25 +61,87 @@ $tag->rename(\"\");
 fn modifiers_are_written_in_the_canonical_order() {
     let mangled = "\
 <?nvs
-abstract class Cache {
+abstract class Cache
+{
     static private int $hits = 0;
     readonly private string $name;
 
     public abstract function warm(): void;
 
-    final public function reset(): void {
+    final public function reset(): void
+    {
     }
 }
 ";
     let canonical = "\
 <?nvs
-abstract class Cache {
+abstract class Cache
+{
     private static int $hits = 0;
     private readonly string $name;
 
     abstract public function warm(): void;
 
-    final public function reset(): void {
+    final public function reset(): void
+    {
+    }
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
+#[test]
+fn a_declaration_brace_is_allman_and_a_control_brace_is_k_and_r() {
+    let mangled = "\
+<?nvs
+class Queue {
+    public function drain(int $limit): void {
+        for ($i = 0; $i < $limit; $i++)
+        {
+            if ($i == 0)
+            {
+                continue;
+            }
+            elseif ($i == 1)
+            {
+                break;
+            }
+            else
+            {
+                echo $i;
+            }
+        }
+        try
+        {
+            echo \"done\";
+        }
+        catch (Error $e)
+        {
+            echo \"failed\";
+        }
+    }
+}
+";
+    let canonical = "\
+<?nvs
+class Queue
+{
+    public function drain(int $limit): void
+    {
+        for ($i = 0; $i < $limit; $i++) {
+            if ($i == 0) {
+                continue;
+            } elseif ($i == 1) {
+                break;
+            } else {
+                echo $i;
+            }
+        }
+        try {
+            echo \"done\";
+        } catch (Error $e) {
+            echo \"failed\";
+        }
     }
 }
 ";

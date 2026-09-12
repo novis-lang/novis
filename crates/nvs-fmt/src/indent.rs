@@ -134,7 +134,8 @@ impl<'a> Indent<'a> {
         })
     }
 
-    /// What will open the line `pos` is on.
+    /// What will open the line `pos` is on, which is what a brace moved onto a
+    /// line of its own is written at ([`crate::brace`]).
     ///
     /// A body indents its contents from the line its own opening was written
     /// on, not from an absolute count of enclosing braces, and that is what
@@ -147,7 +148,7 @@ impl<'a> Indent<'a> {
     ///
     /// The recursion ends because a body opens strictly before anything it
     /// contains, so each step asks about an earlier line than the last.
-    fn opening_of(&self, pos: usize) -> String {
+    pub(crate) fn opening_of(&self, pos: usize) -> String {
         let line_start = self.text[..pos].rfind('\n').map_or(0, |brk| brk + 1);
         let written = &self.text[line_start..];
         let width = written.len() - written.trim_start_matches([' ', '\t']).len();

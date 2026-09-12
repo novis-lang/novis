@@ -25,15 +25,7 @@
 use nvs_syntax::ast::{Modifier, WrittenModifier};
 use nvs_syntax::{Parsed, Trivia};
 
-/// One keyword, and the place the printer writes it instead.
-pub(crate) struct Rewrite<'t> {
-    /// Where the keyword this replaces was written.
-    pub(crate) start: usize,
-    /// One past that keyword's last byte.
-    pub(crate) end: usize,
-    /// The keyword that belongs there, as its own author spelled it.
-    pub(crate) written: &'t str,
-}
+use crate::print::Rewrite;
 
 /// Every keyword `parsed` writes somewhere other than where it was written, in
 /// source order and covering no byte twice.

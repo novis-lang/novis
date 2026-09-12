@@ -45,12 +45,13 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Indentation and modifier order are the layout rules written into the
-//!    printer.** The run walk `rule:ide/tokens-plus-trivia-reproduce-the-file`
-//!    names is the frame every rule under `docs/rules/tooling/fmt-*` hangs off,
-//!    and what lands in it so far is four spaces per enclosing body
-//!    (`indent.rs`) and one canonical order for a declaration's modifiers
-//!    (`modifiers.rs`). Brace placement, PER's blank lines, the quote and
+//! 1. **Indentation, modifier order and brace placement are the layout rules
+//!    written into the printer.** The run walk
+//!    `rule:ide/tokens-plus-trivia-reproduce-the-file` names is the frame every
+//!    rule under `docs/rules/tooling/fmt-*` hangs off, and what lands in it so
+//!    far is four spaces per enclosing body (`indent.rs`), one canonical order
+//!    for a declaration's modifiers (`modifiers.rs`) and the line each opening
+//!    brace sits on (`brace.rs`). PER's blank lines, the quote and
 //!    trailing-comma rules, the `use` block's order and the constructs PER
 //!    never saw are still the author's, so a file that disagrees with one of
 //!    them comes back disagreeing with it.
@@ -61,11 +62,19 @@
 //!    expression. The first three are rules that have not landed; the last is
 //!    `rule:tooling/fmt-never-reflows` and stays the author's for good.
 //!    — owner: M10
+//! 3. **A closing brace is moved onto a line of its own only where it already
+//!    opens one.** `brace.rs` decides the run before an *opening* brace and the
+//!    one before an `elseif`, `else`, `catch` or `finally`; a `}` sharing a
+//!    line with the statement before it stays there, which is the half of
+//!    `rule:tooling/fmt-base-style-is-per`'s brace paragraph that needs
+//!    one-statement-per-line to land with it.
+//!    — owner: M10
 
 use std::fmt;
 
 use nvs_diagnostics::{Diagnostics, SourceFile};
 
+mod brace;
 mod indent;
 mod modifiers;
 mod print;
