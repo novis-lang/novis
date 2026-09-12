@@ -78,12 +78,18 @@
 //!   out of the database; see [`schema`].
 //! * `nvs service` — `rule:packaging/a-service-is-one-stored-argv`'s
 //!   operator surface: the one argv a service manager stores; see [`service`].
+//! * `nvs fmt <path>...` — the one canonical layout, written back into each
+//!   file. `--check`, `--diff` and `--stdin` are I/O modes around the same
+//!   call and no flag changes a byte of the output
+//!   (`rule:tooling/fmt-is-one-canonical-style`); no other subcommand runs it
+//!   and an unformatted file is never a diagnostic
+//!   (`rule:tooling/fmt-is-never-a-diagnostic`); see [`fmt`].
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
-//! rejected. `fmt` and the rest of the architecture diagram
-//! (`docs/implementation-plan.md` § Architecture) arrive with the milestones
-//! that need them.
+//! rejected. The rest of the architecture diagram
+//! (`docs/implementation-plan.md` § Architecture) arrives with the milestones
+//! that need it.
 //!
 //! ## What `run` executes
 //!
@@ -127,6 +133,7 @@ mod cache;
 mod check;
 mod config;
 mod doc;
+mod fmt;
 mod info;
 mod meta;
 mod openapi;
@@ -521,6 +528,38 @@ enum Command {
     Service {
         #[command(subcommand)]
         command: ServiceCommand,
+    },
+    /// Rewrite Novis files into the one canonical layout.
+    ///
+    /// Takes no configuration and has no style flag: the output is a pure
+    /// function of the input bytes, so two projects run through this tool
+    /// cannot disagree about what formatted means. The flags below are I/O
+    /// modes, and each one decides only where the text goes.
+    ///
+    /// A file whose parse reports an error is refused rather than rewritten,
+    /// named on standard error, and left exactly as it was.
+    // `rule:tooling/fmt-is-one-canonical-style` and
+    // `rule:tooling/fmt-check-writes-nothing`; see [`fmt`].
+    Fmt {
+        /// The files and directories to format. A directory is walked for the
+        /// `.nvs` files under it.
+        #[arg(required_unless_present = "stdin")]
+        paths: Vec<PathBuf>,
+        /// Write nothing and name each file that would change, exiting
+        /// non-zero if any would.
+        #[arg(long, alias = "dry-run", conflicts_with_all = ["diff", "stdin"])]
+        check: bool,
+        /// Write nothing and print a unified diff per file that would change,
+        /// exiting non-zero if any would.
+        // Refused beside `--check` for the reason `Check`'s `--json` is
+        // refused beside `--autoload-map`: both render the same list onto the
+        // same standard output, and one printed after the other is neither.
+        #[arg(long, conflicts_with = "stdin")]
+        diff: bool,
+        /// Format what standard input holds onto standard output, naming no
+        /// file. A refusal writes nothing at all to standard output.
+        #[arg(long, conflicts_with = "paths")]
+        stdin: bool,
     },
     /// Speak the Language Server Protocol on standard input and output.
     ///
@@ -1097,6 +1136,22 @@ fn main() -> ExitCode {
         ),
         // `stdio` names the transport the client chose and there is no other
         // one to choose, so it selects nothing here.
+        Command::Fmt {
+            paths,
+            check,
+            diff,
+            stdin,
+        } => {
+            if stdin {
+                fmt::stdin()
+            } else if check {
+                fmt::run(&paths, fmt::Mode::Check)
+            } else if diff {
+                fmt::run(&paths, fmt::Mode::Diff)
+            } else {
+                fmt::run(&paths, fmt::Mode::Write)
+            }
+        }
         Command::Lsp { stdio: _ } => match nvs_lsp::run() {
             Ok(()) => ExitCode::SUCCESS,
             // stderr, and never stdout: the writer thread owns stdout and a

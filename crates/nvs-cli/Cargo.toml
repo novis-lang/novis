@@ -54,6 +54,11 @@ nvs-stdlib.workspace = true
 # the server is running, and `nvs-lsp`'s own `tests/stdout_policy.rs` is what
 # keeps that true as its closure grows.
 nvs-lsp.workspace = true
+# `nvs fmt` is that crate's one `format` call per file, and the I/O modes around
+# it. Every layout rule lives there and none of them here, so this binary owns
+# which files are read and where the text goes and nothing else; `fmt.rs`'s
+# module doc owns the rest.
+nvs-fmt.workspace = true
 clap.workspace = true
 # ADR 0042 § 2's header checksum, over the payload this binary is about to
 # publish. The key beside it is `nvs-config`'s, so this is the only place the

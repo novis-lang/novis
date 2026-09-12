@@ -157,6 +157,15 @@ impl Refusal {
     pub const fn diagnostics(&self) -> &Diagnostics {
         &self.diagnostics
     }
+
+    /// The same diagnostics, owned, for a caller whose renderer sorts them.
+    ///
+    /// [`Diagnostics::sort_by_position`] needs them by value, and a refusal has
+    /// nothing left to say once its diagnostics have been rendered.
+    #[must_use]
+    pub fn into_diagnostics(self) -> Diagnostics {
+        self.diagnostics
+    }
 }
 
 impl fmt::Display for Refusal {
