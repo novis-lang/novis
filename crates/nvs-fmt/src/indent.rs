@@ -59,7 +59,7 @@
 //! request path (`rule:tooling/fmt-is-never-a-diagnostic`).
 
 use nvs_diagnostics::BytePos;
-use nvs_syntax::{IndexNode, SyntaxIndex};
+use nvs_syntax::{IndexNode, SyntaxIndex, Trivia, TriviaKind};
 
 /// One level of indentation.
 pub(crate) const UNIT: &str = "    ";
@@ -103,12 +103,17 @@ const OPAQUE: &[&str] = &["Switch", "InlineHtml"];
 pub(crate) struct Indent<'a> {
     index: &'a SyntaxIndex,
     text: &'a str,
+    trivia: &'a [Trivia],
 }
 
 impl<'a> Indent<'a> {
-    /// Reads `index`, which must be `text`'s own parse.
-    pub(crate) const fn new(index: &'a SyntaxIndex, text: &'a str) -> Self {
-        Self { index, text }
+    /// Reads `index` and `trivia`, which must both be `text`'s own parse.
+    pub(crate) const fn new(index: &'a SyntaxIndex, text: &'a str, trivia: &'a [Trivia]) -> Self {
+        Self {
+            index,
+            text,
+            trivia,
+        }
     }
 
     /// The text that should open the line whose first non-whitespace byte is at
@@ -140,9 +145,7 @@ impl<'a> Indent<'a> {
         // An arm is the arm list's and no body's, so it is placed before the
         // question about bodies is asked at all.
         let list = nodes.iter().find(|node| node.kind == ARM_LIST);
-        if let Some(list) =
-            list.filter(|list| arm_starts(self.index, self.text, **list).contains(&offset))
-        {
+        if let Some(list) = list.filter(|list| arm_starts(self, **list).contains(&offset)) {
             return Some(self.opening_of(list.span.start as usize) + UNIT);
         }
 
@@ -207,8 +210,17 @@ impl<'a> Indent<'a> {
 /// front of it does. That last step is why this answers offsets rather than
 /// children: a `default` arm has no condition, so its first byte is a keyword
 /// no node covers.
-pub(crate) fn arm_starts(index: &SyntaxIndex, text: &str, node: IndexNode) -> Vec<usize> {
-    let children = index.children_of(node);
+///
+/// A separator is a token, so only the gap's code bytes are read for one: a
+/// `,`, a `{` or a `=>` inside a comment is prose, and a boundary taken from
+/// one puts an arm's first byte in the middle of that comment — which
+/// [`crate::space`] then asks for a line break in front of, inside a run the
+/// printer copies whole. What a comment may still be is the first thing after
+/// the separator, and then it opens the arm's line and is placed like the arm,
+/// which is what a comment written above an arm is.
+pub(crate) fn arm_starts(indent: &Indent<'_>, node: IndexNode) -> Vec<usize> {
+    let (text, trivia) = (indent.text, indent.trivia);
+    let children = indent.index.children_of(node);
     let mut starts = Vec::new();
     let mut opens_an_arm = true;
     for pair in children.windows(2) {
@@ -217,13 +229,32 @@ pub(crate) fn arm_starts(index: &SyntaxIndex, text: &str, node: IndexNode) -> Ve
             break;
         };
         if opens_an_arm {
-            let after = gap.rfind([',', '{']).map_or(0, |at| at + 1);
+            let after = gap
+                .bytes()
+                .enumerate()
+                .rfind(|&(at, byte)| matches!(byte, b',' | b'{') && !commented(trivia, from + at))
+                .map_or(0, |(at, _)| at + 1);
             let written = &gap[after..];
             starts.push(from + after + written.len() - written.trim_start().len());
         }
-        opens_an_arm = gap.contains("=>");
+        opens_an_arm = gap
+            .match_indices("=>")
+            .any(|(at, _)| !commented(trivia, from + at));
     }
     starts
+}
+
+/// Whether `offset` is a byte of a comment.
+///
+/// `trivia` is in source order and no two of them overlap
+/// (`rule:ide/tokens-plus-trivia-reproduce-the-file`), so the one trivium that
+/// can hold an offset is the last one beginning at or before it.
+fn commented(trivia: &[Trivia], offset: usize) -> bool {
+    let after = trivia.partition_point(|trivium| trivium.span.start as usize <= offset);
+    after > 0 && {
+        let trivium = trivia[after - 1];
+        trivium.kind != TriviaKind::Whitespace && offset < trivium.span.end as usize
+    }
 }
 
 /// Where the construct that opened `nodes[body]` starts.

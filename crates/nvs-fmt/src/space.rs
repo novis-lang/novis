@@ -229,7 +229,7 @@ fn arm_lines(
     }
     let line_break = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let opening = indent.opening_of(node.span.start as usize);
-    for at in arm_starts(index, text, node) {
+    for at in arm_starts(indent, node) {
         let written = &text[..at];
         if written.trim_end_matches([' ', '\t']).ends_with('\n') {
             continue;

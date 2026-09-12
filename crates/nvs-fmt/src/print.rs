@@ -136,7 +136,7 @@ pub(crate) fn one_code_run(trivia: &[Trivia], span: Span) -> bool {
 /// spans on both sides are offsets into its text.
 pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) -> String {
     let text = file.text();
-    let indent = Indent::new(&parsed.index, text);
+    let indent = Indent::new(&parsed.index, text, &parsed.trivia);
     let mut wanted = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
     wanted.extend(space::runs(&parsed.index, &indent, text, &parsed.trivia));
     let runs = Runs::new(wanted, &parsed.trivia);
