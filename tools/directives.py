@@ -148,6 +148,10 @@ BINDINGS = {"written"}
 #: has to reach the field for the access to count.
 CHAIN = r"(?:\s*\.\s*\w+\s*\([^()]*\)\s*\??)*"
 
+# A raw string's opener, `r"` or `r#"` and deeper, matched at a position rather than
+# against a slice: `strip` asks at every `r`, and a slice copies the rest of the file.
+RAW_OPEN = re.compile(r'r(#*)"')
+
 
 # ------------------------------------------------------------------------------ tree.rs
 
@@ -377,7 +381,7 @@ def strip(text: str) -> tuple[str, list[str]]:
                 else:
                     i += 1
             continue
-        raw = re.match(r'r(#*)"', text[i:])
+        raw = RAW_OPEN.match(text, i) if ch == "r" else None
         if raw:
             fence = '"' + raw.group(1)
             end = text.find(fence, i + len(raw.group(0)))
@@ -458,19 +462,27 @@ def bare_names(keys: list[Key]) -> set[str]:
 
 
 def find_readers(keys: list[Key]) -> None:
-    """Fill in each key's readers, by all three spellings, over the whole corpus."""
-    files = corpus()
+    """Fill in each key's readers, by all three spellings, over the whole corpus.
+
+    A file's literals are searched as one string, joined by newlines: a key's literal
+    pattern cannot match a newline, and its boundaries read one as a non-key character,
+    so one search answers exactly what a search of each literal would. A file that does
+    not contain the field's name cannot match its access pattern, which spells the name
+    verbatim, so the substring test skips the regex over most of the corpus."""
+    files = [(rel, code, "\n".join(literals), set(literals))
+             for rel, code, literals in corpus()]
     unique = bare_names(keys)
     for key in keys:
         literal = literal_re(key.dotted)
         access = access_re(key.field.name, key.receivers)
-        bare = key.field.name if key.field.name in unique else None
-        for rel, code, literals in files:
-            if rel not in REGISTRIES and any(literal.search(text) for text in literals):
+        name = key.field.name
+        bare = name if name in unique else None
+        for rel, code, joined, texts in files:
+            if rel not in REGISTRIES and literal.search(joined):
                 key.readers.append(f"{rel} (key)")
-            elif access.search(code):
+            elif name in code and access.search(code):
                 key.readers.append(f"{rel} (field)")
-            elif bare and rel not in REGISTRIES and any(text == bare for text in literals):
+            elif bare and rel not in REGISTRIES and bare in texts:
                 key.readers.append(f"{rel} (name)")
     # A block reached at two paths -- `[limits]` and `[app.limits]`, `[capabilities]`
     # and a `[[schedule]]`'s grants -- is one field and one reader: the per-app merge
