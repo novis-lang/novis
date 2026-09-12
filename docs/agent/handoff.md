@@ -2,49 +2,40 @@
 
 ## State
 
-**Goal `markup-literal`, stage 4 is on disk and both its checks' tests pass.** A hole-free
-`` html`…` `` is now constant-pool data: `nvs_ir::ir::InstKind::ConstMarkup` carries the cooked
-bytes, and `nvs-codegen` writes the whole `Core\Html\Markup` into the unit's own data section — the
-header from `nvs_runtime::immortal_object_bytes`, the class word and the one text slot as two
-relocations — so it costs one address and no call per execution. A literal with holes is untouched:
-its bytes are not known until it runs, so it stays the join and the lift.
+**Goal `markup-literal` is complete: every stage is on disk and `python tools/verify.py` is green
+across the tree.** `Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator)` is
+a row on `Core\Html` with its reference card, its helper and its `address()` arm
+(`crates/nvs-stdlib/src/html.rs:157`), and it neither trusts nor escapes — one string allocation and
+one object allocation per call whatever the list holds.
 
-The descriptor route that made the fold possible. `nvs_stdlib::class_descriptors` publishes the one
-address the process leaked for a `Core` class with instances (`nvs_stdlib::instance` § *Decision:
-the descriptors are one leaked table for the process*), and `nvs-codegen`'s `core_desc_symbols`
-mints `class_desc_symbol`'s name for it. Both ends that resolve a descriptor read it: the JIT's own
-symbol table, and `Descriptors::resolve`, which is what a warm cache hit relocates a stored payload
-against. It could not come from `Classes`, which holds only the classes a unit declares.
+`rule:core-classes/html-literal` is now **shipped** and its `guardedBy` names the ten cases this goal
+added; `docs/novis.md` was regenerated and picks `join` up on its own. The carrier's four
+enumerating sentences — the module doc, `MARKUP`'s own doc, the memberless test's doc and its
+assertion message — now name the literal and `join` rather than a count.
 
-Nothing is blocked, and `python tools/verify.py` is green across the tree.
+Nothing is blocked. The conformance corpus is 1756 cases.
 
 ## Next group
 
-**Stage 5: `Core\Html::join`** — one file set: `crates/nvs-stdlib/src/html.rs`, with
-`crates/nvs-stdlib/src/registry.rs` for the one spelling question.
+**Stage 6 tail: the rosters outside the rulebook** — one file set: `docs/spec/01-core-library.md`
+with `tests/differential/` for the twin.
 
-- [ ] **What spells `array<Core\Html\Markup>` in a row** — `crates/nvs-stdlib/src/html.rs:160`
-      shows `CoreTy::Instance` already works as a parameter, so the open half is the *list*: read
-      the `CoreTy` roster at `crates/nvs-stdlib/src/registry.rs:225` for an array-of-instance arm
-      before writing the signature, and add one there if it has none.
-      `rule:core-classes/html-literal`.
-- [ ] **`join`'s row and its helper** — a `CoreMethod` beside `toSource`'s at
-      `crates/nvs-stdlib/src/html.rs:157`, its `MethodDoc` beside
-      `crates/nvs-stdlib/src/html.rs:301`, and the helper beside the `nvs_helper!` at
-      `crates/nvs-stdlib/src/html.rs:645`. It escapes nothing and trusts nothing: every element is
-      already a carrier, so it is a walk of the list and the separator between.
-      `rule:core-classes/html-literal`.
-- [ ] **The three tests the check names** — in `mod tests` at
-      `crates/nvs-stdlib/src/html.rs:1633`: `html_join_writes_every_part_in_order_with_its_separator_between`,
-      `html_join_over_an_empty_list_answers_an_empty_markup`, and
-      `html_join_escapes_nothing_because_every_part_is_already_a_carrier`.
+- [ ] **The spec's `Core\Html` cell names neither `join` nor the literal** — it reads "`escape` (the
+      auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser" at
+      `docs/spec/01-core-library.md:1196`, which is the one file `spec_registry_coverage.rs` reads
+      spec-side. Add the member and the literal to that cell; a spec edit owes
+      `python tools/check-migration.py`. `rule:core-classes/html-literal`.
+- [ ] **A differential twin for the literal** — `rule:core-classes/html-literal`'s
+      `divergesFromPhp` says the nearest PHP is `<?= ?>` with `htmlspecialchars`, so the oracle case
+      is that concatenation against `` html`…` `` over the same data, as a new case under
+      `tests/differential/core/` — the tree holds no HTML twin today. A
+      `tests/conformance/` case may not carry `--ORACLE--`
+      (`docs/agent/conventions.md:110`), which is why this is a second file.
 
 ## Backlog
 
-- Stage 5's second check is seven `.nvst` documents, none of them on disk yet —
-  `docs/agent/loop-goal.toml:8801`.
-- `crates/nvs-stdlib/src/response.rs:12`'s known gap says a carrier is not spellable in a registry
-  row, but `toSource` spells one at `crates/nvs-stdlib/src/html.rs:160` — that note is stale or means
-  something narrower than it says.
-- Two identical string literals are still two data objects, and a folded markup constant now makes
-  two of them at a time — `nvs-codegen`'s module doc, known gap 4.
+- `Core\Html::toSource`'s `$reason` is not yet required to be a source literal — both type bands are
+  full (`E0499`, `E0799`); `crates/nvs-stdlib/src/html.rs`'s *Known gaps* owns it.
+- The HTML sink's automatic lift waits on the HTTP response existing — same module doc.
+- `nvs fmt`, the LSP template region and `nvs convert` are rules with no code yet, by this goal's
+  own standing decisions; goal `fmt` is the next chain entry and carries the first of them.

@@ -6276,6 +6276,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   core, so no single address existed for a unit every core reads to bake in. Before carrying the
   immortal-string precedent to another representation, ask what else its header holds and where that
   word's identity comes from. [until: reviewed 2026-10-12]
+- **A markup literal's "a brace before a non-`$` is text" does not make the whole braced run inert —
+  a bare `$name` inside that text still interpolates.**
+  `{Core\Html::join($nothing, "" as Core\Html\Markup)}` reads as one text segment and is three: the
+  text `{Core\Html::join(`, a simple-syntax interpolation of `$nothing`, and the rest — so an `array`
+  operand there is `E0707: no string form` at a line that looks like a static call. Put the call in a
+  local and write `{$local}`; the hole grammar is the double-quoted string's, **both** halves of it
+  (`rule:core-classes/html-literal`). [until: reviewed 2026-09-12]
 
 ## Divergences and refusals already pinned
 
