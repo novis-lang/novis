@@ -71,9 +71,13 @@
 //!    — owner: M10
 //! 2. **A line the tree does not place keeps the author's own indentation.**
 //!    `indent.rs`'s own doc says which ones those are: a `switch`, a template
-//!    region's own text, and every continuation line inside an expression. The
-//!    first two are rules that have not landed — the `?>` that opens a template
-//!    region is code and is placed, the text after it is not — and the last is
+//!    region's own text, every continuation line inside an expression, and a
+//!    line opening with a comment, which starts no node for the index to answer
+//!    at — except inside a `match`, where it opens the arm it precedes and is
+//!    placed with it. The first two are rules that have not landed — the `?>`
+//!    that opens a template region is code and is placed, the text after it is
+//!    not — a comment line is `rule:tooling/fmt-base-style-is-per` reaching a
+//!    line the index has nothing to say about, and the last is
 //!    `rule:tooling/fmt-never-reflows` and stays the author's for good.
 //!    — owner: M10
 //! 3. **A closing brace is moved onto a line of its own only where it already

@@ -455,7 +455,7 @@
     {
       "id": "tooling/fmt-is-one-canonical-style",
       "title": "`nvs fmt` has one style, takes no configuration, and its output is a pure function of the file it is given",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -471,12 +471,15 @@
         "ide/the-tree-survives-a-syntax-error",
         "ide/one-grammar-one-tree"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/fixtures.rs",
+        "crates/nvs-cli/tests/fmt.rs"
+      ]
     },
     {
       "id": "tooling/fmt-base-style-is-per",
       "title": "The base style is PER: four-space indentation, K&R braces on control structures, Allman braces on declarations, and one canonical modifier order",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -488,12 +491,14 @@
         "core-api/written-visibility",
         "classes/lateinit"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/base_style.rs"
+      ]
     },
     {
       "id": "tooling/fmt-never-reflows",
       "title": "`nvs fmt` never decides where an expression breaks: the author's own line breaks are kept and only what surrounds them is normalized",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -503,12 +508,14 @@
         "tooling/fmt-trailing-commas",
         "expressions/pipeline-substitution"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/never_reflows.rs"
+      ]
     },
     {
       "id": "tooling/fmt-quotes",
       "title": "A string literal is rewritten to single quotes unless it interpolates or contains a single quote, and heredoc bodies and comments are never touched",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -516,12 +523,14 @@
         "tooling/fmt-is-one-canonical-style",
         "tooling/fmt-is-idempotent"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/token_rules.rs"
+      ]
     },
     {
       "id": "tooling/fmt-trailing-commas",
       "title": "A comma-separated list that spans more than one line gets a trailing comma, and a list on one line never does",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -530,12 +539,14 @@
         "tooling/fmt-never-reflows",
         "tooling/fmt-novis-constructs"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/token_rules.rs"
+      ]
     },
     {
       "id": "tooling/fmt-sorts-the-use-block",
       "title": "Consecutive `use` declarations are sorted by full path, ascending and case-sensitive, with no blank line between them",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -545,12 +556,14 @@
         "tooling/fmt-never-reorders-members",
         "statements/a-qualified-name-is-absolute"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/use_block.rs"
+      ]
     },
     {
       "id": "tooling/fmt-novis-constructs",
       "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039",
         "0169",
@@ -567,12 +580,15 @@
         "enums/declaration",
         "core-classes/html-literal"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/novis_constructs.rs",
+        "crates/nvs-fmt/tests/two_modes.rs"
+      ]
     },
     {
       "id": "tooling/fmt-normalizes-only-reserved-spellings",
       "title": "`nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -585,12 +601,14 @@
         "tooling/convert-one-table-two-modes",
         "ide/every-feature-is-staged-behind-its-dependency"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/token_rules.rs"
+      ]
     },
     {
       "id": "tooling/fmt-never-inserts-visibility",
       "title": "`nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0094",
         "0089",
@@ -603,12 +621,14 @@
         "tooling/convert-equivalent-is-proven",
         "tooling/fmt-base-style-is-per"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/never_rewrites_a_declaration.rs"
+      ]
     },
     {
       "id": "tooling/fmt-never-reorders-members",
       "title": "`nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -621,12 +641,14 @@
         "classes/comparable",
         "tooling/convert-one-table-two-modes"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/never_rewrites_a_declaration.rs"
+      ]
     },
     {
       "id": "tooling/fmt-is-idempotent",
       "title": "`nvs fmt` is a fixed point over the input bytes: byte-stable on every machine, and deliberately not source-independent",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -635,12 +657,14 @@
         "tooling/fmt-check-writes-nothing",
         "ide/one-server-two-thin-clients"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-fmt/tests/corpus.rs"
+      ]
     },
     {
       "id": "tooling/fmt-is-never-a-diagnostic",
       "title": "`nvs fmt` is a separate opt-in tool: no compiler command runs it, an unformatted file is never a diagnostic, and an editor composes it with quick fixes in the client",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -654,12 +678,14 @@
         "ide/every-feature-is-staged-behind-its-dependency",
         "ide/one-server-two-thin-clients"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/tests/fmt.rs"
+      ]
     },
     {
       "id": "tooling/fmt-check-writes-nothing",
       "title": "`nvs fmt` rewrites in place; `--check` writes nothing and exits non-zero naming every file that would change; `--diff` prints the diff instead",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0039"
       ],
@@ -668,7 +694,9 @@
         "tooling/fmt-is-never-a-diagnostic",
         "tooling/fmt-is-idempotent"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/tests/fmt.rs"
+      ]
     },
     {
       "id": "tooling/doc-comment-is-three-slashes",

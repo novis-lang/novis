@@ -3,7 +3,7 @@
 
 # Tooling
 
-*35 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
+*22 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -553,7 +553,7 @@ shape rather than its reasoning.
 
 <a id="tooling-fmt-is-one-canonical-style"></a>
 
-## `nvs fmt` has one style, takes no configuration, and its output is a pure function of the file it is given  *(designed — not yet in the compiler)*
+## `nvs fmt` has one style, takes no configuration, and its output is a pure function of the file it is given
 
 `rule:tooling/fmt-is-one-canonical-style`
 
@@ -579,7 +579,7 @@ parse that drops comments — a walk over the strict tree would delete every com
 
 <a id="tooling-fmt-base-style-is-per"></a>
 
-## The base style is PER: four-space indentation, K&R braces on control structures, Allman braces on declarations, and one canonical modifier order  *(designed — not yet in the compiler)*
+## The base style is PER: four-space indentation, K&R braces on control structures, Allman braces on declarations, and one canonical modifier order
 
 `rule:tooling/fmt-base-style-is-per`
 
@@ -607,7 +607,7 @@ supplied: a formatter that changes meaning is not a formatter ([`core-api/writte
 
 <a id="tooling-fmt-never-reflows"></a>
 
-## `nvs fmt` never decides where an expression breaks: the author's own line breaks are kept and only what surrounds them is normalized  *(designed — not yet in the compiler)*
+## `nvs fmt` never decides where an expression breaks: the author's own line breaks are kept and only what surrounds them is normalized
 
 `rule:tooling/fmt-never-reflows`
 
@@ -630,7 +630,7 @@ parser evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempote
 
 <a id="tooling-fmt-quotes"></a>
 
-## A string literal is rewritten to single quotes unless it interpolates or contains a single quote, and heredoc bodies and comments are never touched  *(designed — not yet in the compiler)*
+## A string literal is rewritten to single quotes unless it interpolates or contains a single quote, and heredoc bodies and comments are never touched
 
 `rule:tooling/fmt-quotes`
 
@@ -656,7 +656,7 @@ byte-for-byte after formatting, which undercuts the point of having one canonica
 
 <a id="tooling-fmt-trailing-commas"></a>
 
-## A comma-separated list that spans more than one line gets a trailing comma, and a list on one line never does  *(designed — not yet in the compiler)*
+## A comma-separated list that spans more than one line gets a trailing comma, and a list on one line never does
 
 `rule:tooling/fmt-trailing-commas`
 
@@ -682,7 +682,7 @@ what makes adding an element to a multi-line list a one-line diff.
 
 <a id="tooling-fmt-sorts-the-use-block"></a>
 
-## Consecutive `use` declarations are sorted by full path, ascending and case-sensitive, with no blank line between them  *(designed — not yet in the compiler)*
+## Consecutive `use` declarations are sorted by full path, ascending and case-sensitive, with no blank line between them
 
 `rule:tooling/fmt-sorts-the-use-block`
 
@@ -699,7 +699,7 @@ position is not observable and a member's is.
 
 <a id="tooling-fmt-novis-constructs"></a>
 
-## Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout  *(designed — not yet in the compiler)*
+## Every construct PER never saw — qualifiers, `lateinit`, `fn` closures, `match`, object literals, shape types, enum cases, markup literals, a `?>` on its own line — has exactly one layout
 
 `rule:tooling/fmt-novis-constructs`
 
@@ -737,7 +737,7 @@ breaking rewrite of every formatted file, the same cost class casing already acc
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 
-## `nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier  *(designed — not yet in the compiler)*
+## `nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier
 
 `rule:tooling/fmt-normalizes-only-reserved-spellings`
 
@@ -769,7 +769,7 @@ reserved words is the converter's job, where the input is known to be PHP.
 
 <a id="tooling-fmt-never-inserts-visibility"></a>
 
-## `nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite  *(designed — not yet in the compiler)*
+## `nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite
 
 `rule:tooling/fmt-never-inserts-visibility`
 
@@ -791,7 +791,7 @@ here, and the ported member reports the level PHP actually gave it.
 
 <a id="tooling-fmt-never-reorders-members"></a>
 
-## `nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends  *(designed — not yet in the compiler)*
+## `nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends
 
 `rule:tooling/fmt-never-reorders-members`
 
@@ -813,7 +813,7 @@ the only reordering anywhere.
 
 <a id="tooling-fmt-is-idempotent"></a>
 
-## `nvs fmt` is a fixed point over the input bytes: byte-stable on every machine, and deliberately not source-independent  *(designed — not yet in the compiler)*
+## `nvs fmt` is a fixed point over the input bytes: byte-stable on every machine, and deliberately not source-independent
 
 `rule:tooling/fmt-is-idempotent`
 
@@ -834,7 +834,7 @@ declines to build. What converges is one file, run twice — never two semantica
 
 <a id="tooling-fmt-is-never-a-diagnostic"></a>
 
-## `nvs fmt` is a separate opt-in tool: no compiler command runs it, an unformatted file is never a diagnostic, and an editor composes it with quick fixes in the client  *(designed — not yet in the compiler)*
+## `nvs fmt` is a separate opt-in tool: no compiler command runs it, an unformatted file is never a diagnostic, and an editor composes it with quick fixes in the client
 
 `rule:tooling/fmt-is-never-a-diagnostic`
 
@@ -861,7 +861,7 @@ has asked for.
 
 <a id="tooling-fmt-check-writes-nothing"></a>
 
-## `nvs fmt` rewrites in place; `--check` writes nothing and exits non-zero naming every file that would change; `--diff` prints the diff instead  *(designed — not yet in the compiler)*
+## `nvs fmt` rewrites in place; `--check` writes nothing and exits non-zero naming every file that would change; `--diff` prints the diff instead
 
 `rule:tooling/fmt-check-writes-nothing`
 
