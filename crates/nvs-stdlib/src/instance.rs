@@ -48,25 +48,33 @@
 //! resolves, and every consumer that iterates a class's members would have to
 //! learn to skip it.
 //!
-//! # Decision: the descriptors are one leaked table per core
+//! # Decision: the descriptors are one leaked table for the process
 //!
 //! A [`ClassDesc`]'s *address* is its identity, and it must outlive every
 //! instance made from it. A compiled unit's own [`ClassTable`] cannot own these
 //! — a `Core` class is not in any program's class list, and an instance can
 //! outlive the unit that produced it in a hot-reload swap
 //! (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). So
-//! this module builds one table per thread, on first use, and **leaks** it.
+//! this module builds one table, on first use, and **leaks** it.
 //!
-//! **What it spends:** one descriptor per `Core` instance class per core —
-//! O(cores × classes), bounded by [`registry::CLASSES`] and never growing with
-//! traffic, which is the property
+//! **One table for the whole process, not one per core**, because an identity
+//! compiled code has to *write down* cannot be per-thread.
+//! `rule:core-classes/html-literal` folds a hole-free `` html`…` `` into a
+//! `Core\Html\Markup` constant in the compiled unit's own data section, and the
+//! class word of that constant is written once, while compiling, into bytes
+//! every core then reads — so a second core's descriptor would be a second
+//! identity that constant could not name. [`ClassTable`] is `Send` and `Sync`
+//! already, for the reason `nvs_runtime::object` gives about a unit's own
+//! table, and a [`OnceLock`] past its first call is a read rather than a lock.
+//!
+//! **What it spends:** one descriptor per `Core` instance class —
+//! O(classes), bounded by [`registry::CLASSES`] and growing with neither
+//! traffic nor cores, which is the property
 //! [AGENTS.md](/AGENTS.md)'s memory rule actually asks for. Leaked
-//! rather than dropped at thread exit because a dangling descriptor is a
-//! use-after-free and the bytes are bounded by a compile-time roster; per-core
-//! rather than shared because the runtime is thread-per-core and shared-nothing,
-//! so a table behind a lock would be paying for a race that cannot happen.
+//! rather than dropped because a dangling descriptor is a use-after-free and
+//! the bytes are bounded by a compile-time roster.
 
-use std::cell::Cell;
+use std::sync::OnceLock;
 
 use nvs_runtime::sequence;
 use nvs_runtime::{ClassDesc, ClassTable, Fault, NvsObj, ObjHeader, Tag, Value};
@@ -240,21 +248,15 @@ fn dispatch_table(class: &str) -> Vec<nvs_runtime::MethodRow> {
         .unwrap_or_default()
 }
 
-thread_local! {
-    /// This core's descriptors, built on first use and never dropped — see
-    /// this module's docs. A `Cell<Option<&'static _>>` rather than a
-    /// `RefCell<ClassTable>`: the table is written once and read from every
-    /// construction, and a shared reference to a leaked table needs no borrow
-    /// tracking at all.
-    static DESCRIPTORS: Cell<Option<&'static ClassTable>> = const { Cell::new(None) };
-}
+/// The process's descriptors, built on first use and never dropped — see this
+/// module's docs. A `OnceLock<&'static _>` rather than a `RwLock<ClassTable>`:
+/// the table is written once and read from every construction on every core, so
+/// what a reader needs is the address it was published at and nothing else.
+static DESCRIPTORS: OnceLock<&'static ClassTable> = OnceLock::new();
 
-/// This core's table, building and leaking it if this is the first call.
+/// The table, building and leaking it if this is the first call.
 fn descriptors() -> &'static ClassTable {
-    DESCRIPTORS.with(|held| {
-        if let Some(table) = held.get() {
-            return table;
-        }
+    DESCRIPTORS.get_or_init(|| {
         let mut table = ClassTable::new();
         for class in registry::CLASSES
             .iter()
@@ -286,13 +288,11 @@ fn descriptors() -> &'static ClassTable {
                 table.set_render(id, crate::address_of(symbol));
             }
         }
-        let table: &'static ClassTable = Box::leak(Box::new(table));
-        held.set(Some(table));
-        table
+        Box::leak(Box::new(table))
     })
 }
 
-/// `class`'s descriptor on this core.
+/// `class`'s descriptor.
 ///
 /// # Panics
 ///
@@ -309,8 +309,9 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
 /// Whether `value` is an instance of `class`, asked by descriptor address.
 ///
 /// A descriptor's address **is** its identity — [`descriptors`] leaks one table
-/// per core and hands the same pointer back for the same class every time — so
-/// this is a pointer comparison and never a name comparison, which would be
+/// for the process and hands the same pointer back for the same class every
+/// time — so this is a pointer comparison and never a name comparison, which
+/// would be
 /// both slower and true of a program's own class that spelled its name the
 /// same way.
 ///
@@ -354,7 +355,7 @@ pub(crate) fn build<const N: usize>(class: &CoreClass, slots: [Value; N]) -> Val
     );
     #[expect(
         unsafe_code,
-        reason = "the descriptor is owned by this core's leaked table, so it \
+        reason = "the descriptor is owned by this crate's leaked table, so it \
                   outlives every instance made from it — which is `NvsObj::new`'s \
                   whole safety obligation"
     )]
@@ -365,13 +366,12 @@ pub(crate) fn build<const N: usize>(class: &CoreClass, slots: [Value; N]) -> Val
     Value::object(object)
 }
 
-thread_local! {
-    /// This core's *shape* descriptors — see [`shape`]. A second table beside
-    /// [`DESCRIPTORS`] rather than more rows in it, because a shape is not a
-    /// [`CoreClass`]: it has no members, no name a program resolves, and no
-    /// registry row.
-    static SHAPES: Cell<Option<&'static ClassTable>> = const { Cell::new(None) };
-}
+/// The process's *shape* descriptors — see [`shape`]. A second table beside
+/// [`DESCRIPTORS`] rather than more rows in it, because a shape is not a
+/// [`CoreClass`]: it has no members, no name a program resolves, and no
+/// registry row. Published once for the process for [`DESCRIPTORS`]'s reason,
+/// a shape descriptor's address being an identity in exactly the same way.
+static SHAPES: OnceLock<&'static ClassTable> = OnceLock::new();
 
 /// Every `rule:types/object-top` shape a `Core` member builds a value of, as
 /// `(descriptor name, fields in slot order)`.
@@ -386,16 +386,13 @@ const SHAPE_ROSTER: &[(&str, &[&str])] = &[
     (crate::script::FAILURE_SHAPE, crate::script::FAILURE_FIELDS),
 ];
 
-/// `name`'s shape descriptor on this core, built and leaked on first use.
+/// `name`'s shape descriptor, built and leaked on first use.
 ///
 /// # Panics
 ///
 /// Panics naming the shape if it is not in [`SHAPE_ROSTER`].
 fn shape_descriptor(name: &str) -> *const ClassDesc {
-    let table = SHAPES.with(|held| {
-        if let Some(table) = held.get() {
-            return table;
-        }
+    let table = *SHAPES.get_or_init(|| {
         let mut table = ClassTable::new();
         for (shape, fields) in SHAPE_ROSTER {
             // No parents, and no methods: `rule:types/object-literal` makes a shape value an
@@ -403,9 +400,7 @@ fn shape_descriptor(name: &str) -> *const ClassDesc {
             // and nothing to dispatch.
             table.define(*shape, fields, &[]);
         }
-        let table: &'static ClassTable = Box::leak(Box::new(table));
-        held.set(Some(table));
-        table
+        Box::leak(Box::new(table))
     });
     let id = table
         .id_of(name)
@@ -437,7 +432,7 @@ pub(crate) fn shape<const N: usize>(name: &str, slots: [Value; N]) -> Value {
     );
     #[expect(
         unsafe_code,
-        reason = "the descriptor is owned by this core's leaked table, so it \
+        reason = "the descriptor is owned by this crate's leaked table, so it \
                   outlives every instance made from it — which is `NvsObj::new`'s \
                   whole safety obligation"
     )]
@@ -547,15 +542,15 @@ mod tests {
     use super::*;
 
     /// Every registered class with instances gets a descriptor of the right
-    /// width, and asking twice on one core answers with the same address —
-    /// which is what makes a descriptor's address an identity rather than a
-    /// per-call accident.
+    /// width, and asking twice answers with the same address — which is what
+    /// makes a descriptor's address an identity rather than a per-call
+    /// accident.
     ///
     /// The skip is [`descriptors`]'s own, so a slotless class with instance
     /// members — `Core\Socket` — is covered here rather than silently passed
     /// over.
     #[test]
-    fn one_descriptor_per_instance_class_per_core() {
+    fn one_descriptor_per_instance_class() {
         for class in registry::CLASSES {
             if class.slots.is_empty() && class.instance.is_empty() {
                 continue;
@@ -571,6 +566,33 @@ mod tests {
             assert_eq!(desc.name(), class.name);
             assert_eq!(desc.field_count(), class.slots.len());
         }
+    }
+
+    /// A second core answers with the *same* descriptor address, for a class
+    /// and for a shape alike — this module's § *Decision: the descriptors are
+    /// one leaked table for the process*.
+    ///
+    /// This is the half a per-thread table would fail while still passing the
+    /// test above: a compiled unit writes `Core\Html\Markup`'s address into a
+    /// data section once, while compiling, and every core reads those same
+    /// bytes (`rule:core-classes/html-literal`). An address is carried across
+    /// as a `usize` because a raw pointer is not `Send`, which is the whole
+    /// property under test stated in the type system.
+    #[test]
+    fn every_core_sees_one_descriptor_address() {
+        let here = (
+            descriptor(&crate::html::MARKUP).addr(),
+            shape_descriptor(crate::issue::SHAPE).addr(),
+        );
+        let there = std::thread::spawn(|| {
+            (
+                descriptor(&crate::html::MARKUP).addr(),
+                shape_descriptor(crate::issue::SHAPE).addr(),
+            )
+        })
+        .join()
+        .expect("the probing thread does not panic");
+        assert_eq!(here, there);
     }
 
     /// The same pairing for `rule:classes/stringable`'s rendering: a class
