@@ -240,6 +240,37 @@
 //! **A collector is still owed for the shape this does not reach**: a
 //! long-running CLI script that builds cycles *between* teardowns holds them
 //! until its context ends. See [`crate`]'s own known gaps.
+//!
+//! # Decision: an immortal instance is on no list at all
+//!
+//! `rule:core-classes/html-literal` folds a hole-free `` html`…` `` into a
+//! `Core\Html\Markup` the compiled unit carries in its own data section,
+//! exactly as [`crate::string`]'s § *An immortal string* already carries a
+//! string literal. [`immortal_object_bytes`] is the header such a constant is
+//! written with, and its reference count is [`crate::IMMORTAL_REFCOUNT`]:
+//! [`bump`] and [`drop_one`] compare against it first and return without
+//! writing.
+//!
+//! That compare is not an optimization either path may skip. A compiled unit
+//! is the one thing requests share (`docs/adr/README.md`'s project-start
+//! decisions), so an immortal header is reachable from every core at once, and
+//! what keeps the [`Cell`]s sound is the narrower sentence [`crate::string`]
+//! makes one representation over: **no reference count two threads can reach
+//! is ever written**. No other word of such a header is written either. The
+//! `class` word is fixed while compiling — which is why a `Core` class's
+//! descriptor is one address for the process rather than one per core, and
+//! `nvs_stdlib::instance` is that decision's home. `next` and `prev` stay null
+//! because the constant never enters a [`LiveList`], so no teardown sweep
+//! reaches it and [`dismantle`] never runs on it. And a slot is only ever
+//! read: the one emitter is the literal fold, whose carrier has no member that
+//! writes one, so an immortal instance cannot come to hold — or to close — a
+//! cycle.
+//!
+//! **What it spends**, as [AGENTS.md](/AGENTS.md) requires: the header and its
+//! slots once per literal, charged to the compiled unit rather than to a
+//! request and freed with it, plus one compare and a not-taken branch on each
+//! retain and release. That is the memory rule's bound met the way it asks —
+//! bounded, attributable, and growing with neither traffic nor cores.
 
 use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::cell::Cell;
@@ -2087,6 +2118,40 @@ pub const fn field_offset(index: usize) -> usize {
     }
 }
 
+/// The alignment an [`ObjHeader`] must be written at.
+///
+/// Published for `nvs-codegen`, which places one in a data section rather than
+/// in an allocation and so has to state the alignment [`obj_layout`] would
+/// otherwise have handed to `alloc` — [`crate::HEADER_ALIGN`]'s twin one
+/// representation over.
+pub const OBJ_ALIGN: usize = std::mem::align_of::<ObjHeader>();
+
+/// The bytes a compiled unit writes for an instance that must never be freed —
+/// [`crate::immortal_header_bytes`]'s twin one representation over, and this
+/// module's § *Decision: an immortal instance is on no list at all* for why it
+/// is sound to share one.
+///
+/// `slots` is one runtime [`Tag`] per field, in slot order. Each slot's tag
+/// byte is written and its payload left zero, and so is the `class` word: a
+/// payload that is an address is a **relocation** the emitting side fills in,
+/// not a number this side could know, since the unit is a relocatable object
+/// before it is a loaded one
+/// (`rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`).
+/// The list links stay zero, which is the state "on no list" is spelled in.
+///
+/// Host byte order, for [`crate::immortal_header_bytes`]'s reason exactly: this
+/// JIT compiles for the machine it runs on.
+#[must_use]
+pub fn immortal_object_bytes(slots: &[Tag]) -> Vec<u8> {
+    let mut bytes = vec![0_u8; field_offset(slots.len())];
+    bytes[OBJ_REFCOUNT_OFFSET..OBJ_REFCOUNT_OFFSET + std::mem::size_of::<usize>()]
+        .copy_from_slice(&crate::IMMORTAL_REFCOUNT.to_ne_bytes());
+    for (index, tag) in slots.iter().enumerate() {
+        bytes[field_offset(index) + Value::TAG_OFFSET] = *tag as u8;
+    }
+    bytes
+}
+
 /// The allocation shape for an instance with `field_count` slots.
 fn obj_layout(field_count: usize) -> Layout {
     let size = field_offset(field_count);
@@ -2529,10 +2594,15 @@ fn bump(ptr: *mut ObjHeader) {
         reason = "every caller in this module holds a live reference to `ptr`"
     )]
     let header = unsafe { &*ptr };
+    let count = header.refcount.get();
+    // A constant in a compiled unit's data section is reachable from every
+    // core, so its count is read and never written — see this module's
+    // § *Decision: an immortal instance is on no list at all*.
+    if count == crate::IMMORTAL_REFCOUNT {
+        return;
+    }
     header.refcount.set(
-        header
-            .refcount
-            .get()
+        count
             .checked_add(1)
             .expect("an Novis object's reference count cannot overflow a usize"),
     );
@@ -2555,7 +2625,13 @@ fn bump(ptr: *mut ObjHeader) {
 pub(crate) unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
     let header = unsafe { &*ptr };
-    let remaining = header.refcount.get() - 1;
+    let count = header.refcount.get();
+    // [`bump`]'s compare, and the same sentence: an immortal constant is never
+    // the last reference because it is never a reference this side owns.
+    if count == crate::IMMORTAL_REFCOUNT {
+        return false;
+    }
+    let remaining = count - 1;
     header.refcount.set(remaining);
     remaining == 0
 }
@@ -3717,6 +3793,75 @@ mod tests {
             cases: None,
             nullable: false,
             required: true,
+        }
+    }
+
+    /// The bytes `nvs-codegen` puts in a unit's data section for one folded
+    /// literal, in a `Vec<u64>` so the header lands at the alignment it has
+    /// there, with the relocated words filled in by hand — this is the only
+    /// way this crate's own tests can hold an immortal instance, since nothing
+    /// here constructs one. `crate::string`'s `immortal_unit` is the same
+    /// helper one representation over.
+    fn immortal_unit(class: *const ClassDesc, text: *mut crate::StrHeader) -> Vec<u64> {
+        assert!(OBJ_ALIGN <= std::mem::size_of::<u64>());
+        let bytes = immortal_object_bytes(&[Tag::Str]);
+        let mut words = vec![0_u64; bytes.len().div_ceil(std::mem::size_of::<u64>())];
+        #[expect(
+            unsafe_code,
+            reason = "`words` owns `bytes.len()` bytes at a u64's alignment, \
+                      which is the whole point of allocating it as one; the \
+                      view ends with this function"
+        )]
+        let view =
+            unsafe { std::slice::from_raw_parts_mut(words.as_mut_ptr().cast::<u8>(), bytes.len()) };
+        view.copy_from_slice(&bytes);
+        // The two relocations `emit` writes: the class word, and the one
+        // slot's payload. The tag byte `immortal_object_bytes` already wrote is
+        // what says which representation that payload is.
+        view[OBJ_CLASS_OFFSET..OBJ_CLASS_OFFSET + std::mem::size_of::<usize>()]
+            .copy_from_slice(&class.expose_provenance().to_ne_bytes());
+        view[field_offset(0) + Value::BITS_OFFSET
+            ..field_offset(0) + Value::BITS_OFFSET + std::mem::size_of::<u64>()]
+            .copy_from_slice(&text.expose_provenance().to_ne_bytes());
+        words
+    }
+
+    /// `rule:core-classes/html-literal`'s folded literal, from the side this
+    /// crate owns: an immortal instance costs nothing to retain or release, is
+    /// never freed however many times it is released, and — the half that keeps
+    /// the plain `Cell` sound — is never *written*.
+    ///
+    /// It is also on no list, which is what this module's § *Decision: an
+    /// immortal instance is on no list at all* promises a teardown sweep: the
+    /// links `immortal_object_bytes` leaves null are the state `unlink` reads
+    /// as "on no list", and nothing here ever links it into one.
+    #[test]
+    fn an_immortal_instance_is_never_written_freed_or_allocated_for() {
+        let (table, animal, _dog, _greets) = hierarchy();
+        let text = NvsStr::new(b"<b>hi</b>").into_raw();
+        let mut unit = immortal_unit(table.desc(animal), text);
+        let ptr = unit.as_mut_ptr().cast::<ObjHeader>();
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            assert_eq!(NvsObj::refcount_of(ptr), crate::IMMORTAL_REFCOUNT);
+            assert_eq!((*ptr).next.get(), std::ptr::null_mut());
+
+            let before = counting_alloc::allocated_bytes();
+            nvs_object_retain(ptr);
+            nvs_object_release(ptr);
+            nvs_object_release(ptr);
+            // One more release than there were references: an immortal cannot
+            // be over-released, which is what lets compiled code transfer one
+            // into an array or a `Value` with no special case.
+            nvs_object_release(ptr);
+            assert_eq!(counting_alloc::allocated_bytes() - before, 0);
+            assert_eq!(NvsObj::refcount_of(ptr), crate::IMMORTAL_REFCOUNT);
+
+            // The slot survives every one of those, because nothing reached
+            // the field sweep that would have released it.
+            assert_eq!(NvsStr::bytes_of(text), b"<b>hi</b>");
+            crate::nvs_str_release(text);
         }
     }
 
