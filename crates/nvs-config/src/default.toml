@@ -275,6 +275,13 @@
 #idle = "30s"
 #max_duration = "5m"
 
+# A connection outlives its call in a per-core pool keyed on what the outbound check approved
+# (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`). These two bound a
+# core's memory rather than a request's, so neither is settable by a request: `pool_idle = 0` keeps
+# none, which is a connection per call exactly.
+#pool_idle = 16
+#pool_idle_timeout = "30s"
+
 
 # ----------------------------------------------------------------------------------------------
 # [server] — `Boot`-class as a whole block: a change here needs a restart, not a reload

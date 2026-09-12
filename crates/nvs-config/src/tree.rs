@@ -518,6 +518,14 @@ pub struct HttpClient {
     pub max_duration: Option<String>,
     /// Redirects are off by default (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`).
     pub max_redirects: Option<u32>,
+    /// How many idle connections one core may hold between requests
+    /// (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`). `System`
+    /// class with [`HttpClient::pool_idle_timeout`], because the pair bounds a core's memory
+    /// rather than a request's; `0` keeps none, which is connect-per-request.
+    pub pool_idle: Option<u32>,
+    /// How long one may sit idle before it is closed — see [`HttpClient::pool_idle`], under whose
+    /// count alone a connection the far end retired hours ago would still be drawn.
+    pub pool_idle_timeout: Option<String>,
 }
 
 /// The `mail.*` grants.

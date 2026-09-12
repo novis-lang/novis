@@ -119,6 +119,12 @@ pub const DIRECTIVES: &[Directive] = &[
     // `rule:config/three-changeability-classes` names a response header as the counter-example to `System`: a request may set any of
     // `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy directives for itself, because it could already write the header directly.
     Directive { key: "http", class: Class::Runtime, apply: Apply::Reload },
+    // The outbound pool's two caps, which are the exception inside that block: they bound a
+    // **core's** memory rather than a request's, and a request widening one is
+    // `rule:config/ceilings-are-their-own-directives`'s failure
+    // (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`).
+    Directive { key: "http.client.pool_idle", class: Class::System, apply: Apply::Reload },
+    Directive { key: "http.client.pool_idle_timeout", class: Class::System, apply: Apply::Reload },
     // `[log] format` and `level` are rows of `rule:config/a-mode-is-five-defaults`'s mode table, and no row in that table is
     // `System`-class.
     Directive { key: "log", class: Class::Runtime, apply: Apply::Reload },
