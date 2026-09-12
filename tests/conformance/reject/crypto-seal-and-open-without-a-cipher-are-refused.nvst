@@ -1,0 +1,19 @@
+--TEST--
+Core\Crypto::seal and ::open without their Core\Crypto\Cipher argument are compile errors, because no algorithm argument in this class carries a default — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// The other half of `crypto-seal-and-open-take-a-cipher-and-round-trip-under-each`.
+// A cipher with a default would make the two-argument call below mean "whatever
+// the library picked last", which is the `openssl_encrypt` failure one step up:
+// the call site stops saying what it is under and a reader cannot tell. There
+// is no default, so the shorter call does not compile at all.
+secret bytes $key = Core\Crypto::generateKey();
+bytes $sealed = Core\Crypto::seal("attack at dawn" as bytes, $key);
+bytes $opened = Core\Crypto::open($sealed, $key);
+echo "unreachable", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0402]: expected 3 argument(s), found 2
+%A
+error: aborting due to 2 errors

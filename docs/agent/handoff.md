@@ -2,55 +2,46 @@
 
 ## State
 
-**Goal `webcrypto` — stage 3 is on disk but for one row of its own table.** Every AEAD, derivation,
-agreement, wrap and now every signature algorithm the roster names is a crate-private function in
-`crates/nvs-stdlib/src/crypto.rs`, each asserted against published vectors. The **JWK thumbprint** is
-the stage-3 row nothing implements yet, and it is the third item below.
+**Goal `webcrypto` — stage 4 has opened: `Core\Crypto::seal` and `::open` take a required
+`Core\Crypto\Cipher`.** The enum is `crates/nvs-stdlib/src/crypto.rs:407` — `XChaCha20Poly1305` and
+`Aes256Gcm`, no default — registered in `ENUMS` at `crates/nvs-stdlib/src/registry.rs:2515`, and `keyed`
+splits on it, so `gcm_cipher`, `gcm_seal_under` and `gcm_open_under` are reachable from a member and have
+dropped their `expect(dead_code)` markers. Every call site moved in the same commit: `examples/crypto.nvs`,
+the six conformance cases (one renamed, as the goal's stage-4 check names it) and
+`docs/reference/core/Crypto.md`'s example.
 
-The signature half is `VerifyingKey`/`verify_signature` and `SignatureKind`/`SigningKey`/
-`read_signing_key`/`sign`. The key's material lives *inside* the variant naming its algorithm, so
-`rule:security/algorithm-comes-from-the-key` holds by construction and `SignatureKind` at
-`read_signing_key` is the single door where a choice is left — `RS256` and `PS256` being one key type
-and two algorithms. All of it still carries `#[cfg_attr(not(test), expect(dead_code, …))]`, which fails
-the day stage 4 registers the members and is how the marker deletes itself.
-
-`crates/nvs-stdlib/src/tests/vectors.rs` gained `node(pointer)`: the door onto what a case *names*
-rather than carries, which is how a signature vector reaches the key it was made under. Nothing is
-blocked.
+**Stage 3's one unbuilt row is still the JWK thumbprint** — no function, no test. Everything else stage 3
+names is on disk and asserted against published vectors, still carrying
+`#[cfg_attr(not(test), expect(dead_code, …))]` until its row lands. Nothing is blocked.
 
 ## Next group
 
-**Stage 4: `seal` and `open` take their cipher, and every call site moves with them** — one file set:
-`crates/nvs-stdlib/src/crypto.rs`, `examples/crypto.nvs` and the six
-`tests/conformance/core/crypto-*.nvst` cases.
+**Stage 4: the two derivations take their rows** — one file set: `crates/nvs-stdlib/src/crypto.rs` and
+two new `tests/conformance/core/crypto-*.nvst` cases. The five edits are
+`docs/agent/conventions.md` § *A `Core` member*, and `seal`'s new row is the worked example for a
+required enum argument with `defaults: &[]`.
 
-- [ ] **The two rows take a required `Crypto\Cipher`** — `crates/nvs-stdlib/src/crypto.rs:363` and
-      `crates/nvs-stdlib/src/crypto.rs:379` gain the third parameter as
-      `CoreTy::Enum(r"Crypto\Cipher")` with `defaults: &[]`, and `crates/nvs-stdlib/src/crypto.rs:1156`'s
-      `keyed` splits by cipher so `gcm_seal_under` and `gcm_open_under` become reachable from a member
-      rather than from tests alone. `Core\Order` at `crates/nvs-stdlib/src/arr.rs:2152` is this tree's
-      precedent for a closed enum argument, and the goal's § *Standing decisions* fixes that no
-      algorithm argument carries a default.
-- [ ] **Every existing call moves in the same commit, so the tree never holds a red case** —
-      `examples/crypto.nvs:53` onward passes `Cipher::XChaCha20Poly1305` with its frozen output
-      unchanged, and each `seal`/`open` call in the six cases takes the cipher with expected output
-      unchanged. `tests/conformance/core/crypto-seals-and-opens-with-no-cipher-argument.nvst:1` is
-      renamed for what it now proves — no floor names it by path — and a reject case proves the old
-      two-argument call no longer compiles (`rule:core-api/shape-rules`).
-- [ ] **The JWK thumbprint, stage 3's one unbuilt row** — appended beside the signature seams at
-      `crates/nvs-stdlib/src/crypto.rs:1154`: RFC 7638 § 3.1, which is base64url of SHA-256 over the
-      required members sorted with no whitespace. The frozen set already holds both halves —
-      `/jws/keys/<id>/jwkMinimal` is that canonical form and `/jws/keys/<id>/thumbprint` is the answer —
-      so the primitive hashes canonical text and the assembly of that text lands with
-      `PublicKey::write` (`rule:security/protocol-roster`).
+- [ ] **`deriveKey` and `expandKey` become rows** — `crates/nvs-stdlib/src/crypto.rs:402`'s `methods`
+      gains both before `instance: &[]` at `crates/nvs-stdlib/src/crypto.rs:447`, with cards beside
+      `OPEN_DOC` and arms in `address` at `crates/nvs-stdlib/src/crypto.rs:543`. The bodies wrap
+      `derive_key` at `crates/nvs-stdlib/src/crypto.rs:793` and `expand_key` at
+      `crates/nvs-stdlib/src/crypto.rs:834`, both of which already hold the bounds and answer
+      `CoreTy::SecretBytes`; the `expect(dead_code)` on each is what deletes itself.
+      `rule:security/secret-qualifier` is what the answers' type is held to, and the goal's
+      § *Standing decisions* fixes that the iteration count is required and unbounded by no default.
+- [ ] **`crypto-pbkdf2-refuses-an-iteration-count-or-salt-outside-its-bounds.nvst`** — the bound named on
+      both sides at each edge: 99,999 refused beside 100,000 accepted, 2,000,001 beside 2,000,000, and a
+      15-octet salt beside a 16-octet one, each a `LogicError` because the program chose the number.
+      `crates/nvs-stdlib/src/crypto.rs:793` raises them; `rule:core-api/failure-throws` is the shape.
+- [ ] **`crypto-derived-and-agreed-keys-are-secret-bytes.nvst`** — one question asked of `generateKey`,
+      `deriveKey` and `expandKey`: each answer keys a `seal` and none of them assigns to a plain `bytes`.
+      `rule:security/secret-qualifier` is the rule; `crates/nvs-stdlib/src/crypto.rs:402` is the roster it
+      is asked of. The agreement half waits on `generateKeyPair`, so this case takes the derivations now
+      and the name still fits.
 
 ## Backlog
 
-- The stage-3 table names RFC 7515 A.2/A.3, RFC 7520 § 4.2 and RFC 8037 A.4 for the four signature
-  rows; what is asserted today is the frozen WebCrypto set alone (`docs/agent/loop-goal.md` § Stage 3).
-- `examples/webcrypto.nvs`, the acceptance fixture the driver reports missing, is stage 7's
-  (`docs/agent/loop-goal.md` § Stage 7).
-- `Crypto\Curve` becoming `Crypto\KeyKind` with the two RSA kinds is stage 4's second half, after the
-  cipher argument (`docs/agent/loop-goal.md` § Stage 4).
-- PEM `PRIVATE KEY` reading for `KeyPair::read` reuses what the graph carries at
-  `crates/nvs-host/src/tls.rs:121` ([ADR 0179](../decisions/0179.md) § 8).
+- The JWK thumbprint, stage 3's unbuilt row — `docs/agent/goals/47-webcrypto.md` § stage 3.
+- `Crypto\KeyKind`, `Crypto\KeyFormat` and the two key classes — the same five edits, stage 4's larger half.
+- `Core\Crypto::sign` and `::verify` over the four signature algorithms already on disk — stage 4.
+- `examples/webcrypto.nvs`, the goal's one missing fixture — stage 7, and the acceptance check that fails today.

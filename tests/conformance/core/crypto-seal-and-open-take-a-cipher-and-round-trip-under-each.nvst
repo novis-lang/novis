@@ -1,0 +1,63 @@
+--TEST--
+Core\Crypto::seal and ::open round-trip under each Core\Crypto\Cipher case, each with its own flat overhead, and one key keys both — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// Agreement, asked of every case of the enum rather than of one cipher. The
+// claim is that `$cipher` picks the construction, so a member that ignored the
+// argument and ran one of them twice would round-trip, print plausibly, and
+// still fail here: the two layouts differ by exactly their nonce widths, 24
+// octets against 12.
+bytes $message = "attack at dawn" as bytes;
+
+// One key keys either construction — 32 octets is XChaCha20-Poly1305's only key
+// size and AES-256's — which is why `generateKey` names no cipher and why the
+// choice is made at the call that seals rather than at the one that draws.
+secret bytes $key = Core\Crypto::generateKey();
+
+bytes $extended = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $interop = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
+
+if (Core\Bytes::length($extended) == Core\Bytes::length($message) + 40) {
+    echo "xchacha20-poly1305 overhead 40", "\n";
+} else {
+    echo "xchacha20-poly1305 overhead ", Core\Bytes::length($extended), "\n";
+}
+if (Core\Bytes::length($interop) == Core\Bytes::length($message) + 28) {
+    echo "aes-256-gcm overhead 28", "\n";
+} else {
+    echo "aes-256-gcm overhead ", Core\Bytes::length($interop), "\n";
+}
+
+// Each opens under the case it was sealed with, and the plaintext is the same
+// plaintext either way: the cipher is a choice about the bytes on the wire and
+// never about what the program gets back.
+int $opened = 0;
+if (Core\Crypto::open($extended, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+    $opened += 1;
+}
+if (Core\Crypto::open($interop, $key, Core\Crypto\Cipher::Aes256Gcm) == $message) {
+    $opened += 1;
+}
+echo "opened ", $opened, " of 2", "\n";
+
+// The empty message is a message under either case: pure overhead, and it opens
+// to the empty buffer rather than being refused as nothing.
+bytes $nothing = "" as bytes;
+bytes $emptyExtended = Core\Crypto::seal($nothing, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $emptyInterop = Core\Crypto::seal($nothing, $key, Core\Crypto\Cipher::Aes256Gcm);
+echo Core\Bytes::length($emptyExtended), " ", Core\Bytes::length($emptyInterop), "\n";
+
+int $empties = 0;
+if (Core\Crypto::open($emptyExtended, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $nothing) {
+    $empties += 1;
+}
+if (Core\Crypto::open($emptyInterop, $key, Core\Crypto\Cipher::Aes256Gcm) == $nothing) {
+    $empties += 1;
+}
+echo "the empty message round-trips ", $empties, " of 2", "\n";
+--EXPECT--
+xchacha20-poly1305 overhead 40
+aes-256-gcm overhead 28
+opened 2 of 2
+40 28
+the empty message round-trips 2 of 2

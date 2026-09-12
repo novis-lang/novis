@@ -1,0 +1,81 @@
+--TEST--
+Core\Crypto::open under the case a message was not sealed with is refused at every length with the same sentence a wrong key earns, and never with plausible bytes — `rule:core-api/tier-roster`, `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// A sealed message carries no label saying which construction wrote it, so the
+// only thing stopping `Aes256Gcm` from reading an XChaCha20-Poly1305 message as
+// `nonce(12) ‖ body` is the tag. This is the case that says it does, in both
+// directions and at every length.
+secret bytes $key = Core\Crypto::generateKey();
+
+// A sweep rather than one length, counted rather than read off a line: the two
+// nonce widths differ by 12 octets, so a length at which the layouts happen to
+// line up is exactly what a single example would miss.
+array<uint> $lengths = [0, 1, 12, 16, 24, 28, 40, 64, 257];
+
+string $sentence = "";
+int $tried = 0;
+int $refused = 0;
+int $sameSentence = 0;
+foreach ($lengths as uint $length) {
+    bytes $message = Core\Bytes::fill($length, 65);
+
+    bytes $extended = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    $tried += 1;
+    try {
+        bytes $asInterop = Core\Crypto::open($extended, $key, Core\Crypto\Cipher::Aes256Gcm);
+    } catch (RuntimeError $notThisCipher) {
+        $refused += 1;
+        if ($sentence == "") {
+            $sentence = $notThisCipher->message;
+        }
+        if ($notThisCipher->message == $sentence) {
+            $sameSentence += 1;
+        }
+    }
+
+    bytes $interop = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
+    $tried += 1;
+    try {
+        bytes $asExtended = Core\Crypto::open($interop, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    } catch (RuntimeError $stillNotThisCipher) {
+        $refused += 1;
+        if ($stillNotThisCipher->message == $sentence) {
+            $sameSentence += 1;
+        }
+    }
+}
+echo "refused ", $refused, " of ", $tried, "\n";
+echo "one sentence ", $sameSentence, " of ", $refused, "\n";
+
+// The sentence itself, and it is the one a wrong key earns rather than a
+// second one: a caller that could tell "wrong cipher" from "wrong key" apart
+// would learn which half of a forgery attempt landed.
+bytes $probe = Core\Crypto::seal("attack at dawn" as bytes, $key, Core\Crypto\Cipher::Aes256Gcm);
+secret bytes $other = Core\Crypto::generateKey();
+try {
+    bytes $wrongKey = Core\Crypto::open($probe, $other, Core\Crypto\Cipher::Aes256Gcm);
+    echo "opened under the wrong key", "\n";
+} catch (RuntimeError $notThisKey) {
+    if ($notThisKey->message == $sentence) {
+        echo "the wrong key earns the same sentence", "\n";
+    } else {
+        echo "a second sentence", "\n";
+    }
+}
+echo $sentence, "\n";
+
+// The other side of the bound: the case it was sealed under still opens it, so
+// the refusals above are about the cipher named and not about `open` having
+// become a member that refuses everything.
+if (Core\Crypto::open($probe, $key, Core\Crypto\Cipher::Aes256Gcm) == "attack at dawn" as bytes) {
+    echo "and the case it was sealed under opens it", "\n";
+} else {
+    echo "refused its own message", "\n";
+}
+--EXPECT--
+refused 18 of 18
+one sentence 18 of 18
+the wrong key earns the same sentence
+Core\Crypto::open(): $sealed is not an authentic message under $key — it has been altered, it is too short to be one, or the key is not the one it was sealed under
+and the case it was sealed under opens it

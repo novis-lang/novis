@@ -1,0 +1,95 @@
+--TEST--
+Core\Crypto::seal under Core\Crypto\Cipher::Aes256Gcm costs a flat 28 octets at every length, draws a fresh 12-octet nonce into the front of each one, and authenticates every octet of the three parts — `rule:core-classes/crypto-interop-tier`, `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// The interop layout, as much of it as a program can see: `nonce(12) ‖
+// ciphertext ‖ tag(16)`, which is what WebCrypto's `encrypt` answers with its
+// IV put in front, so a browser splits at octet 12 and does nothing else. That
+// these are WebCrypto's bytes *byte for byte* is held by the frozen vector set
+// under `crates/nvs-stdlib/tests/vectors/`; what a `.nvs` program can assert is
+// the widths, the per-call nonce and that all three parts are authenticated.
+secret bytes $key = Core\Crypto::generateKey();
+
+// Flat at every length, which is what fixes the ciphertext at exactly the
+// plaintext's width: AES-GCM encrypts in counter mode, so the overhead is the
+// nonce and the tag and nothing else. A block mode with padding would step at
+// 16, and the lengths straddle two of those steps.
+array<uint> $lengths = [0, 1, 15, 16, 17, 31, 32, 33, 255];
+int $flat = 0;
+foreach ($lengths as uint $length) {
+    bytes $padded = Core\Bytes::fill($length, 65);
+    bytes $sealed = Core\Crypto::seal($padded, $key, Core\Crypto\Cipher::Aes256Gcm);
+    if (Core\Bytes::length($sealed) == $length + 28) {
+        $flat += 1;
+    }
+}
+echo "flat 28 at ", $flat, " of ", Core\Arr::count($lengths), " lengths", "\n";
+
+// The front 12 octets are drawn per call, so two seals of one message under one
+// key differ there. A member that kept a nonce would pass every length
+// assertion above and lose confidentiality outright, which is why this is asked
+// of the nonce's own slice rather than of the whole answer.
+bytes $message = "attack at dawn" as bytes;
+bytes $first = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
+bytes $second = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
+if (Core\Bytes::slice($first, 0, 12) == Core\Bytes::slice($second, 0, 12)) {
+    echo "the same nonce twice", "\n";
+} else {
+    echo "a fresh nonce", "\n";
+}
+
+// One message's nonce in front of another's body is a forgery. The nonce is an
+// input to the tag rather than a decoration on the front of it, which is the
+// difference between this layout and a header a parser could be talked into
+// trusting.
+bytes $swapped = Core\Bytes::join([
+    Core\Bytes::slice($second, 0, 12),
+    Core\Bytes::slice($first, 12),
+]);
+try {
+    bytes $forged = Core\Crypto::open($swapped, $key, Core\Crypto\Cipher::Aes256Gcm);
+    echo "a swapped nonce accepted", "\n";
+} catch (RuntimeError $refused) {
+    echo "a swapped nonce refused", "\n";
+}
+
+// Every octet of the layout is authenticated, the nonce and the tag included,
+// asserted by counting rather than by one alteration: a member that verified
+// only the body would print plausibly against a single flip and fail here.
+int $altered = 0;
+int $refusals = 0;
+uint $width = Core\Bytes::length($first);
+foreach (Core\Arr::range(0, ($width as int) - 1) as int $index) {
+    uint $original = Core\Bytes::at($first, $index);
+    uint $replacement = 0;
+    if ($original == 0) {
+        $replacement = 1;
+    }
+    bytes $mutant = Core\Bytes::join([
+        Core\Bytes::slice($first, 0, $index),
+        Core\Bytes::fill(1, $replacement),
+        Core\Bytes::slice($first, $index + 1),
+    ]);
+    $altered += 1;
+    try {
+        bytes $opened = Core\Crypto::open($mutant, $key, Core\Crypto\Cipher::Aes256Gcm);
+    } catch (RuntimeError $notAuthentic) {
+        $refusals += 1;
+    }
+}
+echo "refused ", $refusals, " of ", $altered, " single-octet alterations", "\n";
+
+// And the message itself still opens, so the refusals above are about the
+// alterations rather than about `open` having become a member that refuses
+// everything under this case.
+if (Core\Crypto::open($first, $key, Core\Crypto\Cipher::Aes256Gcm) == $message) {
+    echo "and the message it sealed opens", "\n";
+} else {
+    echo "refused its own message", "\n";
+}
+--EXPECT--
+flat 28 at 9 of 9 lengths
+a fresh nonce
+a swapped nonce refused
+refused 42 of 42 single-octet alterations
+and the message it sealed opens
