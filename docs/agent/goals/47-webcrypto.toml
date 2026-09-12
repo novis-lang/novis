@@ -9087,12 +9087,25 @@ stage = "5 jwe"
 name = "JWE round-trips under every key kind, and the header selects nothing"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/core/jwe-a-token-is-five-base64url-segments-and-round-trips-under-every-key-kind.nvst",
-  "tests/conformance/core/jwe-the-algorithm-comes-from-the-key-and-a-mismatched-header-is-refused.nvst",
+  # The round trip over each of `Jwe\Key`'s four statics, which is also where the five segments and
+  # the canonical header are asserted, and the payload that goes in plain and comes back tainted.
+  "tests/conformance/core/jwe-round-trips-under-every-key-and-answers-a-tainted-payload.nvst",
+  # The whole sealer-against-opener grid: the algorithm comes from the static that built the key, and
+  # a header naming another one is compared against it rather than consulted.
+  "tests/conformance/core/jwe-a-token-opens-only-under-the-static-that-sealed-it.nvst",
+  # A token that arrived in a request, and every token the frozen WebCrypto set sealed.
+  "tests/conformance/core/jwe-opens-a-token-that-arrived-tainted.nvst",
+  "tests/conformance/core/jwe-opens-every-token-webcrypto-sealed.nvst",
+  # The refusals: one sentence for every token that does not open, the ring's own bounds, and the two
+  # things a program gets wrong with keys it holds itself.
+  "tests/conformance/core/jwe-refuses-every-unopenable-token-with-one-sentence.nvst",
+  "tests/conformance/core/jwe-a-password-ring-holds-exactly-one-key-and-the-shared-length-is-bounded.nvst",
+  "tests/conformance/core/jwe-a-key-that-agrees-nothing-is-a-bug-and-a-public-key-opens-nothing.nvst",
+  # The header's allowed list swept member by member, `p2c` bounded before the first HMAC, and an
+  # `epk` off the curve read through the validation any peer's key gets.
   "tests/conformance/core/jwe-refuses-zip-crit-and-every-unknown-header-with-one-sentence.nvst",
   "tests/conformance/core/jwe-pbes2-refuses-an-iteration-count-past-its-ceiling-before-deriving.nvst",
   "tests/conformance/core/jwe-ecdh-es-refuses-an-ephemeral-key-off-the-curve.nvst",
-  "tests/conformance/core/jwe-decrypt-answers-a-tainted-payload.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------
