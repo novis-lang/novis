@@ -1,0 +1,106 @@
+--TEST--
+No point a peer sent reaches a shared secret on either agreement curve, and the member that stops it differs by curve: P-256's off-curve, infinite and short points are refused at Core\Crypto\PublicKey::read, while X25519 reads every 32 octets and Core\Crypto::agree is where a point of small order stops — `rule:core-classes/crypto-interop-tier`, `rule:security/verification-throws-and-compares-in-constant-time`
+--FILE--
+<?nvs
+// One question asked of both curves in the roster — can a point the peer chose
+// drive this program's agreement? — and the interesting half of the answer is
+// that "no" is enforced in two different places. A P-256 point is a pair of
+// field elements that either satisfies the curve equation or does not, so
+// `read` is where it is checked and a bad one never becomes a
+// `Core\Crypto\PublicKey` at all. Every 32-octet string is a well-formed
+// X25519 u-coordinate, so there is nothing there for a read to refuse and the
+// check has to be on the way out. A case that looked at one curve alone would
+// read as though the refusal had a single home, and a member that moved the
+// P-256 check from `read` to `agree` would still refuse every point below
+// while leaving an unchecked key object in the program's hands.
+Core\Crypto\KeyPair $p256 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+Core\Crypto\KeyPair $x25519 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+
+array<string> $notOnP256 = [
+    // A real point with its final octet flipped: both coordinates are field
+    // elements and the pair satisfies nothing.
+    "0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e88",
+    // The point at infinity, written the way it reaches a program that built
+    // it out of zeroes: the identity is not a key, and agreeing against it
+    // would hand the peer the whole secret.
+    "0400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    // The first point one octet short. A coordinate that is not a field
+    // element wide is not a coordinate, however well the octets before it read.
+    "0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e",
+];
+
+// Nothing in this loop calls `agree`: there is no key object to call it with,
+// which is the claim. The count of verdicts and the count of distinct
+// sentences are both asserted, because a refusal naming which check failed
+// tells a forger which half of the point to fix.
+int $refusedAtRead = 0;
+array<string> $readSentences = [];
+foreach ($notOnP256 as string $point) {
+    try {
+        Core\Crypto\PublicKey $never = Core\Crypto\PublicKey::read(
+            Core\Encoding::fromHex($point),
+            Core\Crypto\KeyKind::P256,
+            Core\Crypto\KeyFormat::Raw
+        );
+        echo "a point that is not on P-256 read as a key", "\n";
+    } catch (RuntimeError $verdict) {
+        $refusedAtRead += 1;
+        $readSentences[$verdict->message] = "";
+    }
+}
+echo "p256 refused at read ", $refusedAtRead, " of ", Core\Arr::count($notOnP256), "\n";
+echo "distinct sentences ", Core\Arr::count($readSentences), "\n";
+
+// The same three octet strings on the other curve of the roster, at the width
+// X25519 uses: the read admits them, because every 32-octet string is a
+// u-coordinate, and the secret they would agree is the one the peer chose.
+array<string> $contributeNothing = [
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "0100000000000000000000000000000000000000000000000000000000000000",
+    "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800",
+];
+int $readBack = 0;
+int $refusedAtAgree = 0;
+array<string> $agreeSentences = [];
+foreach ($contributeNothing as string $point) {
+    Core\Crypto\PublicKey $small = Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex($point),
+        Core\Crypto\KeyKind::X25519,
+        Core\Crypto\KeyFormat::Raw
+    );
+    $readBack += 1;
+    try {
+        secret bytes $chosen = Core\Crypto::agree($x25519, $small);
+        echo "a point of small order agreed a secret", "\n";
+    } catch (RuntimeError $verdict) {
+        $refusedAtAgree += 1;
+        $agreeSentences[$verdict->message] = "";
+    }
+}
+echo "x25519 read ", $readBack, " of ", Core\Arr::count($contributeNothing), "\n";
+echo "x25519 refused at agree ", $refusedAtAgree, " of ", Core\Arr::count($contributeNothing), "\n";
+echo "distinct sentences ", Core\Arr::count($agreeSentences), "\n";
+
+// The control both halves need: these are verdicts on the point and not on
+// this program's pairs, so a peer that sent a real point agrees on either
+// curve — and from either end of it, since an agreement one side can compute
+// and the other cannot is not one.
+Core\Crypto\KeyPair $p256Peer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+Core\Crypto\KeyPair $x25519Peer = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+int $agreed = 0;
+if (Core\Crypto::agree($p256, $p256Peer->publicKey())
+    == Core\Crypto::agree($p256Peer, $p256->publicKey())) {
+    $agreed += 1;
+}
+if (Core\Crypto::agree($x25519, $x25519Peer->publicKey())
+    == Core\Crypto::agree($x25519Peer, $x25519->publicKey())) {
+    $agreed += 1;
+}
+echo "real peers agree on ", $agreed, " of 2 curves", "\n";
+--EXPECT--
+p256 refused at read 3 of 3
+distinct sentences 1
+x25519 read 3 of 3
+x25519 refused at agree 3 of 3
+distinct sentences 1
+real peers agree on 2 of 2 curves
