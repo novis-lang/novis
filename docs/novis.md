@@ -14921,7 +14921,7 @@ final class CartTest {
 | [`Core\Test::serverUrl`](#core-core-test-serverurl) | `serverUrl(): ?string` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
 | [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path): Core\Test\Response` |
-| [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, {json?: mixed, body?: string, headers?: array<string>}): void` |
+| [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, {json?: mixed, body?: string\|bytes, headers?: array<string\|array<string>>}): void` |
 | [`Core\Test::sentHttp`](#core-core-test-senthttp) | `sentHttp(): array<Core\Test\SentRequest>` |
 
 <a id="core-core-test-assertsame"></a>
@@ -15193,7 +15193,7 @@ Runs one request through the program under test in this process — the compiled
 #### `Core\Test::answerHttp`
 
 ```nvs skip
-Core\Test::answerHttp(string $url, uint $status, {json?: mixed, body?: string, headers?: array<string>}): void
+Core\Test::answerHttp(string $url, uint $status, {json?: mixed, body?: string|bytes, headers?: array<string|array<string>>}): void
 ```
 
 Says what one outbound URL answers with, and takes this test off the network — from the first answer registered, every `Core\Http\Client` call the test makes is served from the table and none of them connects.
@@ -15203,8 +15203,8 @@ Says what one outbound URL answers with, and takes this test off the network —
 | `$url` | `string` (sink) | The URL this answer serves: the whole of it, or a prefix ending in `*`. Nothing is resolved and no host is looked up — this is the text a call's own URL is compared against. |
 | `$status` | `uint` | The status the call answers with, as a wire status line can write it: three digits, `100` to `999`. |
 | `{json: …}` | `mixed` (default `(omitted)`) | A value the answer carries as a JSON document, written exactly as `Core\Json::encode` would write it. The answer declares `application/json` for it unless the `headers` bag names a content type itself. |
-| `{body: …}` | `string` (default `null`, neutral) | The bytes the answer carries, for a reply that is not a JSON document. An answer may name this or `json` and not both. |
-| `{headers: …}` | `array<string>` (default `[]`) | The headers the answer carries, keyed by name — the same shape `Core\Http\Options` writes a request's headers in. A name is matched case-insensitively, as a header name is. |
+| `{body: …}` | `string\|bytes` (default `null`) | The body the answer carries, for a reply that is not a JSON document — text, or the octets of a reply that is not text at all, which is what `Core\Http\Response::bytes` reads back and `::text` refuses. An answer may name this or `json` and not both. |
+| `{headers: …}` | `array<string\|array<string>>` (default `[]`) | The headers the answer carries, keyed by name — the same shape `Core\Http\Options` writes a request's headers in, plus one arm it has no use for: an array of strings under a name is a reply that carried that field on that many lines, which is what `Core\Http\Response::headers` reads back. A name is matched case-insensitively, as a header name is. |
 
 **Returns** `void` — Nothing. Answers accumulate, so a test registers as many as it has calls; a URL answered exactly wins over one answered by a prefix, and the longest prefix wins among prefixes.
 
@@ -20226,7 +20226,7 @@ Fetches `$url` under a finite budget, over the address the outbound policy pinne
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-post"></a>
 #### `Core\Http\Client::post`
@@ -20255,7 +20255,7 @@ Sends a `POST` to `$url` under a finite budget. Its retries need `retryIdempoten
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-put"></a>
 #### `Core\Http\Client::put`
@@ -20284,7 +20284,7 @@ Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its 
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-patch"></a>
 #### `Core\Http\Client::patch`
@@ -20313,7 +20313,7 @@ Sends a `PATCH` to `$url` under a finite budget. A partial update repeated is a 
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-delete"></a>
 #### `Core\Http\Client::delete`
@@ -20342,7 +20342,7 @@ Sends a `DELETE` to `$url` under a finite budget.
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-head"></a>
 #### `Core\Http\Client::head`
@@ -20371,7 +20371,7 @@ Asks `$url` for its headers alone, under the same budget a `get` would have.
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-client-request"></a>
 #### `Core\Http\Client::request`
@@ -20401,17 +20401,20 @@ Sends `$method` to `$url` under a finite budget — the row for a verb chosen at
 
 **Returns** `Core\Http\Response` — A `Core\Http\Response` carrying the status and the body of the reply. A `404` and a `500` are answers and arrive here; only a request that got no reply at all throws. An `https` URL is fetched over TLS, with the certificate verified against the authorities Novis carries.
 
-**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP, is larger than one request may hold, or has a body that is not valid UTF-8. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
 <a id="core-core-http-response"></a>
 ### `Core\Http\Response`
 
-Keywords: status, text
+Keywords: status, text, bytes, header, headers
 
 | Member | Signature |
 |---|---|
 | [`Core\Http\Response->status`](#core-core-http-response-status) | `status(): int` |
 | [`Core\Http\Response->text`](#core-core-http-response-text) | `text(): tainted string` |
+| [`Core\Http\Response->bytes`](#core-core-http-response-bytes) | `bytes(): tainted bytes` |
+| [`Core\Http\Response->header`](#core-core-http-response-header) | `header(string $name): ?tainted string` |
+| [`Core\Http\Response->headers`](#core-core-http-response-headers) | `headers(string $name): array<tainted string>` |
 
 <a id="core-core-http-response-status"></a>
 #### `Core\Http\Response->status`
@@ -20434,6 +20437,51 @@ $response->text(): tainted string
 The reply's body as text, replacing `curl_exec`'s return value and the `CURLOPT_RETURNTRANSFER` flag that decided whether there was one.
 
 **Returns** `tainted string` — The body, `tainted`: it is bytes another host chose, and a pinned address settles where they came from rather than what is in them. A sink's own launderer is the way out of it, and there is no generic one.
+
+**Throws** `RuntimeError` — The body is not valid UTF-8, so it is not a `string`. It is not repaired: a replacement byte would hand a program a body that is not what the origin sent and no way to tell. `bytes` reads the same body without asking.
+
+<a id="core-core-http-response-bytes"></a>
+#### `Core\Http\Response->bytes`
+
+```nvs skip
+$response->bytes(): tainted bytes
+```
+
+The reply's body as the octets that arrived, for the replies that are not text at all — an image, an archive, a signature.
+
+**Returns** `tainted bytes` — Every byte of the body, `tainted` for `text`'s reason and asking nothing of them: a reply that is not UTF-8 is read here and refused there, so which of the two a program calls is what decides whether the question is asked.
+
+<a id="core-core-http-response-header"></a>
+#### `Core\Http\Response->header`
+
+```nvs skip
+$response->header(string $name): ?tainted string
+```
+
+One reply header, read by a name that matches however the origin capitalised it — replacing `curl_getinfo`'s header string and the hand-written parse under it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The field name, matched case-insensitively as RFC 9110 § 5.1 defines it. |
+
+**Returns** `?tainted string` — The field's value, `tainted` as every byte another host chose is, with a field the origin sent more than once joined by `, ` in arrival order; `null` where the reply carried no such field.
+
+**Throws** `LogicError` — `Set-Cookie`, which is the one field that does not join — two cookies read as one are neither, so `headers` is what reads it.
+
+<a id="core-core-http-response-headers"></a>
+#### `Core\Http\Response->headers`
+
+```nvs skip
+$response->headers(string $name): array<tainted string>
+```
+
+Every line the reply carried under one name, kept apart — the reading a joined value cannot be recovered from, and the only way to read `Set-Cookie`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The field name, matched case-insensitively exactly as `header` matches it. |
+
+**Returns** `array<tainted string>` — One `tainted` entry per line, in arrival order, and an empty array where the reply carried no such field — so a field that arrived once answers a list of one rather than anything a caller has to tell apart.
 
 <a id="core-core-http-part"></a>
 ### `Core\Http\Part`

@@ -1,0 +1,42 @@
+--TEST--
+`Core\Http\Response::text` and `::bytes` read one slot, so for every reply that is text at all the two answer the same octets — `rule:types/bytes`
+--FILE--
+<?nvs
+// The claim is *invariance over a sweep*, asserted by counting rather than
+// read off a line: a reply whose body is text has two readers, and what is
+// pinned is that they never disagree. A `bytes` that answered a re-encoding
+// rather than the slot would still print plausibly on any single row here.
+Core\Test::answerHttp("https://api.example.com/plain", 200, {body: "ok"});
+Core\Test::answerHttp("https://api.example.com/json", 200, {json: ["name" => "ada"]});
+// Multibyte on purpose: the two readers count in different units, so a body
+// whose byte length is not its character length is where a re-encoding shows.
+Core\Test::answerHttp("https://api.example.com/wide", 200, {body: "日本語"});
+Core\Test::answerHttp("https://api.example.com/empty", 204, {body: ""});
+
+array<string> $urls = [
+    "https://api.example.com/plain",
+    "https://api.example.com/json",
+    "https://api.example.com/wide",
+    "https://api.example.com/empty",
+];
+int $agreed = 0;
+foreach ($urls as string $url) {
+    var $reply = Core\Http\Client::get($url);
+    // Both readings taken from the one reply, and taken twice over: a slot
+    // handed back by reference is not a slot either reader consumes.
+    if (Core\Encoding::toHex($reply->bytes()) == Core\Encoding::toHex($reply->text() as bytes)) {
+        $agreed = $agreed + 1;
+    }
+    if (Core\Bytes::length($reply->bytes()) != Core\Bytes::length($reply->bytes())) {
+        echo "a second read answered something else\n";
+    }
+}
+echo $agreed, " of ", Core\Arr::count($urls), "\n";
+
+// The unit each reader counts in, named on one body, so the sweep above is not
+// four rows of one trivially equal length.
+var $wide = Core\Http\Client::get("https://api.example.com/wide");
+echo Core\Bytes::length($wide->bytes()), " ", Core\Str::length($wide->text()), "\n";
+--EXPECT--
+4 of 4
+9 3
