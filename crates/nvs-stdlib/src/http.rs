@@ -376,7 +376,17 @@ const URL: CoreTy = CoreTy::Union(&[CoreTy::Text(Qual::Sink), CoreTy::Instance(T
 ///
 /// The three `retry*` options are § 6's one shape, flattened for the reason
 /// this module's own docs give.
-const OPTIONS: &[CoreOption] = &[
+///
+/// A macro rather than a slice, for [`request_params`]' reason one axis over:
+/// `stream` carries these keys and the two bounds a body read as it arrives has
+/// of its own, so one row's bag is the other's with a group after it. A `const`
+/// slice cannot be extended, and a second copy of the shared keys would say the
+/// same thing until it did not.
+// The keys every row carries, at the indentation they had as a slice because
+// rustfmt does not reach inside a macro's body, then the group a row adds after
+// them.
+macro_rules! request_options {
+    ($($trailing:expr),* $(,)?) => { &[
     CoreOption {
         name: "deadline",
         ty: DURATION,
@@ -479,7 +489,41 @@ const OPTIONS: &[CoreOption] = &[
         ty: CoreTy::Array(&MULTIPART_FIELD),
         default: Const::Null,
     },
-];
+    $($trailing,)*
+] };
+}
+
+/// Every row but `stream`'s bag: what a buffered call may write, and nothing
+/// else — see [`request_options`].
+const OPTIONS: &[CoreOption] = request_options!();
+
+/// `stream`'s bag: the shared keys, then
+/// `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s two
+/// further bounds.
+///
+/// The two are here rather than in [`OPTIONS`] because that rule makes either
+/// of them on a buffered member a compile-time diagnostic, and a bag that does
+/// not declare a key is where that diagnostic already comes from: the checker
+/// refuses an option no bag names and lists the ones this member has. A shared
+/// bag plus a check in each buffered body would have refused the same call at
+/// run time, one deployment later.
+const STREAM_OPTIONS: &[CoreOption] = request_options!(IDLE_OPTION, MAX_DURATION_OPTION);
+
+/// The longest silence a streamed body may go through — see [`STREAM_OPTIONS`].
+const IDLE_OPTION: CoreOption = CoreOption {
+    name: "idle",
+    ty: DURATION,
+    default: Const::Null,
+};
+
+/// The longest a streamed body may take at all — see [`STREAM_OPTIONS`]. Two
+/// bounds and not one because a server dribbling a byte a second passes every
+/// idle check ever written, and only a lifetime ends it.
+const MAX_DURATION_OPTION: CoreOption = CoreOption {
+    name: "maxDuration",
+    ty: DURATION,
+    default: Const::Null,
+};
 
 /// What one key of [`MULTIPART_OPTION`]'s map holds: a value, or a part sent
 /// under its own name and type.
@@ -777,6 +821,11 @@ const BODY: usize = 10;
 const CONTENT_TYPE: usize = 11;
 /// See [`JSON`].
 const MULTIPART: usize = 12;
+/// [`STREAM_OPTIONS`]' own two slots, after every shared key's, and reachable
+/// only from the one row that declares them — see [`DEADLINE`].
+const IDLE: usize = 13;
+/// See [`IDLE`].
+const MAX_DURATION: usize = 14;
 
 /// How many arguments a request member takes: the URL plus one per option, which
 /// is what every `nvs_helper!` row below writes as its arity. Derived rather
@@ -784,6 +833,11 @@ const MULTIPART: usize = 12;
 /// an arity the call site does not pass. The body keys hold the slots after
 /// [`RETRY_KEY`] and are named where they are read.
 const REQUEST_ARITY: usize = OPTIONS.len() + 1;
+
+/// How many arguments `stream` takes after the verb it is handed: the URL plus
+/// one per key of [`STREAM_OPTIONS`], which is [`REQUEST_ARITY`] and the two
+/// bounds that bag adds. Derived for that constant's reason.
+const STREAM_ARITY: usize = STREAM_OPTIONS.len() + 1;
 
 /// [`TARGET`]'s two slots, by index — see [`STATUS_SLOT`].
 const TARGET_URL_SLOT: usize = 0;
@@ -811,7 +865,9 @@ const DEFAULT_BACKOFF: Duration = Duration::from_millis(100);
 /// `Core\Http\Method` case at slot 0, which is also how `Options` and `Trace`
 /// are sent, and pays for it by answering that question at the call instead.
 /// There is no request object anywhere in this: the bag is the whole of what a
-/// call says, and it is the same bag under every row.
+/// call says. Every buffered row takes the same one, and `stream` takes it with
+/// the two bounds a body read as it arrives has of its own
+/// ([`STREAM_OPTIONS`]).
 pub(crate) const CLIENT: CoreClass = CoreClass {
     name: CLIENT_NAME,
     methods: &[
@@ -886,14 +942,16 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
         // a reply read as it arrives rather than as a value, whose class and
         // whose four readers are [`stream`]'s. The verb is a parameter here for
         // `request`'s reason and one of its own — a streamed reply is usually a
-        // `POST`.
+        // `POST` — and the bag is the only one on this class that is not
+        // [`OPTIONS`], because `idle` and `maxDuration` bound a body no other
+        // row has.
         CoreMethod {
             name: "stream",
             names: &["method", "url"],
             params: &[
                 CoreTy::Enum(crate::router::METHOD_NAME),
                 URL,
-                CoreTy::Options(OPTIONS),
+                CoreTy::Options(STREAM_OPTIONS),
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(stream::STREAM_NAME),
@@ -1123,9 +1181,11 @@ const HEADERS_DOC: MethodDoc = MethodDoc {
 /// and a second copy of the options would say the same thing until it did not.
 // The entries a card names ahead of the shared ones — `request`'s verb, or
 // nothing at all — then the list itself, at the indentation it had as a slice,
-// because rustfmt does not reach inside a macro's body.
+// because rustfmt does not reach inside a macro's body, then the entries a card
+// names after them, which is [`STREAM_OPTIONS`]' two bounds.
 macro_rules! request_params {
-    ($($leading:expr),* $(,)?) => { &[
+    ($($leading:expr),* $(,)?) => { request_params!($($leading),* ; ) };
+    ($($leading:expr),* ; $($trailing:expr),* $(,)?) => { &[
     $($leading,)*
     ParamDoc {
         name: "url",
@@ -1208,6 +1268,7 @@ macro_rules! request_params {
         desc: "The parts to send as `multipart/form-data`, by name.",
         shape: &[],
     },
+    $($trailing,)*
     ] };
 }
 
@@ -1216,6 +1277,27 @@ const REQUEST_PARAMS: &[ParamDoc] = request_params!();
 
 /// `request`'s: the verb it is handed, ahead of what every other row documents.
 const DYNAMIC_PARAMS: &[ParamDoc] = request_params!(METHOD_PARAM);
+
+/// `stream`'s: `request`'s list, and after it the two bounds that row's own bag
+/// declares — see [`STREAM_OPTIONS`].
+const STREAM_PARAMS: &[ParamDoc] = request_params!(METHOD_PARAM ; IDLE_PARAM, MAX_DURATION_PARAM);
+
+/// The silence bound `stream` carries — see [`STREAM_PARAMS`].
+const IDLE_PARAM: ParamDoc = ParamDoc {
+    name: "idle",
+    desc: "The longest the body may go silent for once the head has arrived. Omitted, the \
+           runtime's `[http.client] idle` applies; there is no spelling for no bound at all.",
+    shape: &[],
+};
+
+/// The lifetime bound `stream` carries — see [`STREAM_PARAMS`].
+const MAX_DURATION_PARAM: ParamDoc = ParamDoc {
+    name: "maxDuration",
+    desc: "The longest the body may take altogether, which is what ends an origin dribbling a \
+           byte at a time under every idle check. Omitted, the runtime's `[http.client] \
+           max_duration` applies. `deadline` covers the connection and the head and stops there.",
+    shape: &[],
+};
 
 /// The verb `request` carries — see [`DYNAMIC_PARAMS`].
 const METHOD_PARAM: ParamDoc = ParamDoc {
@@ -1240,7 +1322,8 @@ const REQUEST_ERRORS: &[ErrorDoc] = &[
                names no host, `net.connect` does not grant that host, or it resolves to a \
                loopback, private, link-local or unspecified address that `net.internal` does not \
                name. An option is outside its \
-               bounds: a `deadline`, `connectTimeout` or `retryBackoff` that is not a positive \
+               bounds: a `deadline`, `connectTimeout` or `retryBackoff` — or, on the row that \
+               declares them, an `idle` or `maxDuration` — that is not a positive \
                duration, or a `retryAttempts` of zero. A header name or value carries a control \
                byte, which would end the line early. An `https` host presented a certificate that \
                does not verify against the authorities Novis carries, or one that is not valid for \
@@ -1331,7 +1414,7 @@ const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Sends `$method` to `$url` and answers once the head has arrived, leaving the body to \
             be read as it comes — the row for a reply a program works through rather than holds, \
             such as a server-sent event stream or a result set a line at a time.",
-    params: DYNAMIC_PARAMS,
+    params: STREAM_PARAMS,
     ret: "A `Core\\Http\\Stream` whose `status()`, `header()` and `headers()` answer the head, and \
           whose body is read by exactly one of `events()`, `lines()`, `chunks()` and `saveTo()`.",
     errors: REQUEST_ERRORS,
@@ -2615,9 +2698,10 @@ mod tests {
 
     use super::{
         BODY_OPTION, BODY_OPTIONS, BODY_SLOT, CONNECT_TIMEOUT, CONTENT_TYPE_OPTION, DEADLINE,
-        FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, HEADERS_SLOT, JSON_OPTION, MULTIPART_OPTION,
-        OPTIONS, REQUEST_ARITY, RESPONSE, RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION, RETRY_BACKOFF,
-        RETRY_KEY, RETRY_KEY_OPTION, STATUS_SLOT, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT,
+        FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, HEADERS_SLOT, IDLE, JSON_OPTION, MAX_DURATION,
+        MULTIPART_OPTION, OPTIONS, REQUEST_ARITY, RESPONSE, RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION,
+        RETRY_BACKOFF, RETRY_KEY, RETRY_KEY_OPTION, STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS,
+        TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT,
     };
 
     /// The grant every case here starts from: the host is reachable and no
@@ -2663,6 +2747,17 @@ mod tests {
             assert_eq!(OPTIONS[slot - 1].name, name, "slot {slot}");
         }
         assert_eq!(REQUEST_ARITY, OPTIONS.len() + 1);
+
+        // `stream`'s bag is the same layout with a group after it, so its two
+        // slots are asserted against the bag that declares them — the one row
+        // whose arguments the shared reading walks past the end of.
+        for (position, shared) in OPTIONS.iter().enumerate() {
+            assert_eq!(STREAM_OPTIONS[position].name, shared.name, "at {position}");
+        }
+        for (slot, name) in [(IDLE, "idle"), (MAX_DURATION, "maxDuration")] {
+            assert_eq!(STREAM_OPTIONS[slot - 1].name, name, "slot {slot}");
+        }
+        assert_eq!(STREAM_ARITY, STREAM_OPTIONS.len() + 1);
     }
 
     /// Every body key is an option of the bag, and `contentType` with them —

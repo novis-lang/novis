@@ -787,10 +787,16 @@ nvs_runtime::nvs_helper! {
     /// nobody uses. It arrives at slot 0 and every option sits one slot further
     /// on, which is [`nvs_core_http_client_request`]'s layout and is why the
     /// rest of the row is that member's reading under a slice of its own
-    /// arguments.
-    fn nvs_core_http_client_stream(ctx, args: [REQUEST_ARITY + 1]) {
+    /// arguments. Its bag is two keys wider than that member's — the bounds
+    /// [`super::STREAM_OPTIONS`] adds — and those two are judged here, because
+    /// they are the only part of the call the shared reading does not know
+    /// about.
+    fn nvs_core_http_client_stream(ctx, args: [STREAM_ARITY + 1]) {
         let verb = crate::router::method_verb(&args[0], STREAM_MEMBER)?.to_ascii_uppercase();
-        let (status, body, headers) = exchanged(ctx, &args[1..], "stream", &verb)?;
+        let bag = &args[1..];
+        judge_bound(bag, IDLE, "idle", STREAM_MEMBER)?;
+        judge_bound(bag, MAX_DURATION, "maxDuration", STREAM_MEMBER)?;
+        let (status, body, headers) = exchanged(ctx, bag, "stream", &verb)?;
         Ok(crate::instance::build(
             &STREAM,
             [

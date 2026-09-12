@@ -45,7 +45,7 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[http.headers]", "[http.headers]\ncontent_type_options = true\nframe_ancestors = \"none\"\nreferrer_policy = \"strict-origin-when-cross-origin\"\nhsts = \"365d\"\nhsts_subdomains = false\ncontent_security_policy = \"\"\npermissions_policy = \"\"\n"),
     ("[http.cors]", "[http.cors]\norigins = []\nmethods = [\"GET\", \"HEAD\", \"POST\"]\nheaders = []\nexpose = []\ncredentials = false\nmax_age = \"10m\"\n"),
     ("[http.cookies]", "[http.cookies]\nsecure = true\nhttp_only = true\nsame_site = \"Lax\"\npath = \"/\"\n"),
-    ("[http.client]", "[http.client]\nconnect_timeout = \"5s\"\ndeadline = \"30s\"\nmax_redirects = 0\n"),
+    ("[http.client]", "[http.client]\nconnect_timeout = \"5s\"\ndeadline = \"30s\"\nidle = \"30s\"\nmax_duration = \"5m\"\nmax_redirects = 0\n"),
     ("[db.<name>]", "[db.main]\ndriver = \"pgsql\"\nhost = \"db\"\nport = 5432\nuser = \"app\"\npassword_file = \"/run/secrets/db\"\ndatabase = \"shop\"\n"),
     ("[db.<name>] sqlite", "[db.local]\npath = \"data/app.sqlite\"\n"),
     ("[db.<name>.pool]", "[db.main]\ndriver = \"pgsql\"\n[db.main.pool]\nmax = 16\nidle = 2\nlifetime = \"30m\"\nacquire = \"5s\"\n"),

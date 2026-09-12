@@ -1893,6 +1893,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   member and compare `--TEST--` lines before writing anything: where the tree holds the claim the
   repair is the name in the goal file, and where it holds half of it the drafted case is real work.
   [until: reviewed 2026-10-12]
+- **A `# NOT IMPLEMENTED` note in `default.toml` claims every key below it in the same block.**
+  `tools/directives.py`'s template parser ends a prose block at a blank line or a header and never at
+  a setting, so a note written above `#idle` also marked the `#max_redirects` under it and
+  `-p nvs-config --test directives` failed naming that key. Put an unimplemented key last in its
+  block behind a blank line, and keep the field's `[unread: <why> owner: <who>]` trailer on one line
+  — the reader takes it from the doc comment's last line. [until: reviewed 2026-09-12]
 
 ## Running things
 

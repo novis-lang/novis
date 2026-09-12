@@ -509,6 +509,17 @@ pub struct HttpClient {
     pub connect_timeout: Option<String>,
     /// The total, covering every attempt and every redirect hop.
     pub deadline: Option<String>,
+    /// The longest silence a streamed body may go through once its head has arrived
+    /// (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`), where `deadline`
+    /// covers the connection and the head and stops.
+    ///
+    /// [unread: `Core\Http\Client::stream` takes `idle` and `maxDuration` at the call and refuses a non-positive one, but the transport hands the whole body over with the head, so there is no walk yet for either bound to end and a value written here bounds nothing. owner: rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime]
+    pub idle: Option<String>,
+    /// The longest a streamed body may take altogether — see [`HttpClient::idle`], whose bound
+    /// alone an origin dribbling a byte at a time would never trip.
+    ///
+    /// [unread: the same gap as `idle`'s, and closed by the same reader — the transport hands the whole body over with the head, so a value written here bounds nothing. owner: rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime]
+    pub max_duration: Option<String>,
     /// Redirects are off by default (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`).
     pub max_redirects: Option<u32>,
 }

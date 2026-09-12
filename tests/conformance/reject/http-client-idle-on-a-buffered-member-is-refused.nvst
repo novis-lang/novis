@@ -1,0 +1,36 @@
+--TEST--
+`idle` and `maxDuration` are `stream`'s two keys alone, and either one on a buffered member is refused while compiling — `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
+--FILE--
+<?nvs
+// `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`:
+// `deadline` covers the connection and the head, and a body read as it arrives
+// then runs under two further bounds. A buffered call has no such body, so the
+// two keys are not in its bag at all — the refusal is the checker finding no
+// such option, which is what puts it here rather than on the one deployment
+// that wrote the key and watched it do nothing.
+string $url = "https://example.test/events";
+
+// Asserted on both sides, because either half alone reads as correct: the same
+// two keys are accepted on the row whose body they bound, so a refusal that
+// came from `idle` being unspellable anywhere fails here too.
+var $streamed = Core\Http\Client::stream(Core\Http\Method::Post, $url, {idle: 5s, maxDuration: 2m});
+
+// And the refusal, on a row whose verb is its own name and on the one that is
+// handed a verb: `request` takes the buffered bag, and a verb chosen at run
+// time does not make a streamed body out of a call that holds its reply.
+var $a = Core\Http\Client::get($url, {idle: 5s});
+var $b = Core\Http\Client::request(Core\Http\Method::Get, $url, {maxDuration: 2m});
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0454]: `idle` is not an option of this member
+   --> case.nvs:18:39
+%A
+   = help: the options are: deadline, connectTimeout, headers, followRedirects, retryAttempts, retryBackoff, retryIdempotencyKey, json, form, body, contentType, multipart
+%A
+error[E0454]: `maxDuration` is not an option of this member
+   --> case.nvs:19:66
+%A
+   = help: the options are: deadline, connectTimeout, headers, followRedirects, retryAttempts, retryBackoff, retryIdempotencyKey, json, form, body, contentType, multipart
+%A
+error: aborting due to 2 errors

@@ -267,6 +267,16 @@
 # policy (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`).
 #max_redirects = 0
 
+# NOT IMPLEMENTED — a streamed body is bounded by neither of these yet. `Core\Http\Client::stream`
+# takes `idle` and `maxDuration` at the call and refuses a non-positive one, but the transport hands
+# the whole body over with the head, so there is no walk for either bound to end and a value written
+# here bounds nothing. `deadline` covers the connection and the head and stops there; `idle` is then
+# the longest silence the body may go through, and `max_duration` the longest it may take at all,
+# which is what ends an origin dribbling a byte at a time under every idle check.
+# `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime` is what closes it.
+#idle = "30s"
+#max_duration = "5m"
+
 
 # ----------------------------------------------------------------------------------------------
 # [server] — `Boot`-class as a whole block: a change here needs a restart, not a reload
