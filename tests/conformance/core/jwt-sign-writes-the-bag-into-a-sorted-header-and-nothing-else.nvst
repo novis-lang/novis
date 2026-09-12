@@ -1,0 +1,61 @@
+--TEST--
+Core\Jwt::sign's trailing bag is the whole of what reaches a header: `kid` and `typ` land in sorted position whatever order the call wrote them, `embedKey` writes exactly the JWK the pair's own public half exports, and `embedKey` under a shared secret is a bug — `rule:security/algorithm-comes-from-the-key`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// A bound asserted on both sides: what the bag puts in a header, and what
+// nothing can put in one. The header is written sorted so that a token signed
+// under a deterministic algorithm is reproducible byte for byte, which is a
+// property no single token shows — so the calls below write the bag's members
+// in the wrong order on purpose and the expectation is the sorted one.
+secret bytes $shared = Core\Crypto::generateKey();
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+array<string> $headers = [];
+array<string> $tokens = [
+    Core\Jwt::sign(["sub" => "ada"], 15m, $shared),
+    Core\Jwt::sign(["sub" => "ada"], 15m, $shared, {typ: "at+jwt", kid: "2026-a"}),
+    Core\Jwt::sign(["sub" => "ada"], 15m, $pair, {kid: "dpop", embedKey: true}),
+];
+foreach ($tokens as string $token) {
+    array<string> $parts = Core\Str::split($token, ".");
+    $headers[] = Core\Encoding::decodeText(
+        Core\Encoding::fromBase64Url($parts[0]),
+        Core\Charset::Utf8
+    );
+}
+
+// An empty bag is the header this class has always written, and a bag that
+// names both members puts each where sorting puts it and not where the call
+// did.
+echo $headers[0], "\n";
+echo $headers[1], "\n";
+
+// Agreement rather than a literal: the embedded key is exactly what the pair's
+// own public half exports, so `embedKey` cannot grow a second JWK spelling that
+// a recipient reading the exported one would not accept.
+string $exported = Core\Encoding::decodeText(
+    $pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    Core\Charset::Utf8
+);
+string $wanted = "{\"alg\":\"EdDSA\",\"jwk\":" . $exported . ",\"kid\":\"dpop\",\"typ\":\"JWT\"}";
+echo "the embedded key is the exported one: ", $headers[2] == $wanted ? "yes" : "no", "\n";
+echo "and it is the only header of the three carrying a `jwk`: ",
+    (Core\Str::contains($headers[0], "jwk") || Core\Str::contains($headers[1], "jwk"))
+        ? "no" : "yes",
+    "\n";
+
+// The other side of the bound. A shared secret has no public half, so asking
+// for one is a bug in the program rather than anything a recipient could be
+// told about.
+try {
+    Core\Jwt::sign(["sub" => "ada"], 15m, $shared, {embedKey: true});
+    echo "a shared secret embedded a public half", "\n";
+} catch (LogicError $noPublicHalf) {
+    echo $noPublicHalf->message, "\n";
+}
+--EXPECT--
+{"alg":"HS256","typ":"JWT"}
+{"alg":"HS256","kid":"2026-a","typ":"at+jwt"}
+the embedded key is the exported one: yes
+and it is the only header of the three carrying a `jwk`: yes
+Core\Jwt::sign(): {embedKey: true} writes the signing key's public half into the header, and a shared secret has no public half — it is the key the recipient already holds. Sign under a `Core\Crypto\KeyPair` to embed one.

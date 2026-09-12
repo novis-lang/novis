@@ -8,24 +8,52 @@
 //! check inside a body, what a claim is on the way in and on the way out, and
 //! what this entry deliberately refuses to carry.
 //!
-//! # The algorithm comes from the key, and there is one of it
+//! # The algorithm comes from the key, and the key is the only thing that names it
 //!
-//! `rule:security/algorithm-comes-from-the-key`'s first bullet asks that `alg` be "checked against the key's
-//! algorithm and rejected on mismatch; never consulted to select one". The
-//! strongest way to hold that is to have nothing to select *from*, so
-//! [`ALG`] is the only algorithm this class knows: HMAC-SHA-256 through
-//! [`crate::hash::hmac_sha256`], under the `secret bytes` key
-//! `Core\Crypto::generateKey()` already answers. [`nvs_core_jwt_verify`] reads
-//! the header's `alg` only to **compare** it, and the comparison's failure is
-//! a refusal — there is no code path in which a string out of the token
-//! reaches a `match`, so `alg: none` and the RS256→HS256 confusion are not
-//! defended against here, they are unwritable.
+//! `rule:security/algorithm-comes-from-the-key` asks that `alg` be "checked against the key's
+//! algorithm and rejected on mismatch; never consulted to select one". This
+//! class holds it by having no `alg` parameter at all: the value in
+//! [`nvs_core_jwt_sign`]'s `$key` slot **is** the choice, and there is no
+//! second argument that could disagree with it. A `secret bytes` is
+//! HMAC-SHA-256 through [`crate::hash::hmac_sha256`], under the key
+//! `Core\Crypto::generateKey()` already answers; a `Core\Crypto\KeyPair` is
+//! the one JWS algorithm its kind can carry, which [`pair_alg`] is the whole
+//! of — a total function of a kind settled when the pair was read, rather
+//! than a lookup a call site steers.
+//!
+//! [`nvs_core_jwt_verify`] reads a header's `alg` only to **compare** it
+//! against [`ALG`], and the comparison's failure is a refusal. There is no
+//! code path in which a string out of a token reaches a `match`, so `alg:
+//! none` and the RS256→HS256 confusion are not defended against here, they
+//! are unwritable. That member takes a shared key alone, so a token signed
+//! under a pair is not one it reads at all: the asymmetric half is for tokens
+//! another party verifies.
 //!
 //! That is also why no member takes a `Digest`. `Core\Hash::hmac` takes one
 //! because a program choosing a digest for its own protocol is choosing
 //! nothing an attacker supplied; a JWT's algorithm field is attacker-supplied
 //! by construction, and a member that accepted the caller's choice would have
 //! put the same string back within one call site of the token it came from.
+//!
+//! # The header is written, sorted, and four members wide at most
+//!
+//! [`header_of`] writes `{alg, jwk?, kid?, typ}` — members sorted, no
+//! whitespace — so a token this class signs is reproducible byte for byte
+//! wherever the signature algorithm is itself deterministic, and can be held
+//! to a frozen interoperability vector rather than only round-tripped against
+//! this module. [`HEADER`] is what that function answers for a shared key and
+//! an empty bag, written out so the bytes this class signs are visible in the
+//! file, and `the_default_header_is_the_written_constant` holds the two
+//! together.
+//!
+//! The trailing bag is the whole of what a caller may put in a header. `kid`
+//! names the key for a recipient holding several, `typ` is the member RFC 9068
+//! spells `at+jwt`, and `embedKey` writes the pair's public half as RFC 7638's
+//! minimal JWK under `jwk` — what a DPoP proof carries. There is no option for
+//! `alg`, none for a header member the two halves of the roster do not read,
+//! and `embedKey` under a shared key is a `LogicError`: a shared secret has no
+//! public half, and a member that wrote one anyway would be inventing exactly
+//! the key-in-the-token shape `rule:security/algorithm-comes-from-the-key` removes.
 //!
 //! # Expiry is not optional at either end
 //!
@@ -88,15 +116,18 @@
 //! structured claims — a directory server's role table is the usual one. It
 //! buys a surface on which a claim cannot reach a sink unlaundered, which is
 //! the priority-1 half of the trade and so the one that wins here. The
-//! widening, if the tokens turn out to matter more than the estimate, is a
-//! qualifier that survives a shape: `Core\Json::decodeAs<T>` carrying
-//! `tainted` through into a declared shape would let this member answer `T`
-//! and keep § 5 — that is a `nvs_types` question, not this module's, and
-//! nothing here has to change shape to receive it.
+//! widening is a qualifier that survives a shape: a decoder carrying `tainted`
+//! through into a declared shape lets a member answer that shape and keep
+//! `rule:security/verification-does-not-launder`, which is the ground
+//! `Core\Json::decodeAs<T>` already stands on and which a reader of a
+//! third-party token is written onto rather than this member.
 //!
 //! [`nvs_core_jwt_sign`] takes `array<string>` for the same reason from the
 //! other side: the two halves agree about what a claim is, so a token this
-//! class signs never trips the refusal above.
+//! class signs under a shared key never trips the refusal above. Under a key
+//! pair the token is for somebody else's verifier, and what that verifier
+//! accepts is not this module's to promise — the claims are still
+//! `array<string>`, so the agreement holds in the one direction it is about.
 //!
 //! # Constant time
 //!
@@ -111,7 +142,10 @@ use subtle::ConstantTimeEq as _;
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::crypto::{self, KeyFormat, KeyKind, PrivateKey};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// The class name, once, for the messages that all name it.
 const NAME: &str = r"Core\Jwt";
@@ -123,13 +157,45 @@ const NAME: &str = r"Core\Jwt";
 /// the thing `rule:security/algorithm-comes-from-the-key` exists to prevent.
 const ALG: &str = "HS256";
 
-/// The header every token this class signs carries, byte for byte.
+/// The JWS algorithm a pair of each kind carries, and `None` for the one kind
+/// that signs nothing.
+///
+/// A function of the kind alone, which is the kind the pair was *read* as: the
+/// module doc's first section is the home of why that is the whole of
+/// `rule:security/algorithm-comes-from-the-key` for the asymmetric half. RSA's
+/// two spellings are two kinds rather than one kind and a scheme argument, for
+/// the reason [`crate::crypto::KeyKind`] gives.
+const fn pair_alg(kind: KeyKind) -> Option<&'static str> {
+    match kind {
+        KeyKind::P256 => Some("ES256"),
+        KeyKind::Ed25519 => Some("EdDSA"),
+        KeyKind::RsaPkcs1 => Some("RS256"),
+        KeyKind::RsaPss => Some("PS256"),
+        KeyKind::X25519 => None,
+    }
+}
+
+/// The `typ` a token carries unless the bag names another.
+///
+/// Written because RFC 7519 § 5.1 recommends it, and **not** checked on the way
+/// in, because RFC 9068's access tokens spell it `at+jwt` and refusing those
+/// would be this class inventing a rule `rule:security/protocol-roster` does not have.
+const TYP: &str = "JWT";
+
+/// The header a token signed under a shared key with an empty bag carries, byte
+/// for byte.
 ///
 /// Written out rather than assembled, so the bytes that get signed and the
-/// bytes a reader of this file sees are the same bytes. `typ` is written
-/// because RFC 7519 § 5.1 recommends it and **not** checked on the way in,
-/// because RFC 9068's access tokens spell it `at+jwt` and refusing those would
-/// be this class inventing a rule `rule:security/protocol-roster` does not have.
+/// bytes a reader of this file sees are the same bytes. [`header_of`] is what
+/// actually writes one, and `the_default_header_is_the_written_constant` holds
+/// this spelling and that function's answer together.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the written spelling is the pin, and the pin is what the test reads"
+    )
+)]
 const HEADER: &str = r#"{"alg":"HS256","typ":"JWT"}"#;
 
 /// The shortest key HS256 accepts — RFC 7518 § 3.2's "a key of the same size
@@ -143,8 +209,37 @@ const HEADER: &str = r#"{"alg":"HS256","typ":"JWT"}"#;
 /// never going to ask us what length to make it.
 const MIN_KEY_LEN: usize = 32;
 
-/// The key both rows take, written once so neither can drift from the other.
+/// The key `verify` takes: a shared secret and nothing else.
 const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
+
+/// The key `sign` takes, which is the whole of its algorithm choice.
+///
+/// The secret arm is written [`CoreTy::SecretBlob`] rather than
+/// `CoreTy::SecretBytes` because the registry's unclassified-parameter audit
+/// walks a union's members and reads the bare spelling as unclassified.
+const SIGN_KEY: CoreTy = CoreTy::Union(&[KEY, CoreTy::Instance(crypto::KEY_PAIR_NAME)]);
+
+/// `sign`'s trailing bag — the whole of what a caller may put in a header, and
+/// the module doc's *the header is written* section is the home of each.
+const SIGN_OPTIONS: &[CoreOption] = &[
+    // Neutral for the claims' reason: a header member is base64 and a dot by
+    // the time it leaves, so it carries no argument's `tainted` into a sink.
+    CoreOption {
+        name: "kid",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "typ",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "embedKey",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
 
 /// One verified claim, as `rule:security/verification-does-not-launder` requires it back.
 const CLAIM: CoreTy = CoreTy::TaintedStr;
@@ -162,7 +257,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
                 CoreTy::Instance(crate::time::DURATION_NAME),
-                KEY,
+                SIGN_KEY,
+                CoreTy::Options(SIGN_OPTIONS),
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
@@ -190,9 +286,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Jwt::sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
-    short: "Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and \
-            HMAC-SHA-256. The expiry is written here rather than passed in, so a token this \
-            member produces always carries one.",
+    short: "Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and the \
+            one algorithm that key has. The expiry is written here rather than passed in, so a \
+            token this member produces always carries one.",
     params: &[
         ParamDoc {
             name: "claims",
@@ -208,9 +304,30 @@ const SIGN_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "key",
-            desc: "The shared secret, at least 32 octets. `Core\\Crypto::generateKey()` answers \
-                   one of exactly that length; a longer secret agreed with another service is \
-                   accepted as it stands.",
+            desc: "A shared secret of at least 32 octets, which signs HS256 — \
+                   `Core\\Crypto::generateKey()` answers one, and a longer secret agreed with \
+                   another service is accepted as it stands. Or a `Core\\Crypto\\KeyPair`, which \
+                   signs ES256, EdDSA, RS256 or PS256 by its kind. There is no algorithm \
+                   argument: the key is the choice.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "kid",
+            desc: "The key's name in the header, for a recipient holding several. Omitted by \
+                   default, and written verbatim — it names a key and selects nothing.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "typ",
+            desc: "The header's `typ`, `JWT` when omitted. RFC 9068's access tokens spell it \
+                   `at+jwt`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "embedKey",
+            desc: "Writes the pair's public half into the header as RFC 7638's minimal JWK, \
+                   which is what a DPoP proof carries. Off by default, and a bug under a shared \
+                   secret, which has no public half.",
             shape: &[],
         },
     ],
@@ -219,9 +336,10 @@ const SIGN_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$key` is shorter than 32 octets; `$lifetime` is zero or negative; or \
-                   `$claims` names `exp` or `iat`, which this member writes, or carries a \
-                   positional entry, since a claim has a name.",
+            desc: "`$key` is a secret shorter than 32 octets, or an `X25519` pair, which signs \
+                   nothing; `{embedKey: true}` was written under a shared secret; `$lifetime` \
+                   is zero or negative; or `$claims` names `exp` or `iat`, which this member \
+                   writes, or carries a positional entry, since a claim has a name.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -361,6 +479,105 @@ fn quoted(text: &str) -> String {
     serde_json::Value::String(text.to_owned()).to_string()
 }
 
+/// The protected header a token carries: `{alg, jwk?, kid?, typ}`, members
+/// sorted, no whitespace.
+///
+/// Assembled in that order by hand rather than through a `serde_json::Map`, for
+/// [`payload_of`]'s reason turned the other way round — a map would sort these
+/// too, and the point is that the sorting is a property a reader of this file
+/// can check rather than one a serializer happens to have. `jwk` arrives
+/// already written by `Core\Crypto\PublicKey`, which answers RFC 7638's
+/// required members in the same order.
+fn header_of(alg: &str, jwk: Option<&str>, kid: Option<&str>, typ: &str) -> String {
+    let mut header = format!(r#"{{"alg":{}"#, quoted(alg));
+    if let Some(jwk) = jwk {
+        header.push_str(r#","jwk":"#);
+        header.push_str(jwk);
+    }
+    if let Some(kid) = kid {
+        header.push_str(r#","kid":"#);
+        header.push_str(&quoted(kid));
+    }
+    header.push_str(r#","typ":"#);
+    header.push_str(&quoted(typ));
+    header.push('}');
+    header
+}
+
+/// The key `sign` was handed, as one of the two things it is allowed to be.
+///
+/// The algorithm rides on the variant rather than beside it, so there is no
+/// arrangement of this value in which a shared secret is about to be signed
+/// with under an asymmetric `alg` — `rule:security/algorithm-comes-from-the-key`
+/// held as a type, the way [`crate::crypto::SigningKey`] holds it one layer
+/// down.
+///
+/// The two variants are different sizes — an RSA pair against a borrowed slice
+/// — and boxing the larger would buy an allocation on the request path to save
+/// a few hundred bytes of stack that live for one call, which is priority 3
+/// spent on priority 5. [`crate::crypto`]'s own `Keyed` turns the same trade
+/// down for the same reason.
+#[allow(clippy::large_enum_variant)]
+enum Signer<'a> {
+    /// A shared secret, [`MIN_KEY_LEN`] octets or longer: [`ALG`].
+    Shared(&'a [u8]),
+    /// A pair, and the one algorithm [`pair_alg`] gives its kind.
+    Pair(PrivateKey, &'static str),
+}
+
+/// The key at `slot`, read as whichever arm of the row's union it is.
+///
+/// # Errors
+///
+/// A `LogicError` for a secret shorter than [`MIN_KEY_LEN`] and for an `X25519`
+/// pair, which signs nothing. A [`Fault::fatal`] for a pair whose stored DER no
+/// longer parses, which is unreachable from source: the octets are the ones
+/// `Core\Crypto\KeyPair::read` already parsed under the same kind.
+fn signer_at(args: &[Value], slot: usize) -> Result<Signer<'_>, Fault> {
+    if args[slot].as_bytes().is_some() {
+        return Ok(Signer::Shared(key_at(args, slot, "sign")?));
+    }
+
+    let (held, kind) = crypto::stored_key(args, slot, &crypto::KEY_PAIR, "sign")?;
+    let alg = pair_alg(kind).ok_or_else(|| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{NAME}::sign(): an `X25519` pair signs nothing — it is a key for \
+                 Core\\Crypto::agree alone. A `P256` pair signs ES256, an `Ed25519` pair EdDSA, \
+                 and the two RSA kinds RS256 and PS256."
+            ),
+        )
+    })?;
+    let der = crypto::stored_octets(&held, &crypto::KEY_PAIR, "sign")?;
+    let pair = PrivateKey::read(der, kind).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::sign held a `{}` that is no longer a private key of its own kind",
+            crypto::KEY_PAIR_NAME
+        ))
+    })?;
+    Ok(Signer::Pair(pair, alg))
+}
+
+/// The header `jwk` a `{embedKey: true}` call writes: the pair's public half as
+/// RFC 7638's minimal JWK.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] either way. Every kind that reaches this has a public half
+/// and a JWK spelling for it, so both refusals are about this program's own
+/// octets rather than about anything a call site wrote.
+fn embedded_jwk(pair: &PrivateKey) -> Result<String, Fault> {
+    let broken = || {
+        Fault::fatal(format!(
+            "{NAME}::sign held a pair with no public half to embed"
+        ))
+    };
+    let public = pair.public().ok_or_else(broken)?;
+    let written = public.write(KeyFormat::Jwk).map_err(|_| broken())?;
+    String::from_utf8(written).map_err(|_| broken())
+}
+
 /// The payload `sign` signs: the caller's claims in the order they were
 /// written, then the two registered ones this class owns.
 ///
@@ -441,7 +658,7 @@ fn claim_text(value: &serde_json::Value) -> Option<String> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Jwt::sign(array<string> $claims, Duration $lifetime, secret bytes $key): string`
+    /// `Core\Jwt::sign(array<string> $claims, Duration $lifetime, secret bytes|Crypto\KeyPair $key, {kid?, typ?, embedKey?}): string`
     /// — the write half of `rule:security/protocol-roster`'s fourth entry, replacing the
     /// hand-rolled `base64_encode` + `hash_hmac` + `rtrim` triple and the
     /// several userland libraries that wrap it.
@@ -450,7 +667,11 @@ nvs_runtime::nvs_helper! {
     /// whole answer to § 4's "there is no flag to disable the check": a caller
     /// cannot leave out an argument that is not optional. The module doc's own
     /// section is the home of why `exp` is refused in `$claims` as well.
-    fn nvs_core_jwt_sign(ctx, args: [3]) {
+    ///
+    /// The order below is what makes a token reproducible: the header is
+    /// settled before anything is encoded, so every byte that gets signed is
+    /// fixed by the key, the bag and the clock and by nothing read later.
+    fn nvs_core_jwt_sign(ctx, args: [6]) {
         let raw = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "{NAME}::sign expected {:?} for $claims, got tag {}",
@@ -460,7 +681,36 @@ nvs_runtime::nvs_helper! {
         })?;
         let claims = crate::arr::borrowed(raw);
         let lifetime = crate::time::nanos_of(args, 1, "sign")?;
-        let key = key_at(args, 2, "sign")?;
+        let signer = signer_at(args, 2)?;
+        let kid = args[3].as_text();
+        let typ = args[4].as_text().unwrap_or(TYP);
+        let embed = args[5].as_bool().unwrap_or(false);
+
+        let (alg, jwk) = match &signer {
+            Signer::Shared(_) => {
+                if embed {
+                    return Err(Fault::thrown_as(
+                        ThrownClass::Logic,
+                        format!(
+                            "{NAME}::sign(): {{embedKey: true}} writes the signing key's public \
+                             half into the header, and a shared secret has no public half — it \
+                             is the key the recipient already holds. Sign under a \
+                             `Core\\Crypto\\KeyPair` to embed one."
+                        ),
+                    ));
+                }
+                (ALG, None)
+            }
+            Signer::Pair(pair, alg) => {
+                let jwk = if embed {
+                    Some(embedded_jwk(pair)?)
+                } else {
+                    None
+                };
+                (*alg, jwk)
+            }
+        };
+        let header = header_of(alg, jwk.as_deref(), kid, typ);
 
         // Whole seconds, and the truncation is deliberate: `exp` is a second
         // count by RFC 7519 § 4.1.4, so a `500ms` lifetime is not a token
@@ -492,11 +742,30 @@ nvs_runtime::nvs_helper! {
         let payload = payload_of(&claims, now, exp)?;
         let signing_input = format!(
             "{}.{}",
-            URL_SAFE_NO_PAD.encode(HEADER),
+            URL_SAFE_NO_PAD.encode(&header),
             URL_SAFE_NO_PAD.encode(&payload)
         );
-        let tag = crate::hash::hmac_sha256(key, signing_input.as_bytes());
-        let signature = URL_SAFE_NO_PAD.encode(tag);
+        let signature = match signer {
+            Signer::Shared(key) => {
+                URL_SAFE_NO_PAD.encode(crate::hash::hmac_sha256(key, signing_input.as_bytes()))
+            }
+            Signer::Pair(pair, _) => {
+                // Unreachable from source twice over, and each is the machine
+                // rather than the program: `signing` answers `None` only for
+                // the kind `signer_at` already refused, and `sign` only where
+                // `ring`'s generator has failed under the two randomized
+                // algorithms.
+                let key = pair.signing().ok_or_else(|| {
+                    Fault::fatal(format!("{NAME}::sign held a pair of a kind that signs nothing"))
+                })?;
+                let written = crypto::sign(&key, signing_input.as_bytes()).ok_or_else(|| {
+                    Fault::fatal(format!(
+                        "{NAME}::sign could not draw the randomness a signature needs"
+                    ))
+                })?;
+                URL_SAFE_NO_PAD.encode(written)
+            }
+        };
 
         // Asked once with the real number, as `crate::crypto::seal_under`
         // does: the answer's size is known exactly here.
@@ -723,5 +992,45 @@ mod tests {
                 "the claim value {json} comes back as {want:?}"
             );
         }
+    }
+
+    /// The hand-written header and the assembled one are the same bytes, so
+    /// the spelling in the file stays the thing a reader can check the writer
+    /// against.
+    #[test]
+    fn the_default_header_is_the_written_constant() {
+        assert_eq!(header_of(ALG, None, None, TYP), HEADER);
+    }
+
+    /// `{alg, jwk?, kid?, typ}`, sorted, whatever order the bag was written in
+    /// and whatever the members hold — a claim-shaped `kid` is escaped rather
+    /// than closing the object it is inside.
+    #[test]
+    fn a_header_is_sorted_and_its_members_are_escaped() {
+        assert_eq!(
+            header_of("ES256", Some(r#"{"crv":"P-256"}"#), Some("2026"), "at+jwt"),
+            r#"{"alg":"ES256","jwk":{"crv":"P-256"},"kid":"2026","typ":"at+jwt"}"#
+        );
+        assert_eq!(
+            header_of("EdDSA", None, Some(r#"a"},"alg":"none"#), TYP),
+            r#"{"alg":"EdDSA","kid":"a\"},\"alg\":\"none","typ":"JWT"}"#
+        );
+    }
+
+    /// Every kind but the one that agrees carries exactly one JWS algorithm,
+    /// and the four are distinct — a table that collapsed two kinds onto one
+    /// `alg` would be a key signing under a scheme it was not read as.
+    #[test]
+    fn each_kind_carries_one_algorithm_and_x25519_carries_none() {
+        let kinds = [
+            KeyKind::P256,
+            KeyKind::X25519,
+            KeyKind::Ed25519,
+            KeyKind::RsaPkcs1,
+            KeyKind::RsaPss,
+        ];
+        let named: Vec<&str> = kinds.iter().copied().filter_map(pair_alg).collect();
+        assert_eq!(named, ["ES256", "EdDSA", "RS256", "PS256"]);
+        assert_eq!(pair_alg(KeyKind::X25519), None);
     }
 }
