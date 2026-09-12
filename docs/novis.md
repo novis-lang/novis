@@ -145,6 +145,7 @@ Conventions the whole file uses:
 | [`Core\Csrf`](#core-core-csrf) |  |
 | [`Core\Totp`](#core-core-totp) |  |
 | [`Core\Jwt`](#core-core-jwt) |  |
+| [`Core\Jwt\KeySet`](#core-core-jwt-keyset) |  |
 | [`Core\Jwe`](#core-core-jwe) |  |
 | [`Core\Jwe\Key`](#core-core-jwe-key) |  |
 | [`Core\Signature`](#core-core-signature) |  |
@@ -19199,6 +19200,33 @@ Answers the claims `$token` carries, having checked that this key signed it and 
 **Returns** `array<tainted string>` — Every claim in the payload, by name, each one `tainted`: a signature proves who wrote a value, not that it is safe for any sink. `exp` and `iat` are present in it, in their own decimal spelling.
 
 **Throws** `LogicError` — `$key` is shorter than 32 octets — a value that was never a signing key.; `RuntimeError` — The token is not one this key signed, which is one sentence for every way of not being one; or it is, and has expired, carries no `exp`, or carries a claim that is not text.
+
+<a id="core-core-jwt-keyset"></a>
+### `Core\Jwt\KeySet`
+
+Keywords: read
+
+| Member | Signature |
+|---|---|
+| [`Core\Jwt\KeySet::read`](#core-core-jwt-keyset-read) | `read(string $jwks, {rsaScheme?: Core\Crypto\KeyKind}): Core\Jwt\KeySet` |
+
+<a id="core-core-jwt-keyset-read"></a>
+#### `Core\Jwt\KeySet::read`
+
+```nvs skip
+Core\Jwt\KeySet::read(string $jwks, {rsaScheme?: Core\Crypto\KeyKind}): Core\Jwt\KeySet
+```
+
+Admits the signing keys a JWKS document publishes, so a token can be checked against the one key its `kid` names. A key this roster has no use for is skipped and a document that is wrong is refused whole, which are different answers to different questions.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$jwks` | `string` (neutral) | The document as the issuer served it. It is read here and nowhere else: fetching it, caching it and rotating it are a package's job, and this member is stateless over the text it is handed. |
+| `{rsaScheme: …}` | `Core\Crypto\KeyKind` (default `null`) | Which scheme an RSA key carrying no `alg` is read under — `RsaPkcs1` for RS256 or `RsaPss` for PS256. A key's own `alg` always wins, and an RSA key with neither is refused rather than guessed. Every other kind names its own algorithm, so this reaches nothing else. |
+
+**Returns** `Core\Jwt\KeySet` — A set of at most 16 public keys, each under the name the document gave it, ready for a lookup by `kid` and never for a try of every key.
+
+**Throws** `LogicError` — `{rsaScheme: …}` names a kind that is not one of the two RSA ones, and no other kind has two schemes to choose between.; `RuntimeError` — `$jwks` is not a document to read keys from: it is not JSON, it carries no `keys` array, one of its keys carries a private member or a `kid` that is not text, a key is not a key of the kind it claims — an RSA modulus outside 2048–8192 bits included — an `alg` is one its key's kind cannot carry, two keys share a `kid`, or more than 16 keys are admitted.
 
 <a id="core-core-jwe"></a>
 ### `Core\Jwe`
