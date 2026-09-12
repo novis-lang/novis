@@ -9021,7 +9021,9 @@ argv = ["python", "tools/rules.py", "--show", "security/jws-issued-subset"]
 want = ["security/jws-issued-subset"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- the primitives, each against the vectors its specification publishes. Goal prose stage 3.
+# Stage 3 -- the primitives, each against the vectors its specification publishes, or against the
+# frozen WebCrypto set where the goal's standing decisions make that output the oracle. Goal prose
+# stage 3.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -9030,19 +9032,16 @@ stage = "3 the primitives"
 name = "every interop primitive matches its published vectors and refuses its classic bad input"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  "aes_256_gcm_matches_the_nist_vectors_and_refuses_a_flipped_tag",
-  "pbkdf2_hmac_sha256_matches_rfc_7914",
-  "hkdf_sha256_matches_rfc_5869",
-  "x25519_matches_rfc_7748_and_refuses_a_low_order_point",
-  "p256_ecdh_matches_rfc_5903_and_refuses_a_point_off_the_curve",
-  "aes_key_wrap_matches_rfc_3394",
-  "concat_kdf_matches_rfc_7518_appendix_c",
-  "rsa_pkcs1_sha256_matches_rfc_7515_appendix_a2",
-  "rsa_pss_sha256_verifies_rfc_7520_section_4_2",
-  "ecdsa_p256_matches_rfc_7515_appendix_a3_and_refuses_a_der_signature",
-  "ed25519_matches_rfc_8037_appendix_a4",
-  "jwk_thumbprint_matches_rfc_7638_section_3_1",
-  "rsa_keys_outside_2048_to_8192_bits_are_refused_before_any_signature_check",
+  "aes_gcm_matches_the_vectors_published_with_the_mode",
+  "the_two_derivations_match_their_published_vectors",
+  "webcrypto_ecdh_vectors_agree_the_same_secret_from_every_key_form",
+  "webcrypto_primitive_refusal_vectors_are_each_refused_by_the_member_that_owns_the_rule",
+  "the_key_wrap_matches_rfc_3394_and_refuses_a_changed_wrap",
+  "the_derivation_ecdh_es_runs_matches_rfc_7518_appendix_c",
+  "webcrypto_signature_vectors_verify_and_deterministic_ones_resign_byte_for_byte",
+  "webcrypto_signature_refusals_are_each_refused_with_one_runtime_error",
+  "webcrypto_jws_keys_read_in_every_form_and_write_their_minimal_jwk_and_thumbprint",
+  "the_rsa_width_bound_is_asserted_on_both_sides",
   "every_interop_nonce_salt_and_private_key_is_drawn_through_core_random",
 ]
 
