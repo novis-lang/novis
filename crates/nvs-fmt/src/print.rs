@@ -10,14 +10,15 @@
 //! indentation or spacing rewrites a whitespace run, and one about where a
 //! brace sits rewrites the runs on either side of it.
 //!
-//! A code run is copied byte for byte, save for the two edits that write
-//! something other than what is there: a modifier list goes out in its
-//! canonical order ([`crate::modifiers`]), and a brace the author left no room
-//! in front of gets the run [`crate::brace`] requires
-//! ([`Rewrite`]). `rule:tooling/fmt-never-reflows` leaves what is inside an
-//! expression to the author, and bytes a program prints — inline HTML, a
-//! heredoc body, a markup literal's body — are never a formatter's to touch, so
-//! a rule that appears to require rewriting one is being misread.
+//! A code run is copied byte for byte, save for the edits that write something
+//! other than what is there, each of them a [`Rewrite`]: a modifier list goes
+//! out in its canonical order ([`crate::modifiers`]), a brace the author left
+//! no room in front of gets the run [`crate::brace`] requires, and a literal
+//! the quote rule respells gets the delimiters [`crate::tokens`] decides.
+//! `rule:tooling/fmt-never-reflows` leaves what is inside an expression to the
+//! author, and bytes a program prints — inline HTML, a heredoc body, a markup
+//! literal's body — are never a formatter's to touch, so a rule that appears to
+//! require rewriting one is being misread.
 
 use std::iter::Peekable;
 use std::vec::IntoIter;
@@ -27,7 +28,7 @@ use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::brace::{self, Placements};
 use crate::indent::Indent;
-use crate::modifiers;
+use crate::{modifiers, tokens};
 
 /// One run of bytes, and what the printer writes in its place.
 ///
@@ -52,6 +53,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
     let braces = brace::placements(&parsed.index, &indent, text, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
     edits.extend(braces.insertions());
+    edits.extend(tokens::rewrites(&parsed.index, text, &parsed.trivia));
     edits.sort_by_key(|edit| edit.start);
     let mut out = String::with_capacity(text.len());
     let mut moved = edits.into_iter().peekable();
@@ -71,13 +73,13 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed) -> String {
     out
 }
 
-/// Writes the code run `text[from..to]`, each modifier in it going out where
-/// the canonical order puts it.
+/// Writes the code run `text[from..to]`, each edit inside it applied where it
+/// falls.
 ///
-/// `moved` is every keyword the file writes somewhere other than where it was
-/// written, in source order; each one lies inside a single run, so what this
-/// takes from the front is what belongs to this run and the rest waits for a
-/// later one.
+/// `moved` is every range of the file that goes out as something other than
+/// what is there, in source order and covering no byte twice; each one lies
+/// inside a single run, so what this takes from the front is what belongs to
+/// this run and the rest waits for a later one.
 fn push_code<'t>(
     out: &mut String,
     text: &'t str,
@@ -89,7 +91,7 @@ fn push_code<'t>(
     while let Some(rewrite) = moved.next_if(|rewrite| rewrite.end <= to) {
         debug_assert!(
             cursor <= rewrite.start,
-            "a rewritten keyword lies inside one code run, and they arrive in source order"
+            "a rewritten range lies inside one code run, and they arrive in source order"
         );
         out.push_str(&text[cursor..rewrite.start]);
         out.push_str(rewrite.written);

@@ -27,14 +27,14 @@ class Tag
   public function rename(string $name): void
     {
 $this->name = $name;
-        if ($name == \"\") {
-  $this->name = \"untitled\";
+        if ($name == '') {
+  $this->name = 'untitled';
           }
   }
 }
 
-  var $tag = new Tag(\"red\");
-$tag->rename(\"\");
+  var $tag = new Tag('red');
+$tag->rename('');
 ";
     let canonical = "\
 <?nvs
@@ -45,14 +45,14 @@ class Tag
     public function rename(string $name): void
     {
         $this->name = $name;
-        if ($name == \"\") {
-            $this->name = \"untitled\";
+        if ($name == '') {
+            $this->name = 'untitled';
         }
     }
 }
 
-var $tag = new Tag(\"red\");
-$tag->rename(\"\");
+var $tag = new Tag('red');
+$tag->rename('');
 ";
     assert_eq!(formatted(mangled), canonical);
 }
@@ -113,11 +113,11 @@ class Queue {
         }
         try
         {
-            echo \"done\";
+            echo 'done';
         }
         catch (Error $e)
         {
-            echo \"failed\";
+            echo 'failed';
         }
     }
 }
@@ -138,9 +138,9 @@ class Queue
             }
         }
         try {
-            echo \"done\";
+            echo 'done';
         } catch (Error $e) {
-            echo \"failed\";
+            echo 'failed';
         }
     }
 }

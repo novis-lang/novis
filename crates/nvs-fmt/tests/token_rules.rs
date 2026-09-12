@@ -1,0 +1,60 @@
+//! The rules that rewrite a token, as `rule:tooling/fmt-quotes` states them.
+//!
+//! Each case is one file and the canonical text it formats to, so what a
+//! failure prints is the whole disagreement rather than a property that went
+//! false somewhere. An input is wrong about the rule under test and about
+//! nothing else — every other byte of it is what the printer answers today, so
+//! a case fails for its own reason and an unlanded rule cannot mask it.
+
+use nvs_diagnostics::SourceMap;
+use nvs_fmt::format;
+
+/// `source`, formatted, or a panic carrying the refusal if it does not parse.
+fn formatted(source: &str) -> String {
+    let mut map = SourceMap::new();
+    let id = map.add("case.nvs".to_string(), source);
+    format(map.file(id)).unwrap_or_else(|refusal| panic!("{refusal}"))
+}
+
+#[test]
+fn a_plain_string_is_rewritten_to_single_quotes() {
+    let mangled = "\
+<?nvs
+var $name = \"novis\";
+var $empty = \"\";
+var $kept = 'already';
+var $greeting = \"hello, $name\";
+var $apostrophe = \"it's here\";
+var $escaped = \"one\\ttwo\";
+echo $greeting;
+";
+    let canonical = "\
+<?nvs
+var $name = 'novis';
+var $empty = '';
+var $kept = 'already';
+var $greeting = \"hello, $name\";
+var $apostrophe = \"it's here\";
+var $escaped = \"one\\ttwo\";
+echo $greeting;
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
+#[test]
+fn a_heredoc_body_and_a_comment_are_never_touched() {
+    let source = "\
+<?nvs
+// a \"quoted\" word in a line comment
+/* and a \"quoted\" one in a block comment */
+var $doc = <<<TEXT
+a \"quoted\" line
+    kept at its own depth
+TEXT;
+var $raw = <<<'TEXT'
+no \\t escape, and a \"quote\"
+TEXT;
+echo $doc, $raw;
+";
+    assert_eq!(formatted(source), source);
+}

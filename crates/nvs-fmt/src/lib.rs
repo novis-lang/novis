@@ -45,16 +45,16 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Indentation, modifier order and brace placement are the layout rules
-//!    written into the printer.** The run walk
-//!    `rule:ide/tokens-plus-trivia-reproduce-the-file` names is the frame every
-//!    rule under `docs/rules/tooling/fmt-*` hangs off, and what lands in it so
-//!    far is four spaces per enclosing body (`indent.rs`), one canonical order
-//!    for a declaration's modifiers (`modifiers.rs`) and the line each opening
-//!    brace sits on (`brace.rs`). PER's blank lines, the quote and
-//!    trailing-comma rules, the `use` block's order and the constructs PER
-//!    never saw are still the author's, so a file that disagrees with one of
-//!    them comes back disagreeing with it.
+//! 1. **The rules written into the printer are the ones its own modules
+//!    name.** The run walk `rule:ide/tokens-plus-trivia-reproduce-the-file`
+//!    names is the frame every rule under `docs/rules/tooling/fmt-*` hangs off,
+//!    and what lands in it is four spaces per enclosing body (`indent.rs`), one
+//!    canonical order for a declaration's modifiers (`modifiers.rs`), the line
+//!    each opening brace sits on (`brace.rs`) and the quote a plain string
+//!    literal is delimited by (`tokens.rs`). PER's blank lines, the trailing
+//!    comma, the `use` block's order, the reserved spellings and the constructs
+//!    PER never saw are still the author's, so a file that disagrees with one
+//!    of them comes back disagreeing with it.
 //!    — owner: M10
 //! 2. **A line the tree does not place keeps the author's own indentation.**
 //!    `indent.rs`'s own doc says which ones those are: a `switch`, a `match`
@@ -69,6 +69,15 @@
 //!    `rule:tooling/fmt-base-style-is-per`'s brace paragraph that needs
 //!    one-statement-per-line to land with it.
 //!    — owner: M10
+//! 4. **A literal written inside an attribute keeps the quotes it was written
+//!    with.** `tokens.rs` respells a literal the index has a node for, and an
+//!    attribute's argument list is written outside every node
+//!    `crates/nvs-syntax/src/walk.rs` builds — the same absence `brace.rs`'s
+//!    own doc names for an attribute's object literal. So
+//!    `#[Core\Command(name: "greet")]` comes back double-quoted where the same
+//!    literal in an argument list does not, and what closes it is a node for
+//!    the attribute in that walk rather than a second scan here.
+//!    — owner: M10
 
 use std::fmt;
 
@@ -78,6 +87,7 @@ mod brace;
 mod indent;
 mod modifiers;
 mod print;
+mod tokens;
 
 /// A file `nvs fmt` will not rewrite, because it does not parse.
 ///
