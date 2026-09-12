@@ -9118,16 +9118,35 @@ stage = "6 jws"
 name = "the algorithm is the key's, an issued token is checked whole, and its claims arrive as a tainted shape"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/core/jwt-sign-takes-its-algorithm-from-the-key-kind.nvst",
-  "tests/conformance/core/jwt-sign-embeds-the-public-key-for-a-proof-of-possession.nvst",
-  "tests/conformance/core/jwt-verify-issued-checks-issuer-audience-and-azp.nvst",
-  "tests/conformance/core/jwt-verify-issued-holds-expiry-and-not-before-under-a-bounded-leeway.nvst",
+  # The algorithm is the key's on both sides of the member: `sign` writes the one the pair carries,
+  # and `verifyIssued` refuses `none`, the public half offered as a shared secret, and an `alg` the
+  # key does not carry, each with the sentence every other forgery gets.
+  "tests/conformance/core/jwt-sign-takes-a-pair-and-the-header-names-its-kinds-algorithm.nvst",
+  "tests/conformance/core/jwt-verify-issued-refuses-an-algorithm-the-issuers-key-did-not-choose.nvst",
+  # The trailing bag is the whole of what reaches a header, `embedKey` included: the proof of
+  # possession is the pair's own exported JWK, and nothing a shared secret can ask for.
+  "tests/conformance/core/jwt-sign-writes-the-bag-into-a-sorted-header-and-nothing-else.nvst",
+  # Structured claims — the encoder's own document under a key pair, refused at the call under a
+  # shared key, and the two signing members writing one header and taking one set of keys.
+  "tests/conformance/core/jwt-sign-object-writes-the-encoders-object-and-owns-the-last-two-claims.nvst",
+  "tests/conformance/core/jwt-sign-object-takes-an-object-and-a-pair-and-refuses-the-rest-at-the-call.nvst",
+  "tests/conformance/core/jwt-sign-object-refuses-claims-it-cannot-write-or-must-not-be-given.nvst",
+  "tests/conformance/core/jwt-sign-object-and-sign-write-one-header-and-take-one-set-of-keys.nvst",
+  # An issued token is checked whole and in one order: the header policy, the key that is found
+  # rather than tried, the signature, and only past it the clock, the issuer, the audience and `azp`.
+  "tests/conformance/core/jwt-verify-issued-refuses-a-header-a-verifier-may-not-honour.nvst",
+  "tests/conformance/core/jwt-verify-issued-finds-one-key-and-tries-no-other.nvst",
+  "tests/conformance/core/jwt-verify-issued-reaches-the-clock-and-the-claims-only-under-a-signature.nvst",
+  # The claims arrive as the written type and nothing is laundered: either key spelling, a list claim
+  # and an object claim, and a call site whose type carries no `tainted` refused where it is written.
+  "tests/conformance/core/jwt-verify-issued-answers-the-written-type-from-either-key-spelling.nvst",
   "tests/conformance/core/jwt-verify-issued-answers-list-and-object-claims-as-a-tainted-shape.nvst",
-  "tests/conformance/reject/jwt-verify-issued-into-an-unqualified-shape-is-refused.nvst",
-  "tests/conformance/core/jwt-verify-issued-refuses-none-hs256-confusion-and-every-header-that-brings-a-key.nvst",
-  "tests/conformance/core/jwt-key-set-selects-by-kid-skips-encryption-keys-and-refuses-private-members.nvst",
-  "tests/conformance/core/jwt-key-set-refuses-an-rsa-key-with-no-alg-unless-the-scheme-is-named.nvst",
-  "tests/conformance/core/jwt-sign-writes-structured-claims-under-a-key-pair-and-refuses-them-under-a-shared-key.nvst",
+  "tests/conformance/reject/verify-issued-holds-its-written-type-to-the-tainted-qualifier.nvst",
+  # The set a JWKS reads into: what it admits and skips, what it refuses the whole document over,
+  # the `rsaScheme` option that reaches only an RSA key carrying no `alg`, and the key-count cap.
+  "tests/conformance/core/jwt-a-key-set-admits-what-it-serves-and-skips-the-rest.nvst",
+  "tests/conformance/core/jwt-a-key-set-refuses-a-document-it-should-not-read-keys-from.nvst",
+  "tests/conformance/core/jwt-a-key-set-is-bounded-at-sixteen-keys-on-both-sides.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------
