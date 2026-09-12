@@ -2,43 +2,58 @@
 
 ## State
 
-**Goal `fmt` (M10), stage 3 is three of its four names.**
-`modifiers_are_written_in_the_canonical_order` landed: `nvs_syntax::Parsed` carries `modifiers` — one
-entry per modifier list, in source order, each modifier with the span it was written at, collected in
-`parse_modifiers` because every declaration's modifiers already go through that one loop, and never
-collected on a compile path. `crates/nvs-fmt/src/modifiers.rs` rewrites a list as a permutation of
-itself, so the spacing, the line breaks and any comment between two modifiers stay put.
+**Goal `fmt` (M10), stage 3 is closed.** All four of its names pass, the last being
+`a_declaration_brace_is_allman_and_a_control_brace_is_k_and_r`.
+`crates/nvs-fmt/src/brace.rs` answers one question — what whitespace belongs immediately before a
+byte — and the printer applies it: a declaration's `{` gets a line break and the declaration's own
+indentation, a control structure's gets one space, and `elseif`/`else`/`catch`/`finally` get one
+space after the brace that closed the clause above. Which body a brace opens is read off
+`SyntaxIndex::at`, so a `{` inside a string literal or an attribute's object literal is never one —
+its innermost node is an expression, not a declaration.
 
-**Only `a_declaration_brace_is_allman_and_a_control_brace_is_k_and_r` is left in stage 3**, and it is
-the first rule that cannot land alone: 95 corpus `.nvs` files write a declaration's brace K&R.
+**`print::Rewrite` is the shared edit type now** (`crates/nvs-fmt/src/print.rs:37`), and an empty
+range inserts: that is how a brace with no run in front of it (`class Queue{`) gets its line break.
+`modifiers.rs` and `brace.rs` both produce them and the printer sorts them into one stream.
 
-**The corpus is still a fixed point of `nvs fmt`** (`crates/nvs-fmt/tests/identity.rs:36`), which is
-stage 2's floor. Nothing is blocked.
+**The corpus is reformatted and stage 2's floor is green** (`crates/nvs-fmt/tests/identity.rs:36`):
+42 `.nvs` files moved a brace, and `nvs fmt` is a fixed point of all of them again. Nothing is
+blocked.
 
 ## Next group
 
-**Stage 3: the brace rule, and the corpus it moves** — one file set: `crates/nvs-fmt/src/print.rs`,
-`crates/nvs-fmt/tests/base_style.rs`, `crates/nvs-fmt/tests/identity.rs`, and every `.nvs` under
-`examples/` and `tests/`. The two slices are one decision: from the moment the rule lands until the
-corpus is reformatted with it, stage 2's floor is red, so land them in one session.
+**Stage 4: the token rules** — one file set: `crates/nvs-fmt/src/print.rs`, a new
+`crates/nvs-fmt/src/tokens.rs`, and a new `crates/nvs-fmt/tests/token_rules.rs`. Every one of these
+edits a code run rather than a whitespace one, so `crates/nvs-fmt/src/print.rs:37`'s `Rewrite` is the
+shape, and `crates/nvs-fmt/src/brace.rs:169` — classify a byte by the innermost node at it, over the
+code runs the printer already tiles — is the pattern that keeps a literal's bytes out of it.
 
-- [ ] **The brace rule, and its case beside the other two** — `rule:tooling/fmt-base-style-is-per`. A
-      declaration's `{` starts its own line at the declaration's own indentation; a control
-      structure's stays on the keyword's line after one space, and `elseif`/`else`/`catch`/`finally`
-      continue on the closing brace's line. Both are whitespace on either side of a brace, so this is
-      `crates/nvs-fmt/src/print.rs:88`'s trivium walk rather than a keyword move —
-      `crates/nvs-fmt/src/modifiers.rs:28` is the shape to reuse only where a byte really has to
-      move. The case goes at `crates/nvs-fmt/tests/base_style.rs:83`, mangled about braces and about
-      nothing else.
-- [ ] **Reformat the corpus and re-green the floor** — `nvs fmt` over every `.nvs` under `examples/`
-      and `tests/`, then `crates/nvs-fmt/tests/identity.rs:36` passes again. `examples/collect.nvs:2`
-      is the line that moves in nearly every file, and the reformat shifts example line numbers,
-      which the playbook records some `exact` checks as pinning.
+- [ ] **Quotes, and the two bodies never touched** — `rule:tooling/fmt-quotes`. A plain string goes
+      out single-quoted unless it interpolates or holds a `'`; a heredoc body and every comment are
+      copied byte for byte. A literal is an expression node, so its span comes off the index the way
+      `crates/nvs-fmt/src/brace.rs:116` takes one. Tests
+      `a_plain_string_is_rewritten_to_single_quotes` and
+      `a_heredoc_body_and_a_comment_are_never_touched`.
+- [ ] **The trailing comma** — `rule:tooling/fmt-trailing-commas`. A list the author spread over
+      several lines ends with one and a one-line list has none, which is the last element's node end
+      plus the bytes up to the closer: `crates/nvs-fmt/src/print.rs:81`. Test
+      `a_multi_line_list_gains_a_trailing_comma_and_a_one_line_list_has_none`.
+- [ ] **The `use` block's order** — `rule:tooling/fmt-sorts-the-use-block`. Consecutive `UseDecl`
+      statements are whole-statement spans, so this is one `Rewrite` per moved line and no reflow:
+      `crates/nvs-fmt/src/print.rs:37`. Test `consecutive_use_declarations_are_sorted_by_full_path`.
+- [ ] **Reserved spellings, and the two negatives** —
+      `rule:tooling/fmt-normalizes-only-reserved-spellings`,
+      `rule:tooling/fmt-never-inserts-visibility`, `rule:tooling/fmt-never-reorders-members`. The
+      open tag and a duration unit are lower-cased; the other two are tests over what the printer
+      already does and belong beside the base style's, at
+      `crates/nvs-fmt/tests/base_style.rs:94`.
 
 ## Backlog
 
-- Stage 4's token rules — spacing, quotes, trailing commas — `docs/agent/loop-goal.toml` stage 4.
-- PER's blank lines between members are still the author's — `crates/nvs-fmt/src/lib.rs` § *Known gaps* 1.
-- A `switch`, a `match` arm list and a template region are still unplaced — same doc, gap 2.
-- `private (set)` written across a skipped run leaves its whole list in the author's order — `crates/nvs-fmt/src/modifiers.rs:93`.
-- A plain visibility written beside `private(set)` keeps the author's order between those two; the rule bands them — `rule:tooling/fmt-base-style-is-per`.
+- A `}` sharing a line with the statement before it stays there — gap 3, `crates/nvs-fmt/src/lib.rs`.
+- A `do { } while` keeps the author's break before `while`; the rule names only
+  `elseif`/`else`/`catch`/`finally` (`rule:tooling/fmt-base-style-is-per`).
+- A closure's, an anonymous class's and a property hook's brace are left alone on purpose —
+  `crates/nvs-fmt/src/brace.rs`'s module doc says why.
+- Nothing in `crates/nvs-cli` depends on `nvs-fmt` yet, so reformatting the corpus needs a throwaway
+  test rather than a command — stage 6 of the goal owns the leg.
+- PER's blank lines are still the author's — gap 1, `crates/nvs-fmt/src/lib.rs`.
