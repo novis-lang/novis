@@ -1,0 +1,34 @@
+--TEST--
+A hole already holding a `Core\Html\Markup` is spliced raw, which is `Markup + Markup` written in interpolation syntax — `rule:core-classes/html-literal`
+--FILE--
+<?nvs
+// A hole holding a carrier is spliced as it stands: the fragment passed
+// whichever rule made it a `Markup`, so escaping it here would corrupt the
+// markup it was built for.
+var $name = "ada & <grace>";
+Core\Html\Markup $inner = html`<em>{$name}</em>`;
+echo html`<p>{$inner}</p>`, "\n";
+
+// The data inside the spliced fragment was escaped once, where it was
+// written, and the splice does not escape it a second time — `&amp;` stays
+// `&amp;` rather than becoming `&amp;amp;`.
+echo html`<p>{$inner}{$inner}</p>`, "\n";
+
+// Which is the same answer `+` gives, because the splice is that operator in
+// interpolation syntax.
+echo html`<p>` + $inner + $inner + html`</p>`, "\n";
+
+// The escape's own answer is a carrier too, so a hole holding it splices
+// rather than escaping what the launderer already escaped.
+Core\Html\Markup $escaped = Core\Html::escape($name);
+echo html`<td>{$escaped}</td>`, "\n";
+
+// A string hole beside a carrier hole is the contrast: one is data and is
+// escaped, the other is markup and is not.
+echo html`<td>{$name}</td><td>{$escaped}</td>`, "\n";
+--EXPECT--
+<p><em>ada &amp; &lt;grace&gt;</em></p>
+<p><em>ada &amp; &lt;grace&gt;</em><em>ada &amp; &lt;grace&gt;</em></p>
+<p><em>ada &amp; &lt;grace&gt;</em><em>ada &amp; &lt;grace&gt;</em></p>
+<td>ada &amp; &lt;grace&gt;</td>
+<td>ada &amp; &lt;grace&gt;</td><td>ada &amp; &lt;grace&gt;</td>
