@@ -561,6 +561,74 @@ chacha20poly1305 = { version = "0.11", default-features = false, features = [
     "alloc",
 ] }
 
+# --- the interoperable half of `Core\Crypto` (ADR 0179's roster) ---
+# Every crate here is in this tree because the other end is a browser or a token
+# issuer, not because Novis needs a second way to do what `chacha20poly1305`
+# above already does better. ADR 0051 § 4's first question is "yes" for all of
+# them — a sealed message, a JWE token and a JWKS document are each attacker-
+# shaped — and its second question is answered the way the digest family answers
+# it: RustCrypto, pure Rust, no build script and no C, so § 4's confine-to-wasm
+# branch never opens, and each crate verifies against its own specification's
+# published vectors. `getrandom` is off throughout for `chacha20poly1305`'s
+# reason: a nonce, a salt and a key are drawn through `crate::random`'s seam, so
+# this tree has one CSPRNG and a `#[Test(seed: …)]` reproduces a token. That is
+# what keeps `p256` off its `std` feature, which implies `getrandom`; `alloc`
+# carries everything a member here reaches.
+# `crates/nvs-stdlib/src/crypto.rs` owns which member reaches which crate.
+#
+# `aes-gcm` is WebCrypto's `AES-GCM` and JWE's `A256GCM`, the one content
+# encryption a browser and this runtime both have; it rides the `aead 0.6` and
+# `cipher 0.5` that arrived with `chacha20poly1305`. `aes-kw` is RFC 3394 and is
+# never a member: PBES2 wraps a content key with it and nothing else does.
+# `p256` is the one curve every WebCrypto implementation ships, and it is here
+# for agreement and for key validation and encoding — **its curve arithmetic has
+# never been independently audited**, which its own README states and ADR 0179
+# § 8 accepts, because the alternative is not a better implementation but no
+# P-256 at all, and the crate is written constant-time. `x25519-dalek` is the
+# agreement half of the curve `ed25519-dalek` already signs on in this tree's
+# lock file, so it shares that crate's `curve25519-dalek` and adds nothing else.
+# `hkdf` and `pbkdf2` are generic over the digest family's 0.11 line, which is
+# what the `sha2-v11` row is for: `Core\Hash` dispatches over `digest 0.10` and
+# cannot be either crate's type parameter, so the other major has to be
+# nameable from Rust. That row adds no crate — `sha2 0.11`, `hmac 0.13` and
+# `digest 0.11` are in this tree's lock file already, and `pbkdf2 0.13` is one
+# of the crates that put them there — and it is a second row rather than a
+# migration of `Core\Hash`, which would rewrite four hash members and their
+# vectors for no change in behaviour.
+aes-gcm = { version = "0.11", default-features = false, features = [
+    "aes",
+    "alloc",
+] }
+aes-kw = { version = "0.3", default-features = false }
+p256 = { version = "0.14", default-features = false, features = [
+    "alloc",
+    "arithmetic",
+    "ecdh",
+    "pkcs8",
+] }
+x25519-dalek = { version = "3", default-features = false, features = [
+    "precomputed-tables",
+    "static_secrets",
+    "zeroize",
+] }
+hkdf = { version = "0.13", default-features = false }
+pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
+sha2-v11 = { package = "sha2", version = "0.11", default-features = false }
+
+# --- JWS's signature algorithms (ADR 0179 § 8) ---
+# This row adds no crate: `ring` is already linked as the `rustls` provider
+# above, and this is `nvs-stdlib` reaching it directly for RSASSA-PKCS1-v1_5,
+# RSASSA-PSS, ECDSA over P-256 and Ed25519 — the four algorithms a JWS verifier
+# meets, and the ones no pure-Rust crate in this graph covers for RSA. ADR 0051
+# § 4 is answered exactly as the `rustls` block answers it, on the same two
+# facts: attacker bytes reach a token verifier by construction, and BoringSSL's
+# OSS-Fuzz record and formally verified field arithmetic are the same record.
+# `tools/gen-attribution.py`'s `C_DEPENDENCIES` is where that answer is written
+# down for the gate that enforces it. Every AEAD, KDF and key agreement stays
+# with the RustCrypto block above; this crate signs and verifies and does
+# nothing else here.
+ring = "0.17"
+
 # --- base64 (spec § 7's `Core\Encoding` base64 pair and its URL-safe variant) ---
 # RFC 4648's alphabets, its padding rules and its URL-safe variant are an
 # external specification, and `fromBase64` is a member attacker-controlled text

@@ -188,12 +188,16 @@ C_DEPENDENCIES: dict[str, tuple[str, tuple[str, ...], str]] = {
         "verified",
         (),
         "The one genuine C dependency in the default binary: BoringSSL's "
-        "pregenerated assembly behind a Rust API, and rustls's crypto provider. "
-        "Question 1 is yes — a TLS record layer is exactly where attacker bytes "
-        "land — and question 2 is answered by OSS-Fuzz and BoringSSL's formally "
-        "verified field arithmetic. Cargo.toml's `rustls` comment is the home of "
-        "that decision, including why the wasm branch is not available to a "
-        "client that owns its socket.",
+        "pregenerated assembly behind a Rust API. It is rustls's crypto "
+        "provider, and `nvs-stdlib` reaches it directly for JWS's four "
+        "signature algorithms — RSASSA-PKCS1-v1_5, RSASSA-PSS, ECDSA over P-256 "
+        "and Ed25519. Question 1 is yes on both counts — a TLS record layer and "
+        "a token verifier are each exactly where attacker bytes land — and "
+        "question 2 is answered once for both by OSS-Fuzz and BoringSSL's "
+        "formally verified field arithmetic. Cargo.toml's `rustls` comment is "
+        "the home of the transport decision, including why the wasm branch is "
+        "not available to a client that owns its socket, and its `ring` row is "
+        "the home of the signature one.",
     ),
     "libsqlite3-sys": (
         "verified",
