@@ -11,12 +11,13 @@
 //! to one, but the request gives them back when it ends exactly as it gives back
 //! every table above. [`Ctx::track_temporary_dir`] is the one writer.
 //!
-//! [`HeldConnection`] and [`HeldSocket`] are the two traits that let this crate
-//! hold something it may not name: a
-//! `rule:core-classes/db-drivers-are-an-enum` driver's connection, and
-//! `nvs-host`'s parking socket. Both dependencies run the other way, so each
-//! field is a `dyn Trait` and the only method on either is the downcast a
-//! holder needs to get its own type back.
+//! [`HeldConnection`], [`HeldSocket`] and [`HeldReader`] are the traits that let
+//! this crate hold something it may not name: a
+//! `rule:core-classes/db-drivers-are-an-enum` driver's connection,
+//! `nvs-host`'s parking socket, and the half-read reply body `nvs-stdlib`
+//! frames a streamed call off. Every one of those dependencies runs the other
+//! way, so each field is a `dyn Trait` and the only method on any of them is the
+//! downcast a holder needs to get its own type back.
 
 use super::*;
 
@@ -82,6 +83,24 @@ pub trait HeldConnection: std::fmt::Debug + std::any::Any {
 /// which is [`Drop`]'s job and needs no method at all.
 pub trait HeldSocket: std::fmt::Debug + std::any::Any {
     /// This socket as the concrete type the crate that opened it knows it by.
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+}
+
+/// A reply body a request is still reading — the reader `nvs-stdlib` frames a
+/// streamed outbound call off, and the seam that lets a [`Ctx`] hold one
+/// without naming it.
+///
+/// [`HeldSocket`]'s edge, run for the same reason: `nvs-stdlib` depends on this
+/// crate, so a field typed after its reader would close a cycle. The table has
+/// to live here because this is the crate that learns when a request ends,
+/// which is when the connection the rest of a half-read reply would have
+/// arrived on is closed.
+///
+/// The one method is the downcast a holder needs to get its own type back,
+/// which `dyn Trait` cannot do on its own. Nothing in this crate calls it —
+/// what this crate wants from a reader is that it is dropped with the request.
+pub trait HeldReader: std::fmt::Debug + std::any::Any {
+    /// This reader as the concrete type the crate that opened it knows it by.
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
@@ -249,6 +268,56 @@ impl Ctx {
     pub fn take_open_socket(&mut self, key: u64) -> Option<Box<dyn HeldSocket>> {
         let index = usize::try_from(key.checked_sub(1)?).ok()?;
         self.open_sockets.get_mut(index)?.take()
+    }
+
+    /// Files a reply body still arriving against this request and answers the
+    /// key that reads it back — what a `Core\Http\Stream`'s body slot holds,
+    /// and what the one walk that takes the body carries from then on.
+    ///
+    /// The same shape and the same reasoning as [`Ctx::hold_open_socket`], and
+    /// [`Ctx::hold_started_script`] is the one home of *why* a `Core` handle is
+    /// a key into a request-owned table. What this adds is that the key
+    /// **moves**: the stream hands it to the reader that takes the body and is
+    /// left holding nothing, so "read once" is a property of where the key is
+    /// and not only of the refusal that names the member which took it.
+    ///
+    /// **What it spends:** one `Option<Box<dyn HeldReader>>` — a pointer pair —
+    /// per streamed reply this request started, *including* the ones whose walk
+    /// has ended, because a key is never reused. The reader behind it is taken
+    /// out and dropped at the end of the walk, which is what closes the
+    /// connection the rest of the reply would have arrived on; a walk the
+    /// program abandons holds that connection until the request ends, which is
+    /// [`Ctx::hold_open_file`]'s trade for a forgotten `close` and the same
+    /// bound — O(streams this request opened).
+    pub fn hold_open_reader(&mut self, reader: Box<dyn HeldReader>) -> u64 {
+        self.open_readers.push(Some(reader));
+        // The index, one-based, so that a handle slot never holds a key a
+        // zeroed value could be mistaken for.
+        self.open_readers.len() as u64
+    }
+
+    /// The reader `key` names, borrowed for one framing, or `None` once the
+    /// walk that held it ended or if it was never this request's.
+    ///
+    /// [`Ctx::open_socket_mut`]'s shape, for its reason: what comes back is the
+    /// trait object, and the caller downcasts through
+    /// [`HeldReader::as_any_mut`].
+    pub fn open_reader_mut(&mut self, key: u64) -> Option<&mut dyn HeldReader> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.open_readers.get_mut(index)?.as_deref_mut()
+    }
+
+    /// Takes the reader `key` names back out, or `None` where a walk has
+    /// already taken it.
+    ///
+    /// Dropping what comes back closes the connection the rest of the body
+    /// would have arrived on, which is why a walk that reaches the end of a
+    /// body takes rather than marks: the socket is scarce in the way a
+    /// descriptor is, and a request reading many replies in turn holds one.
+    #[must_use]
+    pub fn take_open_reader(&mut self, key: u64) -> Option<Box<dyn HeldReader>> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.open_readers.get_mut(index)?.take()
     }
 
     /// Files an open database connection against this request and answers the

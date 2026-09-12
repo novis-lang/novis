@@ -1236,6 +1236,10 @@ pub struct Ctx {
     /// `Core\Net\Stream` or `Core\Net\Listener` carries — see
     /// [`Ctx::hold_open_socket`].
     open_sockets: Vec<Option<Box<dyn HeldSocket>>>,
+    /// The streamed reply bodies this request is still reading, by the key its
+    /// `Core\Http\Stream` — and then the one walk that took the body — carries;
+    /// see [`Ctx::hold_open_reader`].
+    open_readers: Vec<Option<Box<dyn HeldReader>>>,
     /// The database connections this request has opened, each with the
     /// memoization key it was reached by and the pool lease it goes home on —
     /// see [`Ctx::hold_open_connection`].

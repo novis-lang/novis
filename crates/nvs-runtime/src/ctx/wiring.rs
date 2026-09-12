@@ -173,6 +173,7 @@ impl Ctx {
             started_scripts: Vec::new(),
             open_files: Vec::new(),
             open_sockets: Vec::new(),
+            open_readers: Vec::new(),
             open_connections: Vec::new(),
             temporary_dirs: Vec::new(),
             session: None,
