@@ -428,12 +428,24 @@ pub(crate) const SHARED_LEN: usize = 32;
 /// end implements the name, not because anything in this module encrypts under
 /// AES-128: a wrap is not a cipher a program can reach, and the roster's own
 /// ciphers are both 256-bit.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
+    )
+)]
 pub(crate) const KW_128_KEY_LEN: usize = 16;
 
 /// What a wrapped [`KEY_LEN`]-octet key is, in octets — RFC 3394 adds one
 /// 64-bit semiblock, which is the integrity check an unwrap verifies.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
+    )
+)]
 pub(crate) const WRAPPED_LEN: usize = KEY_LEN + 8;
 
 /// A P-256 point's length in octets in the uncompressed SEC1 encoding: the
@@ -2408,7 +2420,13 @@ fn trimmed(octets: &[u8]) -> &[u8] {
 /// The two key-encryption key widths are JWE's, not a choice: `A128KW` is what
 /// `PBES2-HS256+A128KW` names, and the wider one is what the same wrap looks
 /// like under a key this module's own derivations answer.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
+    )
+)]
 pub(crate) fn wrap_key(kek: &[u8], key: &[u8; KEY_LEN]) -> Option<[u8; WRAPPED_LEN]> {
     let mut wrapped = [0_u8; WRAPPED_LEN];
     let wrote = match kek.len() {
@@ -2434,7 +2452,13 @@ pub(crate) fn wrap_key(kek: &[u8], key: &[u8; KEY_LEN]) -> Option<[u8; WRAPPED_L
 /// the single sentence `rule:security/verification-throws-and-compares-in-constant-time`
 /// asks for, and telling the three apart there would say which half of a forgery
 /// landed.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
+    )
+)]
 pub(crate) fn unwrap_key(kek: &[u8], wrapped: &[u8]) -> Option<[u8; KEY_LEN]> {
     if wrapped.len() != WRAPPED_LEN {
         return None;
@@ -2469,7 +2493,13 @@ pub(crate) fn unwrap_key(kek: &[u8], wrapped: &[u8]) -> Option<[u8; KEY_LEN]> {
 /// field, so a caller cannot ask for one length and label it another. The module
 /// doc's *two pieces* section is why this exists beside [`expand_key`] rather
 /// than instead of it.
-#[cfg_attr(not(test), expect(dead_code, reason = "stage 4 registers the members"))]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the only caller is Core\\Jwe's key management, which lands with the class"
+    )
+)]
 pub(crate) fn concat_kdf(
     shared: &[u8],
     algorithm: &str,
