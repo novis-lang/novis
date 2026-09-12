@@ -1,24 +1,27 @@
 ---
-summary: authenticated encryption under a cipher named by a closed enum, with no mode, padding or nonce argument — a key is a `secret bytes`, and a message that has been altered is refused rather than decrypted
-keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf
+summary: the interop primitives — authenticated encryption under a cipher named by a closed enum, two key derivations, key pairs over three curves, agreement and signatures, with no algorithm ever a string and none with a default
+keywords: crypto, encrypt, decrypt, seal, open, generateKey, deriveKey, expandKey, generateKeyPair, agree, sign, verify, publicKey, keypair, aead, cipher, chacha20, poly1305, xchacha20, aes, aes-256-gcm, webcrypto, openssl, sodium, nonce, key, tamper, forgery, authenticated, pbkdf2, hkdf, derivation, salt, iterations, hash_pbkdf2, hash_hkdf, p256, x25519, ed25519, rsa, ecdh, ecdsa, eddsa, curve, spki, pkcs8, jwk, signature, openssl_sign, openssl_verify, openssl_pkey_new, sodium_crypto_sign, sodium_crypto_box
 ---
 
-`Core\Crypto` names its cipher with a case of `Core\Crypto\Cipher` and never with a string.
+`Core\Crypto` holds the primitives a Novis program shares with something that is not Novis: a browser's
+WebCrypto, an SDK, whoever issued its keys. It seals and opens under an authenticated cipher, stretches a
+password and spreads uniform material into keys, draws key pairs, agrees a shared secret over a curve, and
+signs and verifies a message. **No algorithm is ever a string, and none has a default** — a cipher, a
+key's kind and a key's encoding are each a case of a closed enum that the call names.
+
 `openssl_encrypt($data, "aes-256-cbc", $key, 0, $iv)` puts the primitive in a string and the nonce at
 the call site, which is how a program ends up with `aes-256-ecb` in one file, an all-zero IV in another
 and no authentication in either — "encrypted" and "authenticated" become two decisions a caller can get
 half right. Here the enum is closed and every case authenticates, so a misspelling is a compile error
 and there is no unauthenticated spelling to reach for; the mode, the padding and the nonce stay the
-library's, exactly as `Core\Password`'s parameters do.
-
-There is no default, either. `XChaCha20Poly1305` is the one to prefer when both ends are Novis, and
-`Aes256Gcm` is what a browser's WebCrypto reads — a choice a call makes rather than one it inherits from
-whichever line was copied last.
+library's, exactly as `Core\Password`'s parameters do. `XChaCha20Poly1305` is the one to prefer when both
+ends are Novis, and `Aes256Gcm` is what a browser reads.
 
 **A key is a `secret bytes`, and that is part of its type.** `::generateKey` answers one, and the
 compiler will not let a program put it in a plain `bytes` — so a key cannot be echoed, logged, dumped or
 carried into a `Throwable` message by accident. No member here removes the mark: a `secret` key goes into
-`::seal` and stays a secret, which is why encryption is not a hole in the `secret` qualifier.
+`::seal` and stays a secret, and the private half of a pair leaves its `Core\Crypto\KeyPair` only as the
+`secret bytes` of a PKCS#8.
 
 Sealing a `secret` *message* is the deliberate act, and it looks like one:
 `Core\Secret::revealBytes($token, "sealed under a key the store cannot read")`. That reads like friction
@@ -28,8 +31,8 @@ able to grep for.
 **`::open` answers the plaintext or it throws.** There is no `false` and no `?bytes`. A message altered
 by a single octet — the cheapest tamper there is — is refused, where an unauthenticated mode would hand
 back whatever is left of the plaintext and let the program act on it. Every way of failing to be
-authentic produces one message: altered, truncated, or under the wrong key are indistinguishable on
-purpose, because telling them apart tells a forger which half of the attempt landed.
+authentic produces one message: altered, truncated, under the wrong key, or under the other cipher are
+indistinguishable on purpose, because telling them apart tells a forger which half of the attempt landed.
 
 Each `::seal` draws its own nonce and prefixes it to the answer, so the same message under the same key
 seals differently every time and the caller never keeps a counter. Under `XChaCha20Poly1305` a sealed
@@ -73,15 +76,6 @@ try {
 } catch (RuntimeError $notThisKey) {
     echo "the wrong key is refused\n";
 }
-
-// And the same message under the cipher it was not sealed with. Nothing
-// plausible comes back: a wrong cipher is a forgery like any other.
-try {
-    bytes $elsewhere = Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::Aes256Gcm);
-    echo "opened under the wrong cipher\n";
-} catch (RuntimeError $notThisCipher) {
-    echo "the wrong cipher is refused\n";
-}
 ```
 ```output
 sealed, 40 octets over
@@ -89,7 +83,6 @@ and it opens
 a fresh nonce every time
 tamper refused
 the wrong key is refused
-the wrong cipher is refused
 ```
 
 ## Two derivations, and which one a value belongs to
@@ -148,4 +141,88 @@ try {
 one secret, two keys
 a derived key seals like a drawn one
 1000 rounds refused
+```
+
+## A pair, and which half each member wants
+
+A `Core\Crypto\KeyPair` is both halves of one key, and `Core\Crypto\PublicKey` is the half that is sent.
+`::generateKeyPair` draws a pair of the kind it is given — `P256`, `X25519` or `Ed25519` — and refuses
+both RSA kinds, which are read from whatever PKCS#8 the issuer wrote rather than drawn here. A pair
+crosses a restart through `$pair->write()`, its PKCS#8, and a peer's key crosses the wire through
+`$publicKey->write($format)` and `Core\Crypto\PublicKey::read($encoded, $kind, $format)` over `Raw`,
+`Spki` and `Jwk` — WebCrypto's own three export encodings. **A public key is validated at `read`**: a
+point that is not on the curve, a coordinate of the wrong width or an RSA modulus outside 2048 to 8192
+bits never becomes a `Core\Crypto\PublicKey` at all, so no later member can be handed a key nobody
+looked at.
+
+<!-- src: rule:security/algorithm-comes-from-the-key -->
+**The key's kind is the algorithm, at every member.** A `P256` or `X25519` pair agrees and signs nothing
+or agrees nothing respectively; `::sign` writes ECDSA under `P256`, Ed25519 under `Ed25519` and
+RSASSA-PKCS1-v1_5 or RSASSA-PSS under the RSA kind the key was read as. Nothing takes an algorithm
+argument that could disagree with the key it was given, and a pair asked for the operation its kind does
+not do is a `LogicError` rather than a weaker answer. `::agree` answers the shared secret as material for
+`::expandKey`, never as a key: a raw ECDH output is biased and is spread before it seals anything.
+
+```nvs
+<?nvs
+// Each end draws a pair and sends the half that is public, in the encoding the
+// other end reads. `Raw` is the 32 octets a browser exports for a curve.
+Core\Crypto\KeyPair $mine = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+Core\Crypto\KeyPair $theirs = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+bytes $sent = $mine->publicKey()->write(Core\Crypto\KeyFormat::Raw);
+
+// What arrives is read back before anything uses it, under the kind and the
+// encoding the protocol says it is in.
+Core\Crypto\PublicKey $peer = Core\Crypto\PublicKey::read(
+    $theirs->publicKey()->write(Core\Crypto\KeyFormat::Raw),
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyFormat::Raw
+);
+Core\Crypto\PublicKey $me = Core\Crypto\PublicKey::read(
+    $sent,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyFormat::Raw
+);
+
+// Both ends agree the same secret from opposite halves and spread it into a
+// key, which is a key like any other: it seals here and opens there.
+bytes $salt = "a salt both ends know" as bytes;
+secret bytes $ours = Core\Crypto::expandKey(Core\Crypto::agree($mine, $peer), $salt, "session");
+secret bytes $yours = Core\Crypto::expandKey(Core\Crypto::agree($theirs, $me), $salt, "session");
+bytes $sealed = Core\Crypto::seal("ping" as bytes, $ours, Core\Crypto\Cipher::Aes256Gcm);
+if (Core\Crypto::open($sealed, $yours, Core\Crypto\Cipher::Aes256Gcm) == ("ping" as bytes)) {
+    echo "one secret, agreed from both ends\n";
+}
+
+// A signing pair is a different kind, and `::verify` answers nothing at all —
+// there is no boolean here for a loose comparison to get wrong.
+Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $announcement = "the service says this" as bytes;
+bytes $signature = Core\Crypto::sign($announcement, $signing);
+Core\Crypto::verify($announcement, $signature, $signing->publicKey());
+echo "signed and verified, ", Core\Bytes::length($signature), " octets\n";
+
+// Another message under the same signature is a forgery, with the one sentence
+// every refusal here gets.
+try {
+    Core\Crypto::verify("the service says something else" as bytes, $signature, $signing->publicKey());
+    echo "another message took the signature\n";
+} catch (RuntimeError $notThisMessage) {
+    echo "another message is refused\n";
+}
+
+// And the X25519 pair signs nothing: that is a bug in the program, not a
+// verdict on anyone, so it is a `LogicError`.
+try {
+    bytes $never = Core\Crypto::sign($announcement, $mine);
+    echo "a curve for agreement signed\n";
+} catch (LogicError $signsNothing) {
+    echo "an agreement key signs nothing\n";
+}
+```
+```output
+one secret, agreed from both ends
+signed and verified, 64 octets
+another message is refused
+an agreement key signs nothing
 ```
