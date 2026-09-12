@@ -1839,6 +1839,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   rooted in `website/`, where `git status --porcelain -- website` reports zero changes and a `grep -r`
   finds nothing. Prefix the next call with `cd /d/mwl &&`, or run the one-off as
   `cd <dir> && <cmd>` knowing the move sticks. [until: reviewed 2026-09-12]
+- **A `## commit:` section cannot name a path the session renamed away, so `git mv`'s staged deletion
+  is left out and the rename lands half-committed.** `session.py --wrap` refuses a path that does not
+  exist, and it commits by pathspec, so the old filename stays staged in the index while the new one
+  goes in — a fresh checkout of that commit carries both. Name only the new path in the section, then
+  commit the leftover deletion straight after the wrap. [until: reviewed 2026-09-12]
 
 ## Running things
 
