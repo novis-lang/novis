@@ -1,4 +1,5 @@
-//! The rules that rewrite a token, as `rule:tooling/fmt-quotes` states them.
+//! The rules that rewrite a token, as `rule:tooling/fmt-quotes` and
+//! `rule:tooling/fmt-trailing-commas` state them.
 //!
 //! Each case is one file and the canonical text it formats to, so what a
 //! failure prints is the whole disagreement rather than a property that went
@@ -57,4 +58,51 @@ TEXT;
 echo $doc, $raw;
 ";
     assert_eq!(formatted(source), source);
+}
+
+#[test]
+fn a_multi_line_list_gains_a_trailing_comma_and_a_one_line_list_has_none() {
+    let mangled = "\
+<?nvs
+var $one = [1, 2,];
+var $empty = [];
+var $spread = [
+    1,
+    2
+];
+var $call = Str::join(
+    $spread
+);
+var $object = {
+    left: 1,
+    right: 2
+};
+var $arm = match ($one) {
+    1 => 'one',
+    default => 'rest'
+};
+echo $one, $empty, $spread, $call, $object, $arm;
+";
+    let canonical = "\
+<?nvs
+var $one = [1, 2];
+var $empty = [];
+var $spread = [
+    1,
+    2,
+];
+var $call = Str::join(
+    $spread,
+);
+var $object = {
+    left: 1,
+    right: 2,
+};
+var $arm = match ($one) {
+    1 => 'one',
+    default => 'rest',
+};
+echo $one, $empty, $spread, $call, $object, $arm;
+";
+    assert_eq!(formatted(mangled), canonical);
 }

@@ -117,7 +117,7 @@ try {
     echo 'refused: ', Ceiling::verdict(
         $waited,
         Core\Str::contains($full->message, '`acquire` was up'),
-        Core\Str::contains($full->message, '`max` of 1')
+        Core\Str::contains($full->message, '`max` of 1'),
     ), "\n";
 }
 
@@ -162,5 +162,5 @@ var $race = Core\Task::all({
 echo 'parked: ', Ceiling::park(
     Core\Time::monotonic()->minus($started)->toMilliseconds(),
     $race->blocked,
-    $race->beside
+    $race->beside,
 ), "\n";

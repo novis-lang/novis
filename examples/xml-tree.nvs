@@ -60,7 +60,7 @@ class Outline
 Core\Xml\Node $document = Core\Xml::parse(
     "<?render fast?><order id=\"7\" zone='west'>" .
     "<!--the customer wrote this--><item sku=\"a &amp; b\">two</item>" .
-    '<note><![CDATA[<raw>]]></note></order>'
+    '<note><![CDATA[<raw>]]></note></order>',
 );
 Outline::show($document, '');
 
