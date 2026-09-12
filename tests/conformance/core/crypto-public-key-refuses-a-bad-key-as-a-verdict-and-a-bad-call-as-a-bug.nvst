@@ -1,0 +1,121 @@
+--TEST--
+Core\Crypto\PublicKey tells a key that does not check from a call that cannot be met: every unreadable key is one RuntimeError sentence, and an encoding a kind does not have or a private key handed over as a public one is a LogicError — `rule:core-classes/crypto-interop-tier`, `rule:errors/on-uncaught-throw`
+--FILE--
+<?nvs
+// Two refusals with two different readers. A key off the wire that does not
+// check is a verdict on whoever sent it, so it is a `RuntimeError` and carries
+// one sentence for every way of failing — a reason would tell a forger which
+// half of the key landed. A call naming an encoding its kind does not have, or
+// handing over a private key where a public one goes, is a mistake in the
+// program and is a `LogicError`.
+string $rsaSpki = "30820122300d06092a864886f70d01010105000382010f003082010a0282010100cfaa61932d8fd9e7858fa521617621f05bcb3411e174995d1fab033995201d0d9d72e5e8e133d88e8bec27e75068fb7c715eb712cae5750396d50af9ad2b5c45f0a7ab16bcf2cde4566873349a2407fa9452913e433b1d7f1ea74bda50d3f5d0ec2b0b50a4ea3023a2ae3ad4975390cd3b000d8020a578469f4bffa3e9864eb989e67a804a2cf08be53bba1bb0e9071f24156b0383730779d42efbf1daada62835a8e5e1891845cc782c322f9dc7f9eb6ff1c628c925f26ba29978a96cd10b2f61f03f361250261f860927632b6167bcba71f2e4d8df93e142c904a2515cd06af13c856bde1872ee30f3a19d8292cd2ce4b39c9788a0d3c5e3f33fe784c4e0330203010001";
+
+// `Raw` is the key material with nothing around it, and an RSA key has no such
+// form. The refusal is at the call rather than at the octets, so it is the same
+// refusal whether the octets were a key or not.
+try {
+    Core\Crypto\PublicKey $noRawForm = Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex($rsaSpki),
+        Core\Crypto\KeyKind::RsaPkcs1,
+        Core\Crypto\KeyFormat::Raw
+    );
+    echo "raw rsa accepted", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+
+// A JWK carrying `d` is a private key, and a program that hands one where a
+// public key goes has made a mistake this member will not paper over by
+// reading the public members out of it.
+try {
+    Core\Crypto\PublicKey $privateHalf = Core\Crypto\PublicKey::read(
+        "{\"crv\":\"Ed25519\",\"d\":\"Nue-RPHfwV1kqA-Y2PLXn5eIB6fEYmFy87eV3H4RBIo\",\"kty\":\"OKP\",\"x\":\"_M6QCKM1ZSSFYSlafOHMywQLYSm7qP8kdElTu8ASYaw\"}" as bytes,
+        Core\Crypto\KeyKind::Ed25519,
+        Core\Crypto\KeyFormat::Jwk
+    );
+    echo "a private jwk accepted", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+
+// The same reading one member along: a key that read cleanly still has no
+// `Raw` spelling to write, and asking for one is the caller's bug and not the
+// key's.
+Core\Crypto\PublicKey $rsa = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex($rsaSpki),
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyFormat::Spki
+);
+try {
+    bytes $nothingToWrite = $rsa->write(Core\Crypto\KeyFormat::Raw);
+    echo "raw rsa written", "\n";
+} catch (LogicError $bug) {
+    echo $bug->message, "\n";
+}
+if ($rsa->kind() == Core\Crypto\KeyKind::RsaPkcs1) {
+    echo "a 2048-bit modulus is inside the roster", "\n";
+}
+
+// Every way of not being a key, asserted by counting and by counting the
+// *distinct* sentences: a member that explained which check failed would still
+// refuse all six and would fail the second total, which is the one that holds
+// the refusal to carrying no oracle.
+array<bytes> $unreadable = [
+    // A P-256 point with its final octet flipped, which is off the curve.
+    Core\Encoding::fromHex("0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e88"),
+    // The same point one octet short: a coordinate that is not a field element
+    // wide is not a point, however well the rest of it reads.
+    Core\Encoding::fromHex("0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e"),
+    // Ed25519's 32 raw octets offered as a P-256 point.
+    Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+    // A `SubjectPublicKeyInfo` cut off inside its algorithm identifier.
+    Core\Encoding::fromHex("3059301306072a8648ce3d020106082a8648ce3d"),
+    // A well-formed JWK of another key type.
+    "{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"_M6QCKM1ZSSFYSlafOHMywQLYSm7qP8kdElTu8ASYaw\"}" as bytes,
+    // A 1024-bit RSA key: a real key, and under the floor the roster sets.
+    Core\Encoding::fromHex("30819f300d06092a864886f70d010101050003818d0030818902818100d0c2a934825d2fa1372f78ca36bf1cf0b04b356238c3157f46897dbbf733fa3b7324fcd300f77556d801183740887915d578c052c4c007a93622607e16b308372a97b42127ade49bd6e0f2a7cf75a40869bdb9ac7095bf6ccd9a129ff39893ef47153d8f065a37153f814d8645a801b0454dbcd70134172d5fad87e70f687ce90203010001"),
+];
+array<Core\Crypto\KeyKind> $unreadableKinds = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::RsaPkcs1,
+];
+array<Core\Crypto\KeyFormat> $unreadableFormats = [
+    Core\Crypto\KeyFormat::Raw,
+    Core\Crypto\KeyFormat::Raw,
+    Core\Crypto\KeyFormat::Raw,
+    Core\Crypto\KeyFormat::Spki,
+    Core\Crypto\KeyFormat::Jwk,
+    Core\Crypto\KeyFormat::Spki,
+];
+int $verdicts = 0;
+string $sentence = "";
+array<string> $sentences = [];
+foreach ($unreadable as string $slot => bytes $octets) {
+    try {
+        Core\Crypto\PublicKey $notAKey = Core\Crypto\PublicKey::read(
+            $octets,
+            $unreadableKinds[$slot],
+            $unreadableFormats[$slot]
+        );
+        echo "accepted ", $slot, "\n";
+    } catch (RuntimeError $verdict) {
+        $verdicts += 1;
+        $sentence = $verdict->message;
+        $sentences[$verdict->message] = "";
+    }
+}
+echo "verdicts ", $verdicts, " of ", Core\Arr::count($unreadable), "\n";
+echo "distinct sentences ", Core\Arr::count($sentences), "\n";
+echo $sentence, "\n";
+--EXPECT--
+Core\Crypto\PublicKey::read(): this call names an encoding the kind does not have, or hands a private key over as a public one — `Raw` is not a form either RSA kind has, and a JWK carrying `d` is the private half.
+Core\Crypto\PublicKey::read(): this call names an encoding the kind does not have, or hands a private key over as a public one — `Raw` is not a form either RSA kind has, and a JWK carrying `d` is the private half.
+Core\Crypto\PublicKey::write(): an RSA key has no `Raw` form, so there is nothing to write — `Spki` and `Jwk` are the encodings it has.
+a 2048-bit modulus is inside the roster
+verdicts 6 of 6
+distinct sentences 1
+Core\Crypto\PublicKey::read(): these octets are not a public key of the kind and encoding this call named.

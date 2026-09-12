@@ -1,0 +1,123 @@
+--TEST--
+Core\Crypto\PublicKey::read and ->write round-trip every kind of the roster through every encoding that kind has, and ->kind answers the case the read was given — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// WebCrypto's own exports of five keys, frozen under
+// `crates/nvs-stdlib/tests/vectors/`. That these *are* WebCrypto's bytes is held
+// by that file; what a `.nvs` program can assert is that a key survives every
+// encoding its kind has, in both directions. Asserted by counting rather than
+// read off a line: a member that carried one kind and lost another would print
+// a plausible row for the one it kept and fail the total here.
+array<Core\Crypto\KeyKind> $kinds = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyKind::RsaPss,
+];
+array<string> $spki = [
+    "3059301306072a8648ce3d020106082a8648ce3d0301070342000468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e89",
+    "302a300506032b656e0321007d82b8dc4d111da7d459301c4d278d8519db6bc4e05cf6de7b078a891767a331",
+    "302a300506032b6570032100fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac",
+    "30820122300d06092a864886f70d01010105000382010f003082010a0282010100cfaa61932d8fd9e7858fa521617621f05bcb3411e174995d1fab033995201d0d9d72e5e8e133d88e8bec27e75068fb7c715eb712cae5750396d50af9ad2b5c45f0a7ab16bcf2cde4566873349a2407fa9452913e433b1d7f1ea74bda50d3f5d0ec2b0b50a4ea3023a2ae3ad4975390cd3b000d8020a578469f4bffa3e9864eb989e67a804a2cf08be53bba1bb0e9071f24156b0383730779d42efbf1daada62835a8e5e1891845cc782c322f9dc7f9eb6ff1c628c925f26ba29978a96cd10b2f61f03f361250261f860927632b6167bcba71f2e4d8df93e142c904a2515cd06af13c856bde1872ee30f3a19d8292cd2ce4b39c9788a0d3c5e3f33fe784c4e0330203010001",
+    "30820122300d06092a864886f70d01010105000382010f003082010a0282010100dbf86da3ac0cef1802722bd65d2861b324291b8b4319cdc2316e940fd7e2e0168a38236e1a6be5d93cf2ac472c3c57642807d563021ab82ad7cc0bfcd9006e9521cb7b0ca85242138997271b819ce74becfcfb6ef130d939c7ac96803871cbbd6a6e023fe45f0390303f58eaa2f7afdd2b4af396fd481fb8eb4715f437b6df9e13ceba60a053c22787c29ec7f91a442e1ae0600eacce7ee825d762f08649c00293bf020f5cb80c4f636cdfb3a8e219f364c11292a56cd12e6ca0589b7bda053cee8c4e203c1d8f8f208ab42949bfcaa23f72eabf7d62abe2e90941e111c26e40b0bf4e5b37d1f317ef9491e4b01362a39038394dc5235d73788c952613d5e6d70203010001",
+];
+// RFC 7638's required members, sorted and with nothing else in them — the form
+// the thumbprint is taken over, and what `write` answers whatever the document
+// it read had in it. The two RSA rows are the same members under two schemes,
+// which is exactly why the scheme cannot be read out of a key.
+array<string> $jwk = [
+    "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"aKp-tdd1uKsy5Ts6KwBtxCY41NWgbZtQxJN4Hipl8-A\",\"y\":\"NssnPqQQU0pujJRq6ep-EDGGhvruumhQsW_bJXL_Dok\"}",
+    "{\"crv\":\"X25519\",\"kty\":\"OKP\",\"x\":\"fYK43E0RHafUWTAcTSeNhRnba8TgXPbeeweKiRdnozE\"}",
+    "{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"_M6QCKM1ZSSFYSlafOHMywQLYSm7qP8kdElTu8ASYaw\"}",
+    "{\"e\":\"AQAB\",\"kty\":\"RSA\",\"n\":\"z6phky2P2eeFj6UhYXYh8FvLNBHhdJldH6sDOZUgHQ2dcuXo4TPYjovsJ-dQaPt8cV63EsrldQOW1Qr5rStcRfCnqxa88s3kVmhzNJokB_qUUpE-Qzsdfx6nS9pQ0_XQ7CsLUKTqMCOirjrUl1OQzTsADYAgpXhGn0v_o-mGTrmJ5nqASizwi-U7uhuw6QcfJBVrA4NzB3nULvvx2q2mKDWo5eGJGEXMeCwyL53H-etv8cYoySXya6KZeKls0QsvYfA_NhJQJh-GCSdjK2FnvLpx8uTY35PhQskEolFc0GrxPIVr3hhy7jDzoZ2Cks0s5LOcl4ig08Xj8z_nhMTgMw\"}",
+    "{\"e\":\"AQAB\",\"kty\":\"RSA\",\"n\":\"2_hto6wM7xgCcivWXShhsyQpG4tDGc3CMW6UD9fi4BaKOCNuGmvl2TzyrEcsPFdkKAfVYwIauCrXzAv82QBulSHLewyoUkITiZcnG4Gc50vs_Ptu8TDZOcesloA4ccu9am4CP-RfA5AwP1jqovev3StK85b9SB-460cV9De2354TzrpgoFPCJ4fCnsf5GkQuGuBgDqzOfugl12LwhknAApO_Ag9cuAxPY2zfs6jiGfNkwRKSpWzRLmygWJt72gU87oxOIDwdj48girQpSb_Koj9y6r99Yqvi6QlB4RHCbkCwv05bN9HzF--UkeSwE2KjkDg5TcUjXXN4jJUmE9Xm1w\"}",
+];
+
+int $spkiRoundTrips = 0;
+int $kindKept = 0;
+int $minimal = 0;
+int $jwkRoundTrips = 0;
+foreach ($spki as string $slot => string $hex) {
+    Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex($hex),
+        $kinds[$slot],
+        Core\Crypto\KeyFormat::Spki
+    );
+
+    // The object holds the canonical `SubjectPublicKeyInfo` rather than the
+    // octets it was handed, so this asserts the two are the same document and
+    // not merely that something parsed.
+    if (Core\Encoding::toHex($key->write(Core\Crypto\KeyFormat::Spki)) == $hex) {
+        $spkiRoundTrips += 1;
+    }
+
+    // The kind is the call's own word, kept. The two RSA rows carry one key
+    // type and two schemes, so a member deriving the kind from the material
+    // could not tell them apart and would lose one of them here.
+    if ($key->kind() == $kinds[$slot]) {
+        $kindKept += 1;
+    }
+
+    string $written = Core\Encoding::decodeText(
+        $key->write(Core\Crypto\KeyFormat::Jwk),
+        Core\Charset::Utf8
+    );
+    if ($written == $jwk[$slot]) {
+        $minimal += 1;
+    }
+
+    // A document this wrote is a document this reads, which is what makes
+    // `Jwk` an encoding rather than a report about a key.
+    Core\Crypto\PublicKey $again = Core\Crypto\PublicKey::read(
+        $written as bytes,
+        $kinds[$slot],
+        Core\Crypto\KeyFormat::Jwk
+    );
+    if (Core\Encoding::toHex($again->write(Core\Crypto\KeyFormat::Spki)) == $hex) {
+        $jwkRoundTrips += 1;
+    }
+}
+echo "spki round-trips ", $spkiRoundTrips, " of ", Core\Arr::count($spki), "\n";
+echo "kind kept ", $kindKept, " of ", Core\Arr::count($spki), "\n";
+echo "jwk is the minimal document ", $minimal, " of ", Core\Arr::count($spki), "\n";
+echo "jwk round-trips ", $jwkRoundTrips, " of ", Core\Arr::count($spki), "\n";
+
+// `Raw` is the key material with nothing around it, which the three curve kinds
+// have and neither RSA kind does. The same round trip over the encoding that is
+// not a document at all: for P-256 it is the uncompressed point, and for the
+// two Curve25519 kinds the 32 octets.
+array<Core\Crypto\KeyKind> $curves = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+];
+array<string> $raw = [
+    "0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e89",
+    "7d82b8dc4d111da7d459301c4d278d8519db6bc4e05cf6de7b078a891767a331",
+    "fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac",
+];
+int $rawRoundTrips = 0;
+int $rawKinds = 0;
+foreach ($raw as string $slot => string $hex) {
+    Core\Crypto\PublicKey $curve = Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex($hex),
+        $curves[$slot],
+        Core\Crypto\KeyFormat::Raw
+    );
+    if (Core\Encoding::toHex($curve->write(Core\Crypto\KeyFormat::Raw)) == $hex) {
+        $rawRoundTrips += 1;
+    }
+    if ($curve->kind() == $curves[$slot]) {
+        $rawKinds += 1;
+    }
+}
+echo "raw round-trips ", $rawRoundTrips, " of ", Core\Arr::count($raw), "\n";
+echo "raw kinds kept ", $rawKinds, " of ", Core\Arr::count($raw), "\n";
+--EXPECT--
+spki round-trips 5 of 5
+kind kept 5 of 5
+jwk is the minimal document 5 of 5
+jwk round-trips 5 of 5
+raw round-trips 3 of 3
+raw kinds kept 3 of 3

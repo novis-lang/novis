@@ -1,0 +1,126 @@
+--TEST--
+Core\Crypto\PublicKey::read accepts what a browser exports and answers one key however it arrived: keys read from Raw, Spki and Jwk agree on every encoding ->write answers and on ->kind, and one RSA document read under two schemes is two kinds over one key — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
+--FILE--
+<?nvs
+// Agreement rather than a row of answers: what is asserted is that the readers
+// *agree*, by counting how many distinct spellings three reads of one key
+// produce. A reader that grew its own handling of one encoding still prints a
+// plausible key on its own line and fails here. The JWKs are the documents
+// WebCrypto's `exportKey` actually writes — `ext`, `key_ops` and `alg` included,
+// in the member order it chose — because what a read has to accept is what the
+// other end sends and not a tidied copy of it.
+array<Core\Crypto\PublicKey> $p256 = [
+    Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex("0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e89"),
+        Core\Crypto\KeyKind::P256,
+        Core\Crypto\KeyFormat::Raw
+    ),
+    Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex("3059301306072a8648ce3d020106082a8648ce3d0301070342000468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e89"),
+        Core\Crypto\KeyKind::P256,
+        Core\Crypto\KeyFormat::Spki
+    ),
+    Core\Crypto\PublicKey::read(
+        "{\"key_ops\":[\"verify\"],\"ext\":true,\"kty\":\"EC\",\"x\":\"aKp-tdd1uKsy5Ts6KwBtxCY41NWgbZtQxJN4Hipl8-A\",\"y\":\"NssnPqQQU0pujJRq6ep-EDGGhvruumhQsW_bJXL_Dok\",\"crv\":\"P-256\"}" as bytes,
+        Core\Crypto\KeyKind::P256,
+        Core\Crypto\KeyFormat::Jwk
+    ),
+];
+array<Core\Crypto\PublicKey> $x25519 = [
+    Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex("7d82b8dc4d111da7d459301c4d278d8519db6bc4e05cf6de7b078a891767a331"),
+        Core\Crypto\KeyKind::X25519,
+        Core\Crypto\KeyFormat::Raw
+    ),
+    Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex("302a300506032b656e0321007d82b8dc4d111da7d459301c4d278d8519db6bc4e05cf6de7b078a891767a331"),
+        Core\Crypto\KeyKind::X25519,
+        Core\Crypto\KeyFormat::Spki
+    ),
+    Core\Crypto\PublicKey::read(
+        "{\"key_ops\":[],\"ext\":true,\"crv\":\"X25519\",\"x\":\"fYK43E0RHafUWTAcTSeNhRnba8TgXPbeeweKiRdnozE\",\"kty\":\"OKP\"}" as bytes,
+        Core\Crypto\KeyKind::X25519,
+        Core\Crypto\KeyFormat::Jwk
+    ),
+];
+array<Core\Crypto\PublicKey> $ed25519 = [
+    Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+        Core\Crypto\KeyKind::Ed25519,
+        Core\Crypto\KeyFormat::Raw
+    ),
+    Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex("302a300506032b6570032100fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
+        Core\Crypto\KeyKind::Ed25519,
+        Core\Crypto\KeyFormat::Spki
+    ),
+    Core\Crypto\PublicKey::read(
+        "{\"key_ops\":[\"verify\"],\"ext\":true,\"alg\":\"Ed25519\",\"crv\":\"Ed25519\",\"x\":\"_M6QCKM1ZSSFYSlafOHMywQLYSm7qP8kdElTu8ASYaw\",\"kty\":\"OKP\"}" as bytes,
+        Core\Crypto\KeyKind::Ed25519,
+        Core\Crypto\KeyFormat::Jwk
+    ),
+];
+
+// Three reads, and the question asked of each group is how many different keys
+// came out of it. One is the answer that means the encodings are three doors
+// onto one value; two means a door opened onto something else.
+array<array<Core\Crypto\PublicKey>> $groups = [$p256, $x25519, $ed25519];
+array<Core\Crypto\KeyKind> $groupKinds = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+];
+array<string> $names = ["p-256", "x25519", "ed25519"];
+foreach ($groups as string $slot => array<Core\Crypto\PublicKey> $group) {
+    array<string> $spkiSeen = [];
+    array<string> $jwkSeen = [];
+    array<string> $rawSeen = [];
+    int $kindsAgree = 0;
+    foreach ($group as Core\Crypto\PublicKey $key) {
+        $spkiSeen[Core\Encoding::toHex($key->write(Core\Crypto\KeyFormat::Spki))] = "";
+        $rawSeen[Core\Encoding::toHex($key->write(Core\Crypto\KeyFormat::Raw))] = "";
+        $jwkSeen[Core\Encoding::decodeText(
+            $key->write(Core\Crypto\KeyFormat::Jwk),
+            Core\Charset::Utf8
+        )] = "";
+        if ($key->kind() == $groupKinds[$slot]) {
+            $kindsAgree += 1;
+        }
+    }
+    echo $names[$slot], ": ", Core\Arr::count($group), " reads, ",
+        Core\Arr::count($rawSeen), " raw, ",
+        Core\Arr::count($spkiSeen), " spki, ",
+        Core\Arr::count($jwkSeen), " jwk, ",
+        $kindsAgree, " kinds agree", "\n";
+}
+
+// One RSA document, two kinds. `RsaPkcs1` and `RsaPss` are one key type wearing
+// two JWS algorithms, and no encoding tells them apart — which is why the kind
+// is the caller's word and why the two keys below hold the same modulus and
+// still answer differently. A member that read the scheme out of the material
+// would have to pick one of them and would be wrong half the time.
+string $rsaJwk = "{\"e\":\"AQAB\",\"kty\":\"RSA\",\"n\":\"z6phky2P2eeFj6UhYXYh8FvLNBHhdJldH6sDOZUgHQ2dcuXo4TPYjovsJ-dQaPt8cV63EsrldQOW1Qr5rStcRfCnqxa88s3kVmhzNJokB_qUUpE-Qzsdfx6nS9pQ0_XQ7CsLUKTqMCOirjrUl1OQzTsADYAgpXhGn0v_o-mGTrmJ5nqASizwi-U7uhuw6QcfJBVrA4NzB3nULvvx2q2mKDWo5eGJGEXMeCwyL53H-etv8cYoySXya6KZeKls0QsvYfA_NhJQJh-GCSdjK2FnvLpx8uTY35PhQskEolFc0GrxPIVr3hhy7jDzoZ2Cks0s5LOcl4ig08Xj8z_nhMTgMw\"}";
+Core\Crypto\PublicKey $signing = Core\Crypto\PublicKey::read(
+    $rsaJwk as bytes,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyFormat::Jwk
+);
+Core\Crypto\PublicKey $probabilistic = Core\Crypto\PublicKey::read(
+    $rsaJwk as bytes,
+    Core\Crypto\KeyKind::RsaPss,
+    Core\Crypto\KeyFormat::Jwk
+);
+if (Core\Encoding::toHex($signing->write(Core\Crypto\KeyFormat::Spki))
+    == Core\Encoding::toHex($probabilistic->write(Core\Crypto\KeyFormat::Spki))) {
+    echo "one rsa modulus", "\n";
+}
+if ($signing->kind() == Core\Crypto\KeyKind::RsaPkcs1
+    && $probabilistic->kind() == Core\Crypto\KeyKind::RsaPss) {
+    echo "two schemes", "\n";
+}
+--EXPECT--
+p-256: 3 reads, 1 raw, 1 spki, 1 jwk, 3 kinds agree
+x25519: 3 reads, 1 raw, 1 spki, 1 jwk, 3 kinds agree
+ed25519: 3 reads, 1 raw, 1 spki, 1 jwk, 3 kinds agree
+one rsa modulus
+two schemes
