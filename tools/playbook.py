@@ -283,9 +283,11 @@ def all_bullets(text: str) -> list[dict]:
 def shortest_key(bullet: dict, every: list[dict]) -> str:
     """The fewest words of a bullet's lead-in that name it and nothing else in its section.
 
-    `slice_bullets` matches a selector as a *substring* of the normalized lead-in, so uniqueness
-    has to be tested the same way -- a three-word key that is also inside a neighbour's lead-in
-    selects both, and orient.py would print two bullets where the goal asked for one."""
+    Uniqueness is tested as a *substring* of every neighbour's normalized lead-in, which is
+    stricter than `slice_bullets`' match on a lead-in's opening words: a key no neighbour contains
+    is one no neighbour opens with either, so the selector resolves to this bullet alone. The
+    stricter test is kept because it leaves every selector already written into a manifest, or
+    keyed in `DELIBERATE_*` above, spelled the way it was emitted."""
     peers = [b for b in every if b["section"] == bullet["section"] and b is not bullet]
     words = orientmod.normalize(bullet["name"]).split()
     for n in range(2, len(words) + 1):
@@ -549,13 +551,16 @@ GENERIC = {"src", "lib", "mod", "main", "crates", "tests", "docs", "tools", "ben
 def spellings(term: str) -> tuple[set[str], set[str]]:
     """One query term -> the `(strong, weak)` spellings a bullet might use for it.
 
-    A **strong** spelling names the term itself: the path as written, its basename *with* the
+    A **strong** spelling names the term itself: the path as written, a file's basename *with* the
     extension, and the crate directory it sits in. A **weak** one is derived by stripping something
     off, and stripping is what turns a path into an ordinary English word --
     `crates/nvs-lsp/src/server.rs` yields `server`, which appears in bullets about `nvs-server`,
     about `nvs-db`'s wire and about the loop driver, none of which is the LSP server. Measured on
     goal `lsp-server`'s stage-4 item, that stem promoted nine bullets to full text and **not one of them**
     matched `nvs-lsp`: 4,992 bytes of every session's pack, spent on the wrong crate.
+
+    A directory's last segment is weak for the same reason, since it has no extension to keep it
+    specific: `docs/rules/security` ends in `security`, which a bullet about anything guarded uses.
 
     A term with no `/` is a word the caller typed rather than one this derived, so all of its
     spellings are strong -- `--match hover` must still find the bullets about hover, and there is
@@ -569,7 +574,9 @@ def spellings(term: str) -> tuple[set[str], set[str]]:
         return _usable(strong), set()
 
     parts = [p for p in t.split("/") if p]
-    strong = {t, parts[-1]}                                  # the path, and expr.rs
+    strong = {t}                                             # the path
+    if "." in parts[-1]:
+        strong.add(parts[-1])                                # expr.rs, never a directory's name
     weak = {parts[-1].rsplit(".", 1)[0]}                     # expr -- also an English word
     if len(parts) >= 2 and parts[0] == "crates":
         strong.add(parts[1])                                 # nvs-ir

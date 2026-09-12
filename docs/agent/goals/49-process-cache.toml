@@ -57,10 +57,8 @@ playbook = [
   'Tooling > a whole decision record',
   'Tooling > a plan field is patched',
   'Tooling > a commit',
-  'Tooling > a [context]',
-  'Tooling > a loop-goal.toml',
+  'Tooling > a [context]*',
   'Tooling > orient.py prints',
-  'Tooling > another session',
   'Tooling > another agent',
 ]
 

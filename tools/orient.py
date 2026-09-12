@@ -139,6 +139,14 @@ TRAPS_TITLE = "THE TRAPS THAT APPLY HERE"
 #: it is cheaper to read than any byte count.
 PROMOTED_WHOLE = 20
 
+#: The traps for reading a failing acceptance check -- a check filed under the wrong crate, a test
+#: name the tree spells differently, a conjunction name. `triage_applies` decides when a session
+#: needs them, from the driver's verdict rather than from the goal or the item: `run_playbook`
+#: prints them whole then and as one line otherwise, and a manifest that also names them gets them
+#: under this rule rather than twice. No goal can know in advance when its checks will need
+#: reading, which is why the selector lives here and not in any manifest.
+TRIAGE = "Tooling > a loop-goal.toml*"
+
 #: A `path:line` anchor in a checklist item, which `run_state` expands into a window of the file.
 #: `docs` is a root here for the same reason the code trees are: a group whose work is prose --
 #: a reference page, an ADR section, a table that still says a feature has no spelling -- names the
@@ -149,6 +157,14 @@ PROMOTED_WHOLE = 20
 #: other path to anchor, so every item it wrote was refused.
 ANCHOR_RE = re.compile(
     r"\b((?:crates|tools|tests|benches|examples|fuzz|docs|editors)/[\w./-]+\.\w+):(\d+)\b"
+)
+
+#: A path a checklist item names, which `run_playbook` narrows the traps to: a file, with or without
+#: a `:line` anchor, or a directory. The directory counts because an item whose work is prose often
+#: names only `docs/decisions/` or `docs/rules/security*`, and an item that names no path at all has
+#: every selected trap printed whole.
+ITEM_PATH_RE = re.compile(
+    r"\b((?:crates|tools|tests|benches|examples|fuzz|docs|editors)/[\w./-]*[\w-])"
 )
 
 #: Lines of a file printed either side of an anchor. Wide enough to hold a signature and the top
@@ -304,17 +320,23 @@ def bullets(text: str, within: str | None = None) -> list[tuple[str, str]]:
 def slice_bullets(text: str, selector: str) -> tuple[list[str], str | None]:
     """One `[context] playbook` entry -> the bullets it names, and a complaint if it named none.
 
-    Three spellings, tried in this order:
+    Four spellings, tried in this order:
 
-        "Tooling"                    the whole `## Tooling` section, as before
+        "Tooling"                                the whole `## Tooling` section
         "Tooling > a whole decision record"      one bullet out of it, by its bold lead-in
         "A whole decision record"                that bullet wherever it lives
+        "Tooling > a loop-goal.toml*"            every bullet whose lead-in opens that way
 
-    The second and third are why this exists. Measured over one run, the four whole sections a
-    goal named were 31 KB -- 35% of the entire pack and its single largest section -- and a
-    session reads perhaps three of their bullets. A section grows every time a trap is written
-    down, which is the point of the file and a leak in the pack; naming bullets makes the
-    manifest's cost track what the goal actually needs instead of what the file has accumulated.
+    A selector matches the OPENING words of a lead-in, never words inside one: as a substring,
+    "the end" also took a bullet about `owners.py` reading a list "to the end of the module doc".
+    The trailing `*` is a claim rather than syntax -- `normalize` strips it, so it resolves the
+    same here -- and `manifest_findings` is what refuses a selector that opens several lead-ins
+    without it. That gate is the brake on a bullet-named selector quietly becoming a family as
+    traps sharing its opening words are written down, each of them charged to every session.
+
+    Naming bullets rather than sections is what keeps the manifest's cost tracking what the goal
+    needs instead of what the file has accumulated: a section grows every time a trap is written
+    down, which is the point of the file and a leak in the pack.
     """
     head, _, lead = selector.partition(">")
     head, lead = head.strip(), lead.strip()
@@ -326,7 +348,7 @@ def slice_bullets(text: str, selector: str) -> tuple[list[str], str | None]:
         lead, head = head, ""      # not a heading: read it as a bare bullet name
 
     key = normalize(lead)
-    hits = [body for name, body in bullets(text, head or None) if key in normalize(name)]
+    hits = [body for name, body in bullets(text, head or None) if normalize(name).startswith(key)]
     if hits:
         return hits, None
     where = f" under {head!r}" if head else ""
@@ -468,6 +490,37 @@ def last_acceptance() -> tuple[str, str] | None:
         if cost and session:
             found = (session, fail)
     return found
+
+
+#: The stage label `loop.py` writes into a failing check's ledger line -- `<check> [4 the lowering]:
+#: <detail>` -- the earliest-stage failure first, which is the one `triage_applies` reads.
+FAIL_STAGE = re.compile(r"\[(\d+)([^\]]*)\]:")
+
+
+def triage_applies() -> bool:
+    """Whether the driver's last verdict is one the `TRIAGE` traps help read.
+
+    A red verdict is not enough, because a goal's acceptance list is red for nearly all of its
+    life: a stage the goal has not finished has checks nothing has satisfied yet, which is open
+    work and not a puzzle. What the traps diagnose is a check that should already pass -- one in
+    the carried floor (a stage `0`-something, or one naming `floor`, as `loop.py` classes them), or
+    in a stage before the one the handoff is working in. A fixture not yet written (`is missing`)
+    and a check in the current or a later stage are the ordinary state, and neither needs them.
+
+    A `[[check]]`'s label may group several prose stages under one number, so the comparison is
+    approximate; while a group is unfinished its checks are open work whichever number it carries.
+    With nothing to compare -- a handoff naming no stage, a failure carrying no label -- it prints."""
+    verdict = last_acceptance()
+    if verdict is None or not verdict[1]:
+        return False
+    fail = verdict[1]
+    m = FAIL_STAGE.search(fail)
+    if m is None:
+        return " is missing -- " not in fail
+    if m.group(1).startswith("0") or "floor" in m.group(2):
+        return True
+    now = current_stage()
+    return now is None or int(m.group(1)) < now
 
 
 def doc_gate_failure() -> tuple[str, str] | None:
@@ -1288,9 +1341,12 @@ def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
 
     playbook_text = read(PLAYBOOK)
     for selector in m.playbook:
-        _hits, complaint = slice_bullets(playbook_text, selector)
+        hits, complaint = slice_bullets(playbook_text, selector)
         if complaint:
             problems.append(f"{where}: playbook selector {selector!r} -- {complaint}")
+        elif len(hits) > 1 and not selector.rstrip().endswith("*"):
+            problems.append(f"{where}: playbook selector {selector!r} opens {len(hits)} bullets' "
+                            f"lead-ins -- name one, or end it in `*` to take every one of them")
 
     for entry in m.adrs:
         parts = entry.replace("§", " ").split()
@@ -1399,16 +1455,18 @@ def run_playbook(wanted: list[str]) -> None:
     """The traps, sliced by section OR by bullet -- see `slice_bullets` for why both -- and then
     narrowed a second time, to the item actually being taken.
 
-    The manifest is *goal*-scoped: it names every trap any of the goal's items could hit, which on
-    the current goal is 46 selectors and 33 KB a session, against an item that touches two files.
-    A session reads a handful of them. So the goal still decides which traps are in scope, and the
-    item decides which are printed **whole**: a bullet that mentions a path the item names, or the
-    crate one lives in, is printed; the rest are listed by their lead-in with the `--show` that
-    fetches one.
+    The manifest is *goal*-scoped: it names every trap any of the goal's items could hit, against
+    an item that may touch two files, and a session reads a handful of them. So the goal decides
+    which traps are in scope, and the item decides which are printed **whole**: a bullet that
+    mentions a path the item names, or the crate one lives in, is printed; the rest are listed by
+    their lead-in with the `--show` that fetches one. An item that names no path at all falls back
+    to printing every selected bullet, because then there is nothing to narrow against.
 
-    Nothing becomes unreachable this way, which is the property that matters -- a trap you cannot
-    see is a trap you pay for twice. An item that names no path at all falls back to printing
-    every selected bullet, because then there is nothing to narrow against."""
+    The `TRIAGE` traps are scoped by neither: `triage_applies` reads the driver's verdict, and they
+    are whole when it names a failing check that should already pass, one line otherwise.
+
+    Nothing becomes unreachable either way, which is the property that matters -- a trap you
+    cannot see is a trap you pay for twice."""
     if not wanted:
         return
     text = read(PLAYBOOK)
@@ -1416,8 +1474,12 @@ def run_playbook(wanted: list[str]) -> None:
         warn(f"{rel(PLAYBOOK)} is missing")
         return
 
+    triage, _ = slice_bullets(text, TRIAGE)
+    needed = triage_applies()
+
     picked: list[tuple[str, str]] = []          # (selector, body), deduplicated
-    seen: set[str] = set()
+    # Seeded with the TRIAGE bullets, so a manifest naming one gets it under that rule alone.
+    seen: set[str] = {body[:120] for body in triage}
     for name in wanted:
         found, complaint = slice_bullets(text, name)
         if complaint:
@@ -1431,9 +1493,7 @@ def run_playbook(wanted: list[str]) -> None:
             seen.add(key)
             picked.append((name, body))
 
-    terms = [p for p, _ in ANCHOR_RE.findall(current_item)]
-    terms += playbook.HANDOFF_PATH.findall(current_item)
-    terms = list(dict.fromkeys(terms))
+    terms = list(dict.fromkeys(ITEM_PATH_RE.findall(current_item)))
 
     if terms:
         ranked = sorted(
@@ -1484,6 +1544,21 @@ def run_playbook(wanted: list[str]) -> None:
             label = head[lead.start(1):lead.end(1)] if lead else head[2:]
             emit(f"   {name}  --  {brief.strip_links(label).strip('* ')[:110]}")
 
+    at_triage = len(out)
+    if triage and needed:
+        emit()
+        emit("-- The driver's last acceptance check FAILED on a check that should already pass, so")
+        emit(f"   here in full are the {len(triage)} trap(s) for reading one:")
+        for body in triage:
+            emit()
+            emit(body)
+    elif triage:
+        emit()
+        emit(f"-- {len(triage)} trap(s) for reading a failing acceptance check are held back: nothing "
+             f"the driver")
+        emit("   reports failing is a floor check or one in a stage already passed.")
+        emit(f"   `python tools/playbook.py --show '{TRIAGE}'` prints them all.")
+
     # The split the row itself cannot show -- see `traps_detail`. `unnarrowed` is the
     # counterfactual the goal author controls: every bullet the manifest selects, printed whole,
     # which is what this section cost before the item narrowing existed and what it would cost
@@ -1492,10 +1567,11 @@ def run_playbook(wanted: list[str]) -> None:
     # `whole_b` and can never come out under it.
     unnarrowed = nbytes("\n".join(x for _, b in picked for x in ("", b)))
     whole_b = nbytes("\n".join(out[at_whole:at_listed]))
-    # By subtraction, so the two halves add up to the ledger row exactly. Measuring the tail on
-    # its own loses the newline that joins it to the head, and a one-byte remainder in a report
-    # whose whole job is attribution reads as a third contribution nobody named.
-    listed_b = nbytes("\n".join(out[at_whole:])) - whole_b
+    # By subtraction, so the parts add up to the ledger row exactly. Measuring a tail on its own
+    # loses the newline that joins it to the part before, and a one-byte remainder in a report
+    # whose whole job is attribution reads as a contribution nobody named.
+    listed_b = nbytes("\n".join(out[at_whole:at_triage])) - whole_b
+    triage_b = nbytes("\n".join(out[at_whole:])) - whole_b - listed_b
     traps_detail.extend([
         f"    manifest names {len(wanted)} selector(s) -> {len(picked)} bullet(s), "
         f"{unnarrowed:,} B whole",
@@ -1506,6 +1582,9 @@ def run_playbook(wanted: list[str]) -> None:
         else f"    your ITEM names no path, so all {len(whole)} are printed in full: "
         f"{whole_b:,} B",
         f"    the other {len(listed)} cost one lead-in line each: {listed_b:,} B",
+        f"    {len(triage)} failing-check trap(s) "
+        + ("printed whole, a check that should pass being red" if needed else "held back")
+        + f": {triage_b:,} B",
         f"    so narrowing saved {max(unnarrowed - whole_b - listed_b, 0):,} B -- the item's share",
         f"    is bounded by PROMOTED_WHOLE; trimming the manifest acts on the {unnarrowed:,} B",
     ])

@@ -41,10 +41,9 @@ playbook = [
   'Tooling > the end',
   'Tooling > one call reads',
   'Tooling > a commit',
-  'Tooling > a [context]',
-  'Tooling > a loop-goal.toml',
+  'Tooling > a [context]*',
   'Tooling > orient.py prints',
-  'Tooling > another session',
+  'Tooling > another agent',
   'Running things > target/release/nvs.exe is',
 ]
 

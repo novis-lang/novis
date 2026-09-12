@@ -95,8 +95,8 @@ milestones = []
 playbook = [
   # This goal's own file set and tools.
   'Tooling > a core class',
-  'Writing a test case > a rule',
-  'Writing a test case > a -p',
+  'Writing a test case > a rule*',
+  'Writing a test case > a -p*',
   'Writing a test case > No `.nvst` case can reach a live queue',
   'Writing a test case > A `close`d SQLite',
 
@@ -106,10 +106,8 @@ playbook = [
   'Tooling > a whole decision record',
   'Tooling > a plan field is patched',
   'Tooling > a commit',
-  'Tooling > a [context]',
-  'Tooling > a loop-goal.toml',
+  'Tooling > a [context]*',
   'Tooling > orient.py prints',
-  'Tooling > another session',
   'Tooling > another agent',
 ]
 

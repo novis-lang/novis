@@ -1679,10 +1679,10 @@ GOAL_PLAYBOOK = [
     "Tooling > the end",
     "Tooling > one call reads",
     "Tooling > a commit",
-    "Tooling > a [context]",
-    "Tooling > another session",
-    "Writing a test case > a rule",
-    "Writing a test case > a -p",
+    "Tooling > a [context]*",
+    "Tooling > another agent",
+    "Writing a test case > a rule*",
+    "Writing a test case > a -p*",
     "Running things > target/release/nvs.exe is",
 ]
 
