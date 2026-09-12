@@ -349,6 +349,28 @@ pub(crate) struct Incoming {
     member: String,
 }
 
+impl nvs_runtime::HeldReader for Incoming {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+impl std::fmt::Debug for Incoming {
+    /// What the request's table of readers prints, which is what it can:
+    /// [`Connection`] is a trait object over a socket with no `Debug` of its
+    /// own, and the octets are a reply another host wrote and not something to
+    /// spill into a line meant for reading a `Ctx`. The member and the lengths
+    /// are the two facts a reader of that line is after.
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        out.debug_struct("Incoming")
+            .field("member", &self.member)
+            .field("held", &self.held.len())
+            .field("raw", &self.raw.len())
+            .field("ended", &self.ended)
+            .finish_non_exhaustive()
+    }
+}
+
 impl Incoming {
     /// A body still on `source`, where `raw` is whatever arrived beside the
     /// head.
@@ -383,9 +405,49 @@ impl Incoming {
         Ok(body)
     }
 
+    /// A body that is already here in full, on no connection at all — what an
+    /// armed answer table hands a streamed call
+    /// (`rule:testing/an-outbound-call-is-answered-from-a-table`).
+    ///
+    /// The two bounds are never consulted: they bound a wait, and a body with
+    /// nothing left to arrive never waits. Filing the table's octets as a
+    /// reader rather than as octets is what keeps one reading of a streamed
+    /// body — the walks frame off a reader and have no second arm for a reply
+    /// a test wrote.
+    pub(crate) fn already(held: Vec<u8>, member: &str) -> Self {
+        Self {
+            source: None,
+            held,
+            raw: Vec::new(),
+            frame: Frame::UntilClose,
+            ended: true,
+            idle: Duration::ZERO,
+            until: Instant::now(),
+            member: member.to_owned(),
+        }
+    }
+
     /// The octets framed and not yet taken.
     pub(crate) fn held(&self) -> &[u8] {
         &self.held
+    }
+
+    /// Whether the framing has said there is no more: what tells a walk that
+    /// the octets it could not frame an element out of are all it will ever
+    /// get, rather than a piece of one still on the wire.
+    pub(crate) fn ended(&self) -> bool {
+        self.ended
+    }
+
+    /// Drops the first `octets` of what is framed and untaken — the element a
+    /// walk has just handed a program.
+    ///
+    /// The move is what bounds a walk's memory: what this holds between two
+    /// elements is one read's worth plus whatever of the next element has
+    /// arrived, rather than every byte of the body the walk has already been
+    /// through.
+    pub(crate) fn consume(&mut self, octets: usize) {
+        self.held.drain(..octets.min(self.held.len()));
     }
 
     /// Waits for more body, answering whether any arrived — `false` is the end
