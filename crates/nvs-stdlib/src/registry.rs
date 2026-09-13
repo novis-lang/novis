@@ -863,7 +863,7 @@ pub enum Const {
     /// type, and deliberately: writing the type as `?callable` instead would
     /// make it admit `null`, and an option that admits `null` states its
     /// omission with [`Self::NeverWritten`] — which is the pairing
-    /// [`tests::a_nullable_option_omits_as_the_never_written_marker`] holds, and
+    /// `a_nullable_option_omits_as_the_never_written_marker` holds, and
     /// the reason the declared type stays what a call site may write.
     Null,
     /// **Not a value**: the never-written marker, which is what an omitting
