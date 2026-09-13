@@ -179,6 +179,7 @@ Conventions the whole file uses:
 | [`Core\Os`](#core-core-os) |  |
 | [`Core\Cache`](#core-core-cache) |  |
 | [`Core\Cache\Store`](#core-core-cache-store) |  |
+| [`Core\Cache\SecretEntry`](#core-core-cache-secretentry) |  |
 | [`Core\RateLimit`](#core-core-ratelimit) |  |
 | [`Core\RateLimit\Decision`](#core-core-ratelimit-decision) |  |
 | [`Core\Reflect`](#core-core-reflect) |  |
@@ -21493,6 +21494,31 @@ Takes the entry under `$key` out of this store, whether or not there was one the
 **Returns** `void` — Nothing. A key nothing was stored under is already forgotten, so there is no second answer here for whether there had been an entry — the same reading `get` gives a miss, and for the same reason: on these tiers an entry may be absent at any time.
 
 **Throws** `IOError` — On the shared tier only: the store cannot be reached or refused the command. The in-process tiers have nothing to be unreachable.
+
+<a id="core-core-cache-secretentry"></a>
+### `Core\Cache\SecretEntry`
+
+Keywords: of
+
+| Member | Signature |
+|---|---|
+| [`Core\Cache\SecretEntry::of`](#core-core-cache-secretentry-of) | `of(secret string $value, Core\Time\Duration $ttl): Core\Cache\SecretEntry` |
+
+<a id="core-core-cache-secretentry-of"></a>
+#### `Core\Cache\SecretEntry::of`
+
+```nvs skip
+Core\Cache\SecretEntry::of(secret string $value, Core\Time\Duration $ttl): Core\Cache\SecretEntry
+```
+
+Builds the entry a `getSecret` fill answers with: the secret the fill fetched, and how long that secret stays good.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `secret string` (neutral) | The secret to store. A plain `string` reaches this parameter too, and nothing is laundered either way — what makes the value confidential is its own type. |
+| `$ttl` | `Core\Time\Duration` | How long the entry stays readable, counted from the write that stores it — what the fetch itself said, rather than a lifetime the caller guessed at. |
+
+**Returns** `Core\Cache\SecretEntry` — The entry. It answers nothing about either half: a program builds one for a fill to hand back, and reads a secret out of `getSecret` instead.
 
 <a id="core-core-ratelimit"></a>
 ### `Core\RateLimit`

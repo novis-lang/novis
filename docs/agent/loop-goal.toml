@@ -156,6 +156,8 @@ playbook = [
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
+  # Every stage left in this goal registers a `Core` class or a member on one.
+  'Tooling > Registering a',
 ]
 
 plan = ["Open now", "Blocking"]

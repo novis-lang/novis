@@ -2499,6 +2499,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `docker ps` before reading a green-yesterday check as a regression, and `docker compose -f
   tests/db/compose.yaml up -d --wait postgres redis` brings the two servers back.
   [until: reviewed 2026-09-13]
+- **`a_revalidation_that_wins_publishes_and_readers_never_block_on_a_compile` fails under a full
+  `verify.py` and passes on its own.** It asserts how many reads land while a compile is running,
+  which is a timing claim, and `test` runs its binaries side by side — a loaded machine lets the
+  compile finish between the two reads and the count comes back one short. Re-run `python
+  tools/verify.py` before believing it: the site is `crates/nvs-cli/src/script.rs:1340` and it is
+  nothing a stdlib or docs session touched.
+  [until: gone crates/nvs-cli/src/script.rs:a reader was answered once and then waited the compile out]
 
 ## Writing a test case
 

@@ -2,54 +2,60 @@
 
 ## State
 
-**Goal `process-cache` — stage 4 is on disk and green: an entry has a lifetime, and a name can be
-forgotten, on every tier.** `put` takes `rule:core-api/shape-rules` R2's trailing `{ttl?: Duration}`,
-the two in-process tiers hold the deadline beside the payload, and `forget(string $key): void` is the
-store's third member. Stage 5 (the sealed secret), stage 6 (the single-flight `fill`) and stage 7 (the
-session's own secret) are unwritten; goal `http-client`'s list, this goal's stage 1 floor, still passes.
+**Goal `process-cache` — stage 5's first member is on disk and green: `Core\Cache\SecretEntry`, with
+its one static `of(secret string $value, Duration $ttl)`.** Nothing seals or opens anything yet:
+`putSecret` and `getSecret` are unwritten, so an entry is a value a program can build and nothing can
+consume. Stage 4 is unchanged and still green, as are goal `http-client`'s list and this goal's stage
+1 floor.
 
-`Lifetime` at `crates/nvs-stdlib/src/cache.rs:519` is what the call *wrote* — `Forever`, or
-`For(Duration)` — and each tier turns it into what it can hold: the in-process tiers into an `Instant`
-deadline beside the payload, the shared tier into `SET … PX`. The module doc is the home for the three
-decisions behind that: why the deadline is monotonic and not wall-clock, why the read judges an expired
-entry without taking it out (`get` stays a read lock), and why a lifetime already over is not a write at
-all but takes the exit an oversized arrival takes. `Connection::set_expiring` now takes a `Duration` and
-sends `PX` rather than `EX`, which is why `crate::session` and its fake store moved with it.
+The entry is a **handle** — two slots, `value` and `nanos`, no instance member, and the sentence
+`registry.rs`'s `HANDLES` list wants beside it. The lifetime is held as the nanosecond count
+`Lifetime` reads rather than as the `Duration` instance, because that is the number every sealing
+path turns into a deadline; `crates/nvs-stdlib/src/cache.rs:495` is the class doc that owns both.
 
-The `[context]` gap this session paid for is closed in the goal's own toml rather than only described:
-`[context.stage.4]` and `[context.stage.5]` now name `core-api/shape-rules` and `core-api/reference-card`,
-which every stage adding a `Core` member needs and neither had.
+**`putSecret` and `getSecret` cannot land in separate sessions.** The conformance floor is per member
+and counts cases that *call* one, and a `putSecret` with no reader has nothing a `.nvst` case can
+observe — so the next group is the two members together, not one each.
+
+**`crate::crypto` has no associated-data door.** `seal_under`
+(`crates/nvs-stdlib/src/crypto.rs:1465`) and `open_under` (`:1522`) take a key, a message and a
+member name and nothing else, so binding an entry to the app, its name and its expiry is either a new
+AAD-carrying variant beside them or those three fields written into the plaintext ahead of the value
+and checked after the open. The second needs no change to `crypto.rs` and the tag covers it either
+way. Not decided.
+
+The `[context]` gap this session paid for is closed in the goal's own toml: the base `playbook` now
+names `'Tooling > Registering a'`, which every stage left in this goal needs and none of them had.
 
 ## Next group
 
-**Stage 5: the sealed secret, as the two members and the class a `fill` answers** — one file set:
+**Stage 5: the sealed secret, as the two members that are its only door** — one file set:
 `crates/nvs-stdlib/src/cache.rs`, `crates/nvs-stdlib/src/crypto.rs`, `crates/nvs-stdlib/src/keyring.rs`.
 
-- [ ] **`Core\Cache\SecretEntry`, with its one static `of(secret string $value, Duration $ttl)`** — a
-      second `CoreClass` beside `STORE` at `crates/nvs-stdlib/src/cache.rs:290`, registered where
-      `STORE` is. It lands first because `getSecret`'s `{fill?: callable(): Cache\SecretEntry}` has no
-      return type to declare until it exists. `rule:core-api/shape-rules` R16 is the singular noun and
-      R14 why a thing with a lifetime is an object; the spec's `Core\Cache` row is the signature.
-- [ ] **`putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void`**
-      — the row after `forget` at `crates/nvs-stdlib/src/cache.rs:290`, sealing with
-      `crates/nvs-stdlib/src/crypto.rs:1432`'s `cipher` under the ring's newest key
-      (`crates/nvs-stdlib/src/keyring.rs:136`). The associated data binds the `[[app]]`, the entry's own
-      name and the sealed expiry, so a moved or replayed entry is a miss;
-      `crates/nvs-stdlib/src/signature.rs:46` is the domain-byte precedent to follow rather than invent.
-      `rule:security/secret-crosses-no-boundary` is why the ciphertext is what the tier holds.
-- [ ] **`getSecret(string $key, array<secret bytes> $keys): ?secret string`, without the `fill` half** —
-      opens under each key of the ring in turn (`crates/nvs-stdlib/src/keyring.rs:117`), and a sealed
-      entry that opens under none of them, or whose sealed expiry has passed, is a **miss** and never a
-      throw. The `{fill?: …, wait?: …}` options bag and its single-flight table are stage 6, and adding
-      the bag empty here would be a shape no case can ask about.
+- [ ] **`putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void`
+      and `getSecret(string $key, array<secret bytes> $keys): ?secret string`, as one slice** — two
+      rows beside `forget` at `crates/nvs-stdlib/src/cache.rs:330`, two helpers after
+      `nvs_core_cache_forget` at `crates/nvs-stdlib/src/cache.rs:1611`. Seal under the ring's newest
+      key and open against every key of it, `crates/nvs-stdlib/src/keyring.rs:86` being `borrow`,
+      `:136` `newest` and `:117` `entries`; the nonce is drawn through `crate::random::draw` as
+      `crates/nvs-stdlib/src/crypto.rs:3019` draws one. The sealed payload goes to whichever tier the
+      store names, through the same three arms `put` takes. `rule:security/secret-qualifier` is why
+      the value parameter is a demand and not an admission, and the spec's `Core\Cache` row is the
+      signature. Leave `getSecret`'s `{fill?: …, wait?: …}` bag out — it is stage 6.
+- [ ] **The three cargo tests the acceptance check names**, in `cache.rs`'s own `#[cfg(test)]` module
+      at `crates/nvs-stdlib/src/cache.rs:1665`:
+      `sealed_entry_moved_to_another_key_or_app_is_a_miss`,
+      `sealed_entry_past_its_sealed_expiry_is_a_miss_whatever_the_store_says`,
+      `every_sealed_entry_nonce_is_drawn_through_core_random`. The first two are what decides the
+      binding question in `## State`; the third reads `crate::random`, not the OS.
+- [ ] **The four `.nvst` cases the check names**, three under `tests/conformance/core/` and
+      `cache-put-refuses-a-secret-and-names-put-secret.nvst` under `tests/conformance/reject/`. The
+      reject one is over `put`'s existing `CoreTy::Mixed` value parameter at
+      `crates/nvs-stdlib/src/cache.rs:311` and needs no new code — its diagnostic has to name
+      `putSecret` as what to write instead.
 
 ## Backlog
 
-- A fleet-wide single fill — a lease over the shared tier — is named *not this goal* by the goal's
-  § *Standing decisions*, which is its home.
-- A `secret bytes` value, and a user's refresh token in a cache tier, likewise: the goal's
-  § *Standing decisions*.
-- The `nvs/rest` package is the first caller of all of this and is unscheduled —
-  [carried-gaps.md](carried-gaps.md).
-- An expired in-process entry holds its bytes against the cap until the eviction order or an overwrite
-  reaches it; the cache module doc states it as the cost of a read-only `get`.
+- Stage 6's single-flight `fill` and its `wait`, which is what `SecretEntry` exists for — `docs/agent/goals/49-process-cache.md`.
+- Stage 7's `setSecret`/`getSecret` on the session — same goal file.
+- A fleet-wide single fill, a `secret bytes` value and the `nvs/rest` package are all out of this goal — `docs/agent/loop-goal.md` § *Standing decisions*.
