@@ -120,6 +120,9 @@ modules = [
   # `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s boot half: what a
   # configuration already says about the coherent tier before any request asks for it.
   "crates/nvs-config/src/store.rs",
+  # `rule:config/the-config-is-an-immutable-snapshot`: the immutable snapshot a request clones at
+  # start.
+  "crates/nvs-config/src/snapshot.rs",
 ]
 
 # Every stage works inside these three: cross-request state is a named store, a store's bytes are its
