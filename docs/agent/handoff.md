@@ -2,46 +2,56 @@
 
 ## State
 
-**Goal `http-client` — stage 11 is closed: a call names its address under a grant, an `https` hop needs
-both halves to become plaintext, and a reply now reports the session it arrived over through
-`Core\Http\Response::tls(): ?Core\Http\TlsInfo`.** Stages 1–10 are on disk behind it.
-[ADR 0180](../decisions/0180.md) § 13 is the record and `rule:http-server/a-reply-reports-its-tls-session`
-the rule.
+**Goal `http-client` — stage 12's runtime half is closed: the capability door reaches a name through a
+seam a worker installs, judges every address that name answered, and answers the approved set.**
+Stages 1–11 are on disk behind it. [ADR 0180](../decisions/0180.md) § 14 is the record and
+`rule:http-server/an-outbound-call-tries-every-approved-address` the rule.
 
-`Core\Http\TlsInfo` holds four slots — version, cipher, `verified` and the chain as DER — and answers
-seven members over them; the class's own doc comment in `crates/nvs-stdlib/src/http.rs` is why it is four
-and not seven. `subject`, `issuer` and `expiry` parse the leaf through `nvs_host::tls::leaf`, beside the
-parser `tlsPin` uses, so a reply nobody audits pays no certificate parse and `peerChain` writes PEM at
-the member. `exchanged` hands the transport's own `Option<Tls>` back and the streamed half drops it,
-because the rule puts the report on `Core\Http\Response` alone.
+`nvs_runtime::capability::install_resolver` is a **per-thread** hook, and `nvs-host` installs
+`resolve_off_core` on every worker in `Worker::spawn`; a thread that is not a worker installs nothing
+and resolves inline, which is what `nvs_host::blocking::run` does off a core anyway, so the fallback
+is exact rather than merely safe. `PINNED_ADDRESSES` is `8`, applied in the resolver's order and
+before the policy is asked, with the same address never kept twice. `pin_host_addresses` and
+`pinned_addresses` answer the set; `pin_host`, `pinned_address` and `resolve_host` are its head. An IP
+literal reaches no resolver at all.
 
-Nothing is blocked. Stage 12 is untouched.
+Stage 12's second check is untouched: `Core\Http\Target` still carries one address and the transport
+still connects to exactly that one. Nothing is blocked.
 
 ## Next group
 
-**Stage 12: a name resolved off the core** — one file set: `crates/nvs-runtime/src/capability.rs`,
-`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/http/transport.rs`.
+**Stage 12: the approved set reaches the wire** — one file set: `crates/nvs-stdlib/src/http.rs`,
+`crates/nvs-stdlib/src/http/transport.rs`, `crates/nvs-stdlib/src/http/pool.rs`.
 
-- [ ] **The lookup leaves the core, and the grant and the address check stay on it** —
-      `rule:http-server/a-core-is-never-blocked-on-a-syscall`, `docs/agent/loop-goal.md` § *Stage 12*
-      first bullet. `resolve_host` (`crates/nvs-runtime/src/capability.rs:217`) is the blocking call,
-      asked from `pin_host` (`crates/nvs-runtime/src/capability.rs:194`) after the grant and before the
-      address check. `nvs-runtime` cannot reach `nvs_host`, so either the caller hands a resolver in or
-      `nvs-host` installs one at boot; `crates/nvs-stdlib/src/process.rs:394` is the
-      `nvs_host::blocking::run` precedent.
-- [ ] **Every resolved address is judged, and one denied refuses the host** —
-      `rule:security/net-address-policy`. `pinned_address`
-      (`crates/nvs-runtime/src/capability.rs:264`) answers one address today and has to answer the set;
-      `pin` (`crates/nvs-stdlib/src/http.rs:380`) is the caller, and an IP literal or a `connectTo`
-      value is a set of one.
-- [ ] **`Core\Http\Target` carries the approved set, at most eight, in resolver order** —
-      `rule:http-server/allow-url-pins-the-address`. `TARGET` (`crates/nvs-stdlib/src/http.rs:200`)
-      keeps no members, `Call::address` (`crates/nvs-stdlib/src/http/transport.rs:149`) becomes the set,
-      and `one` (`crates/nvs-stdlib/src/http/transport.rs:1313`) is where a connection is made to one of
-      them. A retry reuses the set and never re-resolves.
+- [ ] **`Core\Http\Target` carries the approved set, at most eight, in the resolver's order** —
+      `rule:http-server/an-outbound-call-tries-every-approved-address`, [ADR 0180](../decisions/0180.md)
+      § 14 third paragraph. `pin` (`crates/nvs-stdlib/src/http.rs:380`) asks `pin_host_addresses`
+      rather than `pin_host`; its callers are the launderer (`crates/nvs-stdlib/src/http.rs:435`), the
+      redirect re-pin (`crates/nvs-stdlib/src/http.rs:2571`) and the `connectTo` path
+      (`crates/nvs-stdlib/src/http.rs:2545`, which is a set of one). `TARGET`'s `ret` prose at
+      `crates/nvs-stdlib/src/http.rs:181` still says "one address", and the class still has no
+      members.
+- [ ] **The connect falls back across the set, RFC 8305's way** — same rule, § 14 fourth paragraph.
+      `Call::address` (`crates/nvs-stdlib/src/http/transport.rs:148`) becomes the set;
+      `attempts`/`repin` (`crates/nvs-stdlib/src/http/transport.rs:1093`), the connect in `one`
+      (`crates/nvs-stdlib/src/http/transport.rs:1313`) and the pool key
+      (`crates/nvs-stdlib/src/http/pool.rs`) read it. Families interleaved, a `250ms` attempt delay as
+      a constant, all under the one `connectTimeout`; every address failing is one `IOError` naming
+      each. Sequential fallback in the same order is the fallback if the parking stream cannot hold
+      two connects in flight.
+- [ ] **A retry reuses the set and never re-resolves, and a pooled connection to any approved address
+      serves the call** — `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`,
+      `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`. The retry loop is
+      `crates/nvs-stdlib/src/http/transport.rs:1268`; the pool's own case is
+      `crates/nvs-stdlib/src/http/transport.rs:3230`. The five tests this owes are named at
+      `docs/agent/loop-goal.toml:9651`.
 
 ## Backlog
 
-- Stage 12's fourth bullet — RFC 8305 fallback across the set — is a slice of its own after the three
-  above; `docs/agent/loop-goal.md` § *Stage 12*.
-- Stage 13 onward of `docs/agent/loop-goal.md`, untouched.
+- `Core\Net::connect` and `Core\Db::open` now have every resolved address judged, but still connect to
+  the head of the set — falling back there is not in this goal's stages
+  (`docs/agent/loop-goal.md` § *Stage 12*).
+- The `nvs/rest` package, OAuth and a resolver of Novis's own stay out of this goal
+  (`docs/agent/loop-goal.md` § *Standing decisions*, *Not this goal*).
+- `[http.client]`'s `pool_idle`/`pool_idle_timeout` and `[http.client.tls]` ship the numbers
+  [ADR 0180](../decisions/0180.md) § 16 fixes; nothing re-reads them per call.
