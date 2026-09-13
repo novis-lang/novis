@@ -148,10 +148,13 @@
 //! ## What is parsed but not yet honoured
 //!
 //! `--INI--` parses — that is what keeps the M11 importer mechanical — but
-//! nothing can act on it yet: `nvs.toml` is not read until M6
-//! (`rule:config/the-file-is-nvs-toml-and-it-is-toml`). A case
-//! that uses it is reported as a **failure** naming the milestone, never
-//! run-and-half-ignored.
+//! nothing can act on it: the section is recorded as unsupported (`case`'s
+//! `NOT_YET` roster) and a case that uses it is reported as a **failure**
+//! naming the reason, never run-and-half-ignored. What is missing is not the
+//! configuration, which is read, but anything that turns an INI key into the
+//! configuration a case's program runs under — so the reason `NOT_YET` prints
+//! names a milestone that has since walked, and is the string that changes
+//! with it.
 //!
 //! The seven request sections **are** honoured, and they are the one thing in
 //! this format that changes what the program under test *is*: a case writing
