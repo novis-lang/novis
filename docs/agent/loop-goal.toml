@@ -103,6 +103,20 @@ modules = [
   "crates/nvs-config/src/directive.rs",
   # The TLS client a tunnel hands its stream to. Stage 3.
   "crates/nvs-host/src/tls.rs",
+  # `rule:http-server/cors-is-closed-until-origins-are-named` and
+  # `rule:http-server/cookies-are-secure-httponly-and-lax`'s two meaningless combinations, in the
+  # one implementation the boot and `Core\Config::set` both ask — and, beside them, the values
+  # under `[http.*]` that are refused before either question is worth asking.
+  "crates/nvs-config/src/http.rs",
+  # The configuration tree, resolved: which file is the root, which files it pulls in, and the one
+  # ordered stream they flatten to.
+  "crates/nvs-config/src/resolve.rs",
+  # `rule:config/a-secret-is-a-file-whose-content-is-the-value`: a secret arrives as a file whose
+  # content is the value.
+  "crates/nvs-config/src/secret.rs",
+  # The typed block tree one configuration file deserializes into: every block an ADR states, with
+  # its own fields, and an unknown key refused.
+  "crates/nvs-config/src/tree.rs",
 ]
 
 # Every stage works inside these three: the address policy, where it lives, and the pin. The goal's
