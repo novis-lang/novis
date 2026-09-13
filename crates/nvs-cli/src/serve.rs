@@ -754,12 +754,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // `None` for `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease, and this binary is the one place that
     // answer can be given: `nvs-server` names no `nvs-stdlib`, so the store a
     // fleet entry would be held in is reachable from here and nowhere else.
-    // What is missing is the operation rather than the store — `Core\Cache`'s
-    // shared tier is `put` and `get` (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`) and neither is a
-    // set-if-absent — so there is nothing to implement `nvs_server::Leases`
-    // with yet, and § 3's fallback holds: every fleet entry is left unarmed and
-    // named. The moment that tier gains a compare-and-set, the implementation
-    // is a few lines here and no change at all in the ticker.
+    // What is missing is the operation rather than the store, which is
+    // `nvs_server::schedule`'s known gap 1: with nothing to implement
+    // `nvs_server::Leases` with, § 3's fallback holds and every fleet entry is
+    // left unarmed and named. The moment the shared tier gains a
+    // compare-and-set, the implementation is a few lines here and no change at
+    // all in the ticker.
     let mut armed = if ticks {
         nvs_server::arm(&snapshot.config.schedule, &Zoned::now(), None, |note| {
             eprintln!("note: {note}");

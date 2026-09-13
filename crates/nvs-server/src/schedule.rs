@@ -74,21 +74,30 @@
 //! sleep re-arms past exactly that wake; `kill` keeps the id of the task each
 //! fire was spawned as, which is the handle it cancels and then waits out.
 //!
-//! # Not here yet
+//! # Known gaps
 //!
-//! The per-entry `limits` and `grants` sub-caps (§ 5), which narrow a run's
-//! budget and its capabilities and which nothing in this tree can narrow *per
-//! isolate* yet. Like `overlap`, they are the ticker's question rather than the
-//! caller's, and they belong to this module when they land.
-//!
-//! **Renewing a lease while its run is in flight**, which § 3 names beside the
-//! TTL. What is here is the TTL alone — [`Armed::lease_ttl`], the gap to this
-//! entry's next fire — so a run that outlives its own interval can have the lease
-//! expire under it and a second host take the next one while it is still going.
-//! That is inside § 3's stated bound (`"fleet"` is at-most-once per interval, not
-//! exactly-once, and a lease expiring under a live run is the example it gives),
-//! so this is a sharpening rather than a hole; it costs a timer on the fire's own
-//! task, which is where it will live.
+//! 1. **No `fleet` entry is ever armed, because nothing implements [`Leases`]
+//!    to pass to [`arm`].** The shared tier's wire is `put` and `get`
+//!    (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`) and
+//!    neither is a set-if-absent, so the binary supplies [`None`] and the
+//!    fallback above runs: each such entry is named and left unarmed.
+//!    — owner: m7-server-surface
+//! 2. **The per-entry `limits` and `grants` sub-caps (§ 5) are not applied.**
+//!    They narrow a run's budget and its capabilities, and nothing in this tree
+//!    narrows either one *per isolate*. Like `overlap`, they are the ticker's
+//!    question rather than the caller's, and they belong to this module when
+//!    they land.
+//!    — owner: m7-server-surface
+//! 3. **A lease is never renewed while its run is in flight**, which § 3 names
+//!    beside the TTL. What is here is the TTL alone — [`Armed::lease_ttl`], the
+//!    gap to this entry's next fire — so a run that outlives its own interval
+//!    can have the lease expire under it and a second host take the next one
+//!    while it is still going. That is inside § 3's stated bound (`"fleet"` is
+//!    at-most-once per interval, not exactly-once, and a lease expiring under a
+//!    live run is the example it gives), so it is a sharpening rather than a
+//!    hole; it costs a timer on the fire's own task, which is where it will
+//!    live.
+//!    — owner: m7-server-surface
 
 use std::cell::Cell;
 use std::io;

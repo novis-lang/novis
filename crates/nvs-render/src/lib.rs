@@ -9,14 +9,13 @@
 //! whole of `rule:errors/diagnostic-record`, and it is why adding a rendering costs one
 //! implementation rather than one per producer.
 //!
-//! # What is here, and what is not yet
+//! # What is here
 //!
 //! The model, the plaintext rendering ([`plain`]), § 5's four transformations,
-//! and the JSON one ([`json`]) that a log target emits. The HTML rendering and
-//! the record's remaining producers — a `Throwable` and its trace, a `#[Test]`
-//! result and a compiler diagnostic — are still to come. `Core\Debug::dump`
-//! and `Core\Log::write` are the producers that exist, and both live in
-//! `nvs-stdlib` for the reason § *Where this sits* gives.
+//! and the JSON one ([`json`]) that a log target emits. `Core\Debug::dump` and
+//! `Core\Log::write` are the producers that exist, and both live in
+//! `nvs-stdlib` for the reason § *Where this sits* gives. The rendering and
+//! the three producers that do not exist are the block below.
 //!
 //! **`rule:errors/log-write`'s
 //! record-and-write helper renders here**, not in `nvs-runtime` beside the
@@ -26,6 +25,26 @@
 //! for the floor plus this one for everything else would be two writers that
 //! agree today. The price is the dependency edge below, which § 1 sanctions and
 //! this section prices.
+//!
+//! # Known gaps
+//!
+//! 1. **The HTML rendering is not written**, so the third of
+//!    `rule:errors/renderings`' three renderings has no implementation and
+//!    `[debug] inline` has nothing to wire into a response.
+//!    — owner: m8-stdlib-depth
+//! 2. **A `Throwable` and its trace is not a producer.**
+//!    `rule:errors/record-producers` asks for Sequence-of-Object frames, and
+//!    the uncaught path in `nvs-runtime` writes one string for the whole
+//!    stack summary instead.
+//!    — owner: m8-stdlib-depth
+//! 3. **A `#[Test]` result is not a producer**, so § 22's three output
+//!    formats are the runner's own printing rather than one record rendered
+//!    three ways. `docs/decisions/0079.md:871` lands § 22 with the M4S tail,
+//!    which the program is already past.
+//!    — owner: m8-stdlib-depth
+//! 4. **A compiler diagnostic is not a producer**, which
+//!    `docs/decisions/0092.md:439` schedules rather than defers.
+//!    — owner: M10
 //!
 //! # § 5's four transformations, and why they are the model's
 //!
