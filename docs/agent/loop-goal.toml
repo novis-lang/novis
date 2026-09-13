@@ -117,6 +117,9 @@ modules = [
   # The typed block tree one configuration file deserializes into: every block an ADR states, with
   # its own fields, and an unknown key refused.
   "crates/nvs-config/src/tree.rs",
+  # ADR 0180 § 15's `http` trace event: the facts one outbound call contributes to a trace, and
+  # why a header value is not one of them.
+  "crates/nvs-stdlib/src/http/span.rs",
 ]
 
 # Every stage works inside these three: the address policy, where it lives, and the pin. The goal's
