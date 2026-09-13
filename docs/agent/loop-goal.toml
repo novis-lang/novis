@@ -109,6 +109,10 @@ modules = [
   "crates/nvs-stdlib/src/registry.rs",
   # `[cache.local]` (:158-162), beside which `[cache.process]` is written. Stages 3 and 6.
   "crates/nvs-config/src/directive.rs",
+  # The `[cache.local]` struct (:1078-1092), the shape `[cache.process]`'s two keys take. Stages 3 and 6.
+  "crates/nvs-config/src/tree.rs",
+  # The backend enum with no weak-tier variant (:28-40) and `E0626` (:81). Stage 3.
+  "crates/nvs-config/src/session.rs",
   # Where the per-core workers start, and where the process map is made before them. Stage 3.
   "crates/nvs-cli/src/serve.rs",
   # `Core\Session`'s rows (:135-215), which gain `setSecret` and `getSecret`. Stage 7.
