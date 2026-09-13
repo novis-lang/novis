@@ -2427,6 +2427,7 @@ dependencies = [
  "sha3",
  "subtle",
  "toml",
+ "tungstenite",
  "unicode-normalization",
  "unicode-segmentation",
  "uuid",
