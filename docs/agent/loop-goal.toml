@@ -123,6 +123,10 @@ modules = [
   # `rule:config/the-config-is-an-immutable-snapshot`: the immutable snapshot a request clones at
   # start.
   "crates/nvs-config/src/snapshot.rs",
+  # `Core\RateLimit` — `rule:core-classes/ratelimit-two-members`'s limiter for what only the
+  # application knows, as both halves of it: `consume` over the shared store, `shed` over this
+  # core's own memory, and the `Core\RateLimit\Decision` each answers with.
+  "crates/nvs-stdlib/src/ratelimit.rs",
 ]
 
 # Every stage works inside these three: cross-request state is a named store, a store's bytes are its
