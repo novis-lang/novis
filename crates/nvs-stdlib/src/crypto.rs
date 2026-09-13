@@ -283,7 +283,7 @@ use aes_gcm::Aes256Gcm;
 use aes_kw::{KwAes128, KwAes256};
 use base64::Engine as _;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
-use chacha20poly1305::aead::{Aead, Nonce};
+use chacha20poly1305::aead::{Aead, Nonce, Payload};
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
 use hkdf::Hkdf;
 use p256::PublicKey as P256PublicKey;
@@ -1457,6 +1457,14 @@ pub(crate) fn wrong_key_length(who: &str, param: &str, got: usize) -> Fault {
 /// produces, and the only way to guarantee that is for it to be produced here.
 /// `who` names the member for the two throws.
 ///
+/// `bound` is the AEAD's additional data: it is authenticated by the tag and
+/// carried nowhere, so the answer only opens where the caller states the same
+/// bytes again. Every caller writes what the ciphertext may not be moved away
+/// from — the application and the entry's name for `Core\Cache\Store::getSecret`
+/// — and `&[]` where nothing but the key binds it, which is the empty-associated-
+/// data construction and therefore the same octets this member produced before
+/// the parameter existed.
+///
 /// # Errors
 ///
 /// A `RuntimeError` when the sealed message is larger than this construction
@@ -1465,6 +1473,7 @@ pub(crate) fn wrong_key_length(who: &str, param: &str, got: usize) -> Fault {
 pub(crate) fn seal_under(
     ctx: &mut nvs_runtime::Ctx,
     cipher: &XChaCha20Poly1305,
+    bound: &[u8],
     message: &[u8],
     who: &str,
 ) -> Result<Vec<u8>, Fault> {
@@ -1482,12 +1491,20 @@ pub(crate) fn seal_under(
     // which no `bytes` a request can hold comes near under any memory cap.
     // A throw rather than an `expect` because what it reports is the world
     // saying no, which a request can catch.
-    let body = cipher.encrypt(&XNonce::from(nonce), message).map_err(|_| {
-        Fault::thrown(format!(
-            "{who}(): the message could not be sealed — it is larger than this \
-             construction can encrypt under one key"
-        ))
-    })?;
+    let body = cipher
+        .encrypt(
+            &XNonce::from(nonce),
+            Payload {
+                msg: message,
+                aad: bound,
+            },
+        )
+        .map_err(|_| {
+            Fault::thrown(format!(
+                "{who}(): the message could not be sealed — it is larger than this \
+                 construction can encrypt under one key"
+            ))
+        })?;
 
     let mut sealed = Vec::new();
     // Unreachable from source with no diagnostic to name, for the reason
@@ -1508,12 +1525,16 @@ pub(crate) fn seal_under(
 /// not authentic under this key.
 ///
 /// **`None` is one answer for every way of failing to be authentic** — a tag
-/// that does not verify, a buffer too short to hold a nonce and a tag, and the
-/// wrong key are indistinguishable to the caller, which is the module doc's
-/// *a forgery throws* section as a return type. It is also what lets
-/// `Core\SignedCookie` try a key ring: a caller that could tell "wrong key"
-/// from "altered" apart would learn which of a rotated pair a forgery was aimed
-/// at.
+/// that does not verify, a buffer too short to hold a nonce and a tag, the
+/// wrong key, and `bound` naming something other than what the seal named are
+/// indistinguishable to the caller, which is the module doc's *a forgery
+/// throws* section as a return type. It is also what lets `Core\SignedCookie`
+/// try a key ring: a caller that could tell "wrong key" from "altered" apart
+/// would learn which of a rotated pair a forgery was aimed at.
+///
+/// `bound` is [`seal_under`]'s additional data, which travels with neither the
+/// ciphertext nor the key: the caller states it again from what it knows, and a
+/// ciphertext lifted out of the context that produced it does not open here.
 ///
 /// # Errors
 ///
@@ -1521,6 +1542,7 @@ pub(crate) fn seal_under(
 /// `who` names the member for it.
 pub(crate) fn open_under(
     cipher: &XChaCha20Poly1305,
+    bound: &[u8],
     sealed: &[u8],
     who: &str,
 ) -> Result<Option<Vec<u8>>, Fault> {
@@ -1535,7 +1557,15 @@ pub(crate) fn open_under(
     }
 
     nvs_runtime::affordable(Some(body.len() - TAG_LEN), who)?;
-    Ok(cipher.decrypt(&XNonce::from(*nonce), body).ok())
+    Ok(cipher
+        .decrypt(
+            &XNonce::from(*nonce),
+            Payload {
+                msg: body,
+                aad: bound,
+            },
+        )
+        .ok())
 }
 
 /// AES-256-GCM keyed by `key`, or `None` for a `bytes` that is not a key.
@@ -3019,7 +3049,9 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_crypto_seal(ctx, args: [3]) {
         let message = bytes_of(args, 0, "seal")?;
         let sealed = match keyed(args, "seal")? {
-            Keyed::Extended(cipher) => seal_under(ctx, &cipher, message, "Core\\Crypto::seal")?,
+            Keyed::Extended(cipher) => {
+                seal_under(ctx, &cipher, &[], message, "Core\\Crypto::seal")?
+            }
             Keyed::Interop(cipher) => {
                 let mut nonce = [0_u8; GCM_NONCE_LEN];
                 crate::random::draw(ctx, |rng| rng.fill_bytes(&mut nonce));
@@ -3049,7 +3081,7 @@ nvs_runtime::nvs_helper! {
         // verify, the wrong key and the wrong cipher are one `None` out of the
         // construction and one sentence here, deliberately not four.
         let opened = match keyed(args, "open")? {
-            Keyed::Extended(cipher) => open_under(&cipher, sealed, "Core\\Crypto::open")?,
+            Keyed::Extended(cipher) => open_under(&cipher, &[], sealed, "Core\\Crypto::open")?,
             Keyed::Interop(cipher) => gcm_open_under(&cipher, sealed, "Core\\Crypto::open")?,
         };
         let plain = opened.ok_or_else(|| {
@@ -3690,7 +3722,7 @@ mod tests {
             ctx.set_random_state(seed);
             let cipher = XChaCha20Poly1305::new_from_slice(&[5_u8; KEY_LEN])
                 .expect("the construction's own key length");
-            let sealed = seal_under(&mut ctx, &cipher, b"one message", "Core\\Crypto::seal")
+            let sealed = seal_under(&mut ctx, &cipher, &[], b"one message", "Core\\Crypto::seal")
                 .expect("a short message seals");
             let keys: Vec<Vec<u8>> = [KeyKind::X25519, KeyKind::Ed25519, KeyKind::P256]
                 .into_iter()

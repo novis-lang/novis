@@ -318,7 +318,7 @@ nvs_runtime::nvs_helper! {
         let cipher = keyed(args, 1, "issue")?;
 
         let sealed =
-            crate::crypto::seal_under(ctx, &cipher, &bound(session), "Core\\Csrf::issue")?;
+            crate::crypto::seal_under(ctx, &cipher, &[], &bound(session), "Core\\Csrf::issue")?;
         Ok(Value::str(NvsStr::new(URL_SAFE_NO_PAD.encode(&sealed).as_bytes())))
     }
 }
@@ -344,7 +344,7 @@ nvs_runtime::nvs_helper! {
         let Ok(sealed) = URL_SAFE_NO_PAD.decode(token) else {
             return Ok(Value::bool(false));
         };
-        let Some(plain) = crate::crypto::open_under(&cipher, &sealed, "Core\\Csrf::verify")?
+        let Some(plain) = crate::crypto::open_under(&cipher, &[], &sealed, "Core\\Csrf::verify")?
         else {
             return Ok(Value::bool(false));
         };
@@ -383,8 +383,8 @@ mod tests {
 
         // The round trip, through the member's own spelling of the wire form.
         let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
-        let sealed =
-            crate::crypto::seal_under(&mut ctx, &key, &plain, "test").expect("a short value seals");
+        let sealed = crate::crypto::seal_under(&mut ctx, &key, &[], &plain, "test")
+            .expect("a short value seals");
         let token = URL_SAFE_NO_PAD.encode(&sealed);
         assert!(
             token
@@ -397,7 +397,7 @@ mod tests {
         // identifier is refused, and a prefix of one is not a match either — a
         // comparison written as `starts_with` would pass the first and fail
         // here.
-        let opened = crate::crypto::open_under(&key, &sealed, "test")
+        let opened = crate::crypto::open_under(&key, &[], &sealed, "test")
             .expect("the buffer is affordable")
             .expect("its own key opens it");
         for (session, want) in [
@@ -416,7 +416,7 @@ mod tests {
         // A key that was rotated out refuses the token outright, which is the
         // member's `false` rather than a distinguishable answer.
         assert!(
-            crate::crypto::open_under(&other, &sealed, "test")
+            crate::crypto::open_under(&other, &[], &sealed, "test")
                 .expect("the buffer is affordable")
                 .is_none(),
             "a token under one key does not open under another"
@@ -426,8 +426,8 @@ mod tests {
         // token with another gets `false` from a pair that are both valid.
         // This is what makes the missing accessor load-bearing rather than
         // decorative.
-        let again =
-            crate::crypto::seal_under(&mut ctx, &key, &plain, "test").expect("a short value seals");
+        let again = crate::crypto::seal_under(&mut ctx, &key, &[], &plain, "test")
+            .expect("a short value seals");
         assert_ne!(
             token,
             URL_SAFE_NO_PAD.encode(&again),

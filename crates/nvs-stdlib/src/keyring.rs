@@ -164,6 +164,27 @@ pub(crate) fn key_at<'a>(held: &'a Value, slot: usize, who: &str) -> Result<&'a 
     }
 }
 
+/// The cipher keyed by the ring entry at `slot`.
+///
+/// Here rather than beside either caller, for the reason this module exists at
+/// all: `Core\SignedCookie` and `Core\Cache\Store`'s sealed door both walk a
+/// ring, and two copies of "take the entry, check it, key the construction"
+/// would be two places for what a ring entry means to drift.
+///
+/// # Errors
+///
+/// Whatever [`key_at`] refuses the entry for, which is the same refusal every
+/// other door over a ring writes.
+pub(crate) fn cipher_at(
+    held: &Value,
+    slot: usize,
+    who: &str,
+) -> Result<chacha20poly1305::XChaCha20Poly1305, Fault> {
+    let key = key_at(held, slot, who)?;
+    Ok(crate::crypto::cipher(key)
+        .expect("`keyring::key_at` answers a key of the construction's own length"))
+}
+
 /// This module's own cases, and the two fixtures every other module's cases
 /// build a ring with.
 ///

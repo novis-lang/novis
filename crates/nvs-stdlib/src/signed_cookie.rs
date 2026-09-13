@@ -236,22 +236,6 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
     })
 }
 
-/// The cipher keyed by the ring entry at `slot`.
-///
-/// # Errors
-///
-/// Whatever [`crate::keyring::key_at`] refuses the entry for, which is the same
-/// refusal every other door over a ring writes.
-fn cipher_at(
-    held: &Value,
-    slot: usize,
-    who: &str,
-) -> Result<chacha20poly1305::XChaCha20Poly1305, Fault> {
-    let key = crate::keyring::key_at(held, slot, who)?;
-    Ok(crate::crypto::cipher(key)
-        .expect("`keyring::key_at` answers a key of the construction's own length"))
-}
-
 nvs_runtime::nvs_helper! {
     /// `Core\SignedCookie::seal(string $value, array<secret bytes> $keys): string`
     /// — the write half of `rule:security/protocol-roster`'s first entry, replacing the
@@ -266,9 +250,9 @@ nvs_runtime::nvs_helper! {
         let ring = crate::keyring::borrow(args, 1, SEAL)?;
 
         let (slot, held) = crate::keyring::newest(&ring);
-        let cipher = cipher_at(&held, slot, SEAL)?;
+        let cipher = crate::keyring::cipher_at(&held, slot,SEAL)?;
 
-        let sealed = crate::crypto::seal_under(ctx, &cipher, value.as_bytes(), SEAL)?;
+        let sealed = crate::crypto::seal_under(ctx, &cipher, &[], value.as_bytes(), SEAL)?;
         Ok(Value::str(NvsStr::new(URL_SAFE_NO_PAD.encode(&sealed).as_bytes())))
     }
 }
@@ -299,9 +283,9 @@ nvs_runtime::nvs_helper! {
         let sealed = URL_SAFE_NO_PAD.decode(cookie).ok();
 
         for (slot, held) in crate::keyring::entries(&ring) {
-            let cipher = cipher_at(&held, slot, OPEN)?;
+            let cipher = crate::keyring::cipher_at(&held, slot,OPEN)?;
             if let Some(sealed) = sealed.as_deref()
-                && let Some(plain) = crate::crypto::open_under(&cipher, sealed, OPEN)?
+                && let Some(plain) = crate::crypto::open_under(&cipher, &[], sealed, OPEN)?
             {
                 return Ok(Value::str(NvsStr::new(&plain)));
             }
@@ -362,14 +346,14 @@ mod tests {
             .decode(&cookie)
             .expect("its own encoding decodes");
         assert_eq!(
-            crate::crypto::open_under(&retired, &raw, "test")
+            crate::crypto::open_under(&retired, &[], &raw, "test")
                 .expect("nothing is unaffordable here")
                 .as_deref(),
             Some(b"user=ada".as_ref()),
             "a key still in the ring opens a cookie sealed under it"
         );
         assert!(
-            crate::crypto::open_under(&newest, &raw, "test")
+            crate::crypto::open_under(&newest, &[], &raw, "test")
                 .expect("nothing is unaffordable here")
                 .is_none(),
             "and the newest key alone would not have — so a ring of one is not this test"
@@ -382,7 +366,7 @@ mod tests {
             let mut forged = raw.clone();
             forged[index] ^= 1;
             assert!(
-                crate::crypto::open_under(&retired, &forged, "test")
+                crate::crypto::open_under(&retired, &[], &forged, "test")
                     .expect("nothing is unaffordable here")
                     .is_none(),
                 "one flipped bit at octet {index} of {} is refused",
@@ -393,7 +377,7 @@ mod tests {
         // And the two shapes a forger reaches for before flipping a bit: a
         // truncated payload, and text that is not base64 at all.
         assert!(
-            crate::crypto::open_under(&retired, &raw[..raw.len() - 1], "test")
+            crate::crypto::open_under(&retired, &[], &raw[..raw.len() - 1], "test")
                 .expect("nothing is unaffordable here")
                 .is_none(),
             "a truncated cookie is refused"
