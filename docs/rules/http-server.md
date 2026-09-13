@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*11 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1407,7 +1407,7 @@ that disagrees.
 
 <a id="http-server-an-outbound-socket-is-opened-like-an-outbound-call"></a>
 
-## A WebSocket is opened by `Core\Http\Client::openSocket` under every rule an outbound call obeys, `ws` and `wss` serve that row alone, and a socket is never pooled  *(designed — not yet in the compiler)*
+## A WebSocket is opened by `Core\Http\Client::openSocket` under every rule an outbound call obeys, `ws` and `wss` serve that row alone, and a socket is never pooled
 
 `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
 
@@ -1447,7 +1447,7 @@ that has been upgraded can no longer carry a request.
 
 <a id="http-server-an-outbound-socket-belongs-to-the-task-that-opened-it"></a>
 
-## An outbound socket is charged to the task that opened it and closed with `1001` when that task ends, and it is never a root isolate  *(designed — not yet in the compiler)*
+## An outbound socket is charged to the task that opened it and closed with `1001` when that task ends, and it is never a root isolate
 
 `rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`
 
@@ -1474,7 +1474,7 @@ is a fan-out policy invented for what is a program bug.
 
 <a id="http-server-an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"></a>
 
-## `idle`, `maxDuration`, `maxMessage` and `sendTimeout` bound every outbound socket, each inherits a finite default, and none has an unbounded spelling  *(designed — not yet in the compiler)*
+## `idle`, `maxDuration`, `maxMessage` and `sendTimeout` bound every outbound socket, each inherits a finite default, and none has an unbounded spelling
 
 `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`
 

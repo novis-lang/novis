@@ -228,12 +228,19 @@
     {
       "id": "testing/an-outbound-socket-is-answered-by-a-scripted-peer",
       "title": "`Core\\Test`'s table answers a WebSocket handshake, plays the frames it was given and records what the program sent, and an unmatched socket throws rather than connecting",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0183"],
       "seeAlso": [
         "testing/an-outbound-call-is-answered-from-a-table",
         "testing/determinism-declared-on-the-test",
         "http-server/an-outbound-socket-is-opened-like-an-outbound-call"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/test.rs",
+        "crates/nvs-runtime/src/ctx/answers.rs",
+        "tests/conformance/core/test-answer-socket-plays-its-frames-and-records-what-was-sent.nvst",
+        "tests/conformance/core/test-an-unanswered-socket-throws-and-never-connects.nvst",
+        "tests/conformance/core/http-socket-receives-text-and-bytes-as-tainted-messages.nvst"
       ]
     },
     {

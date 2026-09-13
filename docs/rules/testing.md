@@ -3,7 +3,7 @@
 
 # Testing
 
-*16 of 55 rules below are **designed** rather than shipped, and are marked where they appear.*
+*15 of 55 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -376,7 +376,7 @@ is proved against a loopback origin instead.
 
 <a id="testing-an-outbound-socket-is-answered-by-a-scripted-peer"></a>
 
-## `Core\Test`'s table answers a WebSocket handshake, plays the frames it was given and records what the program sent, and an unmatched socket throws rather than connecting  *(designed — not yet in the compiler)*
+## `Core\Test`'s table answers a WebSocket handshake, plays the frames it was given and records what the program sent, and an unmatched socket throws rather than connecting
 
 `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`
 
