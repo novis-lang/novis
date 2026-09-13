@@ -2,59 +2,57 @@
 
 ## State
 
-**Goal `plan-truth` is through stages 2, 3 and 4, and stage 5 is two rows from green.**
-`python tools/playbook.py --check` now names `docs/agent/carried-gaps.md:54` and `:58` alone. Six rows
-left the § *Owned* table because the code closed them, seven took the owner their module doc names or
-the live goal whose stage builds them, and § *Unowned*'s duplicate of the driver matrix's socket leg is
-gone — `crates/nvs-db/src/matrix.rs:43` carries that gap with its own `— owner:` tag.
+**Goal `plan-truth`'s stage 5 is green.** `python tools/playbook.py --check` prints `none -- every
+carried-gaps owner is live or struck`, the string the stage's `[[check]]` wants. Two things had to
+change: the rows, and the tool that reports on them.
 
-Closed and struck, each read in the source first: `nvs serve` starts one worker per core
-(`crates/nvs-cli/src/serve.rs:446` spawns, `:460` joins); a cycle closed through an `array<T>` is swept
-(`crates/nvs-runtime/src/object.rs:1822` tallies a solely owned array, guarded at `:4479` and `:4508`);
-`Core\Uri::with` removes a component (`crates/nvs-stdlib/src/uri.rs:2501`, test at `:4073`); every
-module-doc gap names an owner (`owners.py --check --untagged-is-an-error --reasons` is green over 154);
-`Core\Net`, `Core\Os` and `Core\Signal` are registered (`crates/nvs-stdlib/src/registry.rs:1607`,
-`:1619`, `:1961`) and off the outstanding-classes list; and the `nvs check` grants row is already
-carried whole by § *Unowned*'s intrinsic-pass bullet.
+`docs/agent/carried-gaps.md:54` now names `m7-server-surface`, whose stage 7
+(`docs/agent/goals/57-m7-server-surface.md:209-214`) gives `Core\Test::request` its `{headers?, body?}`
+bag and spells the signature into spec § 13's cell. The old row was wrong twice: what is missing is
+code, not prose — the registry row takes a method and a path only
+(`crates/nvs-stdlib/src/test.rs:436-452`) — and the spec cell it cited as `:999` is `Core\Decimal`'s;
+`Core\Test`'s is `docs/spec/01-core-library.md:1001`. The rule's elided `request(...)` is not a gap:
+the signature has one home and it is the spec cell.
 
-Stage 1 is goal `websocket-client`'s list, carried as the floor.
+The untyped-grant row left § *Owned* for § *Unowned*. `crates/nvs-config/src/tree.rs:50`'s `Setting` is
+`#[serde(untagged)]` and shared by every directive, and `:39-43` records that `memory = false` and
+`exporter = false` are load-bearing second spellings, so narrowing the enum is not open — the arms a
+directive accepts are per-directive and nothing declares them. `docs/plan/m6.md:52` promises the
+`nvs config check` verb and not the refusal, so a milestone tag would not have been honest either.
+
+`tools/playbook.py`'s carried-gaps section printed only on findings, unlike its three siblings; it now
+prints the `none` line. That is the only code beyond `plan.py --stale` this goal has written, and it is
+a report line, not behaviour.
+
+Stage 5 was the driver's only red check, so its next sweep may reach the goal. This session did not
+claim DONE, because it did not run the sweep — the driver's own green verdict is what advances the
+chain, and a wrong DONE halts the run.
 
 ## Next group
 
-**Stage 5: the index** — one file set: `docs/agent/carried-gaps.md` and the ratchet list its rows point
-at. § *The contract* is the rule for all three: a row leaves only when the gap is closed, and an owner
-that went green is struck rather than renamed to hide it.
+**Stage 4: prose the tree contradicts** — one file set: `crates/nvs-types/src/` and the
+`docs/rules/types/` fragments it cites.
 
-- [ ] **The `Core\Test` documentation row** — `docs/agent/carried-gaps.md:54`, owner `test-request`,
-      retired. What it names is thin prose rather than absent code: `rule:testing/in-process-request`
-      states two response readings where `Core\Test`'s registry signature is the fact, and
-      `docs/spec/01-core-library.md:999` is one English cell. Goal `m7-server-surface` says its tests
-      send headers and a body (`docs/agent/goals/57-m7-server-surface.md:11`) — read its stage list for
-      `Core\Test` before writing that owner, and otherwise strike the row to § *Unowned* naming what has
-      to be decided.
-- [ ] **The untyped grant value row** — `docs/agent/carried-gaps.md:58`, owner `config-is-written`,
-      retired. `crates/nvs-config/src/tree.rs:49-60` is the untagged `Setting` every directive shares,
-      and `:40-47` is why each arm is there, so an `[capabilities.fs] read = 1` validates clean and is
-      denied at run time. No live goal names configuration validation; decide between a milestone tag
-      and § *Unowned* with the decision written out.
-- [ ] **The ratchet file carries the same stale owners** —
-      `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:30` and `:31` say `# test-request`
-      for `Response::html` and `sendFile`, whose row now says `m7-server-surface`, and `:35` says
-      `# carried-gaps` for `§18 streamAs`, whose row says `gap-zero`. `every_outstanding_key_names_an_owner`
-      in `crates/nvs-stdlib/tests/spec_registry_coverage.rs` is the gate, so this one runs `cargo test`.
+- [ ] **`array<T>` is covariant in the checker and invariant in the rulebook** —
+      `crates/nvs-types/src/expr/assign.rs:172` recurses element to element, so `array<int>` satisfies
+      `array<int|float|decimal>`, and `:161-171` argues that is sound because an array is a
+      copy-on-write value rather than an alias. `rule:types/arrays` states invariance flatly and prices
+      the widening at an O(n) restamp, and `crates/nvs-types/src/expr/assign.rs:228` still speaks of
+      that invariance as live. Read `crates/nvs-types/tests/arrays.rs` first: if the covariance is
+      guarded it is the tree and the fragment is the edit (§ *Standing decisions*), and if nothing
+      guards it this is a semantics bug and a `BLOCKED`. `rule:types/conversion`'s restamp sentence
+      moves with it either way. Carried in `docs/agent/carried-gaps.md` § *Unowned* so it survives a
+      goal switch.
+- [ ] **A comment that reads as a changelog** — `crates/nvs-types/src/lib.rs:160`'s "Definite
+      assignment itself is no longer conservative" puts history where the present tense goes
+      (AGENTS.md rule 7, `docs/agent/conventions.md` § *A code comment*). Rewrite the sentence as what
+      the pass does now, inside the same `# Known gaps` bullet.
 
 ## Backlog
 
-- `nvs_types::expr::is_assignable`'s own docs are cited as saying no variance was committed to, while
-  `rule:types/arrays` states invariance flatly — same stage-4 pass, and `owners.py` does not see it
-  because it is not a `# Known gaps` item. `crates/nvs-types/src/expr/`.
 - `rule:security/isolate-teardown-is-a-drain-then-a-sweep` tallies field slots only; the sweep also
-  tallies a solely owned array (`crates/nvs-runtime/src/object.rs:1822`). The code is ahead of the rule,
+  tallies a solely owned array (`crates/nvs-runtime/src/object.rs:1822`). Code ahead of the fragment,
   so the fragment is the edit, by the rule's own process.
-- `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:5`'s worked example names the retired
-  goal `carried-gaps`.
 - `crates/nvs-test/src/case.rs:351`'s `NOT_YET` reason string still names M6; correcting it is a code
   change, which this goal's § *Standing decisions* forbids.
-- `crates/nvs-types/src/lib.rs:156` says definite assignment is "no longer conservative" — changelog
-  wording a comment may not carry.
 - Stage 1 is goal `websocket-client`'s carried floor and nothing in it is known red.

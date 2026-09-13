@@ -1969,6 +1969,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `crates/nvs-db/src/matrix.rs` gap 1 was in. Before striking or re-owning a row, read § *Unowned* for
   the module path the row's third cell names, and delete whichever copy the module doc's own
   `— owner:` tag makes redundant. [until: gone docs/agent/carried-gaps.md:## Unowned]
+- **A `[[check]]`'s `want` string can be one its tool never prints when the finding count is zero.**
+  Stage 5 wanted `none -- every carried-gaps owner is live or struck` from `python tools/playbook.py
+  --check`, whose carried-gaps section sat inside an `if rows:` with no empty branch, so fixing every
+  row made the section vanish rather than say `none` and the check stayed red over correct data. When a
+  `want` line is still absent after the data is right, read the tool's printer for that heading before
+  re-reading your own edit. [until: reviewed 2026-09-13]
 
 ## Running things
 
