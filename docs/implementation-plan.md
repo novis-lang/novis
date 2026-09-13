@@ -18,12 +18,11 @@
 >
 > **Done:** M0 (setup) and M1 (front end) whole, M2 (HIR, types, IR) and M3 (baseline Cranelift
 > backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own
-> 1000-case corpus figure is the one thing left and it is met through goals `core-depth` through `database`. M4S Part I
-> registered but for the two members `rule:core-api/signing-is-over-a-payload` added to spec § 12 —
-> `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds those two keys and no others, both
-> owned by goal `signed-urls`. M1's own section lists the one grammar addition still owed — the pipeline
-> operator, `rule:expressions/pipeline-substitution` — which blocks nothing and is scheduled after the current loop goal. Each
-> milestone file under [docs/plan/](plan/) states its own acceptance.
+> 1000-case corpus figure is met too, passed as the parity program's suite grew. M4S Part I is
+> registered whole: `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no keys. M1 is
+> whole too — the pipeline operator and the PHP 8.6 refusals landed with goal `surface`. `python
+> tools/plan.py --stale` is what finds a plan sentence still deferring work to a goal the chain has
+> walked. Each milestone file under [docs/plan/](plan/) states its own acceptance.
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan and fuzz legs), and the
 > nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-runtime`,
@@ -102,16 +101,11 @@ somebody has already followed.
 | backlog 6 | [M17](plan/m17.md) | Document components: the image second wave, `nvs/pdf` and `nvs/spreadsheet` (not yet sized) | not estimated |
 
 **One milestone is not one block of schedule, which is why the cell holds a list.** M8's work is spread
-across a row of goals and M7's across another, M1's one still-open item is goal `type-test`'s, and the
+across a row of goals and M7's across another, M4's remaining refusals are goal `m4-refusals`'s, and the
 goals tagged `post-parity` in the chain land in no milestone at all. A single number per milestone could
 say none of that, and a chain number could say it only until something was inserted ahead of it. **So the goal is the unit of schedule and the milestone the unit of identity: say
 "goal `parses`", never "in M7".** A cell naming a goal means that milestone still has work scheduled — `done` is
 the only thing that means finished.
-
-\* **M4 reached its loop goal** — every check in that goal's acceptance list passes, which is
-what closes the language holes. What it has not reached is its own milestone acceptance's **1000 `.nvst`
-cases**; that count was deliberately left as a corpus figure to be met as the suite grows through goals
-1–5, and [m4.md](plan/m4.md) still carries it unchanged.
 
 **Goals `core-depth` through `server` are one program, not five independent milestones: PHP core feature parity.** Everything a
 program written in PHP reaches for without loading an extension, plus every planned SQL driver, plus the
