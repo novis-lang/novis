@@ -37,7 +37,7 @@
 //! decision and a seam, not an omission here: what this module owns is which
 //! requests the check covers, and that is landed.
 //! Decided: At the server door, before an isolate runs — Move token verification into a crate nvs-
-//! server can reach and add an [http] key naming the key; the fastest and smallest attack surface, at
+//! server can reach and add an `[http]` key naming the key; the fastest and smallest attack surface, at
 //! the cost of one config key and a crate move.
 //! — owner: unowned-closures
 //!
