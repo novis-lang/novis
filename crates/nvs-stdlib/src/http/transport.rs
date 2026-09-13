@@ -2806,10 +2806,10 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::{
-        Call, HttpSpan, Incoming, Reply, Streamed, WebSocketConfig, backoff, send, send_streamed,
-        upgrade,
+        Call, HttpSpan, Incoming, Reply, Streamed, WebSocket, WebSocketConfig, backoff, send,
+        send_streamed, upgrade,
     };
     use crate::compress::{Bound, Codec, compress_to};
     use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
@@ -2984,12 +2984,24 @@ mod tests {
     /// [`handshake`] over whatever carries the octets, which is what lets the
     /// `wss` origin answer the same exchange from inside a TLS session.
     ///
+    /// What follows the `101` is read and dropped: this origin has nothing to
+    /// say, and reading is what keeps this end from closing in the client's
+    /// face. A peer with something to say is [`talks`].
+    fn handshook(stream: &mut (impl Read + Write), chosen: Option<&'static str>) -> String {
+        let asked = answered(stream, chosen);
+        let mut held = [0_u8; 4096];
+        while matches!(stream.read(&mut held), Ok(read) if read > 0) {}
+        asked
+    }
+
+    /// The opening request as it arrived, and the `101` that answers it.
+    ///
     /// The reply is derived rather than written out: `tungstenite` hashes the
     /// `Sec-WebSocket-Key` it sent and refuses an accept that is anything else,
     /// so an origin whose reply is a constant opens no socket at all. That is
     /// the whole reason this half is generic — one derivation, plaintext and
     /// TLS alike, rather than a second one behind the session.
-    fn handshook(stream: &mut (impl Read + Write), chosen: Option<&'static str>) -> String {
+    fn answered(stream: &mut (impl Read + Write), chosen: Option<&'static str>) -> String {
         let mut request = [0_u8; 4096];
         let Ok(read) = stream.read(&mut request) else {
             return String::new();
@@ -3008,11 +3020,155 @@ mod tests {
         );
         stream.write_all(reply.as_bytes()).expect("a reply");
         stream.flush().expect("a flushed reply");
-        while matches!(stream.read(&mut request), Ok(read) if read > 0) {
-            // Whatever the client says over the conversation is stage 5's, and
-            // reading it here is only what keeps this end from closing first.
-        }
         asked
+    }
+
+    /// What a talking peer does next, in the order a case wrote it.
+    ///
+    /// [`socket_origin`] answers a handshake and then says nothing, which is
+    /// every case about the opening. A case about the conversation needs the
+    /// other half: a peer that sends, one that goes quiet without going away,
+    /// and one that sends more than the other end agreed to hold.
+    pub(crate) enum Say {
+        /// One text message.
+        Text(&'static str),
+        /// One binary message of this many octets — how a case writes a message
+        /// past a cap without carrying one that size in its own source.
+        Bytes(usize),
+        /// Nothing at all for this long, answering the other end's pings while
+        /// it holds. A peer with nothing to say has not gone away, and the pong
+        /// is the only thing that tells the two apart.
+        Quiet(Duration),
+    }
+
+    /// What a talking peer heard before the conversation ended.
+    pub(crate) struct Heard {
+        /// The close frame the client sent, as its code and its reason, or
+        /// `None` where the connection ended without one.
+        pub(crate) closed: Option<(u16, String)>,
+    }
+
+    /// A loopback origin that answers one opening handshake and then holds up
+    /// `script`'s end of the conversation.
+    ///
+    /// The reply is [`answered`]'s, as [`socket_origin`]'s is. What this adds is
+    /// the frames after it, written by `tungstenite`'s server half so that a
+    /// case says what the peer *said* rather than which octets carry it, and a
+    /// handle that carries how the client ended things.
+    pub(crate) fn talking_origin(
+        chosen: Option<&'static str>,
+        script: Vec<Say>,
+    ) -> (SocketAddr, std::thread::JoinHandle<Heard>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        listener
+            .set_nonblocking(true)
+            .expect("an accept that does not outlive the case");
+        let served = std::thread::spawn(move || {
+            // A case that never opens what it said it would ends here rather
+            // than holding the run, for [`origin_raw`]'s reason.
+            let ends = Instant::now() + Duration::from_secs(20);
+            while Instant::now() < ends {
+                let Ok((stream, _)) = listener.accept() else {
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                };
+                return talks(stream, chosen, script);
+            }
+            Heard { closed: None }
+        });
+        (at, served)
+    }
+
+    /// One conversation: the handshake, then the script, then whatever it takes
+    /// to hear the client out.
+    ///
+    /// **Every frame is allowed to fail rather than asserted.** A case that
+    /// bounds a conversation ends it while the peer still has script left, and a
+    /// peer that insisted would fail the case from a thread where the assertion
+    /// that explains it cannot run.
+    fn talks(
+        mut stream: std::net::TcpStream,
+        chosen: Option<&'static str>,
+        script: Vec<Say>,
+    ) -> Heard {
+        // Said rather than assumed, for [`answer`]'s reason: an accepted
+        // connection inherits the listener's non-blocking mode on Windows.
+        stream
+            .set_nonblocking(false)
+            .expect("a connection that waits for its handshake");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("a bound on this origin's own wait");
+        answered(&mut stream, chosen);
+        let mut peer =
+            WebSocket::from_raw_socket(stream, tungstenite::protocol::Role::Server, None);
+        let mut closed = None;
+        for say in script {
+            let carried = match say {
+                Say::Text(text) => peer.send(tungstenite::Message::Text(text.into())).is_ok(),
+                Say::Bytes(octets) => peer
+                    .send(tungstenite::Message::Binary(vec![b'.'; octets].into()))
+                    .is_ok(),
+                Say::Quiet(how_long) => listens(&mut peer, Instant::now() + how_long, &mut closed),
+            };
+            if !carried {
+                break;
+            }
+        }
+        // The script is over and the case's assertion is about how the client
+        // ends things, so this end waits for that rather than hanging up first.
+        listens(
+            &mut peer,
+            Instant::now() + Duration::from_secs(5),
+            &mut closed,
+        );
+        Heard { closed }
+    }
+
+    /// Says nothing until `ends`, answering the client's pings meanwhile, and
+    /// reports whether the conversation survived that long.
+    ///
+    /// **Reading is what makes this a live peer.** `tungstenite` answers a ping
+    /// with a pong as it reads, so a silence held by sleeping would be a peer
+    /// that had stopped answering the protocol rather than one with nothing to
+    /// say — and those are the two cases a bound on silence has to tell apart. A
+    /// read that times out is the silence doing its job; anything else is the
+    /// conversation ending, and a close is recorded where the case reads it.
+    fn listens(
+        peer: &mut WebSocket<std::net::TcpStream>,
+        ends: Instant,
+        closed: &mut Option<(u16, String)>,
+    ) -> bool {
+        let held = loop {
+            let now = Instant::now();
+            if now >= ends {
+                break true;
+            }
+            peer.get_mut()
+                // Never zero: a `TcpStream` reads a zero timeout as no bound at
+                // all, which is the one wait this origin must not take.
+                .set_read_timeout(Some((ends - now).max(Duration::from_millis(1))))
+                .expect("a bound on this origin's own wait");
+            match peer.read() {
+                Ok(tungstenite::Message::Close(frame)) => {
+                    *closed =
+                        frame.map(|end| (u16::from(end.code), end.reason.as_str().to_owned()));
+                    break false;
+                }
+                Ok(_) => {}
+                Err(tungstenite::Error::Io(why))
+                    if matches!(
+                        why.kind(),
+                        ErrorKind::TimedOut | ErrorKind::WouldBlock | ErrorKind::Interrupted
+                    ) => {}
+                Err(_) => break false,
+            }
+        };
+        peer.get_mut()
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("a bound on this origin's own wait");
+        held
     }
 
     /// One header's value out of a request as it arrived, found however the
@@ -3029,7 +3185,7 @@ mod tests {
     }
 
     /// A call to `at` with one attempt, no redirects and a generous deadline.
-    fn call<'a>(at: SocketAddr, member: &'a str) -> Call<'a> {
+    pub(crate) fn call<'a>(at: SocketAddr, member: &'a str) -> Call<'a> {
         Call {
             member,
             verb: "GET",
