@@ -225,24 +225,29 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Cache::local`'s reference card — `rule:core-api/reference-card`.
 const LOCAL_DOC: MethodDoc = MethodDoc {
-    short: "The per-core, in-process tier: one store per core, with no coherence between cores and \
-            no network behind it.",
+    short: "The per-core, in-process tier: a map in this core's own memory, with no lock, no \
+            network and no coherence between cores. A value one request writes may or may not be \
+            there when the next request asks, because the next request usually runs on another \
+            core with an empty map of its own.",
     params: &[],
     ret: "A `Core\\Cache\\Store` over this core's own entries. Any entry may be absent at any time, \
-          for any reason, and a write on one core is not visible on another — a program that would \
-          be incorrect if a `get` answered `null` wants `shared` instead.",
+          for any reason, and a write on one core is not visible on another. The only read this \
+          tier promises is your own write back in the same request; a value every core should find \
+          wants `process`, and a program that would be incorrect on a `null` wants `shared`.",
     errors: &[],
 };
 
 /// `Core\Cache::process`'s reference card — `rule:core-api/reference-card`.
 const PROCESS_DOC: MethodDoc = MethodDoc {
     short: "The per-process tier: one store every core of this serving process shares, in memory \
-            only, and gone when the process ends.",
+            only, and gone when the process ends. A follow-up request on the same machine finds \
+            what an earlier one wrote, whichever core it lands on, which is what `local` cannot \
+            promise; this is the tier for ordinary application caching.",
     params: &[],
     ret: "A `Core\\Cache\\Store` over this process's own entries, which every core of it reads and \
-          writes. Any entry may be absent at any time — for the cap, or because this is a different \
-          process than the one that wrote it — so a program that would be incorrect on a `null` \
-          wants `shared` instead.",
+          writes behind a lock. Any entry may be absent at any time — for the cap, or because this \
+          is a different process than the one that wrote it — so a program that would be incorrect \
+          on a `null` wants `shared` instead.",
     errors: &[],
 };
 

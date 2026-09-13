@@ -177,7 +177,7 @@ Conventions the whole file uses:
 | [`Core\Net\Datagram`](#core-core-net-datagram) |  |
 | [`Core\Net\Datagram\Message`](#core-core-net-datagram-message) |  |
 | [`Core\Os`](#core-core-os) |  |
-| [`Core\Cache`](#core-core-cache) |  |
+| [`Core\Cache`](#core-core-cache) | three cache tiers with three promises — `local` may forget and may not be seen by the next request, `process` is shared by every core of one process, `shared` is the store every core and machine sees |
 | [`Core\Cache\Store`](#core-core-cache-store) |  |
 | [`Core\Cache\SecretEntry`](#core-core-cache-secretentry) |  |
 | [`Core\RateLimit`](#core-core-ratelimit) |  |
@@ -21388,7 +21388,49 @@ The kernel's load average over one, five and fifteen minutes — `sys_getloadavg
 <a id="core-core-cache"></a>
 ### `Core\Cache`
 
-Keywords: local, process, shared
+Keywords: apcu_store, apcu_fetch, apcu_delete, apcu_exists, shmop, sysvshm, cache, memoize, per-core, per-process, redis, ttl, coherence, hit, miss, cross-request state, local, process, shared
+
+`Core\Cache` is where a value outlives the request that made it, in three tiers that hand back the
+same `Core\Cache\Store` (`put`, `get`, `forget`, `putSecret`, `getSecret`) under three different
+promises. **`local()` is a map inside one core's own memory**: a serving process runs one core per
+CPU, each new connection goes to whichever core is free, and nothing sends a client back to the core
+that served it before — so a value one request writes **may or may not** be there when the next
+request asks, because that request is usually on a different core with an empty map of its own. It
+is the fastest tier, with nothing locked and nothing shared, and it fits only a value every core can
+cheaply rebuild for itself: a hot lookup table, a parsed template, a per-core counter like the one
+`Core\RateLimit::shed` keeps. **`process()` is one map every core of the process shares**, so a
+follow-up request on the same machine finds what an earlier one wrote, at the cost of a lock on each
+access; it is the tier for ordinary application caching. **`shared()` is a real store over the
+network**, the only tier where a write is seen on every machine and survives a restart, and the only
+one for anything two requests must agree on — sessions, locks, quotas, idempotency keys. On every
+tier a `get` may answer `null`, a program that would be *wrong* on `null` is on the wrong tier, a
+value is copied in on `put` and out on `get` rather than shared live, and a full tier forgets old
+entries instead of failing a `put`.
+
+```nvs
+<?nvs
+var $local = Core\Cache::local();
+var $greeting = $local->get('greeting');
+echo $greeting ?? 'miss on this core', "\n";
+
+// The one thing `local` promises: your own write, read back in the same request.
+$local->put('greeting', 'hello', {ttl: 30s});
+echo $local->get('greeting') ?? 'miss on this core', "\n";
+
+// Every core of the process reads and writes this one map.
+var $process = Core\Cache::process();
+$process->put('rendered', '<p>hello</p>');
+echo $process->get('rendered') ?? 'miss in this process', "\n";
+
+$process->forget('rendered');
+echo $process->get('rendered') ?? 'forgotten', "\n";
+```
+```output
+miss on this core
+hello
+<p>hello</p>
+forgotten
+```
 
 | Member | Signature |
 |---|---|
@@ -21403,9 +21445,9 @@ Keywords: local, process, shared
 Core\Cache::local(): Core\Cache\Store
 ```
 
-The per-core, in-process tier: one store per core, with no coherence between cores and no network behind it.
+The per-core, in-process tier: a map in this core's own memory, with no lock, no network and no coherence between cores. A value one request writes may or may not be there when the next request asks, because the next request usually runs on another core with an empty map of its own.
 
-**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over this core's own entries. Any entry may be absent at any time, for any reason, and a write on one core is not visible on another — a program that would be incorrect if a `get` answered `null` wants `shared` instead.
+**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over this core's own entries. Any entry may be absent at any time, for any reason, and a write on one core is not visible on another. The only read this tier promises is your own write back in the same request; a value every core should find wants `process`, and a program that would be incorrect on a `null` wants `shared`.
 
 <a id="core-core-cache-process"></a>
 #### `Core\Cache::process`
@@ -21414,9 +21456,9 @@ The per-core, in-process tier: one store per core, with no coherence between cor
 Core\Cache::process(): Core\Cache\Store
 ```
 
-The per-process tier: one store every core of this serving process shares, in memory only, and gone when the process ends.
+The per-process tier: one store every core of this serving process shares, in memory only, and gone when the process ends. A follow-up request on the same machine finds what an earlier one wrote, whichever core it lands on, which is what `local` cannot promise; this is the tier for ordinary application caching.
 
-**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over this process's own entries, which every core of it reads and writes. Any entry may be absent at any time — for the cap, or because this is a different process than the one that wrote it — so a program that would be incorrect on a `null` wants `shared` instead.
+**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over this process's own entries, which every core of it reads and writes behind a lock. Any entry may be absent at any time — for the cap, or because this is a different process than the one that wrote it — so a program that would be incorrect on a `null` wants `shared` instead.
 
 <a id="core-core-cache-shared"></a>
 #### `Core\Cache::shared`
