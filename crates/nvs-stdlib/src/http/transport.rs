@@ -1315,28 +1315,39 @@ fn attempts(
 }
 
 /// One request and one reply, over a connection this core was already holding
-/// where it had one.
+/// where it had one, and otherwise over the first address of the approved set
+/// to come up.
+///
+/// The set is walked rather than its first address used, under the one
+/// `connectTimeout` clamped below — `rule:http-server/an-outbound-call-tries-every-approved-address`,
+/// and [`nvs_host::net::NvsTcp::connect_racing`] is the walk itself.
 fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Result<Attempt, Fault> {
     let parts = parts(url, call.member)?;
     let request = compose(call, &parts)?;
+    let approved: Vec<SocketAddr> = addresses
+        .iter()
+        .map(|&address| SocketAddr::new(address, parts.port))
+        .collect();
     // Unreachable from source: [`Call::addresses`] is what a door approved, and
     // a door that approved nothing refused instead.
-    let Some(&address) = addresses.first() else {
+    let Some(&first) = approved.first() else {
         return Err(Fault::fatal(format!(
             "{}: an approved set with no address in it",
             call.member
         )));
     };
-    let socket = SocketAddr::new(address, parts.port);
     let identity = call.identity.as_ref();
-    let key = pool_key(
-        &parts,
-        socket,
-        identity.map(|held| held.fingerprint.as_str()),
-        &call.policy,
-    );
+    let fingerprint = identity.map(|held| held.fingerprint.as_str());
+    // A connection to *any* approved address serves the call, since each of
+    // them was approved and each is filed under the address it actually goes
+    // to: one lookup per address rather than one on the set's first
+    // (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`).
+    let drawn = approved.iter().find_map(|&address| {
+        let key = pool_key(&parts, address, fingerprint, &call.policy);
+        pool::take(&key, Instant::now()).map(|held| (address, key, held))
+    });
 
-    if let Some(mut held) = pool::take(&key, Instant::now()) {
+    if let Some((socket, key, mut held)) = drawn {
         // The drawn connection carries no bound of its own: the call's deadline
         // is what every wait on it is under, exactly as on a fresh one.
         held.bound_by(Some(call.deadline));
@@ -1358,14 +1369,24 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     let budget = call
         .connect_timeout
         .min(call.deadline.saturating_duration_since(Instant::now()));
-    let mut stream = match NvsTcp::connect_timeout(socket, budget) {
+    let mut stream = match NvsTcp::connect_racing(&approved, budget) {
         Ok(stream) => stream,
+        // `nvs_host` names every approved address and what it answered, which
+        // is the rule's *one `IOError` naming each*; what this end adds is the
+        // host the set was approved for, since the addresses alone do not say
+        // which call failed.
         Err(err) => {
             return Ok(Attempt::Failed(format!(
-                "connecting to {socket} failed: {err}"
+                "connecting to `{}` failed: {err}",
+                parts.host
             )));
         }
     };
+    // The address the walk stopped at, which is not always the set's first: a
+    // connection goes back into the pool under where it actually goes, and the
+    // key above was built before there was an answer to build it from.
+    let socket = stream.peer_addr().unwrap_or(first);
+    let key = pool_key(&parts, socket, fingerprint, &call.policy);
     // Before the handshake, not after it: the TLS flight waits on this socket
     // and the deadline is what bounds every wait on it.
     stream.set_deadline(Some(call.deadline));
@@ -3264,6 +3285,108 @@ mod tests {
             two.join().expect("the origin thread").connections,
             1,
             "a port of its own is a key of its own"
+        );
+    }
+
+    /// The fallback the approved set exists for, at the level that can see the
+    /// clock: the set's first address answers nothing, and the call is served
+    /// by the next one inside the same `connectTimeout` rather than spending
+    /// the whole of it on the first.
+    #[test]
+    fn a_dead_first_address_falls_back_to_the_next_within_connect_timeout() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let mut asking = call(at, "test");
+        // Documentation address space: a host with a default route sends the
+        // SYN and hears nothing, and one without a route to it is refused at
+        // once. Both are the case the walk exists for, and neither may cost the
+        // call its budget.
+        asking.addresses = vec!["192.0.2.1".parse().expect("a literal address"), at.ip()];
+        asking.connect_timeout = Duration::from_secs(5);
+
+        let start = Instant::now();
+        let reply = send(&asking, &mut never).expect("the second address served the call");
+
+        assert_eq!(reply.status, 200);
+        assert!(
+            start.elapsed() < Duration::from_secs(3),
+            "the walk waited out the dead address instead of starting the next one"
+        );
+        assert_eq!(
+            served.join().expect("the origin thread").connections,
+            1,
+            "the address that answered is the one the call was carried on"
+        );
+    }
+
+    /// An error naming only the last address sends the reader to the wrong
+    /// host, so every address the call could not reach is in the one it throws.
+    #[test]
+    fn every_address_failing_is_one_io_error_naming_each() {
+        let nowhere: SocketAddr = "203.0.113.7:80".parse().expect("a literal address");
+        let mut asking = call(nowhere, "test");
+        asking.addresses = vec![
+            "192.0.2.1".parse().expect("a literal address"),
+            "192.0.2.2".parse().expect("a literal address"),
+        ];
+        // Short on purpose: what is under test is the error, and the set is
+        // documentation address space, so this is the whole of what it costs.
+        asking.connect_timeout = Duration::from_millis(300);
+
+        let refused = send(&asking, &mut never).expect_err("a set with nothing behind it");
+        let why = format!("{refused:?}");
+
+        assert!(
+            why.contains("192.0.2.1"),
+            "the error did not name the first address: {why}"
+        );
+        assert!(
+            why.contains("192.0.2.2"),
+            "the error did not name the second address: {why}"
+        );
+    }
+
+    /// A retried call performs exactly one resolution: the second attempt walks
+    /// the set the first one was given, and the only way a second lookup could
+    /// reach the wire is the hop loop's `repin`, which this case panics from.
+    #[test]
+    fn a_retry_reuses_the_approved_set_and_never_re_resolves() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        ]);
+        let mut retried = call(at, "test");
+        retried.attempts = 2;
+        retried.addresses = vec!["192.0.2.1".parse().expect("a literal address"), at.ip()];
+
+        let reply = send(&retried, &mut never).expect("the second attempt's answer");
+
+        assert_eq!(reply.status, 200);
+        assert_eq!(
+            served.join().expect("the origin thread").asked.len(),
+            2,
+            "the retry did not reach the set the first attempt was approved for"
+        );
+    }
+
+    /// Each member of the set was approved, so a connection held to any one of
+    /// them serves the call — the lookup is per address, and a set whose first
+    /// address is not the held one still finds it.
+    #[test]
+    fn a_pooled_connection_to_any_approved_address_serves_the_call() {
+        let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+        let (at, served) = origin(vec![ok, ok]);
+
+        send(&call(at, "test"), &mut never).expect("an answer");
+
+        let mut wider = call(at, "test");
+        wider.addresses = vec!["192.0.2.1".parse().expect("a literal address"), at.ip()];
+        let reply = send(&wider, &mut never).expect("an answer on the connection it left");
+
+        assert_eq!(reply.status, 200);
+        assert_eq!(
+            served.join().expect("the origin thread").connections,
+            1,
+            "a call whose set covers the held address opened a second connection"
         );
     }
 
