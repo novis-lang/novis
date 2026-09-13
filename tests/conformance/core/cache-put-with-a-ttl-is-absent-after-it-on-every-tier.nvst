@@ -1,0 +1,71 @@
+--TEST--
+`put`'s trailing `{ttl?: Duration}` is a lifetime the entry does not outlive, and the tiers that hold their own entries answer it identically: an omitted `ttl` keeps § 1's contract, a lifetime still ahead reads back, and one already over leaves nothing under the key — `rule:core-api/shape-rules`, `rule:concurrency/cross-request-state-is-explicit`
+--FILE--
+<?nvs
+// `rule:core-api/shape-rules` R2's trailing options shape, and R12's unit as a
+// type: the lifetime is a `Core\Time\Duration` literal, so no call site has to
+// remember which scale this member chose.
+var $local = Core\Cache::local();
+var $process = Core\Cache::process();
+
+// An omitted `ttl` is the contract every entry already had — present until the
+// tier's cap forgets it. The option is optional here where
+// `rule:core-api/a-lifetime-is-written` makes a signature's lifetime a required
+// key, because nothing a cache holds leaves the process.
+$local->put("no-lifetime", "kept");
+$process->put("no-lifetime", "kept");
+
+// A lifetime still ahead of every read below.
+$local->put("ahead", "kept", {ttl: 1h});
+$process->put("ahead", "kept", {ttl: 1h});
+
+// Asked of both tiers and counted rather than read off a line: a tier that
+// answered plausibly for the omitted lifetime and wrongly for the written one
+// would still print a row of its own.
+array<string> $inside = ["no-lifetime", "ahead"];
+int $present = 0;
+string $back = "";
+foreach ($inside as string $key) {
+    $back = ($local->get($key) ?? "") as string;
+    if ($back == "kept") {
+        $present = $present + 1;
+    }
+    $back = ($process->get($key) ?? "") as string;
+    if ($back == "kept") {
+        $present = $present + 1;
+    }
+}
+echo "inside its lifetime: ", $present, " of ", Core\Arr::count($inside) * 2, "\n";
+
+// The other side of the same bound. A lifetime that has already run out is not
+// a write at all: `put` still cannot fail — § 1 gives this store no failure
+// mode to reach for — and the key is left with nothing under it.
+$local->put("over", "gone", {ttl: 0s});
+$process->put("over", "gone", {ttl: 0s});
+echo "past it, the local tier: ", $local->get("over") == null ? "null" : "something", "\n";
+echo "past it, the process tier: ", $process->get("over") == null ? "null" : "something", "\n";
+
+// And an entry that was really there goes with it, because a `put` replaced it
+// — the same exit an arrival too large for the tier takes.
+$local->put("replaced", "was here");
+$process->put("replaced", "was here");
+$local->put("replaced", "and now not", {ttl: 0s});
+$process->put("replaced", "and now not", {ttl: 0s});
+var $both = $local->get("replaced") == null && $process->get("replaced") == null;
+echo "a lifetime already over replaces nothing: ", $both ? "both null" : "one kept it", "\n";
+
+// The third tier takes the same option to a store that keeps its own clock, so
+// the lifetime never crosses as an instant. A deployment that configured none
+// is told so by name rather than handed the per-core store under it.
+try {
+    Core\Cache::shared();
+    echo "shared handed back a store\n";
+} catch (RuntimeError $error) {
+    echo "the shared tier keeps its own clock, and this deployment has no store\n";
+}
+--EXPECT--
+inside its lifetime: 4 of 4
+past it, the local tier: null
+past it, the process tier: null
+a lifetime already over replaces nothing: both null
+the shared tier keeps its own clock, and this deployment has no store
