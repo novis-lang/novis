@@ -39,7 +39,7 @@
 //! the resolver, which is a local of `nvs run` published through
 //! [`nvs_runtime::script::scoped`] rather than leaked.
 //!
-//! # Decision: `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, and what a shared cache still owes
+//! # Decision: `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, and the shared cache they make
 //!
 //! `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s § *Decision* is implemented here whole, because this is the
 //! tree's only in-memory unit table: a [`PathEntry`] holding the digest and the

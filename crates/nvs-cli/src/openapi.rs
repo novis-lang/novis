@@ -24,7 +24,7 @@
 //! table was built in, which `rule:programs/implementing` already makes independent of
 //! filesystem enumeration.
 //!
-//! ## What § 1's table does not supply yet
+//! ## Known gaps
 //!
 //! Each of these is a row of § 1 whose source exists but does not reach this
 //! module, and each is *absent* from the document rather than guessed at:
@@ -37,8 +37,10 @@
 //!    declared properties: a property map holds the private ones too, and a
 //!    document that published those would be leaking exactly what
 //!    `#[Json\Derive]` exists to decide.
+//!    — owner: unowned
 //! 2. **Request body schemas**, for the same reason and one more: which
 //!    parameter *is* the body is a question the row does not answer either.
+//!    — owner: unowned
 //! 3. **`components.securitySchemes`.** § 2's `security` names reach the
 //!    operation ([`operation`] writes them), but *what* a named scheme is —
 //!    bearer, an API key, OAuth2 and its flows — is nowhere in the tree:
@@ -49,9 +51,11 @@
 //!    would be the emitter stating a fact about deployment that no one wrote,
 //!    which is the one thing `rule:routing/api-document-is-generated-from-the-route-table` is against; the component object lands
 //!    here, with no change to [`operation`], on the day a scheme has a home.
+//!    — owner: unowned
 //! 4. **`info.version`.** The document has to carry one (3.1 requires it) and
 //!    nothing in the program declares one, so it is a fixed `0.0.0` until
 //!    `nvs.toml` grows the key M6's reader would own.
+//!    — owner: unowned
 //! 5. **An enum-case subset**, which is the half of § 1's *Enumerations* row a
 //!    literal union does not cover. A capture declared at one gets the empty
 //!    schema — *any* — because `nvs_types::routes`' `closed_set` returns no set
@@ -61,6 +65,7 @@
 //!    already is. Anything else outside [`schema`]'s list is the same honest
 //!    rendering of "the compiler knows this type and the emitter has no mapping
 //!    for it yet".
+//!    — owner: unowned
 
 use std::collections::BTreeMap;
 
