@@ -29,6 +29,7 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use nvs_diagnostics::{Diagnostic, code};
@@ -38,6 +39,13 @@ use crate::directive::{Apply, DIRECTIVES, Directive, governs};
 use crate::resolve::{Files, Origin, Override, Resolved};
 use crate::secret::Secret;
 use crate::tree::Config;
+
+/// The number [`Snapshot::build`] takes for the tree it is building.
+///
+/// Monotonic and never reused, so that a number a store kept can be compared against a generation
+/// that no longer exists. It starts at 1 because [`Default`] is 0, and a snapshot nothing built must
+/// not be mistaken for the first one that was.
+static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
 
 /// One entry file's effective configuration, immutable once built — `rule:config/the-config-is-an-immutable-snapshot`.
 ///
@@ -67,6 +75,14 @@ pub struct Snapshot {
     pub table: toml::Table,
     /// The entry file this snapshot is for, canonical.
     pub entry: PathBuf,
+    /// This snapshot's number: unique in this process, never reused, and 0 for one no boot built.
+    ///
+    /// A generation needs an identity that a store outliving it can hold, and its address is not
+    /// one — `nvs_stdlib::cache`'s process tier keys an entry on the generation it was written
+    /// under, and a later snapshot allocated where a dropped one sat would read the entries the
+    /// first had written. [`Snapshot::build`] takes the next number; a clone carries the same one,
+    /// because a copy of a tree *is* that configuration.
+    pub generation: u64,
     /// The `[[app]]` block's `mode` key, from the most specific block that set one. It sits on the block rather than in
     /// a sub-table, so it is read off directly instead of merged: the global `[mode]` is a table
     /// with `default` and `ceiling` in it, and folding a string over that would replace both.
@@ -124,6 +140,7 @@ impl Snapshot {
             config: Config::default(),
             table: resolved.table.clone(),
             entry,
+            generation: NEXT_GENERATION.fetch_add(1, Ordering::Relaxed),
             mode: None,
             origin: None,
             blocks: Vec::new(),

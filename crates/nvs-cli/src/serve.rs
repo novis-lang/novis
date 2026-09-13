@@ -377,6 +377,12 @@ pub(crate) fn run(
     // The workers' sockets now: this thread accepts on nothing and keeps no
     // descriptor it does not use.
     drop(bound);
+    // The process tier before any core that shares it exists, which is what
+    // `rule:concurrency/the-process-tier-is-one-store-per-process` says about
+    // when the map is created. Both fan-outs below are past this line, so
+    // neither the pinned workers nor the single-threaded fallback is the one that
+    // builds it.
+    nvs_stdlib::arm_process_tier();
     // Said once as the fleet starts, on the platforms that have something to
     // say: `nvs_host::cpuclock`'s docs own which those are, and why none of
     // them gets a wall-clock ceiling wearing the CPU one's name instead.

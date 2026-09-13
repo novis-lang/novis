@@ -274,6 +274,11 @@ pub use nvs_runtime::{CodecField, CodecTy, EnumCases, FieldDefault};
 /// stays beside the table it reads.
 pub use instance::class_descriptors;
 
+/// `Core\Cache::process()`'s tier, created before the cores that will share it —
+/// `nvs serve` calls this as its fleet starts. The function's own doc owns why a
+/// tier that no caller armed is still correct.
+pub use cache::arm_process_tier;
+
 use registry::CoreClass;
 
 /// Every `Core` implementation's symbol and address, for the JIT to resolve

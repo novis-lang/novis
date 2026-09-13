@@ -2355,9 +2355,9 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "shared",
         Some(nvs_config::Cap::CacheShared),
     ),
-    // And its sibling declares `None`, which is the asymmetry the two rows
-    // exist to state: a tier that leaves the process has a door, and one that
-    // cannot has nothing to put a door on. `rule:core-api/two-cache-tiers` decided this before the
+    // And the tiers that stay in the process declare `None`, which is the
+    // asymmetry these rows exist to state: a tier that leaves the process has a
+    // door, and one that cannot has nothing to put a door on. `rule:core-api/two-cache-tiers` decided this before the
     // member was written — the local tier is a `HashMap` in the calling core's
     // own thread, so nothing leaves the process, no name is resolved and no file
     // is opened, and `rule:security/capability-question-is-grant-and-scope` has no door to check at. What is left to bound
@@ -2365,6 +2365,14 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // grant would not: a grant would price caching anything as an authority
     // question every deployment then has to answer, and still not bound a byte.
     (crate::cache::NAME, "local", None),
+    // The process tier is the same answer one step further out: one map every
+    // core of the serving process shares
+    // (`rule:concurrency/the-process-tier-is-one-store-per-process`), which is
+    // still no door, because the bytes reach no other process and no name is
+    // resolved to put them there. What bounds it is `[cache.process] max_size`,
+    // for the reason the row above gives and with the same arithmetic — held once
+    // per process rather than once per core.
+    (crate::cache::NAME, "process", None),
     // `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-unreachable-store-throws` write `Core\RateLimit::consume` standing alone, so it
     // is its own door onto the same store rather than something that has to
     // follow a `Core\Cache::shared()`: it reads the same directive, asks for the

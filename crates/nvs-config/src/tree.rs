@@ -1114,8 +1114,6 @@ pub struct CacheProcess {
     /// number here means *less* memory rather than more, because this map is held once per process
     /// where that one is held once per core. Exceeding it forgets the entry written longest ago
     /// rather than failing a write, so it is never a reason a `put` throws.
-    ///
-    /// [unread: the map this bounds is not built yet — `Core\Cache::process()` is unwritten, so there is no tier holding a byte against a ceiling and a value written here bounds nothing. owner: rule:concurrency/the-process-tier-is-one-store-per-process]
     pub max_size: Option<Setting>,
     /// How long a caller waits for the one filler in this process before it throws `TimeoutError`
     /// (`rule:concurrency/a-secret-fill-runs-once-per-process`), and the default a `getSecret` that

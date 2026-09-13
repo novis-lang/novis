@@ -521,9 +521,6 @@
 #max_size = "32M"
 
 #[cache.process]
-# NOT IMPLEMENTED — writing this bounds nothing yet. The map it would cap is not built:
-# `Core\Cache::process()` is unwritten, so there is no tier holding a byte for a ceiling to forget.
-# `rule:concurrency/the-process-tier-is-one-store-per-process` is what closes it.
 # What the entries of the one map every core of this process reads may hold together — a size, or
 # `false` for no ceiling at all. Unset, the cap `nvs_stdlib::cache` ships. It is the same figure the
 # local tier takes, and the same number here is less memory rather than more: this map is held once
