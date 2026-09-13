@@ -1923,6 +1923,12 @@ pub const CLASSES: &[CoreClass] = &[
     // answer, which is the reply that is read as it arrives: the same head
     // members over the same map, and four framings of a body that is taken by
     // the first of them to name it rather than read by all four.
+    // `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`'s
+    // answer, and the one value on this class that outlives the call that made
+    // it: a conversation the program holds until its own task ends. What it
+    // answers with is `Core\Socket\Message` above, because one RFC 6455 frame
+    // gets one shape whichever end of the wire it arrived at.
+    crate::http::socket::SOCKET,
     crate::http::stream::STREAM,
     // One server-sent event, which is what the first of those four frames.
     crate::http::stream::EVENT,

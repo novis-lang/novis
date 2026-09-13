@@ -16,9 +16,11 @@ try {
     echo $refused->message, "\n";
 }
 
-// A scheme outside the roster. `http` and `https` are the whole of it — a
-// launderer that approved anything else would be approving a protocol the
-// client cannot speak and the policy was never written for.
+// A scheme outside the roster. The launderer's four — `http` and `https` for a
+// request, `ws` and `wss` for the row that opens a socket — are the whole of
+// it, and one that approved anything else would be approving a protocol the
+// client cannot speak and the policy was never written for. Which of the four a
+// given row serves is that row's own refusal.
 try {
     var $ftp = Core\Http::allowUrl("ftp://example.com/archive");
 } catch (RuntimeError $refused) {
@@ -43,7 +45,7 @@ try {
 }
 --EXPECT--
 Core\Http::allowUrl: this text is not a URL, so there is no host in it to approve
-Core\Http::allowUrl: the scheme must be `http` or `https`, and this URL names `ftp`
+Core\Http::allowUrl: the scheme must be `http`, `https`, `ws` or `wss`, and this URL names `ftp`
 Core\Http::allowUrl: the URL names no host, so there is nothing to resolve and pin
 Core\Http::allowUrl needs the capability `net.connect` for example.com, which is not granted
 help: grant it in nvs.toml under `[capabilities.net]`

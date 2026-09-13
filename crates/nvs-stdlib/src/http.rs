@@ -122,6 +122,7 @@
 //! ([`transport::Piece`]). What the exchange itself spends is [`transport`]'s to state.
 
 mod pool;
+pub(crate) mod socket;
 mod span;
 pub(crate) mod stream;
 mod transport;
@@ -340,10 +341,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_http_tls_info_subject" => (nvs_core_http_tls_info_subject as *const ()).cast(),
         "nvs_core_http_tls_info_issuer" => (nvs_core_http_tls_info_issuer as *const ()).cast(),
         "nvs_core_http_tls_info_expiry" => (nvs_core_http_tls_info_expiry as *const ()).cast(),
-        // The streamed reply's own, beside its class rather than here: they are
-        // this module's symbols, and [`stream`] is a module of this one for
-        // [`transport`]'s reason.
-        other => return stream::address(other),
+        // The streamed reply's own and the outbound socket's, beside their
+        // classes rather than here: they are this module's symbols, and
+        // [`stream`] and [`socket`] are modules of this one for [`transport`]'s
+        // reason.
+        other => return stream::address(other).or_else(|| socket::address(other)),
     })
 }
 
@@ -402,8 +404,13 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 /// scheme is outside the roster, it names no host, or the capability refuses
 /// the host or one of the addresses it resolves to — one denied address refuses
 /// the host whole.
-fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<Vec<std::net::IpAddr>, Fault> {
-    let host = judged_host(text, member)?;
+fn pin(
+    ctx: &mut Ctx,
+    text: &str,
+    member: &str,
+    roster: Roster,
+) -> Result<Vec<std::net::IpAddr>, Fault> {
+    let host = judged_host(text, member, roster)?;
     if proxy_of(ctx).is_some_and(|proxy| proxy.resolves(&host)) {
         nvs_runtime::capability::require(ctx, Cap::NetConnect, Scope::Host(&host), member)?;
         return Ok(Vec::new());
@@ -411,9 +418,39 @@ fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<Vec<std::net::IpAddr>,
     nvs_runtime::capability::pin_host_addresses(ctx, &host, member)
 }
 
+/// Which of `rule:http-server/allow-url-pins-the-address`'s four schemes the
+/// caller speaks.
+///
+/// The launderer admits all four and pins them identically, because what it
+/// approves is a host and its addresses rather than an intention; which of them
+/// a given row serves is the row's own refusal, so a URL laundered for one use
+/// cannot be spent on the other. That is why this is a parameter of
+/// [`judged_host`] rather than a constant in it.
+#[derive(Clone, Copy)]
+pub(crate) enum Roster {
+    /// What a request member speaks: `http` and `https`.
+    Request,
+    /// What the row that opens a socket speaks: `ws` and `wss`
+    /// (`rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`).
+    Socket,
+    /// What `Core\Http::allowUrl` admits: all four.
+    Laundered,
+}
+
+impl Roster {
+    /// Whether `scheme` — already lower-cased by the caller — is one this
+    /// roster holds.
+    fn admits(self, scheme: &str) -> bool {
+        match self {
+            Self::Request => matches!(scheme, "http" | "https"),
+            Self::Socket => matches!(scheme, "ws" | "wss"),
+            Self::Laundered => matches!(scheme, "http" | "https" | "ws" | "wss"),
+        }
+    }
+}
+
 /// [`pin`]'s first two questions — the ones a URL answers by itself — and the
-/// host they leave: the text parses, and its scheme is one of the two this
-/// class speaks.
+/// host they leave: the text parses, and its scheme is one this caller speaks.
 ///
 /// Split out because `rule:testing/an-outbound-call-is-answered-from-a-table`
 /// asks exactly these of a faked call and none of the ones below them: a call
@@ -426,7 +463,7 @@ fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<Vec<std::net::IpAddr>,
 ///
 /// A thrown `RuntimeError` for a text that is not a URL, a scheme outside the
 /// roster, or a URL that names no host.
-fn judged_host(text: &str, member: &str) -> Result<String, Fault> {
+fn judged_host(text: &str, member: &str, roster: Roster) -> Result<String, Fault> {
     let reference = UriRef::parse(text).map_err(|_| {
         Fault::thrown(format!(
             "{member}: this text is not a URL, so there is no host in it to approve"
@@ -437,10 +474,23 @@ fn judged_host(text: &str, member: &str) -> Result<String, Fault> {
     // roster compared byte for byte would be one a caller can step around by
     // shouting.
     let scheme = reference.scheme().map(Scheme::as_str).unwrap_or_default();
-    if !scheme.eq_ignore_ascii_case("http") && !scheme.eq_ignore_ascii_case("https") {
-        return Err(Fault::thrown(format!(
-            "{member}: the scheme must be `http` or `https`, and this URL names `{scheme}`"
-        )));
+    let folded = scheme.to_ascii_lowercase();
+    if !roster.admits(&folded) {
+        // One whole sentence per arm rather than a roster spelled into a shared
+        // one: a refusal's text is what a case freezes, and a message assembled
+        // from a fragment is one no case can be grepped back to.
+        return Err(Fault::thrown(match roster {
+            Roster::Request => format!(
+                "{member}: the scheme must be `http` or `https`, and this URL names `{scheme}`"
+            ),
+            Roster::Socket => {
+                format!("{member}: the scheme must be `ws` or `wss`, and this URL names `{scheme}`")
+            }
+            Roster::Laundered => format!(
+                "{member}: the scheme must be `http`, `https`, `ws` or `wss`, and this URL names \
+                 `{scheme}`"
+            ),
+        }));
     }
 
     let authority = reference.authority().ok_or_else(|| {
@@ -471,7 +521,7 @@ nvs_runtime::nvs_helper! {
     /// proxy for this one by name*.
     fn nvs_core_http_allow_url(ctx, args: [1]) {
         let text = text_of(args, "allowUrl")?;
-        let approved = pin(ctx, text, MEMBER)?;
+        let approved = pin(ctx, text, MEMBER, Roster::Laundered)?;
 
         let mut addresses = NvsArray::new();
         for address in approved {
@@ -659,16 +709,24 @@ const URL: CoreTy = CoreTy::Union(&[CoreTy::Text(Qual::Sink), CoreTy::Instance(T
 /// The three `retry*` options are § 6's one shape, flattened for the reason
 /// this module's own docs give.
 ///
-/// A macro rather than a slice, for [`request_params`]' reason one axis over:
-/// `stream` carries these keys and the two bounds a body read as it arrives has
-/// of its own, so one row's bag is the other's with a group after it. A `const`
-/// slice cannot be extended, and a second copy of the shared keys would say the
-/// same thing until it did not.
-// The keys every row carries, at the indentation they had as a slice because
-// rustfmt does not reach inside a macro's body, then the group a row adds after
-// them.
-macro_rules! request_options {
-    ($($trailing:expr),* $(,)?) => { &[
+/// The keys every outbound call carries, whatever it opens: the two waits, the
+/// headers, who this end is when the server asks, the address the connect is
+/// made to, and `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s
+/// policy over the connection.
+///
+/// **A bag is a closed set of keys** (`rule:core-api/shape-rules` R2), and these
+/// are the ones that mean something to a request and to a socket alike. What a
+/// request-and-reply exchange adds — the redirect count, the retry trio and the
+/// body keys — [`request_options`] writes into the `$exchange` position here,
+/// so `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`'s
+/// bag can take the connection half without the keys that could never do
+/// anything on a socket, and the shared half still has one home rather than two
+/// copies that would say the same thing until they did not.
+// The keys at the indentation they had as a slice because rustfmt does not
+// reach inside a macro's body: what opening a connection says, the exchange
+// keys a row inserts into the middle of it, and the group a row adds at the end.
+macro_rules! connection_options {
+    ($($exchange:expr),* $(,)? ; $($trailing:expr),* $(,)?) => { &[
     CoreOption {
         name: "deadline",
         ty: DURATION,
@@ -691,6 +749,91 @@ macro_rules! request_options {
         ty: CoreTy::Array(&CoreTy::SecretText(Qual::Neutral)),
         default: Const::EmptyArray,
     },
+    $($exchange,)*
+    // The first of the keys that are about the connection rather than about
+    // what goes over it: who this end is when the server asks. An object rather
+    // than two `bytes` keys, because a chain and a key that have not been
+    // checked against each other are exactly what [`IDENTITY`]'s read exists to
+    // refuse — and because the pool is keyed on the identity, which needs one
+    // value to name.
+    CoreOption {
+        name: IDENTITY_OPTION,
+        ty: CoreTy::Instance(IDENTITY_NAME),
+        default: Const::Null,
+    },
+    // `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s keys: the
+    // four a `capabilities.tls` grant unlocks for the URL's host, and the fifth
+    // that needs no grant. Separate keys rather than one policy object, because
+    // each asks a different question — whose certificates, which key, which
+    // name, whether to look at all — and a bag nested inside a bag has nothing
+    // to flatten into (`rule:core-api/shape-rules` R2).
+    //
+    // Unqualified, which is what refuses a `tainted` blob here: an options bag's
+    // member carries no mark for `nvs_types::core_lib`'s `qual_of` to read, and
+    // what has no mark refuses a qualified argument. Trust anchors chosen by
+    // whoever is being verified are the whole of what this key must not admit.
+    CoreOption {
+        name: TLS_CA_OPTION,
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    // One pin or a list of them: a key being rotated is two live pins for as
+    // long as the rotation takes, and a program that could name only one would
+    // have to stop pinning to get through it.
+    CoreOption {
+        name: TLS_PIN_OPTION,
+        ty: CoreTy::Union(&[
+            CoreTy::Text(Qual::Neutral),
+            CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        ]),
+        default: Const::Null,
+    },
+    // `true` unless the call writes `false`, rather than an omission standing
+    // for strictness: the default a call inherits is the safe answer, and the
+    // relaxation is a word at the call site rather than the absence of one.
+    CoreOption {
+        name: TLS_VERIFY_HOST_OPTION,
+        ty: CoreTy::Bool,
+        default: Const::Bool(true),
+    },
+    CoreOption {
+        name: TLS_VERIFY_OPTION,
+        ty: CoreTy::Bool,
+        default: Const::Bool(true),
+    },
+    // The key of the group that needs no grant, because it can only tighten: a
+    // floor under `[http.client.tls] min_version` throws rather than lowering
+    // what the deployment set.
+    CoreOption {
+        name: TLS_MIN_VERSION_OPTION,
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    // `rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`'s
+    // key: the address this call connects to, instead of the one the URL's host
+    // resolves to. Last of the shared keys, and unqualified like the URL beside
+    // it for `rule:security/outbound-url-is-a-sink`'s reason — the address a
+    // connect is made to is a sink, and an address that came from outside is
+    // the whole of what it must not admit.
+    CoreOption {
+        name: CONNECT_TO_OPTION,
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    $($trailing,)*
+] };
+}
+
+/// A macro rather than a slice, for [`request_params`]' reason one axis over:
+/// `stream` carries these keys and the two bounds a body read as it arrives has
+/// of its own, so one row's bag is the other's with a group after it. A `const`
+/// slice cannot be extended, and a second copy of the shared keys would say the
+/// same thing until it did not.
+// The exchange keys, written into [`connection_options`]' middle: what a
+// request-and-reply sends and how many times, and the one relaxation that only
+// a redirect can reach.
+macro_rules! request_options {
+    ($($trailing:expr),* $(,)?) => { connection_options!(
     // A count rather than a `bool`: `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned` turns redirects off by default,
     // and a program that wants them owes a number, since "follow them" with no
     // bound is the unbounded spelling one hop up.
@@ -771,88 +914,21 @@ macro_rules! request_options {
         ty: CoreTy::Array(&MULTIPART_FIELD),
         default: Const::Null,
     },
-    // Last of the shared keys, and the only one that is about the connection
-    // rather than about what goes over it: who this end is when the server asks.
-    // An object rather than two `bytes` keys, because a chain and a key that
-    // have not been checked against each other are exactly what
-    // [`IDENTITY`]'s read exists to refuse — and because the pool is keyed on
-    // the identity, which needs one value to name.
-    CoreOption {
-        name: IDENTITY_OPTION,
-        ty: CoreTy::Instance(IDENTITY_NAME),
-        default: Const::Null,
-    },
-    // `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s keys: the
-    // four a `capabilities.tls` grant unlocks for the URL's host, and the fifth
-    // that needs no grant. Separate keys rather than one policy object, because
-    // each asks a different question — whose certificates, which key, which
-    // name, whether to look at all — and a bag nested inside a bag has nothing
-    // to flatten into (`rule:core-api/shape-rules` R2).
-    //
-    // Unqualified, which is what refuses a `tainted` blob here: an options bag's
-    // member carries no mark for `nvs_types::core_lib`'s `qual_of` to read, and
-    // what has no mark refuses a qualified argument. Trust anchors chosen by
-    // whoever is being verified are the whole of what this key must not admit.
-    CoreOption {
-        name: TLS_CA_OPTION,
-        ty: CoreTy::Text(Qual::Neutral),
-        default: Const::Null,
-    },
-    // One pin or a list of them: a key being rotated is two live pins for as
-    // long as the rotation takes, and a program that could name only one would
-    // have to stop pinning to get through it.
-    CoreOption {
-        name: TLS_PIN_OPTION,
-        ty: CoreTy::Union(&[
-            CoreTy::Text(Qual::Neutral),
-            CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
-        ]),
-        default: Const::Null,
-    },
-    // `true` unless the call writes `false`, rather than an omission standing
-    // for strictness: the default a call inherits is the safe answer, and the
-    // relaxation is a word at the call site rather than the absence of one.
-    CoreOption {
-        name: TLS_VERIFY_HOST_OPTION,
-        ty: CoreTy::Bool,
-        default: Const::Bool(true),
-    },
-    CoreOption {
-        name: TLS_VERIFY_OPTION,
-        ty: CoreTy::Bool,
-        default: Const::Bool(true),
-    },
-    // The key of the group that needs no grant, because it can only tighten: a
-    // floor under `[http.client.tls] min_version` throws rather than lowering
-    // what the deployment set.
-    CoreOption {
-        name: TLS_MIN_VERSION_OPTION,
-        ty: CoreTy::Text(Qual::Neutral),
-        default: Const::Null,
-    },
-    // `rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`'s
-    // key: the address this call connects to, instead of the one the URL's host
-    // resolves to. Last of the shared keys, and unqualified like the URL beside
-    // it for `rule:security/outbound-url-is-a-sink`'s reason — the address a
-    // connect is made to is a sink, and an address that came from outside is
-    // the whole of what it must not admit.
-    CoreOption {
-        name: CONNECT_TO_OPTION,
-        ty: CoreTy::Text(Qual::Neutral),
-        default: Const::Null,
-    },
+    ;
     // `rule:http-server/an-https-redirect-never-becomes-plaintext`'s half of
     // the pair the deployment does not hold. `false` unless the call writes
-    // otherwise, like the two relaxing bools above and for the same reason: the
-    // default a call inherits is the safe answer, and a hop out of TLS is a
-    // word at the call site rather than the absence of one.
+    // otherwise, like the two relaxing bools in the shared half and for the same
+    // reason: the default a call inherits is the safe answer, and a hop out of
+    // TLS is a word at the call site rather than the absence of one. It is a
+    // trailing key rather than a shared one because a socket follows no
+    // redirect, so there is no hop for it to permit.
     CoreOption {
         name: REDIRECT_TO_HTTP_OPTION,
         ty: CoreTy::Bool,
         default: Const::Bool(false),
     },
-    $($trailing,)*
-] };
+    $($trailing),*
+) };
 }
 
 /// Every row but `stream`'s bag: what a buffered call may write, and nothing
@@ -883,6 +959,66 @@ const IDLE_OPTION: CoreOption = CoreOption {
 /// idle check ever written, and only a lifetime ends it.
 const MAX_DURATION_OPTION: CoreOption = CoreOption {
     name: "maxDuration",
+    ty: DURATION,
+    default: Const::Null,
+};
+
+/// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`'s bag:
+/// the keys every outbound call carries, and
+/// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`'s
+/// group after them.
+///
+/// **The exchange half is absent rather than ignored.** There is no `body`, no
+/// `followRedirects` and no retry trio, because a bag is a closed set of keys
+/// and a key that could never do anything on a socket is one a program would
+/// write and then wait for. `idle` and `maxDuration` are the two bounds a
+/// streamed reply already carries ([`STREAM_OPTIONS`]) and mean the same two
+/// things one level down: an idle check alone never ends a peer that dribbles,
+/// and a lifetime alone lets a dead connection sit until it expires.
+const SOCKET_OPTIONS: &[CoreOption] = connection_options!(
+    ;
+    PROTOCOLS_OPTION,
+    IDLE_OPTION,
+    MAX_DURATION_OPTION,
+    MAX_MESSAGE_OPTION,
+    SEND_TIMEOUT_OPTION,
+    PING_OPTION,
+);
+
+/// The subprotocols the opening request offers as `Sec-WebSocket-Protocol` —
+/// see [`SOCKET_OPTIONS`].
+///
+/// An empty array rather than a `null` default, because offering none and
+/// offering an empty list are one thing: there is nothing a program could mean
+/// by the difference, so there is no spelling for it.
+const PROTOCOLS_OPTION: CoreOption = CoreOption {
+    name: "protocols",
+    ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+    default: Const::EmptyArray,
+};
+
+/// The largest message a socket reassembles, past which it is closed with
+/// `1009` — see [`SOCKET_OPTIONS`]. A `uint` of bytes rather than a `Duration`,
+/// and neither type has an infinite value.
+const MAX_MESSAGE_OPTION: CoreOption = CoreOption {
+    name: "maxMessage",
+    ty: CoreTy::Uint,
+    default: Const::Null,
+};
+
+/// How long a frame may wait to be written — see [`SOCKET_OPTIONS`].
+const SEND_TIMEOUT_OPTION: CoreOption = CoreOption {
+    name: "sendTimeout",
+    ty: DURATION,
+    default: Const::Null,
+};
+
+/// The silence after which a ping is sent — see [`SOCKET_OPTIONS`]. The one
+/// knob here with an off position, and it is off by default, because a ping is
+/// traffic the peer did not ask for: a program that sets it is choosing to have
+/// `idle` end a *dead* peer rather than a quiet one.
+const PING_OPTION: CoreOption = CoreOption {
+    name: "ping",
     ty: DURATION,
     default: Const::Null,
 };
@@ -1246,6 +1382,30 @@ const REQUEST_ARITY: usize = OPTIONS.len() + 1;
 /// bounds that bag adds. Derived for that constant's reason.
 const STREAM_ARITY: usize = STREAM_OPTIONS.len() + 1;
 
+/// The ABI slot each of [`SOCKET_OPTIONS`]' keys flattens into. The shared
+/// connection keys come first and in their own order, so these are not
+/// [`DEADLINE`]'s numbers: a bag without the exchange half is a different
+/// flattening of a different closed set, and reusing one row's indices for
+/// another's bag is how a body comes to read the key beside the one it meant.
+const SOCKET_DEADLINE: usize = 1;
+/// See [`SOCKET_DEADLINE`].
+const SOCKET_CONNECT_TIMEOUT: usize = 2;
+/// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`'s
+/// group, after every connection key's slot — see [`SOCKET_DEADLINE`].
+const SOCKET_PROTOCOLS: usize = 11;
+/// See [`SOCKET_PROTOCOLS`].
+const SOCKET_IDLE: usize = 12;
+/// See [`SOCKET_PROTOCOLS`].
+const SOCKET_MAX_DURATION: usize = 13;
+/// See [`SOCKET_PROTOCOLS`].
+const SOCKET_SEND_TIMEOUT: usize = 15;
+/// See [`SOCKET_PROTOCOLS`].
+const SOCKET_PING: usize = 16;
+
+/// How many arguments `openSocket` takes: the URL plus one per key of
+/// [`SOCKET_OPTIONS`]. Derived for [`REQUEST_ARITY`]'s reason.
+pub(crate) const SOCKET_ARITY: usize = SOCKET_OPTIONS.len() + 1;
+
 /// [`TARGET`]'s two slots, by index — see [`STATUS_SLOT`].
 const TARGET_URL_SLOT: usize = 0;
 /// See [`TARGET_URL_SLOT`].
@@ -1377,6 +1537,23 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(stream::STREAM_NAME),
             symbol: "nvs_core_http_client_stream",
             doc: Some(&STREAM_DOC),
+        },
+        // The only row that opens something the program then holds, and the
+        // only one that answers no reply. It is a row here rather than a door of
+        // its own because the opening handshake **is** an outbound call
+        // (`rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`):
+        // the pin, the grants, the TLS policy, an identity and the proxy apply
+        // by the row being on this class rather than by being told to, and a
+        // second door would be the copy that comes to be missing a check. Its
+        // bag is the connection half of every other row's ([`SOCKET_OPTIONS`]).
+        CoreMethod {
+            name: "openSocket",
+            names: &["url"],
+            params: &[URL, CoreTy::Options(SOCKET_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(socket::SOCKET_NAME),
+            symbol: socket::OPEN_SYMBOL,
+            doc: Some(&OPEN_SOCKET_DOC),
         },
     ],
     instance: &[],
@@ -1805,24 +1982,9 @@ const LEAF_ERROR: ErrorDoc = ErrorDoc {
 // nothing at all — then the list itself, at the indentation it had as a slice,
 // because rustfmt does not reach inside a macro's body, then the entries a card
 // names after them, which is [`STREAM_OPTIONS`]' two bounds.
-macro_rules! request_params {
-    ($($leading:expr),* $(,)?) => { request_params!($($leading),* ; ) };
-    ($($leading:expr),* ; $($trailing:expr),* $(,)?) => { &[
+macro_rules! connection_params {
+    ($($leading:expr),* ; $($exchange:expr),* $(,)? ; $($trailing:expr),* $(,)?) => { &[
     $($leading,)*
-    ParamDoc {
-        name: "url",
-        desc: "Where the request goes: a URL the program itself authored, or the \
-               `Core\\Http\\Target` that `Core\\Http::allowUrl` pinned. A `tainted` value is \
-               refused here and accepted only at that launderer.",
-        shape: &[],
-    },
-    ParamDoc {
-        name: "deadline",
-        desc: "The whole call's budget, covering the connection, every redirect hop, every retry \
-               attempt and every backoff between them. Omitted, the runtime's `[http.client] \
-               deadline` applies; there is no spelling for no deadline at all.",
-        shape: &[],
-    },
     ParamDoc {
         name: "connectTimeout",
         desc: "How long the connection alone may take, inside `deadline` rather than beside it.",
@@ -1835,6 +1997,69 @@ macro_rules! request_params {
                own headers are added around these.",
         shape: &[],
     },
+    $($exchange,)*
+    ParamDoc {
+        name: "identity",
+        desc: "The client certificate to present when the server asks for one, read by \
+               `Core\\Http\\Identity::read`. Nothing is presented to a server that does not ask. \
+               Two identities never share a pooled connection, and neither does a call that \
+               names none.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "tlsCa",
+        desc: "The PEM certificates to trust for this call, in place of the runtime's own roots. \
+               Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose \
+               host is not in it throws before connecting.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "tlsPin",
+        desc: "One `sha256//<base64>` public-key pin, or several: the peer is accepted when its \
+               SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a \
+               self-signed origin is reached. Needs the host in the `pin` grant.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "tlsVerifyHost",
+        desc: "Written as `false`, the chain is still built and checked and only the name is \
+               skipped. Needs the host in the `any_name` grant.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "tlsVerify",
+        desc: "Written as `false`, neither the chain nor the name is checked — the handshake \
+               signature still is, so the peer holds the key it presented, but nothing says whose \
+               key it is. Needs the host in the `insecure` grant.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "tlsMinVersion",
+        desc: "The version floor this call speaks over, `\"1.2\"` or `\"1.3\"`. It needs no grant \
+               because it can only tighten, and a value below the runtime's `[http.client.tls] \
+               min_version` throws.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "connectTo",
+        desc: "The IP address to connect to, instead of resolving the URL's host — which is still \
+               the name the certificate is checked against. Needs that host in the \
+               `net.connect_to` grant, and the address is judged by the deployment's address \
+               policy exactly as a resolved one is. Beside a `Core\\Http\\Target`, which already \
+               carries the address its laundering approved, it throws.",
+        shape: &[],
+    },
+    $($trailing,)*
+    ] };
+}
+
+/// A card's entries for a request row: [`connection_params`]' list with the
+/// exchange half written into it — see [`request_options`], whose keys these
+/// describe one for one.
+macro_rules! request_params {
+    ($($leading:expr),* $(,)?) => { request_params!($($leading),* ; ) };
+    ($($leading:expr),* ; $($trailing:expr),* $(,)?) => { connection_params!(
+    $($leading,)* URL_PARAM, DEADLINE_PARAM ;
     ParamDoc {
         name: "followRedirects",
         desc: "How many redirect hops to follow. Omitted, the runtime's `[http.client] \
@@ -1889,58 +2114,8 @@ macro_rules! request_params {
         name: "multipart",
         desc: "The parts to send as `multipart/form-data`, by name.",
         shape: &[],
-    },
-    ParamDoc {
-        name: "identity",
-        desc: "The client certificate to present when the server asks for one, read by \
-               `Core\\Http\\Identity::read`. Nothing is presented to a server that does not ask. \
-               Two identities never share a pooled connection, and neither does a call that \
-               names none.",
-        shape: &[],
-    },
-    ParamDoc {
-        name: "tlsCa",
-        desc: "The PEM certificates to trust for this call, in place of the runtime's own roots. \
-               Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose \
-               host is not in it throws before connecting.",
-        shape: &[],
-    },
-    ParamDoc {
-        name: "tlsPin",
-        desc: "One `sha256//<base64>` public-key pin, or several: the peer is accepted when its \
-               SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a \
-               self-signed origin is reached. Needs the host in the `pin` grant.",
-        shape: &[],
-    },
-    ParamDoc {
-        name: "tlsVerifyHost",
-        desc: "Written as `false`, the chain is still built and checked and only the name is \
-               skipped. Needs the host in the `any_name` grant.",
-        shape: &[],
-    },
-    ParamDoc {
-        name: "tlsVerify",
-        desc: "Written as `false`, neither the chain nor the name is checked — the handshake \
-               signature still is, so the peer holds the key it presented, but nothing says whose \
-               key it is. Needs the host in the `insecure` grant.",
-        shape: &[],
-    },
-    ParamDoc {
-        name: "tlsMinVersion",
-        desc: "The version floor this call speaks over, `\"1.2\"` or `\"1.3\"`. It needs no grant \
-               because it can only tighten, and a value below the runtime's `[http.client.tls] \
-               min_version` throws.",
-        shape: &[],
-    },
-    ParamDoc {
-        name: "connectTo",
-        desc: "The IP address to connect to, instead of resolving the URL's host — which is still \
-               the name the certificate is checked against. Needs that host in the \
-               `net.connect_to` grant, and the address is judged by the deployment's address \
-               policy exactly as a resolved one is. Beside a `Core\\Http\\Target`, which already \
-               carries the address its laundering approved, it throws.",
-        shape: &[],
-    },
+    }
+    ;
     ParamDoc {
         name: "redirectToHttp",
         desc: "Written as `true`, a redirect out of `https` into plaintext may be followed — and \
@@ -1950,8 +2125,8 @@ macro_rules! request_params {
                by this.",
         shape: &[],
     },
-    $($trailing,)*
-    ] };
+    $($trailing),*
+) };
 }
 
 /// Every row but `request`'s: the URL, then the bag — see [`request_params`].
@@ -1963,6 +2138,110 @@ const DYNAMIC_PARAMS: &[ParamDoc] = request_params!(METHOD_PARAM);
 /// `stream`'s: `request`'s list, and after it the two bounds that row's own bag
 /// declares — see [`STREAM_OPTIONS`].
 const STREAM_PARAMS: &[ParamDoc] = request_params!(METHOD_PARAM ; IDLE_PARAM, MAX_DURATION_PARAM);
+
+/// `openSocket`'s: the connection keys, then the group
+/// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`
+/// adds — one entry per key of [`SOCKET_OPTIONS`], in its order.
+const SOCKET_PARAMS: &[ParamDoc] = connection_params!(
+    SOCKET_URL_PARAM, SOCKET_DEADLINE_PARAM ; ;
+    PROTOCOLS_PARAM,
+    SOCKET_IDLE_PARAM,
+    SOCKET_MAX_DURATION_PARAM,
+    MAX_MESSAGE_PARAM,
+    SEND_TIMEOUT_PARAM,
+    PING_PARAM,
+);
+
+/// Where a request goes — see [`REQUEST_PARAMS`].
+const URL_PARAM: ParamDoc = ParamDoc {
+    name: "url",
+    desc: "Where the request goes: a URL the program itself authored, or the \
+           `Core\\Http\\Target` that `Core\\Http::allowUrl` pinned. A `tainted` value is \
+           refused here and accepted only at that launderer.",
+    shape: &[],
+};
+
+/// The budget a whole request runs under — see [`REQUEST_PARAMS`].
+const DEADLINE_PARAM: ParamDoc = ParamDoc {
+    name: "deadline",
+    desc: "The whole call's budget, covering the connection, every redirect hop, every retry \
+           attempt and every backoff between them. Omitted, the runtime's `[http.client] \
+           deadline` applies; there is no spelling for no deadline at all.",
+    shape: &[],
+};
+
+/// Where a socket goes — see [`SOCKET_PARAMS`].
+const SOCKET_URL_PARAM: ParamDoc = ParamDoc {
+    name: "url",
+    desc: "The peer to open the socket to, as a `ws` or `wss` URL the program itself authored, or \
+           the `Core\\Http\\Target` that `Core\\Http::allowUrl` pinned. An `http` or `https` URL \
+           is refused here and a `tainted` one is accepted only at that launderer.",
+    shape: &[],
+};
+
+/// The budget the opening handshake runs under — see [`SOCKET_PARAMS`].
+const SOCKET_DEADLINE_PARAM: ParamDoc = ParamDoc {
+    name: "deadline",
+    desc: "The opening handshake's budget, covering the connection and every address tried, and \
+           ending at the `101`. What bounds the conversation after it is `idle` and \
+           `maxDuration`. Omitted, the runtime's `[http.client] deadline` applies; there is no \
+           spelling for no deadline at all.",
+    shape: &[],
+};
+
+/// The subprotocols a socket offers — see [`SOCKET_PARAMS`].
+const PROTOCOLS_PARAM: ParamDoc = ParamDoc {
+    name: "protocols",
+    desc: "The subprotocols to offer as `Sec-WebSocket-Protocol`, most preferred first. A peer \
+           that chooses one of them is reported by `Core\\Http\\Socket::protocol`, and one that \
+           chooses a name that was never offered is refused.",
+    shape: &[],
+};
+
+/// The silence bound a socket carries — see [`SOCKET_PARAMS`].
+const SOCKET_IDLE_PARAM: ParamDoc = ParamDoc {
+    name: "idle",
+    desc: "The longest the socket may go silent for in either direction. Omitted, the runtime's \
+           `[http.client] idle` applies; there is no spelling for no bound at all. A `ping` is \
+           what makes this end a dead peer rather than a quiet one.",
+    shape: &[],
+};
+
+/// The lifetime bound a socket carries — see [`SOCKET_PARAMS`].
+const SOCKET_MAX_DURATION_PARAM: ParamDoc = ParamDoc {
+    name: "maxDuration",
+    desc: "The longest the socket may live altogether, which is what ends a peer dribbling a \
+           frame at a time under every idle check. Omitted, the runtime's `[http.client] \
+           max_duration` applies.",
+    shape: &[],
+};
+
+/// The message cap a socket carries — see [`SOCKET_PARAMS`].
+const MAX_MESSAGE_PARAM: ParamDoc = ParamDoc {
+    name: "maxMessage",
+    desc: "The largest message, in bytes, this end reassembles a peer's fragments into. A message \
+           past it closes the socket with `1009` and the waiting `receive` throws naming the cap. \
+           Omitted, the runtime's `[http.client.socket] max_message` applies.",
+    shape: &[],
+};
+
+/// The send bound a socket carries — see [`SOCKET_PARAMS`].
+const SEND_TIMEOUT_PARAM: ParamDoc = ParamDoc {
+    name: "sendTimeout",
+    desc: "The longest a frame may wait to be written to a peer that is not reading, and the \
+           wait `close` gives the peer's own close frame. Omitted, the runtime's \
+           `[http.client.socket] send_timeout` applies.",
+    shape: &[],
+};
+
+/// The ping knob — see [`SOCKET_PARAMS`].
+const PING_PARAM: ParamDoc = ParamDoc {
+    name: "ping",
+    desc: "The silence after which this end sends a ping, so that `idle` ends a dead peer rather \
+           than a quiet one. Left out, none is sent — a ping is traffic the peer did not ask for. \
+           A peer's own ping is answered either way, which is the protocol rather than a policy.",
+    shape: &[],
+};
 
 /// The silence bound `stream` carries — see [`STREAM_PARAMS`].
 const IDLE_PARAM: ParamDoc = ParamDoc {
@@ -2102,6 +2381,30 @@ const STREAM_DOC: MethodDoc = MethodDoc {
     errors: REQUEST_ERRORS,
 };
 
+/// `Core\Http\Client::openSocket`'s reference card — `rule:core-api/reference-card`.
+const OPEN_SOCKET_DOC: MethodDoc = MethodDoc {
+    short: "Opens a WebSocket to `$url` and answers it once the peer's `101` has arrived — the \
+            row for a realtime API a program talks with, rather than a reply it reads and is \
+            done with.",
+    params: SOCKET_PARAMS,
+    ret: "A `Core\\Http\\Socket` carrying the conversation: `receive()` answers the peer's next \
+          message as the `Core\\Socket\\Message` a server-side connection already answers with, \
+          `send()` and `sendBytes()` write the two payload kinds, and `close()` ends it. It \
+          belongs to the task that opened it and is closed with `1001` when that task ends, so a \
+          socket never outlives the request, command or job that holds it.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The URL is refused: it is not a URL, its scheme is neither `ws` nor `wss` — this \
+               row refuses `http` and `https` exactly as every other row refuses `ws` and `wss` — \
+               it names no host, `net.connect` does not grant that host, or it resolves to an \
+               address the deployment's policy denies. An option is outside its bounds: a \
+               `deadline`, `connectTimeout`, `idle`, `maxDuration`, `sendTimeout` or `ping` that \
+               is not a positive duration. Or the peer did not open a socket: it answered a \
+               redirect, which is never followed and names its `Location`; it answered any other \
+               status than `101`; or it chose a subprotocol that `protocols` never offered.",
+    }],
+};
+
 /// One of § 5's time bounds, judged: present and positive, or left out.
 ///
 /// # Errors
@@ -2235,7 +2538,7 @@ fn judge_attempts(args: &[Value], member: &str) -> Result<(), Fault> {
 /// does not list, and [`judge_floor`]'s. [`judged_host`]'s three cannot fire: a
 /// URL that reaches here has already been approved.
 fn judge_trust(ctx: &Ctx, args: &[Value], url: &str, member: &str) -> Result<(), Fault> {
-    let host = judged_host(url, member)?;
+    let host = judged_host(url, member, Roster::Request)?;
     for (asked, cap, option) in [
         (
             !matches!(args[TLS_CA].tag(), Some(Tag::Null)),
@@ -2570,7 +2873,7 @@ pub(crate) fn headers_of(
 /// deployment did not write, a thrown `LogicError` for a value that is not an
 /// IP literal, and `pinned_addresses`' refusal for an address the policy denies.
 fn named_address(ctx: &Ctx, url: &str, named: &str, member: &str) -> Result<Vec<IpAddr>, Fault> {
-    let host = judged_host(url, member)?;
+    let host = judged_host(url, member, Roster::Request)?;
     nvs_runtime::capability::require(ctx, Cap::NetConnect, Scope::Host(&host), member)?;
     nvs_runtime::capability::require(
         ctx,
@@ -2614,7 +2917,7 @@ fn repinned(
     if downgrade {
         judge_downgrade(ctx, args, hop, member)?;
     }
-    pin(ctx, hop, member)
+    pin(ctx, hop, member, Roster::Request)
 }
 
 /// A hop out of `https` and into `http`, against the call's own word and the
@@ -2635,7 +2938,7 @@ fn repinned(
 /// [`judged_host`]'s three, a thrown `RuntimeError` for a call that did not
 /// write the key, and `require`'s for a hop host outside the grant.
 fn judge_downgrade(ctx: &Ctx, args: &[Value], hop: &str, member: &str) -> Result<(), Fault> {
-    let host = judged_host(hop, member)?;
+    let host = judged_host(hop, member, Roster::Request)?;
     if args[REDIRECT_TO_HTTP].as_bool() != Some(true) {
         return Err(Fault::thrown(format!(
             "{member}: this `https` call was redirected to `{hop}`, which is plaintext. A \
@@ -2674,7 +2977,7 @@ fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, Vec<
     if !matches!(args[0].tag(), Some(Tag::Object)) {
         let addresses = match named {
             Some(named) => named_address(ctx, &url, named, member)?,
-            None => pin(ctx, &url, member)?,
+            None => pin(ctx, &url, member, Roster::Request)?,
         };
         return Ok((url, addresses));
     }
@@ -3531,7 +3834,7 @@ fn faked(
     streamed: bool,
 ) -> Result<(i64, Value, Value, Option<transport::Tls>), Fault> {
     let url = given_url(args, named)?;
-    judged_host(&url, named)?;
+    judged_host(&url, named, Roster::Request)?;
     judge_bound(args, DEADLINE, "deadline", named)?;
     judge_bound(args, CONNECT_TIMEOUT, "connectTimeout", named)?;
     judge_bound(args, RETRY_BACKOFF, "retryBackoff", named)?;
@@ -4538,7 +4841,7 @@ mod tests {
         // refuses what the name resolves to.
         let mut denied = Ctx::buffered();
         denied.set_config(granting(GRANTED));
-        let by_client = super::pin(&mut denied, URL, MEMBER)
+        let by_client = super::pin(&mut denied, URL, MEMBER, super::Roster::Request)
             .expect_err("loopback is the first range § 3 denies");
         let by_door = nvs_runtime::capability::pin_host_addresses(&denied, HOST, MEMBER)
             .expect_err("and the door is where that refusal is written");
@@ -4558,8 +4861,8 @@ mod tests {
         excepted.set_config(granting(
             "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n",
         ));
-        let pinned =
-            super::pin(&mut excepted, URL, MEMBER).expect("an address the deployment bought back");
+        let pinned = super::pin(&mut excepted, URL, MEMBER, super::Roster::Request)
+            .expect("an address the deployment bought back");
         assert_eq!(pinned, vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]);
         assert_eq!(
             nvs_runtime::capability::pin_host_addresses(&excepted, HOST, MEMBER)
@@ -4572,7 +4875,7 @@ mod tests {
         // at an address, so this member is not a resolver for names it may not
         // reach.
         let mut ungranted = Ctx::buffered();
-        let refused = super::pin(&mut ungranted, URL, MEMBER)
+        let refused = super::pin(&mut ungranted, URL, MEMBER, super::Roster::Request)
             .expect_err("a context with no configuration grants nothing");
         let Fault::Thrown(class, message) = refused else {
             panic!("a capability refusal is catchable — `rule:security/denial-is-a-runtime-error`");
@@ -4643,7 +4946,12 @@ mod tests {
             "[capabilities.net]\nconnect = [\"{HOST}\"]\n"
         )));
         sched.spawn(granted, TaskRoot::Worker, move |ctx| {
-            let answer = match super::pin(ctx, &format!("https://{HOST}/ok"), MEMBER) {
+            let answer = match super::pin(
+                ctx,
+                &format!("https://{HOST}/ok"),
+                MEMBER,
+                super::Roster::Request,
+            ) {
                 Ok(approved) => format!("pinned {approved:?}"),
                 Err(fault) => format!("{fault:?}"),
             };
@@ -5088,7 +5396,7 @@ mod tests {
 
         let mut proxied = Ctx::buffered();
         proxied.set_config(granting(AT_THE_PROXY));
-        let pinned = super::pin(&mut proxied, URL, LAUNDERER)
+        let pinned = super::pin(&mut proxied, URL, LAUNDERER, super::Roster::Laundered)
             .expect("the proxy resolves this destination, so the launderer had nothing to look up");
         assert!(
             pinned.is_empty(),
