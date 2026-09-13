@@ -299,21 +299,35 @@ fixture — twenty-three fixtures is twenty-three workspace fingerprint scans to
 and on the WSL leg every one of them crosses the `/mnt` mount. The `nvs-suite` checks run through the
 same binary for the same reason.
 
-Nothing is skipped, but two results are remembered. Within one run, an identical `args` list runs cargo
-once — the list names `nvs-runtime` twice on purpose, for different guard tests, and the second run
-cannot answer differently. Across runs, the three checks whose cost is *minutes* — the release-profile
-`abi-probe`, the whole WSL leg, and the valgrind sweep — are remembered in `.loop/goal-green.json`
-against a content hash of **the files those checks read**: `crates/`, `examples/`, the manifests, the
-toolchain and `loop-goal.toml` itself. Identical bytes into a deterministic check cannot come out a
-different verdict, which is the same argument `verify.py` makes for its own green cache.
+Two things are remembered, and neither decides a goal. Within one run, an identical `args` list runs
+cargo once — the list names `nvs-runtime` twice on purpose, for different guard tests, and the second
+run cannot answer differently. Across runs, **every check's green verdict** is remembered in
+`.loop/goal-green.json` against a content hash of **the partitions of the tree its kind reads** and
+of its own spec. The partitions are the top-level names — `crates/` with `benches/` and the manifests,
+`examples/`, `tests/`, `docs/`, `tools/`, `editors/`, everything else — and the sets are supersets on
+purpose: a fixture, a `.nvst` suite, an `{nvs}` command and both whole-leg memos key on the binary,
+the fixtures and the tests, and not on `docs/`, which nothing they run opens — every `docs/` in
+`examples/` and `tests/` is a comment or a citation, and `reads_of`'s comment says what to grep
+before widening that back; a crate's tests, which read `docs/spec/`, the
+goals directory and the editor's manifest at run time, key on everything but `tools/`; a Python tool,
+which may read anything, keys on the whole tree. Identical bytes into a deterministic check cannot come
+out a different verdict, which is the same argument `verify.py` makes for its own green cache, and
+`reads_of` in `tools/loop.py` is the one home of which set a kind gets. Narrowing one is a claim to
+be shown, never a tuning knob. What no partition holds is a service's state — the database a
+`queue migrate` check reaches — which is not something a session changes in the tree, and which the
+full sweep below sees exactly as every sweep used to.
 
-This used to key on the tree instead, HEAD included — and in a normal loop every session commits, so it
-almost never fired. Measured over the 21-session run in `.loop/logs/20260826-142040-*`, **8 of 22
-sessions changed nothing any of the three reads** and no session touched `examples/` at all, yet the
-valgrind sweep ran 22 times out of 22 at 58 seconds each. `tests/` and `docs/` are deliberately not
-inputs: no memoized check runs a `.nvst` case or reads a document. When both consumers of the Linux
-binary are green, the WSL build is skipped with them — never one without the other, or the sweep would
-silently fall back to a platform with no valgrind on it.
+The two files the wrap rewrites every session — the handoff and a goal's `.handoff.md` — count
+toward `docs/` by name alone and toward a `state` partition by content, which only the whole-tree
+set holds. That is what lets a session that wrote nothing but its handoff skip the floor, and it is
+why a tool command is re-run every session: `chain.py`, `plan.py` and `playbook.py` read the handoff.
+
+**A goal is never reached on the memo.** A green sweep that answered anything from the file is run
+again in full, remembering nothing, before the driver declares the goal done — `python tools/loop.py
+--goal-only --full` is the same sweep by hand. Between sessions the memo keeps the folded floor
+affordable; at the one moment a verdict decides something it is not consulted. When both consumers
+of the Linux binary are green, the WSL build is skipped with them — never one without the other, or
+the sweep would silently fall back to a platform with no valgrind on it.
 
 The sweep runs several fixtures at once, and **how many is the machine's answer, not this repo's** —
 `tools/machine.py` holds that policy and nothing else does: half the cores the work will actually see,
@@ -351,8 +365,8 @@ uses the model's own default, which is `high` on opus-5 — the run's setting go
 (uncapped by default), `--max-stalls`,
 `--max-retries`, `--delay-seconds`,
 `--max-limit-wait` (how long a closed usage window may be waited out before the run stops instead; 6h),
-`--full-output` (echo every tool call's full input and result, no truncation anywhere), `--goal-only`,
-`--list`, `--no-status`.
+`--full-output` (echo every tool call's full input and result, no truncation anywhere), `--goal-only`
+(with `--full`, consulting no memo), `--list`, `--no-status`.
 
 A status line holds the bottom row for as long as the driver is up, under everything that scrolls past
 it: the spinner, where the run is (`session 3/12`), what it is doing (`orienting`, `working`,

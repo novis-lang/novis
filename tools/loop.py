@@ -1599,17 +1599,74 @@ def stage_key(check):
     return (int(lead.group(1)) if lead else 10**6, text)
 SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 
-# Checks whose cost is minutes and whose answer is a pure function of the tree: the release-profile
-# probe (`lto = "thin"`, `codegen-units = 1`), the second toolchain's whole leg, and a valgrind run
-# per fixture. A green verdict on these is remembered against the commit that produced it -- see
-# `Goal.remembered`.
-EXPENSIVE = {"abi-probe", "wsl leg", "valgrind sweep"}
+# -- what a check reads, and so what its green verdict is keyed on ------------------------------
+#
+# Every check's green verdict is remembered across runs against a content hash of the PARTITIONS
+# of the tree its kind reads -- `Goal.remembered` -- and a partition is a set of top-level names.
+# A check is skipped only when every byte it can read is identical to the bytes it was last green
+# over: a deterministic check over identical inputs cannot reach a different verdict, which is
+# `verify.py`'s rule for its own green cache. Nothing is keyed on what a session says it touched,
+# because a session's diff is not what a check reads, and the dirty tree counts as much as HEAD.
+#
+# Each set is a SUPERSET on purpose, and the safe direction is always wider. A fixture reads the
+# binary, its own file and whatever it opens -- `examples/*.nvs` name paths under `tests/` -- so
+# a program's set is those three, and the two whole-leg memos, the `.nvst` suites and an `{nvs}`
+# command read the same things. `docs/` is not in that set on evidence, not on trust: every
+# `docs/` in `examples/` and `tests/` is a comment, a case's title citation or a string a program
+# never opens, and nothing under `crates/*/src` reads a path there -- `grep -rn "docs/"` over the
+# three is what to re-run before widening it back. A crate's tests read the tree at run time (the
+# policy tests grep other crates' sources, `nvs-stdlib`'s `spec_registry_coverage` walks
+# `docs/agent/goals/` and reads `docs/spec/`, `nvs-lsp`'s `extension_reference` reads
+# `editors/vscode/package.json`), so a cargo check's set is every partition but `tools/`, which
+# nothing under `crates/` opens. A Python tool
+# reads whatever it likes -- `chain.py`, `plan.py` and `playbook.py` read the handoff -- so a tool
+# command keys on the whole tree, the session's own state files included, and is the one kind a
+# wrap invalidates every session. Narrowing a set is a claim to be shown, not a knob to turn.
+#
+# What no partition holds is a SERVICE's state -- the database a `queue migrate` check or the
+# `examples/queue.nvs` fixture reaches -- so a memo cannot see that drift. It is not a change a
+# session makes to the tree, which is what the memo exists to catch, and the full sweep the driver
+# runs before a goal is reached (`full`) sees it exactly as every sweep used to.
+PARTITIONS = {
+    "crates": ("crates", "benches", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
+               "rustfmt.toml", "deny.toml", "nvs.toml"),
+    "examples": ("examples",),
+    "tests": ("tests",),
+    "docs": ("docs",),
+    "tools": ("tools",),
+    "editors": ("editors",),
+}
+# Every other top-level entry -- `website/`, `fuzz/`, `docker/`, `AGENTS.md`, the dotfiles -- is
+# `other`. The files the wrap rewrites every session are `state`: the `docs` partition counts them
+# by NAME only, so that a handoff does not stale every fixture, suite and crate test in the tree,
+# and only a set that holds `state` sees their bytes.
+OTHER, STATE = "other", "state"
+STATE_FILES = re.compile(r"^docs/agent/(handoff\.md|goals/[^/]+\.handoff\.md)$")
+NOT_INPUTS = {".git", "target", ".loop", ".agent-tmp", "node_modules", "out", ".vscode-test",
+              "__pycache__"}
+EVERYTHING = tuple(PARTITIONS) + (OTHER, STATE)
+PROGRAM_READS = ("crates", "examples", "tests")
+CARGO_READS = ("crates", "examples", "tests", "docs", "editors")
+EDITOR_READS = ("crates", "editors")
+# The two memos that are a whole leg rather than a check: keyed like a program, because that is
+# what they run. `Goal.__init__` builds their specs.
+LEG_MEMOS = ("wsl leg", "valgrind sweep")
 
-# What a memoizable check reads, and so what its verdict is keyed on -- see `Goal.inputs_id`.
-# `tests/` and `docs/` are deliberately absent: nothing keyed on this runs a `.nvst` case.
-MEMO_DIRS = ("crates", "examples")
-MEMO_FILES = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "docs/agent/loop-goal.toml")
-MEMO_NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
+
+def reads_of(c):
+    """The partitions this check's verdict can depend on, from its kind and what it runs."""
+    kind = c["kind"]
+    if kind in PROGRAM_KINDS or kind == "nvs-suite" or kind in LEG_MEMOS:
+        return PROGRAM_READS
+    if kind == "cargo-named":
+        return CARGO_READS
+    if kind == "command":
+        argv = c.get("argv", [])
+        if argv and argv[0] == "{nvs}":
+            return PROGRAM_READS
+        if argv and argv[0] == "npm" and c.get("cwd", ".").startswith("editors/"):
+            return EDITOR_READS
+    return EVERYTHING
 
 #: The sweep runs several fixtures at once. It was strictly serial once, and is 42% of an
 #: acceptance check -- 21.3 of its 50.3 minutes over the 20260826-142040 run, 58s a session for 20
@@ -1729,6 +1786,8 @@ CHECK_KEYS = {
     "nvs-suite":   (("name", "args"),             ("cases", "memoize", "min_passing")),
     "cargo-named": (("name", "args", "tests"),    ("memoize",)),
 }
+# `memoize` is accepted and read by nothing: every check is remembered against what it reads now
+# (`reads_of`), and the goal files that carry the key still have to load.
 # Allowed on every kind. `stage` is read by this driver for the run order and by `holes.py` for the
 # worklist it prints, which is why an unstaged check is still legal but a misspelled one is not.
 COMMON_KEYS = ("kind", "stage")
@@ -1771,7 +1830,6 @@ def validate_spec(spec):
     if not isinstance(checks, list):
         raise GoalError("`check` must be a list of `[[check]]` tables")
 
-    memo_names = {}
     for i, c in enumerate(checks, 1):
         named = c.get("name") or c.get("file") or "unnamed"
         where = f"check {i}, {named} [{c.get('stage', '?')}]"
@@ -1805,14 +1863,6 @@ def validate_spec(spec):
         if "file" in c and c["file"] not in files:
             raise GoalError(f"{where}: {c['file']} is not in `files`, so nothing checks it is on "
                             f"disk and the valgrind sweep never sees it")
-        # A memo is keyed on the name alone, so two memoizable checks sharing one means the first
-        # to go green skips the second for the rest of the run. Unmemoized duplicates are fine and
-        # the goal file has a pair on purpose: two stages naming the same suite over the same cases.
-        if c.get("memoize") or named in EXPENSIVE:
-            if named in memo_names:
-                raise GoalError(f"{where}: a memoized check is already named {named!r} at "
-                                f"check {memo_names[named]}, and the memo is keyed on the name")
-            memo_names[named] = i
 
         argv = [a for a in c.get("argv", []) if isinstance(a, str)]
         for (tool, flag), (instead, why) in CHORE_ARGV.items():
@@ -1868,13 +1918,18 @@ class Goal:
       stales. A sweep paid that seven times over -- 28s of rebuilds in front of 25s of tests --
       plus a cargo start per check. What this path does not run is doc-tests, which no `tests`
       list can name anyway (a doc-test is `path.rs - Item (line N)`); `verify.py` runs them.
-    * **Across runs**, the three checks in `EXPENSIVE` are remembered against a content hash of
-      *the files they read* -- `crates/`, `examples/`, the manifests, the toolchain and the goal
-      file (`inputs_id`). Those inputs being bit-identical is the whole argument: a deterministic
-      check over identical bytes cannot reach a different verdict, which is `verify.py`'s rule for
-      its own green cache. It used to key on the tree instead, HEAD included, and every session
-      commits -- so the memo never once fired inside a run. `tests/` and `docs/` are not inputs to
-      any of the three, and 8 of 22 sessions of one measured run touched nothing else.
+    * **Across runs**, every check's green verdict is remembered in `.loop/goal-green.json`
+      against a content hash of *the partitions of the tree its kind reads* (`reads_of`,
+      `partition_ids`) and of its own spec. Those inputs being bit-identical is the whole
+      argument: a deterministic check over identical bytes cannot reach a different verdict,
+      which is `verify.py`'s rule for its own green cache. It used to key on the tree instead,
+      HEAD included, and every session commits -- so the memo never once fired inside a run --
+      and then on `crates/` and `examples/` for three checks whose cost was minutes, while the
+      floor that a walked goal folds into the next one grew to some seven hundred checks that ran
+      whole every session over a tree most sessions had not touched where it mattered. Between
+      sessions the memo is what keeps that floor affordable. **A goal is never reached on it**:
+      the driver re-runs a green sweep with `full` set, remembering nothing, before it declares
+      the goal done, so the memo only ever decides that a session is not yet finished.
     """
 
     def __init__(self, spec):
@@ -1917,9 +1972,21 @@ class Goal:
         self._exes = None  # package -> [(target, exe, dir)] off the workspace build; see test_executables
         self._crate_runs = {}  # package -> Result of its binaries, within one check() call
         self._tree = ""
-        self._inputs = None  # content hash of what the memoizable checks read; see `inputs_id`
-        self._green = {}  # check name -> the `inputs_id` it was last green over
-        self._memoized = {c["name"] for c in self.checks if c.get("memoize") and "name" in c}
+        self._parts = None  # partition name -> content hash, or None if unreadable; see `partition_ids`
+        self._green = {}  # memo key -> the inputs hash it was last green over; see `remembered`
+        self._green_dirty = False  # `_green` holds a verdict `.loop/goal-green.json` does not yet
+        self.full = False  # consult no memo: a goal is reached only on a sweep that skipped nothing
+        self.skipped = []  # memo keys this run answered from the file rather than by running
+        # The two memos that are a leg rather than a check, as specs so they key like one: the
+        # fixtures they run over, and for the valgrind sweep the suppressions it runs under.
+        supp = ROOT / "tools" / "valgrind.supp"
+        self.leg_specs = {
+            "wsl leg": {"kind": "wsl leg", "name": "wsl leg", "files": list(self.files),
+                        "programs": list(self.all_programs)},
+            "valgrind sweep": {"kind": "valgrind sweep", "name": "valgrind sweep",
+                               "files": list(self.files), "skip": sorted(self.valgrind_skip),
+                               "supp": supp.read_text(encoding="utf-8") if supp.is_file() else ""},
+        }
         self._prebuild = None  # the thread warming the release profile
         self._prebuilt = ()  # the args it is warming, so `cargo()` knows to wait for it
         self.release_gate = True  # may the release profile be built, and its cost guards run?
@@ -2141,7 +2208,7 @@ class Goal:
         for c in self.checks:
             if c["kind"] in PROGRAM_KINDS or "--release" not in c.get("args", []):
                 continue
-            return None if self.remembered(c["name"]) else c["args"]
+            return None if self.remembered(c) else c["args"]
         return None
 
     def release_cli(self):
@@ -2160,7 +2227,7 @@ class Goal:
         for c in self.checks:
             if not measures_release_cli(c):
                 continue
-            return None if self.remembered(c["name"]) else ["build", "--release", "-p", "nvs-cli"]
+            return None if self.remembered(c) else ["build", "--release", "-p", "nvs-cli"]
         return None
 
     def prebuild(self):
@@ -2209,97 +2276,148 @@ class Goal:
         """HEAD, plus a hash of everything not committed. Two runs with the same id are two runs
         over the same bytes, so a deterministic check cannot answer them differently.
 
-        Kept for reporting. It is NOT what the memos key on any more, and `inputs_id` says why."""
+        Kept for reporting. It is NOT what the memos key on, and `partition_ids` says why."""
         head = git("rev-parse", "HEAD") or "no-head"
         dirty = git("status", "--porcelain") + "\n" + git("diff", "HEAD")
         return head + ":" + hashlib.blake2b(dirty.encode("utf-8", "replace"),
                                             digest_size=8).hexdigest()
 
-    def inputs_id(self):
-        """A content hash of every file the memoizable checks READ, and the compiler that builds it.
+    def partition_ids(self):
+        """One content hash per partition of the tree (`PARTITIONS`, `OTHER`, `STATE`), the
+        compiler folded into `crates`, or `None` when anything was unreadable -- and then no memo
+        fires and every check runs, which is `verify.py`'s rule as well: the safe direction is
+        doing the work.
 
-        This is the whole fix for a memo that never fired. It used to key on `tree_id` -- HEAD plus
-        the dirty tree -- and every session commits, so HEAD moved every session and all three
-        expensive verdicts were thrown away whatever had changed. Measured over the 21-session run
-        in `.loop/logs/20260826-142040-*`: 8 of 22 sessions changed nothing any of these three
-        checks reads, and NO session in the whole run touched `examples/` at all, yet the valgrind
-        sweep ran 22 times out of 22 at 58 seconds a time.
-
-        What they actually read is below, and it is deliberately a SUPERSET of what they need --
-        the whole of `crates/` for the binary they run, the whole of `examples/` for the programs,
-        every manifest, the toolchain, and the goal file whole (its `files`, `[valgrind] skip` and
-        `[[check]]` lists all steer the sweep, and hashing the whole file rather than those three
-        sections means a section added later cannot be missed). `tests/` and `docs/` are absent on
-        purpose: no check keyed on this executes a `.nvst` case or reads a document.
-
-        Widening this is safe and narrowing it is not, so anything unreadable returns `None` and
-        every memo falls through to running for real, which is `verify.py`'s rule as well.
+        One walk of the tree, every file's path and bytes fed to the hasher of the partition its
+        top-level entry belongs to. The dirty tree is what is hashed, not HEAD: a session's
+        uncommitted edit stales exactly what it would stale committed. What git IGNORES is not
+        hashed: by `.gitignore`'s own comments every rule there is build output, a cache or
+        machine-local state, and two of them are written by the sweep itself -- the packaged
+        `.vsix` and the SQLite queue's database -- so hashing them made every run a new tree and
+        the memo never fired. A session's work lands only in tracked or untracked-unignored files.
+        `NOT_INPUTS` is the same idea as a prune list, so the walk never enters `target/`. A
+        `STATE_FILES` match is fed to `state` whole and to its own partition by name alone, so a
+        rewritten handoff changes `state` and nothing else.
         """
+        hashers = {name: hashlib.blake2b(digest_size=16) for name in EVERYTHING}
+        hashers["crates"].update(rustc_version().encode("utf-8", "replace"))
+        owner = {top: name for name, tops in PARTITIONS.items() for top in tops}
+        # A file path, or a wholly ignored directory with a trailing `/`. Empty when git cannot
+        # answer, and then everything is hashed, which is the wide direction.
+        ignored = {p for p in git("ls-files", "--others", "--ignored", "--exclude-standard",
+                                  "--directory").split("\n") if p}
+
+        def feed(h, rel, path):
+            h.update(rel.encode("utf-8") + b"\0")
+            h.update(path.read_bytes())
+            h.update(b"\0")
+
         try:
-            h = hashlib.blake2b(digest_size=16)
-            h.update(rustc_version().encode("utf-8", "replace"))
-            for name in MEMO_FILES:
-                p = ROOT / name
-                h.update(name.encode("utf-8") + b"\0")
-                h.update(p.read_bytes() if p.is_file() else b"")
-                h.update(b"\0")
-            for top in MEMO_DIRS:
+            for top in sorted(os.listdir(ROOT)):
+                if top in NOT_INPUTS or top in ignored or f"{top}/" in ignored:
+                    continue
+                name = owner.get(top, OTHER)
                 base = ROOT / top
+                if base.is_file():
+                    feed(hashers[name], top, base)
+                    continue
                 if not base.is_dir():
                     continue
                 for dirpath, dirnames, filenames in os.walk(base):
-                    dirnames[:] = sorted(d for d in dirnames if d not in MEMO_NOT_INPUTS)
-                    rel = Path(dirpath).relative_to(ROOT)
+                    rel = Path(dirpath).relative_to(ROOT).as_posix()
+                    dirnames[:] = sorted(d for d in dirnames
+                                         if d not in NOT_INPUTS and f"{rel}/{d}/" not in ignored)
                     for f in sorted(filenames):
-                        h.update((rel / f).as_posix().encode("utf-8") + b"\0")
-                        h.update((ROOT / rel / f).read_bytes())
-                        h.update(b"\0")
-            return h.hexdigest()
+                        relf = f"{rel}/{f}"
+                        if relf in ignored:
+                            continue
+                        if STATE_FILES.match(relf):
+                            feed(hashers[STATE], relf, ROOT / relf)
+                            hashers[name].update(relf.encode("utf-8") + b"\0")
+                            continue
+                        feed(hashers[name], relf, ROOT / relf)
         except OSError:
             return None
+        return {name: h.hexdigest() for name, h in hashers.items()}
 
-    def memoizable(self, name):
-        """Whether a green verdict on `name` may be remembered against the tree that produced it.
+    def memo_key(self, c, leg=""):
+        """What a check's verdict is filed under: its name or fixture, the leg when it runs on one,
+        and a digest of its whole spec -- so a `want` rewritten in the goal file is a different key,
+        and two checks that are the same check share one."""
+        spec = json.dumps(c, sort_keys=True)
+        digest = hashlib.blake2b(spec.encode("utf-8"), digest_size=6).hexdigest()
+        name = c.get("name") or c.get("file") or c["kind"]
+        return f"{leg + ' ' if leg else ''}{name} #{digest}"
 
-        Two sources, and both are about cost rather than confidence: `EXPENSIVE` is the three checks
-        this driver has always known are minutes long, and `_memoized` is whatever the goal itself
-        marked `memoize = true` -- which a `command` check needs, since the goal is the only thing
-        that knows an `npm` script downloads an editor."""
-        return name in EXPENSIVE or name in self._memoized
+    def inputs_for(self, c):
+        """The hash of everything this check can read, over the partitions `reads_of` names, or
+        `None` when the tree could not be hashed."""
+        if self._parts is None:
+            return None
+        h = hashlib.blake2b(digest_size=16)
+        for name in reads_of(c):
+            h.update(name.encode("utf-8") + b"\0" + self._parts[name].encode("utf-8") + b"\0")
+        return h.hexdigest()
 
-    def remembered(self, name):
+    def remembered(self, c, leg=""):
         """Was this check green over inputs bit-identical to the ones on disk right now?
 
-        `None` from `inputs_id` -- something unreadable -- is not a match, so the check runs."""
-        return (self.memoizable(name) and self._inputs is not None
-                and self._green.get(name) == self._inputs)
+        Never with `full` set, and never when the tree could not be hashed. Pure: `plan_size` asks
+        this before the sweep to count what it will pay for, and `skip` is what records an answer
+        the sweep actually took."""
+        if self.full:
+            return False
+        want = self.inputs_for(c)
+        return want is not None and self._green.get(self.memo_key(c, leg)) == want
 
-    def remember(self, name):
-        if self.memoizable(name) and self._inputs is not None:
-            self._green[name] = self._inputs
-            try:
-                GOALCACHE.parent.mkdir(exist_ok=True)
-                GOALCACHE.write_text(
-                    json.dumps({"tree": self._tree, "inputs": self._inputs,
-                                "green": dict(sorted(self._green.items()))}, indent=1),
-                    encoding="utf-8", newline="\n",
-                )
-            except OSError:
-                pass
+    def skip(self, c, leg="", what=""):
+        """`remembered`, taken: the key goes on `skipped` for the cost line and the goal-end
+        decision, and the status line says what was not run."""
+        if not self.remembered(c, leg):
+            return False
+        key = self.memo_key(c, leg)
+        if key not in self.skipped:
+            self.skipped.append(key)
+        label = what or f"{leg + ' ' if leg else ''}{c.get('name') or c.get('file')}"
+        self.trace(f"{label} (green on these inputs already)")
+        return True
+
+    def remember(self, c, leg=""):
+        want = self.inputs_for(c)
+        if want is not None:
+            self._green[self.memo_key(c, leg)] = want
+            self._green_dirty = True
+
+    def save_green(self):
+        """Write the memo out, keeping only keys this goal can ask about again -- a check struck
+        from the goal file, or a floor folded away, leaves nothing behind. Once per sweep rather
+        than per verdict: seven hundred rewrites of one file a run is what that would be."""
+        if not self._green_dirty:
+            return
+        keys = {self.memo_key(c) for c in self.checks if c["kind"] not in PROGRAM_KINDS}
+        keys |= {self.memo_key(c, "native") for c in self.all_programs}
+        keys |= {self.memo_key(spec) for spec in self.leg_specs.values()}
+        green = {k: v for k, v in sorted(self._green.items()) if k in keys}
+        try:
+            GOALCACHE.parent.mkdir(exist_ok=True)
+            GOALCACHE.write_text(
+                json.dumps({"tree": self._tree, "partitions": self._parts, "green": green},
+                           indent=1),
+                encoding="utf-8", newline="\n",
+            )
+            self._green_dirty = False
+        except OSError:
+            pass
 
     def load_green(self):
         self._tree = self.tree_id()
-        self._inputs = self.inputs_id()
+        self._parts = self.partition_ids()
         self._green = {}
         try:
             entry = json.loads(GOALCACHE.read_text(encoding="utf-8"))
             green = entry.get("green")
             if isinstance(green, dict):
                 self._green = {k: v for k, v in green.items() if isinstance(v, str)}
-            elif isinstance(green, list) and entry.get("tree") == self._tree:
-                # The old shape: a list of names under one whole-tree key. Honour it for this run
-                # rather than throwing a green verdict away on the version that changes the format.
-                self._green = {name: self._inputs for name in green}
         except (OSError, ValueError):
             pass
 
@@ -2358,8 +2476,6 @@ class Goal:
         label = f"{c['name']} [{c.get('stage', '?')}]"
 
         if c["kind"] == "command":
-            if self.remembered(c["name"]):
-                return ""
             # `{nvs}` is the CLI the leg already built. A check that wants to run a subcommand --
             # `nvs config check`, `nvs build --openapi`, `nvs queue migrate` -- would otherwise
             # either hard-code a profile-dependent path or pay for a second `cargo run`, which is
@@ -2385,7 +2501,6 @@ class Goal:
             want = c.get("want", [])
             if not ordered_in(r.out + "\n" + r.err, want):
                 return f"{label}: output lacks, in order: {' -> '.join(want)}"
-            self.remember(c["name"])
             return ""
 
         if c["kind"] == "nvs-suite":
@@ -2459,8 +2574,7 @@ class Goal:
     def valgrind(self, leg):
         """Every fixture under `valgrind --leak-check=full`, over the binary the leg already
         built. In WSL on Windows, directly on Linux."""
-        if self.remembered("valgrind sweep"):
-            self.trace("valgrind sweep (green on these inputs already)")
+        if self.skip(self.leg_specs["valgrind sweep"], what="valgrind sweep"):
             return ""
         if leg.name == "native" and shutil.which("valgrind") is None:
             self.trace("valgrind sweep skipped -- no valgrind on this platform")
@@ -2551,7 +2665,7 @@ class Goal:
             return fails[0] + (f"  (and {len(fails) - 1} more: "
                                f"{', '.join(x.split(':')[0] for x in fails[1:])})"
                                if len(fails) > 1 else "")
-        self.remember("valgrind sweep")
+        self.remember(self.leg_specs["valgrind sweep"])
         return ""
 
     # -- the whole thing ----------------------------------------------------------------
@@ -2592,10 +2706,11 @@ class Goal:
         end at 40% -- and it never undercounts, so the bar cannot reach 100% with work left.
         """
         programs = len(self.all_programs)
+        wsl_leg, vg = self.leg_specs["wsl leg"], self.leg_specs["valgrind sweep"]
         sweep = sum(1 for f in self.files if f not in self.valgrind_skip)
         # Only the wsl leg's valgrind is a given: on a native leg the sweep is skipped outright
         # when the platform has no valgrind, and counting it would strand the bar short of 100%.
-        sweepable = not self.remembered("valgrind sweep") and bool(wsl or shutil.which("valgrind"))
+        sweepable = not self.remembered(vg) and bool(wsl or shutil.which("valgrind"))
 
         n = 1  # the input fingerprint, already spent by the time this is called
         if mode == "leg":
@@ -2605,18 +2720,20 @@ class Goal:
 
         if self.fast_check() is not None:
             n += 1  # last session's failing check, tried before anything is built
-        n += 1 + len(self.catch_up_checks) + programs  # native build, catch-up, native fixtures
+        n += 1  # the native build
+        n += sum(1 for c in self.catch_up_checks if not self.remembered(c))
+        n += sum(1 for c in self.all_programs if not self.remembered(c, "native"))
         # The shared workspace test build, paid once by the first plain `cargo test -p` check.
         if any(plain_crate_test(c.get("args", [])) for c in self.catch_up_checks + self.cargo_checks):
             n += 1
-        n += sum(1 for c in self.cargo_checks if not self.remembered(c["name"]))
-        n += sum(1 for c in self.release_checks if not self.remembered(c["name"]))
+        n += sum(1 for c in self.cargo_checks if not self.remembered(c))
+        n += sum(1 for c in self.release_checks if not self.remembered(c))
         # The whole Linux leg -- probe, build and fixtures -- is skipped when its two consumers are
         # both green over these inputs, so none of the three is counted then either.
-        if not (self.remembered("wsl leg") and self.remembered("valgrind sweep")):
+        if not (self.remembered(wsl_leg) and self.remembered(vg)):
             n += 1  # the wsl probe
             if wsl:
-                n += 1 + (0 if self.remembered("wsl leg") else programs)
+                n += 1 + (0 if self.remembered(wsl_leg) else programs)
         return n + (sweep if sweepable else 0)
 
     def begin(self, mode="check"):
@@ -2629,11 +2746,12 @@ class Goal:
         self._exes = None
         self._crate_runs = {}
         self.short = []  # thresholds not met yet, judged after everything else
+        self.skipped = []
         self._begun = time.monotonic()
         TICKER.set(done=0, total=0)
-        # Two hashes: the `git diff HEAD` behind `tree_id`, and the content walk of `crates/` and
-        # `examples/` behind `inputs_id`. Both are a visible pause before any check has started, so
-        # the ticker is told what is happening rather than appearing to hang on nothing.
+        # Two hashes: the `git diff HEAD` behind `tree_id`, and the content walk of the tree behind
+        # `partition_ids`. Both are a visible pause before any check has started, so the ticker is
+        # told what is happening rather than appearing to hang on nothing.
         self.trace("fingerprinting what the memoizable checks read")
         self.timed("input fingerprint", self.load_green)
         TICKER.set(total=self.plan_size(mode, wsl_available()))
@@ -2648,7 +2766,10 @@ class Goal:
         and the second origin's lifetime begins in the middle of it."""
         with contextlib.ExitStack() as origins:
             self.origins = origins
-            return self._check(verbose)
+            try:
+                return self._check(verbose)
+            finally:
+                self.save_green()
 
     def _check(self, verbose=False):
         self.verbose = verbose
@@ -2676,10 +2797,13 @@ class Goal:
             return fail
 
         for c in self.catch_up_checks:
+            if self.skip(c, what=f"cargo {c['name']} (catch-up)"):
+                continue
             trace(f"cargo {c['name']} (catch-up)")
             fail = self.run_cargo_check(c, native)
             if fail:
                 return fail
+            self.remember(c)
 
         # Held for the whole sweep and not just for the fixtures: on a Linux host `leg` stays
         # `native`, so this is also the origin the valgrind sweep's own run of `examples/http.nvs`
@@ -2693,22 +2817,25 @@ class Goal:
         # the cargo checks, the WSL leg, the valgrind sweep or the release checks.
         fails = []
         for c in self.program_floor:
+            if self.skip(c, native.name):
+                continue
             trace(f"{native.name} {c['file']}")
             fail = self.program_check(native, c)
             if fail:
                 fails.append((stage_key(c), c, fail))
+            else:
+                self.remember(c, native.name)
         if fails:
             return self.report_program_fails(fails)
 
         for c in self.cargo_checks:
-            if self.remembered(c["name"]):
-                trace(f"cargo {c['name']} (green on these inputs already)")
+            if self.skip(c, what=f"cargo {c['name']}"):
                 continue
             trace(f"cargo {c['name']}")
             fail = self.run_cargo_check(c, native)
             if fail:
                 return fail
-            self.remember(c["name"])
+            self.remember(c)
 
         # NOW the current goal's own fixtures, behind the cargo checks of the stages they sit on
         # top of. `Goal.__init__` owns why this is the order; the short version is that a goal's
@@ -2716,10 +2843,14 @@ class Goal:
         # tells a session only that the end is not built yet.
         fails = []
         for c in self.program_checks:
+            if self.skip(c, native.name):
+                continue
             trace(f"{native.name} {c['file']}")
             fail = self.program_check(native, c)
             if fail:
                 fails.append((stage_key(c), c, fail))
+            else:
+                self.remember(c, native.name)
         if fails:
             return self.report_program_fails(fails)
 
@@ -2732,9 +2863,12 @@ class Goal:
         # `leg` would stay `native` and the sweep would quietly downgrade to a platform with no
         # valgrind on it.
         leg = native
+        wsl_leg = self.leg_specs["wsl leg"]
         trace("asking whether there is a wsl leg")
-        if self.remembered("wsl leg") and self.remembered("valgrind sweep"):
-            trace("wsl leg and valgrind sweep both green on these inputs -- neither is rebuilt")
+        if self.remembered(self.leg_specs["valgrind sweep"]) and self.skip(
+                wsl_leg, what="wsl leg and valgrind sweep both green on these inputs -- "
+                              "neither is rebuilt"):
+            pass  # `valgrind()` below notes its own skip
         elif self.timed("wsl probe", wsl_available):
             leg = WslLeg(self.wsl_target)
             trace("building the wsl CLI")
@@ -2744,9 +2878,7 @@ class Goal:
             # Before the branch below rather than inside it: the sweep runs on this leg even when
             # its fixtures are already green on these inputs, and it runs `examples/http.nvs` too.
             self.origins.enter_context(local_origin(leg))
-            if self.remembered("wsl leg"):
-                trace("wsl fixtures (green on these inputs already)")
-            else:
+            if not self.skip(wsl_leg, what="wsl fixtures"):
                 # Same sweep-then-report as the native leg above: a Linux-only divergence is
                 # worth knowing the extent of, not just the first instance of.
                 leg_fails = []
@@ -2757,7 +2889,7 @@ class Goal:
                         leg_fails.append((stage_key(c), c, fail))
                 if leg_fails:
                     return self.report_program_fails(leg_fails)
-                self.remember("wsl leg")
+                self.remember(wsl_leg)
 
         trace("valgrind sweep")
         fail = self.valgrind(leg)
@@ -2779,8 +2911,7 @@ class Goal:
         # terms either, because the sweep it now runs behind is shorter than the build it used to
         # wait on.
         for c in self.release_checks:
-            if self.remembered(c["name"]):
-                trace(f"cargo {c['name']} (green on these inputs already)")
+            if self.skip(c, what=f"cargo {c['name']}"):
                 continue
             if not self.release_gate:
                 self.release_owed.append(c["name"])
@@ -2790,7 +2921,7 @@ class Goal:
             fail = self.run_cargo_check(c, native)
             if fail:
                 return fail
-            self.remember(c["name"])
+            self.remember(c)
 
         # Last, because a corpus that is merely still growing is the one failure that must not hide
         # anything: everything above is a claim about whether the language is correct on both legs
@@ -2879,7 +3010,8 @@ class Goal:
             fail = self.run_cargo_check(c, native)
             if fail:
                 return fail
-            self.remember(c["name"])
+            self.remember(c)
+        self.save_green()
         return ""
 
     def leg_check(self, verbose=False):
@@ -2887,7 +3019,10 @@ class Goal:
         shape as `check` above, and for the same reason."""
         with contextlib.ExitStack() as origins:
             self.origins = origins
-            return self._leg_check(verbose)
+            try:
+                return self._leg_check(verbose)
+            finally:
+                self.save_green()
 
     def _leg_check(self, verbose=False):
         """The Linux leg on its own: every fixture, both suites and the valgrind sweep against a
@@ -2951,7 +3086,9 @@ class Goal:
         wall = time.monotonic() - self._begun
         worst = sorted(self.ran, key=lambda x: -x[1])[:3]
         slow = ", ".join(f"{label} {s:.0f}s" for label, s in worst if s >= 1)
-        return f"{wall:.0f}s over {len(self.ran)} check(s)" + (f"; slowest: {slow}" if slow else "")
+        skipped = f", {len(self.skipped)} remembered" if self.skipped else ""
+        return (f"{wall:.0f}s over {len(self.ran)} check(s){skipped}"
+                + (f"; slowest: {slow}" if slow else ""))
 
 
 def load_goal():
@@ -4595,6 +4732,9 @@ def run_cli():
         help="do not paint the live status line (it is off by itself when stdout is not a terminal)"
     )
     ap.add_argument("--goal-only", action="store_true", help="run the acceptance test and exit")
+    ap.add_argument("--full", action="store_true",
+                    help="with --goal-only: consult no memo, run every check as the driver does "
+                         "before it declares a goal reached")
     ap.add_argument(
         "--leg-only", action="store_true",
         help="run just the Linux leg -- every fixture, both suites and the valgrind sweep against a "
@@ -4719,7 +4859,8 @@ def run_cli():
         say(f"console log: {rel_to_root(path)}", C.GRAY)
 
     if opts.goal_only:
-        say("running the acceptance test ...", C.CYAN)
+        goal.full = opts.full
+        say("running the acceptance test ..." + (" (full: no memo)" if opts.full else ""), C.CYAN)
         fail = goal.check(verbose=True)
         say(f"\ncost: {goal.summary()}", C.GRAY)
         if fail:
@@ -4865,7 +5006,7 @@ RELEASE_GATE_EVERY = 5
 
 def read_counter(path, every):
     """Sessions since a periodic gate last fired. An unreadable file fires it rather than skipping
-    it, which is `inputs_id`'s rule and `verify.py`'s: the safe direction is doing the work."""
+    it, which is `partition_ids`'s rule and `verify.py`'s: the safe direction is doing the work."""
     try:
         return int(json.loads(path.read_text(encoding="utf-8")).get("since", 0))
     except (OSError, ValueError, TypeError):
@@ -5266,8 +5407,19 @@ def drive(opts, goal, chain):
         step(f"acceptance check: build, fixtures, suites, wsl leg, valgrind{held}", C.CYAN)
         checked = time.monotonic()
         fail = goal.check(verbose=True)
-        # A green sweep is the end of a goal, and a goal must not be reached on one that skipped a
-        # cost guard. `release_catch_up` says why this is the whole of that argument.
+        # A green sweep is the end of a goal, and a goal is not reached on a sweep that answered
+        # anything from the memo: the whole list runs again, once, remembering nothing. Between
+        # sessions the memo is what keeps the folded floor affordable; at the one moment a verdict
+        # decides something -- this goal is done -- it is not consulted. `Goal.remembered` owns
+        # why a skipped check could not have changed; this is that argument checked.
+        if not fail and goal.skipped:
+            step(f"scoped sweep green with {len(goal.skipped)} check(s) remembered -- running "
+                 f"every one of them before the goal is reached", C.CYAN)
+            ledger(f"       goal cost: {goal.summary()} (scoped; confirming in full)")
+            goal.full = True
+            fail = goal.check(verbose=True)
+        # Nor on one that skipped a cost guard. `release_catch_up` says why this is the whole of
+        # that argument.
         if not fail and goal.release_owed:
             fail = goal.release_catch_up(verbose=True)
         write_counter(RELEASEGATE, 0 if goal.release_gate else release_since)
