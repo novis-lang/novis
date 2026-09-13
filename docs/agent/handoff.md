@@ -3,41 +3,60 @@
 ## State
 
 **Goal `process-cache` — a value outlives a request in the serving process, and a secret does so only
-sealed — has its record. Stage 2 is done; no code of the goal has landed yet.** Goal `http-client`'s whole
-list is this goal's Stage 1 floor and still passes.
+sealed. Stage 3's two configuration slices are on disk; the tier itself is still unwritten.**
+`[cache.process]` takes `max_size` and `fill_wait`, both `System`/`Reload`, and `[session] backend`
+refuses `process` with the local tier's own sentence. Goal `http-client`'s list is this goal's Stage 1
+floor and still passes.
 
-[ADR 0181](../decisions/0181.md) is the goal's one record, and it decided the four open numbers: `core-api/two-cache-tiers`
-is **amended in place** (the id is a path, 82 citations in 49 files, nine of them in seven frozen records);
-the process map is a **fixed 64 shards**; refresh-ahead is the **last fifth** of an entry's lifetime; and
-`[cache.process]` ships `max_size = 32M` — the same figure as the local tier, which means less memory
-because it is held once per process — and `fill_wait = 5s`, with `0` refused under **`E0642`** (claimed, not
-yet implemented). `E0626` widens to refuse the process tier as a session backend rather than gaining a code.
+No Rust of the tier exists yet: `Core\Cache::process()` is unwritten, so stage 3's two acceptance
+checks are red because their artefacts are not written, not because anything regressed. `E0642` is new
+and implemented — a `fill_wait` of `0` or `false` is refused at boot in `nvs_config::store::validate`;
+`E0626` widened in place rather than gaining a code.
 
-The four rules are on disk as `designed`, the six modified ones are amended and rendered, and spec § 16's
-`Core\Cache` row and § 15's `Core\Session` bullet carry the new members. Stage 3 is the keystone and is all
-Rust.
+[ADR 0181](../decisions/0181.md) is the goal's one record. The four new rules are `designed`, the six it
+amended are rendered, and spec § 16 and § 15 carry the new members.
 
 ## Next group
 
-**Stage 3: the process tier, the keystone** — one file set: `crates/nvs-stdlib/src/cache.rs`,
-`crates/nvs-config/{tree,directive,session}.rs`, `crates/nvs-cli/src/serve.rs`.
+**Stage 3: the process tier, the keystone** — one file set: `crates/nvs-stdlib/src/cache.rs`, with
+`crates/nvs-cli/src/serve.rs` for where the map is created. Take these in order; the first two want one
+session between them, because a map nothing reaches is a `dead_code` failure rather than a slice.
 
-- [ ] **`[cache.process]`, two keys** — the struct beside `CacheLocal` at
-      `crates/nvs-config/src/tree.rs:1078`, and the rows beside `cache.local` at
-      `crates/nvs-config/src/directive.rs:168`. `max_size` and `fill_wait`, both `System`/`Reload`; the
-      shipped figures and the `0` refusal are ADR 0181 § 14, and `rule:concurrency/cache-memory-is-charged-to-the-core`
-      is the cap's reasoning.
-- [ ] **The map** — beside the local tier's at `crates/nvs-stdlib/src/cache.rs:385`. 64 shards behind
-      read/write locks, `get` taking a read lock only, eviction by write age, keys carrying the `[[app]]`
-      and the configuration generation, every byte inside the store's own `Detached` bracket.
-      `rule:concurrency/the-process-tier-is-one-store-per-process` specifies it.
-- [ ] **`process()` and the third tier on the store class** — `crates/nvs-stdlib/src/cache.rs:147`, with
-      the registry rows at `crates/nvs-stdlib/src/registry.rs:312`; the map created before the first
-      worker accepts at `crates/nvs-cli/src/serve.rs:1519`'s fan-out, and for the length of a `nvs run`.
-      `rule:core-api/two-cache-tiers` now reads as a member per tier.
-- [ ] **`E0626` refuses it as a session backend** — `crates/nvs-config/src/session.rs:28` has no variant
-      for a weak tier and must not gain one; the message at `:81` names the process tier as well, per
-      `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`.
+- [ ] **The map, and the three tests the check names** — beside the local tier's at
+      `crates/nvs-stdlib/src/cache.rs:385`. 64 shards behind read/write locks, `get` taking a read lock
+      and never a write; an entry's real key carries the `[[app]]` and the configuration generation;
+      every byte inside a `nvs_runtime::budget::Detached` bracket the store itself holds; eviction by
+      write age past `[cache.process] max_size`, never a failed `put`.
+      `rule:concurrency/the-process-tier-is-one-store-per-process` is the whole specification, and
+      `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` is the bracket's. The three
+      `process_tier_is_one_map_every_core_reads`, `process_tier_keys_are_scoped_per_app_and_per_generation`
+      and `process_tier_bytes_are_on_the_detached_balance` land with it — they are the stage's second
+      check and name what the map must be. Delete `max_size`'s `[unread:]` trailer at
+      `crates/nvs-config/src/tree.rs:1119` when the map reads it; that trailer is the only reason
+      `tools/directives.py --check` is green over the key today.
+- [ ] **`process()` and the third tier on the store class** — `crates/nvs-stdlib/src/cache.rs:147`, the
+      five edits `docs/agent/conventions.md` § *A `Core` member* lists. It answers the same
+      `Core\Cache\Store` class with a third `tier`, takes no grant
+      (`rule:core-api/two-cache-tiers`), and is created where `nvs serve` starts its workers — before
+      the first one accepts — and for the length of a `nvs run`, which is
+      `crates/nvs-cli/src/serve.rs`.
+- [ ] **The two `.nvst` cases the failing check names**, neither written yet:
+      `tests/conformance/core/cache-process-tier-is-read-by-a-later-request.nvst` and
+      `tests/conformance/core/cache-process-tier-evicts-past-its-cap-and-never-fails-a-put.nvst`.
+      The local tier's own eviction case is the shape to follow —
+      `tests/conformance/core/cache-local-forgets-an-entry-rather-than-failing-the-write.nvst:1` —
+      and the cap case is sized against a probe rather than a guess, which
+      `docs/agent/playbook.md:3605` owns the arithmetic for.
+
+**A `[context] modules` gap this session paid for twice:** the manifest names
+`crates/nvs-config/{tree,directive,session}.rs` but not `crates/nvs-config/src/store.rs`, which is
+where a `[cache]` block's boot refusal is written, nor `crates/nvs-diagnostics/src/lib.rs`, where a new
+code is claimed. Two more files a new directive always touches and nothing points at:
+`crates/nvs-config/src/default.toml` and `docs/reference/tools/20-config.md` (the block table
+`tools/reference.py` renders into `docs/novis.md`). Both of `playbook.md`'s bullets about
+`[unread:]` trailers and `NOT IMPLEMENTED` notes hang off that template file, and the pack filters
+the playbook to the item's own paths — so a session adding a key pays for them again unless
+`default.toml` is in `modules`.
 
 ## Backlog
 
@@ -47,6 +66,10 @@ Rust.
 - A user's refresh token belongs in the session, never a cache tier — already ruled, `rule:http-server/a-session-holds-a-secret-only-sealed`.
 - The `nvs/rest` package is the first caller of all of this and is unscheduled —
   [carried-gaps.md](carried-gaps.md).
+- `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` still names `local`
+  alone, where the code now refuses both weak tiers; ADR 0181's amendment set is six rules and does not
+  include it, so stage 8 decides whether the fragment says so itself or leans on
+  `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`.
 - The pack does not print the goal's own `## Stage N` section, only § *Standing decisions*; an item that
   says "the rules the goal's stage 2 names" cannot be worked without reading
   `docs/agent/loop-goal.md`, and no `[context]` field carries it. Either the item names the ids or
