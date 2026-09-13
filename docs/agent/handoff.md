@@ -2,48 +2,39 @@
 
 ## State
 
-**Goal `websocket-client` — stage 5, the conversation, is done.** All six of the stage's
-`cargo test -p nvs-stdlib` names pass; its two `.nvst` cases and
-`crates/nvs-config/tests/directives.rs:277` were already green, so the stage's three checks should be
-too. Stages 1–4 stay closed.
+**Goal `websocket-client` is met.** Stage 6 flipped its four rules to `shipped` with `guardedBy`
+filled from this goal's cases and tests, and `python tools/rules.py --render` rewrote the three
+generated files. Stages 1–5 were already green, so every `[[check]]` in `docs/agent/loop-goal.toml`
+now passes.
 
-**What the conversation does now.** `Open` carries `idle`, `until`, the send wait, `ping` and the
-read mark, and `receive` arms each wait with whichever instant is nearest; a peer's ping or pong
-restarts the silence, and a wait that ended at the ping's asks whether the peer is there. A message
-past `maxMessage` closes with `1009` and throws naming the cap, `close` sends the program's code and
-reason, and `Open`'s `Drop` sends `1001`. A failure read after this end has closed answers `null`.
+**One divergence stage 5 left is closed**: `close` sends its frame and then waits for the peer's own
+under the send wait, which is what ADR 0183 § 5 and the member's card both say
+(`crates/nvs-stdlib/src/http/socket.rs:937`). A peer that never answers is still closed, and no exit
+from that wait throws.
 
-**The one divergence between this class's cards and its code**: `CLOSE_DOC` says a `close` waits for
-the peer's own close under the send wait (`crates/nvs-stdlib/src/http/socket.rs:361`) and it does not
-— the frame goes out and the connection is let go.
+**One defect this goal found and did not fix**, because it belongs to another rule and to every
+`Core` class at once: `rule:classes/graph-copy` states that an object holding a host handle is
+refused at a copy boundary, and no carrier makes that refusal — a `Core\Http\Socket` handed to
+`spawn script … with(args:)` arrives in the child with every slot intact, and `Core\Serialize::encode`
+takes one too. It is written up as `crates/nvs-runtime/src/graph.rs` gap 3 and carried in
+[carried-gaps.md](carried-gaps.md) § *Unowned*, where the decision it waits on is named. Nothing is
+shared by the copy — a handle table belongs to one `Ctx` — but the copied key indexes the receiving
+side's table, so it reads whatever that side opened at that index.
 
 ## Next group
 
-**Stage 6: the rulebook** — one file set: `docs/rules/http-server.json`, `docs/rules/testing.json`,
-and what `python tools/rules.py --render` rewrites from them. Each item is one rule's `status`, which
-is `designed` today and which `python tools/rules.py --show <id>` is what the check reads; every
-sentence of a rule is what `shipped` claims, so each item is that judgement and not a flag.
+**The goal is closed, so the next group is the chain's next goal, not a stage of this one.** If the
+driver has not switched yet, this is the one slice left in the file set this goal loaded, and it needs
+the user's answer before any of it is written:
 
-- [ ] **The two bounds-and-lifetime rules stage 5 implemented** — `docs/rules/http-server.json:1337`
-      and `docs/rules/http-server.json:1350`. The read loop that arms every bound is
-      `crates/nvs-stdlib/src/http/socket.rs:726`, the `1001` is `Open`'s `Drop` above it, and the
-      `1009` and the second-`receive` refusal are its two named faults.
-- [ ] **`an-outbound-socket-is-opened-like-an-outbound-call`** — `docs/rules/http-server.json:1322`.
-      The row, the `ws`/`wss` roster and "never pooled" are stages 1–4's, landed and tested in
-      `crates/nvs-stdlib/src/http/transport.rs:1713`.
-- [ ] **`testing/an-outbound-socket-is-answered-by-a-scripted-peer`** — `docs/rules/testing.json:229`.
-      The scripted arm is `crates/nvs-stdlib/src/http/socket.rs:458`, and the `.nvst` cases under
-      `tests/conformance/core/http-socket-*` are what it is guarded by.
-- [ ] **Re-render the rulebook** — `tools/rules.py:63` writes `docs/rules/*.md` and
-      `docs/ground-rules.md` from the JSON, so a status flipped by hand leaves both stale;
-      `python tools/rules.py --render --check` is the gate that says so.
+- [ ] **`rule:classes/graph-copy`'s host-handle refusal, which nothing implements** —
+      `crates/nvs-runtime/src/graph.rs:59` gap 3, refused where
+      `crates/nvs-runtime/src/graph.rs:371`'s `refusable` refuses a closure. What has to be decided is
+      where the mark saying a class holds a handle lives: a bit on the `ClassDesc`, which is the same
+      representation question gap 1 asks for a closure, or the declared type at the copy site.
 
 ## Backlog
 
-- `close` does not wait for the peer's close under the send wait, which `CLOSE_DOC` says it does —
-  `crates/nvs-stdlib/src/http/socket.rs:361` is the card that has to change or be met.
-- `Core\Http\Options`' `ping` reaches no `.nvst` case: the conversation is only reachable against a
-  live host, so the Rust case at `crates/nvs-stdlib/src/http/socket.rs:1176` is its whole coverage.
-- ADR 0183 § 10's memory price is stated, never asserted — no case pins a socket's cost to the task.
-- `permessage-deflate`, RFC 8441, reconnection and the subprotocol libraries stay out of this goal
-  (`docs/agent/loop-goal.md` § *Standing decisions*).
+- `crates/nvs-runtime/src/graph.rs` gap 3 — carried in [carried-gaps.md](carried-gaps.md) § *Unowned*.
+- `permessage-deflate`, RFC 8441, reconnecting and the subprotocol libraries stay out of `Core` — goal
+  `websocket-client` § *Standing decisions* is their one home.
