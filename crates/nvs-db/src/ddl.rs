@@ -42,7 +42,7 @@
 //!   string reaches statement text — [`ColumnDefault::Text`] — is quoted here,
 //!   in the dialect's own escaping.
 //!
-//! # An engine's own limit is not a gap here
+//! # An engine's own limit is the dialect's rule
 //!
 //! Each of these is one dialect's rule rather than a shape this emitter has
 //! not written: the statement a dialect can say is the statement it emits, and
