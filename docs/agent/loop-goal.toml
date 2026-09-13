@@ -111,6 +111,13 @@ modules = [
   "crates/nvs-stdlib/src/request.rs",
   # Where every row is registered, and the qualifier spellings (:302-377).
   "crates/nvs-stdlib/src/registry.rs",
+  # `build`, `slot` and `read_slot`: how a `Core` instance is filled and read back. Stages 5, 6 and 11.
+  "crates/nvs-stdlib/src/instance.rs",
+  # `instant_at_system_time`, which a certificate's `notAfter` becomes. Stage 11.
+  "crates/nvs-stdlib/src/time.rs",
+  # The per-core connection store, whose test module carries a `Connection` impl of its own — a trait
+  # method added for a reply's session breaks it. Stages 7 and 11.
+  "crates/nvs-stdlib/src/http/pool.rs",
   # `reject_keyless_retry` and the decode-site roster (:1517-1528). Stages 4 and 5.
   "crates/nvs-types/src/expr/args.rs",
   # `check_decode_sites` (:803-830), which `Response::jsonAs` joins. Stage 5.

@@ -2,53 +2,46 @@
 
 ## State
 
-**Goal `http-client` — a program talks to a real API. Stages 1–10 are on disk and stage 11's first two
-items are landed plus the reporting half of its third: a session now says what it negotiated and a reply
-carries it, so the driver's `11 address downgrade report` unit check has all eight of its cases.**
-[ADR 0180](../decisions/0180.md) § 13 is the record, and what is left of it is the language surface.
+**Goal `http-client` — stage 11 is closed: a call names its address under a grant, an `https` hop needs
+both halves to become plaintext, and a reply now reports the session it arrived over through
+`Core\Http\Response::tls(): ?Core\Http\TlsInfo`.** Stages 1–10 are on disk behind it.
+[ADR 0180](../decisions/0180.md) § 13 is the record and `rule:http-server/a-reply-reports-its-tls-session`
+the rule.
 
-`nvs_host::tls::Session` is the snapshot — `version()` as `TLSv1.3`, `cipher()` under its IANA name,
-`chain()` as DER leaf first — read off the completed handshake by `NvsTls::session()`
-(`crates/nvs-host/src/tls.rs:287`), on the generic impl rather than beside `peer_addr` because the module
-doc keeps `NvsTls<NvsTcp>`'s own pair for what belongs to the socket. `CallPolicy::verifies()`
-(`crates/nvs-host/src/tls.rs:735`) is the other half: `anchors` and `min_version` still check the chain
-and the name, and the other three each drop one.
+`Core\Http\TlsInfo` holds four slots — version, cipher, `verified` and the chain as DER — and answers
+seven members over them; the class's own doc comment in `crates/nvs-stdlib/src/http.rs` is why it is four
+and not seven. `subject`, `issuer` and `expiry` parse the leaf through `nvs_host::tls::leaf`, beside the
+parser `tlsPin` uses, so a reply nobody audits pays no certificate parse and `peerChain` writes PEM at
+the member. `exchanged` hands the transport's own `Option<Tls>` back and the streamed half drops it,
+because the rule puts the report on `Core\Http\Response` alone.
 
-`transport::Connection` grew `tls()` (`crates/nvs-stdlib/src/http/transport.rs:402`), asked in `exchange`
-at the last line the connection is still the typed thing it was opened as, and `Reply`/`Streamed` each
-carry `Option<Tls>`. Nothing reads those two yet, so both wear
-`#[cfg_attr(not(test), expect(dead_code, …))]`, which warns the moment the next item reads them.
-Nothing is blocked.
+Nothing is blocked. Stage 12 is untouched.
 
 ## Next group
 
-**Stage 11: the class that answers the report** — one file set: `crates/nvs-stdlib/src/http.rs`,
-`crates/nvs-stdlib/src/http/transport.rs`, `tests/conformance/core/`.
+**Stage 12: a name resolved off the core** — one file set: `crates/nvs-runtime/src/capability.rs`,
+`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/http/transport.rs`.
 
-- [ ] **`Core\Http\TlsInfo` is the class, and `Response::tls()` the member that answers it** —
-      `rule:http-server/a-reply-reports-its-tls-session`, ADR 0180 § 13, which is the only home of the
-      seven members and of which parser reads the leaf. A new `CoreClass` beside `RESPONSE`
-      (`crates/nvs-stdlib/src/http.rs:1353`), a fourth slot past its three
-      (`crates/nvs-stdlib/src/http.rs:1412`), and `exchanged`'s tuple
-      (`crates/nvs-stdlib/src/http.rs:2836`) widened to hand `transport::Reply::tls`
-      (`crates/nvs-stdlib/src/http/transport.rs:330`) to `request`
-      (`crates/nvs-stdlib/src/http.rs:2807`) and to the streamed half. `peerChain` is PEM from the DER
-      `Session::chain` holds; `subject`, `issuer` and `expiry` are `x509-parser`'s, already a dependency
-      of `nvs-host` for `tlsPin`, so the leaf is parsed there and not in this crate. Reading
-      `Reply::tls` and `Tls`'s two fields deletes the `expect(dead_code)` on each
-      (`crates/nvs-stdlib/src/http/transport.rs:330`, `crates/nvs-stdlib/src/http/transport.rs:359`) —
-      `expect` warns while one is still there.
-- [ ] **The cases** — `rule:http-server/a-reply-reports-its-tls-session`. Three `.nvst` cases under
-      `tests/conformance/core/`, each calling every `TlsInfo` member so the coverage floor is met per
-      member by three files rather than by twenty-one, plus
-      `tests/conformance/core/http-response-tls-is-null-for-a-reply-the-table-answered.nvst`, which the
-      driver's second stage-11 check names by path and which
-      `rule:testing/an-outbound-call-is-answered-from-a-table` is the other half of. The table path is
-      `faked` (`crates/nvs-stdlib/src/http.rs:2845`), which builds a response with no session at all.
+- [ ] **The lookup leaves the core, and the grant and the address check stay on it** —
+      `rule:http-server/a-core-is-never-blocked-on-a-syscall`, `docs/agent/loop-goal.md` § *Stage 12*
+      first bullet. `resolve_host` (`crates/nvs-runtime/src/capability.rs:217`) is the blocking call,
+      asked from `pin_host` (`crates/nvs-runtime/src/capability.rs:194`) after the grant and before the
+      address check. `nvs-runtime` cannot reach `nvs_host`, so either the caller hands a resolver in or
+      `nvs-host` installs one at boot; `crates/nvs-stdlib/src/process.rs:394` is the
+      `nvs_host::blocking::run` precedent.
+- [ ] **Every resolved address is judged, and one denied refuses the host** —
+      `rule:security/net-address-policy`. `pinned_address`
+      (`crates/nvs-runtime/src/capability.rs:264`) answers one address today and has to answer the set;
+      `pin` (`crates/nvs-stdlib/src/http.rs:380`) is the caller, and an IP literal or a `connectTo`
+      value is a set of one.
+- [ ] **`Core\Http\Target` carries the approved set, at most eight, in resolver order** —
+      `rule:http-server/allow-url-pins-the-address`. `TARGET` (`crates/nvs-stdlib/src/http.rs:200`)
+      keeps no members, `Call::address` (`crates/nvs-stdlib/src/http/transport.rs:149`) becomes the set,
+      and `one` (`crates/nvs-stdlib/src/http/transport.rs:1313`) is where a connection is made to one of
+      them. A retry reuses the set and never re-resolves.
 
 ## Backlog
 
-- `[context] modules` names `nvs-stdlib/src/http.rs` and `http/transport.rs` but not
-  `crates/nvs-stdlib/src/http/pool.rs`, whose test module holds a `Connection` impl that a new trait
-  method breaks — `docs/agent/loop-goal.toml`.
-- Stage 12 onward of `docs/agent/loop-goal.md`, untouched.
+- Stage 12's fourth bullet — RFC 8305 fallback across the set — is a slice of its own after the three
+  above; `docs/agent/loop-goal.md` § *Stage 12*.
+- Stage 13 onward of `docs/agent/loop-goal.md`, untouched.
