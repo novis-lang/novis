@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*13 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -551,7 +551,7 @@ metric at all and its values are approximate aggregates merged arithmetically at
 
 <a id="concurrency-a-secret-is-cached-only-sealed"></a>
 
-## A secret reaches a cache only as ciphertext, through `putSecret` and `getSecret` and a key ring  *(designed — not yet in the compiler)*
+## A secret reaches a cache only as ciphertext, through `putSecret` and `getSecret` and a key ring
 
 `rule:concurrency/a-secret-is-cached-only-sealed`
 
@@ -582,7 +582,7 @@ per `getSecret`, a ring ordered newest-first making the common case one open.
 
 <a id="concurrency-a-secret-fill-runs-once-per-process"></a>
 
-## On a miss, one caller per process runs `fill` while the others wait, and a failure is never shared  *(designed — not yet in the compiler)*
+## On a miss, one caller per process runs `fill` while the others wait, and a failure is never shared
 
 `rule:concurrency/a-secret-fill-runs-once-per-process`
 
