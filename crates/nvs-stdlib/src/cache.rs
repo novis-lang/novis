@@ -99,12 +99,42 @@
 //! eviction policy that measured *use* would need a clock or a counter per
 //! entry, which is footprint spent to protect footprint.
 //!
-//! # What is not here yet
+//! # Decision: a lifetime is a deadline the write records and the read judges
 //!
-//! **A TTL and a `forget`.** A lifetime is a second reason an entry goes, and
-//! the cap above is the one that had to exist first; `put` grows the trailing
-//! options shape `rule:core-api/shape-rules` R2 puts last when a TTL lands, which is an addition
-//! to the row rather than a change to it.
+//! `put`'s trailing `{ttl?: Duration}` is `rule:core-api/shape-rules` R2's
+//! options shape carrying R12's unit-as-a-type, and it is *optional* where
+//! `rule:core-api/a-lifetime-is-written` makes a signature's lifetime a
+//! required key. That rule is about a bearer credential that leaves the
+//! process and never stops being one; an entry left here without a lifetime
+//! is forgotten by the cap above and reaches nobody. So an omitted `ttl` is
+//! § 1's contract unchanged, and nothing a program already wrote reads
+//! differently.
+//!
+//! **The two in-process tiers hold a deadline read from [`Instant`]**, never
+//! from the wall clock, because a lifetime is an elapsed length of time
+//! rather than a date: a clock step would otherwise lengthen or shorten every
+//! lifetime in the process at once. The shared tier holds no deadline at all
+//! — it is told how long to keep the entry and keeps its own clock — which is
+//! why [`Lifetime`] carries the duration the call *wrote* and each tier turns
+//! that into what it can hold.
+//!
+//! **The read judges, and never writes.** An entry past its deadline answers
+//! `null` and stays where it is until the cap forgets it or a `put` replaces
+//! it, because taking it out would make `get` a write:
+//! `rule:concurrency/the-process-tier-is-one-store-per-process` fixes that a
+//! lookup takes a shard's read lock and nothing more, and the local tier's
+//! `RefCell` is shared with `Core\RateLimit` for the reason § 3's eviction
+//! policy is by write age. What that spends is the bytes of an expired entry
+//! nobody has asked for again, still counted against the cap; what it buys is
+//! that every core reading one hot key reads it at the same moment.
+//!
+//! **A lifetime already over is not a write.** A `ttl` of zero — and a
+//! negative one, which lands in the same place — forgets whatever was under
+//! the key and stores nothing, exactly as an arrival too large for the tier
+//! is forgotten as it lands. It is not a refusal, because § 1's store has no
+//! failure mode for one to be.
+//!
+//! # What is not here yet
 //!
 //! **A shared store behind a password, a database index or TLS.** The URL this
 //! reads is `redis://host[:port]` and nothing else, and each of the three is
@@ -134,14 +164,16 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::{Arc, LazyLock, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nvs_config::capability::{Cap, Scope};
 use nvs_config::{Quantity, Setting, Unit};
-use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value, budget};
+use nvs_runtime::{Ctx, Fault, NvsStr, Tag, ThrownClass, Value, budget};
 use nvs_syntax::duration;
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 pub(crate) mod redis;
 
@@ -233,6 +265,20 @@ const SHARED_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `{ttl?: Duration}` — [`STORE`]'s one trailing options shape, and the whole
+/// of what a program writes about how long an entry lives.
+///
+/// A `Core\Time\Duration` rather than a count of seconds, which is
+/// `rule:core-api/shape-rules` R12: the unit is the type, so no call site has
+/// to remember which scale this member chose. Optional, where
+/// `rule:core-api/a-lifetime-is-written` makes a signature's lifetime a
+/// required key — the module doc's own decision says why the two differ.
+const PUT_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "ttl",
+    ty: CoreTy::Instance(crate::time::DURATION_NAME),
+    default: Const::Null,
+}];
+
 /// § 1's store, as the two operations § 2 defines over it.
 ///
 /// One class for both tiers rather than two, because a tier is a *destination*
@@ -255,7 +301,11 @@ pub(crate) const STORE: CoreClass = CoreClass {
             // instruction (§ 7). The *value* is refused, because `mixed` has
             // nowhere to carry the qualifier back out of `get` and admitting one
             // would launder it (`nvs_types`' `admits_tainted_argument`).
-            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Mixed],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Mixed,
+                CoreTy::Options(PUT_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_cache_put",
@@ -272,6 +322,18 @@ pub(crate) const STORE: CoreClass = CoreClass {
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_cache_get",
             doc: Some(&GET_DOC),
+        },
+        CoreMethod {
+            name: "forget",
+            names: &["key"],
+            // `Qual::Neutral` for `put`'s reason, and the more plainly: a key
+            // that is only ever compared and then dropped reaches no answer at
+            // all, so a `tainted` one is as ordinary here as it is there.
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_cache_forget",
+            doc: Some(&FORGET_DOC),
         },
     ],
     slots: &["tier"],
@@ -345,6 +407,13 @@ const PUT_DOC: MethodDoc = MethodDoc {
                    isolate boundary.",
             shape: &[],
         },
+        ParamDoc {
+            name: "ttl",
+            desc: "How long the entry stays readable, counted from this call. Omitted, it stays \
+                   until the tier's cap forgets it or another `put` replaces it. A lifetime that \
+                   has already run out forgets whatever was under the key and stores nothing.",
+            shape: &[],
+        },
     ],
     ret: "Nothing. A successful `put` is still no promise that a later `get` answers — see \
           `Core\\Cache::local`.",
@@ -389,6 +458,24 @@ const GET_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Cache\Store::forget`'s reference card — `rule:core-api/reference-card`.
+const FORGET_DOC: MethodDoc = MethodDoc {
+    short: "Takes the entry under `$key` out of this store, whether or not there was one there.",
+    params: &[ParamDoc {
+        name: "key",
+        desc: "The name to forget; `tainted` is admitted, as it is on `put`.",
+        shape: &[],
+    }],
+    ret: "Nothing. A key nothing was stored under is already forgotten, so there is no second \
+          answer here for whether there had been an entry — the same reading `get` gives a miss, \
+          and for the same reason: on these tiers an entry may be absent at any time.",
+    errors: &[ErrorDoc {
+        error: "IOError",
+        desc: "On the shared tier only: the store cannot be reached or refused the command. The \
+               in-process tiers have nothing to be unreachable.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -398,6 +485,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cache_shared" => (nvs_core_cache_shared as *const ()).cast(),
         "nvs_core_cache_put" => (nvs_core_cache_put as *const ()).cast(),
         "nvs_core_cache_get" => (nvs_core_cache_get as *const ()).cast(),
+        "nvs_core_cache_forget" => (nvs_core_cache_forget as *const ()).cast(),
         _ => return None,
     })
 }
@@ -413,11 +501,74 @@ const MAX_SIZE: &str = "cache.local.max_size";
 const DEFAULT_MAX_SIZE: usize = 32 * 1024 * 1024;
 
 /// What one entry costs beyond its own bytes: a map bucket, an `Rc` header, a
-/// queue slot and the fat pointers over them, rounded to something a reader can
-/// hold in their head. Charged so the cap bounds the *allocation* — a tier full
-/// of one-byte entries under a cap that counted payloads alone would be a cap
-/// measuring almost none of what it holds.
+/// queue slot, the deadline held beside the payload, and the fat pointers over
+/// them, rounded to something a reader can hold in their head. Charged so the
+/// cap bounds the *allocation* — a tier full of one-byte entries under a cap
+/// that counted payloads alone would be a cap measuring almost none of what it
+/// holds.
 const ENTRY_OVERHEAD: usize = 64;
+
+/// How long an entry stays readable, as the call wrote it.
+///
+/// The duration rather than the deadline it becomes, because the tiers keep it
+/// two ways: the in-process ones turn it into an [`Instant`] at the moment of
+/// the write, and the shared one is told a length of time and keeps its own
+/// clock. A deadline here would have to be turned back into a remaining length
+/// against a clock that tier does not share.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Lifetime {
+    /// No `ttl` was written: the entry stays until the cap forgets it or a
+    /// `put` replaces it, which is § 1's contract for every entry.
+    Forever,
+    /// The `ttl` that was written, counted from the moment of the write. Zero
+    /// is a lifetime that is already over, which is where a negative one lands
+    /// too — [`Lifetime::of`] is where that happens.
+    For(Duration),
+}
+
+impl Lifetime {
+    /// The lifetime `nanos` names, with everything at or below zero reading as
+    /// one that is already over.
+    ///
+    /// A negative `ttl` is not refused, because `put` has none to make: § 3
+    /// turns a tier at its cap into an eviction rather than a throw precisely
+    /// so that this store keeps the one contract it has, and a second answer
+    /// for a duration a program computed to be negative would be the failure
+    /// mode it says it has none of.
+    fn of(nanos: i64) -> Self {
+        Self::For(Duration::from_nanos(nanos.max(0).unsigned_abs()))
+    }
+
+    /// Whether this lifetime is over at the moment it is written.
+    fn elapsed(self) -> bool {
+        matches!(self, Self::For(ttl) if ttl.is_zero())
+    }
+
+    /// The instant an entry written now stops being readable, or `None` for
+    /// one that never does — which a lifetime the monotonic clock cannot name
+    /// an end for also is, there being no instant left to compare against.
+    fn until(self) -> Option<Instant> {
+        match self {
+            Self::Forever => None,
+            Self::For(ttl) => Instant::now().checked_add(ttl),
+        }
+    }
+}
+
+/// One entry of an in-process tier: the payload and when it stops being
+/// readable.
+///
+/// The deadline is beside the payload rather than in a queue of its own,
+/// because the only thing that ever asks is the read that just found the entry
+/// — a second structure ordered by deadline would buy a sweeper this tier does
+/// not have and cannot afford, `get` being a read lock and nothing more.
+struct Entry {
+    /// The entry's `rule:classes/serialize-is-a-closed-format` payload.
+    payload: Box<[u8]>,
+    /// The instant this stops being readable, or `None` for an entry only the
+    /// cap or an overwrite takes out.
+    until: Option<Instant>,
+}
 
 /// A tier's entries and what they cost, together, because a size is only
 /// meaningful against the map it measures: a second cell holding the number
@@ -432,9 +583,10 @@ const ENTRY_OVERHEAD: usize = 64;
 /// forgotten as it lands — is one implementation that cannot come to disagree
 /// with itself.
 struct Entries<K> {
-    /// The entries themselves, each an `rule:classes/serialize-is-a-closed-format` payload. Keys are
-    /// handles so that `order` below names one without a second copy of the bytes.
-    entries: HashMap<K, Box<[u8]>>,
+    /// The entries themselves, each a payload and the deadline it is readable
+    /// until. Keys are handles so that `order` below names one without a
+    /// second copy of the bytes.
+    entries: HashMap<K, Entry>,
     /// Every live key, in the order it was **first** written, which is the
     /// order [`Entries::forget_oldest`] gives them up in.
     ///
@@ -463,25 +615,23 @@ impl<K> Default for Entries<K> {
 }
 
 impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
-    /// Writes `payload` under `key`, forgetting whatever it has to.
+    /// Writes `payload` under `key` for as long as `lifetime` names, forgetting
+    /// whatever it has to.
     ///
     /// `cap` is `None` for the `false` an operator writes for no ceiling. The
     /// bytes are copied into an allocation of the store's own rather than taken
     /// from the caller's `Vec`, so that everything this tier holds was
     /// allocated where [`store_put`]'s bracket will free it again.
-    fn put(&mut self, key: &[u8], payload: &[u8], cap: Option<usize>) {
+    fn put(&mut self, key: &[u8], payload: &[u8], lifetime: Lifetime, cap: Option<usize>) {
         let incoming = charged(key.len(), payload.len());
 
-        if cap.is_some_and(|cap| incoming > cap) {
-            // An entry the tier could not hold even empty is forgotten as it
-            // arrives rather than failing the write — § 3 evicts, and § 1 has
-            // already told the caller a `get` may answer nothing. What was
-            // under the key goes with it, because `put` replaced it. Its slot
-            // in `order` is the one that can outlive its entry, and
-            // `forget_oldest` skips it when it reaches the front.
-            if let Some(previous) = self.entries.remove(key) {
-                self.held -= charged(key.len(), previous.len());
-            }
+        if lifetime.elapsed() || cap.is_some_and(|cap| incoming > cap) {
+            // An arrival with nothing left to live, and one the tier could not
+            // hold even empty, take the same exit: it is forgotten as it lands
+            // rather than failing the write — § 3 evicts, and § 1 has already
+            // told the caller a `get` may answer nothing. What was under the
+            // key goes with it, because `put` replaced it.
+            self.forget(key);
             return;
         }
 
@@ -496,7 +646,7 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
 
         let handle = match self.entries.remove_entry(key) {
             Some((held, previous)) => {
-                self.held -= charged(key.len(), previous.len());
+                self.held -= charged(key.len(), previous.payload.len());
                 held
             }
             None => {
@@ -506,7 +656,47 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
             }
         };
         self.held += incoming;
-        self.entries.insert(handle, Box::from(payload));
+        self.entries.insert(
+            handle,
+            Entry {
+                payload: Box::from(payload),
+                until: lifetime.until(),
+            },
+        );
+    }
+
+    /// Takes the entry under `key` out, and answers nothing about whether
+    /// there was one.
+    ///
+    /// The slot `order` holds for it is left behind rather than searched for:
+    /// it is the one slot that can outlive its entry, [`Entries::forget_oldest`]
+    /// skips it when it reaches the front, and a scan of the queue to remove it
+    /// would price every forget at the length of the tier.
+    fn forget(&mut self, key: &[u8]) {
+        if let Some(previous) = self.entries.remove(key) {
+            self.held -= charged(key.len(), previous.payload.len());
+        }
+    }
+
+    /// The payload under `key` while it is still readable, and `None` once it
+    /// is not.
+    ///
+    /// An entry past its deadline is **left where it is** rather than taken
+    /// out: this is `&self` so that a lookup on the process tier holds a read
+    /// lock and nothing more, which is the property
+    /// `rule:concurrency/the-process-tier-is-one-store-per-process` fixes about
+    /// a `get`. Its bytes stay against the cap until the eviction order reaches
+    /// it or a `put` replaces it, which is footprint spent on every core
+    /// reading one hot key at the same moment.
+    ///
+    /// The clock is read only once an entry with a deadline is in hand, so a
+    /// tier nothing wrote a `ttl` to pays nothing for the question.
+    fn get(&self, key: &[u8]) -> Option<&[u8]> {
+        let held = self.entries.get(key)?;
+        match held.until {
+            Some(until) if Instant::now() >= until => None,
+            _ => Some(&held.payload),
+        }
     }
 
     /// Forgets the entry whose key was written longest ago, and answers whether
@@ -519,7 +709,7 @@ impl<K: Borrow<[u8]> + Clone + Eq + Hash + for<'a> From<&'a [u8]>> Entries<K> {
         while let Some(key) = self.order.pop_front() {
             let raw = bytes(&key);
             if let Some(previous) = self.entries.remove(raw) {
-                self.held -= charged(raw.len(), previous.len());
+                self.held -= charged(raw.len(), previous.payload.len());
                 return true;
             }
         }
@@ -606,10 +796,10 @@ pub(crate) fn local_cap(ctx: &Ctx) -> Option<usize> {
 /// corrupts both — and it is why the entry is copied rather than this `Vec`
 /// being kept. What that spends is one copy of the payload per local write, on a
 /// path that has already encoded the value it is storing.
-pub(crate) fn store_put(key: &[u8], payload: Vec<u8>, cap: Option<usize>) {
+pub(crate) fn store_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usize>) {
     {
         let _bracket = budget::Detached::begin();
-        ENTRIES.with_borrow_mut(|local| local.put(key, &payload, cap));
+        ENTRIES.with_borrow_mut(|local| local.put(key, &payload, lifetime, cap));
     }
     // Where it was allocated: the caller's `Vec` is the request's, and what the
     // tier holds is the copy made above.
@@ -617,10 +807,23 @@ pub(crate) fn store_put(key: &[u8], payload: Vec<u8>, cap: Option<usize>) {
 }
 
 /// This core's payload for `key`, or `None` — which is an ordinary answer and
-/// not a failure, per § 1, and now also the answer for an entry the cap made
-/// room by forgetting. Crate-visible for [`store_put`]'s reason.
+/// not a failure, per § 1, and also the answer for an entry the cap made room
+/// by forgetting and for one whose lifetime has run out. Crate-visible for
+/// [`store_put`]'s reason.
 pub(crate) fn store_get(key: &[u8]) -> Option<Vec<u8>> {
-    ENTRIES.with_borrow(|local| local.entries.get(key).map(|payload| payload.to_vec()))
+    ENTRIES.with_borrow(|local| local.get(key).map(<[u8]>::to_vec))
+}
+
+/// Takes `key`'s entry out of this core's tier, whether or not there was one.
+///
+/// Under the same [`budget::Detached`] bracket [`store_put`] holds, because the
+/// release has to land on the balance the allocation did — a free credited to
+/// the request that happened to call `forget` is the asymmetry
+/// `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance` says a
+/// bracket owes against, arriving from the other direction.
+pub(crate) fn store_forget(key: &[u8]) {
+    let _bracket = budget::Detached::begin();
+    ENTRIES.with_borrow_mut(|local| local.forget(key));
 }
 
 /// `[cache.process] max_size` — what this process's entries may hold together.
@@ -766,13 +969,13 @@ fn scoped(ctx: &Ctx, key: &[u8]) -> Vec<u8> {
 /// the room. `payload` is the caller's own temporary, copied in under the
 /// bracket and released outside it under the request that allocated it, which is
 /// the symmetry the bracket owes.
-fn process_put(key: &[u8], payload: Vec<u8>, cap: Option<usize>) {
+fn process_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usize>) {
     {
         let _bracket = budget::Detached::begin();
         let mut shard = shard_of(key)
             .write()
             .expect("a cache shard's lock is never poisoned");
-        shard.put(key, &payload, shard_cap(cap));
+        shard.put(key, &payload, lifetime, shard_cap(cap));
     }
     // Where it was allocated: [`store_put`]'s own closing note, unchanged.
     drop(payload);
@@ -792,9 +995,8 @@ fn process_get(key: &[u8]) -> Option<Vec<u8>> {
     shard_of(key)
         .read()
         .expect("a cache shard's lock is never poisoned")
-        .entries
         .get(key)
-        .map(|payload| payload.to_vec())
+        .map(<[u8]>::to_vec)
 }
 
 /// The `string` in argument slot `at`.
@@ -811,6 +1013,40 @@ fn key_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fau
             args[at].tag_byte()
         ))
     })
+}
+
+/// Takes `key`'s entry out of the process's tier, whether or not there was one.
+///
+/// One shard's write lock and no other, exactly as [`process_put`] takes one,
+/// and inside the same bracket [`store_forget`] holds for the same reason.
+fn process_forget(key: &[u8]) {
+    let _bracket = budget::Detached::begin();
+    shard_of(key)
+        .write()
+        .expect("a cache shard's lock is never poisoned")
+        .forget(key);
+}
+
+/// The `{ttl?: Duration}` in argument slot `at`, as the lifetime the call
+/// wrote.
+///
+/// An omitted option arrives as the [`Const::Null`] [`PUT_OPTIONS`] defaults it
+/// to, which is the one reading that cannot be a written duration: the option's
+/// declared type admits no `null`, so there is no second spelling for
+/// `rule:core-api/omission-is-not-a-written-null` to have to tell apart here.
+///
+/// # Errors
+///
+/// [`crate::time::nanos_of`]'s fatal for a slot holding neither a duration nor
+/// that `null`, which the row's own type has already refused at the call site.
+fn lifetime_of(args: &[Value], at: usize, member: &str) -> Result<Lifetime, Fault> {
+    if args
+        .get(at)
+        .is_none_or(|held| matches!(held.tag(), Some(Tag::Null)))
+    {
+        return Ok(Lifetime::Forever);
+    }
+    Ok(Lifetime::of(crate::time::nanos_of(args, at, member)?))
 }
 
 /// Which tier a store is — [`TIER_SLOT`] read back, as the one choice every
@@ -1200,9 +1436,15 @@ nvs_runtime::nvs_helper! {
     /// third mechanism" written as control flow: there is one call to the walk
     /// in this module and both tiers are downstream of it, so a tier cannot grow
     /// a representation of its own without deleting that structure first.
-    fn nvs_core_cache_put(ctx, args: [3]) {
+    ///
+    /// The lifetime is read before the copy and carried into whichever tier
+    /// the store names, because each of the three keeps it differently and
+    /// none of them may read the option for itself — the module doc's own
+    /// decision on a lifetime says which keeps what.
+    fn nvs_core_cache_put(ctx, args: [4]) {
         let tier = tier_of(args, "put")?;
         let key = key_of(args, 1, "put")?.as_bytes().to_vec();
+        let lifetime = lifetime_of(args, 3, "put")?;
 
         // The walk consumes one reference and the argument slot keeps its own,
         // so this is the reference the walk gives up.
@@ -1219,9 +1461,23 @@ nvs_runtime::nvs_helper! {
         })?;
 
         match tier {
-            Tier::Local => store_put(&key, payload, local_cap(ctx)),
-            Tier::Process => process_put(&scoped(ctx, &key), payload, process_cap(ctx)),
-            Tier::Shared => on_shared(STORE_NAME, "put", |open| open.set(&key, &payload))?,
+            Tier::Local => store_put(&key, payload, lifetime, local_cap(ctx)),
+            Tier::Process => {
+                process_put(&scoped(ctx, &key), payload, lifetime, process_cap(ctx));
+            }
+            Tier::Shared => on_shared(STORE_NAME, "put", |open| {
+                // The store keeps its own clock, so it is told a length of
+                // time rather than an instant — and a lifetime already over
+                // is not a write here either, which is the one command that
+                // leaves the same state the in-process tiers do.
+                if lifetime.elapsed() {
+                    return open.del(&key);
+                }
+                match lifetime {
+                    Lifetime::Forever => open.set(&key, &payload),
+                    Lifetime::For(ttl) => open.set_expiring(&key, &payload, ttl),
+                }
+            })?,
         }
         Ok(Value::null())
     }
@@ -1262,6 +1518,39 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache\Store::forget(string $key): void` — the second reason an
+    /// entry goes, after the cap and the lifetime that are the tier's own.
+    ///
+    /// **It answers nothing, not even whether there was an entry.** § 1 already
+    /// says one may be absent at any time for any reason, so a program that
+    /// could act on that answer would be acting on a coincidence of the cap and
+    /// the clock; a store whose `get` reports a miss as an ordinary answer
+    /// cannot report the same state as news here.
+    ///
+    /// The tier decides where the key is and nothing else, which is
+    /// [`nvs_core_cache_get`]'s structure: the two in-process tiers take the
+    /// entry out of their own map, and the shared tier sends the one command
+    /// that leaves the store in the state the other two are left in.
+    ///
+    /// # Errors
+    ///
+    /// A thrown `IOError` on the shared tier for a store that cannot be
+    /// reached or that refuses the command. The in-process tiers have no
+    /// failure to report, so neither has an error at all.
+    fn nvs_core_cache_forget(ctx, args: [2]) {
+        let tier = tier_of(args, "forget")?;
+        let key = key_of(args, 1, "forget")?.as_bytes().to_vec();
+
+        match tier {
+            Tier::Local => store_forget(&key),
+            Tier::Process => process_forget(&scoped(ctx, &key)),
+            Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key))?,
+        }
+        Ok(Value::null())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::TcpListener;
@@ -1274,10 +1563,10 @@ mod tests {
     use crate::tests::granting;
 
     use super::{
-        CLASS, Ctx, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, MAX_SIZE,
-        PROCESS, PROCESS_DOC, PROCESS_MAX_SIZE, SHARDS, SHARED_DOC, Value, charged, endpoint,
-        local_cap, open_configured, process_cap, process_get, process_put, scoped, shard_cap,
-        shard_of, store_get, store_put,
+        CLASS, Ctx, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, Lifetime,
+        MAX_SIZE, PROCESS, PROCESS_DOC, PROCESS_MAX_SIZE, SHARDS, SHARED_DOC, Value, charged,
+        endpoint, local_cap, open_configured, process_cap, process_forget, process_get,
+        process_put, scoped, shard_cap, shard_of, store_forget, store_get, store_put,
     };
 
     /// Taken by every case that touches the process tier, first thing.
@@ -1339,7 +1628,7 @@ mod tests {
     #[test]
     fn a_cache_put_and_get_use_the_same_graph_copy_as_the_isolate_boundary() {
         let payload = nvs_runtime::encode(Value::int(7)).expect("an `int` crosses any boundary");
-        store_put(b"the-same-walk", payload.clone(), None);
+        store_put(b"the-same-walk", payload.clone(), Lifetime::Forever, None);
         assert_eq!(
             store_get(b"the-same-walk"),
             Some(payload),
@@ -1420,7 +1709,7 @@ mod tests {
     fn a_local_entry_may_be_absent_at_any_time_and_the_contract_says_so() {
         assert_eq!(store_get(b"absent-by-construction"), None);
 
-        store_put(b"present", b"payload".to_vec(), None);
+        store_put(b"present", b"payload".to_vec(), Lifetime::Forever, None);
         assert_eq!(store_get(b"present"), Some(b"payload".to_vec()));
 
         assert!(
@@ -1441,13 +1730,23 @@ mod tests {
     /// *is* a second core for this question.
     #[test]
     fn a_local_write_on_one_core_is_not_visible_on_another() {
-        store_put(b"one-core-only", b"written here".to_vec(), None);
+        store_put(
+            b"one-core-only",
+            b"written here".to_vec(),
+            Lifetime::Forever,
+            None,
+        );
         assert_eq!(store_get(b"one-core-only"), Some(b"written here".to_vec()));
 
         let elsewhere = std::thread::spawn(|| {
             let before = store_get(b"one-core-only");
             // And the other direction: what the second core writes stays there.
-            store_put(b"one-core-only", b"written there".to_vec(), None);
+            store_put(
+                b"one-core-only",
+                b"written there".to_vec(),
+                Lifetime::Forever,
+                None,
+            );
             (before, store_get(b"one-core-only"))
         })
         .join()
@@ -1465,11 +1764,11 @@ mod tests {
     fn the_cap_forgets_an_older_entry_rather_than_refusing_the_write() {
         // Room for two of these three entries and no more.
         let room = Some(2 * (2 + 6 + ENTRY_OVERHEAD));
-        store_put(b"k1", b"first!".to_vec(), room);
-        store_put(b"k2", b"second".to_vec(), room);
+        store_put(b"k1", b"first!".to_vec(), Lifetime::Forever, room);
+        store_put(b"k2", b"second".to_vec(), Lifetime::Forever, room);
         assert_eq!(store_get(b"k1"), Some(b"first!".to_vec()));
 
-        store_put(b"k3", b"third!".to_vec(), room);
+        store_put(b"k3", b"third!".to_vec(), Lifetime::Forever, room);
         assert_eq!(
             store_get(b"k1"),
             None,
@@ -1486,12 +1785,109 @@ mod tests {
     #[test]
     fn an_entry_larger_than_the_whole_tier_is_forgotten_as_it_arrives() {
         let room = Some(64 + ENTRY_OVERHEAD);
-        store_put(b"kept", vec![0; 8], room);
-        store_put(b"kept", vec![0; 4096], room);
+        store_put(b"kept", vec![0; 8], Lifetime::Forever, room);
+        store_put(b"kept", vec![0; 4096], Lifetime::Forever, room);
         assert_eq!(store_get(b"kept"), None);
 
-        store_put(b"kept", vec![7; 8], room);
+        store_put(b"kept", vec![7; 8], Lifetime::Forever, room);
         assert_eq!(store_get(b"kept"), Some(vec![7; 8]));
+    }
+
+    /// `forget` takes an entry out of the tier it was named on and out of no
+    /// other, and gives the bytes back to the balance they were taken from.
+    ///
+    /// Three claims, because each alone passes something broken: a `forget`
+    /// that emptied the map would satisfy the first, one that forgot on every
+    /// tier at once would satisfy the first two, and one that removed the entry
+    /// without crediting [`Entries::held`] would leave a tier evicting against
+    /// a cap it no longer measures.
+    #[test]
+    fn a_forget_takes_one_entry_out_of_one_tier_and_credits_the_cap() {
+        const KEY: &[u8] = b"forgettable";
+
+        let _held = TIER.lock().expect("the process tier, one case at a time");
+        store_put(KEY, b"local".to_vec(), Lifetime::Forever, None);
+        process_put(KEY, b"process".to_vec(), Lifetime::Forever, None);
+        store_put(b"kept-here", b"local".to_vec(), Lifetime::Forever, None);
+
+        store_forget(KEY);
+
+        assert_eq!(store_get(KEY), None, "the entry named is gone");
+        assert_eq!(
+            store_get(b"kept-here"),
+            Some(b"local".to_vec()),
+            "and nothing else on the tier went with it"
+        );
+        assert_eq!(
+            process_get(KEY),
+            Some(b"process".to_vec()),
+            "the other in-process tier keeps its own entry of that name"
+        );
+        ENTRIES.with_borrow(|local| {
+            assert_eq!(
+                local.held,
+                charged(b"kept-here".len(), b"local".len()),
+                "the forgotten entry is still charged to the cap"
+            );
+        });
+
+        // A key nothing is under is already forgotten, so this is the state the
+        // call above reached rather than a second one.
+        store_forget(KEY);
+        process_forget(KEY);
+        assert_eq!((store_get(KEY), process_get(KEY)), (None, None));
+    }
+
+    /// The module doc's *the read judges, and never writes*: an entry past its
+    /// deadline answers nothing and **stays where it is**, until the cap or an
+    /// overwrite reaches it.
+    ///
+    /// Two claims, because the absence alone would pass a `get` that took the
+    /// entry out — the shape
+    /// `rule:concurrency/the-process-tier-is-one-store-per-process` refuses
+    /// when it fixes a lookup as a read lock and nothing more. The bytes still
+    /// standing against the cap afterwards are what that costs, and the
+    /// overwrite is what ends it.
+    #[test]
+    fn an_entry_past_its_lifetime_is_absent_and_the_read_leaves_it_there() {
+        const KEY: &[u8] = b"past-it";
+        const PAYLOAD: &[u8] = b"gone";
+
+        store_put(
+            KEY,
+            PAYLOAD.to_vec(),
+            Lifetime::For(Duration::from_nanos(1)),
+            None,
+        );
+        std::thread::sleep(Duration::from_millis(2));
+
+        assert_eq!(
+            store_get(KEY),
+            None,
+            "an entry past its lifetime is the `null` § 1 had already promised"
+        );
+        ENTRIES.with_borrow(|local| {
+            assert!(
+                local.entries.contains_key(KEY),
+                "the read took the entry out, which is what makes `get` a write"
+            );
+            assert_eq!(
+                local.held,
+                charged(KEY.len(), PAYLOAD.len()),
+                "and it is still charged, which is what leaving it there costs"
+            );
+        });
+
+        // A lifetime already over is not a write at all, so the overwrite that
+        // reclaims those bytes leaves nothing under the key either.
+        store_put(KEY, PAYLOAD.to_vec(), Lifetime::For(Duration::ZERO), None);
+        ENTRIES.with_borrow(|local| {
+            assert!(
+                local.entries.is_empty(),
+                "a lifetime already over wrote an entry rather than forgetting one"
+            );
+            assert_eq!(local.held, 0, "and the tier is holding bytes for nothing");
+        });
     }
 
     /// `AGENTS.md`'s O(in-flight) rule, which is what makes the cap a bound at
@@ -1503,7 +1899,12 @@ mod tests {
     fn a_key_rewritten_forever_costs_what_it_cost_the_first_time() {
         let room = Some(4 * (4 + 8 + ENTRY_OVERHEAD));
         for step in 0..1_000u32 {
-            store_put(b"hot!", step.to_string().into_bytes(), room);
+            store_put(
+                b"hot!",
+                step.to_string().into_bytes(),
+                Lifetime::Forever,
+                room,
+            );
         }
         assert_eq!(store_get(b"hot!"), Some(b"999".to_vec()));
 
@@ -1538,11 +1939,11 @@ mod tests {
         let _serial = TIER.lock().expect("the tier's cases run one at a time");
 
         let mine = nvs_runtime::encode(Value::int(11)).expect("an `int` crosses any boundary");
-        process_put(b"one-map-mine", mine.clone(), None);
+        process_put(b"one-map-mine", mine.clone(), Lifetime::Forever, None);
         let (read_there, written_there) = std::thread::spawn(|| {
             let theirs =
                 nvs_runtime::encode(Value::int(13)).expect("an `int` crosses any boundary");
-            process_put(b"one-map-theirs", theirs.clone(), None);
+            process_put(b"one-map-theirs", theirs.clone(), Lifetime::Forever, None);
             (process_get(b"one-map-mine"), theirs)
         })
         .join()
@@ -1619,8 +2020,8 @@ mod tests {
 
         let first = nvs_runtime::encode(Value::int(1)).expect("an `int` crosses any boundary");
         let second = nvs_runtime::encode(Value::int(2)).expect("an `int` crosses any boundary");
-        process_put(&one, first.clone(), None);
-        process_put(&two, second.clone(), None);
+        process_put(&one, first.clone(), Lifetime::Forever, None);
+        process_put(&two, second.clone(), Lifetime::Forever, None);
         assert_eq!(process_get(&one), Some(first));
         assert_eq!(process_get(&two), Some(second));
     }
@@ -1650,7 +2051,12 @@ mod tests {
         let live = budget::live_bytes();
         let held = budget::detached_bytes();
 
-        process_put(b"process-charged-to-the-process", vec![b'p'; ENTRY], None);
+        process_put(
+            b"process-charged-to-the-process",
+            vec![b'p'; ENTRY],
+            Lifetime::Forever,
+            None,
+        );
 
         assert!(
             budget::detached_bytes() - held >= ENTRY.cast_signed(),
@@ -1669,7 +2075,12 @@ mod tests {
 
         let before = budget::detached_bytes();
         for _ in 0..REWRITES {
-            process_put(b"process-rewritten", vec![b'r'; ENTRY], None);
+            process_put(
+                b"process-rewritten",
+                vec![b'r'; ENTRY],
+                Lifetime::Forever,
+                None,
+            );
         }
         let after = budget::detached_bytes() - before;
         assert!(
@@ -1721,6 +2132,7 @@ mod tests {
             process_put(
                 format!("process-sweep-{step:04}").as_bytes(),
                 vec![b's'; CHUNK],
+                Lifetime::Forever,
                 Some(CAP),
             );
         }
@@ -1803,6 +2215,7 @@ mod tests {
             store_put(
                 format!("sweep-{step:04}").as_bytes(),
                 vec![b'c'; CHUNK],
+                Lifetime::Forever,
                 Some(CAP),
             );
             over += usize::from(ENTRIES.with_borrow(|local| local.held) > CAP);
@@ -1823,7 +2236,12 @@ mod tests {
         // Charged to *this* thread, which is what § 3 means by charged to the
         // core: the balance rises with the entry and stays risen with it.
         let alone = budget::detached_bytes();
-        store_put(b"charged-per-core", vec![b'x'; LARGE], None);
+        store_put(
+            b"charged-per-core",
+            vec![b'x'; LARGE],
+            Lifetime::Forever,
+            None,
+        );
         assert!(
             budget::detached_bytes() - alone >= LARGE.cast_signed(),
             "the entry's bytes are live on the core that wrote it"
@@ -1833,7 +2251,12 @@ mod tests {
         // sharing this one's — § 3's multiplication, as a measurement.
         let elsewhere = std::thread::spawn(|| {
             let fresh = budget::detached_bytes();
-            store_put(b"charged-per-core", vec![b'y'; LARGE], None);
+            store_put(
+                b"charged-per-core",
+                vec![b'y'; LARGE],
+                Lifetime::Forever,
+                None,
+            );
             budget::detached_bytes() - fresh
         })
         .join()
@@ -1864,7 +2287,12 @@ mod tests {
         let live = budget::live_bytes();
         let held = budget::detached_bytes();
 
-        store_put(b"charged-to-the-process", vec![b'p'; ENTRY], None);
+        store_put(
+            b"charged-to-the-process",
+            vec![b'p'; ENTRY],
+            Lifetime::Forever,
+            None,
+        );
 
         assert!(
             budget::detached_bytes() - held >= ENTRY.cast_signed(),
@@ -1899,7 +2327,7 @@ mod tests {
         const KEY: &[u8] = b"inherited-from-an-earlier-request";
 
         let room = Some(charged(KEY.len(), ENTRY));
-        store_put(KEY, vec![b'i'; ENTRY], room);
+        store_put(KEY, vec![b'i'; ENTRY], Lifetime::Forever, room);
 
         // The request that comes next, under a ceiling of its own.
         let mut ctx = Ctx::buffered();
@@ -1911,7 +2339,12 @@ mod tests {
         );
         let headroom = ceiling - budget::live_bytes();
 
-        store_put(b"written-by-this-request", vec![b'w'; ENTRY], room);
+        store_put(
+            b"written-by-this-request",
+            vec![b'w'; ENTRY],
+            Lifetime::Forever,
+            room,
+        );
         assert_eq!(
             store_get(KEY),
             None,
@@ -1951,7 +2384,7 @@ mod tests {
         /// The one entry the charge is read off.
         const KEY: &[u8] = b"counted-against-the-cap";
 
-        store_put(KEY, vec![b'c'; ENTRY], Some(CAP));
+        store_put(KEY, vec![b'c'; ENTRY], Lifetime::Forever, Some(CAP));
         ENTRIES.with_borrow(|local| {
             assert_eq!(
                 local.held,
@@ -1965,6 +2398,7 @@ mod tests {
             store_put(
                 format!("swept-{step:04}").as_bytes(),
                 vec![b's'; ENTRY],
+                Lifetime::Forever,
                 Some(CAP),
             );
             over += usize::from(ENTRIES.with_borrow(|local| local.held) > CAP);

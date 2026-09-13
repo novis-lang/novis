@@ -159,17 +159,23 @@ impl Connection {
         }
     }
 
-    /// `SET key payload EX seconds` — the entry replaced, and the store told
-    /// when to forget it.
+    /// `SET key payload PX milliseconds` — the entry replaced, and the store
+    /// told when to forget it.
     ///
-    /// A second method rather than an `Option<u64>` on [`Connection::set`],
-    /// because the two callers are two decisions and neither may drift into the
-    /// other's: `Core\Cache`'s entries have no expiry at all
-    /// (`rule:core-api/two-cache-tiers` gives the tier a cap and not a clock), while every
-    /// [`crate::session`] record has one and a record written without one is
+    /// A second method rather than an `Option<Duration>` on
+    /// [`Connection::set`], because writing an entry with no expiry at all and
+    /// writing one with a lifetime are two decisions, and a default argument
+    /// lets the first be reached by leaving the second out: a `Core\Cache`
+    /// entry written without a `ttl` is bounded by the tier it is in, while a
+    /// [`crate::session`] record written without one is
     /// `rule:http-server/session-expiry-belongs-to-the-store`
-    /// 's sweeper coming back. A default argument would let a caller reach
-    /// the wrong one by omission; two names cannot be omitted.
+    /// 's sweeper coming back. Two names cannot be omitted.
+    ///
+    /// Milliseconds rather than `EX`'s seconds, because a lifetime is a
+    /// `Core\Time\Duration` and a cache entry may be written for less than a
+    /// second — which under `EX` would round to the zero that is `SET`'s
+    /// spelling for an error. Anything shorter than a millisecond rounds
+    /// **up** to one for the same reason.
     ///
     /// # Errors
     ///
@@ -178,11 +184,13 @@ impl Connection {
         &mut self,
         key: &[u8],
         payload: &[u8],
-        seconds: u64,
+        ttl: Duration,
     ) -> Result<(), String> {
-        let ttl = seconds.to_string();
+        let millis = u64::try_from(ttl.as_millis().max(1))
+            .unwrap_or(u64::MAX)
+            .to_string();
         match self.command(
-            &[b"SET", key, payload, b"EX", ttl.as_bytes()],
+            &[b"SET", key, payload, b"PX", millis.as_bytes()],
             Replay::Idempotent,
         )? {
             Reply::Simple(word) if word == "OK" => Ok(()),
@@ -673,6 +681,49 @@ mod tests {
         let listener =
             std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
         (listener, path)
+    }
+
+    /// A lifetime reaches this tier as a **length of time** and never as an
+    /// instant, because the store keeps its own clock — as whole milliseconds,
+    /// rounded up, since zero is `SET`'s spelling for an error rather than for
+    /// an entry that is already gone.
+    ///
+    /// Two writes on one connection, because either alone passes a command
+    /// that had the scale right and the rounding wrong.
+    #[test]
+    fn a_lifetime_crosses_as_whole_milliseconds_rounded_up() {
+        const LONG: &[u8] =
+            b"*5\r\n$3\r\nSET\r\n$1\r\nk\r\n$2\r\nhi\r\n$2\r\nPX\r\n$5\r\n90000\r\n";
+        const SHORT: &[u8] = b"*5\r\n$3\r\nSET\r\n$1\r\nk\r\n$2\r\nhi\r\n$2\r\nPX\r\n$1\r\n1\r\n";
+
+        let (listener, address) = listening();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client dials once");
+            let first = read_exactly(&mut stream, LONG.len());
+            stream.write_all(b"+OK\r\n").expect("the reply");
+            let second = read_exactly(&mut stream, SHORT.len());
+            stream.write_all(b"+OK\r\n").expect("the reply");
+            (first, second)
+        });
+
+        let mut connection = Connection::new(Target::Tcp(address), Duration::from_secs(5));
+        connection.ensure().expect("the fake store is listening");
+        connection
+            .set_expiring(b"k", b"hi", Duration::from_secs(90))
+            .expect("a `SET … PX` answering `+OK`");
+        connection
+            .set_expiring(b"k", b"hi", Duration::from_micros(500))
+            .expect("a lifetime under the store's granularity is still a write");
+
+        let (first, second) = server.join().expect("the fake store runs to completion");
+        assert_eq!(
+            first, LONG,
+            "a lifetime crosses as milliseconds, not as the seconds `EX` counts"
+        );
+        assert_eq!(
+            second, SHORT,
+            "and one under a millisecond rounds up rather than to the zero `SET` refuses"
+        );
     }
 
     /// `rule:concurrency/a-cached-value-is-copied-across-the-boundary`: the shared tier's two operations are one `SET` and one

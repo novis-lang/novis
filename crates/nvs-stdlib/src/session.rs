@@ -539,8 +539,9 @@ pub(crate) fn destroy(open: &mut Connection, id: &str) -> Result<(), String> {
 /// `clear`, `regenerate` and `destroy` single-key operations over a store
 /// `rule:core-classes/ratelimit-two-members` gives no multi-key atomic step.
 ///
-/// A `ttl` under a second rounds **up** to one rather than down to zero: zero is `SET`'s spelling
-/// for an error, and a record written with no expiry at all is § 5's sweeper coming back.
+/// The expiry is the store's own, per § 5: a record written with no expiry at all is that
+/// section's sweeper coming back, which is why this reaches the command that carries one rather
+/// than the bare `SET` beside it.
 ///
 /// # Errors
 ///
@@ -551,8 +552,7 @@ pub(crate) fn save(
     record: &[u8],
     ttl: Duration,
 ) -> Result<(), String> {
-    let seconds = ttl.as_secs().max(1);
-    open.set_expiring(&key_of(id), record, seconds)
+    open.set_expiring(&key_of(id), record, ttl)
 }
 
 /// How long an identifier [`mint`] draws renders to, derived from the draw rather than written.
@@ -1177,7 +1177,7 @@ mod tests {
     /// dropped — the second half of what makes this a two-core test rather than a wire test: both
     /// cores talk to *one* map, which is what a shared tier is.
     ///
-    /// `SET … EX`, `GET` and `DEL` only, because those are the three commands [`save`], [`load`]
+    /// `SET … PX`, `GET` and `DEL` only, because those are the three commands [`save`], [`load`]
     /// and [`destroy`] send; anything else is a panic rather than a silent `+OK`, so a fourth
     /// command added upstream fails here instead of passing untested.
     fn serving(listener: TcpListener, held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>) {
@@ -1190,7 +1190,7 @@ mod tests {
                     let reply = match parts[0].as_slice() {
                         b"SET" => {
                             assert_eq!(
-                                parts[3], b"EX",
+                                parts[3], b"PX",
                                 "a record is always written with an expiry"
                             );
                             held.lock()
@@ -1275,7 +1275,12 @@ mod tests {
         let wrote = thread::spawn(move || {
             let mut open = Connection::new(Target::Tcp(address), Duration::from_secs(5));
             save(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written");
-            store_put(&key_of(ID), RECORD.to_vec(), None);
+            store_put(
+                &key_of(ID),
+                RECORD.to_vec(),
+                crate::cache::Lifetime::Forever,
+                None,
+            );
             assert_eq!(store_get(&key_of(ID)), Some(RECORD.to_vec()));
         });
         wrote.join().expect("the first core");

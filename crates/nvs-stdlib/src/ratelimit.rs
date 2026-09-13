@@ -777,6 +777,11 @@ nvs_runtime::nvs_helper! {
             crate::cache::store_put(
                 namespaced.as_bytes(),
                 next_tat.to_string().into_bytes(),
+                // The cap is what bounds a limiter's entries, not a clock: a
+                // window's own arithmetic already answers for an arrival too
+                // old to matter, and an entry the cap forgot is the same
+                // approximation `shed` is chosen for.
+                crate::cache::Lifetime::Forever,
                 crate::cache::local_cap(ctx),
             );
         }
@@ -1097,6 +1102,7 @@ mod tests {
             crate::cache::store_put(
                 format!("unrelated-{filler}").as_bytes(),
                 vec![b'x'; 2048],
+                crate::cache::Lifetime::Forever,
                 Some(8 * 1024),
             );
         }
