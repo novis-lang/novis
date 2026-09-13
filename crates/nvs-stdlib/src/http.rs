@@ -48,7 +48,7 @@
 //! 's sink — `string | Core\Http\Target`, **both unqualified**, so a `tainted` operand is a
 //! diagnostic and [`allowUrl`](CLASS) is the only way past it. A `Target` argument was pinned by
 //! the launderer that built it and is not pinned again; a plain `string` — the form § 1 keeps for a
-//! URL the program itself authored — goes through the same four questions [`pin`] asks for
+//! URL the program itself authored — goes through the same questions [`pin`] asks for
 //! `allowUrl`, so there is one implementation of the policy and not two.
 //!
 //! **`retry` is three flat options rather than the nested shape § 5 first wrote.** A bag flattens
@@ -94,7 +94,7 @@
 //! [`transport`] composes the request, writes it, reads the reply and decides what is worth trying
 //! again; what stays here is every decision about *whether* a request may happen at all. The seam
 //! is [`transport::send`]'s `repin` closure: a redirect hop is re-checked by calling back into
-//! [`pin`], so `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s rule is enforced by the same four questions the first URL passed and
+//! [`pin`], so `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s rule is enforced by the same questions the first URL passed and
 //! there is no second copy of the policy under the socket. What that module's own doc owns is the
 //! rest — one connection per attempt, how `https` reaches `nvs-host`'s TLS client and which host
 //! name its certificate is checked against, and what a reply is allowed to make this process hold.
@@ -367,7 +367,7 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 /// approved it — the whole of `rule:http-server/allow-url-pins-the-address` and `rule:security/net-address-policy` as this module holds it, written
 /// under `member` so a refusal names the row the caller wrote.
 ///
-/// The order of the four questions is deliberate. The text is parsed and its
+/// The order of the questions is deliberate. The text is parsed and its
 /// scheme judged first, because both are statements about the argument and
 /// neither tells a caller anything about the deployment. Then
 /// `nvs_runtime::capability::pin_host_addresses` asks the capability about the
@@ -375,48 +375,34 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 /// an ungranted program cannot use this member as a resolver for names it was
 /// never allowed to reach.
 ///
+/// The address question is the one a deployment writing `[http.client.proxy]
+/// resolve = "proxy"` has said this process cannot ask: there the proxy
+/// resolves the destination and no address for it is ever learned here, so the
+/// text, the scheme and the `net.connect` grant's host list are asked exactly
+/// as they are for a direct call, and `rule:security/net-address-policy`'s
+/// table is the proxy's to enforce
+/// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+/// The empty set answered there is what carries the narrowing downstream:
+/// `CONNECT` names the host rather than an address, and the connection is
+/// pooled under the same text. A host the operator listed in `bypass` is not
+/// this case — it is dialled directly and under the full policy — so the fork
+/// is asked of the host and not of the block alone.
+///
 /// One function rather than one per caller: [`nvs_core_http_allow_url`] and
 /// every row of [`CLIENT`] that is handed a plain `string` ask exactly this,
 /// and a second copy of it would be the second writer that agrees until it
-/// does not.
+/// does not. The launderer is inside that *and* rather than beside it: a
+/// `Core\Http::allowUrl` that still resolved under the word would refuse every
+/// URL in the one network the word exists for, since the resolver it reaches
+/// there has no route outward.
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` for any of the four: the text is not a URL, its
+/// A thrown `RuntimeError` for any of them: the text is not a URL, its
 /// scheme is outside the roster, it names no host, or the capability refuses
 /// the host or one of the addresses it resolves to — one denied address refuses
 /// the host whole.
 fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<Vec<std::net::IpAddr>, Fault> {
-    let host = judged_host(text, member)?;
-    nvs_runtime::capability::pin_host_addresses(ctx, &host, member)
-}
-
-/// [`pin`]'s questions, less the one a deployment writing
-/// `[http.client.proxy] resolve = "proxy"` has said this process cannot ask:
-/// there the proxy resolves the destination and no address for it is ever
-/// learned here, so the text, the scheme and the `net.connect` grant's host
-/// list are asked exactly as they are for a direct call and
-/// `rule:security/net-address-policy`'s table is the proxy's to enforce
-/// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
-///
-/// The empty set it answers with is what carries that downstream: `CONNECT`
-/// then names the host rather than an address, and the connection is pooled
-/// under the same text. A host the operator listed in `bypass` is not this
-/// case — it is dialled directly and under the full policy — so the fork is
-/// asked of the host and not of the block alone.
-///
-/// Every door a *call* reaches an address through asks this rather than
-/// [`pin`]: the member's own URL through [`approved`], and a redirect hop
-/// through [`repinned`].
-///
-/// # Errors
-///
-/// [`pin`]'s, less the address one under the word above.
-fn pin_unless_the_proxy_resolves(
-    ctx: &mut Ctx,
-    text: &str,
-    member: &str,
-) -> Result<Vec<std::net::IpAddr>, Fault> {
     let host = judged_host(text, member)?;
     if proxy_of(ctx).is_some_and(|proxy| proxy.resolves(&host)) {
         nvs_runtime::capability::require(ctx, Cap::NetConnect, Scope::Host(&host), member)?;
@@ -470,7 +456,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http::allowUrl(tainted string $url): Core\Http\Target` — `rule:http-server/allow-url-pins-the-address`
     /// , and the only spelling that removes `tainted` from an outbound URL.
     ///
-    /// The four questions it asks, and the order it asks them in, are [`pin`]'s.
+    /// The questions it asks, and the order it asks them in, are [`pin`]'s.
     /// What is here is the answer: a value carrying both the URL and every
     /// address that was approved, for the reason this module's own docs give.
     ///
@@ -478,6 +464,11 @@ nvs_runtime::nvs_helper! {
     /// holds and the form [`addresses_of`] reads back — an address is a value
     /// with no representation of its own in the language, and a target carrying
     /// eight of them carries eight strings.
+    ///
+    /// Under `[http.client.proxy] resolve = "proxy"` it is empty, because the
+    /// door approved a host it never resolved. The `Target` then carries the
+    /// approval and nothing else, which is what a call reads back as *ask the
+    /// proxy for this one by name*.
     fn nvs_core_http_allow_url(ctx, args: [1]) {
         let text = text_of(args, "allowUrl")?;
         let approved = pin(ctx, text, MEMBER)?;
@@ -2612,8 +2603,7 @@ fn named_address(ctx: &Ctx, url: &str, named: &str, member: &str) -> Result<Vec<
 ///
 /// # Errors
 ///
-/// [`judge_downgrade`]'s two for a hop down into plaintext, and
-/// [`pin_unless_the_proxy_resolves`]'s.
+/// [`judge_downgrade`]'s two for a hop down into plaintext, and [`pin`]'s.
 fn repinned(
     ctx: &mut Ctx,
     args: &[Value],
@@ -2624,7 +2614,7 @@ fn repinned(
     if downgrade {
         judge_downgrade(ctx, args, hop, member)?;
     }
-    pin_unless_the_proxy_resolves(ctx, hop, member)
+    pin(ctx, hop, member)
 }
 
 /// A hop out of `https` and into `http`, against the call's own word and the
@@ -2672,7 +2662,7 @@ fn judge_downgrade(ctx: &Ctx, args: &[Value], hop: &str, member: &str) -> Result
 ///
 /// # Errors
 ///
-/// [`pin_unless_the_proxy_resolves`]'s for a `string`, [`named_address`]'s for
+/// [`pin`]'s for a `string`, [`named_address`]'s for
 /// a call that wrote `connectTo`, and a thrown `LogicError` where that key sits
 /// beside a `Target`, which already carries the address its laundering
 /// approved. A
@@ -2684,7 +2674,7 @@ fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, Vec<
     if !matches!(args[0].tag(), Some(Tag::Object)) {
         let addresses = match named {
             Some(named) => named_address(ctx, &url, named, member)?,
-            None => pin_unless_the_proxy_resolves(ctx, &url, member)?,
+            None => pin(ctx, &url, member)?,
         };
         return Ok((url, addresses));
     }
@@ -2710,13 +2700,17 @@ fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, Vec<
 }
 
 /// The approved set as [`TARGET_ADDRESSES_SLOT`] holds it: one text per
-/// address, in the order the resolver answered them.
+/// address, in the order the resolver answered them, and none at all for a
+/// `Target` laundered where the proxy resolves the destination.
 ///
 /// `None` rather than a shorter set for anything the slot holds that is not an
-/// address, and for an empty one: this crate is what writes that slot, so a
-/// value another kind would be a mistake in this file, and answering with the
-/// entries that did parse would be a call connecting to a set the door never
-/// approved.
+/// address: this crate is what writes that slot, so a value of another kind
+/// would be a mistake in this file, and answering with the entries that did
+/// parse would be a call connecting to a set the door never approved. An empty
+/// set is not that mistake and is not folded in with it — it is what [`pin`]
+/// answers under `resolve = "proxy"`, and telling the two apart is what lets a
+/// call refuse a target no proxy will tunnel instead of reading it as
+/// unwritable.
 fn addresses_of(object: *mut nvs_runtime::ObjHeader) -> Option<Vec<IpAddr>> {
     let held = crate::instance::slot(object, TARGET_ADDRESSES_SLOT).array_ptr()?;
     let held = crate::arr::borrowed(held);
@@ -2729,7 +2723,7 @@ fn addresses_of(object: *mut nvs_runtime::ObjHeader) -> Option<Vec<IpAddr>> {
             .expect("next_slot only names live entries");
         out.push(address.as_text()?.parse::<IpAddr>().ok()?);
     }
-    (!out.is_empty()).then_some(out)
+    Some(out)
 }
 
 /// The URL this call names, whichever arm of the union carried it.
@@ -3095,7 +3089,7 @@ fn fields_of(
 ///
 /// # Errors
 ///
-/// [`pin`]'s four, [`judge_bound`]'s, [`judge_attempts`]', [`judge_verb`]'s and
+/// [`pin`]'s, [`judge_bound`]'s, [`judge_attempts`]', [`judge_verb`]'s and
 /// [`judge_trust`]'s, and then [`transport::send`]'s.
 fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Value, Fault> {
     let (status, body, headers, tls) = exchanged(ctx, args, member, verb, false)?;
@@ -5074,6 +5068,84 @@ mod tests {
         unsafe {
             url.release();
             elsewhere.release();
+        }
+    }
+
+    /// The launderer under the same word: `Core\Http::allowUrl` asks the door
+    /// every call door asks, so `resolve = "proxy"` does not leave `tainted` on
+    /// every URL in the one network the word exists for
+    /// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+    ///
+    /// What it answers with is read back through [`super::approved`], because an
+    /// empty set is what a call depends on telling apart from a slot this crate
+    /// did not write: one is the approval of a host nothing here resolved, and
+    /// the other is unreadable and fatal.
+    #[test]
+    fn a_target_laundered_under_resolve_proxy_carries_the_approval_and_no_address() {
+        const LAUNDERER: &str = "Core\\Http::allowUrl";
+        const MEMBER: &str = "Core\\Http\\Client::get";
+        const URL: &str = "https://api.example.invalid/ok";
+
+        let mut proxied = Ctx::buffered();
+        proxied.set_config(granting(AT_THE_PROXY));
+        let pinned = super::pin(&mut proxied, URL, LAUNDERER)
+            .expect("the proxy resolves this destination, so the launderer had nothing to look up");
+        assert!(
+            pinned.is_empty(),
+            "an address was learned for a host this deployment cannot resolve: {pinned:?}"
+        );
+
+        // The value the launderer builds out of that answer, read back by the
+        // door a call carrying it goes through.
+        let mut empty = NvsArray::new();
+        for address in &pinned {
+            empty.append(Value::str(NvsStr::new(address.to_string().as_bytes())));
+        }
+        let target = crate::instance::build(
+            &TARGET,
+            [Value::str(NvsStr::new(URL.as_bytes())), Value::array(empty)],
+        );
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[0] = target;
+        let (sent, addresses) = super::approved(&mut proxied, &args, MEMBER)
+            .expect("a target with no address in it is an approval, not an unreadable slot");
+        assert_eq!(
+            sent, URL,
+            "the URL is read back out of the target it was laundered into"
+        );
+        assert!(
+            addresses.is_empty(),
+            "the door answered with an address the launderer never had: {addresses:?}"
+        );
+
+        // A slot another writer mangled is still the fatal it was: the empty set
+        // is the one thing that stopped being folded in with it.
+        let mut mangled = NvsArray::new();
+        mangled.append(Value::int(443));
+        let wrong = crate::instance::build(
+            &TARGET,
+            [
+                Value::str(NvsStr::new(URL.as_bytes())),
+                Value::array(mangled),
+            ],
+        );
+        args[0] = wrong;
+        let unreadable = super::approved(&mut proxied, &args, MEMBER)
+            .expect_err("an entry that is not an address is a target this crate did not write");
+        assert!(
+            matches!(unreadable, Fault::Fatal(_)),
+            "a mangled slot is a fatal and not something a program catches: {unreadable:?}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the two objects `instance::build` \
+                      produced, and `approved` reads an argument without taking \
+                      one"
+        )]
+        unsafe {
+            target.release();
+            wrong.release();
         }
     }
 

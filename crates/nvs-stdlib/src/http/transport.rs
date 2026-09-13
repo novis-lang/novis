@@ -150,8 +150,11 @@ pub(crate) struct Call<'a> {
     /// resolver's order and at most eight of them
     /// (`rule:http-server/an-outbound-call-tries-every-approved-address`).
     ///
-    /// Never empty: a name that answered nothing is the launderer's refusal,
-    /// not an approval of no addresses.
+    /// Empty in one case only: a destination this deployment's proxy resolves,
+    /// where the door approved the host and no address for it was ever learned
+    /// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+    /// A name that answered nothing is the launderer's refusal and never
+    /// reaches this field.
     pub(crate) addresses: Vec<IpAddr>,
     /// The whole call's budget — every attempt, every hop, every backoff.
     pub(crate) deadline: Instant,
@@ -1448,6 +1451,25 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     // door approved its host and stopped there, so there is one connection to
     // look for and it is filed under the name the `CONNECT` below carries.
     let by_name = through.is_some_and(|proxy| proxy.by_name);
+    // An approved set with nothing in it says *ask for this one by name*, and
+    // there is one network it can be asked in. `[http.client.proxy]` is
+    // `Reload`, so a `Core\Http\Target` outlives the word that laundered it: the
+    // operator can put this host in `bypass`, write `resolve = "local"` or
+    // remove the block, and the call arrives holding an approval of a host with
+    // no address beside it. Refusing here is what keeps the emptiness from
+    // being read as *every address is fine*
+    // (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+    if approved.is_empty() && !by_name {
+        return Err(Fault::thrown_as(
+            ThrownClass::Runtime,
+            format!(
+                "{}: `{}` was approved without an address, which only a deployment whose proxy \
+                 resolves the destination does, and nothing tunnels this call — there is no \
+                 address to dial and no name to ask for",
+                call.member, parts.host
+            ),
+        ));
+    }
     // A connection to *any* approved address serves the call, since each of
     // them was approved and each is filed under the address it actually goes
     // to: one lookup per address rather than one on the set's first
@@ -1508,10 +1530,9 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
             Tunnel::Unreachable(why) => return Ok(Attempt::Failed(why)),
         },
         None => {
-            // Unreachable from source: a set with no address in it is what a
-            // destination the proxy resolves leaves behind, and that call is
-            // tunnelled by the arm above; every door a direct dial can come
-            // through approved an address or refused.
+            // Unreachable from source: the one set with no address in it
+            // belongs to a destination the proxy resolves, which the arm above
+            // tunnels and the refusal before this match ends where it does not.
             let Some(&first) = approved.first() else {
                 return Err(Fault::fatal(format!(
                     "{}: an approved set with no address in it",
@@ -2962,6 +2983,49 @@ mod tests {
             !behind.asked[0].contains("b3BlcmF0b3I6bXVzdC1ub3QtYmUtZm9yd2FyZGVk"),
             "nor the value under another field name: {:?}",
             behind.asked
+        );
+    }
+
+    /// A destination approved without an address is reachable through a proxy
+    /// that resolves it and nowhere else, and `[http.client.proxy]` is `Reload`:
+    /// the operator can bypass the host, write `resolve = "local"` or drop the
+    /// block while a `Core\Http\Target` laundered under the old one is still in
+    /// a program's hand
+    /// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+    ///
+    /// Both ways in, because they reach the refusal from opposite sides: with no
+    /// proxy at all there is nothing to tunnel through, and with one that
+    /// bypasses this host the call was sent back under the full address policy —
+    /// which is the policy this set was never checked against.
+    #[test]
+    fn a_destination_with_no_address_is_refused_where_nothing_tunnels_it() {
+        let nowhere: SocketAddr = "192.0.2.1:443".parse().expect("a literal address");
+        let mut asking = call(nowhere, "test");
+        asking.url = "https://origin.example/ok".to_owned();
+        asking.addresses = Vec::new();
+
+        let refused = send(&asking, &mut never).expect_err("nothing here can reach that host");
+        assert!(
+            matches!(refused, Fault::Thrown(nvs_runtime::ThrownClass::Runtime, _)),
+            "a deployment that no longer proxies this host refuses the call: {refused:?}"
+        );
+        assert!(
+            format!("{refused:?}").contains("origin.example"),
+            "the refusal names the destination it has nothing to dial for: {refused:?}"
+        );
+
+        let mut bypassing = through(nowhere);
+        bypassing.by_name = true;
+        bypassing.bypass = vec!["origin.example".to_owned()];
+        asking.proxy = Some(bypassing);
+        let directly = send(&asking, &mut never)
+            .expect_err("a bypassed host is dialled directly, and this one has no address");
+        assert!(
+            matches!(
+                directly,
+                Fault::Thrown(nvs_runtime::ThrownClass::Runtime, _)
+            ),
+            "a bypassed destination with no address is the same refusal: {directly:?}"
         );
     }
 

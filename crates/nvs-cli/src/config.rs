@@ -678,6 +678,17 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
                 line.push_str(&format!(" (overrides {})", record.replaced.path.display()));
             }
         }
+        // The offline half of
+        // `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`:
+        // the one word that hands the address question to the proxy reads as an
+        // ordinary directive set to an ordinary string, so the rule it narrows
+        // is rendered beside it. An audit of a tree with no server running is
+        // exactly where the boot's own `Warn` record is not there to say so.
+        if key == RESOLVE_DIRECTIVE
+            && value.trim_matches('"') == nvs_config::http::RESOLVE_AT_THE_PROXY
+        {
+            line.push_str(&format!("    {NARROWED_POLICY}"));
+        }
         println!("{line}");
     }
     ExitCode::SUCCESS
@@ -686,6 +697,18 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
 /// What `rule:config/check-and-dump-audit-the-tree-offline` renders a secret's value as. Never the content, and never
 /// a fixed-width mask that would say how long it is.
 const REDACTED: &str = "<secret>";
+
+/// The directive that says who resolves an outbound destination, as [`leaves`]
+/// spells a dotted key. The value that gives the address question away is
+/// `nvs_config`'s own word, so the tree and this listing cannot disagree about
+/// which one it is.
+const RESOLVE_DIRECTIVE: &str = "http.client.proxy.resolve";
+
+/// What the directive above is rendered beside when it carries that word: the
+/// rule whose table the proxy is then enforcing, by id and not summarized. A
+/// dump is read by an operator who looks the id up, and a sentence here would
+/// be a second wording of a rule that has one home.
+const NARROWED_POLICY: &str = "rule:security/net-address-policy";
 
 /// § 9's listing: every leaf of the merged table, plus one row per secret, in
 /// dotted-key order.

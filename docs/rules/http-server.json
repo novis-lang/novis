@@ -1230,7 +1230,7 @@
     {
       "id": "http-server/an-outbound-proxy-is-operator-configured",
       "title": "`[http.client.proxy]` is the only way an outbound call is proxied: `System` class, written by the operator, and never a call option or an environment variable",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0182"
       ],
@@ -1246,14 +1246,15 @@
       ],
       "guardedBy": [
         "crates/nvs-config/tests/resolve.rs",
-        "crates/nvs-config/tests/tree.rs",
-        "crates/nvs-stdlib/src/http/transport.rs"
+        "crates/nvs-config/tests/secret.rs",
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "crates/nvs-stdlib/src/http.rs"
       ]
     },
     {
       "id": "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
       "title": "`resolve` is mandatory: `local` tunnels to the address Novis approved and keeps the pin, `proxy` narrows the policy to the URL's text and warns at every boot",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0182"
       ],
@@ -1268,7 +1269,9 @@
       ],
       "guardedBy": [
         "crates/nvs-config/tests/resolve.rs",
-        "crates/nvs-stdlib/src/http/transport.rs"
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "crates/nvs-stdlib/src/http.rs",
+        "tests/conformance/config/resolve-at-the-proxy-is-dumped-beside-the-rule-it-narrows.nvst"
       ]
     },
     {
