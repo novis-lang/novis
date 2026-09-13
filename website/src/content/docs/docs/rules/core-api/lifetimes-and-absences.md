@@ -17,7 +17,7 @@ next:
 
 <div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">10</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">3</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">5</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#a-lifetime-is-an-object">Anything with a lifetime is an object, and <code>Core</code> never hands back a handle</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-lifetime-is-written">A signature's lifetime is a required key and <code>null</code> is the forever spelling</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#signing-is-over-a-payload">A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#one-refusal-except-expiry">Every way of failing a signature check is one refusal, and expiry is the single distinguishable one</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#each-door-takes-a-different-thing">Two members are not a second spelling when each takes a different thing and answers a different thing</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#two-cache-tiers">Cross-request state is two members with two contracts, never one API with a flag</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-temporary-directory-member">The whole temporary-file surface is one member handing out an owned directory</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#session-roster">The session roster is <code>start</code> and six members, and a member called before <code>start</code> throws naming it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#reference-card">An implemented <code>Core</code> member carries its reference card in the registry declaration beside its code</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#removals">A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#a-lifetime-is-an-object">Anything with a lifetime is an object, and <code>Core</code> never hands back a handle</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-lifetime-is-written">A signature's lifetime is a required key and <code>null</code> is the forever spelling</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#signing-is-over-a-payload">A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#one-refusal-except-expiry">Every way of failing a signature check is one refusal, and expiry is the single distinguishable one</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#each-door-takes-a-different-thing">Two members are not a second spelling when each takes a different thing and answers a different thing</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#two-cache-tiers">Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-temporary-directory-member">The whole temporary-file surface is one member handing out an owned directory</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#session-roster">The session roster is <code>start</code> and the members that work on the record it loaded, and a member called before <code>start</code> throws naming it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#reference-card">An implemented <code>Core</code> member carries its reference card in the registry declaration beside its code</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#removals">A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="a-lifetime-is-an-object">
 
@@ -163,13 +163,13 @@ A program that assembles a URL by hand, signs the text and hand-rolls the parame
 URL member badly rather than reached it twice, which is the difference between a second door and a second
 API.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/one-way-to-do-each-thing/#one-paradigm-per-operation" title="No operation is reachable two ways, and a domain class's statics never mirror an object's own methods"><code>core-api/one-paradigm-per-operation</code></a> <a href="/docs/rules/core-api/naming-and-shape/#one-name-one-signature" title="One name has one signature, and two behaviours need two names"><code>core-api/one-name-one-signature</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#two-cache-tiers" title="Cross-request state is two members with two contracts, never one API with a flag"><code>core-api/two-cache-tiers</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0146.md">record 0146</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0060.md">record 0060</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/signed_cookie.rs"><code>crates/nvs-stdlib/src/signed_cookie.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/registry.rs"><code>crates/nvs-stdlib/src/registry.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/one-way-to-do-each-thing/#one-paradigm-per-operation" title="No operation is reachable two ways, and a domain class's statics never mirror an object's own methods"><code>core-api/one-paradigm-per-operation</code></a> <a href="/docs/rules/core-api/naming-and-shape/#one-name-one-signature" title="One name has one signature, and two behaviours need two names"><code>core-api/one-name-one-signature</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#two-cache-tiers" title="Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag"><code>core-api/two-cache-tiers</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0146.md">record 0146</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0060.md">record 0060</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/signed_cookie.rs"><code>crates/nvs-stdlib/src/signed_cookie.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/registry.rs"><code>crates/nvs-stdlib/src/registry.rs</code></a></dd></div></dl>
 
 </div>
 
 <div class="nv-rule" id="two-cache-tiers">
 
-## Cross-request state is two members with two contracts, never one API with a flag
+## Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -177,27 +177,32 @@ API.
 <a class="nv-rule-id" href="#two-cache-tiers"><code>core-api/two-cache-tiers</code></a>
 </div>
 
-Cross-request state is reached through **two members with two contracts**, not one member with a flag. The
-local tier is per-core and in-process: any entry may be absent at any time for any reason, and a write on
-one core is not visible on another. The shared tier is a real store over the network, coherent across cores
-and machines, and gated by the capability that names the store an operator configured. Neither member takes
-an argument, so there is no flag to have written.
+Cross-request state is reached through **a member per tier, each with its own contract**, not one member
+with a flag. The local tier is per-core and in-process: any entry may be absent at any time for any reason,
+and a write on one core is not visible on another. The process tier is one store per serving process,
+coherent across every core of it, in memory only and gone when the process ends
+([`concurrency/the-process-tier-is-one-store-per-process`](/docs/rules/concurrency/deferred-and-cross-request-state/#the-process-tier-is-one-store-per-process "Core\Cache::process() is one store per serving process, coherent across its cores and gone when it ends")). The shared tier is a real store over the
+network, coherent across cores and machines, and gated by the capability that names the store an operator
+configured. No member takes an argument, so there is no flag to have written.
 
 A program that would be incorrect if a read returned nothing is using the wrong tier, and the whole value of
-two members is that the choice is made in the source and visible in review. One name covering two different
-guarantees invites using the weaker one by accident — the same reason a generic sanitizer is refused.
+a member per tier is that the choice is made in the source and visible in review. One name covering
+different guarantees invites using the weaker one by accident — the same reason a generic sanitizer is
+refused. A tier is added by adding a member, which is why this rule's id counts two while its title does
+not: an id is the fragment's path and a path does not move.
 
-The local tier needs no capability, because a capability is checked at the door to an *effect* and this tier
-has no door: nothing leaves the process, no name is resolved and no file is opened. What is left to bound is
-footprint, and a configured size cap is the instrument for that; a boolean grant is not one, and adding it
-would price the tier as an authority question every deployment then has to answer.
+Neither weak tier needs a capability, because a capability is checked at the door to an *effect* and neither
+has a door: nothing leaves the process, no name is resolved and no file is opened. What is left to bound is
+footprint, and a configured size cap is the instrument for that — `[cache.local] max_size` per core and
+`[cache.process] max_size` per process; a boolean grant is not one, and adding it would price a tier as an
+authority question every deployment then has to answer.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p><code>apcu_*</code> and its shared-memory relatives are gone; the tier a program wants is the member it calls</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/naming-and-shape/#one-name-one-signature" title="One name has one signature, and two behaviours need two names"><code>core-api/one-name-one-signature</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#each-door-takes-a-different-thing" title="Two members are not a second spelling when each takes a different thing and answers a different thing"><code>core-api/each-door-takes-a-different-thing</code></a> <a href="/docs/rules/core-api/one-way-to-do-each-thing/#one-paradigm-per-operation" title="No operation is reachable two ways, and a domain class's statics never mirror an object's own methods"><code>core-api/one-paradigm-per-operation</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0142.md">record 0142</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0118.md">record 0118</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst"><code>tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst"><code>tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-local-forgets-an-entry-rather-than-failing-the-write.nvst"><code>tests/conformance/core/cache-local-forgets-an-entry-rather-than-failing-the-write.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/naming-and-shape/#one-name-one-signature" title="One name has one signature, and two behaviours need two names"><code>core-api/one-name-one-signature</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#each-door-takes-a-different-thing" title="Two members are not a second spelling when each takes a different thing and answers a different thing"><code>core-api/each-door-takes-a-different-thing</code></a> <a href="/docs/rules/core-api/one-way-to-do-each-thing/#one-paradigm-per-operation" title="No operation is reachable two ways, and a domain class's statics never mirror an object's own methods"><code>core-api/one-paradigm-per-operation</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0142.md">record 0142</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0118.md">record 0118</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0181.md">record 0181</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst"><code>tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst"><code>tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-local-forgets-an-entry-rather-than-failing-the-write.nvst"><code>tests/conformance/core/cache-local-forgets-an-entry-rather-than-failing-the-write.nvst</code></a></dd></div></dl>
 
 </div>
 
@@ -233,7 +238,7 @@ The cost is one extra join at each call site that genuinely wanted a single file
 
 <div class="nv-rule" id="session-roster">
 
-## The session roster is `start` and six members, and a member called before `start` throws naming it
+## The session roster is `start` and the members that work on the record it loaded, and a member called before `start` throws naming it
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -241,15 +246,16 @@ The cost is one extra join at each call site that genuinely wanted a single file
 <a class="nv-rule-id" href="#session-roster"><code>core-api/session-roster</code></a>
 </div>
 
-The session surface is `start` plus six members — read, write, remove, clear, regenerate and destroy.
-`start` is the only one that talks to the store: it is where a presented identifier is checked and the
-record is loaded, and the six operate on the record already in hand.
+The session surface is `start` plus the members that work on the record it loaded — read, write, remove,
+clear, regenerate, destroy, and the sealed pair [`http-server/a-session-holds-a-secret-only-sealed`](/docs/rules/http-server/sessions/#a-session-holds-a-secret-only-sealed "A user's own secret lives in their session, sealed under a key ring through setSecret and getSecret")
+adds. `start` is the only one that talks to the store: it is where a presented identifier is checked and
+the record is loaded, and the rest operate on the record already in hand.
 
 **A member called before `start` throws, naming the member that opens one.** That single rule is what a
 per-request "this request uses sessions" declaration was buying — the fact is a line in the source — and it
-is worth nothing if the first read can silently start one. One rule for all of them means the six agree
-rather than each growing a refusal of its own, and the throw is catchable at the root, so a program that
-cannot use sessions can say so.
+is worth nothing if the first read can silently start one. One rule for all of them means they agree
+rather than each growing a refusal of its own — the sealed pair answers it before it looks at a key ring
+— and the throw is catchable at the root, so a program that cannot use sessions can say so.
 
 `regenerate` issues a new identifier, moves the record to it and destroys the old entry, in that order, and
 takes no argument: PHP's delete-old-session flag chose between a fixation window and a lost session, and

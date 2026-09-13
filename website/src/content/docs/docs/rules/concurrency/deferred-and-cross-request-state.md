@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Work that outlives the response but not the request, and the only way a value outlives the request that made it.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">10</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">8</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">14</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">13</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">11</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#after-response-outlives-the-connection"><code>Core\Task::afterResponse</code> runs after the request's own frame returns, still charged to the request tree</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#only-the-request-registers-deferred-work">Only the request's own task may defer work, and deferred work may not defer more</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#deferred-work-cannot-write-the-response">Deferred work may read the request but not write the response, and its uncaught throw reaches the log alone</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#deferred-is-bounded-by-two-directives"><code>[deferred]</code> carries two bounds: a <code>System</code> <code>max_concurrent</code> and a <code>Runtime</code> <code>deadline</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-full-deferred-executor-throws">Past <code>[deferred] max_concurrent</code>, <code>afterResponse</code> throws at the call site rather than queueing</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#cross-request-state-is-explicit">A value outlives the request that made it only by being put into a named store</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#put-and-get-are-the-whole-boundary">The cache boundary is a copy in and a copy out, so nothing across it is read-modify-write</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-cached-value-is-copied-across-the-boundary">A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#cache-memory-is-charged-to-the-core">The local tier's memory is charged to the core, capped in <code>nvs.toml</code>, and the cap evicts rather than failing a write</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-cross-request-stores-bytes-are-its-own-balance">A cross-request store's bytes go on a balance of their own, and no request is charged or credited for them</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-local-tier-cannot-hold-what-must-be-coherent">Anything a program relies on the value of goes to the shared tier, and the local tier is not offered for it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#after-response-outlives-the-connection"><code>Core\Task::afterResponse</code> runs after the request's own frame returns, still charged to the request tree</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#only-the-request-registers-deferred-work">Only the request's own task may defer work, and deferred work may not defer more</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#deferred-work-cannot-write-the-response">Deferred work may read the request but not write the response, and its uncaught throw reaches the log alone</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#deferred-is-bounded-by-two-directives"><code>[deferred]</code> carries two bounds: a <code>System</code> <code>max_concurrent</code> and a <code>Runtime</code> <code>deadline</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-full-deferred-executor-throws">Past <code>[deferred] max_concurrent</code>, <code>afterResponse</code> throws at the call site rather than queueing</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#cross-request-state-is-explicit">A value outlives the request that made it only by being put into a named store</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-process-tier-is-one-store-per-process"><code>Core\Cache::process()</code> is one store per serving process, coherent across its cores and gone when it ends</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#put-and-get-are-the-whole-boundary">The cache boundary is a copy in and a copy out, so nothing a program can reach is read-modify-write</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-cached-value-is-copied-across-the-boundary">A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#cache-memory-is-charged-to-the-core">The local tier's memory is charged to the core, capped in <code>nvs.toml</code>, and the cap evicts rather than failing a write</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-cross-request-stores-bytes-are-its-own-balance">A cross-request store's bytes go on a balance of their own, and no request is charged or credited for them</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-local-tier-cannot-hold-what-must-be-coherent">Anything a program relies on the value of goes to the shared tier, and a weaker tier is not offered for it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-secret-is-cached-only-sealed">A secret reaches a cache only as ciphertext, through <code>putSecret</code> and <code>getSecret</code> and a key ring</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-secret-fill-runs-once-per-process">On a miss, one caller per process runs <code>fill</code> while the others wait, and a failure is never shared</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="after-response-outlives-the-connection">
 
@@ -200,11 +200,11 @@ A value outlives the request that made it only by being **put into a named store
 ambient place to leave one: no shared segment, no cross-request superglobal, no static that survives
 a request, and no process-wide table a later request can read.
 
-`Core\Cache` is the sanctioned exception, and it is two members that hand back a store rather than
-one API with a flag, so the choice a program made is visible in review rather than buried in an
-argument list. The local tier is a **cache and not a store** — it must always be correct to find
-nothing there — and anything whose value is relied upon uses the shared tier
-([`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](/docs/rules/concurrency/deferred-and-cross-request-state/#the-local-tier-cannot-hold-what-must-be-coherent "Anything a program relies on the value of goes to the shared tier, and the local tier is not offered for it")).
+`Core\Cache` is the sanctioned exception, and it is a member per tier — each handing back a store,
+none taking a flag — so the choice a program made is visible in review rather than buried in an
+argument list. The local and process tiers are a **cache and not a store** — it must always be
+correct to find nothing there — and anything whose value is relied upon uses the shared tier
+([`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](/docs/rules/concurrency/deferred-and-cross-request-state/#the-local-tier-cannot-hold-what-must-be-coherent "Anything a program relies on the value of goes to the shared tier, and a weaker tier is not offered for it")).
 
 The test is **what a program relies on**, not where bytes live. Per-core state derived from its own
 inputs and unreadable by any program is not cross-request state: a compiled-pattern memo is
@@ -217,13 +217,61 @@ read and nothing decides on. Both are charged to a core and capped, which is the
 <p>APCu, <code>shmop</code>, <code>sysvshm</code>, <code>sysvsem</code> and <code>sysvmsg</code> are gone, and there is no ambient place a value can be left for the next request to find</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/closed-doors/#no-cross-request-state" title="Nothing a request does is observable by another request except through an explicit, capability-gated store"><code>security/no-cross-request-state</code></a> <a href="/docs/rules/security/closed-doors/#closed-doors" title="Four doors are closed by construction, and no configuration reopens any of them"><code>security/closed-doors</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#two-cache-tiers" title="Cross-request state is two members with two contracts, never one API with a flag"><code>core-api/two-cache-tiers</code></a> <a href="/docs/rules/statements/where-state-lives/#storage-that-outlives-a-call" title="A program holds state in five declared places, and the list is closed"><code>statements/storage-that-outlives-a-call</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0052.md">record 0052</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0004.md">record 0004</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst"><code>tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-local-twice-is-one-store-and-not-two.nvst"><code>tests/conformance/core/cache-local-twice-is-one-store-and-not-two.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/closed-doors/#no-cross-request-state" title="Nothing a request does is observable by another request except through an explicit, capability-gated store"><code>security/no-cross-request-state</code></a> <a href="/docs/rules/security/closed-doors/#closed-doors" title="Four doors are closed by construction, and no configuration reopens any of them"><code>security/closed-doors</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#two-cache-tiers" title="Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag"><code>core-api/two-cache-tiers</code></a> <a href="/docs/rules/statements/where-state-lives/#storage-that-outlives-a-call" title="A program holds state in five declared places, and the list is closed"><code>statements/storage-that-outlives-a-call</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0052.md">record 0052</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0004.md">record 0004</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0181.md">record 0181</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst"><code>tests/conformance/core/cache-local-and-shared-are-two-members-with-two-contracts.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-local-twice-is-one-store-and-not-two.nvst"><code>tests/conformance/core/cache-local-twice-is-one-store-and-not-two.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="the-process-tier-is-one-store-per-process">
+
+## `Core\Cache::process()` is one store per serving process, coherent across its cores and gone when it ends
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#the-process-tier-is-one-store-per-process"><code>concurrency/the-process-tier-is-one-store-per-process</code></a>
+</div>
+
+`Core\Cache::process()` hands back one store per **serving process** — coherent across every core of that
+process, held in memory only, and gone when the process ends. It is the third tier, answering the same
+store class `local()` and `shared()` do, and it is a general tier: what belongs in it is anything a whole
+machine would otherwise hold once per core.
+
+It is a **cache and not a store**, with every sentence
+[`concurrency/cross-request-state-is-explicit`](/docs/rules/concurrency/deferred-and-cross-request-state/#cross-request-state-is-explicit "A value outlives the request that made it only by being put into a named store") writes about the local tier holding here: an entry may
+be absent at any time — for the cap, for its lifetime, or because this is a different process than the one
+that wrote it — and a program that would be incorrect on a miss is using the wrong tier
+([`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](/docs/rules/concurrency/deferred-and-cross-request-state/#the-local-tier-cannot-hold-what-must-be-coherent "Anything a program relies on the value of goes to the shared tier, and a weaker tier is not offered for it")). A value is copied in and copied out
+by the same graph copy every tier uses ([`concurrency/a-cached-value-is-copied-across-the-boundary`](/docs/rules/concurrency/deferred-and-cross-request-state/#a-cached-value-is-copied-across-the-boundary "A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses")).
+
+This is the first mutable state the cores share, so the map is sharded behind read/write locks and `get`
+takes a read lock and never a write, which is what keeps a lookup off a `&mut` on the request path. The
+shard count is a fixed constant rather than a directive or a function of `[server] workers`: the map is
+created before the workers exist under `nvs serve`, and there is one worker under `nvs run`. Eviction is by
+write age, as it is in the local tier, and a full tier forgets rather than failing a `put`.
+
+An entry's real key carries the `[[app]]` and the configuration generation that was live when it was
+written, so two apps on one server never read each other's entries and a reload never serves an entry
+written under the configuration it replaced.
+
+No capability gates it, for the reason the local tier needs none: a capability is checked at the door to an
+*effect*, and this tier has no door. What is bounded instead is footprint —
+`[cache.process] max_size`, `System`-class and applied on reload — and every byte of it moves the detached
+balance under a bracket the store itself holds
+([`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](/docs/rules/concurrency/deferred-and-cross-request-state/#a-cross-request-stores-bytes-are-its-own-balance "A cross-request store's bytes go on a balance of their own, and no request is charged or credited for them")). What it spends is O(working set)
+once per process, where the local tier is O(cores × working set), and never O(requests served).
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>APCu's segment is shared between every worker of an FPM pool and outlives any one of them; this tier is one process's own memory and goes when that process does</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/lifetimes-and-absences/#two-cache-tiers" title="Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag"><code>core-api/two-cache-tiers</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#cross-request-state-is-explicit" title="A value outlives the request that made it only by being put into a named store"><code>concurrency/cross-request-state-is-explicit</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#the-local-tier-cannot-hold-what-must-be-coherent" title="Anything a program relies on the value of goes to the shared tier, and a weaker tier is not offered for it"><code>concurrency/the-local-tier-cannot-hold-what-must-be-coherent</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#a-cross-request-stores-bytes-are-its-own-balance" title="A cross-request store's bytes go on a balance of their own, and no request is charged or credited for them"><code>concurrency/a-cross-request-stores-bytes-are-its-own-balance</code></a> <a href="/docs/rules/http-server/listening-and-admission/#the-accept-fan-out-is-one-worker-per-core" title="Every [server] listen entry is bound before any core accepts, each core holds its own handle on every listener, and [server] workers bounds the count over the machine's available parallelism"><code>http-server/the-accept-fan-out-is-one-worker-per-core</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0181.md">record 0181</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-process-tier-is-read-by-a-later-request.nvst"><code>tests/conformance/core/cache-process-tier-is-read-by-a-later-request.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-process-tier-evicts-past-its-cap-and-never-fails-a-put.nvst"><code>tests/conformance/core/cache-process-tier-evicts-past-its-cap-and-never-fails-a-put.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/cache.rs"><code>crates/nvs-stdlib/src/cache.rs</code></a></dd></div></dl>
 
 </div>
 
 <div class="nv-rule" id="put-and-get-are-the-whole-boundary">
 
-## The cache boundary is a copy in and a copy out, so nothing across it is read-modify-write
+## The cache boundary is a copy in and a copy out, so nothing a program can reach is read-modify-write
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -232,8 +280,15 @@ read and nothing decides on. Both are charged to a core and capped, which is the
 </div>
 
 What crosses the cache boundary is a copy in and a copy out. There is no read-modify-write across
-it: no set-if-absent, no compare-and-set, no atomic increment, and no operation that observes an
-entry and writes it in the same step.
+it: no set-if-absent, no compare-and-set, no atomic increment, and no operation a program can reach
+that observes an entry and writes it in the same step.
+
+`getSecret`'s `fill` is the one step that does observe and write, and it leaves the sentence above
+standing because the observation is not a program's to reach: the miss, the election of the one
+caller that fetches and the write are one member's business
+([`concurrency/a-secret-fill-runs-once-per-process`](/docs/rules/concurrency/deferred-and-cross-request-state/#a-secret-fill-runs-once-per-process "On a miss, one caller per process runs fill while the others wait, and a failure is never shared")). Nothing tells a caller whether it filled or
+waited, no key's fill can be made to wait on another's, and there is no way to hold the fill without
+asking for the value.
 
 An entry is therefore a payload rather than a live graph, and a rewrite **replaces** the entry
 instead of merging into it. Two requests that read the same key, change what they read and write it
@@ -250,7 +305,7 @@ for anything else.
 <p><code>apcu_add</code>, <code>apcu_cas</code> and <code>apcu_inc</code> have no counterpart, so a lock or a counter is not built on the cache at all</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/concurrency/deferred-and-cross-request-state/#a-cached-value-is-copied-across-the-boundary" title="A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses"><code>concurrency/a-cached-value-is-copied-across-the-boundary</code></a> <a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#ratelimit-two-members" title="consume and shed are two jobs with two verbs, and neither is a tier of the other"><code>core-classes/ratelimit-two-members</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#two-cache-tiers" title="Cross-request state is two members with two contracts, never one API with a flag"><code>core-api/two-cache-tiers</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-a-rewrite-replaces-the-entry-rather-than-adding-one.nvst"><code>tests/conformance/core/cache-a-rewrite-replaces-the-entry-rather-than-adding-one.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/concurrency/deferred-and-cross-request-state/#a-cached-value-is-copied-across-the-boundary" title="A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses"><code>concurrency/a-cached-value-is-copied-across-the-boundary</code></a> <a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#ratelimit-two-members" title="consume and shed are two jobs with two verbs, and neither is a tier of the other"><code>core-classes/ratelimit-two-members</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#two-cache-tiers" title="Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag"><code>core-api/two-cache-tiers</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0181.md">record 0181</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-a-rewrite-replaces-the-entry-rather-than-adding-one.nvst"><code>tests/conformance/core/cache-a-rewrite-replaces-the-entry-rather-than-adding-one.nvst</code></a></dd></div></dl>
 
 </div>
 
@@ -275,7 +330,10 @@ lifetime depend on what a request happened to read, which is exactly the propert
 exists to guarantee.
 
 A cached value is therefore subject to every restriction any crossing value is: a generator does not
-go in, and neither does a `secret`. Both are refused at `put` rather than silently degraded.
+go in, and neither does a `secret`. Both are refused at `put` rather than silently degraded, and for
+a secret the door is elsewhere: `putSecret` seals it and puts the **ciphertext** across this boundary
+as `bytes`, so what the copy sees is never a `secret`
+([`concurrency/a-secret-is-cached-only-sealed`](/docs/rules/concurrency/deferred-and-cross-request-state/#a-secret-is-cached-only-sealed "A secret reaches a cache only as ciphertext, through putSecret and getSecret and a key ring")).
 
 The copy is a real per-`get` cost, paid to keep the request model intact. An implementation may
 later share immutable scalars within a core by refcount, since a core is single-threaded — an
@@ -286,7 +344,7 @@ optimisation, and it must not be observable.
 <p>APCu's serialize-on-store is a wire format with its own type losses; this is the language's own copy, and it refuses what may not cross rather than mangling it</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/classes/copying-and-serializing/#two-copy-depths" title="A copy is either clone's one level or the graph copy, and no class customizes either"><code>classes/two-copy-depths</code></a> <a href="/docs/rules/security/isolates/#isolate-values-cross-by-copy" title="A value crosses an isolate boundary as one graph copy, and a closure, an alias or a host handle does not cross at all"><code>security/isolate-values-cross-by-copy</code></a> <a href="/docs/rules/security/secrets/#secret-crosses-no-boundary" title="A secret value is refused at the one graph copy, so it reaches neither serialize nor any spawn"><code>security/secret-crosses-no-boundary</code></a> <a href="/docs/rules/iteration/#generator-stays-in-one-isolate" title="A generator does not cross a boundary and does not clone"><code>iteration/generator-stays-in-one-isolate</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md">record 0033</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst"><code>tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-secret-value-cannot-cross-the-graph-copy.nvst"><code>tests/conformance/reject/a-secret-value-cannot-cross-the-graph-copy.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/classes/copying-and-serializing/#two-copy-depths" title="A copy is either clone's one level or the graph copy, and no class customizes either"><code>classes/two-copy-depths</code></a> <a href="/docs/rules/security/isolates/#isolate-values-cross-by-copy" title="A value crosses an isolate boundary as one graph copy, and a closure, an alias or a host handle does not cross at all"><code>security/isolate-values-cross-by-copy</code></a> <a href="/docs/rules/security/secrets/#secret-crosses-no-boundary" title="A secret value is refused at the one graph copy, so it reaches neither serialize nor any spawn"><code>security/secret-crosses-no-boundary</code></a> <a href="/docs/rules/iteration/#generator-stays-in-one-isolate" title="A generator does not cross a boundary and does not clone"><code>iteration/generator-stays-in-one-isolate</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md">record 0033</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0181.md">record 0181</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst"><code>tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-secret-value-cannot-cross-the-graph-copy.nvst"><code>tests/conformance/reject/a-secret-value-cannot-cross-the-graph-copy.nvst</code></a></dd></div></dl>
 
 </div>
 
@@ -365,7 +423,7 @@ its own module doc rather than taking the guard and breaking its symmetry.
 
 <div class="nv-rule" id="the-local-tier-cannot-hold-what-must-be-coherent">
 
-## Anything a program relies on the value of goes to the shared tier, and the local tier is not offered for it
+## Anything a program relies on the value of goes to the shared tier, and a weaker tier is not offered for it
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -374,15 +432,17 @@ its own module doc rather than taking the guard and breaking its symmetry.
 </div>
 
 The local tier is per-core with no coherence between cores: a write on one core is not visible on
-another, and any entry may be absent at any time. So anything a program **relies on the value of**
-goes to the shared tier or the database — sessions, locks, idempotency keys, and any counter whose
-value is acted upon.
+another, and any entry may be absent at any time. The process tier is coherent across the cores of
+one process and no further, so a second process on the same machine answers nothing the first wrote.
+So anything a program **relies on the value of** goes to the shared tier or the database — sessions,
+locks, idempotency keys, and any counter whose value is acted upon.
 
-This is enforced rather than documented. `Core\Session`'s configurable backends carry no local-tier
-entry at all, so pointing a session at it is a configuration-time error naming the file the key was
-written in, rather than a race that appears under load on a second core. Rate limits and the lease a
-scheduled job takes have their own members over the shared tier for the same reason, so an
-application is not left to arrange coherence for itself.
+This is enforced rather than documented. `Core\Session`'s configurable backends carry an entry for
+neither weak tier, so pointing a session at one is a configuration-time error naming the file the key
+was written in, rather than a race that appears under load on a second core — or, for the process
+tier, on the second process a deployment scales to. Rate limits and the lease a scheduled job takes
+have their own members over the shared tier for the same reason, so an application is not left to
+arrange coherence for itself.
 
 The test is what a program relies on, not where bytes live
 ([`concurrency/cross-request-state-is-explicit`](/docs/rules/concurrency/deferred-and-cross-request-state/#cross-request-state-is-explicit "A value outlives the request that made it only by being put into a named store")), and one thing that looks like a violation is
@@ -394,6 +454,92 @@ metric at all and its values are approximate aggregates merged arithmetically at
 <p>An APCu-backed session, lock or rate limit does not port: the local tier is not among the backends, so the miswiring is a configuration error rather than a race</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/lifetimes-and-absences/#session-roster" title="The session roster is start and six members, and a member called before start throws naming it"><code>core-api/session-roster</code></a> <a href="/docs/rules/statements/where-state-lives/#no-host-populated-variables" title="No variable is ever populated by the host; every superglobal is a Core class member"><code>statements/no-host-populated-variables</code></a> <a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#ratelimit-two-members" title="consume and shed are two jobs with two verbs, and neither is a tier of the other"><code>core-classes/ratelimit-two-members</code></a> <a href="/docs/rules/security/closed-doors/#no-cross-request-state" title="Nothing a request does is observable by another request except through an explicit, capability-gated store"><code>security/no-cross-request-state</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0075.md">record 0075</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0073.md">record 0073</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-session-survives-a-request-on-another-core.nvst"><code>tests/conformance/core/a-session-survives-a-request-on-another-core.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst"><code>tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst"><code>tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/lifetimes-and-absences/#session-roster" title="The session roster is start and the members that work on the record it loaded, and a member called before start throws naming it"><code>core-api/session-roster</code></a> <a href="/docs/rules/statements/where-state-lives/#no-host-populated-variables" title="No variable is ever populated by the host; every superglobal is a Core class member"><code>statements/no-host-populated-variables</code></a> <a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#ratelimit-two-members" title="consume and shed are two jobs with two verbs, and neither is a tier of the other"><code>core-classes/ratelimit-two-members</code></a> <a href="/docs/rules/security/closed-doors/#no-cross-request-state" title="Nothing a request does is observable by another request except through an explicit, capability-gated store"><code>security/no-cross-request-state</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0075.md">record 0075</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0073.md">record 0073</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0181.md">record 0181</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-session-survives-a-request-on-another-core.nvst"><code>tests/conformance/core/a-session-survives-a-request-on-another-core.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst"><code>tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst"><code>tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-secret-is-cached-only-sealed">
+
+## A secret reaches a cache only as ciphertext, through `putSecret` and `getSecret` and a key ring
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#a-secret-is-cached-only-sealed"><code>concurrency/a-secret-is-cached-only-sealed</code></a>
+</div>
+
+A `secret` value meets a cache through exactly two members — `putSecret(string $key, secret string $value,
+Duration $ttl, array<secret bytes> $keys)` and `getSecret(string $key, array<secret bytes> $keys, {fill?,
+wait?})` — and what they store is **ciphertext**. The ring's newest key seals the value under
+XChaCha20-Poly1305; the sealed plaintext is the value and its expiry, and the additional data is the
+cache's domain byte ‖ the app ‖ the entry's name. The sealed bytes then enter the tier by its ordinary
+path, as `bytes`.
+
+So no `secret` ever crosses the cache boundary and
+[`security/secret-crosses-no-boundary`](/docs/rules/security/secrets/#secret-crosses-no-boundary "A secret value is refused at the one graph copy, so it reaches neither serialize nor any spawn") is untouched: `put` still refuses a `secret` value, `get` still
+answers `null` for a sealed entry, and the sealed pair is the only door. A `ttl` is required on
+`putSecret`, because a secret never outlives a lifetime someone stated.
+
+**A sealed entry that does not open is a miss**, never an error — under every key of the ring, past its
+sealed expiry, or bound to another app or another name — so a rotated ring re-fetches rather than failing,
+and a ciphertext moved between entries or apps answers nothing. A ring that is wrong in itself is still a
+`LogicError`, because that is a bug in the program rather than a fact about the entry.
+
+What sealing buys, exactly: a secret cannot be read by code that knows an entry's name but not the ring; it
+can reach the shared tier without leaving the process in the clear; and a tampered, moved or replayed entry
+is a miss. **It does not protect a secret from a compromised process** or a memory dump — the ring lives in
+the same memory as the plaintext. What it costs is one seal per `putSecret` and one open per ring key tried
+per `getSecret`, a ring ordered newest-first making the common case one open.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>There is no counterpart at all: PHP has no confidential type, so a token in APCu or memcached is plaintext by construction</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/secrets/#secret-crosses-no-boundary" title="A secret value is refused at the one graph copy, so it reaches neither serialize nor any spawn"><code>security/secret-crosses-no-boundary</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#a-cached-value-is-copied-across-the-boundary" title="A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses"><code>concurrency/a-cached-value-is-copied-across-the-boundary</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#a-secret-fill-runs-once-per-process" title="On a miss, one caller per process runs fill while the others wait, and a failure is never shared"><code>concurrency/a-secret-fill-runs-once-per-process</code></a> <a href="/docs/rules/http-server/sessions/#a-session-holds-a-secret-only-sealed" title="A user's own secret lives in their session, sealed under a key ring through setSecret and getSecret"><code>http-server/a-session-holds-a-secret-only-sealed</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#signing-is-over-a-payload" title="A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines"><code>core-api/signing-is-over-a-payload</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0181.md">record 0181</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-a-secret-round-trips-sealed-on-every-tier.nvst"><code>tests/conformance/core/cache-a-secret-round-trips-sealed-on-every-tier.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-a-sealed-entry-under-another-ring-is-a-miss.nvst"><code>tests/conformance/core/cache-a-sealed-entry-under-another-ring-is-a-miss.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-get-answers-null-for-a-sealed-entry.nvst"><code>tests/conformance/core/cache-get-answers-null-for-a-sealed-entry.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/cache-put-refuses-a-secret-and-names-put-secret.nvst"><code>tests/conformance/reject/cache-put-refuses-a-secret-and-names-put-secret.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-secret-fill-runs-once-per-process">
+
+## On a miss, one caller per process runs `fill` while the others wait, and a failure is never shared
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#a-secret-fill-runs-once-per-process"><code>concurrency/a-secret-fill-runs-once-per-process</code></a>
+</div>
+
+On a miss, `getSecret`'s `fill` runs in **exactly one caller per process**, in that caller's own request and
+under its own capabilities, while every other caller on every core waits for it — each for at most its
+`wait`, which inherits `[cache.process] fill_wait`, and past which it throws `TimeoutError`. `fill` answers
+a `Core\Cache\SecretEntry`, which carries the value and the lifetime the fetch learned, a token endpoint
+being the authority on its own.
+
+**A failure is not shared.** When `fill` throws, the waiters are released with nothing and the next caller
+to ask runs `fill` itself: an exception crossing from one request into another would be exactly the
+cross-request state [`security/no-cross-request-state`](/docs/rules/security/closed-doors/#no-cross-request-state "Nothing a request does is observable by another request except through an explicit, capability-gated store") closes, and a cached failure turns one bad minute
+at a provider into an outage every later request inherits. A request that ends while holding the fill
+releases it, so a cancelled fetch never wedges a key, and a `fill` that asks for its own key is a
+`LogicError` rather than a wait on itself.
+
+**An entry inside the last fifth of its lifetime is still answered to every caller** while exactly one of
+them runs `fill` to replace it, so the expiry of a hot key costs nobody a wait. The window is a fraction
+rather than a duration because the tier does not know what a lifetime means to its caller. Refresh-ahead is
+`getSecret`-with-a-`fill` and nothing else: a plain `get` past its lifetime is simply absent.
+
+It is once per **process**, not once per fleet. On the shared tier every other process runs its own `fill`,
+and a fleet-wide single fetch is a lease over that store — an owner, a renewal and a recovery path — rather
+than anything this key spells. This is also the one step in `Core\Cache` that observes an entry and writes
+it, and it is not a coordination primitive
+([`concurrency/put-and-get-are-the-whole-boundary`](/docs/rules/concurrency/deferred-and-cross-request-state/#put-and-get-are-the-whole-boundary "The cache boundary is a copy in and a copy out, so nothing a program can reach is read-modify-write")): a program cannot take the fill, cannot see who
+holds it, and cannot make one key's fill wait on another's.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>Nothing in PHP coordinates a miss between workers, so a cold key is one fetch per worker and a cached failure is the usual workaround</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/concurrency/deferred-and-cross-request-state/#a-secret-is-cached-only-sealed" title="A secret reaches a cache only as ciphertext, through putSecret and getSecret and a key ring"><code>concurrency/a-secret-is-cached-only-sealed</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#the-process-tier-is-one-store-per-process" title="Core\Cache::process() is one store per serving process, coherent across its cores and gone when it ends"><code>concurrency/the-process-tier-is-one-store-per-process</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#put-and-get-are-the-whole-boundary" title="The cache boundary is a copy in and a copy out, so nothing a program can reach is read-modify-write"><code>concurrency/put-and-get-are-the-whole-boundary</code></a> <a href="/docs/rules/security/closed-doors/#no-cross-request-state" title="Nothing a request does is observable by another request except through an explicit, capability-gated store"><code>security/no-cross-request-state</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0181.md">record 0181</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-get-secret-fill-supplies-a-miss-once.nvst"><code>tests/conformance/core/cache-get-secret-fill-supplies-a-miss-once.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst"><code>tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/cache.rs"><code>crates/nvs-stdlib/src/cache.rs</code></a></dd></div></dl>
 
 </div>

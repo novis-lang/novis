@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 965,
-    "shipped": 698,
-    "designed": 267,
-    "diverging": 566
+    "total": 982,
+    "shipped": 718,
+    "designed": 264,
+    "diverging": 583
   },
   "topics": [
     {
@@ -3490,10 +3490,10 @@
       "url": "/docs/rules/testing/",
       "single": false,
       "counts": {
-        "total": 53,
-        "shipped": 38,
+        "total": 54,
+        "shipped": 39,
         "designed": 15,
-        "diverging": 15
+        "diverging": 16
       },
       "sections": [
         {
@@ -3596,10 +3596,10 @@
           "blurb": "Structural doubles, a fixed clock and seed, property tests, inline snapshots — and a runner that refuses to call nothing green.",
           "url": "/docs/rules/testing/doubles-and-the-runner/",
           "counts": {
-            "total": 11,
-            "shipped": 7,
+            "total": 12,
+            "shipped": 8,
             "designed": 4,
-            "diverging": 5
+            "diverging": 6
           },
           "rules": [
             {
@@ -3649,6 +3649,14 @@
               "status": "shipped",
               "href": "/docs/rules/testing/doubles-and-the-runner/#in-process-request",
               "diverges": "an HTTP test needs no socket, no port and no web server; the real route table and the real middleware chain answer it in microseconds"
+            },
+            {
+              "id": "testing/an-outbound-call-is-answered-from-a-table",
+              "slug": "an-outbound-call-is-answered-from-a-table",
+              "title": "One registered answer makes every outbound call in that test come from the table, and an unmatched one throws rather than reaching the network",
+              "status": "shipped",
+              "href": "/docs/rules/testing/doubles-and-the-runner/#an-outbound-call-is-answered-from-a-table",
+              "diverges": "there is no way to intercept `curl_exec` short of a wrapper the application was written around or a stub extension; here one registered answer takes the whole test off the network"
             },
             {
               "id": "testing/property-testing",
@@ -4012,10 +4020,10 @@
       "url": "/docs/rules/security/",
       "single": false,
       "counts": {
-        "total": 87,
-        "shipped": 68,
-        "designed": 19,
-        "diverging": 28
+        "total": 88,
+        "shipped": 71,
+        "designed": 17,
+        "diverging": 29
       },
       "sections": [
         {
@@ -4672,10 +4680,10 @@
           "blurb": "One TLS client, a closed protocol roster, an algorithm that comes from the key, and CSRF on by default.",
           "url": "/docs/rules/security/protocols-and-tokens/",
           "counts": {
-            "total": 11,
-            "shipped": 7,
-            "designed": 4,
-            "diverging": 5
+            "total": 12,
+            "shipped": 10,
+            "designed": 2,
+            "diverging": 6
           },
           "rules": [
             {
@@ -4685,6 +4693,14 @@
               "status": "shipped",
               "href": "/docs/rules/security/protocols-and-tokens/#one-tls-client",
               "diverges": null
+            },
+            {
+              "id": "security/tls-trust-is-relaxed-only-under-a-host-grant",
+              "slug": "tls-trust-is-relaxed-only-under-a-host-grant",
+              "title": "Verification is relaxed only where a `capabilities.tls` grant names the host and the call asks for it, and no such grant has a `true` spelling",
+              "status": "shipped",
+              "href": "/docs/rules/security/protocols-and-tokens/#tls-trust-is-relaxed-only-under-a-host-grant",
+              "diverges": "`CURLOPT_SSL_VERIFYPEER = false` is one line of userland; here the same effect needs the deployment to name the host in a grant and the call to ask for it, and the boot prints every grant that was written"
             },
             {
               "id": "security/protocol-roster",
@@ -4738,7 +4754,7 @@
               "id": "security/jwe-compact-subset",
               "slug": "jwe-compact-subset",
               "title": "`Core\\Jwe` speaks compact JWE with `A256GCM` alone, and the static that built the key picks the algorithm",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/security/protocols-and-tokens/#jwe-compact-subset",
               "diverges": "there is no `zip`, no `jku` and no `x5u`, so a token cannot talk the verifier into a fetch or a decompression"
             },
@@ -4746,7 +4762,7 @@
               "id": "security/jws-issued-subset",
               "slug": "jws-issued-subset",
               "title": "A token another party issued verifies against a key found by `kid`, never one that is tried, and its claims come back as a `tainted` shape",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/security/protocols-and-tokens/#jws-issued-subset",
               "diverges": "a token with no `kid` cannot be walked against a key set, so verification costs one signature check whatever the sender wrote"
             },
@@ -4862,10 +4878,10 @@
       "url": "/docs/rules/concurrency/",
       "single": false,
       "counts": {
-        "total": 62,
-        "shipped": 51,
+        "total": 65,
+        "shipped": 54,
         "designed": 11,
-        "diverging": 46
+        "diverging": 49
       },
       "sections": [
         {
@@ -4960,10 +4976,10 @@
           "blurb": "Work that outlives the response but not the request, and the only way a value outlives the request that made it.",
           "url": "/docs/rules/concurrency/deferred-and-cross-request-state/",
           "counts": {
-            "total": 11,
-            "shipped": 10,
+            "total": 14,
+            "shipped": 13,
             "designed": 1,
-            "diverging": 8
+            "diverging": 11
           },
           "rules": [
             {
@@ -5015,9 +5031,17 @@
               "diverges": "APCu, `shmop`, `sysvshm`, `sysvsem` and `sysvmsg` are gone, and there is no ambient place a value can be left for the next request to find"
             },
             {
+              "id": "concurrency/the-process-tier-is-one-store-per-process",
+              "slug": "the-process-tier-is-one-store-per-process",
+              "title": "`Core\\Cache::process()` is one store per serving process, coherent across its cores and gone when it ends",
+              "status": "shipped",
+              "href": "/docs/rules/concurrency/deferred-and-cross-request-state/#the-process-tier-is-one-store-per-process",
+              "diverges": "APCu's segment is shared between every worker of an FPM pool and outlives any one of them; this tier is one process's own memory and goes when that process does"
+            },
+            {
               "id": "concurrency/put-and-get-are-the-whole-boundary",
               "slug": "put-and-get-are-the-whole-boundary",
-              "title": "The cache boundary is a copy in and a copy out, so nothing across it is read-modify-write",
+              "title": "The cache boundary is a copy in and a copy out, so nothing a program can reach is read-modify-write",
               "status": "shipped",
               "href": "/docs/rules/concurrency/deferred-and-cross-request-state/#put-and-get-are-the-whole-boundary",
               "diverges": "`apcu_add`, `apcu_cas` and `apcu_inc` have no counterpart, so a lock or a counter is not built on the cache at all"
@@ -5049,10 +5073,26 @@
             {
               "id": "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
               "slug": "the-local-tier-cannot-hold-what-must-be-coherent",
-              "title": "Anything a program relies on the value of goes to the shared tier, and the local tier is not offered for it",
+              "title": "Anything a program relies on the value of goes to the shared tier, and a weaker tier is not offered for it",
               "status": "shipped",
               "href": "/docs/rules/concurrency/deferred-and-cross-request-state/#the-local-tier-cannot-hold-what-must-be-coherent",
               "diverges": "an APCu-backed session, lock or rate limit does not port: the local tier is not among the backends, so the miswiring is a configuration error rather than a race"
+            },
+            {
+              "id": "concurrency/a-secret-is-cached-only-sealed",
+              "slug": "a-secret-is-cached-only-sealed",
+              "title": "A secret reaches a cache only as ciphertext, through `putSecret` and `getSecret` and a key ring",
+              "status": "shipped",
+              "href": "/docs/rules/concurrency/deferred-and-cross-request-state/#a-secret-is-cached-only-sealed",
+              "diverges": "there is no counterpart at all: PHP has no confidential type, so a token in APCu or memcached is plaintext by construction"
+            },
+            {
+              "id": "concurrency/a-secret-fill-runs-once-per-process",
+              "slug": "a-secret-fill-runs-once-per-process",
+              "title": "On a miss, one caller per process runs `fill` while the others wait, and a failure is never shared",
+              "status": "shipped",
+              "href": "/docs/rules/concurrency/deferred-and-cross-request-state/#a-secret-fill-runs-once-per-process",
+              "diverges": "nothing in PHP coordinates a miss between workers, so a cold key is one fetch per worker and a cached failure is the usual workaround"
             }
           ]
         },
@@ -5969,7 +6009,7 @@
             {
               "id": "core-api/two-cache-tiers",
               "slug": "two-cache-tiers",
-              "title": "Cross-request state is two members with two contracts, never one API with a flag",
+              "title": "Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag",
               "status": "shipped",
               "href": "/docs/rules/core-api/lifetimes-and-absences/#two-cache-tiers",
               "diverges": "`apcu_*` and its shared-memory relatives are gone; the tier a program wants is the member it calls"
@@ -5985,7 +6025,7 @@
             {
               "id": "core-api/session-roster",
               "slug": "session-roster",
-              "title": "The session roster is `start` and six members, and a member called before `start` throws naming it",
+              "title": "The session roster is `start` and the members that work on the record it loaded, and a member called before `start` throws naming it",
               "status": "shipped",
               "href": "/docs/rules/core-api/lifetimes-and-absences/#session-roster",
               "diverges": "`$_SESSION` does not exist and no member silently starts a session — `session_start` has to be written"
@@ -6017,8 +6057,8 @@
       "single": false,
       "counts": {
         "total": 83,
-        "shipped": 58,
-        "designed": 25,
+        "shipped": 59,
+        "designed": 24,
         "diverging": 50
       },
       "sections": [
@@ -6483,8 +6523,8 @@
           "url": "/docs/rules/core-classes/codecs-sessions-and-signatures/",
           "counts": {
             "total": 12,
-            "shipped": 9,
-            "designed": 3,
+            "shipped": 10,
+            "designed": 2,
             "diverging": 7
           },
           "rules": [
@@ -6564,7 +6604,7 @@
               "id": "core-classes/crypto-interop-tier",
               "slug": "crypto-interop-tier",
               "title": "`Core\\Crypto`'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-classes/codecs-sessions-and-signatures/#crypto-interop-tier",
               "diverges": "there is no cipher name in a string and no unauthenticated mode to reach for, so `aes-256-ecb` has no spelling"
             },
@@ -6937,7 +6977,7 @@
             {
               "id": "observability/trace-events-carry-a-kind",
               "slug": "trace-events-carry-a-kind",
-              "title": "A trace event carries one of four kinds — `call`, `gc`, `spawn`, `query` — and a `call` keeps its probe shape",
+              "title": "A trace event carries one of five kinds — `call`, `gc`, `spawn`, `query`, `http` — and a `call` keeps its probe shape",
               "status": "shipped",
               "href": "/docs/rules/observability/traces/#trace-events-carry-a-kind",
               "diverges": "Xdebug's trace is a log of function calls; here a collector pause, an isolate spawn and a database statement are events of their own on the same stream, tagged so a viewer can tell them apart"
@@ -7110,10 +7150,10 @@
       "url": "/docs/rules/http-server/",
       "single": false,
       "counts": {
-        "total": 65,
-        "shipped": 57,
+        "total": 77,
+        "shipped": 69,
         "designed": 8,
-        "diverging": 51
+        "diverging": 63
       },
       "sections": [
         {
@@ -7458,10 +7498,10 @@
           "blurb": "A session is a record its store issued. Four operations, loaded once, written whole only when it changed, and never locked.",
           "url": "/docs/rules/http-server/sessions/",
           "counts": {
-            "total": 5,
-            "shipped": 5,
+            "total": 6,
+            "shipped": 6,
             "designed": 0,
-            "diverging": 5
+            "diverging": 6
           },
           "rules": [
             {
@@ -7503,6 +7543,14 @@
               "status": "shipped",
               "href": "/docs/rules/http-server/sessions/#session-expiry-belongs-to-the-store",
               "diverges": "`session.gc_probability` and `session.gc_divisor` have no counterpart, because both backends can expire an entry themselves and a filesystem cannot"
+            },
+            {
+              "id": "http-server/a-session-holds-a-secret-only-sealed",
+              "slug": "a-session-holds-a-secret-only-sealed",
+              "title": "A user's own secret lives in their session, sealed under a key ring through `setSecret` and `getSecret`",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/sessions/#a-session-holds-a-secret-only-sealed",
+              "diverges": "`$_SESSION` holds whatever it is given in the clear, and a token in it is readable by anything that can read the store"
             }
           ]
         },
@@ -7574,10 +7622,10 @@
           "blurb": "No spelling for \"wait forever\", one deadline over the whole call, opt-in jittered retry, and an address pinned before connecting.",
           "url": "/docs/rules/http-server/the-http-client/",
           "counts": {
-            "total": 6,
-            "shipped": 6,
+            "total": 17,
+            "shipped": 17,
             "designed": 0,
-            "diverging": 6
+            "diverging": 17
           },
           "rules": [
             {
@@ -7589,12 +7637,28 @@
               "diverges": "curl defaults to no timeout and `file_get_contents` to `default_socket_timeout`'s sixty seconds; here there is no `null`, no `0` and no option that means unbounded, so a long call names its own `deadline`"
             },
             {
+              "id": "http-server/an-outbound-request-carries-one-body",
+              "slug": "an-outbound-request-carries-one-body",
+              "title": "An outbound request carries at most one body, named by which of four flat keys it is written under, and a second key or a body on `get` is a compile-time diagnostic",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#an-outbound-request-carries-one-body",
+              "diverges": "curl takes `CURLOPT_POSTFIELDS` as a string, an array or a file handle and infers the encoding from which one it got; here the key names what is sent, two keys are refused before the program runs, and a `Part::file` streams from disk rather than being held whole"
+            },
+            {
               "id": "http-server/one-deadline-covers-the-whole-call",
               "slug": "one-deadline-covers-the-whole-call",
               "title": "One `deadline` covers the whole call: the connection, every redirect hop, every retry attempt and every backoff between them",
               "status": "shipped",
               "href": "/docs/rules/http-server/the-http-client/#one-deadline-covers-the-whole-call",
               "diverges": "curl's `CURLOPT_TIMEOUT` bounds one transfer, so three attempts at five seconds is a fifteen-second call; here the stated number is the bound on everything"
+            },
+            {
+              "id": "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime",
+              "slug": "a-streamed-reply-is-bounded-by-idle-and-a-lifetime",
+              "title": "`deadline` ends at the head of a streamed reply, its body runs under `idle` and `maxDuration`, and the body is read one way, once",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#a-streamed-reply-is-bounded-by-idle-and-a-lifetime",
+              "diverges": "a PHP stream has `default_socket_timeout` and nothing that bounds how long a body may take; here a streamed body has two finite bounds it cannot be without, and reading it twice throws"
             },
             {
               "id": "http-server/retry-is-opt-in-jittered-and-closed",
@@ -7615,10 +7679,26 @@
             {
               "id": "http-server/allow-url-pins-the-address",
               "slug": "allow-url-pins-the-address",
-              "title": "`Core\\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and the one approved address, and the connection is made to that address",
+              "title": "`Core\\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and every approved address, and the connection is made to one of them",
               "status": "shipped",
               "href": "/docs/rules/http-server/the-http-client/#allow-url-pins-the-address",
               "diverges": "`file_get_contents($userUrl)` and `curl_setopt(CURLOPT_URL, $userUrl)` are a compile-time diagnostic, and the laundered value is a `Target` the program cannot read an address back out of, not a string"
+            },
+            {
+              "id": "http-server/an-outbound-call-tries-every-approved-address",
+              "slug": "an-outbound-call-tries-every-approved-address",
+              "title": "Every address a name resolves to is checked, one denied refuses the host, and the call falls back across the approved set without ever resolving twice",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#an-outbound-call-tries-every-approved-address",
+              "diverges": "curl tries every address a name answers and checks none of them; here each is checked before any is tried, one denied refuses the whole host, and the lookup runs off the core"
+            },
+            {
+              "id": "http-server/an-outbound-call-names-its-address-only-under-a-grant",
+              "slug": "an-outbound-call-names-its-address-only-under-a-grant",
+              "title": "`connectTo` names an outbound call's address only where `net.connect_to` names the host, and the address policy and the certificate's host check still apply",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#an-outbound-call-names-its-address-only-under-a-grant",
+              "diverges": "`CURLOPT_RESOLVE` takes any host-to-address mapping a script writes; here the host must be granted, the address is judged by the same policy a resolved one is, and the certificate is still checked against the URL's host"
             },
             {
               "id": "http-server/redirects-are-off-and-every-hop-is-re-pinned",
@@ -7627,6 +7707,62 @@
               "status": "shipped",
               "href": "/docs/rules/http-server/the-http-client/#redirects-are-off-and-every-hop-is-re-pinned",
               "diverges": "curl's `FOLLOWLOCATION` is off by default too, but a hop it follows is never checked against anything; here each hop passes the same policy the first URL did and a denied one fails the call rather than being dropped from the chain"
+            },
+            {
+              "id": "http-server/an-https-redirect-never-becomes-plaintext",
+              "slug": "an-https-redirect-never-becomes-plaintext",
+              "title": "A redirect from `https` to `http` needs `net.downgrade` for its host and `redirectToHttp` at the call; a plain `http` URL asked for directly stays allowed",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#an-https-redirect-never-becomes-plaintext",
+              "diverges": "curl follows a hop from `https` to `http` silently, so one `Location` header strips a call's TLS; here it needs a grant and a call-site option, and the refusal names the grant"
+            },
+            {
+              "id": "http-server/a-cross-origin-redirect-drops-credentials",
+              "slug": "a-cross-origin-redirect-drops-credentials",
+              "title": "A redirect hop to another origin carries none of the caller's own headers, the three named credentials and every `secret` value among them",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#a-cross-origin-redirect-drops-credentials",
+              "diverges": "an `Authorization` header set in a stream context is re-sent to whatever host a `Location` names; here a hop to another origin carries no header the program wrote, that one and every `secret` value included"
+            },
+            {
+              "id": "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
+              "slug": "an-outbound-connection-is-pooled-per-core-and-stays-pinned",
+              "title": "An outbound connection is pooled per core under a key carrying everything the check approved, and returns to the pool only after a reply read to the end under known framing",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#an-outbound-connection-is-pooled-per-core-and-stays-pinned",
+              "diverges": "curl reuses a connection keyed on host and port inside one handle, and PHP's stream functions reuse nothing; here the key carries the pinned address, the client identity and the call's TLS policy, so reuse cannot widen what a check approved"
+            },
+            {
+              "id": "http-server/an-outbound-proxy-is-operator-configured",
+              "slug": "an-outbound-proxy-is-operator-configured",
+              "title": "`[http.client.proxy]` is the only way an outbound call is proxied: `System` class, written by the operator, and never a call option or an environment variable",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#an-outbound-proxy-is-operator-configured",
+              "diverges": "curl and PHP's stream wrappers take a proxy from `HTTP_PROXY`/`HTTPS_PROXY` in the environment, or per handle from `CURLOPT_PROXY`; here it is one root-owned block, no environment variable is read, and no program-side spelling exists"
+            },
+            {
+              "id": "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
+              "slug": "a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
+              "title": "`resolve` is mandatory: `local` tunnels to the address Novis approved and keeps the pin, `proxy` narrows the policy to the URL's text and warns at every boot",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
+              "diverges": "curl hands the proxy the destination's host name in every case, having no approved address to hand it; here that is one of two written answers, the other tunnels to the address the check approved, and the one that gives up the pin is announced at every boot"
+            },
+            {
+              "id": "http-server/the-client-trust-roots-are-the-operators",
+              "slug": "the-client-trust-roots-are-the-operators",
+              "title": "`[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#the-client-trust-roots-are-the-operators",
+              "diverges": "`curl.cainfo` and `openssl.cafile` are `ini` settings a script can widen with `ini_set`; here the three keys are `System` class and no code-side spelling for any of them exists"
+            },
+            {
+              "id": "http-server/a-reply-reports-its-tls-session",
+              "slug": "a-reply-reports-its-tls-session",
+              "title": "`Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/the-http-client/#a-reply-reports-its-tls-session",
+              "diverges": "`curl_getinfo` answers a flat array of thirty-odd keys mixing timings, sizes and TLS facts; here the session is an object read through members and the timings are the trace's"
             }
           ]
         },

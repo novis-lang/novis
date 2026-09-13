@@ -154,7 +154,7 @@ language, not of a deployment's ini hygiene.
 It follows that the session store must be able to answer "did I issue this id" — the same demand
 PHP 8.6 makes of session handlers by deprecating those without `create_sid`/`validateId`. A store
 that holds nothing, such as a signed cookie carrying the record itself, cannot answer it and so
-cannot be the session store ([`core-api/session-roster`](/docs/rules/core-api/lifetimes-and-absences/#session-roster "The session roster is start and six members, and a member called before start throws naming it")). The acceptance test presents a
+cannot be the session store ([`core-api/session-roster`](/docs/rules/core-api/lifetimes-and-absences/#session-roster "The session roster is start and the members that work on the record it loaded, and a member called before start throws naming it")). The acceptance test presents a
 fabricated id and asserts that a fresh one comes back.
 
 <aside class="nv-rule-diverges">
@@ -162,7 +162,7 @@ fabricated id and asserts that a fresh one comes back.
 <p><code>session.use_strict_mode</code> has no off position: an unknown, expired or attacker-minted id is discarded and a fresh one issued</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#session-is-started-explicitly" title="A session is opened by calling Core\Session::start, and there is no ambient session array"><code>core-classes/session-is-started-explicitly</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#session-roster" title="The session roster is start and six members, and a member called before start throws naming it"><code>core-api/session-roster</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#a-deprecation-is-a-refusal" title="What PHP deprecates for removal is refused at compile time, never phased in behind a warning"><code>php-migration/a-deprecation-is-a-refusal</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0124.md">record 0124</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0139.md">record 0139</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0012.md">record 0012</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#session-is-started-explicitly" title="A session is opened by calling Core\Session::start, and there is no ambient session array"><code>core-classes/session-is-started-explicitly</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#session-roster" title="The session roster is start and the members that work on the record it loaded, and a member called before start throws naming it"><code>core-api/session-roster</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#a-deprecation-is-a-refusal" title="What PHP deprecates for removal is refused at compile time, never phased in behind a warning"><code>php-migration/a-deprecation-is-a-refusal</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0124.md">record 0124</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0139.md">record 0139</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0012.md">record 0012</a></dd></div></dl>
 
 </div>
 
