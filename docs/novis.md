@@ -164,6 +164,7 @@ Conventions the whole file uses:
 | [`Core\Http\Identity`](#core-core-http-identity) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
 | [`Core\Http\Response`](#core-core-http-response) |  |
+| [`Core\Http\TlsInfo`](#core-core-http-tlsinfo) |  |
 | [`Core\Http\Stream`](#core-core-http-stream) |  |
 | [`Core\Http\Event`](#core-core-http-event) |  |
 | [`Core\Http\Events`](#core-core-http-events) |  |
@@ -20536,7 +20537,7 @@ Sends `$method` to `$url` and answers once the head has arrived, leaving the bod
 <a id="core-core-http-response"></a>
 ### `Core\Http\Response`
 
-Keywords: status, text, bytes, jsonAs, header, headers
+Keywords: status, text, bytes, jsonAs, header, headers, tls
 
 | Member | Signature |
 |---|---|
@@ -20546,6 +20547,7 @@ Keywords: status, text, bytes, jsonAs, header, headers
 | [`Core\Http\Response->jsonAs`](#core-core-http-response-jsonas) | `jsonAs<T>({maxDepth?: uint}): T` |
 | [`Core\Http\Response->header`](#core-core-http-response-header) | `header(string $name): ?tainted string` |
 | [`Core\Http\Response->headers`](#core-core-http-response-headers) | `headers(string $name): array<tainted string>` |
+| [`Core\Http\Response->tls`](#core-core-http-response-tls) | `tls(): ?Core\Http\TlsInfo` |
 
 <a id="core-core-http-response-status"></a>
 #### `Core\Http\Response->status`
@@ -20630,6 +20632,115 @@ Every line the reply carried under one name, kept apart — the reading a joined
 | `$name` | `string` (neutral) | The field name, matched case-insensitively exactly as `header` matches it. |
 
 **Returns** `array<tainted string>` — One `tainted` entry per line, in arrival order, and an empty array where the reply carried no such field — so a field that arrived once answers a list of one rather than anything a caller has to tell apart.
+
+<a id="core-core-http-response-tls"></a>
+#### `Core\Http\Response->tls`
+
+```nvs skip
+$response->tls(): ?Core\Http\TlsInfo
+```
+
+The TLS session this reply arrived over: what the handshake settled, and whether it checked the peer — replacing the scattered `CURLINFO_SSL_*` keys of `curl_getinfo`.
+
+**Returns** `?Core\Http\TlsInfo` — The session, or `null` where the reply arrived over none at all — a plain `http` exchange, or a call a test's answer table served.
+
+<a id="core-core-http-tlsinfo"></a>
+### `Core\Http\TlsInfo`
+
+Keywords: version, cipher, verified, peerChain, subject, issuer, expiry
+
+| Member | Signature |
+|---|---|
+| [`Core\Http\TlsInfo->version`](#core-core-http-tlsinfo-version) | `version(): string` |
+| [`Core\Http\TlsInfo->cipher`](#core-core-http-tlsinfo-cipher) | `cipher(): string` |
+| [`Core\Http\TlsInfo->verified`](#core-core-http-tlsinfo-verified) | `verified(): bool` |
+| [`Core\Http\TlsInfo->peerChain`](#core-core-http-tlsinfo-peerchain) | `peerChain(): array<tainted string>` |
+| [`Core\Http\TlsInfo->subject`](#core-core-http-tlsinfo-subject) | `subject(): tainted string` |
+| [`Core\Http\TlsInfo->issuer`](#core-core-http-tlsinfo-issuer) | `issuer(): tainted string` |
+| [`Core\Http\TlsInfo->expiry`](#core-core-http-tlsinfo-expiry) | `expiry(): Core\Time\Instant` |
+
+<a id="core-core-http-tlsinfo-version"></a>
+#### `Core\Http\TlsInfo->version`
+
+```nvs skip
+$tlsInfo->version(): string
+```
+
+The protocol version the handshake settled on.
+
+**Returns** `string` — `TLSv1.3` or `TLSv1.2`, spelled as every TLS tool prints it, or the registry's own `0x` code for a version this build negotiated and cannot name.
+
+<a id="core-core-http-tlsinfo-cipher"></a>
+#### `Core\Http\TlsInfo->cipher`
+
+```nvs skip
+$tlsInfo->cipher(): string
+```
+
+The cipher suite the handshake settled on, under its IANA registry name.
+
+**Returns** `string` — A name such as `TLS_AES_128_GCM_SHA256`, or the suite's `0x` code where the registry has none for it.
+
+<a id="core-core-http-tlsinfo-verified"></a>
+#### `Core\Http\TlsInfo->verified`
+
+```nvs skip
+$tlsInfo->verified(): bool
+```
+
+Whether this session checked both the peer's certificate chain and the name on it.
+
+**Returns** `bool` — `true` where the chain was built to a trust anchor — the configured `roots` or the call's own `tlsCa` — and the URL's host was matched against the certificate. `false` where the call dropped either check, which only a `[capabilities.tls]` grant naming the host makes possible.
+
+<a id="core-core-http-tlsinfo-peerchain"></a>
+#### `Core\Http\TlsInfo->peerChain`
+
+```nvs skip
+$tlsInfo->peerChain(): array<tainted string>
+```
+
+The certificate chain the peer presented, as PEM, leaf first.
+
+**Returns** `array<tainted string>` — One PEM block per certificate, leaf first, and an empty array where the peer presented none. Every entry is `tainted`: a certificate is bytes the other end chose.
+
+<a id="core-core-http-tlsinfo-subject"></a>
+#### `Core\Http\TlsInfo->subject`
+
+```nvs skip
+$tlsInfo->subject(): tainted string
+```
+
+The leaf certificate's subject, as RFC 4514 writes a distinguished name.
+
+**Returns** `tainted string` — The spelling `openssl x509 -subject` prints, such as `CN=api.example.com`. `tainted`, for `peerChain`'s reason.
+
+**Throws** `RuntimeError` — The peer presented no certificate, or a leaf that is not X.509 this can read. `version`, `cipher`, `verified` and `peerChain` answer either way, since none of them reads inside a certificate.
+
+<a id="core-core-http-tlsinfo-issuer"></a>
+#### `Core\Http\TlsInfo->issuer`
+
+```nvs skip
+$tlsInfo->issuer(): tainted string
+```
+
+The leaf certificate's issuer, as RFC 4514 writes a distinguished name.
+
+**Returns** `tainted string` — Who signed the leaf, in `subject`'s spelling and `tainted` for its reason.
+
+**Throws** `RuntimeError` — The peer presented no certificate, or a leaf that is not X.509 this can read. `version`, `cipher`, `verified` and `peerChain` answer either way, since none of them reads inside a certificate.
+
+<a id="core-core-http-tlsinfo-expiry"></a>
+#### `Core\Http\TlsInfo->expiry`
+
+```nvs skip
+$tlsInfo->expiry(): Core\Time\Instant
+```
+
+When the leaf certificate stops being valid — its `notAfter` field.
+
+**Returns** `Core\Time\Instant` — The instant the peer's certificate expires, which is the check an operator most wants a program to make about a partner it calls.
+
+**Throws** `RuntimeError` — The peer presented no certificate, or a leaf that is not X.509 this can read. `version`, `cipher`, `verified` and `peerChain` answer either way, since none of them reads inside a certificate.
 
 <a id="core-core-http-stream"></a>
 ### `Core\Http\Stream`

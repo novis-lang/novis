@@ -127,6 +127,8 @@ mod transport;
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use fluent_uri::UriRef;
 use fluent_uri::component::{Authority, Scheme};
 use nvs_config::capability::{Cap, Scope};
@@ -320,6 +322,16 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_http_response_json_as" => (nvs_core_http_response_json_as as *const ()).cast(),
         "nvs_core_http_response_header" => (nvs_core_http_response_header as *const ()).cast(),
         "nvs_core_http_response_headers" => (nvs_core_http_response_headers as *const ()).cast(),
+        "nvs_core_http_response_tls" => (nvs_core_http_response_tls as *const ()).cast(),
+        "nvs_core_http_tls_info_version" => (nvs_core_http_tls_info_version as *const ()).cast(),
+        "nvs_core_http_tls_info_cipher" => (nvs_core_http_tls_info_cipher as *const ()).cast(),
+        "nvs_core_http_tls_info_verified" => (nvs_core_http_tls_info_verified as *const ()).cast(),
+        "nvs_core_http_tls_info_peer_chain" => {
+            (nvs_core_http_tls_info_peer_chain as *const ()).cast()
+        }
+        "nvs_core_http_tls_info_subject" => (nvs_core_http_tls_info_subject as *const ()).cast(),
+        "nvs_core_http_tls_info_issuer" => (nvs_core_http_tls_info_issuer as *const ()).cast(),
+        "nvs_core_http_tls_info_expiry" => (nvs_core_http_tls_info_expiry as *const ()).cast(),
         // The streamed reply's own, beside its class rather than here: they are
         // this module's symbols, and [`stream`] is a module of this one for
         // [`transport`]'s reason.
@@ -563,6 +575,9 @@ pub(crate) const CLIENT_NAME: &str = r"Core\Http\Client";
 
 /// [`RESPONSE`]'s name, written once — see [`NAME`].
 pub(crate) const RESPONSE_NAME: &str = r"Core\Http\Response";
+
+/// [`TLS_INFO`]'s name, written once — see [`NAME`].
+pub(crate) const TLS_INFO_NAME: &str = r"Core\Http\TlsInfo";
 
 /// The `Duration` every time bound in [`OPTIONS`] is spelled as, once.
 const DURATION: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
@@ -1350,6 +1365,11 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
 /// recovered from. `Core\Request` splits the same question the same way, and
 /// `Set-Cookie` is the field where the join is wrong rather than lossy, so
 /// `header` refuses it by name.
+///
+/// **`tls` is the one reader that answers `null`**, and that answer is the
+/// reply's own rather than a value gone missing: a plain `http` exchange and one
+/// a test's table served had no session to report
+/// (`rule:http-server/a-reply-reports-its-tls-session`).
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
     methods: &[],
@@ -1408,8 +1428,17 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
             symbol: "nvs_core_http_response_headers",
             doc: Some(&HEADERS_DOC),
         },
+        CoreMethod {
+            name: "tls",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(TLS_INFO_NAME)),
+            symbol: "nvs_core_http_response_tls",
+            doc: Some(&TLS_DOC),
+        },
     ],
-    slots: &["status", "body", "headers"],
+    slots: &["status", "body", "headers", "tls"],
     constants: &[],
 };
 
@@ -1421,6 +1450,9 @@ const BODY_SLOT: usize = 1;
 /// [`RESPONSE`]'s header slot, holding [`header_map`]'s array. See
 /// [`STATUS_SLOT`].
 const HEADERS_SLOT: usize = 2;
+/// [`RESPONSE`]'s session slot, holding a [`TLS_INFO`] instance or `null`. See
+/// [`STATUS_SLOT`].
+const TLS_SLOT: usize = 3;
 
 /// The field `header` will not join, and the member it names instead.
 ///
@@ -1530,6 +1562,191 @@ const HEADERS_DOC: MethodDoc = MethodDoc {
           carried no such field — so a field that arrived once answers a list of one rather than \
           anything a caller has to tell apart.",
     errors: &[],
+};
+
+/// `Core\Http\Response::tls`'s reference card — `rule:core-api/reference-card`.
+const TLS_DOC: MethodDoc = MethodDoc {
+    short: "The TLS session this reply arrived over: what the handshake settled, and whether it \
+            checked the peer — replacing the scattered `CURLINFO_SSL_*` keys of `curl_getinfo`.",
+    params: &[],
+    ret: "The session, or `null` where the reply arrived over none at all — a plain `http` \
+          exchange, or a call a test's answer table served.",
+    errors: &[],
+};
+
+// ---------------------------------------------------------- the session reported
+
+/// `Core\Http\TlsInfo` — what one reply's session settled, and whether it
+/// checked anything (`rule:http-server/a-reply-reports-its-tls-session`).
+///
+/// **`verified` is the member this class exists for.** A deployment that relaxed
+/// verification for one partner host has no other way to assert, in a test and
+/// in production telemetry, that every *other* call still verified — the grant
+/// is otherwise unobservable from inside the language.
+///
+/// **Four slots answer seven members**, because three of them are one reading of
+/// one certificate: `subject`, `issuer` and `expiry` parse the leaf of the chain
+/// the slot already holds, where `nvs_host::tls::leaf` is the parser. Filling
+/// three more slots at the framing would charge every reply that arrived over
+/// TLS for a parse that the call auditing a partner's certificate is the only
+/// one to want, and a reply's certificate is not read by the ordinary call.
+///
+/// The chain is `tainted` and no timing is here: where a call's time went is the
+/// `http` trace event's (`rule:observability/trace-events-carry-a-kind`).
+pub(crate) const TLS_INFO: CoreClass = CoreClass {
+    name: TLS_INFO_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "version",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_http_tls_info_version",
+            doc: Some(&VERSION_DOC),
+        },
+        CoreMethod {
+            name: "cipher",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_http_tls_info_cipher",
+            doc: Some(&CIPHER_DOC),
+        },
+        CoreMethod {
+            name: "verified",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_http_tls_info_verified",
+            doc: Some(&VERIFIED_DOC),
+        },
+        CoreMethod {
+            name: "peerChain",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::TaintedStr),
+            symbol: "nvs_core_http_tls_info_peer_chain",
+            doc: Some(&PEER_CHAIN_DOC),
+        },
+        CoreMethod {
+            name: "subject",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_http_tls_info_subject",
+            doc: Some(&SUBJECT_DOC),
+        },
+        CoreMethod {
+            name: "issuer",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_http_tls_info_issuer",
+            doc: Some(&ISSUER_DOC),
+        },
+        CoreMethod {
+            name: "expiry",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(crate::time::INSTANT_NAME),
+            symbol: "nvs_core_http_tls_info_expiry",
+            doc: Some(&EXPIRY_DOC),
+        },
+    ],
+    slots: &["version", "cipher", "verified", "chain"],
+    constants: &[],
+};
+
+/// [`TLS_INFO`]'s version slot, by index — the layout its `slots` names.
+const TLS_VERSION_SLOT: usize = 0;
+/// [`TLS_INFO`]'s cipher slot. See [`TLS_VERSION_SLOT`].
+const TLS_CIPHER_SLOT: usize = 1;
+/// [`TLS_INFO`]'s verification slot, holding `CallPolicy::verifies`. See
+/// [`TLS_VERSION_SLOT`].
+const TLS_VERIFIED_SLOT: usize = 2;
+/// [`TLS_INFO`]'s chain slot, holding the peer's certificates as DER, leaf
+/// first. See [`TLS_VERSION_SLOT`].
+const TLS_CHAIN_SLOT: usize = 3;
+
+/// `Core\Http\TlsInfo::version`'s reference card — `rule:core-api/reference-card`.
+const VERSION_DOC: MethodDoc = MethodDoc {
+    short: "The protocol version the handshake settled on.",
+    params: &[],
+    ret: "`TLSv1.3` or `TLSv1.2`, spelled as every TLS tool prints it, or the registry's own \
+          `0x` code for a version this build negotiated and cannot name.",
+    errors: &[],
+};
+
+/// `Core\Http\TlsInfo::cipher`'s reference card — `rule:core-api/reference-card`.
+const CIPHER_DOC: MethodDoc = MethodDoc {
+    short: "The cipher suite the handshake settled on, under its IANA registry name.",
+    params: &[],
+    ret: "A name such as `TLS_AES_128_GCM_SHA256`, or the suite's `0x` code where the registry \
+          has none for it.",
+    errors: &[],
+};
+
+/// `Core\Http\TlsInfo::verified`'s reference card — `rule:core-api/reference-card`.
+const VERIFIED_DOC: MethodDoc = MethodDoc {
+    short: "Whether this session checked both the peer's certificate chain and the name on it.",
+    params: &[],
+    ret: "`true` where the chain was built to a trust anchor — the configured `roots` or the \
+          call's own `tlsCa` — and the URL's host was matched against the certificate. `false` \
+          where the call dropped either check, which only a `[capabilities.tls]` grant naming \
+          the host makes possible.",
+    errors: &[],
+};
+
+/// `Core\Http\TlsInfo::peerChain`'s reference card — `rule:core-api/reference-card`.
+const PEER_CHAIN_DOC: MethodDoc = MethodDoc {
+    short: "The certificate chain the peer presented, as PEM, leaf first.",
+    params: &[],
+    ret: "One PEM block per certificate, leaf first, and an empty array where the peer presented \
+          none. Every entry is `tainted`: a certificate is bytes the other end chose.",
+    errors: &[],
+};
+
+/// `Core\Http\TlsInfo::subject`'s reference card — `rule:core-api/reference-card`.
+const SUBJECT_DOC: MethodDoc = MethodDoc {
+    short: "The leaf certificate's subject, as RFC 4514 writes a distinguished name.",
+    params: &[],
+    ret: "The spelling `openssl x509 -subject` prints, such as `CN=api.example.com`. `tainted`, \
+          for `peerChain`'s reason.",
+    errors: &[LEAF_ERROR],
+};
+
+/// `Core\Http\TlsInfo::issuer`'s reference card — `rule:core-api/reference-card`.
+const ISSUER_DOC: MethodDoc = MethodDoc {
+    short: "The leaf certificate's issuer, as RFC 4514 writes a distinguished name.",
+    params: &[],
+    ret: "Who signed the leaf, in `subject`'s spelling and `tainted` for its reason.",
+    errors: &[LEAF_ERROR],
+};
+
+/// `Core\Http\TlsInfo::expiry`'s reference card — `rule:core-api/reference-card`.
+const EXPIRY_DOC: MethodDoc = MethodDoc {
+    short: "When the leaf certificate stops being valid — its `notAfter` field.",
+    params: &[],
+    ret: "The instant the peer's certificate expires, which is the check an operator most wants \
+          a program to make about a partner it calls.",
+    errors: &[LEAF_ERROR],
+};
+
+/// The refusal the three leaf readers share, written once because it is one
+/// reading and they differ only in which field they take from it.
+const LEAF_ERROR: ErrorDoc = ErrorDoc {
+    error: "RuntimeError",
+    desc: "The peer presented no certificate, or a leaf that is not X.509 this can read. \
+           `version`, `cipher`, `verified` and `peerChain` answer either way, since none of \
+           them reads inside a certificate.",
 };
 
 /// The parameters every row of [`CLIENT`] documents — one bag, so the options
@@ -2805,11 +3022,96 @@ fn fields_of(
 /// [`pin`]'s four, [`judge_bound`]'s, [`judge_attempts`]', [`judge_verb`]'s and
 /// [`judge_trust`]'s, and then [`transport::send`]'s.
 fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Value, Fault> {
-    let (status, body, headers) = exchanged(ctx, args, member, verb, false)?;
+    let (status, body, headers, tls) = exchanged(ctx, args, member, verb, false)?;
     Ok(crate::instance::build(
         &RESPONSE,
-        [Value::int(status), body, headers],
+        [Value::int(status), body, headers, tls_info(tls)],
     ))
+}
+
+/// The `Core\Http\TlsInfo` a reply reports, or `null` where it arrived over no
+/// session — `rule:http-server/a-reply-reports-its-tls-session`.
+///
+/// The chain is copied into the instance as the DER it already is, and PEM is
+/// written at `peerChain` rather than here: a reply that nobody asks about pays
+/// for neither encoding, and the slot stays the one thing the leaf readers parse.
+fn tls_info(tls: Option<transport::Tls>) -> Value {
+    let Some(tls) = tls else {
+        return Value::null();
+    };
+    let mut chain = NvsArray::new();
+    for der in tls.session.chain() {
+        chain.append(Value::bytes(NvsStr::new(der)));
+    }
+    crate::instance::build(
+        &TLS_INFO,
+        [
+            Value::str(NvsStr::new(tls.session.version().as_bytes())),
+            Value::str(NvsStr::new(tls.session.cipher().as_bytes())),
+            Value::bool(tls.verified),
+            Value::array(chain),
+        ],
+    )
+}
+
+/// One certificate as PEM: the base64 of its DER, wrapped at 64 characters
+/// between the two `CERTIFICATE` lines.
+///
+/// RFC 7468 § 2's encoding, which is what `openssl x509` reads and writes and
+/// therefore the one form of a certificate a program can hand to anything else.
+fn pem_of(der: &[u8]) -> String {
+    let mut out = String::from("-----BEGIN CERTIFICATE-----\n");
+    let encoded = STANDARD.encode(der);
+    for line in encoded.as_bytes().chunks(64) {
+        out.push_str(&String::from_utf8_lossy(line));
+        out.push('\n');
+    }
+    out.push_str("-----END CERTIFICATE-----\n");
+    out
+}
+
+/// The peer's chain as [`TLS_CHAIN_SLOT`] holds it: DER, leaf first, one entry
+/// per certificate.
+fn chain_of(object: *mut nvs_runtime::ObjHeader) -> Vec<Vec<u8>> {
+    let Some(held) = crate::instance::slot(object, TLS_CHAIN_SLOT).array_ptr() else {
+        return Vec::new();
+    };
+    let held = crate::arr::borrowed(held);
+    let mut out = Vec::new();
+    let mut from = 0_usize;
+    while let Some(slot) = held.next_slot(from) {
+        from = slot + 1;
+        let der = held
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        out.push(der.as_bytes().unwrap_or_default().to_vec());
+    }
+    out
+}
+
+/// What the leaf of `chain` says, for the three members that report a field of
+/// it — `nvs_host::tls::leaf` is the parser, and [`TLS_INFO`]'s own doc is why
+/// it runs here rather than at the framing.
+///
+/// # Errors
+///
+/// A `RuntimeError` where the peer presented no certificate, or a leaf that does
+/// not parse as X.509.
+fn leaf_of(chain: &[Vec<u8>], member: &str) -> Result<nvs_host::tls::Leaf, Fault> {
+    let why = match chain.first() {
+        Some(der) => match nvs_host::tls::leaf(der) {
+            Some(read) => return Ok(read),
+            None => "presented a leaf certificate this cannot read",
+        },
+        None => "presented no certificate",
+    };
+    // no case can reach this: a `.nvst` case answers every outbound call from a
+    // table and a table has no session at all, so no case holds a
+    // `Core\Http\TlsInfo` to ask anything of. `a_leaf_that_is_absent_or_unreadable_is_refused`
+    // is what asserts it instead.
+    Err(Fault::thrown(format!(
+        "{TLS_INFO_NAME}::{member}: the peer {why}, so there is nothing to read this from"
+    )))
 }
 
 /// One exchange, as its status, the value its answer's body slot holds and
@@ -2827,6 +3129,11 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Va
 /// `Core\Http\Stream` holds [`filed`]'s key to a reader the rest of the reply
 /// is still arriving on.
 ///
+/// The session comes back as the transport's own value rather than as a built
+/// instance, because only the buffered half reports one: a streamed reply has no
+/// `tls` member, and building a `Core\Http\TlsInfo` for it would allocate an
+/// answer nothing can ask for.
+///
 /// # Errors
 ///
 /// [`approved`]'s refusals, [`judge_bound`]'s, [`judge_attempts`]',
@@ -2839,7 +3146,7 @@ fn exchanged(
     member: &str,
     verb: &str,
     streamed: bool,
-) -> Result<(i64, Value, Value), Fault> {
+) -> Result<(i64, Value, Value, Option<transport::Tls>), Fault> {
     let named = format!("{CLIENT_NAME}::{member}");
     if ctx.faked_http().is_armed() {
         return faked(ctx, args, &named, verb, streamed);
@@ -2924,7 +3231,7 @@ fn exchanged(
             repinned(ctx, args, hop, downgrade, &named)
         })?;
         let headers = header_map(&answer.headers);
-        return Ok((answer.status, filed(ctx, answer.body), headers));
+        return Ok((answer.status, filed(ctx, answer.body), headers, answer.tls));
     }
     let reply = transport::send(&call, &mut |hop, downgrade| {
         repinned(ctx, args, hop, downgrade, &named)
@@ -2934,6 +3241,7 @@ fn exchanged(
         reply.status,
         Value::bytes(NvsStr::new(&reply.body)),
         headers,
+        reply.tls,
     ))
 }
 
@@ -3109,7 +3417,7 @@ fn faked(
     named: &str,
     verb: &str,
     streamed: bool,
-) -> Result<(i64, Value, Value), Fault> {
+) -> Result<(i64, Value, Value, Option<transport::Tls>), Fault> {
     let url = given_url(args, named)?;
     judged_host(&url, named)?;
     judge_bound(args, DEADLINE, "deadline", named)?;
@@ -3169,7 +3477,10 @@ fn faked(
     } else {
         Value::bytes(NvsStr::new(&octets))
     };
-    Ok((status, body, headers))
+    // No session, and that is the answer rather than an omission: a table
+    // answered this call and nothing was ever negotiated with anyone
+    // (`rule:http-server/a-reply-reports-its-tls-session`).
+    Ok((status, body, headers, None))
 }
 
 /// The `traceparent` this call carries: the request's own trace, when
@@ -3546,6 +3857,147 @@ nvs_runtime::nvs_helper! {
         let object = crate::instance::receiver(args[0], &RESPONSE, "headers")?;
         let name = field_name(&args[1], RESPONSE_NAME, "headers")?;
         Ok(listed_field(object, HEADERS_SLOT, name))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\Response::tls(): ?Core\Http\TlsInfo` — `rule:http-server/a-reply-reports-its-tls-session`.
+    ///
+    /// The slot holds the whole answer, built where the reply was framed: the
+    /// connection it was negotiated on has gone back to the pool by now and may
+    /// be serving somebody else's request, so nothing here asks the transport
+    /// anything.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_core_http_response_status`]'s fatal for a receiver that is not a
+    /// `Core\Http\Response`, unreachable from source for that member's reason.
+    fn nvs_core_http_response_tls(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &RESPONSE, TLS_SLOT, "tls")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\TlsInfo::version(): string` — `rule:http-server/a-reply-reports-its-tls-session`.
+    ///
+    /// Not `tainted`, and neither is [`nvs_core_http_tls_info_cipher`]: what a
+    /// handshake settled on is a value out of a closed set this end agreed to,
+    /// not bytes the other end wrote — `rule:security/tainted-sources` draws
+    /// that line at a fixed enum-shaped field.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_core_http_response_status`]'s fatal for a wrongly-tagged receiver.
+    fn nvs_core_http_tls_info_version(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &TLS_INFO, TLS_VERSION_SLOT, "version")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\TlsInfo::cipher(): string` — the suite, under the IANA name
+    /// `nvs_host::tls` writes it in.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_core_http_tls_info_version`]'s.
+    fn nvs_core_http_tls_info_cipher(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &TLS_INFO, TLS_CIPHER_SLOT, "cipher")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\TlsInfo::verified(): bool` — whether the chain *and* the name
+    /// were both checked, which is the member
+    /// `rule:http-server/a-reply-reports-its-tls-session` exists for.
+    ///
+    /// The slot was filled from `CallPolicy::verifies`, which owns what each of
+    /// the relaxing options means; reading those five fields a second time here
+    /// is the copy that comes to disagree with it.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_core_http_tls_info_version`]'s.
+    fn nvs_core_http_tls_info_verified(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &TLS_INFO, TLS_VERIFIED_SLOT, "verified")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\TlsInfo::peerChain(): array<tainted string>` — the peer's
+    /// certificates as PEM, leaf first.
+    ///
+    /// The slot holds DER and this writes PEM, per ADR 0180 § 13: DER is what
+    /// `rustls` hands over, and PEM is the form a program can paste into
+    /// anything else.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_core_http_tls_info_version`]'s. A peer that presented no
+    /// certificate answers an empty array rather than throwing — the three
+    /// readers that have to open one are where that becomes a refusal.
+    fn nvs_core_http_tls_info_peer_chain(_ctx, args: [1]) {
+        let object = crate::instance::receiver(args[0], &TLS_INFO, "peerChain")?;
+        let mut out = NvsArray::new();
+        for der in chain_of(object) {
+            out.append(Value::str(NvsStr::new(pem_of(&der).as_bytes())));
+        }
+        Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\TlsInfo::subject(): tainted string` — who the leaf says it is.
+    ///
+    /// `tainted` where [`nvs_core_http_tls_info_version`] is not: a name inside
+    /// a certificate is text the other end chose, and a session that verified
+    /// the chain settled which host answered rather than what is written in it.
+    ///
+    /// # Errors
+    ///
+    /// [`leaf_of`]'s `RuntimeError`, and the fatal for a wrongly-tagged
+    /// receiver.
+    fn nvs_core_http_tls_info_subject(_ctx, args: [1]) {
+        let object = crate::instance::receiver(args[0], &TLS_INFO, "subject")?;
+        let read = leaf_of(&chain_of(object), "subject")?;
+        Ok(Value::str(NvsStr::new(read.subject().as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\TlsInfo::issuer(): tainted string` — who signed the leaf.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_core_http_tls_info_subject`]'s two.
+    fn nvs_core_http_tls_info_issuer(_ctx, args: [1]) {
+        let object = crate::instance::receiver(args[0], &TLS_INFO, "issuer")?;
+        let read = leaf_of(&chain_of(object), "issuer")?;
+        Ok(Value::str(NvsStr::new(read.issuer().as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Http\TlsInfo::expiry(): Core\Time\Instant` — the leaf's `notAfter`.
+    ///
+    /// An `Instant` and not the text the certificate holds, because the question
+    /// a program asks of this is how long is left, which is arithmetic
+    /// `Core\Time` already owns.
+    ///
+    /// # Errors
+    ///
+    /// [`nvs_core_http_tls_info_subject`]'s two.
+    fn nvs_core_http_tls_info_expiry(_ctx, args: [1]) {
+        let object = crate::instance::receiver(args[0], &TLS_INFO, "expiry")?;
+        let read = leaf_of(&chain_of(object), "expiry")?;
+        // unreachable from source: an X.509 `notAfter` is a UTCTime or a
+        // GeneralizedTime, so whatever the peer sent names a year between 1950
+        // and 9999, and every one of those is inside `Core\Time\Instant`'s own
+        // range.
+        crate::time::instant_at_system_time(read.expiry()).ok_or_else(|| {
+            Fault::fatal(format!(
+                "{TLS_INFO_NAME}::expiry read a `notAfter` no `Core\\Time\\Instant` names"
+            ))
+        })
     }
 }
 
@@ -4130,5 +4582,35 @@ mod tests {
             message.contains(CONNECT_TO_OPTION) && message.contains("Target"),
             "the refusal names the option and the value it cannot sit beside: {message}"
         );
+    }
+
+    /// [`super::leaf_of`]'s two refusals, which no conformance case can reach:
+    /// a `.nvst` case answers every outbound call from a table
+    /// (`rule:testing/an-outbound-call-is-answered-from-a-table`) and a table
+    /// has no session, so no case ever holds a `Core\Http\TlsInfo` to ask.
+    ///
+    /// Both spellings of "nothing to read", because they are two different
+    /// mistakes at the other end — a peer that sent no certificate at all, and
+    /// one whose leaf is not something an X.509 parser accepts — and a member
+    /// that collapsed them would leave an operator reading the wrong log.
+    #[test]
+    fn a_leaf_that_is_absent_or_unreadable_is_refused() {
+        let absent = super::leaf_of(&[], "subject").expect_err("a chain with no leaf in it");
+        let unreadable = super::leaf_of(&[vec![0x30, 0x00]], "issuer")
+            .expect_err("two bytes of DER are not a certificate");
+
+        for (refused, expected) in [
+            (absent, "presented no certificate"),
+            (unreadable, "cannot read"),
+        ] {
+            let Fault::Thrown(class, message) = refused else {
+                panic!("what the peer sent is not the program's mistake, and is catchable")
+            };
+            assert_eq!(class, ThrownClass::Runtime, "{message}");
+            assert!(
+                message.contains(expected),
+                "the refusal says which of the two happened: {message}"
+            );
+        }
     }
 }

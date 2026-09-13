@@ -343,14 +343,6 @@ pub(crate) struct Reply {
     /// The TLS session this reply arrived over, or `None` for a plaintext one —
     /// `Core\Http\Response::tls`'s answer, taken at the framing for
     /// [`Session`]'s reason.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "`Core\\Http\\Response::tls` is the member that reads it, and the cases below \
-                      are what assert it is filled"
-        )
-    )]
     pub(crate) tls: Option<Tls>,
 }
 
@@ -364,14 +356,6 @@ pub(crate) struct Reply {
 /// for the second one — a deployment that relaxed verification at one host has
 /// no other way to assert that every other call still verified.
 #[derive(Debug)]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "`Core\\Http\\TlsInfo` is what reads these two, and the cases below are what \
-                  assert they are filled"
-    )
-)]
 pub(crate) struct Tls {
     /// The version, the cipher and the peer's chain.
     pub(crate) session: Session,

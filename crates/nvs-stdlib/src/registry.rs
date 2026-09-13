@@ -1898,10 +1898,15 @@ pub const CLASSES: &[CoreClass] = &[
     // name, which is what lets § 7 answer "is this retry idempotent" while
     // compiling.
     crate::http::CLIENT,
-    // What those five answer with. Slots and no members yet — the readers land
-    // with the transport that fills them, and [`crate::http`]'s module doc is
-    // the home of that list.
+    // What those five answer with: the status, one body slot read three ways,
+    // the header pair, and the session the reply arrived over.
     crate::http::RESPONSE,
+    // Which that last member answers with, and the one `Core\Http` reader whose
+    // answer is `null` for an ordinary reply: a plain `http` exchange had no
+    // session to report. `rule:http-server/a-reply-reports-its-tls-session` is
+    // why `verified` is on it at all — a deployment that relaxed trust at one
+    // host has no other way to assert that every other call did not.
+    crate::http::TLS_INFO,
     // `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s
     // answer, which is the reply that is read as it arrives: the same head
     // members over the same map, and four framings of a body that is taken by

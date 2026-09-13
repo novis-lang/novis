@@ -885,7 +885,11 @@ nvs_runtime::nvs_helper! {
         let bag = &args[1..];
         judge_bound(bag, IDLE, "idle", STREAM_MEMBER)?;
         judge_bound(bag, MAX_DURATION, "maxDuration", STREAM_MEMBER)?;
-        let (status, body, headers) = exchanged(ctx, bag, "stream", &verb, true)?;
+        // The session the reply arrived over is dropped here rather than kept:
+        // `rule:http-server/a-reply-reports-its-tls-session` puts the report on
+        // `Core\Http\Response` alone, and a second surface for one measurement
+        // is the copy that disagrees.
+        let (status, body, headers, _) = exchanged(ctx, bag, "stream", &verb, true)?;
         Ok(crate::instance::build(
             &STREAM,
             [Value::int(status), headers, body, Value::null()],

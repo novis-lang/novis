@@ -1307,6 +1307,14 @@ mod tests {
     /// are the origin's text whatever the program did to ask for them. The
     /// streamed body itself is not here and is not a gap — it is the shape the
     /// paragraph below names.
+    /// `Core\Http\TlsInfo`'s three are that reply read one layer further down: a
+    /// certificate is bytes the other end wrote, and a session that verified the
+    /// chain settled which host answered rather than what is written inside it,
+    /// so the chain and the two names in its leaf carry the mark. Their siblings
+    /// `version()`, `cipher()` and `verified()` are the deliberate absences, and
+    /// they are two readings rather than one: the first two are cases of a closed
+    /// set this end offered, and the third is this process reading back its own
+    /// policy.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1377,6 +1385,13 @@ mod tests {
                     "headers",
                     "array<tainted string>".to_owned(),
                 ),
+                (r"Core\Http\TlsInfo", "issuer", "tainted string".to_owned(),),
+                (
+                    r"Core\Http\TlsInfo",
+                    "peerChain",
+                    "array<tainted string>".to_owned(),
+                ),
+                (r"Core\Http\TlsInfo", "subject", "tainted string".to_owned(),),
                 (r"Core\IO", "stdin", "tainted string".to_owned()),
                 (r"Core\Jwe", "decrypt", "tainted string".to_owned()),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
@@ -1458,7 +1473,8 @@ mod tests {
             "the roster of members whose *answer* is qualified `tainted` is closed — a \
              verified claim, a verified signature's payload, a decrypted payload, an \
              outbound reply's body as text and as octets, the two readers of that \
-             reply's header lines, \
+             reply's header lines, the chain the peer it arrived from presented and \
+             the two names written in that chain's leaf, \
              the two environment \
              reads, the two prompts that answer what a person typed, the words the program \
              was started with, everything attached to its standard input, the five reads of \

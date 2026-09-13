@@ -147,7 +147,7 @@ use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -333,9 +333,11 @@ impl<T: Read + Write> NvsTls<T> {
 /// with a session that has since served somebody else's request.
 ///
 /// The chain is **DER**, leaf first, because that is what `rustls` hands over.
-/// Which encoding a program reads it in — PEM, per ADR 0180 § 13 — and what the
-/// leaf's fields say are `Core\Http\TlsInfo`'s questions, and answering them
-/// here would put a certificate parser in the layer that owns the socket.
+/// Which encoding a program reads it in — PEM, per ADR 0180 § 13 — is
+/// `Core\Http\TlsInfo`'s question, and what the leaf's fields say is [`leaf`]'s,
+/// beside this type rather than on it: what the handshake settled is a snapshot
+/// taken at the framing, and what one certificate inside it says is a reading
+/// nothing has to hold a session to ask for.
 ///
 /// What it spends: one copy of the peer's chain per reply that arrived over
 /// TLS, released with the response, which is O(in-flight) and never O(replies
@@ -392,6 +394,73 @@ fn named_suite(suite: CipherSuite) -> String {
         || format!("0x{:04x}", u16::from(suite)),
         |spelled| spelled.replacen("TLS13_", "TLS_", 1),
     )
+}
+
+/// What one certificate says: the three facts `Core\Http\TlsInfo` reports about
+/// the leaf a peer presented (`rule:http-server/a-reply-reports-its-tls-session`).
+///
+/// Read in this crate rather than in the standard library because the parser is
+/// already here — [`spki_sha256`] walks the same DER for `tlsPin` — and a second
+/// crate linking an ASN.1 reader to answer three members is the copy that comes
+/// to disagree about what a certificate says. ADR 0180 § 13 is the record, and
+/// the alternative it rejects is handing a program PEM alone and expecting it to
+/// write an ASN.1 parser in Novis to learn when a certificate expires.
+///
+/// The two names are rendered as RFC 4514 writes a distinguished name, which is
+/// what `openssl x509 -subject` prints and therefore the spelling an operator
+/// comparing the two already holds.
+#[derive(Clone, Debug)]
+pub struct Leaf {
+    /// The subject distinguished name.
+    subject: String,
+    /// The issuer distinguished name.
+    issuer: String,
+    /// `notAfter` — when the certificate stops being valid.
+    expiry: SystemTime,
+}
+
+impl Leaf {
+    /// The subject distinguished name, RFC 4514.
+    #[must_use]
+    pub fn subject(&self) -> &str {
+        &self.subject
+    }
+
+    /// The issuer distinguished name, RFC 4514.
+    #[must_use]
+    pub fn issuer(&self) -> &str {
+        &self.issuer
+    }
+
+    /// When the certificate stops being valid — its `notAfter` field.
+    #[must_use]
+    pub fn expiry(&self) -> SystemTime {
+        self.expiry
+    }
+}
+
+/// What `der` says, or `None` where it is not a certificate this can read.
+///
+/// An `Option` and not an error: the one caller is a member reporting on a peer
+/// that has already been accepted, so what it needs is the distinction between
+/// "here is what the certificate says" and "there is nothing to say", and every
+/// reason a DER blob will not parse collapses into the second for a program that
+/// cannot fix the other end anyway.
+#[must_use]
+pub fn leaf(der: &[u8]) -> Option<Leaf> {
+    let (_, parsed) = X509Certificate::from_der(der).ok()?;
+    let seconds = parsed.validity().not_after.timestamp();
+    let since = Duration::from_secs(seconds.unsigned_abs());
+    let expiry = if seconds < 0 {
+        UNIX_EPOCH.checked_sub(since)?
+    } else {
+        UNIX_EPOCH.checked_add(since)?
+    };
+    Some(Leaf {
+        subject: parsed.subject().to_string(),
+        issuer: parsed.issuer().to_string(),
+        expiry,
+    })
 }
 
 /// A client identity: the certificate chain a handshake presents when a server
