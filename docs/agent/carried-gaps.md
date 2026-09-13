@@ -398,6 +398,26 @@ where taking it is the work and the code that follows it is not.
   pulling a small entry from it, buys enough to carry a second header format. Goal `formats` is
   retired and no milestone's plan names it. `crates/nvs-stdlib/src/zip.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/zip.rs:Zip64 is not read]
+- **The generated API document is honest and incomplete, and completing it grows four sources
+  outside the emitter.** A class response body and a request body need the codec roster on the route
+  row rather than a property map, `components.securitySchemes` needs somewhere in the tree to
+  declare a scheme, `info.version` needs an `nvs.toml` key, and an enum-case subset needs
+  `Core\Router::match` to decide a case's segment spelling. Each is *absent* from the document
+  rather than guessed at, which is
+  `rule:routing/api-document-is-generated-from-the-route-table`'s call and not in question. What
+  has to be decided is whether Novis commits to a document a strict validator accepts, because that
+  is four surfaces rather than an emitter change, and `nvs openapi` is useful as it stands.
+  `crates/nvs-cli/src/openapi.rs` gaps 1–5.
+  [until: gone crates/nvs-cli/src/openapi.rs:A response body that is an object]
+- **The shared cache tier speaks `redis://host[:port]` and nothing else**, so a store behind a
+  password, one addressed by database index, and a `rediss://` one are each refused with a sentence
+  rather than dialled half-served. What has to be decided is whether `[cache.shared]` grows a
+  configuration surface for them at all, and that is one question rather than three: a credential
+  may not ride in a URL a merged tree prints, so it arrives by
+  `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secret file or not at all, and an
+  index is a second namespace nothing else in the tree names. No goal on the chain names this
+  module and no milestone's plan carries it. `crates/nvs-stdlib/src/cache.rs` gap 1.
+  [until: gone crates/nvs-stdlib/src/cache.rs:A shared store behind a password]
 - **A stored entry's CRC is not checked, so a corrupted one is answered as content.** A deflate entry
   that has been corrupted fails to decode and is refused; a stored one is handed back, and written,
   as it stands. The module reads its own job as what an archive is *allowed* to do rather than

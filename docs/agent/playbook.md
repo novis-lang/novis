@@ -2003,6 +2003,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   quote for it. Grep the old title *and* the old line span across `crates/`, `docs/agent/goals/` and
   `docs/agent/carried-gaps.md` in the same call that makes the edit.
   [until: reviewed 2026-09-14]
+- **A module doc's `# What is not here yet` is as likely to be stale as to be a real gap.** The prose
+  was written before the goal that built the member, and nothing re-reads a paragraph when code
+  lands under it, so a section listing unregistered members often describes a surface that is
+  registered and tested today. Grep the registry, the lexer or the symbol the paragraph names before
+  writing one up as a gap with an owner: what has landed becomes prose, and only what the code still
+  refuses becomes a `# Known gaps` item.
+  [until: gone tools/owners.py:sections outside Known gaps]
 
 ## Running things
 
