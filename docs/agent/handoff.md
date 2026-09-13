@@ -3,57 +3,54 @@
 ## State
 
 **Goal `http-client` — a program talks to a real API: bodies, headers, streams and pooled
-connections. Stages 1–8 are on disk, and stage 9 is on disk except its end-to-end case.**
-[ADR 0180](../decisions/0180.md) is the record and the home of every decision this goal executes.
+connections. Stages 1–9 are on disk, including stage 9's end-to-end case; stage 10 has not
+started.** [ADR 0180](../decisions/0180.md) is the record and the home of every decision this goal
+executes.
 
-Stage 9 landed as three pieces. `[http.client.tls]` is a `System`/`Boot` block with `roots`,
-`min_version` and `keylog` (`crates/nvs-config/src/tree.rs:531`); each non-`bundled` `roots` entry is
-resolved against the file that wrote it and trust-checked there, in the table as well as in the typed
-tree (`crates/nvs-config/src/http.rs:341`), which is `[db.<name>] tls_ca_file`'s pass asked of the
-process-wide anchors. `E0638`/`E0639`/`E0640` refuse an empty `roots`, a version floor this build
-cannot speak, and a `keylog` on a `production` host; `W1009` announces one a `development` host kept.
-`nvs_host::tls::configure` builds the process's one `ClientConfig` from a `ClientPolicy` — plain
-strings and a path, because nothing in that crate's `src/` reads a configuration file.
+Stage 9 is closed. `[http.client.tls]` is read off the boot snapshot and handed to
+`nvs_host::tls::configure` by every run site that starts a program — `run_run`
+(`crates/nvs-cli/src/main.rs:1815`), `nvs test` (`crates/nvs-cli/src/main.rs:2276`) and
+`nvs serve` (`crates/nvs-cli/src/serve.rs:150`) — through `config::install_tls_client`, whose doc
+owns why it is not in `boot_in`: `nvs check` reaches that, opens no socket, and would create the key
+log file. A refusal is `E0641`, and it names the file because `nvs_host::tls::at_path` puts the path
+into the `io::Error` the boot reports.
 
-**`configure` has no caller yet, and that is the next slice rather than an oversight.** It settles a
-`OnceLock`, so a second call is `AlreadyExists` by design: the wiring belongs at the run sites that
-own a process, not in `nvs_cli::config::boot_in`, which `nvs check` also reaches through
-`config::grants` and which would then build an outbound client for a command that opens no socket —
-and create the key log file while doing it.
-
-`roots` is **additive** where the list says so (`["bundled", "corp.pem"]` is both sets) while
-`NvsTls::over_bundle` still **replaces** for the one endpoint that names it. The two readings are
-deliberate and argued at `crates/nvs-host/src/tls.rs:73`.
+The client's first end-to-end `https` case is in `crates/nvs-stdlib/src/http/transport.rs`: a
+loopback origin terminating TLS under a certificate written to a `roots` file, fetched through this
+module's own `send`. Its twin asserts that an origin no configured anchor vouches for throws and is
+not retried. `rustls` joins that crate's `[dev-dependencies]` for the origin's half of the
+handshake; the client's half was already `nvs-host`'s.
 
 Nothing is blocked.
 
 ## Next group
 
-**Stage 9's tail and stage 10's opening** — one file set: `crates/nvs-cli/src/main.rs`,
-`crates/nvs-cli/src/config.rs`, `crates/nvs-stdlib/src/http/transport.rs`.
+**Stage 10: relaxing trust from code, for a host a grant names** — one file set:
+`crates/nvs-config/src/tree.rs`, `crates/nvs-stdlib/src/http.rs`, `crates/nvs-host/src/tls.rs`.
 
-- [ ] **`nvs run`, `nvs serve` and `nvs test` install the outbound TLS client before the program
-      starts** — read `[http.client.tls]` off the snapshot at `crates/nvs-cli/src/main.rs:1896`, where
-      `ctx.set_config` already runs, and at `crates/nvs-cli/src/main.rs:2253`, and hand it to
-      `nvs_host::tls::configure` (`crates/nvs-host/src/tls.rs:497`). Not in
-      `crates/nvs-cli/src/config.rs:331`: `config::grants` reaches that for `nvs check`, and a second
-      call is `AlreadyExists`. A refusal is the boot's, with the file named.
-- [ ] **The client's first end-to-end `https` case** — a loopback origin with an `rcgen` certificate
-      under a `roots` file, reached through `Core\Http\Client` rather than through `NvsTls` alone.
-      That is the seam between `crates/nvs-stdlib/src/http/transport.rs:264` and
-      `crates/nvs-host/src/tls.rs` that nothing covers. The two names the check wants are
-      `https_call_through_the_client_reaches_a_loopback_origin_under_a_roots_file` and
-      `https_call_to_an_origin_no_root_vouches_for_throws_and_is_not_retried`, `-p nvs-stdlib`.
-      `rcgen` is already a dev-dependency of that crate.
-- [ ] **Stage 10's six host grants** — `tls.anchors`, `tls.pin`, `tls.any_name`, `tls.insecure`,
-      `net.connect_to` and `net.downgrade`, each a host list with no `true` spelling
-      (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`), joining `Capabilities` at
-      `crates/nvs-config/src/tree.rs:249` beside the `[http.client.tls]` block this session added at
-      `crates/nvs-config/src/tree.rs:531`.
+- [ ] **`[capabilities.tls]`'s four host lists, and `net`'s two** — `tls.anchors`, `tls.pin`,
+      `tls.any_name`, `tls.insecure` as a new block beside `Capabilities`
+      (`crates/nvs-config/src/tree.rs:257`), and `connect_to`/`downgrade` on `CapNet`
+      (`crates/nvs-config/src/tree.rs:300`). **None has a `true` spelling**, for `net.internal`'s
+      reason, which that struct states where it sits. `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`
+      is what specifies them, and `nvs.toml`'s commented block is part of the slice.
+- [ ] **The four options join the bag** — `tlsCa`, `tlsPin`, `tlsVerifyHost`, `tlsVerify` beside
+      `IDENTITY_OPTION` (`crates/nvs-stdlib/src/http.rs:721`), each refused at the call when the
+      URL's host is not in its grant, naming the grant. `tlsMinVersion` needs none and may only
+      tighten. `rule:security/capability-question-is-grant-and-scope` is the shape of the ask.
+- [ ] **The verifiers, inside the one client** — a call naming any of those options builds its own
+      `ClientConfig` through `rustls`'s custom-verifier seam beside `anchors_from`
+      (`crates/nvs-host/src/tls.rs:695`), and a caller still hands in a policy value rather than a
+      session (`rule:security/one-tls-client`). The policy is part of stage 7's pool key, so a
+      relaxed connection never serves a call that verifies.
 
 ## Backlog
 
-- `nvs-server`'s own boot path, if it has one separate from `nvs-cli`'s — the TLS install has to
-  reach it too (`crates/nvs-cli/src/main.rs:1034` delegates to `serve::run`).
-- The REST package and OAuth, `Link`/`Retry-After` parsing and RFC 9457 details are the package's,
-  not this goal's — `docs/agent/loop-goal.md` § *Standing decisions*.
+- `[http.client.tls] keylog` is not resolved against the file that wrote it, where `roots` is
+  (`crates/nvs-config/src/http.rs:342`) — whether `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`
+  reaches a file the runtime creates rather than reads is undecided.
+- The boot printing every relaxed grant, one line per grant and host — stage 10's last bullet in
+  [loop-goal.md](loop-goal.md), and goal `outbound-proxy` does the same for its own weakening.
+- `Response::tls(): ?Core\Http\TlsInfo` and the `https`→`http` downgrade refusal — stage 11.
+- Parsing `Link`, `Retry-After` for a program, and RFC 9457 problem details are the `nvs/rest`
+  package's, per the goal's § *Standing decisions*.

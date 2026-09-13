@@ -115,6 +115,12 @@ toml.workspace = true
 # binary: a chain a test signs is the only way to assert that a chain and a key
 # that are not each other's are refused.
 rcgen.workspace = true
+# The other end of `http/transport.rs`'s end-to-end `https` cases: an origin
+# that terminates TLS, which no shipped path in this crate is — the runtime is
+# a client here and `nvs-server` is where an inbound handshake lives. On the
+# provider `nvs-host` already carries, so the two ends of the case share one
+# crypto implementation.
+rustls.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy, for exactly

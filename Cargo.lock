@@ -2414,6 +2414,7 @@ dependencies = [
  "rcgen",
  "regex",
  "ring",
+ "rustls",
  "ruzstd",
  "serde",
  "serde_json",

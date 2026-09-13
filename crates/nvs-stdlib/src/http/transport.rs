@@ -1941,10 +1941,12 @@ mod tests {
     use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
     use nvs_host::scheduler::Scheduler;
     use nvs_runtime::{Ctx, Fault, OutputSink, TaskRoot};
+    use rustls::pki_types::CertificateDer;
     use std::cell::RefCell;
     use std::io::{Read, Write};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
     use std::rc::Rc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, mpsc};
     use std::time::{Duration, Instant};
 
@@ -3265,6 +3267,189 @@ mod tests {
             under_mine,
             super::pool_key(&parts, socket, None),
             "an identity is not the absence of one"
+        );
+    }
+
+    /// The anchor these two `https` cases run under: a self-signed `localhost`
+    /// certificate, with the PEM an operator's `roots` file holds written to
+    /// disk and installed as the process's one outbound client.
+    ///
+    /// A `OnceLock` because `nvs_host::tls::configure` settles exactly that —
+    /// one client for the process — and answers a second call `AlreadyExists`.
+    /// The file is written rather than the certificate handed over directly,
+    /// because the seam under test starts at the path an operator wrote and a
+    /// case that skipped the encoding would be asserting against a path nothing
+    /// runs.
+    fn trusted() -> &'static (CertificateDer<'static>, Vec<u8>) {
+        static TRUSTED: std::sync::OnceLock<(CertificateDer<'static>, Vec<u8>)> =
+            std::sync::OnceLock::new();
+        TRUSTED.get_or_init(|| {
+            let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+                .expect("the loopback certificate could not be generated");
+            let path =
+                std::env::temp_dir().join(format!("nvs-http-roots-{}.pem", std::process::id()));
+            std::fs::write(&path, issued.cert.pem()).expect("the roots file could not be written");
+            nvs_host::tls::configure(&nvs_host::tls::ClientPolicy {
+                roots: vec![path.to_string_lossy().into_owned()],
+                ..nvs_host::tls::ClientPolicy::default()
+            })
+            .expect("the process's outbound client had already been built");
+            (
+                issued.cert.der().clone(),
+                issued.signing_key.serialize_der(),
+            )
+        })
+    }
+
+    /// A loopback origin that terminates TLS under `cert` and answers `reply`
+    /// to the first request on every connection it accepts, with the count of
+    /// those connections.
+    ///
+    /// The count is what the refusing case asserts on: a handshake the client
+    /// walks away from leaves the origin nothing to report, so what the far end
+    /// still holds is how many times it was reached.
+    fn tls_origin(
+        cert: CertificateDer<'static>,
+        key: Vec<u8>,
+        reply: &'static str,
+    ) -> (u16, Arc<AtomicUsize>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let port = listener.local_addr().expect("its own address").port();
+        listener
+            .set_nonblocking(true)
+            .expect("an accept that does not outlive the count");
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let counting = Arc::clone(&accepted);
+        std::thread::spawn(move || {
+            let config = Arc::new(
+                rustls::ServerConfig::builder_with_provider(Arc::new(
+                    rustls::crypto::ring::default_provider(),
+                ))
+                .with_safe_default_protocol_versions()
+                .expect("the provider refused the shipped versions")
+                .with_no_client_auth()
+                .with_single_cert(
+                    vec![cert],
+                    rustls::pki_types::PrivateKeyDer::Pkcs8(
+                        rustls::pki_types::PrivatePkcs8KeyDer::from(key),
+                    ),
+                )
+                .expect("the certificate and the key did not pair"),
+            );
+            let ends = Instant::now() + Duration::from_secs(20);
+            while Instant::now() < ends {
+                let Ok((sock, _)) = listener.accept() else {
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                };
+                counting.fetch_add(1, Ordering::Relaxed);
+                let config = Arc::clone(&config);
+                std::thread::spawn(move || answer_tls(sock, config, reply));
+            }
+        });
+        (port, accepted)
+    }
+
+    /// One connection's handshake and the one request behind it.
+    ///
+    /// Every failure ends this thread quietly rather than panicking it: a
+    /// client that refuses the certificate hangs up mid-flight, which is
+    /// precisely what one of the two cases is written to see, and every claim
+    /// either of them makes is made on the client's side.
+    fn answer_tls(mut sock: std::net::TcpStream, config: Arc<rustls::ServerConfig>, reply: &str) {
+        // Said rather than assumed, for [`answer`]'s reason: an accepted
+        // connection inherits the listener's non-blocking mode on Windows.
+        drop(sock.set_nonblocking(false));
+        drop(sock.set_read_timeout(Some(Duration::from_secs(5))));
+        let Ok(mut conn) = rustls::ServerConnection::new(config) else {
+            return;
+        };
+        let mut tls = rustls::Stream::new(&mut conn, &mut sock);
+        let mut request = [0_u8; 4096];
+        if tls.read(&mut request).is_err() {
+            return;
+        }
+        drop(tls.write_all(reply.as_bytes()));
+        drop(tls.flush());
+    }
+
+    /// The seam stage 9 exists for, end to end: an `https` call made the way a
+    /// program makes one reaches an origin whose certificate the operator's
+    /// `roots` file vouches for, and the reply comes back through the same
+    /// framing a plaintext one does.
+    ///
+    /// Every other case in this module stops at one end of that seam or the
+    /// other — `nvs_host::tls` proves which certificates a configuration
+    /// accepts, and the cases above prove what this module does with a socket
+    /// once it has one. What neither covers is that the two are wired together:
+    /// the anchors this transport verifies against are the ones the process was
+    /// configured with.
+    #[test]
+    fn https_call_through_the_client_reaches_a_loopback_origin_under_a_roots_file() {
+        let (cert, key) = trusted();
+        let (port, accepted) = tls_origin(
+            cert.clone(),
+            key.clone(),
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
+
+        let mut asking = call(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+            "test",
+        );
+        asking.url = format!("https://localhost:{port}/ok");
+        let reply = send(&asking, &mut never).expect("the loopback origin's answer");
+
+        assert_eq!(reply.status, 200);
+        assert_eq!(reply.body, b"ok");
+        assert_eq!(
+            accepted.load(Ordering::Relaxed),
+            1,
+            "one call that handshook once is one connection"
+        );
+    }
+
+    /// The same call against an origin holding a certificate no configured
+    /// anchor vouches for: it throws, and no second attempt is made.
+    ///
+    /// Both halves matter. A handshake refused for the peer's certificate is
+    /// settled — retrying reaches the same origin with the same chain and the
+    /// same answer — so this module hands it back as
+    /// `rule:core-api/failure-throws`'s throw rather than as an attempt that
+    /// failed, and the connection count is the far end's own record that it was
+    /// reached once. The pause is what makes the count final: a retry would be
+    /// out on the wire within this call's millisecond of backoff.
+    #[test]
+    fn https_call_to_an_origin_no_root_vouches_for_throws_and_is_not_retried() {
+        // The anchors, installed before anything else: what makes this origin's
+        // certificate unvouched-for is that the `roots` file holds another one.
+        trusted();
+        let unvouched = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+            .expect("the loopback certificate could not be generated");
+        let (port, accepted) = tls_origin(
+            unvouched.cert.der().clone(),
+            unvouched.signing_key.serialize_der(),
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
+
+        let mut asking = call(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+            "test",
+        );
+        asking.url = format!("https://localhost:{port}/ok");
+        asking.attempts = 3;
+        let refused = send(&asking, &mut never).expect_err("an unvouched-for chain was accepted");
+
+        let said = format!("{refused:?}");
+        assert!(
+            said.contains("the TLS handshake with `localhost` was refused"),
+            "the refusal names the host and says nothing was sent: {said}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(
+            accepted.load(Ordering::Relaxed),
+            1,
+            "a refused certificate is settled, so the three attempts were not spent on it"
         );
     }
 
