@@ -24,6 +24,7 @@ how often they change, and this tool is what keeps a caller from having to know 
     python tools/plan.py --amend M8 --from F        # replace one milestone's body
     python tools/plan.py --check                    # sizes against the aim, index against disk (CI)
     python tools/plan.py --sync                     # rewrite the derived cells from their sources
+    python tools/plan.py --stale                    # sentences deferring to a goal that has walked
 
 `--set` and `--amend` take the replacement from a *file* rather than the command line, for the
 reason docs/agent/commands.md gives: a shell parses its argument before anything runs, and this
@@ -60,6 +61,14 @@ carry** -- AGENTS.md's *The schedule is the chain* bullet is the one home of tha
 also why the cell names each goal by its slug. Loop-days is the index's own data and `--sync`
 carries it through untouched; so is the cell of a milestone no goal carries, which has nothing to
 derive it from and says `done`, `ongoing` or `backlog N` instead.
+
+`--stale` is a **lint over the prose**, and the only mode here that reads the milestone files for
+what they say rather than for how big they are. It reports one shape: a sentence that names a goal
+by slug and is still written in the future tense, when the chain has already walked that goal. That
+is how a plan file goes stale -- the goal ran, the work landed, and the sentence promising it did
+not move. It finds neither every stale sentence nor only stale ones, so a finding is a place to
+re-read against the tree rather than a line to delete, and it exits 0 whatever it finds. The count
+on its last line is what an acceptance check matches.
 """
 
 from __future__ import annotations
@@ -245,7 +254,7 @@ UNCHAINED_CELL_RE = re.compile(r"^(?:done\\?\*?|ongoing|backlog \d+)$")
 def chain_goals():
     """Every goal in `docs/agent/goals/`, in chain order.
 
-    `{pos, num, slug, md, milestone}` each. The chain is the schedule -- the driver walks
+    `{pos, num, slug, md, milestone, retired}` each. The chain is the schedule -- the driver walks
     that directory in numeric order, and the index's `Carried by` cells are derived from each
     goal's front-matter `milestone` -- so a tree with no goals is a tree where those cells are all
     there is, and this answers `[]` for it. `tools/goals.py` is the reader; this only reshapes."""
@@ -256,6 +265,7 @@ def chain_goals():
             "slug": g.slug,
             "md": goalsmod.rel(g.md),
             "milestone": g.milestone,
+            "retired": g.retired,
         }
         for g in goalsmod.load()
     ]
@@ -607,6 +617,145 @@ def run_check(fields, index, aim):
     return 0
 
 
+# ----------------------------------------------------------------------- the stale-sentence lint
+
+
+#: A goal citation in the house spelling -- ``goal `surface``` or ``goals `a`, `b` and `c```.
+#: AGENTS.md's *Name a goal by its slug* bullet is why there is one shape to match here: a number
+#: standing where a goal's name goes is `tools/chain.py --check`'s finding, never this one's. The
+#: case is ignored for the word alone, because a sentence opening on `Goal `per-core`` is the same
+#: citation; the slug inside the backticks is lower case by the chain's own filename rule.
+GOAL_CITE_RE = re.compile(r"\bgoals?\s+((?:`[a-z0-9][a-z0-9-]*`(?:\s*(?:,\s*and|,|and)\s*)?)+)",
+                          re.IGNORECASE)
+SLUG_RE = re.compile(r"`([a-z0-9][a-z0-9-]*)`")
+
+#: The tense that turns a citation into a deferral. A sentence saying a walked goal *did*
+#: something is the plan working; one saying it *will* is the shape the audit kept finding, so
+#: these words are the filter that separates a promise from a reference.
+FUTURE_RE = re.compile(
+    r"\b(?:will|waits|until|arrives|scheduled)\b|still owed|not yet|the one that|finishes it",
+    re.IGNORECASE,
+)
+
+#: A sentence boundary: terminal punctuation, whitespace, then something a sentence can open with.
+#: Requiring that opener is what keeps `e.g. the` and `M4S. Part I` from splitting mid-clause.
+SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z`*\[(\"])")
+
+
+def prose_blocks(text):
+    """The document as blank-line-separated blocks, each `[(line number, text)]`, fences dropped.
+
+    Line numbers are 1-based and kept per line rather than per block, so a finding inside a wrapped
+    paragraph cites the line its sentence starts on. A fenced code block is blanked rather than
+    removed, because every line number after it has to stay the one in the file."""
+    blocks, block, fenced = [], [], False
+    for i, raw in enumerate(text.split("\n")):
+        if raw.lstrip().startswith("```"):
+            fenced = not fenced
+            raw = ""
+        elif fenced:
+            raw = ""
+        if raw.strip():
+            block.append((i + 1, raw.strip()))
+        elif block:
+            blocks.append(block)
+            block = []
+    if block:
+        blocks.append(block)
+    return blocks
+
+
+def block_sentences(block):
+    """`[(line number, sentence)]` for one block, each sentence joined onto one line.
+
+    The block is joined before it is split, because a sentence in this repository's prose crosses
+    a wrap boundary more often than not. The line each one is charged to is found from where its
+    first character landed in the join, which is why the offsets are carried alongside."""
+    joined, offsets, at = [], [], 0
+    for lineno, raw in block:
+        offsets.append((at, lineno))
+        joined.append(raw)
+        at += len(raw) + 1
+    text = " ".join(joined)
+    out, pos = [], 0
+    for part in SENTENCE_RE.split(text):
+        start = text.find(part, pos)
+        if start < 0:
+            start = pos
+        pos = start + len(part)
+        lineno = offsets[0][1]
+        for off, n in offsets:
+            if off <= start:
+                lineno = n
+        out.append((lineno, part.strip()))
+    return out
+
+
+def walked_goals():
+    """slug -> chain entry, for every goal the chain is already past.
+
+    Two facts say a goal has walked and they agree: it sits in front of the live goal, or its
+    `.toml` is gone, which is exactly what retiring one deletes. The union is taken so that a
+    checkout whose `docs/agent/loop-goal.md` names nothing in the chain -- one that has never run
+    the loop -- still lints against the retired half rather than against nothing."""
+    live = live_goal()
+    return {
+        g["slug"]: g
+        for g in chain_goals()
+        if g["retired"] or (live and g["num"] < live["num"])
+    }
+
+
+def run_stale(fields):
+    """Every sentence in the plan that defers work to a goal the chain has already walked.
+
+    A lint, not a proof. It matches one shape -- a goal cited by slug in a sentence still in the
+    future tense -- and reads `docs/plan/m*.md` plus the status block, whose fields are charged to
+    the line their `> **Field:**` opens on because the block is stored wrapped and rewritten
+    unwrapped. Nothing here exits non-zero: the count on the last line is the finding, written
+    after its label so that a `want` matching `0` cannot also match `10`."""
+    walked = walked_goals()
+    live = live_goal()
+    chain = chain_goals()
+    print(f"plan.py --stale: docs/plan/m*.md and {PLAN.relative_to(ROOT).as_posix()}'s status "
+          f"block, against the {len(walked)} goal(s) the chain has walked")
+    if live:
+        print(f"  live: `{live['slug']}`, {live['num']} of {len(chain)}")
+    else:
+        print("  no live goal on disk -- only the retired entries count as walked")
+
+    sources = [
+        (p.relative_to(ROOT).as_posix(), prose_blocks(p.read_text(encoding="utf-8")))
+        for p in sorted(PLAN_DIR.glob("m*.md"))
+    ]
+    sources.append((PLAN.relative_to(ROOT).as_posix(),
+                    [[(a + 1, body)] for _name, a, _b, body in fields]))
+
+    found = 0
+    for rel, blocks in sources:
+        for block in blocks:
+            for lineno, sentence in block_sentences(block):
+                cited = [
+                    s
+                    for m in GOAL_CITE_RE.finditer(sentence)
+                    for s in SLUG_RE.findall(m.group(1))
+                    if s in walked
+                ]
+                marker = FUTURE_RE.search(sentence)
+                if not cited or not marker:
+                    continue
+                found += 1
+                names = ", ".join(f"`{s}`" for s in dict.fromkeys(cited))
+                print(f"\n{rel}:{lineno}  {names}  -- \"{marker.group(0).lower()}\"")
+                print(f"    {sentence if len(sentence) <= 160 else sentence[:159] + '…'}")
+
+    print("\nEach is a sentence to re-read against the tree rather than one to delete: the goal has"
+          " run, so either the work landed and the sentence is rewritten to what is true, or it is"
+          " still owed and the sentence names the goal that owns it now.")
+    print(f"sentences deferring to a walked goal: {found}")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -616,6 +765,8 @@ def main():
     ap.add_argument("--show", metavar="M[:lead|:verify]")
     ap.add_argument("--amend", metavar="M")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--stale", action="store_true",
+                    help="sentences deferring to a goal the chain has already walked")
     ap.add_argument("--sync", action="store_true",
                     help="rewrite the index's title cells from each milestone file's H1")
     ap.add_argument("--from", metavar="FILE", dest="source")
@@ -723,6 +874,9 @@ def main():
 
     if opts.check:
         return run_check(fields, index, aim)
+
+    if opts.stale:
+        return run_stale(fields)
 
     # ------------------------------------------------------------------ status block
 
