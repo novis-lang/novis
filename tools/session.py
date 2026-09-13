@@ -164,6 +164,16 @@ _LINKS = importlib.util.spec_from_file_location(
 checklinks = importlib.util.module_from_spec(_LINKS)
 _LINKS.loader.exec_module(checklinks)
 
+#: `rules.py`, loaded the same way and for the same reason: `body_citations` resolves a `rule:`
+#: token in a wrap body against the rulebook, and that file's `CITATION` is the one spelling of a
+#: citation the whole tree uses.
+_RULES = importlib.util.spec_from_file_location(
+    "nvs_rules", Path(__file__).resolve().parent / "rules.py")
+rulesmod = importlib.util.module_from_spec(_RULES)
+# Registered before it runs: a `@dataclass` resolves its annotations through `sys.modules`.
+sys.modules["nvs_rules"] = rulesmod
+_RULES.loader.exec_module(rulesmod)
+
 
 def say(line: str = "") -> None:
     print(line)
@@ -610,7 +620,7 @@ def validate(sections: list[Section]) -> list[str]:
             f"`## commit: {' '.join(writes)}` -- every doc section is applied before any commit "
             f"is staged, so one wrap does both.")
 
-    errors += body_links(sections)
+    errors += body_links(sections) + body_citations(sections)
     broke, _found = link_findings()
     if broke:
         shown = "; ".join(broke[:8])
@@ -998,6 +1008,45 @@ def body_links(sections: list[Section]) -> list[str]:
                 f"{named} cites {target!r}, and {LINK_WHY[kind]}. A link in a wrap body resolves "
                 f"from {rel_path(home)}, which is where the body lands -- and this wrap writes and "
                 f"commits in one call, so nothing reads it before CI's `docs` job does.")
+    return out
+
+
+def body_citations(sections: list[Section]) -> list[str]:
+    """`rule:` tokens in the bodies this wrap is about to write that name no rule -- caught before
+    it writes them.
+
+    `rulebook_findings` runs `rules.py --check` over the tree, and the tree at that moment does not
+    yet hold these bodies: the wrap writes the handoff and the playbook AFTER validation and commits
+    them in the same call. So a placeholder id typed into either -- `rule:` followed by a made-up
+    topic and slug, as an illustration -- is in `git log` before anything scans it, and the goal's
+    `1 floor` rulebook check is red for every session after, while the session that wrote it has
+    already reported the check clean. The tree gate cannot see it for the same reason `body_links`
+    exists: at this point the body is still only in the wrap file. The rulebook's spelling of a
+    citation is `rules.py`'s `CITATION`, so what that check would flag tomorrow is what this refuses
+    today, with the line to fix."""
+    book = rulesmod.Rulebook()
+    if not book.by_id:
+        return []  # no rulebook on disk, so nothing to resolve against -- `rules.py` says the same
+    out: list[str] = []
+    for s in sections:
+        if s.kind not in BODY_HOME and s.kind != "milestone":
+            continue
+        # A `plan-edit` quotes the field as it reads in its `--- old` half; only `--- new` is text
+        # this wrap puts there.
+        body = "\n".join(new for _old, new in parse_edits(s.body)[0]) \
+            if s.kind == "plan-edit" else s.body
+        for line_no, line in enumerate(body.split("\n"), 1):
+            for rid in rulesmod.CITATION.findall(line):
+                if rid in book.by_id:
+                    continue
+                named = f"`## {s.kind}: {s.arg}`" if s.arg else f"`## {s.kind}`"
+                out.append(
+                    f"{named} line {line_no} cites `rule:{rid}`, and no rule has that id. `python "
+                    f"tools/rules.py --check` resolves every `rule:` token under `docs/`, the "
+                    f"handoff and the playbook included, and the goal's `1 floor` runs it -- so a "
+                    f"placeholder id written here turns that check red for every later session. "
+                    f"Cite a real rule (`python tools/brief.py --where <keyword>` finds one), or "
+                    f"describe the token in words.")
     return out
 
 
