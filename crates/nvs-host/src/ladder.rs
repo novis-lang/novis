@@ -13,7 +13,7 @@
 //! a `spawn script`: the crate that *can* do a thing does it, and the crate
 //! that owns the meaning keeps the meaning.
 //!
-//! # What "before reporting" means, and what a caller owes
+//! # What "before reporting" means, and what the caller writes instead
 //!
 //! [`escalate`] answers `true` when the handler ran to completion, and the
 //! caller then writes nothing: tier 4 is the floor *beneath* tier 3, not a
