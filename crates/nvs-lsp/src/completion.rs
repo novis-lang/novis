@@ -214,7 +214,7 @@
 //! file nobody has opened is not among them. That setting is the answer, and
 //! this arm deliberately has no second one — a directory walk of its own is
 //! what `rule:ide/completion-offers-only-what-the-compiler-derived` refuses.
-//! — owner: workspace-index
+//! — owner: M10
 
 use std::collections::BTreeMap;
 

@@ -62,16 +62,18 @@
 //!    Decided: The fold grows a named-argument case (the checker already holds the route's typed
 //!    parameters) — Errors at compile time with a precise message; more checker code.
 //!    — owner: unowned-closures
-//! 2. **The mount prefix is the half of the laundering that has nowhere to come
-//!    from.** [`substitute`] percent-encodes every value it puts in a segment,
-//!    which is § 4's launder and is real; what is not is
-//!    (`rule:http-server/a-mount-table-expands-at-boot`
-//!    )'s prefix in front of it, because a program run off the command line
-//!    is mounted nowhere. `urlAbsolute` is in the same position for the same
-//!    reason and says so where a program can see it: it reads
-//!    [`Ctx::origin`](nvs_runtime::Ctx::origin) and throws when a unit has
-//!    resolved none, rather than answering an empty authority.
-//!    — owner: signed-urls
+//! 2. **The mount prefix reaches a served request and no member here reads
+//!    it.** [`substitute`] percent-encodes every value it puts in a segment,
+//!    which is § 4's launder and is real; what it does not put in front of
+//!    one is (`rule:http-server/a-mount-table-expands-at-boot`
+//!    )'s prefix. An inbound request carries that prefix — `Ctx::inbound`'s
+//!    `mount_prefix` — and nothing here asks for it, so a link is written
+//!    from the mount root out rather than from the prefix the entry is served
+//!    under. A program run off the command line is mounted nowhere and has
+//!    none to read at all. `urlAbsolute` is the half that does reach for its
+//!    context: it reads [`Ctx::origin`](nvs_runtime::Ctx::origin) and throws
+//!    when a unit has resolved none, rather than answering an empty authority.
+//!    — owner: m7-server-surface
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 

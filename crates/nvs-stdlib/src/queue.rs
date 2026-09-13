@@ -82,7 +82,7 @@
 //!    and stays one until the narrowing
 //!    `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` asks for is applied to the
 //!    isolate the worker starts.
-//!    — owner: unowned-sweep
+//!    — owner: gap-zero
 //! 2. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
 //!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
 //!    inside the same statement that writes it, which is correct against every other `push` on a

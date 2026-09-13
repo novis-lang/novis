@@ -161,15 +161,6 @@
 //!   conservative around the block statements: a `switch` and a `try`/`catch`
 //!   intersect their arms' live sets the way an `if` does.
 //!   — owner: unowned
-//! - **`rule:types/narrowing`'s fifth spelling, `is`, does not narrow.** The
-//!   other four — `== null`, `instanceof`, a comparison against a
-//!   literal-typed value, and `match (true)`/`switch (true)` — all do, in
-//!   [`locals`], whose own docs own what invalidates one and the two places
-//!   the walk refuses to prove anything;
-//!   [`expr_table::ExprInfo::NarrowedRead`] is what carries a narrowing to
-//!   `nvs-ir`. False-edge narrowing is out of scope for all five by that rule
-//!   rather than by omission.
-//!   — owner: type-test
 
 pub(crate) mod attributes;
 pub(crate) mod capability;
