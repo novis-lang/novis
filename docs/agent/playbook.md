@@ -2444,11 +2444,15 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   call `Inbound::set_route`. A fixture that needs the match spells the door's walk itself, over
   `Core\Request::method()` and `Core\Request::path()`, which is what `examples/parses.nvs` does.
   [until: gone crates/nvs-cli/src/main.rs:matched against nothing]
-- **A socket a container publishes reaches the WSL leg only under `/mnt/wsl`, and the `redis` image
-  binds it as uid 999 whatever `user:` says.** Docker Desktop's daemon is its own distro, so a bind
-  mount resolves there and `/mnt/wsl` is the tmpfs they share; a source Docker created is root-owned
-  755, which the image's `gosu` drop cannot write into. Chown it in the `certs` service, and probe
-  without `--rm` — a dead container leaves an empty directory that reads as an unshared mount.
+- **A socket a container publishes reaches the WSL leg only under `/mnt/wsl`, the two distros share
+  that tmpfs only on a host where Docker Desktop's WSL integration is on for the leg's, and the
+  `redis` image binds the socket as uid 999 whatever `user:` says.** Docker Desktop's daemon is its
+  own distro, so a bind mount resolves there: where the integration is off, `docker` is missing from
+  the leg distro's PATH and `wsl.exe -d docker-desktop -- ls /mnt/wsl` holds the bind while the leg's
+  own `ls` never shows it, and a source Docker created is root-owned 755, which the image's `gosu`
+  drop cannot write into. Compare those two listings before reading a red socket fixture as a bug in
+  the tree, chown the source in the `certs` service, and probe without `--rm` — a dead container
+  leaves an empty directory that reads as an unshared mount.
   [until: gone tests/db/compose.yaml:/mnt/wsl/novis-redis]
 - **Nothing this repository runs on Windows compiles a `#[cfg(unix)]` arm, `verify.py` included.**
   `cargo check -p nvs-db --all-targets` was green over a MariaDB socket arm that read a private field

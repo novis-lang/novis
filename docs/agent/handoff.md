@@ -2,52 +2,48 @@
 
 ## State
 
-**Goal `outbound-proxy` — stage 4's door and transport halves are on disk and green: under
-`[http.client.proxy] resolve = "proxy"` the door approves a destination it never resolves, the `CONNECT`
-carries that destination's own `host:port`, and a `bypass` entry puts a host back under the whole address
-policy and dials it directly.**
+**Goal `outbound-proxy` is functionally complete.** `python tools/loop.py --goal-only` is 772 of 773
+green: every stage 2–5 check passes, both `[http.client.proxy]` rules render `shipped`, and the one
+red check is a carried floor one that no change to this tree closes.
 
-`crates/nvs-stdlib/src/http.rs:415` (`pin_unless_the_proxy_resolves`) is the fork both call doors take —
-`approved` for the member's own URL, `repinned` for a redirect hop — and the empty address set it answers
-with is what the transport reads as *ask for this one by name*. `transport::Proxy` carries `by_name` and
-answers `resolves(host)`, which is the one question the door and the transport both ask, so a bypassed
-host is pinned and dialled like any other. `transport::reached_at` gives a destination one spelling for
-the `CONNECT` line, the pool key, the trace and an `IOError`; `HttpSpan`'s address is an `Option` because
-a call that never learned one has nothing honest to report there.
+The wip commit the driver swept up after the last session — `e5f5656e5`, unverified when it was made
+— is verified now and is the whole of stage 4's launderer half: `crates/nvs-stdlib/src/http.rs:405`
+(`pin`) is the one door `allowUrl` and every call take, so `resolve = "proxy"` does not leave
+`tainted` on every URL in the network the word exists for; an approved set with nothing in it is the
+approval of a host only a proxy resolves, told apart from a slot another writer mangled at
+`crates/nvs-stdlib/src/http.rs:2714` (`addresses_of`) and refused at
+`crates/nvs-stdlib/src/http/transport.rs:1462` where nothing tunnels it.
 
-Stage 4's config half — the two refusals, the boot `Warn`, the secret pair — was already green, and the
-credential half landed before this group.
+**The red check is the operator's, not the tree's.** `wsl examples/cache-shared-socket.nvs [1 floor]`
+wants the socket `tests/db/compose.yaml`'s `redis` service binds at `/mnt/wsl/novis-redis`. The
+service is up and healthy and holds the socket, but `wsl.exe -d docker-desktop -- ls /mnt/wsl` shows
+that directory in the daemon distro alone while the leg's own `/mnt/wsl` never has it — `docker` is
+also absent from the leg distro's PATH. The `warning[W1008]` line the ledger reports is not the
+failure; the fixture exits 0 and prints an `IOError` for the missing socket. The plan's `Blocking`
+field names the choice.
 
 ## Next group
 
-**Stage 4: the launderer under the same word** — one file set: `crates/nvs-stdlib/src/http.rs`.
+**The socket fixture's ungranted store** — one file set: `crates/nvs-config/src/store.rs`,
+`examples/cache-shared-socket.toml`.
 
-- [ ] **`allowUrl` stops resolving under `resolve = "proxy"` too** — `crates/nvs-stdlib/src/http.rs:481`
-      (`nvs_core_http_allow_url`) calls `pin`, where every call door now calls
-      `crates/nvs-stdlib/src/http.rs:415` (`pin_unless_the_proxy_resolves`), so a *tainted* URL cannot be
-      laundered at all in the network the word exists for — the resolver it reaches has no route outward.
-      The `Target` it builds then carries an empty address array, and
-      `crates/nvs-stdlib/src/http.rs:2720` (`addresses_of`) reads an empty slot as one it cannot parse:
-      that refusal has to tell a set the door approved empty from a slot another writer mangled, and its
-      doc's reason for folding the two together is what changes with it.
-      `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`.
-- [ ] **A `Target` with no address is refused where nothing tunnels it** —
-      `crates/nvs-stdlib/src/http/transport.rs:1517` is the direct arm's `Fault::fatal` for an approved
-      set with no address in it, reachable once a `Target` can carry one: a block reloaded from `proxy`
-      to `local` between the laundering and the call is the path. A thrown `RuntimeError` naming the
-      reload is the answer a program can degrade around; a `FATAL` is not.
-      `rule:errors/escalation-ladder`.
-- [ ] **The case for both** — `crates/nvs-stdlib/src/http.rs:5017` is where the door's own proxy cases
-      sit (`resolve_proxy_sends_the_host_name_and_skips_only_the_address_check` and the `AT_THE_PROXY`
-      fixture beside it): a tainted URL laundered under the word answers a `Target` the member then sends
-      by name, and the same `Target` under `local` is refused rather than fatal.
+- [ ] **W1008 is asked of the top-level `[capabilities]` block alone** —
+      `crates/nvs-config/src/store.rs:178` (`advise`) reads `config.capabilities`, so
+      `examples/cache-shared-socket.toml:22`'s `[app.capabilities.cache] shared = true` earns the
+      warning on every run of the fixture. Decide whether an app-scoped grant answers the census —
+      `rule:config/cache-shared-is-the-grant-over-the-configured-store` — and fix whichever side is
+      wrong: the warning fires today over a tree that does grant the store.
+- [ ] **Whether that `[[app]]` block applies to this run at all** —
+      `examples/cache-shared-socket.toml:18` spells `entry = "cache-shared-socket.nvs"` while every
+      block in the repository's own root `nvs.toml` spells a repo-rooted path, and the fixture is given
+      to the CLI as `examples/cache-shared-socket.nvs`. Which of the two the matcher compares is what
+      decides whether the grant above it is ever read, and it is **not checked**.
 
 ## Backlog
 
-- Stage 5: flip both `[0182](../decisions/0182.md)` rules to `shipped` with `guardedBy` filled from this
-  goal's tests, then `python tools/rules.py --render` — `docs/agent/loop-goal.md` § Stage 5.
-- `nvs config dump` renders `resolve` beside `rule:security/net-address-policy`'s id —
-  `crates/nvs-cli/src/config.rs:611` (`dump`), stage 4 of `docs/agent/loop-goal.md`, and unstarted.
-- A `CONNECT` refusal walks the approved set one address at a time
-  (`crates/nvs-stdlib/src/http/transport.rs:1649`); no case covers a set of two where the first is
-  refused and the second opens.
+- A second `needs` for the socket fixture — `tools/loop.py:1568` (`LEG_NEEDS`) holds one entry and
+  its comment invites the second; it waits on the decision the plan's `Blocking` now names.
+- `crates/nvs-stdlib/src/http/transport.rs:1771` answers one `IOError` naming every destination the
+  proxy refused; no case covers a set of more than one where *all* of them are refused.
+- The environment is never read for a proxy — a session that finds `HTTP_PROXY` on its path writes it
+  here, per `docs/agent/loop-goal.md` § *Standing decisions*.
