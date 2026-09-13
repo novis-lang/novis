@@ -3,61 +3,52 @@
 ## State
 
 **Goal `websocket-client` — a program holds a WebSocket to another server, opened like an outbound
-call and closed with the task that opened it.** Stage 1 (goal `outbound-proxy`'s list) is the floor
-and passes; stage 2's record, [ADR 0183](../decisions/0183.md), is accepted; stage 3's scripted peer
-is on disk and green.
+call and closed with the task that opened it.** Stages 1–4 are closed: the handshake is live over
+plaintext `ws`, over `wss` through the process's one outbound TLS client, and through the operator's
+`CONNECT` tunnel, with a bypassed host dialled directly.
 
-**Stage 4 is closed.** All six tests its `cargo-named` check pins pass, and so do the two `.nvst`
-cases of its `nvs-suite` check — the whole conformance tree is green. The handshake is live over
-every transport it has: plaintext `ws`, `wss` through the process's one outbound TLS client under
-the policy the `Call` carries, and either of those through the operator's `CONNECT` tunnel, with a
-bypassed host dialled directly.
+**Stage 5's configuration half is landed.** `[http.client.socket]` is a block in
+`crates/nvs-config/src/tree.rs:679` carrying `max_message` and `send_timeout`, `Runtime` and `Reload`
+in the registry, with `E0647` refusing `false` or zero on either key. The shipped values are in
+`default.toml` — `4194304` and `"30s"`, the numbers `nvs_server::bounds` already applies inbound.
 
-**`openSocket` branches on `ctx.faked_http().is_armed()`** — the armed arm keeps the table's
-`LogicError`, the unarmed arm assembles a `transport::Call` and calls `transport::upgrade`, which
-dials through `transport::dialled`, the one connect implementation `one` also uses. Nothing is
-pooled, the live conversation is filed in the request's table under the class's `held` slot, and
-`close` gives the connection back. The subprotocol judgement is `transport::settled`, which both
-arms pass through.
+**`max_message` reaches the wire; `send_timeout` does not yet.** `openSocket` hands
+`transport::upgrade` a `WebSocketConfig` whose cap is the `maxMessage` option, then the directive,
+then `DEFAULT_MAX_MESSAGE`, so `tungstenite`'s own 64 MiB default is gone. Nothing writes a frame to
+a real peer yet, so the send wait has no write to bound — it is validated and not acted on, and
+`tools/directives.py` cannot see that difference (playbook, *Tooling*).
 
-**What is not real yet is the conversation.** `receive`, `send`, `sendBytes` and `close` still read
-and write the *scripted* table, so a socket opened against a real host completes its handshake and
-then reads as a peer that said nothing. `[http.client.socket]` does not exist in
-`crates/nvs-config/src/directive.rs` at all, so neither bound has a value to be read from.
+**What is still not real is the conversation.** `receive`, `send`, `sendBytes` and `close` read and
+write the *scripted* table, so a socket opened against a real host completes its handshake and then
+reads as a peer that said nothing.
 
 ## Next group
 
 **Stage 5: the conversation and its bounds** — one file set: `crates/nvs-stdlib/src/http/socket.rs`,
-with `crates/nvs-config/src/directive.rs` for the block the bounds are read from.
+with `crates/nvs-stdlib/src/http/transport.rs` for the framed connection it reads through.
 
-- [ ] **`[http.client.socket]` — `max_message` and `send_timeout`, both `Runtime` and both bounded** —
-      `rule:http-server/no-spelling-for-an-unbounded-wait`,
-      `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, and the goal's
-      § *Standing decisions* for why the class is `Runtime` rather than `System`.
-      `crates/nvs-config/src/directive.rs:127` is where the `[http.client]` rows sit, beside the two
-      exceptions whose comments say what makes a key `System`. The check that closes it is
-      `http_client_socket_max_message_and_send_timeout_are_bounded_and_runtime_class`, in
-      `nvs-config`; the template and the directive sweep both count the new leaf keys, so the shipped
-      default goes in with the row.
 - [ ] **`receive`, `send` and `sendBytes` read and write the held conversation where the table is not
-      armed** — [ADR 0183](../decisions/0183.md) § 5, and the goal's § *Standing decisions* for every
-      received payload being `tainted`. `crates/nvs-stdlib/src/http/socket.rs:536` (`receive`),
-      `crates/nvs-stdlib/src/http/socket.rs:562` (`send`) and
-      `crates/nvs-stdlib/src/http/socket.rs:581` (`sendBytes`) are the three bodies; the live socket
-      is the `held` slot at `crates/nvs-stdlib/src/http/socket.rs:322`, and
-      `crates/nvs-stdlib/src/http/socket.rs:302` is the branch both arms already pass through.
-- [ ] **The bounds and the two closes** — `rule:http-server/no-spelling-for-an-unbounded-wait` for the
-      waits, [ADR 0183](../decisions/0183.md) § 5 for `ping` (judged, never applied) and for `close`'s
-      `$code`/`$reason`. `crates/nvs-stdlib/src/http/socket.rs:609` (`close`). The six tests stage 5's
-      `cargo-named` check names are the shape: `socket_idle_ends_a_silent_peer`,
-      `socket_ping_keeps_a_quiet_live_peer_open`, `socket_max_duration_ends_an_endless_conversation`,
-      `a_message_past_max_message_closes_the_socket_with_1009`,
-      `a_socket_is_closed_with_1001_when_its_task_ends` and
-      `two_receives_waiting_on_one_socket_is_a_logic_error`.
+      armed** — `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call` and
+      `rule:security/tainted-sources` for the payload that comes back. The branch is the one
+      `openSocket` already takes: a socket holding a key in `HELD_AT` reads `Open`'s framed connection
+      out of the request's table, one holding `null` reads the scripted peer. `taken` at
+      `crates/nvs-stdlib/src/http/socket.rs:492` is the scripted half and stays; the live half is a
+      `read()` whose `Ping`, `Pong` and `Close` frames are answered rather than handed to the program.
+      `crates/nvs-stdlib/src/http/socket.rs:545` is `receive`, `:571` is `send`.
+- [ ] **The bounds and the two closes** —
+      `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap` for the
+      four waits and ADR 0183 § 7 for the codes. `idle`, `maxDuration` and `ping` are read the way
+      `max_message` now is (`crates/nvs-stdlib/src/http.rs:2885` is `cap_of`,
+      `crates/nvs-stdlib/src/http.rs:2502` is `judge_bound`); `send_timeout` bounds the write and
+      closes the key's last gap. A message past the cap closes with `1009` and the waiting `receive`
+      throws naming it; a task that ends closes with `1001`, at
+      `crates/nvs-stdlib/src/http/socket.rs:618`.
 
 ## Backlog
 
-- Stage 5's two `.nvst` cases are not on disk yet — `docs/agent/loop-goal.toml:9993` names them.
-- Stage 6 is the rulebook, and stage 7 the reference surface — `docs/agent/loop-goal.md`.
-- `permessage-deflate`, RFC 8441, reconnection and the subprotocol libraries are out of this goal on
-  purpose — `docs/agent/loop-goal.md` § *Standing decisions*.
+- `[http.client.socket] send_timeout` is refused when it is not a bound and applied nowhere — the two
+  send members are what owe it (docs/decisions/0183.md § 7).
+- A second concurrent `receive` on one socket is a `LogicError`, and nothing holds the state to know
+  (docs/decisions/0183.md § 7).
+- `permessage-deflate`, RFC 8441, reconnecting and a socket handed to another isolate are out of this
+  goal on purpose (docs/agent/loop-goal.md § *Standing decisions*).
