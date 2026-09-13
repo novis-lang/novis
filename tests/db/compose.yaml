@@ -105,8 +105,8 @@ services:
       # image drops to uid 999 before it binds. This service is already the root-owned thing that
       # runs to completion first, and the `chown` above is the whole of what it takes -- where a
       # second service, or a `user:` override the image's own entrypoint would undo, is two moving
-      # parts for one directory.
-      - /mnt/wsl/novis-redis:/sock
+      # parts for one directory. The source is the `redis` service's, whose comment owns the path.
+      - ${NOVIS_SOCKET_DIR:-/mnt/host/wsl/novis-redis}:/sock
 
   # ---------------------------------------------------------------------------------------------------
   # MySQL. `executeMany`'s bulk path and `INSERT … ON DUPLICATE KEY UPDATE` reporting 2 for an updated
@@ -294,13 +294,16 @@ services:
       - "127.0.0.1:16380:6380"
     volumes:
       - certs:/certs:ro
-      # `/mnt/wsl` and not `/tmp`, because on Docker Desktop the daemon runs in its own WSL2 distro
-      # and a bind mount resolves inside *that* one: `/mnt/wsl` is the tmpfs every distro in the VM
-      # shares, so it is the one host path where a socket the container creates is a socket the WSL
-      # leg can connect to. On a Linux host it is an ordinary directory and the mount is the
-      # ordinary thing. `examples/cache-shared-socket.toml` is where the same path is written for
-      # the client half, and the check that reads it carries `needs = "af-unix"`.
-      - /mnt/wsl/novis-redis:/sock
+      # A source under the tmpfs every WSL2 distro shares, because on Docker Desktop the daemon runs
+      # in its own distro and a bind mount resolves inside *that* one. Its `/mnt/wsl` is a private
+      # directory of its own root filesystem; the shared tmpfs is mounted there at `/mnt/host/wsl`,
+      # so this is the one source spelling from Windows under which the socket the container
+      # creates is the socket the WSL leg finds at `/mnt/wsl/novis-redis`. Docker Desktop's WSL
+      # integration plays no part -- the daemon's mount table decides, not the leg's PATH. On a
+      # Linux host the daemon and the client share one filesystem, so `NOVIS_SOCKET_DIR` names the
+      # plain directory the client's URL spells. `examples/cache-shared-socket.toml` is where the
+      # client half is written, and the check that reads it carries `needs = "af-unix"`.
+      - ${NOVIS_SOCKET_DIR:-/mnt/host/wsl/novis-redis}:/sock
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -p 6379 ping | grep -q PONG"]
       interval: 5s

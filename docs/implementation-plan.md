@@ -50,15 +50,12 @@
 > goal after them the chain has already walked. What a crate still owes is its own module doc's `#
 > Known gaps`; the corpus and bench figures are `python tools/disk.py`'s and the perf notes'.
 >
-> **Blocking:** One decision is waiting and it is the operator's:
-> `examples/cache-shared-socket.nvs`'s floor check is the one red check on this tree, because the
-> `redis` service's socket bind at `/mnt/wsl/novis-redis` does not reach the WSL leg's own
-> `/mnt/wsl` on this host — republish it, give the check a second `needs`, or leave that floor red.
-> Every design call a goal reaches is otherwise pre-authorized in its own § *Standing decisions*,
-> and each goal names the numbered ADRs it may open and no others; the goals whose floor carries
-> container-backed checks need a reachable Docker daemon, which [the goals directory](agent/goals/)
-> preflights per entry. Picking every dependency but the two the user named is pre-authorized under
-> `rule:packaging/a-c-dependency-answers-two-questions`.
+> **Blocking:** Nothing waiting on a decision — every design call a goal reaches is pre-authorized
+> in its own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
+> others. One standing precondition, and not a block: the goals whose floor carries container-backed
+> checks need a reachable Docker daemon, and [the goals directory](agent/goals/) preflights it per
+> entry rather than letting a session discover it mid-run. Picking every dependency but the two the
+> user named is pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in
