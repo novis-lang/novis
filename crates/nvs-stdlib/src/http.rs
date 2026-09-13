@@ -122,6 +122,7 @@
 //! ([`transport::Piece`]). What the exchange itself spends is [`transport`]'s to state.
 
 mod pool;
+mod span;
 pub(crate) mod stream;
 mod transport;
 
@@ -3190,7 +3191,18 @@ fn exchanged(
     if ctx.faked_http().is_armed() {
         return faked(ctx, args, &named, verb, streamed);
     }
+    // The resolve time the event reports is this call's own, and a call handed
+    // an already-pinned `Core\Http\Target` spent none of it: that lookup was
+    // `allowUrl`'s, on an earlier call, and charging it here would be the
+    // second measurement that disagrees with the first.
+    let pinned_already = matches!(args[0].tag(), Some(Tag::Object));
+    let began = Instant::now();
     let (url, addresses) = approved(ctx, args, &named)?;
+    let resolve = if pinned_already {
+        Duration::ZERO
+    } else {
+        began.elapsed()
+    };
 
     judge_bound(args, DEADLINE, "deadline", &named)?;
     judge_bound(args, CONNECT_TIMEOUT, "connectTimeout", &named)?;
@@ -3257,6 +3269,7 @@ fn exchanged(
         identity: identity_option(args, &named)?,
         policy: policy_of(args, &named)?,
         traceparent: traceparent_of(ctx),
+        span: std::cell::RefCell::new(span::HttpSpan::opened(verb, resolve)),
     };
 
     // The one difference between the two members, and it is which bounds the
@@ -3270,18 +3283,47 @@ fn exchanged(
             repinned(ctx, args, hop, downgrade, &named)
         })?;
         let headers = header_map(&answer.headers);
-        return Ok((answer.status, filed(ctx, answer.body), headers, answer.tls));
+        let body = filed(ctx, answer.body);
+        traced(ctx, &call);
+        return Ok((answer.status, body, headers, answer.tls));
     }
     let reply = transport::send(&call, &mut |hop, downgrade| {
         repinned(ctx, args, hop, downgrade, &named)
     })?;
     let headers = header_map(&reply.headers);
+    traced(ctx, &call);
     Ok((
         reply.status,
         Value::bytes(NvsStr::new(&reply.body)),
         headers,
         reply.tls,
     ))
+}
+
+/// Files this call's `http` trace event, now that there is an answer to file —
+/// `rule:observability/trace-events-carry-a-kind`, once per call whatever its
+/// attempts and hops.
+///
+/// **Here and not in [`transport`]**, which is that module's whole shape: it is
+/// handed addresses rather than a `Ctx`, and a trace belongs to the request. The
+/// flag is read here for the same reason, so a request tracing nothing pays only
+/// for the clock reads the span already took — [`span`]'s module doc prices
+/// those against a round trip.
+///
+/// A call the answer table served never reaches this: [`exchanged`] answers from
+/// [`faked`] before a span exists, so nothing crossed a network and there is
+/// nothing to report. On a streamed reply the event is filed with the head,
+/// which is where the call ends and the program's own reading begins.
+fn traced(ctx: &mut Ctx, call: &transport::Call<'_>) {
+    if !ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE) {
+        return;
+    }
+    let line = {
+        let mut span = call.span.borrow_mut();
+        span.finished();
+        span.to_string()
+    };
+    ctx.record_http(&line);
 }
 
 /// A streamed reply's body, filed against this request, as the key its
@@ -4068,6 +4110,270 @@ mod tests {
     /// The grant every case here starts from: the host is reachable and no
     /// address is excepted, which is § 3's table exactly as it ships.
     const GRANTED: &str = "[capabilities.net]\nconnect = [\"127.0.0.1\"]\n";
+
+    /// A loopback origin that answers `replies` in order, one connection each,
+    /// and hands back how many it got through.
+    ///
+    /// Every reply a case writes here closes its connection, which is what makes
+    /// one thread enough: a pooled connection would leave this loop waiting on
+    /// an accept the client is never going to make, and a case asserting on a
+    /// count would hang rather than fail.
+    ///
+    /// A `std` listener for the transport's own origin's reason: what these
+    /// cases drive is the member above it, and the address it hands down has
+    /// already been through the door.
+    fn origin(
+        replies: Vec<&'static str>,
+    ) -> (std::net::SocketAddr, std::thread::JoinHandle<usize>) {
+        use std::io::{Read, Write};
+
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        let served = std::thread::spawn(move || {
+            let mut answered = 0;
+            let mut buffer = [0_u8; 4096];
+            for reply in replies {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    break;
+                };
+                let mut head = Vec::new();
+                while !head.windows(4).any(|end| end == b"\r\n\r\n") {
+                    match stream.read(&mut buffer) {
+                        Ok(0) | Err(_) => break,
+                        Ok(read) => head.extend_from_slice(&buffer[..read]),
+                    }
+                }
+                if head.is_empty() || stream.write_all(reply.as_bytes()).is_err() {
+                    break;
+                }
+                stream.flush().ok();
+                answered += 1;
+                // Whatever the client is still sending is read before this end
+                // closes: a request body that arrives after the reply went out
+                // is a reset in the client's face on Windows if it is left in
+                // the receive buffer, and the case would fail as an `IOError`
+                // on the read rather than on what it asserts.
+                while matches!(stream.read(&mut buffer), Ok(read) if read > 0) {}
+            }
+            answered
+        });
+        (at, served)
+    }
+
+    /// The request every case below writes: the URL, an empty header array —
+    /// which is what the compiler passes for a bag key nobody wrote — and the
+    /// `json` slot said to have been left out rather than written as the
+    /// document `null`.
+    ///
+    /// The array is the caller's to release, along with the URL it was handed.
+    fn asking(url: Value) -> [Value; REQUEST_ARITY] {
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[0] = url;
+        args[HEADERS] = Value::array(NvsArray::new());
+        args[JSON] = Value::unset();
+        args
+    }
+
+    /// The one event a call files, and § 15's field set inside it: what was
+    /// asked, of whom, what came back, how many tries it took and where the
+    /// time went.
+    ///
+    /// Asserted field by field rather than against a whole line, because the
+    /// durations are the one part no case can predict — what is pinned is that
+    /// every field is there and says what this exchange did.
+    #[test]
+    fn an_outbound_call_files_one_http_trace_event_with_its_timings() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+        ]);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+        ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
+
+        let url = Value::str(NvsStr::new(format!("http://{at}/ok").as_bytes()));
+        let args = asking(url);
+        let answer = super::request(&mut ctx, &args, "get", "GET").expect("the origin's answer");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references it just produced and the one \
+                      the member answered with, and neither is its caller's"
+        )]
+        unsafe {
+            url.release();
+            args[HEADERS].release();
+            answer.release();
+        }
+        assert_eq!(served.join().expect("the origin thread"), 1);
+
+        let trace = ctx.trace();
+        assert_eq!(trace.len(), 1, "one event per call: {trace:?}");
+        assert_eq!(trace[0].kind, nvs_runtime::TraceKind::Http);
+        let line = &trace[0].callee;
+        let host = format!("host={}", at.ip());
+        let port = format!("port={}", at.port());
+        let address = format!("address={at}");
+        for field in [
+            "http ",
+            "method=GET",
+            "scheme=http",
+            host.as_str(),
+            port.as_str(),
+            "path=/ok",
+            "status=200",
+            "attempts=1",
+            "hops=0",
+            address.as_str(),
+            "resolve=",
+            "connect=",
+            "tls=",
+            "first_byte=",
+            "took=",
+        ] {
+            assert!(line.contains(field), "`{field}` is missing from `{line}`");
+        }
+    }
+
+    /// The rule's *one event carrying its attempt count*: a call the origin
+    /// refused once is one line saying it took two tries, and not two lines.
+    ///
+    /// Both halves matter. Two events would make a retried call look like two
+    /// outbound calls to every consumer downstream, and an event reporting
+    /// `attempts=1` would hide the retry altogether.
+    #[test]
+    fn a_retried_call_is_one_http_event_carrying_its_attempt_count() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+        ]);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+        ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
+
+        let url = Value::str(NvsStr::new(format!("http://{at}/ok").as_bytes()));
+        let mut args = asking(url);
+        args[RETRY_ATTEMPTS] = Value::uint(2);
+        let answer =
+            super::request(&mut ctx, &args, "get", "GET").expect("the second attempt's answer");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references it just produced and the one \
+                      the member answered with, and neither is its caller's"
+        )]
+        unsafe {
+            url.release();
+            args[HEADERS].release();
+            answer.release();
+        }
+        assert_eq!(served.join().expect("the origin thread"), 2);
+
+        let trace = ctx.trace();
+        assert_eq!(trace.len(), 1, "a retry is one event, not one per attempt");
+        let line = &trace[0].callee;
+        assert!(line.contains("attempts=2"), "{line}");
+        assert!(line.contains("status=200"), "{line}");
+    }
+
+    /// § 15's exclusion, over a call carrying one of each: a query string, a
+    /// header value and a body. None of the three reaches the event, and the
+    /// path does — a line that dropped the path with the query would pass an
+    /// assertion written only on the secrets.
+    ///
+    /// The structural half is `super::span`'s: the span is never handed the
+    /// call, so the header and the body are not in scope for it, and the query
+    /// is cut by the type that renders rather than by this caller.
+    #[test]
+    fn the_http_trace_event_carries_no_query_string_header_value_or_body() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+        ]);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+        ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
+
+        let url = Value::str(NvsStr::new(
+            format!("http://{at}/things?token=sekrit").as_bytes(),
+        ));
+        let mut written = NvsArray::new();
+        written.set(
+            NvsStr::new(b"x-api-key"),
+            Value::str(NvsStr::new(b"hunter2")),
+        );
+        let headers = Value::array(written);
+        let body = Value::str(NvsStr::new(b"parcel-of-secrets"));
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[0] = url;
+        args[HEADERS] = headers;
+        args[JSON] = body;
+        let answer = super::request(&mut ctx, &args, "post", "POST").expect("the origin's answer");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the four references it just produced, and a \
+                      native member never releases an argument its caller still owns"
+        )]
+        unsafe {
+            url.release();
+            headers.release();
+            body.release();
+            answer.release();
+        }
+        assert_eq!(served.join().expect("the origin thread"), 1);
+
+        let line = &ctx.trace()[0].callee;
+        assert!(line.contains("path=/things"), "{line}");
+        for secret in [
+            "sekrit",
+            "token",
+            "x-api-key",
+            "hunter2",
+            "parcel-of-secrets",
+        ] {
+            assert!(
+                !line.contains(secret),
+                "`{secret}` reached the trace: {line}"
+            );
+        }
+    }
+
+    /// § 15's last sentence: a call the table answered files no event, because
+    /// nothing crossed a network — there is no address to name and no time to
+    /// report, and an event of zeroes would read as a call that was made.
+    #[test]
+    fn a_call_the_table_answered_files_no_http_event() {
+        const URL: &str = "http://127.0.0.1:8099/ok";
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(GRANTED));
+        ctx.set_debug_flags(nvs_runtime::DebugFlags::TRACE);
+        ctx.faked_http_mut().answer(nvs_runtime::HttpAnswer {
+            url: URL.to_owned(),
+            status: 200,
+            headers: Vec::new(),
+            body: b"ok".to_vec(),
+        });
+
+        let url = Value::str(NvsStr::new(URL.as_bytes()));
+        let args = asking(url);
+        let answer = super::request(&mut ctx, &args, "get", "GET").expect("the table's answer");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the references it just produced and the one \
+                      the member answered with, and neither is its caller's"
+        )]
+        unsafe {
+            url.release();
+            args[HEADERS].release();
+            answer.release();
+        }
+
+        assert!(
+            ctx.trace().is_empty(),
+            "a call that never left the process filed one: {:?}",
+            ctx.trace()
+        );
+    }
 
     /// [`TARGET`]'s layout, asserted for [`RESPONSE`]'s reason and one more:
     /// these two slots are written by the launderer and read back by the

@@ -90,6 +90,7 @@ use nvs_runtime::{Fault, ThrownClass};
 use rand::RngExt;
 
 use super::pool;
+use super::span::HttpSpan;
 use crate::compress;
 
 /// The most reply a single call will hold, headers and body together.
@@ -224,6 +225,23 @@ pub(crate) struct Call<'a> {
     /// what the id is are both read in [`super::traceparent_of`], off the `Ctx`
     /// this module deliberately cannot reach.
     pub(crate) traceparent: Option<String>,
+    /// The `http` trace event this call files, as the routines that each
+    /// contribute a fact to it write it —
+    /// `rule:observability/trace-events-carry-a-kind`.
+    ///
+    /// **The one field here that is not already an answer**, and a `RefCell`
+    /// rather than a `&mut` threaded through the hop loop, the attempt loop,
+    /// the connection, the handshake and the exchange: those are five layers
+    /// apart, every one of them is already holding a `&Call`, and a further
+    /// parameter on each would be a signature a reader has to follow to find
+    /// out where one number came from. [`Piece::File`]'s handle is the same
+    /// shape for the same reason — a fact one attempt reaches through a shared
+    /// borrow — and every borrow taken here is one statement long.
+    ///
+    /// It is filled whatever the debug flags say, for [`super::span`]'s stated
+    /// reason, and `Core\Http\Client`'s member decides whether to file it. A
+    /// call that never reaches an answer drops it.
+    pub(crate) span: RefCell<HttpSpan>,
 }
 
 /// A client identity, as a call carries it: the session configuration every
@@ -1114,6 +1132,7 @@ fn sent(call: &Call<'_>, repin: &mut Repin<'_>, bounds: Bounds) -> Result<Stream
             return Ok(reply);
         }
         hops += 1;
+        call.span.borrow_mut().hopped();
         url = resolved(&url, &location, call.member)?;
         let onward = parts(&url, call.member)?.tls;
         // Before the connection and not after it: § 4 refuses a hop on its
@@ -1280,6 +1299,7 @@ fn attempts(
             return Err(expired(call.member));
         }
         let last = attempt + 1 >= call.attempts;
+        call.span.borrow_mut().attempted();
         let wait = match one(call, url, addresses, bounds)? {
             Attempt::Answered(reply) => {
                 if last || !retryable(reply.status) {
@@ -1323,6 +1343,12 @@ fn attempts(
 /// and [`nvs_host::net::NvsTcp::connect_racing`] is the walk itself.
 fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Result<Attempt, Fault> {
     let parts = parts(url, call.member)?;
+    // Where this attempt is going, written before anything can fail: the event
+    // names the origin that answered and the path it asked for, and
+    // [`HttpSpan::at`] is what keeps the query string out of both.
+    call.span
+        .borrow_mut()
+        .at(parts.tls, &parts.host, parts.port, &parts.target);
     let request = compose(call, &parts)?;
     let approved: Vec<SocketAddr> = addresses
         .iter()
@@ -1351,6 +1377,10 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         // The drawn connection carries no bound of its own: the call's deadline
         // is what every wait on it is under, exactly as on a fresh one.
         held.bound_by(Some(call.deadline));
+        // Nothing opened and nothing negotiated, which is the pair of zeroes the
+        // event reports for a call this core was already holding a connection
+        // for.
+        call.span.borrow_mut().drawn(socket);
         match exchange(call, held, &request, socket, bounds, &key)? {
             Sent::Answered(reply) => return Ok(Attempt::Answered(reply)),
             // The rule's *replaced once without spending an attempt*: the
@@ -1369,6 +1399,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     let budget = call
         .connect_timeout
         .min(call.deadline.saturating_duration_since(Instant::now()));
+    let opened = Instant::now();
     let mut stream = match NvsTcp::connect_racing(&approved, budget) {
         Ok(stream) => stream,
         // `nvs_host` names every approved address and what it answered, which
@@ -1386,6 +1417,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     // connection goes back into the pool under where it actually goes, and the
     // key above was built before there was an answer to build it from.
     let socket = stream.peer_addr().unwrap_or(first);
+    call.span.borrow_mut().connected(socket, opened.elapsed());
     let key = pool_key(&parts, socket, fingerprint, &call.policy);
     // Before the handshake, not after it: the TLS flight waits on this socket
     // and the deadline is what bounds every wait on it.
@@ -1399,6 +1431,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         // `None` and gets the process's own configuration
         // (`rule:security/one-tls-client`), so the refusal split below is the
         // same split for all of them.
+        let began = Instant::now();
         let handshake = NvsTls::over_policy(
             stream,
             &parts.host,
@@ -1406,7 +1439,10 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
             identity.map(|held| &held.session),
         );
         match handshake {
-            Ok(tls) => Box::new(tls),
+            Ok(tls) => {
+                call.span.borrow_mut().handshook(began.elapsed());
+                Box::new(tls)
+            }
             // A name or a certificate this build will not accept is settled:
             // the module doc's paragraph on `https` is why only one of these
             // two shapes is handed back for another attempt.
@@ -1567,13 +1603,17 @@ fn exchange(
                 )));
             }
             Ok(0) => return Err(malformed(call.member, "no header section ended it")),
-            Ok(read) => raw.extend_from_slice(&buffer[..read]),
+            Ok(read) => {
+                call.span.borrow_mut().first_octet();
+                raw.extend_from_slice(&buffer[..read]);
+            }
             Err(err) if err.kind() == ErrorKind::Interrupted => {}
             Err(err) => return Ok(Sent::Failed(format!("reading {socket} failed: {err}"))),
         }
     };
 
     let (status, headers) = head_of(&raw[..end], call.member)?;
+    call.span.borrow_mut().answered(status);
     let rest = raw.split_off(end + 4);
     let frame = frame_of(&headers);
     let (idle, until) = match bounds {
@@ -2098,7 +2138,7 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Call, Incoming, Reply, Streamed, backoff, send, send_streamed};
+    use super::{Call, HttpSpan, Incoming, Reply, Streamed, backoff, send, send_streamed};
     use crate::compress::{Bound, Codec, compress_to};
     use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
     use nvs_host::scheduler::Scheduler;
@@ -2248,6 +2288,7 @@ mod tests {
             identity: None,
             policy: CallPolicy::default(),
             traceparent: None,
+            span: RefCell::new(HttpSpan::opened("GET", Duration::ZERO)),
         }
     }
 

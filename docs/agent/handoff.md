@@ -2,48 +2,53 @@
 
 ## State
 
-**Goal `http-client` — stage 12 is closed.** The launderer's lookup leaves the core: `pin`
-(`crates/nvs-stdlib/src/http.rs:388`) asks `pin_host_addresses`, which reaches the per-thread seam
-`install_resolver` files (`crates/nvs-runtime/src/capability.rs:289`), and a worker puts
-`resolve_off_core` — a `nvs_host::blocking::run` around the real lookup — into it at
-`crates/nvs-host/src/lib.rs:212`. Both of stage 12's checks are green: the `-p nvs-runtime` three at
-`crates/nvs-runtime/src/capability.rs:1309`, `:1351`, `:1389`, and the `-p nvs-stdlib` five, whose last
-one is now `crates/nvs-stdlib/src/http.rs:4211`.
+**Goal `http-client` — stage 13 is closed.** An outbound call is a trace event: `TraceKind::Http`
+is the fifth kind and `Ctx::record_http` files it (`crates/nvs-runtime/src/ctx/trace.rs:181`), its
+fixed field set is `HttpSpan` (`crates/nvs-stdlib/src/http/span.rs:54`), the transport fills one
+through `Call::span` as it goes, and `traced` (`crates/nvs-stdlib/src/http.rs:3317`) is the single
+filer — above the transport, because that module holds no `Ctx`. A call the answer table served
+never opens one. Stage 13's four `-p nvs-stdlib` checks are green, and so is `verify.py` whole.
 
-Stages 1–11 are on disk behind it. Stage 13 is untouched and nothing is blocked.
+Stages 1–12 are on disk behind it. Nothing is blocked.
+
+Two decisions this stage made, both recorded where the code is: the resolve time is measured in
+`exchanged` around `approved` and handed to the span, and is **zero** for a call given an
+already-pinned `Core\Http\Target`, whose lookup was an earlier call's; and a call that never
+reaches an answer files no event, since the field set has no spelling for a status that never came.
 
 ## Next group
 
-**Stage 13: the `http` trace event** — one file set: `crates/nvs-runtime/src/ctx/trace.rs`,
-`crates/nvs-stdlib/src/http/transport.rs`. The goal's own prose calls this stage its own session, and
-the reason is the first item: the resolve timing is measured in `Core\Http::allowUrl`, not in the
-transport, so where that number crosses into the event is a decision the stage opens with.
+**Stage 14: the rulebook** — one file set: `docs/rules/http-server.json`, `docs/rules/security.json`,
+`docs/rules/testing.json` and the fragments under `docs/rules/http-server/`. Eleven rules this goal
+shipped still read `status: designed`; each check is `python tools/rules.py --show <id>` wanting
+`shipped`. Flip the status in the topic's `.json`, give each one its `guards`, and re-render — the
+prose fragments are already true, so this is metadata rather than rewriting.
 
-- [ ] **A fifth `TraceKind`, `http`, with the stage's fixed field set** —
-      `rule:observability/trace-events-carry-a-kind`, [ADR 0180](../decisions/0180.md) § 13. The enum is
-      `crates/nvs-runtime/src/ctx/trace.rs:54`, the `query` kind's filing beside it at
-      `crates/nvs-runtime/src/ctx/trace.rs:149`, and `crates/nvs-db/src/span.rs:1` is the precedent for
-      how a kind fixes its fields. Fields: method; scheme, host and port; path without its query;
-      status; attempt count and redirect hops; the address connected to; and the resolve, connect, TLS,
-      first-byte and total times.
-- [ ] **An outbound call files one `http` event with its timings** — the same rule. Filed once per call
-      from `send` (`crates/nvs-stdlib/src/http/transport.rs:1135`), which is where the attempt loop
-      `attempts` (`crates/nvs-stdlib/src/http/transport.rs:1271`) and the per-attempt exchange `one`
-      (`crates/nvs-stdlib/src/http/transport.rs:1324`) both report into, so a retried call is one event
-      carrying its attempt count. Tests `an_outbound_call_files_one_http_trace_event_with_its_timings`
-      and `a_retried_call_is_one_http_event_carrying_its_attempt_count`.
-- [ ] **The event carries nothing a trace may not hold, and a table-answered call files none** —
-      `rule:security/secret-sinks-refuse` over a trace, and
-      `rule:testing/an-outbound-call-is-answered-from-a-table`. No query string, header value or body.
-      The table arm is `exchanged` (`crates/nvs-stdlib/src/http.rs:3182`), which hands off to `faked`
-      (`crates/nvs-stdlib/src/http.rs:3453`) before `transport::send`
-      (`crates/nvs-stdlib/src/http/transport.rs:1135`) is reached at all — so a table-answered call
-      crossed no network and files nothing, and the filing belongs below that branch. Tests
-      `the_http_trace_event_carries_no_query_string_header_value_or_body` and
-      `a_call_the_table_answered_files_no_http_event`.
+- [ ] **The four request-shape rules go `shipped`** — `rule:http-server/an-outbound-request-carries-one-body`
+      at `docs/rules/http-server.json:957`, and beside it `a-streamed-reply-is-bounded-by-idle-and-a-lifetime`,
+      `an-outbound-connection-is-pooled-per-core-and-stays-pinned` and
+      `a-cross-origin-redirect-drops-credentials`. Each needs a `guards` list naming what holds it —
+      `crates/nvs-stdlib/src/http/transport.rs` and the `.nvst` cases under
+      `tests/conformance/core/`. Run `python tools/rules.py --render` after, never edit
+      `docs/rules/http-server.md`.
+- [ ] **The four TLS and address rules go `shipped`** —
+      `rule:http-server/an-outbound-call-tries-every-approved-address` at
+      `docs/rules/http-server.json:1077`, with `the-client-trust-roots-are-the-operators`,
+      `an-https-redirect-never-becomes-plaintext` and `a-reply-reports-its-tls-session`;
+      `rule:security/tls-trust-is-relaxed-only-under-a-host-grant` is in
+      `docs/rules/security.json` and `an-outbound-call-names-its-address-only-under-a-grant` back
+      in the http-server one.
+- [ ] **The table rule goes `shipped`** — `rule:testing/an-outbound-call-is-answered-from-a-table`
+      in `docs/rules/testing.json`, guarded by
+      `crates/nvs-stdlib/src/http.rs:3477` (`faked`) and
+      `a_call_the_table_answered_files_no_http_event` beside it. Then
+      `python tools/verify.py --doc`, which is the gate a goal only meets at its end.
 
 ## Backlog
 
-- Stage 14 flips stage 2's eleven rules to `shipped` and re-renders — `docs/agent/loop-goal.md` § *Stage 14*.
-- `Core\Http\Response` gains no timing member; the trace is the one surface — goal § *Standing decisions*.
-- Parsing `Link`, `Retry-After` for a program, and RFC 9457 problem details are the `nvs/rest` package's.
+- A call that fails outright — a timeout, a refused connection — files no `http` event, so a trace
+  shows only the calls that answered; if that is wanted, the field set needs a spelling for "no
+  status" ([ADR 0180](../decisions/0180.md) § 15 fixes the fields, so it is a record question).
+- `rule:observability/four-kinds-become-a-span` derives the outbound span from this event and is
+  still *designed*; nothing exports a trace yet.
+- The `nvs/rest` package and OAuth are unscheduled — `docs/agent/carried-gaps.md`.
