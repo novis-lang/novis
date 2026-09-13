@@ -96,6 +96,51 @@ pub enum Cap {
     /// one, because a program that may create a socket at a path is a program whatever else on the
     /// host finds it may speak to.
     NetLocal,
+    /// `net.connect_to` — the hosts a call may name its own address for with `connectTo`
+    /// (`rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`).
+    ///
+    /// Asked at [`Scope::Host`] against the URL's host and never against the address written, which
+    /// is judged by [`denied_by_default`] and [`Capabilities::address_refused`] exactly as a
+    /// resolved one is; the certificate is still checked against that host. So the option chooses
+    /// among the addresses this deployment already reaches rather than widening the set, and it is
+    /// a grant of its own beside [`NetConnect`](Self::NetConnect) for the reason those two grants
+    /// are two: being allowed to reach a host is not being allowed to decide where that host is.
+    ///
+    /// It has no `true` spelling ([`takes_true_spelling`](Self::takes_true_spelling)).
+    NetConnectTo,
+    /// `net.downgrade` — the hosts a redirect from `https` to `http` may land on
+    /// (`rule:http-server/an-https-redirect-never-becomes-plaintext`).
+    ///
+    /// Asked at [`Scope::Host`] for the hop's target, and owed alongside the call's own
+    /// `redirectToHttp`. A plain `http` URL asked for directly does not reach this grant at all — a
+    /// program fetching an internal `http` endpoint is not being attacked by itself. What is worth
+    /// naming a host for is the other case: a server stripping a call's TLS with one `Location`
+    /// header, while the caller sees a `200`.
+    ///
+    /// It has no `true` spelling ([`takes_true_spelling`](Self::takes_true_spelling)).
+    NetDowngrade,
+    /// `tls.anchors` — the hosts a call may trust PEM certificates of its own for with `tlsCa`,
+    /// in place of `[http.client.tls] roots`
+    /// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`).
+    ///
+    /// The first of the four grants that relax certificate verification, which share one shape and
+    /// so are documented once here. Each is asked at [`Scope::Host`], each answers a different
+    /// question about *how much* is skipped, and each is owed **together with** the option beside
+    /// it: the deployment says where this may happen and the call says here, so a grant changes
+    /// nothing about a call that does not ask, and an option whose host the grant does not list
+    /// throws before a connection is made. None of the four has a `true` spelling
+    /// ([`takes_true_spelling`](Self::takes_true_spelling)), because the whole value of the grant is
+    /// that a reviewer can read which hosts a deployment relaxed.
+    TlsAnchors,
+    /// `tls.pin` — the hosts a call may accept on a `sha256//` public-key pin alone with `tlsPin`,
+    /// building no chain. [`TlsAnchors`](Self::TlsAnchors)'s shape.
+    TlsPin,
+    /// `tls.any_name` — the hosts a call may skip the name check for with `tlsVerifyHost: false`,
+    /// the chain still built and checked. [`TlsAnchors`](Self::TlsAnchors)'s shape.
+    TlsAnyName,
+    /// `tls.insecure` — the hosts a call may check neither chain nor name for with
+    /// `tlsVerify: false`. [`TlsAnchors`](Self::TlsAnchors)'s shape, and the widest of the four.
+    TlsInsecure,
     /// `process.exec` — the programs a subprocess may be started from.
     ProcessExec,
     /// `debug.trace` — where a trace may be written (`rule:testing/debug-probes`).
@@ -258,6 +303,12 @@ impl Cap {
         Self::NetConnect,
         Self::NetListen,
         Self::NetLocal,
+        Self::NetConnectTo,
+        Self::NetDowngrade,
+        Self::TlsAnchors,
+        Self::TlsPin,
+        Self::TlsAnyName,
+        Self::TlsInsecure,
         Self::ProcessExec,
         Self::DebugTrace,
         Self::DebugProfile,
@@ -280,6 +331,12 @@ impl Cap {
             Self::NetConnect => "net.connect",
             Self::NetListen => "net.listen",
             Self::NetLocal => "net.local",
+            Self::NetConnectTo => "net.connect_to",
+            Self::NetDowngrade => "net.downgrade",
+            Self::TlsAnchors => "tls.anchors",
+            Self::TlsPin => "tls.pin",
+            Self::TlsAnyName => "tls.any_name",
+            Self::TlsInsecure => "tls.insecure",
             Self::ProcessExec => "process.exec",
             Self::DebugTrace => "debug.trace",
             Self::DebugProfile => "debug.profile",
@@ -340,6 +397,31 @@ impl Cap {
         matches!(self, Self::DbOpen)
     }
 
+    /// Whether `true` is a spelling this capability's grant has at all — every capability's but the
+    /// six that name hosts a weakening applies to
+    /// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`).
+    ///
+    /// A `true` written for one of those reads as [`Grant::Nothing`] rather than as everything,
+    /// which is [`CapNet::internal`](crate::tree::CapNet::internal)'s answer to the same question:
+    /// turning a check off wholesale is not what these grants are for, and their value is that a
+    /// reviewer can see which hosts a deployment bought back. It fails closed, so a deployment that
+    /// wrote `true` relaxes nothing until it names the hosts it meant.
+    ///
+    /// Here rather than at each asker for [`name`](Self::name)'s reason: a capability's properties
+    /// are arms of this type, never a string compared in a second place.
+    #[must_use]
+    pub const fn takes_true_spelling(self) -> bool {
+        !matches!(
+            self,
+            Self::NetConnectTo
+                | Self::NetDowngrade
+                | Self::TlsAnchors
+                | Self::TlsPin
+                | Self::TlsAnyName
+                | Self::TlsInsecure
+        )
+    }
+
     /// What `caps` grants for this capability, or `None` when the block is absent — which is a
     /// refusal, not an omission.
     #[must_use]
@@ -351,6 +433,12 @@ impl Cap {
             Self::NetConnect => caps.net.as_ref()?.connect.as_ref(),
             Self::NetListen => caps.net.as_ref()?.listen.as_ref(),
             Self::NetLocal => caps.net.as_ref()?.local.as_ref(),
+            Self::NetConnectTo => caps.net.as_ref()?.connect_to.as_ref(),
+            Self::NetDowngrade => caps.net.as_ref()?.downgrade.as_ref(),
+            Self::TlsAnchors => caps.tls.as_ref()?.anchors.as_ref(),
+            Self::TlsPin => caps.tls.as_ref()?.pin.as_ref(),
+            Self::TlsAnyName => caps.tls.as_ref()?.any_name.as_ref(),
+            Self::TlsInsecure => caps.tls.as_ref()?.insecure.as_ref(),
             Self::ProcessExec => caps.process.as_ref()?.exec.as_ref(),
             Self::DebugTrace => caps.debug.as_ref()?.trace.as_ref(),
             Self::DebugProfile => caps.debug.as_ref()?.profile.as_ref(),
@@ -376,6 +464,12 @@ impl Cap {
             Self::NetConnect => caps.net.as_mut()?.connect.as_mut(),
             Self::NetListen => caps.net.as_mut()?.listen.as_mut(),
             Self::NetLocal => caps.net.as_mut()?.local.as_mut(),
+            Self::NetConnectTo => caps.net.as_mut()?.connect_to.as_mut(),
+            Self::NetDowngrade => caps.net.as_mut()?.downgrade.as_mut(),
+            Self::TlsAnchors => caps.tls.as_mut()?.anchors.as_mut(),
+            Self::TlsPin => caps.tls.as_mut()?.pin.as_mut(),
+            Self::TlsAnyName => caps.tls.as_mut()?.any_name.as_mut(),
+            Self::TlsInsecure => caps.tls.as_mut()?.insecure.as_mut(),
             Self::ProcessExec => caps.process.as_mut()?.exec.as_mut(),
             Self::DebugTrace => caps.debug.as_mut()?.trace.as_mut(),
             Self::DebugProfile => caps.debug.as_mut()?.profile.as_mut(),
@@ -408,6 +502,21 @@ fn grant_of(setting: &Setting) -> Grant<'_> {
         Setting::Bool(false) | Setting::List(_) | Setting::Integer(_) | Setting::Float(_) => {
             Grant::Nothing
         }
+    }
+}
+
+/// [`grant_of`] read for one capability: the same reading, with `true` downgraded to
+/// [`Grant::Nothing`] wherever [`Cap::takes_true_spelling`] says that capability has no such
+/// spelling.
+///
+/// Every asker below goes through this rather than through [`grant_of`] directly, so the runtime's
+/// question, the compiler's and the boot's cannot answer one operator's `true` three ways. It is a
+/// second function because [`grant_of`] is the reading of a [`Setting`] alone, and a capability
+/// there would put the roster inside a value's own interpretation.
+fn grant_for(cap: Cap, setting: &Setting) -> Grant<'_> {
+    match grant_of(setting) {
+        Grant::Everything if !cap.takes_true_spelling() => Grant::Nothing,
+        read => read,
     }
 }
 
@@ -497,7 +606,7 @@ impl Capabilities {
         let Some(setting) = cap.grant(self) else {
             return false;
         };
-        match (grant_of(setting), scope) {
+        match (grant_for(cap, setting), scope) {
             (Grant::Nothing, _) => false,
             (Grant::Everything, _) => true,
             (Grant::These(_), Scope::Unscoped) => true,
@@ -528,7 +637,7 @@ impl Capabilities {
         let Some(setting) = cap.grant(self) else {
             return false;
         };
-        match grant_of(setting) {
+        match grant_for(cap, setting) {
             Grant::Nothing => false,
             Grant::Everything => true,
             Grant::These(list) => host_granted(cap, list, host),
@@ -553,7 +662,7 @@ impl Capabilities {
         let Some(setting) = cap.grant(self) else {
             return false;
         };
-        match grant_of(setting) {
+        match grant_for(cap, setting) {
             Grant::Nothing => false,
             Grant::Everything => true,
             Grant::These(list) => name_granted(list, name),
@@ -573,7 +682,7 @@ impl Capabilities {
         let Some(setting) = cap.grant(self) else {
             return false;
         };
-        match grant_of(setting) {
+        match grant_for(cap, setting) {
             Grant::Nothing => false,
             Grant::Everything | Grant::These(_) => true,
         }

@@ -261,6 +261,9 @@ pub struct Capabilities {
     pub fs: Option<CapFs>,
     /// `net.connect` (`rule:http-server/allow-url-pins-the-address`'s outbound policy is what it is checked against).
     pub net: Option<CapNet>,
+    /// `tls.anchors`, `tls.pin`, `tls.any_name` and `tls.insecure`
+    /// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`).
+    pub tls: Option<CapTls>,
     /// `process.exec`.
     pub process: Option<CapProcess>,
     /// `debug.trace` and `debug.profile` (`rule:testing/debug-probes`).
@@ -300,6 +303,22 @@ pub struct CapFs {
 pub struct CapNet {
     /// The hosts an outbound connection may reach.
     pub connect: Option<Setting>,
+    /// The hosts a call may name its own address for with `connectTo`
+    /// (`rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`). The address
+    /// written is judged by `rule:security/net-address-policy` and by `internal` below exactly as a
+    /// resolved one is, and the certificate is still checked against the URL's host, so this
+    /// chooses among the addresses a deployment already reaches rather than widening the set.
+    ///
+    /// `true` is not a spelling it has, for `internal`'s reason.
+    pub connect_to: Option<Setting>,
+    /// The hosts a redirect from `https` to `http` may land on
+    /// (`rule:http-server/an-https-redirect-never-becomes-plaintext`), which the call must ask for
+    /// as well. A plain `http` URL asked for directly needs nothing here — a program fetching an
+    /// internal `http` endpoint is not being attacked by itself; what needs naming is a server
+    /// stripping a call's TLS with one `Location` header while the caller sees a `200`.
+    ///
+    /// `true` is not a spelling it has, for `internal`'s reason.
+    pub downgrade: Option<Setting>,
     /// The addresses inside `rule:security/net-address-policy`'s denied ranges this deployment reaches anyway — the
     /// operator's exception, written as IP address literals and never as hostnames, because the
     /// policy is asked of a resolved address and a name can resolve anywhere.
@@ -324,6 +343,32 @@ pub struct CapNet {
     /// no more than `connect` follows from it: reaching the network and opening a socket on this
     /// machine are different powers.
     pub local: Option<Setting>,
+}
+
+/// The `tls.*` grants — where an outbound call may relax certificate verification
+/// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`).
+///
+/// Each is a list of hosts, matched as [`CapNet::connect`] matches them, and **none has a `true`
+/// spelling**, for [`CapNet::internal`]'s reason: what a deployment relaxed stays legible host by
+/// host in review, where a boolean is one line nobody reads again.
+///
+/// A grant here relaxes nothing on its own. It says *where* verification may be relaxed, and only a
+/// call naming the option beside it says *here*; a call that names no option keeps the strict
+/// process-wide trust `[http.client.tls]` configures.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct CapTls {
+    /// The hosts a call may trust PEM certificates of its own for with `tlsCa`, in place of
+    /// `[http.client.tls] roots`.
+    pub anchors: Option<Setting>,
+    /// The hosts a call may accept on a `sha256//` public-key pin alone with `tlsPin`, building no
+    /// chain — the spelling a self-signed origin is reached by.
+    pub pin: Option<Setting>,
+    /// The hosts a call may skip the name check for with `tlsVerifyHost: false`, the chain still
+    /// built and checked.
+    pub any_name: Option<Setting>,
+    /// The hosts a call may check neither chain nor name for with `tlsVerify: false`.
+    pub insecure: Option<Setting>,
 }
 
 /// The `process.*` grants.

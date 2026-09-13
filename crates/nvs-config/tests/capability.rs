@@ -849,3 +849,79 @@ fn queue_purge_appears_in_cap_all_and_in_both_grant_and_grant_mut() {
     assert_eq!(written, before, "canonicalizing rewrote a name grant");
     assert!(purges(&written, "email", &disk));
 }
+
+/// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s last sentence about spelling: the
+/// six grants that name hosts a weakening applies to read a `true` as nothing at all.
+///
+/// The direction is what matters. `true` is "every host" for every other capability, so the failure
+/// this guards against is a deployment writing the spelling it knows and relaxing verification
+/// everywhere while believing it wrote a list. Reading it as `Grant::Nothing` fails closed: the
+/// grant is refused until it names the hosts it meant, which is `CapNet::internal`'s answer to the
+/// same question and the whole point of these grants being lists — what was relaxed stays
+/// legible host by host in review.
+///
+/// A list is asserted first so that every `false` below is the `true` and not the harness answering
+/// `false` to everything, and `false` is asserted after so that the refusal is not the value simply
+/// being unreadable.
+#[test]
+fn a_tls_grant_of_true_is_refused() {
+    let disk = Disk::of(&["/srv"]);
+    let relaxing = [
+        (Cap::TlsAnchors, "tls", "anchors", "tls.anchors"),
+        (Cap::TlsPin, "tls", "pin", "tls.pin"),
+        (Cap::TlsAnyName, "tls", "any_name", "tls.any_name"),
+        (Cap::TlsInsecure, "tls", "insecure", "tls.insecure"),
+        (Cap::NetConnectTo, "net", "connect_to", "net.connect_to"),
+        (Cap::NetDowngrade, "net", "downgrade", "net.downgrade"),
+    ];
+
+    for (cap, table, key, name) in relaxing {
+        let listed = granting(
+            &format!("[{table}]\n{key} = [\"Partner.Example.Com\"]\n"),
+            &disk,
+        );
+        assert!(
+            listed.allows_host(cap, "partner.example.com"),
+            "`{name}` did not grant the host it lists",
+        );
+        assert!(
+            !listed.allows_host(cap, "other.example.com"),
+            "`{name}` granted a host it does not list",
+        );
+
+        // The spelling the rule refuses, beside the one that has always meant nothing. Neither
+        // names a host; `false` is asked as well so that the refusal above reads as the roster's
+        // answer to a `true` rather than as a block that failed to deserialize at all.
+        for wrote in ["true", "false"] {
+            let boolean = granting(&format!("[{table}]\n{key} = {wrote}\n"), &disk);
+            assert!(
+                !boolean.allows_host(cap, "partner.example.com"),
+                "`{name} = {wrote}` relaxed a host",
+            );
+            assert!(
+                !boolean.allows_unscoped(cap),
+                "`{name} = {wrote}` answered an unscoped question",
+            );
+        }
+
+        // On the roster the way every capability is, under the table its own name implies, and with
+        // no pattern of any kind: these are hosts an operator wrote out one by one.
+        assert!(Cap::ALL.contains(&cap), "`{name}` is not on the roster");
+        assert_eq!(cap.name(), name);
+        assert_eq!(Cap::parse(name), Some(cap));
+        assert_eq!(cap.family(), table);
+        assert!(
+            !cap.takes_true_spelling(),
+            "`{name}` kept a `true` spelling"
+        );
+        assert!(!cap.takes_host_wildcard(), "`{name}` took a host wildcard");
+        assert!(!cap.is_path_scoped(), "`{name}` was read as a path grant");
+    }
+
+    // `true` still means every host where a capability has that spelling, so what refuses above is
+    // the roster's answer for these six and not a reading of `true` that changed underneath the
+    // rest of them.
+    let anywhere = granting("[net]\nconnect = true\n", &disk);
+    assert!(anywhere.allows_host(Cap::NetConnect, "partner.example.com"));
+    assert!(Cap::NetConnect.takes_true_spelling());
+}

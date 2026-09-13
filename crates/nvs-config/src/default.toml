@@ -104,6 +104,17 @@
 #[capabilities.net]
 # The hosts an outbound connection may reach.
 #connect = ["api.example.com:443"]
+# The hosts a call may name its own address for with `connectTo`
+# (`rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`). The address written is
+# judged by the policy below exactly as a resolved one is and the certificate is still checked
+# against the URL's host, so this chooses among addresses already reachable rather than adding one.
+# `true` is not a spelling it has.
+#connect_to = ["api.example.com"]
+# The hosts a redirect from `https` to `http` may land on, which the call must ask for as well
+# (`rule:http-server/an-https-redirect-never-becomes-plaintext`). A plain `http` URL asked for
+# directly needs nothing here; what this names is a server stripping a call's TLS with one
+# `Location` header. `true` is not a spelling it has.
+#downgrade = ["legacy.example.com"]
 # The addresses inside `rule:security/net-address-policy`'s denied ranges this deployment reaches
 # anyway — written as IP literals and never as hostnames, because the policy is asked of a resolved
 # address and a name can resolve anywhere. It widens nothing on its own: an address named here is
@@ -117,6 +128,25 @@
 # follows from `connect` no more than `connect` follows from it: reaching the network and opening a
 # socket on this machine are different powers.
 #local = ["/run/novis/"]
+
+#[capabilities.tls]
+# Where an outbound call may relax certificate verification
+# (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`). Each key is a list of hosts,
+# matched as `net.connect` matches them, and **none has a `true` spelling**: what a deployment
+# relaxed stays legible host by host in review. A grant here relaxes nothing on its own — it says
+# where this may happen, and only the call's own option says here, so a call naming no option keeps
+# the strict trust `[http.client.tls]` configures.
+#
+# `anchors` unlocks `tlsCa`, which trusts the PEM certificates the call gives in place of `roots`;
+# `pin` unlocks `tlsPin`, which accepts a peer whose public key hashes to a `sha256//` value with no
+# chain built — how a self-signed origin is reached; `any_name` unlocks `tlsVerifyHost: false`,
+# which builds and checks the chain and skips only the name; and `insecure` unlocks
+# `tlsVerify: false`, which checks neither. Every relaxed session still checks the handshake
+# signature, so the peer does hold the key it presented.
+#anchors = ["partner.example.com"]
+#pin = ["device.local"]
+#any_name = ["10-4-0-9.internal"]
+#insecure = ["staging.example.com"]
 
 #[capabilities.process]
 # Whether a subprocess may be started — `true`, or the list of programs it may be.
@@ -576,11 +606,21 @@
 #write = ["storage/reports/"]
 
 #[schedule.grants.net]
-# Where this entry may reach, bind, or step outside the denied ranges to.
+# Where this entry may reach, bind, or step outside the denied ranges to, and the two hosts lists a
+# call needs before it may pick its own address or follow a hop down to plaintext.
 #connect = ["api.example.com:443"]
+#connect_to = ["api.example.com"]
+#downgrade = ["legacy.example.com"]
 #internal = ["10.0.0.5"]
 #listen = ["127.0.0.1:9100"]
 #local = ["/run/novis/"]
+
+#[schedule.grants.tls]
+# Where this entry may relax certificate verification, key for key as `[capabilities.tls]` above.
+#anchors = ["partner.example.com"]
+#pin = ["device.local"]
+#any_name = ["10-4-0-9.internal"]
+#insecure = ["staging.example.com"]
 
 #[schedule.grants.process]
 # Whether this entry may start a subprocess, and which.
@@ -728,11 +768,21 @@
 #write = ["storage/shop/"]
 
 #[app.capabilities.net]
-# Where this application may reach, bind, or step outside the denied ranges to.
+# Where this application may reach, bind, or step outside the denied ranges to, and the two host
+# lists a call needs before it may pick its own address or follow a hop down to plaintext.
 #connect = ["api.example.com:443"]
+#connect_to = ["api.example.com"]
+#downgrade = ["legacy.example.com"]
 #internal = ["10.0.0.5"]
 #listen = ["127.0.0.1:9000"]
 #local = ["/run/novis/"]
+
+#[app.capabilities.tls]
+# Where this application may relax certificate verification, key for key `[capabilities.tls]`'s.
+#anchors = ["partner.example.com"]
+#pin = ["device.local"]
+#any_name = ["10-4-0-9.internal"]
+#insecure = ["staging.example.com"]
 
 #[app.capabilities.process]
 # Whether this application may start a subprocess, and which.
