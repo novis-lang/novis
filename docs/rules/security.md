@@ -752,13 +752,18 @@ The one class of address it does not govern is an endpoint an operator wrote int
 configuration and granted by name — that address is not attacker-influenceable, and applying the
 policy there would deny every ordinary deployment. A program-supplied target stays governed in full.
 
+A configured forward proxy is such an endpoint and is not asked the table's question; and under
+`[http.client.proxy] resolve = "proxy"` the destination's resolved address is not asked it either,
+because Novis never sees one — [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise)
+is where the operator writes that word and what the boot says every time they have.
+
 "Connection" here means every outbound destination, not only a connected stream: a `Core\Net` datagram
 sent to an address the program supplied is asked the same question at the send that a TCP connect is
 asked at the connect. What the table does **not** govern is a *bind*, whose terms invert —
 [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect) is that grant and says why it carries
 no policy of its own.
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0162](../decisions/0162.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0162](../decisions/0162.md), [0182](../decisions/0182.md).</sub>
 
 <a id="security-net-listen-is-a-separate-grant-from-net-connect"></a>
 

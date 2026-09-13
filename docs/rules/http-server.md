@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*8 of 75 rules below are **designed** rather than shipped, and are marked where they appear.*
+*10 of 77 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1249,6 +1249,102 @@ one may sit idle before it is closed — both `System` class, because they bound
 than a request's ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)).
 
 <sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0180](../decisions/0180.md).</sub>
+
+<a id="http-server-an-outbound-proxy-is-operator-configured"></a>
+
+## `[http.client.proxy]` is the only way an outbound call is proxied: `System` class, written by the operator, and never a call option or an environment variable  *(designed — not yet in the compiler)*
+
+`rule:http-server/an-outbound-proxy-is-operator-configured`
+
+A `Core\Http\Client` call leaves through a forward proxy when, and only when, an operator has written
+`[http.client.proxy]` in `nvs.toml`: there is no call option, no client option, no program-side spelling,
+and **no environment variable is read** — not `HTTP_PROXY`, not `HTTPS_PROXY`, not `NO_PROXY`, in any case
+spelling.
+
+The block is `System` class and `Reload` ([`config/three-changeability-classes`](config.md#config-three-changeability-classes),
+[`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)): `Core\Config::set` fails on every key, and a changed value
+takes effect on the next call, with the pool's key carrying the proxy so nothing the old value made can
+serve one.
+
+| Directive | Ships | Refuses |
+|---|---|---|
+| `url` | — | anything but an `http://` URL with a host |
+| `resolve` | **none — mandatory** | a missing value, and any word but `local` or `proxy` |
+| `bypass` | `[]` | an entry with a port, a scheme, a `*` or a `/` |
+| `username` | — | — |
+| `password` / `password_file` | — | both of the pair set |
+
+Where every outbound byte goes is a deployment's decision, not a request's. A per-call proxy would be a
+per-call way to choose who resolves the destination, and therefore a per-call way to narrow
+[`security/net-address-policy`](security.md#security-net-address-policy) — the widening that rule exists to refuse. The environment is the same
+argument with a worse blast radius: read-only ambient state, shared by every request in the process,
+settable by anything that can set a variable for it, and recorded nowhere in the deployment's own
+configuration ([`security/no-cross-request-state`](security.md#security-no-cross-request-state)).
+
+**Only `Core\Http\Client` is proxied.** `Core\Net`, a database, the shared cache tier and mail connect
+directly — each is either a raw socket the program asked for by address, which has no notion of a tunnel,
+or an endpoint an operator already wrote into root-owned configuration.
+
+**The proxy URL's scheme is `http`**: `CONNECT` over plain TCP, with `https://` refused at boot. TLS *to*
+the proxy is a second trust decision and has no spelling here. Every destination is tunnelled, `http` ones
+included, so there is one mechanism and no path on which the proxy is handed a full request in
+absolute form.
+
+`bypass` matches the URL's host text — each entry exact, or with a leading `.` for a suffix — and a
+bypassed destination is reached directly and under the full address policy. No CIDR, no wildcard and no
+port: matching happens before any resolution, and a range in that position hands back more than the
+operator can see they are handing back.
+
+`username` and `password` become `Proxy-Authorization: Basic` on the `CONNECT` request **alone** — never
+sent to the destination, never re-sent on a redirect hop, and never written into a trace event, a log
+record or an error message. `password` is a secret directive with the usual `_file` sibling
+([`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value)). A `407` is a `RuntimeError` naming proxy
+authentication and any other refusal of `CONNECT` is an `IOError`; neither is retried by `retryAttempts`
+([`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed)), which retries an answer from the destination,
+and a proxy that refused the tunnel is not one.
+
+<sub>See also [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0182](../decisions/0182.md).</sub>
+
+<a id="http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"></a>
+
+## `resolve` is mandatory: `local` tunnels to the address Novis approved and keeps the pin, `proxy` narrows the policy to the URL's text and warns at every boot  *(designed — not yet in the compiler)*
+
+`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`
+
+Every `[http.client.proxy]` block writes `resolve`, and there is no default: a block without it refuses
+the boot naming both words, and so does a third word.
+
+**`resolve = "local"` keeps everything the pin buys.** Novis resolves the destination and checks every
+address against [`security/net-address-policy`](security.md#security-net-address-policy) exactly as it does for a direct call, and then asks the
+proxy to `CONNECT` to **an address it approved**, with `Host` naming the same. Over the tunnel it speaks
+what it speaks today: TLS with the server name [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address) approved, or
+plain HTTP for an `http` URL. There is no second resolution anywhere in the path, so a proxy does not
+reopen the check-then-connect gap; falling back across the approved set works unchanged, one `CONNECT` per
+address.
+
+**`resolve = "proxy"` is for the network where only the proxy can resolve a name** — an application subnet
+with no DNS route outward. `CONNECT` carries the host name, Novis judges what the URL's text can be judged
+on — the scheme, the `net.connect` grant's host list, the tainted-URL check — and cannot check the address,
+because it never learns one. The address question moves to the proxy.
+
+Because that is a real weakening, it is never silent:
+
+- **Every boot writes one `Warn` record** naming the block, the word and [`security/net-address-policy`](security.md#security-net-address-policy)
+  — on every start, so a deployment that has run this way for a year still says so in today's log.
+- **`nvs config dump` renders the key beside that rule's id**, so the offline audit
+  ([`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline)) shows the narrowing with no server running.
+
+The word is mandatory for [`config/scope-has-no-default`](config.md#config-scope-has-no-default)'s reason. Both answers are commonly correct
+and either default silently does the wrong thing in somebody's production: `local` fails outright where
+only the proxy resolves, which makes the ordinary corporate deployment look broken, and `proxy` gives up
+the pin in every deployment whose proxy could have dialled an address, with nothing at run time to
+distinguish that from a deployment that meant it.
+
+A program cannot tell which word is written. There is no member, option or constant reporting it, for the
+same reason there is no per-call spelling: whether this deployment's egress is proxied is not a thing
+program code decides or branches on.
+
+<sub>See also [`http-server/an-outbound-proxy-is-operator-configured`](http-server.md#http-server-an-outbound-proxy-is-operator-configured), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline). Decided in [0182](../decisions/0182.md).</sub>
 
 <a id="http-server-the-client-trust-roots-are-the-operators"></a>
 

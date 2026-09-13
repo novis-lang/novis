@@ -1228,6 +1228,50 @@
       ]
     },
     {
+      "id": "http-server/an-outbound-proxy-is-operator-configured",
+      "title": "`[http.client.proxy]` is the only way an outbound call is proxied: `System` class, written by the operator, and never a call option or an environment variable",
+      "status": "designed",
+      "because": [
+        "0182"
+      ],
+      "divergesFromPhp": "curl and PHP's stream wrappers take a proxy from `HTTP_PROXY`/`HTTPS_PROXY` in the environment, or per handle from `CURLOPT_PROXY`; here it is one root-owned block, no environment variable is read, and no program-side spelling exists",
+      "seeAlso": [
+        "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
+        "http-server/the-client-trust-roots-are-the-operators",
+        "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
+        "http-server/retry-is-opt-in-jittered-and-closed",
+        "security/no-cross-request-state",
+        "config/three-changeability-classes",
+        "config/a-secret-is-a-file-whose-content-is-the-value"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/resolve.rs",
+        "crates/nvs-config/tests/tree.rs",
+        "crates/nvs-stdlib/src/http/transport.rs"
+      ]
+    },
+    {
+      "id": "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
+      "title": "`resolve` is mandatory: `local` tunnels to the address Novis approved and keeps the pin, `proxy` narrows the policy to the URL's text and warns at every boot",
+      "status": "designed",
+      "because": [
+        "0182"
+      ],
+      "divergesFromPhp": "curl hands the proxy the destination's host name in every case, having no approved address to hand it; here that is one of two written answers, the other tunnels to the address the check approved, and the one that gives up the pin is announced at every boot",
+      "seeAlso": [
+        "http-server/an-outbound-proxy-is-operator-configured",
+        "http-server/allow-url-pins-the-address",
+        "http-server/an-outbound-call-tries-every-approved-address",
+        "security/net-address-policy",
+        "config/scope-has-no-default",
+        "config/check-and-dump-audit-the-tree-offline"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/resolve.rs",
+        "crates/nvs-stdlib/src/http/transport.rs"
+      ]
+    },
+    {
       "id": "http-server/the-client-trust-roots-are-the-operators",
       "title": "`[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`",
       "status": "shipped",

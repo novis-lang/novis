@@ -614,10 +614,12 @@
         "0118",
         "0142",
         "0067",
-        "0162"
+        "0162",
+        "0182"
       ],
       "seeAlso": [
         "security/outbound-url-is-a-sink",
+        "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
         "security/the-policy-lives-in-the-capability",
         "security/capability-question-is-grant-and-scope",
         "security/net-listen-is-a-separate-grant-from-net-connect",
