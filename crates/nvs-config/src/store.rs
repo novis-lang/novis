@@ -1,9 +1,10 @@
 //! `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s boot half: what a
 //! configuration already says about the coherent tier before any request asks for it.
 //!
-//! The first question is a *pair* rather than a value: `[cache.shared] url` names a store
-//! and `[capabilities] cache.shared` says who may reach one, and a tree holding the first without
-//! the second describes a store nothing can open. Neither key is wrong on its own, so this is
+//! The first question is a *pair* rather than a value: `[cache.shared] url` names a store and a
+//! `cache.shared` grant — the global one or any `[[app]]`'s own — says who may reach one, and a
+//! tree holding the first without the second describes a store nothing can open. Neither key is
+//! wrong on its own, so this is
 //! [`W1008`](nvs_diagnostics::code::W_STORE_CONFIGURED_UNGRANTED) and never a refusal — the code's
 //! own doc is the home of that reasoning.
 //!
@@ -168,6 +169,22 @@ fn fill_wait(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), 
     ))
 }
 
+/// Whether anything in this tree may reach the configured store: the global `[capabilities]` block
+/// or any one `[[app]]`'s own.
+///
+/// An `[[app]]` block folds over the global tree for the entry files it matches
+/// ([`mod@crate::app`]), so `[app.capabilities.cache] shared = true` is an application that reaches
+/// the tier, and a deployment holding one has not configured a store nothing can open. One grant
+/// anywhere answers the census because that is what the advisory is about — a store *no*
+/// application may reach — and a tree serving one application that reaches the tier and one that
+/// does not is the case the rule names.
+fn reachable(config: &Config) -> bool {
+    std::iter::once(config.capabilities.as_ref())
+        .chain(config.app.iter().map(|app| app.capabilities.as_ref()))
+        .flatten()
+        .any(|caps| caps.allows_unscoped(Cap::CacheShared))
+}
+
 /// The advisory a tree earns by configuring a store no capability may reach, or `None` when it
 /// configured none or granted one.
 ///
@@ -178,11 +195,7 @@ fn fill_wait(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), 
 pub fn advise(config: &Config, origins: &BTreeMap<String, Origin>) -> Option<Diagnostic> {
     let url = configured(config)?;
 
-    let granted = config
-        .capabilities
-        .as_ref()
-        .is_some_and(|caps| caps.allows_unscoped(Cap::CacheShared));
-    if granted {
+    if reachable(config) {
         return None;
     }
 
@@ -202,9 +215,10 @@ pub fn advise(config: &Config, origins: &BTreeMap<String, Origin>) -> Option<Dia
             origin_note(origins.get("cache.shared.url"))
         ))
         .with_help(
-            "write `cache.shared = true` under `[capabilities]`; a deployment that had granted \
-             `net.connect` for this store's host can drop that entry, and the `net.internal` \
-             exception it needed for a loopback store with it"
+            "write `cache.shared = true` under `[capabilities]`, or under the \
+             `[app.capabilities.cache]` of the one application that reaches the tier; a deployment \
+             that had granted `net.connect` for this store's host can drop that entry, and the \
+             `net.internal` exception it needed for a loopback store with it"
                 .to_string(),
         ),
     )
@@ -217,7 +231,7 @@ mod tests {
     use nvs_diagnostics::code;
 
     use super::{advise, validate};
-    use crate::tree::{CacheProcess, CacheShared, CapCache, Capabilities, Config, Setting};
+    use crate::tree::{App, CacheProcess, CacheShared, CapCache, Capabilities, Config, Setting};
 
     /// A tree whose `[cache.shared]` block names `url`, granted or not.
     fn wrote(url: Option<&str>, grant: Option<Setting>) -> Config {
@@ -299,11 +313,15 @@ mod tests {
     }
 
     /// `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s boot report, on both
-    /// sides: a configured store with no grant is `W1008`, and the same store granted is silent.
+    /// sides: a configured store with no grant is `W1008`, and the same store granted — globally
+    /// or by the one `[[app]]` block that reaches the tier — is silent.
     ///
     /// The grant is the migration this warning exists for — a deployment carrying `net.connect`
     /// for its store's host boots with the tier unreachable and nothing else says so — so a test
-    /// asserting only the silent side would pass against a function that never warns at all.
+    /// asserting only the silent side would pass against a function that never warns at all. The
+    /// app-scoped half is here because the census is over the *tree*: a grant written where a
+    /// deployment with two applications has to write it is still an application that reaches the
+    /// store.
     #[test]
     fn a_configured_url_without_its_grant_is_a_boot_warning() {
         let origins = BTreeMap::new();
@@ -336,6 +354,22 @@ mod tests {
             .is_some(),
             "`cache.shared = false` grants nothing, so the pair is still worth naming"
         );
+        let mut scoped = wrote(Some("redis://cache.internal"), None);
+        scoped.app.push(App {
+            entry: Some("shop.nvs".to_owned()),
+            capabilities: Some(Capabilities {
+                cache: Some(CapCache {
+                    shared: Some(Setting::Bool(true)),
+                }),
+                ..Capabilities::default()
+            }),
+            ..App::default()
+        });
+        assert!(
+            advise(&scoped, &origins).is_none(),
+            "an `[[app]]` block granting the store is an application that reaches it"
+        );
+
         assert!(
             advise(&wrote(None, None), &origins).is_none(),
             "a deployment that configured no store has no store to reach"

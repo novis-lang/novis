@@ -1636,7 +1636,10 @@ container, a loopback daemon and a socket changes one block and no app's grant l
 
 A `[cache.shared] url` set with no `cache.shared` grant is reported at boot as a `Warn` naming both
 keys (`W1008`), not discovered on a request. It is an advisory rather than a refusal: one `nvs.toml`
-may serve an application that reaches the tier and one that does not.
+may serve an application that reaches the tier and one that does not. That is also why the census is
+over the whole tree rather than the global block alone — a grant written under any `[[app]]` block's
+own `[app.capabilities]` answers it, because the store an operator configured is one an application
+may reach.
 
 The grant is asked at the door and after the directive is read — a deployment that configured no
 store hears that first, because there is no tier for a grant to be about yet.
