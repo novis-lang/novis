@@ -261,12 +261,19 @@ adrs = ["0180 §11", "0180 §Diagnostics"]
 shapes = ["A `Core` member"]
 
 [context.stage.11]
-# The address a call names is still judged, and a reply's certificate chain is input.
+# The address a call names is still judged, and a reply's certificate chain is input. The stage's own
+# three rules come first: without them a session reads `connectTo`, the downgrade pair and the reply's
+# TLS members out of the goal prose instead of out of the rule that specifies each. §12 and §13 are
+# those rules' arguments, and §13 is the only home of which parser the chain is read with.
 rules = [
+  "http-server/an-outbound-call-names-its-address-only-under-a-grant",
+  "http-server/an-https-redirect-never-becomes-plaintext",
+  "http-server/a-reply-reports-its-tls-session",
   "security/net-address-policy",
   "http-server/allow-url-pins-the-address",
   "security/tainted-sources",
 ]
+adrs = ["0180 §12", "0180 §13"]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.12]
