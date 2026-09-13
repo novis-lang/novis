@@ -2,51 +2,47 @@
 
 ## State
 
-**Goal `process-cache` — stage 7 is landed, and both of its checks are green.** A user's own secret
-lives in the session through `Core\Session::setSecret` and `::getSecret`
-(`rule:http-server/a-session-holds-a-secret-only-sealed`), sealed under a key ring and stored as
-ciphertext in the record. The two halves of the construction are `sealed_into` and `opened_from` in
-`crates/nvs-stdlib/src/session.rs`, and the record entry lives in the same sealed key space a cache
-entry does, so `get` answers `null` for it.
+**Goal `process-cache` — stage 8 is landed and every rule the goal ships is `shipped`.** The four rules
+`because` ADR 0181 created — `concurrency/the-process-tier-is-one-store-per-process`,
+`concurrency/a-secret-is-cached-only-sealed`, `concurrency/a-secret-fill-runs-once-per-process` and
+`http-server/a-session-holds-a-secret-only-sealed` — each name their conformance cases in `guardedBy`,
+and `python tools/rules.py --render` has rewritten `docs/rules/concurrency.md` and
+`docs/ground-rules.md`.
 
-**One construction, two domain octets.** `crate::cache`'s `bound` now takes the door's octet as an
-argument — `cache::SEAL_DOMAIN` is `1`, `session::SEAL_DOMAIN` is `2` — and `sealed_key`,
-`application` and `bound` are `pub(crate)` for the session to reach. That single octet is the whole
-of why a value sealed for a cache does not open as a session secret, which
-`a_value_sealed_for_the_cache_does_not_open_as_a_session_secret` asserts in both directions.
+**The `1 floor` rulebook check was red for a reason that was not the statuses.** A playbook bullet cited
+`rule:topic/slug` as a placeholder and `rules.py --check` resolves every citation under `docs/`; the
+bullet now cites a real rule and the check is clean over 22 topics and 980 rules. The trap is in the
+playbook under *Tooling*.
 
-**The additional data is the domain octet, the application and the key, and never the session id**,
-so a secret survives `regenerate`. There is no `ttl` and nothing is sealed in beside the value: a
-session value lives as long as its session (`rule:http-server/session-expiry-belongs-to-the-store`).
+**What the goal being met rests on in-session:** `python tools/rules.py --check` clean, `python
+tools/verify.py` 11 of 11 green (1864 conformance, 276 differential, 4381 unit), and `python
+tools/verify.py --doc` green. `python tools/loop.py --goal-only` was *not* collected — it spends its
+first ten minutes on the valgrind sweep and was stopped there — so the end-to-end acceptance is the
+driver's own run, not this session's.
 
-**`Core\Session::set` now refuses a `secret` and names `setSecret`** —
-`reject_secret_session_argument` in `crates/nvs-types/src/expr/quals.rs`, the fifth carrier of the
-one graph-copy refusal and the second with a door of its own.
-
-**The `[context]` gap is unchanged:** the goal's own stage prose (`docs/agent/loop-goal.md:118-137`)
-is reachable from no field, so a session meets a stage only through the header the driver prints
-above a failing check.
+**The `[context]` gap is unchanged:** the goal's own stage prose (`docs/agent/loop-goal.md:118-190`) is
+reachable from no field, so a session meets a stage only through the header the driver prints above a
+failing check. Stage 8's prose is what says the flip covers *four* rules; the handoff's group named two,
+because the other two were already `shipped`.
 
 ## Next group
 
-**Stage 8: the rulebook** — one file set: `docs/rules/concurrency.json`, then one render.
+**The goal is met — what remains is the next goal in the chain, not this one.** The two loose ends this
+goal deliberately did not take are below; both are `crates/nvs-stdlib/src/cache.rs` work.
 
-- [ ] **`concurrency/a-secret-is-cached-only-sealed` is `shipped`** — its `"status"` field at
-      `docs/rules/concurrency.json:394`, whose work landed in stage 5: `putSecret`/`getSecret` are
-      on disk with their conformance cases, so `designed` is stale rather than a claim. Check the
-      entry's `guardedBy` names the cases that now guard it before flipping it.
-- [ ] **`concurrency/a-secret-fill-runs-once-per-process` is `shipped`** — the same field at
-      `docs/rules/concurrency.json:413`, whose work landed in stage 6 — `elected`, `waited` and
-      `filled` in `crates/nvs-stdlib/src/cache.rs` — with the same `guardedBy` check.
-- [ ] **Render, then the goal is met** — `python tools/rules.py --render` rewrites
-      `docs/rules/concurrency.md` and `docs/ground-rules.md`, which are generated and never edited;
-      the stage's own four checks are at `docs/agent/loop-goal.toml:9849`, each a `rules.py --show
-      <id>` wanting `shipped`, and the other two ids are already there. So this closes the goal:
-      run `python tools/verify.py --doc`, fix every link it names, and write `DONE`.
+- [ ] **A fill is single-flight per *process*, never per fleet** —
+      `crates/nvs-stdlib/src/cache.rs:3265` (`fill_runs_once_while_every_other_core_waits`) is the
+      guard, and a fleet-wide fill is a lease over the shared tier, which
+      `rule:concurrency/a-secret-fill-runs-once-per-process` does not promise. Nothing to write until a
+      goal asks for the lease.
+- [ ] **`getSecret` tries every key of the ring rather than the newest alone** —
+      `crates/nvs-stdlib/src/cache.rs:1672` and `crates/nvs-stdlib/src/keyring.rs:136` (`newest`), the
+      per-call cost the goal's § *Standing decisions* states. A ring long enough for that to matter has
+      no bound today.
 
 ## Backlog
 
-- The website's rule mirror (`website/src/content/docs/docs/rules/`) is written by
-  `website/scripts/sync-rules.mjs` and was not re-run here; nothing in `verify.py` reads it.
-- A fleet-wide single fill, a `secret bytes` value, and the `nvs/rest` package are all named as not
-  this goal's in `docs/agent/loop-goal.md` § *Standing decisions*.
+- A `secret bytes` value — deferred by goal `process-cache` § *Standing decisions*, owned by
+  `rule:security/secret-qualifier`.
+- A fleet-wide single fill as a lease over the shared tier — `docs/decisions/0181.md`.
+- The `nvs/rest` package, the first caller of all of this — unscheduled, `docs/agent/goals/`.
