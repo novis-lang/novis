@@ -87,11 +87,27 @@
 //!   there because the operator wrote the list out ([`store_for`]).
 //!
 //! The same block carries the version floor and the key log, and all three are
-//! the **operator's** alone. What is closed permanently is a *program* choosing
-//! anchors, or turning verification off: neither has a spelling here, and the
-//! whole point of `rule:http-server/allow-url-pins-the-address`'s pinned
-//! outbound door is that a script does not get to widen a decision the
-//! deployment made.
+//! the **operator's** alone.
+//!
+//! # A call relaxes verification only where a grant already named its host
+//!
+//! Strict is the default and the only thing a program reaches on its own. The
+//! four relaxations a call may ask for — [`CallPolicy`]'s fields, which are
+//! `curl`'s `CAINFO_BLOB`, `--pinnedpubkey`, `SSL_VERIFYHOST=0` and `-k` — are
+//! answered only where a `[capabilities.tls]` grant lists the host being
+//! called, which `nvs-stdlib` asks of the request's own configuration snapshot
+//! before a socket is opened
+//! (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`). Two halves,
+//! because each answers a different party: the deployment says *where* this may
+//! happen, the code says *here*, and neither alone relaxes anything.
+//!
+//! What arrives here is therefore a **policy value and never a session**
+//! ([`NvsTls::over_policy`]): the verifier, the protocol versions and the
+//! anchor set are still decided in this module, so a caller cannot widen any of
+//! them by construction and `rule:security/one-tls-client` still holds. Every
+//! relaxed session still checks the handshake signature against the key the
+//! peer presented, so the peer does hold that key; what is skipped is the
+//! question of whose key it is.
 //!
 //! What that spends, per `rule:programs/memory-priority`:
 //! one parsed root store and one `ClientConfig` for the whole **process**, built
@@ -99,7 +115,10 @@
 //! by every session after it — the whole Mozilla anchor set, a few hundred
 //! kilobytes, O(1) in requests served. A key log adds one open file descriptor
 //! and one lock acquisition per secret written, on a host that has already said
-//! it is being debugged. Per session it is `rustls`'s own connection state,
+//! it is being debugged. A call that names one of [`CallPolicy`]'s keys adds one
+//! more `ClientConfig` — its own parsed anchors, or a verifier over the set the
+//! process already parsed — built for that call and released with it, so it is
+//! O(in-flight) too. Per session it is `rustls`'s own connection state,
 //! which is O(in-flight) and released with the stream.
 //!
 //! # `ring` is the provider, and it is spent under `rule:packaging/a-c-dependency-answers-two-questions`
@@ -130,10 +149,19 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use rustls::client::WantsClientCert;
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::client::{WantsClientCert, WebPkiServerVerifier};
+use rustls::crypto::CryptoProvider;
 use rustls::pki_types::pem::PemObject;
-use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName};
-use rustls::{ClientConfig, ClientConnection, ConfigBuilder, RootCertStore, StreamOwned};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName, UnixTime};
+use rustls::{
+    CertificateError, ClientConfig, ClientConnection, ConfigBuilder, DigitallySignedStruct,
+    RootCertStore, SignatureScheme, StreamOwned, WantsVerifier,
+};
+use sha2::{Digest, Sha256};
+use x509_parser::prelude::{FromDer, X509Certificate};
 
 use crate::net::NvsTcp;
 
@@ -225,18 +253,50 @@ impl<T: Read + Write> NvsTls<T> {
     /// [`over`](Self::over)'s. The chain and the key were parsed and matched
     /// when the identity was read, so nothing about them can fail here.
     pub fn over_identity(stream: T, name: &str, identity: &NvsIdentity) -> io::Result<Self> {
-        upgraded(stream, name, Arc::clone(&identity.config))
+        Self::over_policy(stream, name, &CallPolicy::default(), Some(identity))
+    }
+
+    /// [`over`](Self::over), under the relaxations one call asked for and a
+    /// `[capabilities.tls]` grant already allows for the host it is calling.
+    ///
+    /// A [`CallPolicy`] and never a session: what a caller may say is *which*
+    /// of ADR 0180 § 11's four relaxations it wants, and every verifier that
+    /// answers one is built here (`rule:security/one-tls-client`). A default
+    /// policy asks for nothing, so this is also the plain door for a caller
+    /// holding a policy it has not looked at — that call gets the process's own
+    /// configuration, the same `Arc` [`over`](Self::over) uses.
+    ///
+    /// `identity` is presented under the relaxed session just as it is under a
+    /// strict one, because the two answer different questions: trusting a
+    /// private CA and proving who is calling it are the two halves of mutual
+    /// TLS, and a call may well write both options.
+    ///
+    /// # Errors
+    ///
+    /// [`over`](Self::over)'s, plus `InvalidData` for `anchors` text that holds
+    /// no certificate and `InvalidInput` for a pin that is not `sha256//` and
+    /// the base64 of a 32-byte hash.
+    pub fn over_policy(
+        stream: T,
+        name: &str,
+        policy: &CallPolicy,
+        identity: Option<&NvsIdentity>,
+    ) -> io::Result<Self> {
+        upgraded(stream, name, config_for(policy, identity)?)
     }
 }
 
 /// A client identity: the certificate chain a handshake presents when a server
 /// asks for one, and the private key that proves the leaf is this client's.
 ///
-/// **Built once and shared by every session that presents it.** What it holds
-/// is a whole [`ClientConfig`] rather than the chain and the key, because that
-/// is the value `rustls` takes and building one costs a key parse and a chain
-/// parse. The anchor set inside it is [`root_store`]'s `Arc`, so an identity
-/// re-parses no certificate of the compiled-in set.
+/// **Built once and shared by every session that presents it.** It holds a
+/// whole [`ClientConfig`], because that is the value `rustls` takes and
+/// building one costs a key parse and a chain parse, *and* the chain and key it
+/// was built from, because a call that also relaxes trust needs the same
+/// certificates under a verifier this configuration does not have and a built
+/// one hands neither back ([`config_for`]). The anchor set inside it is
+/// [`root_store`]'s `Arc`, so an identity re-parses no certificate of the
+/// compiled-in set.
 ///
 /// **The leaf is public and the key is not.** [`NvsIdentity::leaf`] answers the
 /// end-entity certificate's DER, which is what a caller names an identity by —
@@ -245,14 +305,24 @@ impl<T: Read + Write> NvsTls<T> {
 /// be sent anyway. Nothing here answers the key.
 ///
 /// What it spends, per `rule:programs/memory-priority`: one parsed chain, one
-/// parsed private key and one `ClientConfig` per identity, plus an `Arc` onto
-/// the process's anchor set. Held as long as the identity is and released with
-/// it, which is O(identities in flight) and never O(requests served).
+/// parsed private key and one `ClientConfig` per identity, plus the DER the two
+/// were parsed from and an `Arc` onto the process's anchor set. Held as long as
+/// the identity is and released with it, which is O(identities in flight) and
+/// never O(requests served). The key bytes are a second copy of material the
+/// configuration already holds, in a process that has been handed the key on
+/// purpose; nothing here writes either copy anywhere.
 pub struct NvsIdentity {
-    /// The configuration every session under this identity handshakes with.
+    /// The configuration every ordinary session under this identity handshakes
+    /// with.
     config: Arc<ClientConfig>,
     /// The end-entity certificate, kept as the identity's public name.
     leaf: CertificateDer<'static>,
+    /// The chain [`NvsIdentity::config`] was built from, for the session a
+    /// relaxing call builds instead.
+    chain: Vec<CertificateDer<'static>>,
+    /// The PKCS#8 key, for [`NvsIdentity::chain`]'s reason: `rustls` takes the
+    /// two together.
+    pkcs8: Vec<u8>,
 }
 
 impl std::fmt::Debug for NvsIdentity {
@@ -293,9 +363,12 @@ impl NvsIdentity {
             return Err(refused("the chain holds no certificate".to_owned()));
         };
 
-        let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(pkcs8.to_vec()));
+        let pkcs8 = pkcs8.to_vec();
         let config = verifying(root_store())
-            .with_client_auth_cert(chain, key)
+            .with_client_auth_cert(
+                chain.clone(),
+                PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(pkcs8.clone())),
+            )
             .map_err(|err| {
                 refused(match err {
                     rustls::Error::InconsistentKeys(_) => "the chain's leaf certificate carries a \
@@ -307,6 +380,8 @@ impl NvsIdentity {
         Ok(Self {
             config: Arc::new(config),
             leaf,
+            chain,
+            pkcs8,
         })
     }
 
@@ -327,6 +402,16 @@ impl NvsIdentity {
     #[must_use]
     pub fn presents(&self) -> bool {
         self.config.client_auth_cert_resolver.has_certs()
+    }
+
+    /// The key, in the form `rustls` takes when a second session is built over
+    /// this identity.
+    ///
+    /// A parse per relaxed call rather than a shared parsed key, because
+    /// `rustls` moves the key into the builder and the one it already moved is
+    /// inside a configuration with the wrong verifier.
+    fn key(&self) -> PrivateKeyDer<'static> {
+        PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(self.pkcs8.clone()))
     }
 }
 
@@ -453,6 +538,23 @@ fn anchors() -> Arc<ClientConfig> {
     Arc::clone(DEFAULT.get_or_init(|| Arc::new(config_over(root_store()))))
 }
 
+/// The anchor set [`configure`] resolved, kept beside the configuration built
+/// over it.
+///
+/// A `ClientConfig` does not answer what it verifies against, and a call that
+/// raises its own version floor, or skips only the name, still builds its chain
+/// against **the operator's** anchors rather than the compiled-in ones. This is
+/// where that set is read back from. Unset until a boot names one, which is the
+/// process that read no configuration file at all and whose anchors are
+/// [`root_store`]'s — the same set [`anchors`] falls back to, so the two cannot
+/// disagree about what "the configured anchors" are.
+static CONFIGURED: OnceLock<Arc<RootCertStore>> = OnceLock::new();
+
+/// [`CONFIGURED`], or the compiled-in set where no boot named one.
+fn configured_store() -> Arc<RootCertStore> {
+    CONFIGURED.get().map_or_else(root_store, Arc::clone)
+}
+
 /// The `roots` entry naming the compiled-in Mozilla set rather than a file.
 ///
 /// `nvs_config::http` spells the same word while resolving the list's paths, and
@@ -485,6 +587,48 @@ pub struct ClientPolicy {
     pub keylog: Option<PathBuf>,
 }
 
+/// What one call asked to relax about verifying its peer, and the version floor
+/// it asked to raise.
+///
+/// [`ClientPolicy`] is the operator's answer to "whose certificates do you
+/// believe"; this is one call's request to be judged differently, and it is
+/// owed a `[capabilities.tls]` grant naming the host it is calling before it
+/// reaches this crate at all
+/// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`). One field
+/// per option of the request bag, because the options are independent and a
+/// call may write more than one.
+///
+/// **The default relaxes nothing**, and it is the value every call that names
+/// none of the five keys carries: [`config_for`] answers it with the process's
+/// own configuration rather than building a second one that would say the same.
+///
+/// `Eq` and `Hash` because a connection is pooled under it, so a socket opened
+/// for a call that verifies nothing never serves one that verifies
+/// (ADR 0180 § 6).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct CallPolicy {
+    /// `tlsCa` — the PEM certificates to trust *in place of* the configured
+    /// anchors for this call, as `curl`'s `CAINFO_BLOB` does. Text rather than
+    /// a path, because the program hands over what it trusts and no filesystem
+    /// is reached to find it.
+    pub anchors: Option<String>,
+    /// `tlsPin` — `sha256//<base64>` SubjectPublicKeyInfo hashes, as `curl`'s
+    /// `--pinnedpubkey`. A peer whose key hashes to one of them is accepted
+    /// with no chain built at all, and an empty list pins nothing.
+    pub pins: Vec<String>,
+    /// `tlsVerifyHost: false` — build and check the chain, and skip only the
+    /// name, as `SSL_VERIFYHOST=0` does.
+    pub any_name: bool,
+    /// `tlsVerify: false` — check neither the chain nor the name, as `-k` does.
+    /// The widest of the four, so it decides the session when a call asks for
+    /// it beside another: what it asked for is a superset of the rest.
+    pub insecure: bool,
+    /// `tlsMinVersion` — `"1.3"` to drop 1.2 for this call. It needs no grant
+    /// because it can only tighten, and a value below `[http.client.tls]
+    /// min_version` is refused before it reaches here.
+    pub min_version: Option<String>,
+}
+
 /// Builds the process's one outbound client configuration from `policy` and
 /// installs it, so every [`NvsTls::over`] after this verifies against it.
 ///
@@ -504,24 +648,33 @@ pub struct ClientPolicy {
 /// has already run against the compiled-in default, which is a boot that
 /// reached the network before it read its own configuration.
 pub fn configure(policy: &ClientPolicy) -> io::Result<()> {
-    let built = Arc::new(built_from(policy)?);
+    let roots = Arc::new(store_for(&policy.roots)?);
+    let built = Arc::new(built_over(policy, Arc::clone(&roots))?);
     DEFAULT.set(built).map_err(|_| {
         io::Error::new(
             io::ErrorKind::AlreadyExists,
             "the outbound TLS client was already built, so a session has run against anchors this \
              configuration did not choose",
         )
-    })
+    })?;
+    // Only ever reached once, because the line above is the `OnceLock` that
+    // says so; the result is dropped rather than unwrapped so that a second
+    // boot in one process fails with the message above and not with a panic
+    // about a store.
+    drop(CONFIGURED.set(roots));
+    Ok(())
 }
 
-/// [`configure`]'s configuration, built and not installed.
+/// [`configure`]'s configuration, built and not installed, over an anchor set
+/// already resolved.
 ///
-/// Split out because the installed one is a `OnceLock` and so is answered once
-/// per process: every case below builds its own here and reaches the same
-/// [`upgraded`] a shipped session does.
-fn built_from(policy: &ClientPolicy) -> io::Result<ClientConfig> {
-    let mut config =
-        floored(policy.min_version.as_deref(), store_for(&policy.roots)?).with_no_client_auth();
+/// Split from the installed one because that is a `OnceLock` and so is answered
+/// once per process: every case below builds its own here and reaches the same
+/// [`upgraded`] a shipped session does. It takes the store rather than reading
+/// `roots` itself so that a boot parses the compiled-in set once and
+/// [`CONFIGURED`] is that same `Arc`.
+fn built_over(policy: &ClientPolicy, roots: Arc<RootCertStore>) -> io::Result<ClientConfig> {
+    let mut config = floored(policy.min_version.as_deref(), roots).with_no_client_auth();
     if let Some(path) = policy.keylog.as_deref() {
         config.key_log = Arc::new(KeyLogTo::at(path).map_err(|err| at_path(path, &err))?);
     }
@@ -725,6 +878,311 @@ fn config_over(roots: impl Into<Arc<RootCertStore>>) -> ClientConfig {
     verifying(roots).with_no_client_auth()
 }
 
+/// The configuration one call runs under: the process's own where the call
+/// named none of [`CallPolicy`]'s keys, and a session built for this call where
+/// it named any.
+///
+/// **Built per call and released with it, never cached per policy.** A pin or a
+/// PEM blob comes from the program rather than from the configuration, so a
+/// cache keyed on one would be O(distinct values a program composes), which is
+/// O(requests served) — the growth `rule:programs/memory-priority` calls a leak
+/// rather than a footprint. What that costs is one `ClientConfig` on a path
+/// that has already decided to do its own handshake, and [`anchors_from`]'s
+/// cache stays where the key is a configured constant.
+///
+/// An `identity` is presented under either one, and under a default policy it
+/// is the identity's own configuration that comes back — the relaxing branch is
+/// the only one that pays for a session at all.
+///
+/// # Errors
+///
+/// `InvalidData` when `anchors` holds no certificate, and `InvalidInput` for a
+/// pin that is not `sha256//` and the base64 of a 32-byte hash.
+fn config_for(
+    policy: &CallPolicy,
+    identity: Option<&NvsIdentity>,
+) -> io::Result<Arc<ClientConfig>> {
+    if policy == &CallPolicy::default() {
+        return Ok(identity.map_or_else(anchors, |held| Arc::clone(&held.config)));
+    }
+    let min_version = policy.min_version.as_deref();
+    let session = match relaxing(policy)? {
+        Some(verifier) => versioned(min_version)
+            .dangerous()
+            .with_custom_certificate_verifier(verifier),
+        None => floored(min_version, asked_anchors(policy)?),
+    };
+    Ok(Arc::new(match identity {
+        // The chain and the key were matched when the identity was read, so
+        // what this can still refuse is a provider that cannot sign with the
+        // key — and that one was refused there too.
+        Some(held) => session
+            .with_client_auth_cert(held.chain.clone(), held.key())
+            .map_err(io::Error::other)?,
+        None => session.with_no_client_auth(),
+    }))
+}
+
+/// The verifier `policy` asks for, and `None` where it asks for the shipped one
+/// over an anchor set [`asked_anchors`] answers.
+///
+/// The order is the widest first, which is what a call asking for two
+/// relaxations gets: `tlsVerify: false` is a superset of the other three, and a
+/// pin is an answer about the peer's key that a chain would not change.
+fn relaxing(policy: &CallPolicy) -> io::Result<Option<Arc<dyn ServerCertVerifier>>> {
+    if policy.insecure {
+        return Ok(Some(Arc::new(PresentedKey {
+            pinned: None,
+            provider: provider(),
+        })));
+    }
+    if !policy.pins.is_empty() {
+        let pinned = policy
+            .pins
+            .iter()
+            .map(String::as_str)
+            .map(pinned_key)
+            .collect::<io::Result<Vec<_>>>()?;
+        return Ok(Some(Arc::new(PresentedKey {
+            pinned: Some(pinned),
+            provider: provider(),
+        })));
+    }
+    if policy.any_name {
+        let chain = WebPkiServerVerifier::builder_with_provider(asked_anchors(policy)?, provider())
+            .build()
+            .map_err(io::Error::other)?;
+        return Ok(Some(Arc::new(AnyName { chain })));
+    }
+    Ok(None)
+}
+
+/// The anchor set this call builds a chain against: the certificates it handed
+/// in, and the process's own where it handed none.
+fn asked_anchors(policy: &CallPolicy) -> io::Result<Arc<RootCertStore>> {
+    match policy.anchors.as_deref() {
+        Some(pem) => Ok(Arc::new(anchors_of(pem)?)),
+        None => Ok(configured_store()),
+    }
+}
+
+/// Every certificate in the PEM text a call handed in, as a store.
+///
+/// [`read_anchors`]'s refusal, from text rather than from a file: a blob that
+/// holds no certificate would verify nothing at all, and the handshake would
+/// fail with an unknown issuer — a message that sends a programmer looking at
+/// the server rather than at the string they passed.
+fn anchors_of(pem: &str) -> io::Result<RootCertStore> {
+    let refused = |why: &dyn std::fmt::Display| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("the certificates the call handed in name no trust anchor: {why}"),
+        )
+    };
+    let mut store = RootCertStore::empty();
+    for cert in CertificateDer::pem_slice_iter(pem.as_bytes()) {
+        store
+            .add(cert.map_err(|err| refused(&err))?)
+            .map_err(|err| refused(&err))?;
+    }
+    if store.is_empty() {
+        return Err(refused(&"it holds no certificate"));
+    }
+    Ok(store)
+}
+
+/// The `ring` provider, one per session that relaxes anything.
+///
+/// The same provider [`floored`] builds the shipped sessions over, named here
+/// as well because a custom verifier is handed the signature algorithms
+/// directly: a relaxed session verifies the handshake signature with exactly
+/// the implementation a strict one does, and there is no second answer to
+/// which algorithms are acceptable.
+fn provider() -> Arc<CryptoProvider> {
+    Arc::new(rustls::crypto::ring::default_provider())
+}
+
+/// `sha256//<base64>` — `curl --pinnedpubkey`'s spelling — as the 32 bytes it
+/// names.
+///
+/// The spelling lives with the verifier that implements it rather than with the
+/// caller that accepts it, so there is one reading of a pin in the tree. Every
+/// refusal quotes the value, because the reader is the programmer who wrote it
+/// into the call.
+fn pinned_key(spelled: &str) -> io::Result<[u8; 32]> {
+    let refused = |why: &dyn std::fmt::Display| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("`{spelled}` is not a public key pin: {why}"),
+        )
+    };
+    let encoded = spelled.strip_prefix("sha256//").ok_or_else(|| {
+        refused(&"a pin is `sha256//` and the base64 of a SHA-256 hash, as `curl --pinnedpubkey` spells it")
+    })?;
+    let raw = STANDARD
+        .decode(encoded)
+        .map_err(|err| refused(&format!("its base64 {err}")))?;
+    let len = raw.len();
+    raw.try_into()
+        .map_err(|_| refused(&format!("a SHA-256 hash is 32 bytes and this names {len}")))
+}
+
+/// The SHA-256 of `cert`'s SubjectPublicKeyInfo, which is what a pin names.
+///
+/// The whole DER of that field, tag and length included, because that is what
+/// `openssl pkey -pubin -outform der | sha256sum` produces and therefore what
+/// every pin an operator already holds was computed over. The certificate is
+/// parsed here rather than taken from `rustls`, which hands a custom verifier
+/// unparsed DER by contract — a certificate this cannot read is `BadEncoding`
+/// and not a pin failure, so the two are distinguishable in a trace.
+fn spki_sha256(cert: &CertificateDer<'_>) -> Result<[u8; 32], rustls::Error> {
+    let (_, parsed) = X509Certificate::from_der(cert.as_ref())
+        .map_err(|_| rustls::Error::InvalidCertificate(CertificateError::BadEncoding))?;
+    Ok(Sha256::digest(parsed.public_key().raw).into())
+}
+
+/// The verifier behind the two options that build no chain at all: `tlsPin`,
+/// which accepts the peer whose key hashes to one of the values a call named,
+/// and `tlsVerify: false`, which accepts any peer.
+///
+/// One type for both because they differ in one question — is this key one of
+/// the keys named — and agree on everything else: no chain is built, no name is
+/// checked, and the handshake signature is still verified against the key the
+/// peer presented, so a peer that does not hold the key it sent is refused
+/// either way.
+#[derive(Debug)]
+struct PresentedKey {
+    /// The hashes the peer's key must be one of, and `None` where any key is
+    /// accepted.
+    pinned: Option<Vec<[u8; 32]>>,
+    /// The provider whose signature algorithms the handshake signature is
+    /// checked against.
+    provider: Arc<CryptoProvider>,
+}
+
+impl ServerCertVerifier for PresentedKey {
+    /// The pinned hashes, against the key this peer presented — and, where
+    /// nothing is pinned, nothing at all.
+    ///
+    /// The chain, the name, the validity dates and the OCSP response are all
+    /// unread on purpose: a pin is a statement about one key, and a call that
+    /// made it has said the chain is not the question.
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        let Some(pinned) = self.pinned.as_deref() else {
+            return Ok(ServerCertVerified::assertion());
+        };
+        if pinned.contains(&spki_sha256(end_entity)?) {
+            return Ok(ServerCertVerified::assertion());
+        }
+        Err(rustls::Error::InvalidCertificate(
+            CertificateError::ApplicationVerificationFailure,
+        ))
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls12_signature(
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
+        )
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        rustls::crypto::verify_tls13_signature(
+            message,
+            cert,
+            dss,
+            &self.provider.signature_verification_algorithms,
+        )
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.provider
+            .signature_verification_algorithms
+            .supported_schemes()
+    }
+}
+
+/// `tlsVerifyHost: false`: the shipped verifier, with a name that does not
+/// match accepted.
+///
+/// **The chain is built and checked first, and only its name question is
+/// answered differently.** That rests on `rustls` verifying the path before it
+/// verifies the name, which is the order `WebPkiServerVerifier` has and the
+/// order this asks about: a name error is reachable only once the chain is
+/// good, so accepting one accepts nothing about the path. If that ever
+/// inverted, `any_name_policy_still_refuses_an_untrusted_chain` is the case
+/// that goes red.
+#[derive(Debug)]
+struct AnyName {
+    /// The verifier every question but the name is delegated to.
+    chain: Arc<WebPkiServerVerifier>,
+}
+
+impl ServerCertVerifier for AnyName {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        intermediates: &[CertificateDer<'_>],
+        server_name: &ServerName<'_>,
+        ocsp_response: &[u8],
+        now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        match self.chain.verify_server_cert(
+            end_entity,
+            intermediates,
+            server_name,
+            ocsp_response,
+            now,
+        ) {
+            Err(rustls::Error::InvalidCertificate(
+                CertificateError::NotValidForName | CertificateError::NotValidForNameContext { .. },
+            )) => Ok(ServerCertVerified::assertion()),
+            other => other,
+        }
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.chain.verify_tls12_signature(message, cert, dss)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        self.chain.verify_tls13_signature(message, cert, dss)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.chain.supported_verify_schemes()
+    }
+}
+
 /// The shipped builder, stopped at the point where a client certificate is or
 /// is not named.
 ///
@@ -753,15 +1211,24 @@ fn floored(
     min_version: Option<&str>,
     roots: impl Into<Arc<RootCertStore>>,
 ) -> ConfigBuilder<ClientConfig, WantsClientCert> {
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    versioned(min_version).with_root_certificates(roots)
+}
+
+/// [`floored`], stopped one step earlier — before the anchors, which is where
+/// `rustls` takes a verifier of its own instead.
+///
+/// The seam a relaxing [`CallPolicy`] plugs into, and the reason the floor is
+/// applied on this side of it: the version a session speaks and whom it
+/// believes are separate questions, so a call may raise one and relax the
+/// other without either branch knowing about the other.
+fn versioned(min_version: Option<&str>) -> ConfigBuilder<ClientConfig, WantsVerifier> {
+    let provider = provider();
     let versions = match min_version {
         Some("1.3") => ClientConfig::builder_with_provider(provider)
             .with_protocol_versions(&[&rustls::version::TLS13]),
         _ => ClientConfig::builder_with_provider(provider).with_safe_default_protocol_versions(),
     };
-    versions
-        .expect("the ring provider refused a protocol version it implements")
-        .with_root_certificates(roots)
+    versions.expect("the ring provider refused a protocol version it implements")
 }
 
 #[cfg(test)]
@@ -1045,6 +1512,12 @@ mod tests {
         )
     }
 
+    /// [`built_over`] over the anchors `policy` names, which is the pair of
+    /// steps a boot takes in one call.
+    fn built_from(policy: &ClientPolicy) -> io::Result<ClientConfig> {
+        built_over(policy, Arc::new(store_for(&policy.roots)?))
+    }
+
     /// A policy naming `roots` and nothing else.
     fn trusting(roots: &[&str]) -> ClientPolicy {
         ClientPolicy {
@@ -1258,6 +1731,236 @@ mod tests {
             expired.kind(),
             io::ErrorKind::TimedOut,
             "the handshake ended with {expired} rather than with its clock"
+        );
+    }
+
+    /// A self-signed `localhost` certificate, its key, and the two ways a call
+    /// names it: the PEM text `tlsCa` takes and the `sha256//` pin `tlsPin`
+    /// takes.
+    ///
+    /// The pin is derived from `rcgen`'s own SubjectPublicKeyInfo rather than
+    /// from the certificate [`spki_sha256`] parses, so the cases below agree
+    /// only if this module found the same field the key was written from — a
+    /// pin computed by the code under test would pass against any field at all.
+    fn named() -> (
+        CertificateDer<'static>,
+        PrivateKeyDer<'static>,
+        String,
+        String,
+    ) {
+        use base64::Engine as _;
+        use rcgen::PublicKeyData as _;
+
+        let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+            .expect("the certificate could not be generated");
+        let pin = format!(
+            "sha256//{}",
+            STANDARD.encode(Sha256::digest(issued.signing_key.subject_public_key_info()))
+        );
+        (
+            issued.cert.der().clone(),
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(issued.signing_key.serialize_der())),
+            issued.cert.pem(),
+            pin,
+        )
+    }
+
+    /// One `ping`/`pong` exchange against `addr` under `policy`, through the
+    /// door a call reaches.
+    ///
+    /// [`exchange`]'s body against [`NvsTls::over_policy`] rather than against
+    /// a configuration, because what these cases are about is the value a
+    /// caller is allowed to hand in — a case that built the `ClientConfig`
+    /// itself would assert nothing about the door that refuses to take one.
+    fn relaxed(addr: SocketAddr, name: &str, policy: &CallPolicy) -> io::Result<String> {
+        let sock = NvsTcp::connect(addr).expect("the connect failed");
+        let mut tls = NvsTls::over_policy(sock, name, policy, None)?;
+        tls.write_all(b"ping\n")?;
+        tls.flush()?;
+        let mut heard = [0_u8; 5];
+        tls.read_exact(&mut heard)?;
+        Ok(String::from_utf8_lossy(&heard).into_owned())
+    }
+
+    /// `tlsCa` is `CAINFO_BLOB`: the certificates the call handed in are the
+    /// whole trust set for it, so its own origin verifies and one from any
+    /// other CA does not.
+    ///
+    /// Both halves, because the acceptance alone would pass just as well on a
+    /// client that had stopped checking anything.
+    #[test]
+    fn anchors_policy_trusts_only_the_given_certificates() {
+        let (cert, key, pem, _) = named();
+        let (other, other_key, _, _) = named();
+        let policy = CallPolicy {
+            anchors: Some(pem),
+            ..CallPolicy::default()
+        };
+
+        let (addr, joined) = peer(cert, key);
+        let heard = relaxed(addr, "localhost", &policy).expect("the handshake failed");
+        joined.join().expect("the peer thread panicked");
+        assert_eq!(heard, "pong\n");
+
+        let (elsewhere, hung_up) = peer(other, other_key);
+        let refused = relaxed(elsewhere, "localhost", &policy)
+            .expect_err("a CA the call did not name was trusted");
+        drop(hung_up.join());
+        assert_eq!(
+            refused.kind(),
+            io::ErrorKind::InvalidData,
+            "a certificate from another CA came back as {refused}"
+        );
+    }
+
+    /// `tlsPin` is `--pinnedpubkey`: a peer no chain vouches for is accepted on
+    /// the strength of its key alone.
+    ///
+    /// The same self-signed certificate
+    /// `a_self_signed_certificate_is_refused_by_the_compiled_in_anchors`
+    /// refuses, so the pin is the only thing that changed.
+    #[test]
+    fn pin_policy_accepts_a_self_signed_peer_whose_key_matches() {
+        let (cert, key, _, pin) = named();
+        let policy = CallPolicy {
+            pins: vec![pin],
+            ..CallPolicy::default()
+        };
+
+        let (addr, joined) = peer(cert, key);
+        let heard = relaxed(addr, "localhost", &policy).expect("the pinned peer was refused");
+        joined.join().expect("the peer thread panicked");
+        assert_eq!(heard, "pong\n");
+    }
+
+    /// A pin is a statement about one key: another key's hash refuses the
+    /// handshake, and a value that is not a pin at all is refused before a
+    /// socket is opened.
+    #[test]
+    fn pin_policy_refuses_a_peer_whose_key_does_not_match() {
+        let (cert, key, _, _) = named();
+        let (_, _, _, elsewhere) = named();
+        let policy = CallPolicy {
+            pins: vec![elsewhere],
+            ..CallPolicy::default()
+        };
+
+        let (addr, hung_up) = peer(cert, key);
+        let refused =
+            relaxed(addr, "localhost", &policy).expect_err("a peer whose key was not pinned");
+        drop(hung_up.join());
+        assert_eq!(
+            refused.kind(),
+            io::ErrorKind::InvalidData,
+            "an unpinned key came back as {refused}"
+        );
+
+        let misspelled = config_for(
+            &CallPolicy {
+                pins: vec!["deadbeef".to_owned()],
+                ..CallPolicy::default()
+            },
+            None,
+        )
+        .expect_err("a value that is not a pin was taken as one");
+        assert_eq!(
+            misspelled.kind(),
+            io::ErrorKind::InvalidInput,
+            "a misspelled pin came back as {misspelled}"
+        );
+    }
+
+    /// `tlsVerifyHost: false` is `SSL_VERIFYHOST=0`: the name is skipped and
+    /// the chain is not.
+    ///
+    /// The first half is the option working — a certificate for `localhost`
+    /// answers a call to another name — and the second is the half that makes
+    /// it worth having separately from `tlsVerify: false`: the same call
+    /// against a chain no anchor vouches for is still refused.
+    #[test]
+    fn any_name_policy_still_refuses_an_untrusted_chain() {
+        let (cert, key, pem, _) = named();
+        let skipping = CallPolicy {
+            anchors: Some(pem),
+            any_name: true,
+            ..CallPolicy::default()
+        };
+
+        let (addr, joined) = peer(cert, key);
+        let heard = relaxed(addr, "elsewhere.invalid", &skipping).expect("the name was checked");
+        joined.join().expect("the peer thread panicked");
+        assert_eq!(heard, "pong\n");
+
+        let (elsewhere, its_key, _, _) = named();
+        let (untrusted, hung_up) = peer(elsewhere, its_key);
+        let refused = relaxed(
+            untrusted,
+            "localhost",
+            &CallPolicy {
+                any_name: true,
+                ..CallPolicy::default()
+            },
+        )
+        .expect_err("a chain no anchor vouches for was accepted");
+        drop(hung_up.join());
+        assert_eq!(
+            refused.kind(),
+            io::ErrorKind::InvalidData,
+            "an untrusted chain came back as {refused}"
+        );
+    }
+
+    /// `tlsVerify: false` is `-k`: neither the chain nor the name is asked
+    /// about, and the exchange completes against a peer nothing vouches for.
+    #[test]
+    fn insecure_policy_completes_against_an_untrusted_peer() {
+        let (cert, key, _, _) = named();
+        let policy = CallPolicy {
+            insecure: true,
+            ..CallPolicy::default()
+        };
+
+        let (addr, joined) = peer(cert, key);
+        let heard = relaxed(addr, "elsewhere.invalid", &policy).expect("the peer was refused");
+        joined.join().expect("the peer thread panicked");
+        assert_eq!(heard, "pong\n");
+    }
+
+    /// An identity and a relaxing option are one session rather than a choice
+    /// between them, which is what mutual TLS against a private CA is: the call
+    /// that decides whom to believe is the same call that proves who it is.
+    ///
+    /// The second half is the fast path the first must not have cost: a call
+    /// that relaxes nothing still gets the identity's own configuration back,
+    /// built once when the identity was read.
+    #[test]
+    fn an_identity_is_presented_under_a_relaxed_policy_as_well() {
+        let issued = rcgen::generate_simple_self_signed(vec!["client.example".to_owned()])
+            .expect("the certificate could not be generated");
+        let identity = NvsIdentity::read(
+            issued.cert.pem().as_bytes(),
+            &issued.signing_key.serialize_der(),
+        )
+        .expect("the chain and its own key were refused");
+
+        let relaxing = config_for(
+            &CallPolicy {
+                insecure: true,
+                ..CallPolicy::default()
+            },
+            Some(&identity),
+        )
+        .expect("the relaxed session was refused");
+        assert!(
+            relaxing.client_auth_cert_resolver.has_certs(),
+            "a relaxed session dropped the certificate the call presents"
+        );
+
+        let plain = config_for(&CallPolicy::default(), Some(&identity))
+            .expect("the identity's own session was refused");
+        assert!(
+            Arc::ptr_eq(&plain, &identity.config),
+            "a call that relaxes nothing built a second session instead of reusing the identity's"
         );
     }
 }

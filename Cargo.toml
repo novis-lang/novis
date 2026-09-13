@@ -236,6 +236,17 @@ rustls = { version = "0.23", default-features = false, features = [
     "tls12",
 ] }
 webpki-roots = "1"
+# `x509-parser` is the one thing `rustls` does not hand back. ADR 0180 § 11's
+# `tlsPin` is the SHA-256 of a peer's SubjectPublicKeyInfo, and a custom
+# verifier is given the certificate as raw DER, so something has to find that
+# field: the alternative is a hand-written DER walk over attacker-controlled
+# bytes on the one path whose answer decides whether a peer is believed. Pure
+# Rust with no build script and no C — its `ring` feature is the only one that
+# would add any, and it is off — so ADR 0051 § 4's second question never opens.
+# It adds no crate this lock file did not already hold; what it changes is that
+# `rcgen` was pulling them in for the handshake tests alone, and this line puts
+# them in the shipped binary. `crates/nvs-host/src/tls.rs` is the one caller.
+x509-parser = { version = "0.18", default-features = false }
 rcgen = { version = "0.14", default-features = false, features = [
     "crypto",
     "ring",

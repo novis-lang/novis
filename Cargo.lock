@@ -2284,6 +2284,7 @@ dependencies = [
 name = "nvs-host"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "core_affinity",
  "corosensei",
  "libc",
@@ -2293,9 +2294,11 @@ dependencies = [
  "nvs-runtime",
  "rcgen",
  "rustls",
+ "sha2 0.10.9",
  "toml",
  "webpki-roots",
  "windows-sys 0.61.2",
+ "x509-parser",
 ]
 
 [[package]]

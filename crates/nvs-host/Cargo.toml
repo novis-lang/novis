@@ -31,6 +31,15 @@ mio.workspace = true
 # ADR 0051 § 4, including the part that is spent rather than met.
 rustls.workspace = true
 webpki-roots.workspace = true
+# ADR 0180 § 11's `tlsPin`, which is the SHA-256 of the peer's
+# SubjectPublicKeyInfo and reaches `src/tls.rs` as the `sha256//<base64>`
+# spelling `curl --pinnedpubkey` already made the one an operator knows:
+# `x509-parser` finds the field in a certificate `rustls` hands over as raw
+# DER, `sha2` hashes it and `base64` reads the spelling. The workspace
+# manifest owns why each crate, and none of the three is new to this lock file.
+x509-parser.workspace = true
+sha2.workspace = true
+base64.workspace = true
 
 # `src/cpuclock.rs`: a thread's own CPU time, which `[limits] cpu_time` is
 # measured against and which `std` spells on neither platform.
