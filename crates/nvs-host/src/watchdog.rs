@@ -1043,7 +1043,7 @@ mod tests {
             "a run named a CPU it is not pinned to"
         );
 
-        burn_a_hundred_milliseconds();
+        burn_a_charge();
         assert!(
             dog.shared.sweep(Instant::now()).is_empty(),
             "a thread that is no core was reported as a wedged one"
@@ -1097,7 +1097,7 @@ mod tests {
         );
         let before = running.burned().expect("a live core read as no thread");
 
-        burn_a_hundred_milliseconds();
+        burn_a_charge();
 
         let after = running.burned().expect("a live core read as no thread");
         assert!(
@@ -1131,7 +1131,7 @@ mod tests {
             return;
         };
         registered.publish_safepoint(Some(under));
-        burn_a_hundred_milliseconds();
+        burn_a_charge();
         assert!(dog.shared.sweep(Instant::now()).is_empty());
         assert!(
             !request
@@ -1151,7 +1151,7 @@ mod tests {
         let over = RunningRequest::new(request.safepoint_view(), ThreadClock::current(), 1)
             .expect("a clock that read a moment ago refused a second reading");
         registered.publish_safepoint(Some(over));
-        burn_a_hundred_milliseconds();
+        burn_a_charge();
         assert!(dog.shared.sweep(Instant::now()).is_empty());
         assert!(
             request
@@ -1212,13 +1212,10 @@ mod tests {
     }
 
     /// CPU time rather than wall time: a sleep accumulates none of what the
-    /// ceiling measures, so a case that needs a charge spins for it.
-    fn burn_a_hundred_milliseconds() {
-        let mut turns = 0_u64;
-        let until = Instant::now() + Duration::from_millis(100);
-        while Instant::now() < until {
-            turns = turns.wrapping_add(1);
-        }
-        assert!(turns > 0, "the busy loop did not run");
+    /// ceiling measures, so a case that needs a charge spins until its own
+    /// clock shows one. `crate::cpuclock::burn_at_least` owns why the clock,
+    /// and never a wall interval, is what the spin waits on.
+    fn burn_a_charge() {
+        crate::cpuclock::burn_at_least(Duration::from_millis(20));
     }
 }

@@ -71,6 +71,50 @@ impl ThreadClock {
     }
 }
 
+/// Spin on the calling thread until its own clock has charged it `at_least`
+/// more than it read on entry.
+///
+/// A test that needs a charge cannot spin for a *wall* interval and read the
+/// clock afterwards. Beside the other test binaries `tools/verify.py` runs at
+/// the same time, a thread is preempted for most of any window it is given,
+/// and what the scheduler charges for the rest is quantised at its tick, so a
+/// fixed window can be charged nothing at all. The clock the ceiling is
+/// enforced on is the one to wait on; it is read every few thousand turns
+/// rather than every turn, which keeps the system call out of the loop's cost.
+///
+/// Panics once `PATIENCE` of wall time has passed with the charge still short:
+/// a thread that spun that long and was charged nothing is the property under
+/// test failing, not a slow machine.
+#[cfg(test)]
+pub(crate) fn burn_at_least(at_least: Duration) {
+    const PATIENCE: Duration = Duration::from_secs(60);
+    let clock =
+        ThreadClock::current().expect("a test that burns has checked this thread has a clock");
+    let from = clock
+        .burned()
+        .expect("this thread's own clock did not read");
+    let give_up_at = std::time::Instant::now() + PATIENCE;
+    let mut turns = 0_u64;
+    loop {
+        turns = turns.wrapping_add(1);
+        if !turns.is_multiple_of(4096) {
+            continue;
+        }
+        let charged = clock
+            .burned()
+            .expect("a live thread read as no thread")
+            .saturating_sub(from);
+        if charged >= at_least {
+            return;
+        }
+        assert!(
+            std::time::Instant::now() < give_up_at,
+            "a thread that spun for {PATIENCE:?} of wall time was charged {charged:?} of the \
+             {at_least:?} it waited for"
+        );
+    }
+}
+
 /// What a host says as it starts about the ceiling it can enforce: the note to
 /// print where this platform offers no per-thread clock, and `None` where it
 /// offers one and there is nothing to report.
@@ -214,6 +258,10 @@ mod tests {
             return;
         };
         let before = idle.burned().expect("this thread's own clock did not read");
+        /// What the busy thread waits to see charged on its own clock before
+        /// it stops: enough that a tick the reader is charged for while it
+        /// blocks cannot reach it.
+        const BURNED: Duration = Duration::from_millis(50);
 
         let (clocks, clock) = std::sync::mpsc::channel();
         let (spins, spun) = std::sync::mpsc::channel();
@@ -223,12 +271,8 @@ mod tests {
             clocks.send(mine).expect("the reader hung up");
             // Spun rather than slept: a sleeping thread accumulates wall time
             // and no CPU time, which is the whole distinction under test.
-            let mut turns = 0_u64;
-            let until = std::time::Instant::now() + Duration::from_millis(100);
-            while std::time::Instant::now() < until {
-                turns = turns.wrapping_add(1);
-            }
-            spins.send(turns).expect("the reader hung up");
+            burn_at_least(BURNED);
+            spins.send(()).expect("the reader hung up");
             // Held alive until the reader has sampled: Windows reopens a thread
             // by id, and a thread that has ended has no clock to reopen.
             released.recv().ok();
@@ -237,18 +281,16 @@ mod tests {
         let clock = clock
             .recv()
             .expect("the busy thread never published its clock");
-        let turns = spun
-            .recv()
+        spun.recv()
             .expect("the busy thread never finished spinning");
-        assert!(turns > 0, "the busy loop did not run");
 
-        // Greater than nothing rather than a figure: Windows charges thread
-        // time at the scheduler's tick, so what a hundred milliseconds of
-        // spinning reports is quantised and not a number to pin.
+        // At least what the busy thread saw itself charged before it stopped:
+        // a clock only moves forward, so the reader's figure is a floor and
+        // not a number to pin.
         let burned = clock.burned().expect("a live thread read as no thread");
         assert!(
-            burned > Duration::ZERO,
-            "a thread that spun was charged none"
+            burned >= BURNED,
+            "a thread charged {BURNED:?} on its own clock read as {burned:?} from another"
         );
 
         // And the reader, which blocked on a channel throughout, is not charged
