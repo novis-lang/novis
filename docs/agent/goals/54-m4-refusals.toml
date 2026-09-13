@@ -1,0 +1,314 @@
+# Goal 54 -- every shape the checker admits lowers, or a diagnostic naming its rule refuses it
+# The acceptance test, as data.
+#
+# `54-m4-refusals.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No example of its own: every check below is a case, a named test or a command. M4's "non-trivial
+  # program leaks nothing" is the valgrind sweep over the floor's files, which goal-switch.py unions in.
+]
+
+[context]
+
+modules = [
+  # `guarded_by!` (stage 2); the element-write catch-all (:2615, stage 3); the two declared-type
+  # boundaries (:3069, :3288, stage 8).
+  "crates/nvs-ir/src/lower/mod.rs",
+  # The `is` site (:5004) and `test_shape` (:5376), `instanceof` (:5229), `clone` (:5289), and the `match`
+  # label (:1927). Stages 3, 5, 6 and 7.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # `$f(...)` through a callable (:789) and the by-reference argument (:1170). Stages 3 and 4.
+  "crates/nvs-ir/src/lower/call.rs",
+  # The `switch` label (:741) and the two `foreach` asserts (:974, :985). Stages 3 and 6.
+  "crates/nvs-ir/src/lower/control.rs",
+  # The truthy conversion's catch-all (:608). Stage 6.
+  "crates/nvs-ir/src/lower/convert.rs",
+  # `throw` on a tagged operand (:28). Stage 5.
+  "crates/nvs-ir/src/lower/exception.rs",
+  # The statement roster (:263) and `unset` (:1483). Stage 3.
+  "crates/nvs-ir/src/lower/stmt.rs",
+  # Where the ordinary element walk and per-site unit tests live. Stages 7 and 8.
+  "crates/nvs-ir/src/lower/tests.rs",
+  # The gaps that describe these sites: the preamble (:187), gap 1 (:194) and gap 6 (:333). Stages 2 and 9.
+  "crates/nvs-ir/src/lib.rs",
+  # The ratchet and the new guarded-site test. Stages 2 and 9.
+  "crates/nvs-ir/tests/refusals.rs",
+  # The checker's refusals the guarded sites name: throw, clone (:447-461) and `foreach` subjects.
+  "crates/nvs-types/src/expr/members.rs",
+  "crates/nvs-types/src/expr/iteration.rs",
+  # Every code a `guarded_by!` takes.
+  "crates/nvs-diagnostics/src/lib.rs",
+]
+
+# Every stage works inside these two: a shape that lowers answers as PHP does, and nothing it adds is
+# charged anywhere but where it runs.
+rules = [
+  "php-migration/every-divergence-is-deliberate-and-listed",
+  "programs/memory-priority",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M4:verify"]
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > orient.py prints',
+  'Tooling > another agent',
+  # The ratchet and the recognizer, which every slice of this goal moves.
+  'Tooling > holes.py --item',
+  "Tooling > holes.py's count",
+  "Tooling > nvs-ir's refusal",
+  "Tooling > refusals.rs's ceiling",
+  'Tooling > a carried-refusals.md',
+  'Writing Novis itself > a new panic!',
+  'Writing Novis itself > a holes.py',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `54-m4-refusals.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the keystone"` labels, which may group several prose stages under
+# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# A guarded panic names the diagnostic the checker raises in its place, and a crash report is not a
+# request's own code running.
+rules = ["errors/panics-bypass-user-code", "errors/diagnostic-record"]
+shapes = ["A diagnostic"]
+
+[context.stage.3]
+# The refusals the seven guarded sites trust.
+rules = [
+  "iteration/foreach-subjects",
+  "classes/unset-is-refused-on-a-property",
+  "types/class-reference-sites",
+]
+shapes = ["A `.nvst` test case"]
+playbook = ['Writing Novis itself > a checker table']
+
+[context.stage.4]
+rules = ["types/callable-is-a-closure", "types/callable-signature"]
+shapes = ["A `.nvst` test case"]
+
+[context.stage.5]
+# The tagged operand throws the way the erased receiver already does.
+rules = ["classes/clone-is-shallow", "types/erased-member-access"]
+shapes = ["A `.nvst` test case"]
+
+[context.stage.6]
+# The one comparison and the pair it refuses; the truthy table and the declaration rule that keeps
+# `void` out of a condition.
+rules = [
+  "expressions/switch-match-equality",
+  "expressions/one-equality-operator",
+  "expressions/disjoint-comparison-refused",
+  "expressions/truthy-table",
+  "types/declaration",
+]
+shapes = ["A `.nvst` test case"]
+
+[context.stage.7]
+rules = ["types/type-test", "iteration/two-interfaces", "types/callable-is-a-closure"]
+shapes = ["A `.nvst` test case"]
+
+[context.stage.8]
+rules = ["types/grammar", "types/literal-types"]
+
+[context.stage.9]
+shapes = ["A playbook bullet"]
+
+# No new refcount edge crosses a boundary this goal writes: `$f(...)` adds one retain to an existing
+# closure, and a tagged throw or clone reuses the object path. No cycle shape, so nothing is added to the
+# skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# None of this goal's own checks needs a daemon. The floor is goal `gap-register`'s whole list, which
+# carries the database, queue and cache checks of the goals before it, and those need the containers.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the keystone"
+name = "every guarded site names a diagnostic code that a conformance case expects"
+args = ["test", "-p", "nvs-ir", "--test", "refusals"]
+tests = [
+  "every_guarded_site_names_a_code_a_conformance_case_expects",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the guarded sites. Goal prose stage 3. `--guarded` lists by file, then line, so these
+# codes appear in this order: call.rs, control.rs's key then subject, expr.rs, mod.rs, stmt.rs's `unset`.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the guarded sites"
+name = "the by-reference, foreach, instanceof, element-write and unset sites are guarded by their codes"
+argv = ["python", "tools/holes.py", "--guarded"]
+want = ["E0439", "E0723", "E0443", "E0497", "E0700", "E0234"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the guarded sites"
+name = "a foreach over an un-narrowed nullable array is refused at the subject"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/reject/a-foreach-over-a-nullable-array-is-refused-at-the-subject.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- `$f(...)` through a callable. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 first-class callable"
+name = "a first-class callable of a closure is that closure"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/lang/a-first-class-callable-of-a-closure-is-that-closure.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 first-class callable"
+name = "a first-class callable of a closure matches PHP's identity"
+args = ["test", "tests/differential/"]
+cases = [
+  "tests/differential/lang/a-first-class-callable-of-a-closure-matches-phps.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- `throw` and `clone` through a tag. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 tagged throw and clone"
+name = "a nullable throwable is thrown, a nullable object is cloned, and null throws an error for both"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/error/throwing-a-nullable-throwable-throws-the-object-it-holds.nvst",
+  "tests/conformance/error/throwing-null-through-a-nullable-throwable-throws-an-error.nvst",
+  "tests/conformance/class/cloning-through-a-nullable-clones-the-object-it-holds.nvst",
+  "tests/conformance/class/cloning-null-through-a-nullable-throws-an-error.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 tagged throw and clone"
+name = "throwing and cloning a non-object match PHP's errors"
+args = ["test", "tests/differential/"]
+cases = [
+  "tests/differential/error/throwing-null-and-a-non-throwable-match-phps.nvst",
+  "tests/differential/class/cloning-null-matches-phps.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- labels and the condition. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 labels and the condition"
+name = "a switch label and a match arm of another representation compare by the one equality"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/lang/a-switch-label-of-another-representation-compares-by-equality.nvst",
+  "tests/conformance/lang/a-match-arm-of-another-representation-compares-by-equality.nvst",
+]
+
+[[check]]
+kind = "command"
+stage = "6 labels and the condition"
+name = "the label pairs with no equality row and a void condition are guarded by their codes"
+argv = ["python", "tools/holes.py", "--guarded"]
+want = ["E0466"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- `is` answers for every type. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "7 is is total"
+name = "an is test answers a shape, a union, an intersection, iterable, callable and an array of a class"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/lang/an-is-test-against-a-shape-walks-its-fields.nvst",
+  "tests/conformance/lang/an-is-test-against-a-union-or-an-intersection-asks-each-member.nvst",
+  "tests/conformance/lang/an-is-test-against-iterable-or-callable-answers-by-what-the-value-holds.nvst",
+  "tests/conformance/lang/an-is-test-against-an-array-of-a-class-walks-every-element.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- declared types. Goal prose stage 8.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "8 declared types"
+name = "every type atom lowers as a declared type, and every checked type a value can have erases"
+args = ["test", "-p", "nvs-ir", "--lib"]
+tests = [
+  "lower_decl_type_answers_every_type_atom_the_grammar_has",
+  "erase_checked_ty_answers_every_checked_type_a_value_can_have",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the gate. Goal prose stage 9. The floor's `every_refusal_is_a_diagnostic_or_decided`
+# holds the tree's count equal to CEILING, so CEILING at 0 is the count at 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "9 the gate"
+name = "the refusal ceiling is zero"
+argv = ["git", "grep", "-n", "const CEILING: usize = 0;", "--", "crates/nvs-ir/tests/refusals.rs"]
+want = ["const CEILING: usize = 0;"]
+
+[[check]]
+kind = "command"
+stage = "9 the gate"
+name = "carried-refusals.md holds no entry for M4's lowering refusals"
+argv = ["git", "grep", "-n", "M4's carried lowering refusals", "--", "docs/agent/carried-refusals.md"]
+exit = "nonzero"

@@ -1,0 +1,289 @@
+# Goal 56 -- the extension is tested in a real editor host and built by CI
+# The acceptance test, as data.
+#
+# `56-m4b-editor.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No example of its own. The host suite's fixtures live under `editors/vscode/test/host/fixture/`
+  # and are read by the extension host, not run by `nvs run`.
+]
+
+[context]
+
+modules = [
+  # `activate`, the status item (:72) and the command registrations (:78-91). Stage 5 makes it
+  # return the read-only test surface.
+  "editors/vscode/src/extension.ts",
+  # The AST tree view (:58), whose provider the host suite walks. Stage 5.
+  "editors/vscode/src/ast.ts",
+  # Position conversion and the two `setDecorations` calls (:243-246) the host suite reads back. Stage 5.
+  "editors/vscode/src/redactions.ts",
+  # The reveal state machine, already proved headless; the host suite drives it through the command. Stage 5.
+  "editors/vscode/src/concealment.ts",
+  # `execute` (:57), the one path `nvs.run` and `nvs.test` start a Task through. Stage 5.
+  "editors/vscode/src/tasks.ts",
+  # The three-candidate binary lookup `nvs.path` wins, which the throwaway profile points at the build. Stage 3.
+  "editors/vscode/src/binary.ts",
+]
+
+# Every stage works inside these three. The two tiers and their isolation; no language logic and an
+# allowlisted dependency list; and no binary shipped or fetched behind the user's back.
+rules = [
+  "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
+  "ide/dependencies-are-allowlisted",
+  "ide/the-extension-guides-an-install-and-never-bundles-one",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M4B:verify"]
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > orient.py prints',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `56-m4b-editor.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the record"` labels, which may group several prose stages under
+# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The record amends the two-tier rule. Its neighbours say what CI grows and where the lanes are decided.
+rules = [
+  "ide/the-lockfile-is-committed-and-build-output-is-not",
+  "testing/ci-lanes",
+]
+shapes = ["A decision record", "A rule fragment", "Citing a document"]
+
+[context.stage.3]
+# The harness. The package the host loads is the one the rule names, and it lives where clients live.
+rules = [
+  "ide/the-extension-runs-where-the-binary-is",
+  "ide/editor-clients-live-under-editors",
+]
+
+[context.stage.4]
+# Colour is two layers of standard names, and the extension claims `.nvs` alone.
+rules = [
+  "ide/highlighting-is-two-layers",
+  "ide/semantic-tokens-carry-the-qualifiers",
+  "ide/the-extension-claims-nvs-only",
+  "ide/case-files-have-their-own-grammar",
+]
+
+[context.stage.5]
+# The surfaces the host suite drives: concealment, the reveal, the taint default, the panel, the Tasks.
+rules = [
+  "ide/redaction-ranges-come-from-the-server",
+  "ide/reveal-is-explicit-and-window-local",
+  "ide/tainted-has-no-default-decoration",
+  "ide/the-ast-panel-shells-out-to-the-cli",
+  "ide/tasks-carry-a-problem-matcher",
+]
+
+[context.stage.6]
+# One workflow and one lane table; the jobs the rule already says CI grows; the artifact, and the
+# publishing question it leaves open.
+rules = [
+  "testing/ci-lanes",
+  "ide/the-lockfile-is-committed-and-build-output-is-not",
+  "ide/the-extension-runs-where-the-binary-is",
+  "ide/one-server-two-thin-clients",
+]
+
+[context.stage.7]
+# The deep lane's fuzzers, and the property the `prefix` target hunts for.
+rules = [
+  "testing/the-deep-lane",
+  "ide/the-tree-survives-a-syntax-error",
+]
+
+[context.stage.8]
+shapes = ["A rule fragment"]
+
+# Nothing here adds a refcounted value or a fixture `nvs run` executes. Every check is TypeScript,
+# a workflow read or a fuzz run, so nothing is added to the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# None of this goal's own checks needs a daemon. The floor, goal `m5-proofs`'s whole list, carries
+# container-backed checks, and the daemons belong to them. The driver preflights them before this
+# goal's first session.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Goal prose stage 2. The rule keeps its id; the amended body is the first
+# place `test:host` is named.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the host tier running locally and in CI is the rule"
+argv = ["python", "tools/rules.py", "--show", "ide/headless-gates-the-loop-the-host-run-gates-the-milestone"]
+want = ["ide/headless-gates-the-loop-the-host-run-gates-the-milestone", "test:host"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stages 3-5 -- the extension-host suite. Goal prose stages 3, 4 and 5. It runs on this machine's
+# native leg in a downloaded, pinned VS Code build with a throwaway profile, and in CI under
+# `xvfb-run`. The three checks share one argv, so the driver runs the suite once and each check
+# judges its own `want`. NOT memoized: `loop.py`'s memo hashes `crates/` and `examples/` alone, so a
+# memo would stay green over an `editors/` change. `{nvs}` is the CLI the leg built, and it reaches
+# `nvs.path` in the throwaway profile only.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the host harness"
+name = "vscode (host) runs isolated from the developer's editor"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:host", "--", "--nvs", "{nvs}"]
+want = ["runs in a throwaway profile and never the developer's", "host:", "0 failing"]
+
+[[check]]
+kind = "command"
+stage = "4 colour and activation"
+name = "vscode (host) activates on .nvs, colours before and after the server, and matches its legend"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:host", "--", "--nvs", "{nvs}"]
+want = [
+  "activates on a .nvs file and not on a .php file",
+  "colours a file from the grammar before the server answers",
+  "adds semantic colour once the server answers",
+  "registers the legend the server declares",
+  "opens a .nvst case coloured",
+  "selects $total whole",
+  "0 failing",
+]
+
+[[check]]
+kind = "command"
+stage = "5 the surfaces"
+name = "vscode (host) draws the status, the Problems, the AST panel and the concealment"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:host", "--", "--nvs", "{nvs}"]
+want = [
+  "shows the server's health and version in the status item",
+  "runs nvs run as a task whose failure reaches the Problems panel",
+  "renders the AST panel for a file that does not compile",
+  "conceals both secrets on open and reveals exactly one",
+  "decorates nothing for tainted at the default setting",
+  "0 failing",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- CI builds, tests and packages the extension. Goal prose stage 6. CI is not running, so
+# these read the two files. Goal `gap-zero`'s green run is what proves the jobs work. Each marker
+# prints only if present, in this order, so a missing one fails the ordered match.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 CI"
+name = "ci.yml runs the headless suites on three platforms, the host suite under xvfb, and uploads the vsix"
+argv = [
+  "python", "-c",
+  "import pathlib; t = pathlib.Path('.github/workflows/ci.yml').read_text(encoding='utf-8'); [print(m) for m in ('outputs.editor', '  extension:', 'editors/vscode/.nvmrc', 'npm ci', 'test:headless', 'npm run package', 'actions/upload-artifact', 'editors/vscode/nvs.vsix', '  extension-host:', 'xvfb-run -a', 'test:host') if m in t]",
+]
+want = [
+  "outputs.editor",
+  "extension:",
+  "editors/vscode/.nvmrc",
+  "npm ci",
+  "test:headless",
+  "npm run package",
+  "actions/upload-artifact",
+  "editors/vscode/nvs.vsix",
+  "extension-host:",
+  "xvfb-run -a",
+  "test:host",
+]
+
+[[check]]
+kind = "command"
+stage = "6 CI"
+name = "the lane table has an editor lane over editors/ and the crates"
+argv = [
+  "python", "-c",
+  "import pathlib; t = pathlib.Path('tools/ci-changes.py').read_text(encoding='utf-8'); [print(m) for m in ('\"editor\": (', '\"editors/\"') if m in t]",
+]
+want = ['"editor": (', '"editors/"']
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the five-minute fuzz run, locally. Goal prose stage 7. libFuzzer has no Windows build, so
+# it runs in WSL, which starts in the Windows working directory's `/mnt/` path. Seeded from
+# `fuzz/seeds/prefix/` as CI's job is. `Done N runs in 30x second(s)` is libFuzzer's closing line on a
+# clean run; a crash exits non-zero before it. Memoized: what it fuzzes lives under `crates/`.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "7 fuzz"
+name = "the prefix fuzz target finds no panic in five minutes"
+argv = [
+  "wsl.exe", "--", "bash", "-lc",
+  "mkdir -p fuzz/corpus/prefix && cargo +nightly fuzz run prefix fuzz/corpus/prefix fuzz/seeds/prefix -- -max_total_time=300",
+]
+memoize = true
+want = ["Done", "runs in"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the rulebook. Goal prose stage 8.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "8 the rulebook"
+name = "the two-tier rule is shipped"
+argv = ["python", "tools/rules.py", "--show", "ide/headless-gates-the-loop-the-host-run-gates-the-milestone"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "8 the rulebook"
+name = "the lockfile rule is shipped"
+argv = ["python", "tools/rules.py", "--show", "ide/the-lockfile-is-committed-and-build-output-is-not"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "8 the rulebook"
+name = "the extension-runs-where-the-binary-is rule is shipped"
+argv = ["python", "tools/rules.py", "--show", "ide/the-extension-runs-where-the-binary-is"]
+want = ["shipped"]

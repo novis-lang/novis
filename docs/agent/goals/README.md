@@ -77,8 +77,17 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [process-cache](49-process-cache.md) | M8, one ADR slot — the process tier, a lifetime on every tier, and a secret cached only sealed | `nvs-stdlib`, `nvs-config`, `nvs-cli` — the first state the cores share, and where a token lives between requests |
 | [outbound-proxy](50-outbound-proxy.md) | M8, one ADR slot — a forward proxy the operator configures, and what the address policy keeps and loses through it | `nvs-stdlib`'s transport, `nvs-config` — a CONNECT tunnel that keeps the pin by default |
 | [websocket-client](51-websocket-client.md) | M8, one ADR slot — an outbound WebSocket opened through the client's own door, bounded, and closed with the task that opened it | `nvs-stdlib`'s transport and `Core\Socket\Message`, `nvs-config` — `tungstenite`'s client half over the parking stream, no new dependency |
-| [gap-zero](52-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written goals, because a gap register is emptied after everything that adds to it has run |
-| [dossier](53-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| [plan-truth](52-plan-truth.md) | post-parity, no ADR — the gap program's catch-up | `docs/plan/`, the plan index, module docs, `tools/plan.py` — every document says what the tree does before anything is derived from it |
+| [gap-register](53-gap-register.md) | post-parity, no ADR — a process gate | `tools/owners.py`, `tools/plan.py`, the ratchet test — one register over every place a gap is written, and a future milestone is the only deferral |
+| [m4-refusals](54-m4-refusals.md) | M4, no ADR slot | `nvs-ir`, `nvs-types` — every shape the checker admits lowers, or a diagnostic naming its rule refuses it |
+| [m5-proofs](55-m5-proofs.md) | M5 | `nvs-host`, `nvs-runtime`, `benches/`, CI — the scheduler's claims proven at the scale M5 promised them |
+| [m4b-editor](56-m4b-editor.md) | M4B, one ADR slot — the host tier runs locally and in CI | `editors/vscode`, CI — the extension tested in a real editor host and packaged by CI |
+| [m7-server-surface](57-m7-server-surface.md) | M7, with M6's control-socket promises | `nvs-cli`, `nvs-server`, `nvs-stdlib`'s response and test classes — everything M7 promised a deployment is there to run |
+| [m8-db-queue](58-m8-db-queue.md) | M8, database; one ADR slot — the streaming read across the five drivers | `nvs-db`, `nvs-stdlib`'s `Core\Db` and `Core\Queue`, CI — every member answers on all five drivers |
+| [m8-stdlib-depth](59-m8-stdlib-depth.md) | M8, non-database | `nvs-stdlib`, `nvs-render`, `benches/` — every class M8 names as deep as its spec section |
+| [unowned-closures](60-unowned-closures.md) | post-parity, at most one ADR — the prepared-pattern channel, if the user's answers build it | every crate with an `unowned` gap — each built to the answer the user's decision sheet gave |
+| [gap-zero](61-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test, CI — last of the hand-written goals: no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
+| [dossier](62-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
 
 ## The chain contract

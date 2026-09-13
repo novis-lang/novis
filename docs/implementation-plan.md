@@ -86,13 +86,13 @@ somebody has already followed.
 | goals `surface`, `type-test` | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
 | done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
 | done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
-| done\* | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
+| goal `m4-refusals` | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
 | goal `core-depth` | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
-| goals `resilient-tree`, `lsp-server`, `editor` | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
-| goal `concurrency` | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
+| goals `resilient-tree`, `lsp-server`, `editor`, `m4b-editor` | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
+| goals `concurrency`, `m5-proofs` | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | goals `governance`, `resource-ceilings`, `config-is-written` | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
-| goals `server`, `request-json`, `input-shapes`, `parses`, `per-core`, `serve-runs-the-queue`, `event-streams`, `finish-response` | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| goals `core-part-ii`, `database`, `test-request`, `unix-sockets`, `net-os-signal`, `formats`, `encoder-cycles`, `record-origin`, `xml-tree`, `signed-urls`, `queue-purge`, `sqlite-queue`, `markup-literal`, `webcrypto`, `http-client`, `process-cache`, `outbound-proxy`, `websocket-client` | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| goals `server`, `request-json`, `input-shapes`, `parses`, `per-core`, `serve-runs-the-queue`, `event-streams`, `finish-response`, `m7-server-surface` | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
+| goals `core-part-ii`, `database`, `test-request`, `unix-sockets`, `net-os-signal`, `formats`, `encoder-cycles`, `record-origin`, `xml-tree`, `signed-urls`, `queue-purge`, `sqlite-queue`, `markup-literal`, `webcrypto`, `http-client`, `process-cache`, `outbound-proxy`, `websocket-client`, `m8-db-queue`, `m8-stdlib-depth` | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | backlog 1 | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
 | goals `agent-surface`, `workspace-index`, `editor-surfaces`, `fmt`, `template-format` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | backlog 3 | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |

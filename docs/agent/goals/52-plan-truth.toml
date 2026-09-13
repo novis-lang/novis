@@ -1,0 +1,124 @@
+# Goal 52 -- every plan file and module doc says what the tree does
+# The acceptance test, as data.
+#
+# `52-plan-truth.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+#
+# A zero is written `label: 0` or `, 0 label` on purpose: `want` is a substring match, and a bare
+# `0 label` would also match `10 label`.
+
+files = [
+]
+
+[context]
+
+modules = [
+  # `--stale`, beside `--check`; `live_goal` and `chain_goals` say which goals have walked. Stage 2.
+  "tools/plan.py",
+  # The retired-owner report over the index, and the line it prints when that report is empty. Stage 5.
+  "tools/playbook.py",
+  # The index whose Owned rows are struck or closed. Stage 5.
+  "docs/agent/carried-gaps.md",
+  # Stale module docs, stage 4.
+  "crates/nvs-cli/src/serve.rs",
+  "crates/nvs-syntax/src/lib.rs",
+  "crates/nvs-test/src/lib.rs",
+]
+
+rules = [
+  # Stage 4's one rule fragment amended to the code, and stage 3's M1 sentence about it.
+  "types/arrays",
+  "types/literal-types",
+]
+
+adrs = []
+
+shapes = ["A commit message", "A code comment"]
+
+milestones = []
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > orient.py prints',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking", "Done"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `52-plan-truth.md`, holding what only that stage needs.
+# These are the PROSE stage numbers; loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.3]
+rules = ["expressions/pipeline-substitution"]
+milestones = ["M1:lead", "M4:lead", "M5:verify", "M7:lead", "M8:lead"]
+
+[context.stage.4]
+shapes = ["A code comment"]
+
+# Nothing this goal writes runs in a program.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# None of this goal's own checks needs a daemon; its floor carries goals `core-part-ii` through
+# `websocket-client`'s container-backed checks, and the daemons are theirs.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stages 2 and 3 -- the lint, and the plan files it reads. Goal prose stages 2, 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the plan files"
+name = "no plan sentence defers work to a goal that has already walked"
+argv = ["python", "tools/plan.py", "--stale"]
+want = ["sentences deferring to a walked goal: 0"]
+
+[[check]]
+kind = "command"
+stage = "2 the plan files"
+name = "plan.py: the index and the chain still agree"
+argv = ["python", "tools/plan.py", "--check"]
+want = ["every cell agreeing with the chain"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the module docs. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the module docs"
+name = "no module-doc gap names a goal that walked without closing it"
+argv = ["python", "tools/owners.py"]
+want = [", 0 owned by a retired goal"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the index. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 the index"
+name = "no index row names a goal that walked without closing it"
+argv = ["python", "tools/playbook.py", "--check"]
+want = ["none -- every carried-gaps owner is live or struck"]

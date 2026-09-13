@@ -1,0 +1,505 @@
+# Goal 58 -- every Core\\Db and Core\\Queue member answers on all five drivers
+# The acceptance test, as data.
+#
+# `58-m8-db-queue.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No example of its own. The streaming walk a fixture could print is PostgreSQL's, and
+  # `examples/stream.nvs` already carries it in the floor; SQLite, the one driver a fixture reaches
+  # without a container, may be the record's recorded refusal, so a frozen "walked N rows" line
+  # could be unreachable. Every SQLite claim below is a `.nvst` case named to hold either way.
+]
+
+[context]
+
+modules = [
+  # ---- Stages 3-5: the member and its rows.
+  # `stream_step` (:133), its one PostgreSQL arm (:150), and `unstreamed` (:294).
+  "crates/nvs-stdlib/src/db/stream.rs",
+  # `CONNECTION`'s rows (:207-221, :346-375), and `BEYOND_QUERYABLE` (:434), where `streamAs` and `serverVersion` land.
+  "crates/nvs-stdlib/src/db/registry.rs",
+  # Gaps 3 and 4 (:264, :291), the module-doc home of what this goal closes.
+  "crates/nvs-stdlib/src/db/mod.rs",
+  # `hydrate` (:122), the decoder walk that `streamAs` reuses and stage 6 widens.
+  "crates/nvs-stdlib/src/db/row.rs",
+  # A column's value by SQL type; `NUMERIC` becomes a `decimal` here. Stage 6.
+  "crates/nvs-stdlib/src/db/column.rs",
+  # `PgCursor` (:2575) is the parked-read precedent; `ParameterStatus` is dropped at :1157.
+  "crates/nvs-db/src/pg.rs",
+  # The MySQL wire, and the `(u16, u16, u16)` version (:814, :866). Stages 3 and 5.
+  "crates/nvs-db/src/mysql.rs",
+  # MariaDB over the same wire. Stages 3 and 5.
+  "crates/nvs-db/src/maria.rs",
+  # `Connection`'s five arms (:1015). Stages 3-5.
+  "crates/nvs-db/src/conn.rs",
+  # The TDS row tokens (:251, :751). Stage 4.
+  "crates/nvs-db/src/tds/rows.rs",
+  # `LOGINACK` (:202). Stage 5.
+  "crates/nvs-db/src/tds/stream.rs",
+  # Materialized rows, and why (:33-40). Stage 4.
+  "crates/nvs-db/src/sqlite.rs",
+  # `part_two_members` (:862), which skips the `| Type |` table at :951. Stage 5.
+  "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+
+  # ---- Stage 6: the erasure and its two doors.
+  # Gaps 1-2 (:44, :72), and `check_row_sites` / `E0806` (:713).
+  "crates/nvs-types/src/derive.rs",
+  # Gap 1 (:126), `decode_field`, the JSON door onto the same erasure.
+  "crates/nvs-stdlib/src/json.rs",
+
+  # ---- Stages 7-8: the queue.
+  # `runs` (:2368), `no_dialect` (:2460), `schema` (:313), `dead_errors` (:877), and gaps 1 and 4.
+  "crates/nvs-stdlib/src/queue.rs",
+  # `Dialect` (:1348), `open`'s SQL Server arm (:1248), and the known gap (:93).
+  "crates/nvs-cli/src/worker.rs",
+  # The unique key's DDL (:641-676). SQL Server's filtered index lands here.
+  "crates/nvs-db/src/ddl.rs",
+  # The key read back from a live server, so `plan` converges.
+  "crates/nvs-db/src/catalog.rs",
+  # The spawn check that refuses `limits:`/`grants:` (:143). Stage 8.
+  "crates/nvs-types/src/expr/isolate.rs",
+
+  # ---- Stage 9: the matrix and CI.
+  # `SOCKET_VAR` (:71) and gap 1 (:43).
+  "crates/nvs-db/src/matrix.rs",
+  # `SUITES` (:115) and `run_driver` (:313).
+  "tools/db-matrix.py",
+  # `LANES` (:34), where the database lane goes.
+  "tools/ci-changes.py",
+]
+
+# Every stage works inside these three. One API over five drivers, what `stream` promises, and the
+# busy rule that must be the same on every driver.
+rules = [
+  "core-classes/db-one-api",
+  "core-classes/db-streaming",
+  "core-classes/db-connection-busy-state",
+]
+
+adrs = []
+
+shapes = ["A commit message", "A code comment"]
+
+milestones = ["M8:verify"]
+
+playbook = [
+  # This goal's own file set.
+  'Writing a test case > No `.nvst` case can reach a live queue',
+  'Running things > A `Core\Db` fixture',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > orient.py prints',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `58-m8-db-queue.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the record"` labels, which may group several prose stages under
+# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.0]
+# Re-tagging an owner is a gate's question, and a rewritten gap is a comment rewritten whole.
+rules = ["core-api/tier-roster"]
+
+[context.stage.2]
+# The record. Its four decisions are argued against the schema vocabulary it widens, the rule that
+# ordered that widening, and the rule whose `errors` array it gives a column. 0004 is the ordering
+# every call in it is decided under.
+rules = [
+  "core-classes/schema-plan",
+  "core-classes/queue-storage-is-a-table",
+  "concurrency/attempts-are-finite-and-a-dead-letter-is-kept",
+]
+adrs = ["0004"]
+shapes = ["A decision record", "A rule fragment", "Citing a document"]
+
+[context.stage.3]
+# Every statement member shares the bag and the binding rule.
+rules = ["core-classes/db-statement-members"]
+
+[context.stage.4]
+rules = ["core-classes/db-statement-members"]
+shapes = ["A `.nvst` test case"]
+playbook = ['Writing a test case > A `close`d SQLite']
+
+[context.stage.5]
+# A registered member and its spec row, and the roster gate that did not see `serverVersion`.
+rules = ["core-api/tier-roster", "core-classes/db-column-types"]
+spec = ["01 §18"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.6]
+# The column-type map, the exact scalar that must never be narrowed, and what a derive generates.
+rules = [
+  "core-classes/db-column-types",
+  "types/decimal",
+  "core-classes/derive-generates-what-is-missing",
+  "core-classes/derive-attribute",
+]
+shapes = ["A `.nvst` test case"]
+
+[context.stage.7]
+rules = [
+  "core-classes/queue-storage-is-a-table",
+  "core-classes/schema-plan",
+  "concurrency/attempts-are-finite-and-a-dead-letter-is-kept",
+]
+
+[context.stage.8]
+rules = [
+  "concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue",
+  "concurrency/a-job-runs-as-a-root-isolate",
+]
+
+[context.stage.9]
+rules = ["core-classes/db-unix-socket-path", "testing/ci-lanes"]
+
+[context.stage.10]
+shapes = ["A rule fragment"]
+
+# A connection, a parked read and a job row are host-side state; no refcounted value crosses one,
+# and a streamed row is overwritten in one slot per step. No cycle shape, so nothing is added to
+# the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Both. Its own checks run every driver's suites against real servers -- the stream legs, the queue on
+# SQL Server, the socket legs -- through `tools/db-matrix.py`, which needs all four database services
+# and brings them up itself; its floor carries the store-backed checks that need postgres, mysql and
+# redis. The driver stops the run before the first session when the daemon is absent, rather than
+# letting a session grind against a check that cannot pass.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "mariadb", "mssql", "redis"]
+memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- the catch-up. No gap in this goal's two module docs names a retired owner. `git grep`
+# exits 1 when nothing matches, which is the assertion.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "0 the catch-up"
+name = "no gap in the db and queue module docs names a retired owner"
+argv = ["git", "grep", "-n", "-E", "owner: (gap-zero|unowned-sweep|carried-gaps)", "--", "crates/nvs-stdlib/src/db/mod.rs", "crates/nvs-stdlib/src/queue.rs", "crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt"]
+exit = "nonzero"
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Each check names a bare id, which stays true after stage 10 flips the status.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a stream's parked read is a rule"
+argv = ["python", "tools/rules.py", "--show", "core-classes/a-stream-parks-its-read-on-the-connection"]
+want = ["core-classes/a-stream-parks-its-read-on-the-connection"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "serverVersion's answer is a rule"
+argv = ["python", "tools/rules.py", "--show", "core-classes/server-version-is-what-the-server-said"]
+want = ["core-classes/server-version-is-what-the-server-said"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a unique key's null semantics are a rule"
+argv = ["python", "tools/rules.py", "--show", "core-classes/a-unique-key-reads-nulls-as-distinct"]
+want = ["core-classes/a-unique-key-reads-nulls-as-distinct"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the keystone. A parked read on the MySQL wire, against a scripted server.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the keystone"
+name = "MySQL and MariaDB park a read and refuse a second statement until it ends"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "mysql_stream_parks_its_read_and_answers_one_row_per_step",
+  "mariadb_stream_answers_through_the_mysql_parked_read",
+  "a_statement_on_a_streaming_mysql_connection_is_refused_until_the_walk_ends",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the other two, and the member on every driver. The `db_stream` suite is gated on
+# `NVS_DB_MATRIX_DRIVER` and joins `tools/db-matrix.py`'s SUITES, so the matrix check below is where
+# its assertions meet five real servers; the named check proves the suite exists and runs.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 every driver"
+name = "SQL Server parks a read, and SQLite parks one or names its recorded refusal"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "tds_stream_parks_its_read_and_answers_one_row_per_step",
+  "sqlite_stream_parks_its_read_or_names_its_recorded_refusal",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 every driver"
+name = "stream on every driver: constant memory, the busy rule, or the record's refusal"
+args = ["test", "-p", "nvs-stdlib", "--test", "db_stream"]
+tests = [
+  "stream_answers_on_every_driver_or_names_its_recorded_refusal",
+  "stream_holds_one_row_and_not_the_result_set_on_every_driver",
+  "a_second_statement_on_a_streaming_connection_is_a_logic_error_on_every_driver",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 every driver"
+name = "conformance (stream over the driver a case can reach)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/db-stream-on-sqlite-walks-its-rows-or-refuses-naming-the-driver.nvst",
+]
+
+# The matrix is the only place a driver claim meets a real server, and its want list is where a leg
+# that silently stopped running shows up.
+[[check]]
+kind = "command"
+stage = "4 every driver"
+name = "the five-driver matrix, streaming included"
+argv = ["python", "tools/db-matrix.py", "--all"]
+want = ["mysql: ok", "mariadb: ok", "postgres: ok", "mssql: ok", "sqlite: ok"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- streamAs and serverVersion, and the roster hole that let serverVersion go unlisted.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 streamAs and serverVersion"
+name = "each driver keeps the version its handshake sent"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "postgres_keeps_server_version_from_its_parameter_status",
+  "mysql_keeps_the_greetings_version_string",
+  "tds_keeps_the_version_its_loginack_sent",
+  "sqlite_answers_its_library_version",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 streamAs and serverVersion"
+name = "streamAs and serverVersion on every driver"
+args = ["test", "-p", "nvs-stdlib", "--test", "db_stream"]
+tests = [
+  "stream_as_answers_rows_at_the_class_it_was_written_with",
+  "server_version_answers_what_the_connection_kept",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 streamAs and serverVersion"
+name = "the spec roster reads the members beyond Queryable"
+args = ["test", "-p", "nvs-stdlib", "--test", "spec_registry_coverage"]
+tests = [
+  "every_member_beyond_queryable_is_enumerated_from_the_spec",
+  "every_part_two_spec_member_is_registered",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 streamAs and serverVersion"
+name = "conformance (serverVersion, and streamAs's compile-time refusal)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/db-server-version-answers-what-the-connection-kept.nvst",
+  "tests/conformance/reject/db-stream-as-over-a-class-without-db-derive-is-refused-while-compiling.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the row decoders. The erasure to `Opaque` ends, the last per-row refusal is `E0806`, and
+# ADR 0054's M8 check is written at both doors.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the row decoders"
+name = "a reachable field type erases to its own codec type, and a row-less one is E0806"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_decimal_an_instant_and_bytes_field_erase_to_their_own_codec_type",
+  "a_query_as_over_an_inline_shape_field_is_refused_while_compiling",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the row decoders"
+name = "a numeric never narrows, a JSON decimal keeps its digits, and a hand-written fromRow is called"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_numeric_30_10_value_past_decimals_range_throws_rather_than_truncating",
+  "json_decode_into_a_decimal_field_round_trips_25_significant_digits",
+  "query_as_calls_a_hand_written_from_row",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the row decoders"
+name = "a NUMERIC(30,10) PostgreSQL column throws on read rather than truncating"
+args = ["test", "-p", "nvs-stdlib", "--test", "db_stream"]
+tests = ["a_numeric_30_10_postgres_column_throws_on_read_rather_than_truncating"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 the row decoders"
+name = "conformance (the decoders, at both doors)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/db-query-as-hydrates-a-decimal-an-instant-and-bytes.nvst",
+  "tests/conformance/reject/db-query-as-over-an-inline-shape-field-is-refused-while-compiling.nvst",
+  "tests/conformance/core/json-decode-as-a-decimal-field-keeps-25-significant-digits.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the queue on SQL Server, and the `errors` array. `tests/queue.rs` runs under the matrix,
+# so its SQL Server cases meet a real server through stage 4's matrix check as well.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the queue on five"
+name = "a nullable unique key is a filtered index on SQL Server, and reads back as the same key"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_unique_key_over_a_nullable_column_is_a_filtered_index_on_sql_server",
+  "a_filtered_unique_index_reads_back_as_the_same_key",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the queue on five"
+name = "the queue runs on all five backends"
+args = ["test", "-p", "nvs-stdlib", "--test", "queue"]
+tests = [
+  "queue_runs_on_every_driver",
+  "every_statement_the_queue_sends_has_a_sql_server_text",
+  "an_enqueue_commits_with_the_write_on_sql_server",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the queue on five"
+name = "a dead-lettered row carries every attempt's error"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_dead_lettered_row_carries_every_attempts_error",
+  "a_worker_opens_a_sql_server_queue_block",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- a job's budget and grants, recorded at enqueue and applied to the isolate that runs it.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "8 budget and grants"
+name = "push records grants and limits, refuses a widening, and the job runs narrowed"
+args = ["test", "--workspace"]
+tests = [
+  "push_records_its_grants_and_limits_on_the_row",
+  "push_refuses_a_grant_the_enqueuing_request_does_not_hold",
+  "a_job_runs_under_the_grants_and_limits_recorded_at_enqueue",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the socket leg, and the CI leg. CI is not running, so the leg is proven by reading the
+# workflow file and the lane tool, never by a remote run.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "9 the matrix and CI"
+name = "the matrix runs three drivers over AF_UNIX after the five TCP legs"
+argv = ["python", "tools/db-matrix.py", "--all"]
+want = [
+  "mysql: ok",
+  "mariadb: ok",
+  "postgres: ok",
+  "mssql: ok",
+  "sqlite: ok",
+  "mysql over a socket: ok",
+  "mariadb over a socket: ok",
+  "postgres over a socket: ok",
+]
+
+[[check]]
+kind = "command"
+stage = "9 the matrix and CI"
+name = "the CI workflow runs the five-driver matrix"
+argv = ["git", "grep", "-n", "-F", "python tools/db-matrix.py --all", "--", ".github/workflows/ci.yml"]
+want = [".github/workflows/ci.yml:"]
+
+[[check]]
+kind = "command"
+stage = "9 the matrix and CI"
+name = "the lane table has a database lane"
+argv = ["python", "tools/ci-changes.py", "--full"]
+want = ["db=true"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- the rulebook, and no gap left under this goal's name.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "10 the rulebook"
+name = "a stream's parked read is shipped"
+argv = ["python", "tools/rules.py", "--show", "core-classes/a-stream-parks-its-read-on-the-connection"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "10 the rulebook"
+name = "serverVersion's answer is shipped"
+argv = ["python", "tools/rules.py", "--show", "core-classes/server-version-is-what-the-server-said"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "10 the rulebook"
+name = "a unique key's null semantics are shipped"
+argv = ["python", "tools/rules.py", "--show", "core-classes/a-unique-key-reads-nulls-as-distinct"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "10 the rulebook"
+name = "no gap on the tree is still owned by this goal"
+argv = ["git", "grep", "-n", "-F", "owner: m8-db-queue", "--", "crates", "tools"]
+exit = "nonzero"
