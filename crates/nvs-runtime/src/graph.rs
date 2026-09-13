@@ -74,6 +74,21 @@
 //!    Decided: Install a Core-class resolver on Ctx at boot — Full round-trip, at the cost of one more
 //!    table installed the way routes and commands are.
 //!    — owner: unowned-closures
+//! 3. **An object holding a host handle is not refused**, which is the one of
+//!    § 2's three refusals nothing here implements: a `Core` instance whose
+//!    slot carries a key into a request's own table — a `Core\Http\Socket`, a
+//!    `Core\Http\Stream`, a `Core\Db\Connection` — crosses as an ordinary
+//!    object, and [`Live`] rebuilds it on the far side with every slot intact.
+//!    No handle is shared by that, because a table belongs to one
+//!    [`crate::Ctx`] and a key is an index into it
+//!    ([`crate::Ctx::hold_open_socket`]) — which is the worse half: the copy
+//!    addresses the *receiving* side's table at that index, so it reads
+//!    whatever that side opened rather than nothing. What the walk has to see
+//!    is that a class holds one, and a [`ClassDesc`] carries no such mark;
+//!    where it lives — a bit on the descriptor, as gap 1 wants for a closure,
+//!    or the declared type at the copy site — is the decision, and it answers
+//!    for every `Core` class at once rather than for the one that found it.
+//!    — owner: unowned
 
 use std::collections::HashMap;
 

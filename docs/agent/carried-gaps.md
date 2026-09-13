@@ -93,6 +93,15 @@ where taking it is the work and the code that follows it is not.
   decided is whether that resolver is *installed* on `Ctx` at boot, the way the route and command
   tables are, or whether a `Core` instance stays outside what `Core\Serialize` round-trips.
   `crates/nvs-runtime/src/graph.rs` gap 2. [until: reviewed 2026-09-10]
+- **An object holding a host handle crosses the copy**, which `rule:classes/graph-copy` names as one of
+  its three refusals and no carrier makes: a `Core\Http\Socket` passed to `spawn script … with(args:)`
+  arrives in the child with every slot intact, and each `Core` class whose slot holds a key into a
+  request's own table is in the same position. The copied key indexes the *receiving* side's table, so
+  it reads whatever that side opened at that index rather than nothing. What has to be decided is where
+  the mark saying a class holds a handle lives — a bit on the class descriptor, which is the same
+  representation question gap 1 asks for a closure, or the declared type at the copy site — and it
+  answers for every `Core` class at once. `crates/nvs-runtime/src/graph.rs` gap 3.
+  [until: reviewed 2026-09-13]
 - **A division whose intermediate exceeds 128 bits throws where the quotient would have fit**, in the
   one corner where a wide mantissa and a wide scale difference meet: the fold of the two operands'
   scales is a `checked_mul` over `u128` taken before the divide. ADR 0054 § *Consequences* already
