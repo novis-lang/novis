@@ -4772,6 +4772,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   and `rule:core-api/shape-rules` R2's "callable by name" is about the keys *inside* it. Write the
   bag out — `$store->getSecret("k", $ring, {fill: $f})` — which is the spelling every `put`-with-a
   -`ttl` case already uses. [until: reviewed 2026-09-13]
+- **`tungstenite` refuses a `101` that chose an unoffered subprotocol before Novis sees it.** Its
+  handshake compares the reply's `Sec-WebSocket-Protocol` against the offers it sent and fails with
+  `Server sent an invalid subprotocol`, naming neither the protocol nor the member, so a case
+  asserting Novis's own wording against a live origin fails on a refusal that was correct. Assert
+  that wording of `transport::settled` directly — the judgement `openSocket`'s scripted arm reaches —
+  and assert of the live `101` only that it was refused. [until: reviewed 2026-11-12]
 
 ## Splitting a file that got too big
 

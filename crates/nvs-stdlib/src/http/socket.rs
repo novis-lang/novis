@@ -285,11 +285,10 @@ nvs_runtime::nvs_helper! {
     /// armed opens a connection through [`super::transport`], and one that has
     /// been armed reaches no network at all.
     ///
-    /// **The subprotocol is judged against what was offered**, because a `101`
-    /// choosing a name the request never sent is a peer answering a question
-    /// nobody asked, and a program reading `protocol()` afterwards would act on
-    /// it. Both paths pass it, so a scripted peer cannot say what a real one
-    /// would have been refused for.
+    /// **The subprotocol is judged against what was offered**, and both arms
+    /// pass through [`transport::settled`] to do it — the live one inside the
+    /// handshake, the scripted one here — so a peer a test wrote cannot say
+    /// what a real one would have been refused for.
     fn nvs_core_http_client_open_socket(ctx, args: [SOCKET_ARITY]) {
         let url = super::given_url(args, MEMBER)?;
         super::judged_host(&url, MEMBER, Roster::Socket)?;
@@ -301,17 +300,13 @@ nvs_runtime::nvs_helper! {
         judge_bound(args, SOCKET_PING, "ping", MEMBER)?;
 
         let (chosen, held) = if ctx.faked_http().is_armed() {
-            (scripted(ctx, &url)?, Value::null())
+            (
+                transport::settled(scripted(ctx, &url)?, &offers(args), MEMBER)?,
+                Value::null(),
+            )
         } else {
             connected(ctx, args)?
         };
-        if let Some(name) = &chosen
-            && !offered(args, name)
-        {
-            return Err(Fault::thrown(format!(
-                "{MEMBER}: the peer chose the subprotocol `{name}`, which this call never offered"
-            )));
-        }
 
         let protocol = match &chosen {
             Some(name) => Value::str(NvsStr::new(name.as_bytes())),
@@ -481,13 +476,6 @@ fn offers(args: &[Value]) -> Vec<String> {
         }
     }
     names
-}
-
-/// Whether this call offered `name` as a subprotocol — [`offers`] read for one
-/// question, so what the handshake sent and what it is judged against are one
-/// walk of one array.
-fn offered(args: &[Value], name: &str) -> bool {
-    offers(args).iter().any(|offer| offer == name)
 }
 
 /// The peer's next frame, as a `Core\Socket\Message`, or `null` where the

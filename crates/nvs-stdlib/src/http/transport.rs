@@ -1680,9 +1680,9 @@ fn dialled(
 pub(crate) struct Upgraded {
     /// `tungstenite`'s client half, over the connection the `101` arrived on.
     pub(crate) socket: WebSocket<Box<dyn Connection>>,
-    /// The subprotocol the peer chose, or `None` where it chose none. Judged
-    /// against what the call offered by the row that asked, since only that
-    /// layer holds the offer.
+    /// The subprotocol the peer chose, or `None` where it chose none. A name
+    /// that reaches here is one the call offered: [`settled`] is what a
+    /// handshake passes through before it is this value.
     pub(crate) protocol: Option<String>,
 }
 
@@ -1705,10 +1705,11 @@ pub(crate) struct Upgraded {
 ///
 /// A `TimeoutError` where the deadline is gone, an `IOError` naming what was
 /// not reached — one attempt, so a dial that failed is the answer rather than a
-/// retry — and a `RuntimeError` for an answer that is not a `101`, naming the
+/// retry — a `RuntimeError` for an answer that is not a `101`, naming the
 /// `Location` where that answer was a redirect: a socket has no spelling for
 /// following one, so a `3xx` is the end of the call
-/// (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`).
+/// (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`); and
+/// [`settled`]'s refusal of a `101` that chose a name nobody offered.
 pub(crate) fn upgrade(
     call: &Call<'_>,
     protocols: &[String],
@@ -1766,12 +1767,48 @@ pub(crate) fn upgrade(
         Err(tungstenite::HandshakeError::Failure(why)) => return Err(refused(call, why)),
     };
 
-    let protocol = answered
+    let chosen = answered
         .headers()
         .get("sec-websocket-protocol")
-        .and_then(|chosen| chosen.to_str().ok())
+        .and_then(|name| name.to_str().ok())
         .map(str::to_owned);
+    // A refusal here drops the connection `socket` holds, which is the hang-up
+    // a peer answering a question nobody asked has earned.
+    let protocol = settled(chosen, protocols, call.member)?;
     Ok(Upgraded { socket, protocol })
+}
+
+/// The name the two ends settled on, judged against what the call offered.
+///
+/// A `101` choosing a subprotocol the request never sent is a peer answering a
+/// question nobody asked, and a program reading `protocol()` afterwards would
+/// act on it. The judgement lives here rather than at the row because both a
+/// live handshake and `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`'s
+/// scripted peer pass through it, so a peer a test wrote cannot say what a real
+/// one would have been refused for.
+///
+/// `tungstenite` asks the same question of a live `101` and gets there first,
+/// refusing without naming the name. This is not that check repeated for the
+/// sake of it: what it buys is that [`Upgraded::protocol`]'s invariant rests on
+/// this module rather than on what a dependency happens to validate, and the
+/// scripted arm — which reaches no codec at all — has the same answer to give.
+///
+/// # Errors
+///
+/// A `RuntimeError` naming the subprotocol that was never offered.
+pub(crate) fn settled(
+    chosen: Option<String>,
+    protocols: &[String],
+    member: &str,
+) -> Result<Option<String>, Fault> {
+    if let Some(name) = &chosen
+        && !protocols.iter().any(|offer| offer == name)
+    {
+        return Err(Fault::thrown(format!(
+            "{member}: the peer chose the subprotocol `{name}`, which this call never offered"
+        )));
+    }
+    Ok(chosen)
 }
 
 /// The opening request, as the caller's headers and offers put it.
@@ -2770,7 +2807,10 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Call, HttpSpan, Incoming, Reply, Streamed, backoff, send, send_streamed};
+    use super::{
+        Call, HttpSpan, Incoming, Reply, Streamed, WebSocketConfig, backoff, send, send_streamed,
+        upgrade,
+    };
     use crate::compress::{Bound, Codec, compress_to};
     use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
     use nvs_host::scheduler::Scheduler;
@@ -2889,6 +2929,93 @@ mod tests {
             held.asked
                 .push(String::from_utf8_lossy(&request[..read]).into_owned());
         }
+    }
+
+    /// A loopback origin that answers one opening handshake with a `101`, then
+    /// holds the connection until the client lets it go.
+    ///
+    /// This is the one origin here that has to **read** a request before it can
+    /// write its reply: `tungstenite` hashes the `Sec-WebSocket-Key` it sent
+    /// and refuses an answer whose `Sec-WebSocket-Accept` is anything else, so
+    /// a static `101` from [`origin`] opens no socket at all. `chosen` is the
+    /// subprotocol the reply names, and `None` is a reply that names none.
+    ///
+    /// The handle carries the opening request as it arrived, which is where a
+    /// case reads what the caller's headers and offers became on the wire.
+    fn socket_origin(
+        chosen: Option<&'static str>,
+    ) -> (SocketAddr, std::thread::JoinHandle<String>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        listener
+            .set_nonblocking(true)
+            .expect("an accept that does not outlive the case");
+        let served = std::thread::spawn(move || {
+            // A case that never opens what it said it would ends here rather
+            // than holding the run, for [`origin_raw`]'s reason.
+            let ends = Instant::now() + Duration::from_secs(20);
+            while Instant::now() < ends {
+                let Ok((stream, _)) = listener.accept() else {
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                };
+                return handshake(stream, chosen);
+            }
+            String::new()
+        });
+        (at, served)
+    }
+
+    /// One handshake: the request as it arrived, and the `101` that answers it.
+    ///
+    /// The connection is held past the reply until the client closes it. A case
+    /// drops the socket it opened and then joins, so an origin that hung up on
+    /// its own would race the very exchange the `101` was the start of.
+    fn handshake(mut stream: std::net::TcpStream, chosen: Option<&'static str>) -> String {
+        // Said rather than assumed, for [`answer`]'s reason: an accepted
+        // connection inherits the listener's non-blocking mode on Windows.
+        stream
+            .set_nonblocking(false)
+            .expect("a connection that waits for its handshake");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("a bound on this origin's own wait");
+        let mut request = [0_u8; 4096];
+        let Ok(read) = stream.read(&mut request) else {
+            return String::new();
+        };
+        let asked = String::from_utf8_lossy(&request[..read]).into_owned();
+        let Some(key) = header_of(&asked, "sec-websocket-key") else {
+            return asked;
+        };
+        let accept = tungstenite::handshake::derive_accept_key(key.as_bytes());
+        let names = chosen.map_or_else(String::new, |name| {
+            format!("Sec-WebSocket-Protocol: {name}\r\n")
+        });
+        let reply = format!(
+            "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
+             Sec-WebSocket-Accept: {accept}\r\n{names}\r\n"
+        );
+        stream.write_all(reply.as_bytes()).expect("a reply");
+        stream.flush().expect("a flushed reply");
+        while matches!(stream.read(&mut request), Ok(read) if read > 0) {
+            // Whatever the client says over the conversation is stage 5's, and
+            // reading it here is only what keeps this end from closing first.
+        }
+        asked
+    }
+
+    /// One header's value out of a request as it arrived, found however the
+    /// sender cased the name — which is the only way to ask, since a name
+    /// `http` held is lower case by the time it reaches the wire.
+    fn header_of(request: &str, name: &str) -> Option<String> {
+        request.lines().find_map(|line| {
+            let (field, value) = line.split_once(':')?;
+            field
+                .trim()
+                .eq_ignore_ascii_case(name)
+                .then(|| value.trim().to_owned())
+        })
     }
 
     /// A call to `at` with one attempt, no redirects and a generous deadline.
@@ -5436,5 +5563,181 @@ mod tests {
             !refused.contains(credential),
             "a header value reached a message: {refused}"
         );
+    }
+
+    /// [ADR 0183](/docs/decisions/0183.md) § 4: an outbound socket is opened
+    /// like an outbound call, so the handshake is dialled at an address the
+    /// door approved and asks for the URL's own path.
+    ///
+    /// Asserted on the octets the origin read rather than on what [`asked`]
+    /// built, because what is under test is that the `Call`'s pin is what was
+    /// connected to — a question only the far end can answer
+    /// (`rule:http-server/allow-url-pins-the-address`).
+    #[test]
+    fn socket_handshake_connects_to_the_approved_address() {
+        let (at, served) = socket_origin(None);
+        let mut opening = call(at, "Core\\Http\\Client::openSocket");
+        opening.url = format!("ws://{at}/chat");
+
+        let opened = upgrade(&opening, &[], WebSocketConfig::default())
+            .expect("a `101` from the address the door approved");
+        assert_eq!(
+            opened.protocol, None,
+            "a reply naming no subprotocol settles on none"
+        );
+        // Before the join: the origin ends its connection when this one does.
+        drop(opened.socket);
+
+        let asked = served.join().expect("the origin thread");
+        assert_eq!(
+            asked.lines().next(),
+            Some("GET /chat HTTP/1.1"),
+            "the handshake asks for the URL's own path: {asked}"
+        );
+        assert_eq!(
+            header_of(&asked, "host"),
+            Some(at.to_string()),
+            "the authority the URL wrote is what `Host:` carries: {asked}"
+        );
+    }
+
+    /// [ADR 0183](/docs/decisions/0183.md) § 4: the headers are the call's and
+    /// the offered subprotocols are the socket's, and one handshake carries
+    /// both.
+    ///
+    /// The offer is asserted by **counting** the fields as well as reading the
+    /// one: RFC 6455 has a peer choose from a single comma-joined list, and an
+    /// end that emitted a line per offer would still look right on the line
+    /// that asserts the first one was sent. What the peer chose is read back
+    /// off [`Upgraded`] rather than off the reply, since judging it against the
+    /// offer belongs to the row that holds the offer.
+    #[test]
+    fn socket_handshake_carries_the_callers_headers_and_offered_protocols() {
+        let (at, served) = socket_origin(Some("chat.v2"));
+        let mut opening = call(at, "Core\\Http\\Client::openSocket");
+        opening.url = format!("ws://{at}/chat");
+        opening.headers = vec![("X-Tenant".to_owned(), "acme".to_owned())];
+        let offered = vec!["chat.v1".to_owned(), "chat.v2".to_owned()];
+
+        let opened = upgrade(&opening, &offered, WebSocketConfig::default())
+            .expect("a `101` naming one of the two offers");
+        assert_eq!(
+            opened.protocol.as_deref(),
+            Some("chat.v2"),
+            "the name the peer chose is what the handshake left"
+        );
+        drop(opened.socket);
+
+        let asked = served.join().expect("the origin thread");
+        assert_eq!(
+            header_of(&asked, "x-tenant"),
+            Some("acme".to_owned()),
+            "the caller's own header crosses the wire: {asked}"
+        );
+        assert_eq!(
+            header_of(&asked, "sec-websocket-protocol"),
+            Some("chat.v1, chat.v2".to_owned()),
+            "both offers are on it, in the order the call gave them: {asked}"
+        );
+        let fields = asked
+            .lines()
+            .filter(|line| {
+                line.split_once(':').is_some_and(|(field, _)| {
+                    field.trim().eq_ignore_ascii_case("sec-websocket-protocol")
+                })
+            })
+            .count();
+        assert_eq!(fields, 1, "the offers are one field, not one each: {asked}");
+    }
+
+    /// [ADR 0183](/docs/decisions/0183.md) § 4: a `101` naming a subprotocol
+    /// the call never offered is refused, and the connection it arrived on is
+    /// dropped rather than handed back.
+    ///
+    /// Both sides of the boundary are asserted together: the same handshake
+    /// against a peer that chose the offered name opens, and against one that
+    /// chose a name beside it does not. A judgement that never fired at all
+    /// would still pass either line on its own.
+    ///
+    /// The live refusal is `tungstenite`'s, which asks the question inside the
+    /// handshake and answers it without naming the name, so what names it is
+    /// asserted of [`settled`] directly — the judgement the scripted arm of
+    /// `Core\Http\Client::openSocket` reaches, where there is no codec to ask.
+    #[test]
+    fn a_101_choosing_a_protocol_not_offered_is_refused() {
+        let offers = vec!["chat.v1".to_owned()];
+
+        let (at, served) = socket_origin(Some("chat.v1"));
+        let mut opening = call(at, "Core\\Http\\Client::openSocket");
+        opening.url = format!("ws://{at}/chat");
+        let opened = upgrade(&opening, &offers, WebSocketConfig::default())
+            .expect("the name this call offered");
+        assert_eq!(opened.protocol.as_deref(), Some("chat.v1"));
+        drop(opened.socket);
+        served.join().expect("the origin thread");
+
+        let (at, served) = socket_origin(Some("chat.v9"));
+        let mut asking = call(at, "Core\\Http\\Client::openSocket");
+        asking.url = format!("ws://{at}/chat");
+        let Err(why) = upgrade(&asking, &offers, WebSocketConfig::default()) else {
+            panic!("a name nobody offered opened a socket");
+        };
+        let refused = format!("{why:?}");
+        assert!(
+            refused.to_lowercase().contains("subprotocol"),
+            "the refusal says what was wrong with the `101`: {refused}"
+        );
+        served.join().expect("the origin thread");
+
+        let Err(named) = super::settled(Some("chat.v9".to_owned()), &offers, "test") else {
+            panic!("a name nobody offered settled");
+        };
+        let named = format!("{named:?}");
+        assert!(
+            named.contains("chat.v9"),
+            "the judgement names what the peer chose: {named}"
+        );
+        assert!(
+            super::settled(Some("chat.v1".to_owned()), &offers, "test").is_ok(),
+            "the offered name is the one that settles"
+        );
+    }
+
+    /// `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`, as
+    /// [ADR 0183](/docs/decisions/0183.md) § 4 reads it for a socket: there is
+    /// no spelling for following a hop here, so a `3xx` answering the
+    /// handshake is the end of the call.
+    ///
+    /// It is named as a redirect and carries its `Location` because that is the
+    /// one answer a caller would otherwise read as a network failure — the peer
+    /// is reachable and did answer, and nothing but the message says where it
+    /// pointed.
+    #[test]
+    fn a_redirect_answering_a_socket_handshake_is_a_runtime_error_naming_the_location() {
+        let elsewhere = "ws://moved.invalid/chat";
+        let (at, served) = origin(vec![
+            "HTTP/1.1 302 Found\r\nLocation: ws://moved.invalid/chat\r\nContent-Length: 0\r\n\r\n",
+        ]);
+        let mut opening = call(at, "Core\\Http\\Client::openSocket");
+        opening.url = format!("ws://{at}/chat");
+
+        let Err(why) = upgrade(&opening, &[], WebSocketConfig::default()) else {
+            panic!("a redirect is the answer rather than a hop");
+        };
+        let Fault::Thrown(class, said) = &why else {
+            panic!("a redirect is something a `catch` can see: {why:?}");
+        };
+        assert!(
+            matches!(class, nvs_runtime::ThrownClass::Runtime),
+            "a peer that answered is not an `IOError`: {why:?}"
+        );
+        assert!(
+            said.contains(elsewhere),
+            "the refusal names where the peer pointed: {said}"
+        );
+        assert!(said.contains("302"), "and what it answered with: {said}");
+
+        let asked = served.join().expect("the origin thread").asked;
+        assert_eq!(asked.len(), 1, "nothing followed the hop: {asked:?}");
     }
 }
