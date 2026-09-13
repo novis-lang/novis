@@ -165,6 +165,7 @@ Conventions the whole file uses:
 | [`Core\Http\Client`](#core-core-http-client) |  |
 | [`Core\Http\Response`](#core-core-http-response) |  |
 | [`Core\Http\TlsInfo`](#core-core-http-tlsinfo) |  |
+| [`Core\Http\Socket`](#core-core-http-socket) |  |
 | [`Core\Http\Stream`](#core-core-http-stream) |  |
 | [`Core\Http\Event`](#core-core-http-event) |  |
 | [`Core\Http\Events`](#core-core-http-events) |  |
@@ -14855,7 +14856,7 @@ Renders `$value` exactly as `dump` would and answers it as the carrier of the si
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp, answerSocket, sentSocket
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -14931,6 +14932,8 @@ final class CartTest {
 | [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path): Core\Test\Response` |
 | [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, {json?: mixed, body?: string\|bytes, headers?: array<string\|array<string>>}): void` |
 | [`Core\Test::sentHttp`](#core-core-test-senthttp) | `sentHttp(): array<Core\Test\SentRequest>` |
+| [`Core\Test::answerSocket`](#core-core-test-answersocket) | `answerSocket(string $url, array<string\|bytes> $frames, {protocol?: string}): void` |
+| [`Core\Test::sentSocket`](#core-core-test-sentsocket) | `sentSocket(): array<Core\Socket\Message>` |
 
 <a id="core-core-test-assertsame"></a>
 #### `Core\Test::assertSame`
@@ -15228,6 +15231,34 @@ Core\Test::sentHttp(): array<Core\Test\SentRequest>
 Every outbound call the program under test has made since the answer table was armed, oldest first — what was sent, rather than what came back.
 
 **Returns** `array<Core\Test\SentRequest>` — One `Core\Test\SentRequest` per call, in the order the program made them, and an empty array for a test that registered answers nobody asked for. Nothing on a record is `tainted`: it is the program's own text.
+
+<a id="core-core-test-answersocket"></a>
+#### `Core\Test::answerSocket`
+
+```nvs skip
+Core\Test::answerSocket(string $url, array<string|bytes> $frames, {protocol?: string}): void
+```
+
+Scripts the peer one outbound WebSocket URL answers with, and takes this test off the network — a socket opened to a matching URL completes its handshake without connecting, receives these frames in order and then a close.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string` (sink) | The URL this peer answers: the whole of it, or a prefix ending in `*`. Nothing is resolved and no host is looked up — this is the text `Core\Http\Client::openSocket`'s own URL is compared against, and it is still judged for its scheme, so a `https` URL scripted here is refused at the row that opens it. |
+| `$frames` | `array<string\|bytes>` | What the peer sends, in order: a `string` is a text message and `bytes` is a binary one, which is the same pair `send` and `sendBytes` write. A socket that has taken the last of them reads `null` from `receive`, which is the peer having closed. |
+| `{protocol: …}` | `string` (default `null`, neutral) | The subprotocol this peer's `101` chooses. It has to be one the call offered in `protocols`, and a peer choosing a name that was never offered makes `openSocket` throw — which is the refusal a real peer would meet. Left out, the handshake chooses none. |
+
+**Returns** `void` — Nothing. Peers accumulate, so a test scripts as many as it opens sockets; a URL answered exactly wins over one answered by a prefix, and the longest prefix wins among prefixes. Two sockets opened to one URL each read that peer's frames from their own position.
+
+<a id="core-core-test-sentsocket"></a>
+#### `Core\Test::sentSocket`
+
+```nvs skip
+Core\Test::sentSocket(): array<Core\Socket\Message>
+```
+
+Every frame the program under test has sent over a scripted socket, oldest first — what it said, rather than what it was told.
+
+**Returns** `array<Core\Socket\Message>` — One `Core\Socket\Message` per frame, in the order the program sent them, with `text` filled for a `send` and `bytes` for a `sendBytes`. The frames of two sockets open at once arrive interleaved in the one order they were written in, so a test that needs them apart scripts one peer at a time.
 
 <a id="core-core-test-response"></a>
 ### `Core\Test\Response`
@@ -20261,7 +20292,7 @@ Reads the certificate chain a request presents when a server asks the client for
 <a id="core-core-http-client"></a>
 ### `Core\Http\Client`
 
-Keywords: get, post, put, patch, delete, head, request, stream
+Keywords: get, post, put, patch, delete, head, request, stream, openSocket
 
 | Member | Signature |
 |---|---|
@@ -20273,6 +20304,7 @@ Keywords: get, post, put, patch, delete, head, request, stream
 | [`Core\Http\Client::head`](#core-core-http-client-head) | `head(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity, tlsCa?: string, tlsPin?: string\|array<string>, tlsVerifyHost?: bool, tlsVerify?: bool, tlsMinVersion?: string, connectTo?: string, redirectToHttp?: bool}): Core\Http\Response` |
 | [`Core\Http\Client::request`](#core-core-http-client-request) | `request(Core\Http\Method $method, string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity, tlsCa?: string, tlsPin?: string\|array<string>, tlsVerifyHost?: bool, tlsVerify?: bool, tlsMinVersion?: string, connectTo?: string, redirectToHttp?: bool}): Core\Http\Response` |
 | [`Core\Http\Client::stream`](#core-core-http-client-stream) | `stream(Core\Http\Method $method, string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, followRedirects?: uint, retryAttempts?: uint, retryBackoff?: Core\Time\Duration, retryIdempotencyKey?: string, json?: mixed, form?: array<secret tainted string>, body?: secret tainted string\|secret tainted bytes\|Core\Http\Part, contentType?: string, multipart?: array<secret tainted string\|Core\Http\Part>, identity?: Core\Http\Identity, tlsCa?: string, tlsPin?: string\|array<string>, tlsVerifyHost?: bool, tlsVerify?: bool, tlsMinVersion?: string, connectTo?: string, redirectToHttp?: bool, idle?: Core\Time\Duration, maxDuration?: Core\Time\Duration}): Core\Http\Stream` |
+| [`Core\Http\Client::openSocket`](#core-core-http-client-opensocket) | `openSocket(string\|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, identity?: Core\Http\Identity, tlsCa?: string, tlsPin?: string\|array<string>, tlsVerifyHost?: bool, tlsVerify?: bool, tlsMinVersion?: string, connectTo?: string, protocols?: array<string>, idle?: Core\Time\Duration, maxDuration?: Core\Time\Duration, maxMessage?: uint, sendTimeout?: Core\Time\Duration, ping?: Core\Time\Duration}): Core\Http\Socket` |
 
 <a id="core-core-http-client-get"></a>
 #### `Core\Http\Client::get`
@@ -20574,6 +20606,39 @@ Sends `$method` to `$url` and answers once the head has arrived, leaving the bod
 
 **Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name. An option is outside its bounds: a `deadline`, `connectTimeout` or `retryBackoff` — or, on the row that declares them, an `idle` or `maxDuration` — that is not a positive duration, or a `retryAttempts` of zero. A header name or value carries a control byte, which would end the line early. An `https` host presented a certificate that does not verify against the authorities Novis carries, or one that is not valid for that name. Or the reply is not HTTP or is larger than one request may hold — a body that is not text is not one of these, and is refused at `Core\Http\Response::text` rather than here. Where the verb is handed in rather than named — `request` — the two questions the other rows answer while compiling are asked before the first attempt instead: a `Get` or a `Head` given a body key, and a `Post` or a `Patch` asking for retries without `retryIdempotencyKey`.; `TimeoutError` — The `deadline` passed before there was an answer. It covers the connection, every redirect hop, every retry attempt and every backoff between them, and a backoff that would end past it throws at once rather than sleeping first.; `IOError` — The last attempt could not reach the pinned address, or the connection failed while the request was being sent or the reply read.
 
+<a id="core-core-http-client-opensocket"></a>
+#### `Core\Http\Client::openSocket`
+
+```nvs skip
+Core\Http\Client::openSocket(string|Core\Http\Target $url, {deadline?: Core\Time\Duration, connectTimeout?: Core\Time\Duration, headers?: array<secret string>, identity?: Core\Http\Identity, tlsCa?: string, tlsPin?: string|array<string>, tlsVerifyHost?: bool, tlsVerify?: bool, tlsMinVersion?: string, connectTo?: string, protocols?: array<string>, idle?: Core\Time\Duration, maxDuration?: Core\Time\Duration, maxMessage?: uint, sendTimeout?: Core\Time\Duration, ping?: Core\Time\Duration}): Core\Http\Socket
+```
+
+Opens a WebSocket to `$url` and answers it once the peer's `101` has arrived — the row for a realtime API a program talks with, rather than a reply it reads and is done with.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string\|Core\Http\Target` | The peer to open the socket to, as a `ws` or `wss` URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. An `http` or `https` URL is refused here and a `tainted` one is accepted only at that launderer. |
+| `{deadline: …}` | `Core\Time\Duration` (default `null`) | The opening handshake's budget, covering the connection and every address tried, and ending at the `101`. What bounds the conversation after it is `idle` and `maxDuration`. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
+| `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
+| `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
+| `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
+| `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
+| `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
+| `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
+| `{connectTo: …}` | `string` (default `null`, neutral) | The IP address to connect to, instead of resolving the URL's host — which is still the name the certificate is checked against. Needs that host in the `net.connect_to` grant, and the address is judged by the deployment's address policy exactly as a resolved one is. Beside a `Core\Http\Target`, which already carries the address its laundering approved, it throws. |
+| `{protocols: …}` | `array<string>` (default `[]`) | The subprotocols to offer as `Sec-WebSocket-Protocol`, most preferred first. A peer that chooses one of them is reported by `Core\Http\Socket::protocol`, and one that chooses a name that was never offered is refused. |
+| `{idle: …}` | `Core\Time\Duration` (default `null`) | The longest the socket may go silent for in either direction. Omitted, the runtime's `[http.client] idle` applies; there is no spelling for no bound at all. A `ping` is what makes this end a dead peer rather than a quiet one. |
+| `{maxDuration: …}` | `Core\Time\Duration` (default `null`) | The longest the socket may live altogether, which is what ends a peer dribbling a frame at a time under every idle check. Omitted, the runtime's `[http.client] max_duration` applies. |
+| `{maxMessage: …}` | `uint` (default `null`) | The largest message, in bytes, this end reassembles a peer's fragments into. A message past it closes the socket with `1009` and the waiting `receive` throws naming the cap. Omitted, the runtime's `[http.client.socket] max_message` applies. |
+| `{sendTimeout: …}` | `Core\Time\Duration` (default `null`) | The longest a frame may wait to be written to a peer that is not reading, and the wait `close` gives the peer's own close frame. Omitted, the runtime's `[http.client.socket] send_timeout` applies. |
+| `{ping: …}` | `Core\Time\Duration` (default `null`) | The silence after which this end sends a ping, so that `idle` ends a dead peer rather than a quiet one. Left out, none is sent — a ping is traffic the peer did not ask for. A peer's own ping is answered either way, which is the protocol rather than a policy. |
+
+**Returns** `Core\Http\Socket` — A `Core\Http\Socket` carrying the conversation: `receive()` answers the peer's next message as the `Core\Socket\Message` a server-side connection already answers with, `send()` and `sendBytes()` write the two payload kinds, and `close()` ends it. It belongs to the task that opened it and is closed with `1001` when that task ends, so a socket never outlives the request, command or job that holds it.
+
+**Throws** `RuntimeError` — The URL is refused: it is not a URL, its scheme is neither `ws` nor `wss` — this row refuses `http` and `https` exactly as every other row refuses `ws` and `wss` — it names no host, `net.connect` does not grant that host, or it resolves to an address the deployment's policy denies. An option is outside its bounds: a `deadline`, `connectTimeout`, `idle`, `maxDuration`, `sendTimeout` or `ping` that is not a positive duration. Or the peer did not open a socket: it answered a redirect, which is never followed and names its `Location`; it answered any other status than `101`; or it chose a subprotocol that `protocols` never offered.
+
 <a id="core-core-http-response"></a>
 ### `Core\Http\Response`
 
@@ -20781,6 +20846,91 @@ When the leaf certificate stops being valid — its `notAfter` field.
 **Returns** `Core\Time\Instant` — The instant the peer's certificate expires, which is the check an operator most wants a program to make about a partner it calls.
 
 **Throws** `RuntimeError` — The peer presented no certificate, or a leaf that is not X.509 this can read. `version`, `cipher`, `verified` and `peerChain` answer either way, since none of them reads inside a certificate.
+
+<a id="core-core-http-socket"></a>
+### `Core\Http\Socket`
+
+Keywords: receive, send, sendBytes, close, protocol
+
+| Member | Signature |
+|---|---|
+| [`Core\Http\Socket->receive`](#core-core-http-socket-receive) | `receive(): ?Core\Socket\Message` |
+| [`Core\Http\Socket->send`](#core-core-http-socket-send) | `send(string $frame): void` |
+| [`Core\Http\Socket->sendBytes`](#core-core-http-socket-sendbytes) | `sendBytes(bytes $frame): void` |
+| [`Core\Http\Socket->close`](#core-core-http-socket-close) | `close(?uint $code = null, ?string $reason = null): void` |
+| [`Core\Http\Socket->protocol`](#core-core-http-socket-protocol) | `protocol(): ?string` |
+
+<a id="core-core-http-socket-receive"></a>
+#### `Core\Http\Socket->receive`
+
+```nvs skip
+$socket->receive(): ?Core\Socket\Message
+```
+
+Waits for the peer's next message and answers it, or answers `null` once the peer has closed.
+
+**Returns** `?Core\Socket\Message` — A `Core\Socket\Message` whose `text()` or `bytes()` carries the payload — `tainted`, because it came off a wire — and whose `topic()` and `value()` are `null`, since those are what a delivery from another isolate fills. `null` means the conversation is over: the peer closed, or this end did.
+
+<a id="core-core-http-socket-send"></a>
+#### `Core\Http\Socket->send`
+
+```nvs skip
+$socket->send(string $frame): void
+```
+
+Sends one text message to the peer.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$frame` | `string` (neutral) | The text to send, as one RFC 6455 text message however many frames it takes on the wire. A `tainted` value is accepted: what a program sends over a socket it opened is not an instruction on this side of the wire. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `LogicError` — The socket has been closed, so there is nobody left to send to.
+
+<a id="core-core-http-socket-sendbytes"></a>
+#### `Core\Http\Socket->sendBytes`
+
+```nvs skip
+$socket->sendBytes(bytes $frame): void
+```
+
+Sends one binary message to the peer — the other of RFC 6455's two payload kinds, and a member of its own rather than an argument that could be either.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$frame` | `bytes` (neutral) | The octets to send, as one binary message. |
+
+**Returns** `void` — Nothing.
+
+**Throws** `LogicError` — The socket has been closed, so there is nobody left to send to.
+
+<a id="core-core-http-socket-close"></a>
+#### `Core\Http\Socket->close`
+
+```nvs skip
+$socket->close(?uint $code = null, ?string $reason = null): void
+```
+
+Ends the conversation: sends the close frame, waits for the peer's under the send wait, and lets the connection go.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$code` | `?uint` (default `null`) | The close code to send. Left out, it is `1000` — a normal ending. |
+| `$reason` | `?string` (default `null`) | The text to send beside the code, for a peer that logs it. Left out, none is sent. |
+
+**Returns** `void` — Nothing. A peer that never answers its own close is closed anyway and that is not an error — the connection is gone either way, and a throw would put a `catch` around every normal ending. Closing a socket that is already closed does nothing.
+
+<a id="core-core-http-socket-protocol"></a>
+#### `Core\Http\Socket->protocol`
+
+```nvs skip
+$socket->protocol(): ?string
+```
+
+The subprotocol the opening handshake settled on, out of the ones `protocols` offered.
+
+**Returns** `?string` — The name the peer chose, or `null` where the call offered none or the peer chose none. A peer that chooses a name which was never offered does not get this far: the handshake is refused instead.
 
 <a id="core-core-http-stream"></a>
 ### `Core\Http\Stream`

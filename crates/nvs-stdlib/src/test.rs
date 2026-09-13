@@ -226,6 +226,26 @@ const ANSWER_HEADER: &[CoreTy] = &[
     CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
 ];
 
+/// What one frame of a scripted peer may be: RFC 6455's two payload kinds, as
+/// the element's own type rather than a mode string beside it
+/// (`rule:core-api/no-mode-strings`). The pair `Core\Http\Socket` splits into
+/// two members for the qualifier's sake is one union here, because a script is
+/// a value a test writes rather than a parameter a `tainted` argument could
+/// reach.
+const PEER_FRAME: CoreTy =
+    CoreTy::Union(&[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::Neutral)]);
+
+/// A scripted peer's one option: which subprotocol its `101` chose.
+///
+/// A bag rather than a third parameter, for [`ANSWER`]'s reason — what a peer
+/// may leave out belongs after what every peer has, and a handshake that chose
+/// no subprotocol is the ordinary case.
+const PEER: &[CoreOption] = &[CoreOption {
+    name: "protocol",
+    ty: CoreTy::Text(Qual::Neutral),
+    default: Const::Null,
+}];
+
 const ANSWER: &[CoreOption] = &[
     // `Const::NeverWritten` and not a `Null`, which is what a `mixed` option
     // owes `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`:
@@ -459,6 +479,34 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::Instance(SENT_REQUEST_NAME)),
             symbol: "nvs_core_test_sent_http",
             doc: Some(&SENT_HTTP_DOC),
+        },
+        CoreMethod {
+            name: "answerSocket",
+            names: &["url", "frames"],
+            // `Qual::Sink` for the URL, as `answerHttp`'s is and for its
+            // reason. The frames are a union and therefore carry no
+            // classification at all, which refuses a `tainted` element: what a
+            // scripted peer says is the test's own text, and a script written
+            // out of outside input would be outside input deciding what the
+            // subject reads.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&PEER_FRAME),
+                CoreTy::Options(PEER),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_answer_socket",
+            doc: Some(&ANSWER_SOCKET_DOC),
+        },
+        CoreMethod {
+            name: "sentSocket",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(crate::socket::MESSAGE_NAME)),
+            symbol: "nvs_core_test_sent_socket",
+            doc: Some(&SENT_SOCKET_DOC),
         },
     ],
     instance: &[],
@@ -760,6 +808,57 @@ const SENT_HTTP_DOC: MethodDoc = MethodDoc {
     ret: "One `Core\\Test\\SentRequest` per call, in the order the program made them, and an \
           empty array for a test that registered answers nobody asked for. Nothing on a record \
           is `tainted`: it is the program's own text.",
+    errors: &[],
+};
+
+/// `Core\Test::answerSocket`'s reference card — `rule:core-api/reference-card`.
+const ANSWER_SOCKET_DOC: MethodDoc = MethodDoc {
+    short: "Scripts the peer one outbound WebSocket URL answers with, and takes this test off the \
+            network — a socket opened to a matching URL completes its handshake without \
+            connecting, receives these frames in order and then a close.",
+    params: &[
+        ParamDoc {
+            name: "url",
+            desc: "The URL this peer answers: the whole of it, or a prefix ending in `*`. \
+                   Nothing is resolved and no host is looked up — this is the text \
+                   `Core\\Http\\Client::openSocket`'s own URL is compared against, and it is \
+                   still judged for its scheme, so a `https` URL scripted here is refused at the \
+                   row that opens it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "frames",
+            desc: "What the peer sends, in order: a `string` is a text message and `bytes` is a \
+                   binary one, which is the same pair `send` and `sendBytes` write. A socket that \
+                   has taken the last of them reads `null` from `receive`, which is the peer \
+                   having closed.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "protocol",
+            desc: "The subprotocol this peer's `101` chooses. It has to be one the call offered \
+                   in `protocols`, and a peer choosing a name that was never offered makes \
+                   `openSocket` throw — which is the refusal a real peer would meet. Left out, \
+                   the handshake chooses none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. Peers accumulate, so a test scripts as many as it opens sockets; a URL \
+          answered exactly wins over one answered by a prefix, and the longest prefix wins among \
+          prefixes. Two sockets opened to one URL each read that peer's frames from their own \
+          position.",
+    errors: &[],
+};
+
+/// `Core\Test::sentSocket`'s reference card — `rule:core-api/reference-card`.
+const SENT_SOCKET_DOC: MethodDoc = MethodDoc {
+    short: "Every frame the program under test has sent over a scripted socket, oldest first — \
+            what it said, rather than what it was told.",
+    params: &[],
+    ret: "One `Core\\Socket\\Message` per frame, in the order the program sent them, with `text` \
+          filled for a `send` and `bytes` for a `sendBytes`. The frames of two sockets open at \
+          once arrive interleaved in the one order they were written in, so a test that needs \
+          them apart scripts one peer at a time.",
     errors: &[],
 };
 
@@ -1451,6 +1550,115 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// A scripted peer's `frames` list, as the payloads it plays.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a list or an element that is not what [`PEER_FRAME`]
+/// declares, both refused by `E0401` a phase earlier and so unreachable from
+/// source.
+fn peer_frames_of(list: Value, member: &str) -> Result<Vec<nvs_runtime::SocketFrame>, Fault> {
+    let mistyped = |what: &str, value: Value| {
+        Fault::fatal(format!(
+            "{member} expected {what} for `frames`, got tag {}",
+            value.tag_byte()
+        ))
+    };
+    let array = list
+        .array_ptr()
+        .ok_or_else(|| mistyped("an `array`", list))?;
+    let array = crate::arr::borrowed(array);
+    let mut frames = Vec::new();
+    let mut from = 0_usize;
+    while let Some(slot) = array.next_slot(from) {
+        from = slot + 1;
+        let held = array
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        // `bytes` before `string`, because the two tags are distinct and the
+        // octets of a binary frame are not text this has to decide about: what
+        // the element was written as is what the peer sends.
+        if let Some(octets) = held.as_bytes() {
+            frames.push(nvs_runtime::SocketFrame::Bytes(octets.to_vec()));
+            continue;
+        }
+        let text = held
+            .as_text()
+            .ok_or_else(|| mistyped("a `string` or `bytes`", held))?;
+        frames.push(nvs_runtime::SocketFrame::Text(text.to_owned()));
+    }
+    Ok(frames)
+}
+
+/// One scripted or sent frame, as the `Core\Socket\Message` both halves of RFC
+/// 6455 answer in: `topic` and `value` are `null`, which is what a frame off a
+/// wire fills them with.
+fn frame_message(frame: &nvs_runtime::SocketFrame) -> Value {
+    let (text, bytes) = match frame {
+        nvs_runtime::SocketFrame::Text(payload) => (
+            Value::str(nvs_runtime::NvsStr::new(payload.as_bytes())),
+            Value::null(),
+        ),
+        nvs_runtime::SocketFrame::Bytes(payload) => (
+            Value::null(),
+            Value::bytes(nvs_runtime::NvsStr::new(payload)),
+        ),
+    };
+    crate::instance::build(
+        &crate::socket::MESSAGE,
+        [Value::null(), text, bytes, Value::null()],
+    )
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::answerSocket(string $url, array<string|bytes> $frames, {protocol?}): void`
+    /// — `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`, and
+    /// the same switch `Core\Test::answerHttp` throws.
+    ///
+    /// **One switch and not two**: a test that scripts a peer has taken itself
+    /// off the network for calls as well, because the all-or-nothing rule is
+    /// about what an outbound anything that matches no row does, and a table
+    /// armed for one half only would let the other half reach a host.
+    fn nvs_core_test_answer_socket(ctx, args: [3]) {
+        let member = "Core\\Test::answerSocket";
+        let url = args[0].as_text().ok_or_else(|| {
+            // Unreachable from source: the row's first parameter is
+            // `CoreTy::Text`, so `E0401` refuses anything else a phase earlier.
+            Fault::fatal(format!(
+                "{member} expected a `string` URL, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let frames = peer_frames_of(args[1], member)?;
+        let protocol = args[2].as_text().map(str::to_owned);
+        ctx.faked_http_mut().answer_socket(nvs_runtime::SocketAnswer {
+            url: url.to_owned(),
+            protocol,
+            frames,
+        });
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::sentSocket(): array<Core\Socket\Message>` — every frame the
+    /// program wrote to a scripted peer, oldest first.
+    ///
+    /// **The messages are built here rather than held as values**, which is
+    /// [`nvs_core_test_sent_http`]'s reason one shape over: a frame that is
+    /// never asked about costs its own octets and nothing else, and no
+    /// reference to a `Core`-owned instance is held across the calls between a
+    /// send and the assertion about it.
+    fn nvs_core_test_sent_socket(ctx, args: [0]) {
+        let _ = args;
+        let mut out = nvs_runtime::NvsArray::new();
+        for frame in ctx.faked_http().sent_frames() {
+            out.append(frame_message(frame));
+        }
+        Ok(Value::array(out))
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Test::sentHttp(): array<Core\Test\SentRequest>` — what the program
     /// sent while the table answered it, oldest first.
@@ -1585,6 +1793,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_advance" => (nvs_core_test_advance as *const ()).cast(),
         "nvs_core_test_answer_http" => (nvs_core_test_answer_http as *const ()).cast(),
         "nvs_core_test_sent_http" => (nvs_core_test_sent_http as *const ()).cast(),
+        "nvs_core_test_answer_socket" => (nvs_core_test_answer_socket as *const ()).cast(),
+        "nvs_core_test_sent_socket" => (nvs_core_test_sent_socket as *const ()).cast(),
         "nvs_core_test_sent_method" => (nvs_core_test_sent_method as *const ()).cast(),
         "nvs_core_test_sent_url" => (nvs_core_test_sent_url as *const ()).cast(),
         "nvs_core_test_sent_header" => (nvs_core_test_sent_header as *const ()).cast(),
@@ -2578,6 +2788,8 @@ mod tests {
                     | "serverUrl"
                     | "answerHttp"
                     | "sentHttp"
+                    | "answerSocket"
+                    | "sentSocket"
             )
         })
     }
@@ -2712,13 +2924,16 @@ mod tests {
         assert!(matches!(member.return_ty, CoreTy::Void));
         // It is one of the rows that assert nothing about a subject — this,
         // § 12's `advance`, `rule:tooling/a-prompt-is-a-core-member`'s
-        // `scriptAnswers`, § 18's `request` and `serverUrl`, and
+        // `scriptAnswers`, § 18's `request` and `serverUrl`,
         // `rule:testing/an-outbound-call-is-answered-from-a-table`'s
-        // `answerHttp` and `sentHttp` — and [`asserting_members`] names each of
-        // them by hand. This count is what makes adding a member to this class
-        // have to answer "is it an assertion?": a new row joins § 4's shape
-        // sweep unless it is listed there, and listing it moves this number.
-        assert_eq!(asserting_members().count(), CLASS.methods.len() - 7);
+        // `answerHttp` and `sentHttp`, and
+        // `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`'s
+        // `answerSocket` and `sentSocket` — and [`asserting_members`] names
+        // each of them by hand. This count is what makes adding a member to
+        // this class have to answer "is it an assertion?": a new row joins
+        // § 4's shape sweep unless it is listed there, and listing it moves
+        // this number.
+        assert_eq!(asserting_members().count(), CLASS.methods.len() - 9);
         assert_eq!(equality_members().count(), 3);
     }
 }

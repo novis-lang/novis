@@ -1,0 +1,48 @@
+--TEST--
+`Core\Test::answerSocket` plays a scripted peer's frames in order and records every frame the program sent, with nothing connecting — `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`, `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+--FILE--
+<?nvs
+// The keystone every later socket case is written against: a socket opened to
+// a scripted URL completes its handshake without connecting, receives what the
+// table holds in the order it holds it, and what the program wrote is read back
+// off the table rather than off the call. Nothing below is granted
+// `net.connect` and no socket is opened, exactly as
+// `rule:testing/an-outbound-call-is-answered-from-a-table` arranges for a call.
+Core\Test::answerSocket("wss://gateway.example.com/v1", ["hello", "second"], {protocol: "chat"});
+
+var $socket = Core\Http\Client::openSocket("wss://gateway.example.com/v1", {protocols: ["chat", "json"]});
+
+// The subprotocol is the peer's choice out of what was offered, reported by the
+// socket rather than guessed at from the offer.
+echo "protocol=", $socket->protocol() ?? "-", "\n";
+
+// Both directions over one socket, and the sends come first so the recorded
+// order below is the program's own rather than a reply to anything.
+$socket->send("subscribe");
+$socket->sendBytes("ok" as bytes);
+
+// The peer's frames, and `null` once it has closed — which is the reading that
+// ends the loop rather than a count the program had to know in advance.
+var $message = $socket->receive();
+while ($message != null) {
+    echo "peer ", $message->text() ?? "-", "\n";
+    $message = $socket->receive();
+}
+$socket->close();
+
+// What the program said, in the one order it said it, as the same
+// `Core\Socket\Message` the peer's own frames arrive in: `text` for a `send`
+// and `bytes` for a `sendBytes`, which is what says which member wrote it.
+foreach (Core\Test::sentSocket() as Core\Socket\Message $frame) {
+    if ($frame->text() != null) {
+        echo "sent text ", $frame->text() ?? "-", "\n";
+    } else {
+        echo "sent bytes ", Core\Bytes::length($frame->bytes() ?? ("" as tainted bytes)), "\n";
+    }
+}
+--EXPECT--
+protocol=chat
+peer hello
+peer second
+sent text subscribe
+sent bytes 2

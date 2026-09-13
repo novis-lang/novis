@@ -1,0 +1,48 @@
+--TEST--
+An outbound socket carries RFC 6455's two payload kinds each way, and the `Core\Socket\Message` it answers in fills exactly one of `text` and `bytes` — `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`, `rule:concurrency/a-connection-is-a-loop`
+--FILE--
+<?nvs
+// Agreement, asked of both directions: one shape carries a frame whichever end
+// of the wire it came from, and which reader answers is what says which kind it
+// was. A message class of its own for the outbound direction would differ only
+// in where the octets came from, which is why there is not one.
+Core\Test::answerSocket("wss://gateway.example.com/mixed", ["a text frame", "AB" as bytes]);
+
+var $socket = Core\Http\Client::openSocket("wss://gateway.example.com/mixed");
+
+var $message = $socket->receive();
+while ($message != null) {
+    // `topic` and `value` are a delivery's, so a frame off a wire answers
+    // `null` for both — a peer frame and a published one are one class and the
+    // topic is what tells them apart.
+    echo "peer ";
+    if ($message->text() != null) {
+        echo "text ", $message->text() ?? "-";
+    } else {
+        echo "bytes ", Core\Bytes::length($message->bytes() ?? ("" as tainted bytes));
+    }
+    if ($message->topic() == null) {
+        echo " topic=null";
+    }
+    echo "\n";
+    $message = $socket->receive();
+}
+
+// The same pair going the other way, and read back in the order they were
+// written rather than grouped by kind.
+$socket->sendBytes("CDE" as bytes);
+$socket->send("and text");
+$socket->close();
+
+foreach (Core\Test::sentSocket() as Core\Socket\Message $frame) {
+    if ($frame->text() != null) {
+        echo "sent text ", $frame->text() ?? "-", "\n";
+    } else {
+        echo "sent bytes ", Core\Bytes::length($frame->bytes() ?? ("" as tainted bytes)), "\n";
+    }
+}
+--EXPECT--
+peer text a text frame topic=null
+peer bytes 2 topic=null
+sent bytes 3
+sent text and text

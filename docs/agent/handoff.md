@@ -2,49 +2,59 @@
 
 ## State
 
-**Goal `websocket-client` — a program holds a WebSocket to another server, opened like an outbound call and
-closed with the task that opened it.** Stage 1 (goal `outbound-proxy`'s whole list) is the floor and passes.
+**Goal `websocket-client` — a program holds a WebSocket to another server, opened like an outbound call
+and closed with the task that opened it.** Stage 1 (goal `outbound-proxy`'s whole list) is the floor and
+passes. Stage 2's record, [ADR 0183](../decisions/0183.md), is on disk and accepted.
 
-**Stage 2 is done: [ADR 0183](../decisions/0183.md) is on disk, accepted, with its four rules and the
-amendment to `rule:http-server/allow-url-pins-the-address` in the same commit.** `rules.py --check`,
-`records.py --check` and `check-links.py` are all clean and the chapters are rendered. The record is the
-only ADR slot this goal has; every later stage cites it rather than deciding anything new.
+**Stage 3 is done and its acceptance check is green.** `Core\Http\Client::openSocket` and
+`Core\Http\Socket` are registered, the scheme roster is four, and `Core\Test::answerSocket` /
+`::sentSocket` script a peer and read back what the program sent. Five `.nvst` cases cover it, including
+the two the goal's stage-3 check names.
 
-**The spellings it fixed, which no later stage re-opens:** the row is
-`Core\Http\Client::openSocket(string|Core\Http\Target $url, ...$options): Core\Http\Socket`; the class is
-`Core\Http\Socket` and the message stays `Core\Socket\Message`; the test rows are `Core\Test::answerSocket`
-and `Core\Test::sentSocket`; the bounds are `idle`, `maxDuration`, `maxMessage`, `sendTimeout` and `ping`,
-with `[http.client.socket] max_message = 4194304` and `send_timeout = "30s"` shipped, both `Runtime`.
+**What is on disk is the table path only.** `openSocket` refuses every URL no scripted peer answers,
+because there is no `is_armed` branch yet: stage 4 adds the real handshake behind one, and that is the
+one place the refusal's wording ("this test answers outbound sockets from a table") becomes wrong. The
+bag's bounds are *judged* — a non-positive `idle`, `maxDuration`, `sendTimeout` or `ping` throws — and
+none of them is *applied*, which is stage 5's; `close`'s `$code` and `$reason` are accepted and not
+sent, for the same reason.
 
-Nothing of stages 3–6 has landed: no Rust, no `.nvst`, no registry row.
+**Spellings this stage fixed, which no later stage re-opens:** the socket bag is `SOCKET_OPTIONS`
+(`crates/nvs-stdlib/src/http.rs`), built by the new `connection_options!` macro — the shared connection
+keys — with `request_options!` writing the exchange half into its middle; the card's entries are
+`SOCKET_PARAMS` over `connection_params!`, the same split one axis over. The socket bag's ABI slots are
+`SOCKET_DEADLINE`…`SOCKET_PING` and are **not** `DEADLINE`'s numbers.
 
 ## Next group
 
-**Stage 3: the surface a scripted peer can answer** — one file set: `crates/nvs-stdlib/src/http.rs`,
-`crates/nvs-stdlib/src/test.rs`, `crates/nvs-stdlib/src/socket.rs`.
+**Stage 4: the handshake against a real host** — one file set: `crates/nvs-stdlib/src/http/socket.rs`,
+`crates/nvs-stdlib/src/http/transport.rs`, `crates/nvs-stdlib/src/http.rs`.
 
-- [ ] **Register `Core\Http\Socket` and the `openSocket` row**, and add the socket option group to the
-      bag macro — `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call` and
-      `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`. The rows are
-      `crates/nvs-stdlib/src/http.rs:1291`, the bag macro `crates/nvs-stdlib/src/http.rs:670`, and the two
-      bounds the `stream` row already declares `crates/nvs-stdlib/src/http.rs:874`. The class shape to copy
-      is `crates/nvs-stdlib/src/socket.rs:256` — two classified parameters, never a `string|bytes` union.
-- [ ] **Widen the scheme roster to four, one row each** — `rule:http-server/allow-url-pins-the-address`.
-      `crates/nvs-stdlib/src/http.rs:436-443` is the check and its message; the row that took the URL is
-      what decides which two of the four it serves, so the refusal moves from one roster to a per-row one.
-- [ ] **`Core\Test::answerSocket` and `sentSocket`** —
-      `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`. Beside `answerHttp` at
-      `crates/nvs-stdlib/src/test.rs:434` and `sentHttp` at `crates/nvs-stdlib/src/test.rs:455`, whose
-      table this reuses rather than starting a second one.
+- [ ] **Branch `openSocket` on the armed table**, so the scripted path is the exception and the
+      connect is the rule — `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`,
+      [ADR 0183](../decisions/0183.md) § 4. The body is
+      `crates/nvs-stdlib/src/http/socket.rs:251`; the guard to copy is `crates/nvs-stdlib/src/http.rs:3221`
+      (`ctx.faked_http().is_armed()`), and the refusal that moves inside the armed arm is the
+      `Fault::thrown_as` below the `socket_for` lookup. Its message names a test, so it may only be
+      reached from one.
+- [ ] **Open the connection through the transport and run `tungstenite`'s client half over it** —
+      the pin, every approved address, `connectTimeout` and the proxy tunnel, with no adapter and no
+      new dependency. `crates/nvs-stdlib/src/http/transport.rs:1237` is `send`, whose connect and TLS
+      hand-off this reuses; `crates/nvs-stdlib/src/http.rs:3516` is `exchanged`, the shape that picks
+      between the table and the wire today.
+- [ ] **The `101` and what refuses it** — a `3xx` is a `RuntimeError` naming the `Location` and never
+      a hop taken, any other status is a `RuntimeError` naming it, and a chosen subprotocol that was
+      never offered is refused where the scripted path already refuses it
+      (`crates/nvs-stdlib/src/http/socket.rs:251`, the `offered` call). A socket is **never pooled**:
+      it consumes its connection and nothing goes back.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/http.rs:44` and `:104` say "the client's five rows" and that `patch` is "not here
-  yet", and both are wrong today, against the no-counts half of [conventions.md](conventions.md) § *A code
-  comment*. Stage 4 rewrites that header when it adds a row; fix it there, as a count-free sentence.
-- `crates/nvs-stdlib/src/socket.rs:446-473` calls `Core\Socket\Message` "the one shape both of `receive`'s
-  sources answer in" — stage 5 rewrites it whole as the shape both *directions* answer in.
-- Stage 6 flips the four new rules from `designed` to `shipped` and fills their `guardedBy`; nothing else
-  may.
-- `permessage-deflate`, RFC 8441 and reconnecting are out of this goal by
-  [0183](../decisions/0183.md) § *Alternatives rejected*, which names what a later record would owe.
+- The four bounds are judged but not applied, and `maxMessage` is neither — stage 5, goal
+  `websocket-client`'s own § *Stage 5*.
+- `[http.client.socket] max_message` / `send_timeout` are not on disk — stage 5, and
+  `crates/nvs-config/tests/tree.rs` is where the block is asserted.
+- `close`'s `$code` and `$reason` are accepted and dropped; nothing sends a close frame — stage 5.
+- `Core\Socket\Message`'s module doc still says it is the shape both of `receive`'s *sources* answer
+  in — stage 5 rewrites it whole (`crates/nvs-stdlib/src/socket.rs:446`).
+- Stage 6 flips ADR 0183's four rules to `shipped` with `guardedBy` filled from this goal's cases.
+- The `nvs/rest` package is still unscheduled — [carried-gaps.md](carried-gaps.md).

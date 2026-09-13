@@ -1,0 +1,45 @@
+--TEST--
+`Core\Http\Socket::close` ends the conversation in both directions and is answered the same way twice — `rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`, `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`
+--FILE--
+<?nvs
+// A bound asserted on both sides: the last thing a closed socket still does,
+// and the first thing it refuses. A peer with frames left over is what makes
+// the reading after the close a decision rather than the end of the script
+// arriving anyway.
+Core\Test::answerSocket("wss://gateway.example.com/feed", ["first", "never read"]);
+
+var $socket = Core\Http\Client::openSocket("wss://gateway.example.com/feed");
+echo "before: ", $socket->receive()?->text() ?? "-", "\n";
+$socket->close();
+
+// Reading is not an error after a close — the conversation is over, and `null`
+// is the answer that already means that.
+if ($socket->receive() == null) {
+    echo "after: null\n";
+}
+
+// Writing is, and both send members say the same thing: the refusal is about
+// the socket rather than about the payload kind.
+try {
+    $socket->send("late");
+} catch (LogicError $text) {
+    echo $text->message, "\n";
+}
+try {
+    $socket->sendBytes("late" as bytes);
+} catch (LogicError $octets) {
+    echo $octets->message, "\n";
+}
+
+// Closing twice is not an error: a program ending a conversation it has
+// already ended has made no mistake a refusal could tell it about. The
+// subprotocol is still readable, because it is what the handshake settled and
+// not a property of the connection being open.
+$socket->close();
+echo "protocol=", $socket->protocol() ?? "none", "\n";
+--EXPECT--
+before: first
+after: null
+Core\Http\Socket::send(): this socket was closed, so there is nobody left to send to
+Core\Http\Socket::sendBytes(): this socket was closed, so there is nobody left to send to
+protocol=none
