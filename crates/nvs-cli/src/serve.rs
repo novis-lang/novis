@@ -143,6 +143,13 @@ pub(crate) fn run(
         }
         crate::render_diagnostics(&mut diags, &sources);
     }
+    // The outbound TLS client, built before a worker exists: it is the
+    // process's one answer to whose certificates a handler believes
+    // (`rule:security/one-tls-client`), and every core shares it.
+    // `crate::config::install_tls_client` owns why the call is here.
+    if let Err(diagnostic) = crate::config::install_tls_client(&snapshot) {
+        return report(diagnostic, &sources);
+    }
 
     // `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, the moment the root is knowable and long
     // before a socket exists. [`sweep_orphans`] owns why it is here, why no

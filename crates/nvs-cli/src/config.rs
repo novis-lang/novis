@@ -323,6 +323,57 @@ pub(crate) fn boot_origins(
     boot_in(&cwd, config, entry, sources, init)
 }
 
+/// Builds the process's one outbound TLS client from `[http.client.tls]` and
+/// installs it, so the first `https` call a program makes verifies against the
+/// anchors this deployment chose (`rule:security/one-tls-client`).
+///
+/// **Every run site that starts a program calls this, and no other caller
+/// does.** It is not folded into [`boot_in`], which resolves the tree for
+/// `nvs check` and `nvs config dump` as well: those open no socket, and one of
+/// them creating a key log file would be the audit writing secrets nobody
+/// asked it for. `nvs_host::tls::configure` settles a `OnceLock`, so a second
+/// call reports `AlreadyExists` rather than replacing anything, and putting
+/// the call where a process is owned is what keeps it a single one.
+///
+/// The block has already been checked — an empty `roots` (`E0638`), a floor
+/// this build cannot speak (`E0639`) and a `keylog` on a `production` host
+/// (`E0640`) are all refused while the tree resolves, and every `roots` file
+/// is absolute and trust-checked by then (`nvs_config::http::canonicalize`).
+/// What is left for here is the files themselves.
+///
+/// # Errors
+///
+/// `E0641`, naming the file, when an anchor bundle will not open or holds no
+/// certificate, or the key log will not open.
+pub(crate) fn install_tls_client(snapshot: &nvs_config::Snapshot) -> Result<(), Diagnostic> {
+    nvs_host::tls::configure(&policy_of(snapshot)).map_err(|err| {
+        Diagnostic::error(
+            nvs_diagnostics::code::E_TLS_CLIENT_UNBUILDABLE,
+            format!("`[http.client.tls]` does not build an outbound TLS client: {err}"),
+        )
+    })
+}
+
+/// `[http.client.tls]` as `nvs_host` asks for it.
+///
+/// Split from [`install_tls_client`] so the reading can be asserted on its own:
+/// installing settles a `OnceLock` and is therefore answerable once per
+/// process, which a test of what the block resolved to would otherwise have to
+/// spend.
+fn policy_of(snapshot: &nvs_config::Snapshot) -> nvs_host::tls::ClientPolicy {
+    let block = snapshot
+        .config
+        .http
+        .as_ref()
+        .and_then(|http| http.client.as_ref())
+        .and_then(|client| client.tls.as_ref());
+    nvs_host::tls::ClientPolicy {
+        roots: block.and_then(|tls| tls.roots.clone()).unwrap_or_default(),
+        min_version: block.and_then(|tls| tls.min_version.clone()),
+        keylog: block.and_then(|tls| tls.keylog.as_ref()).map(PathBuf::from),
+    }
+}
+
 /// [`boot_origins`] against a stated directory rather than this process's own.
 ///
 /// The directory is a parameter because both halves of § 1 read it — step 2 looks for its
@@ -694,7 +745,7 @@ mod tests {
 
     use nvs_diagnostics::SourceMap;
 
-    use super::{Declined, Init, boot_in, leaves, write_default_file};
+    use super::{Declined, Init, boot_in, leaves, policy_of, write_default_file};
     use crate::testing::{open_to_the_world, refuse_new_files};
 
     /// A directory of this test's own, under a per-process root.
@@ -720,6 +771,53 @@ mod tests {
         let path = dir.join("app.nvs");
         fs::write(&path, "<?nvs\n").expect("a scratch directory takes a file");
         path
+    }
+
+    /// What the run sites hand `nvs_host::tls::configure`: the three keys of `[http.client.tls]`,
+    /// off the booted snapshot rather than off the file.
+    ///
+    /// The `roots` assertion is the one worth making twice. `bundled` names no file and survives
+    /// the boot verbatim, while a PEM entry is resolved against the file that wrote it — so a
+    /// policy carrying the spelling an operator typed would be one that made `nvs serve` believe a
+    /// bundle relative to whatever directory it was started from.
+    #[test]
+    fn the_tls_block_reaches_the_host_policy_with_its_roots_resolved() {
+        let dir = scratch("tls");
+        let entry = entry(&dir);
+        let keylog = dir.join("keys.log");
+        fs::write(dir.join("corp.pem"), "").expect("a scratch directory takes a file");
+        fs::write(
+            dir.join("nvs.toml"),
+            format!(
+                "[mode]\ndefault = \"development\"\n\n[http.client.tls]\n\
+                 roots = [\"bundled\", \"corp.pem\"]\nmin_version = \"1.3\"\nkeylog = {}\n",
+                toml::Value::from(keylog.to_string_lossy().into_owned())
+            ),
+        )
+        .expect("a scratch directory takes a file");
+
+        let mut sources = SourceMap::new();
+        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Never)
+            .expect("the tree names a readable bundle and a mode that allows a key log");
+        let policy = policy_of(&snapshot);
+
+        let [bundled, corp] = policy.roots.as_slice() else {
+            panic!(
+                "both `roots` entries survive the boot, not {:?}",
+                policy.roots
+            );
+        };
+        assert_eq!(
+            bundled,
+            nvs_host::tls::BUNDLED,
+            "the compiled-in set is named, not resolved"
+        );
+        assert!(
+            std::path::Path::new(corp).is_absolute() && corp.ends_with("corp.pem"),
+            "the PEM entry is resolved against the file that wrote it, not left as `{corp}`"
+        );
+        assert_eq!(policy.min_version.as_deref(), Some("1.3"));
+        assert_eq!(policy.keylog.as_deref(), Some(keylog.as_path()));
     }
 
     /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 for a

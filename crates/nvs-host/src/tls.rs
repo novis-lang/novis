@@ -498,9 +498,11 @@ pub struct ClientPolicy {
 ///
 /// `NotFound`/`InvalidData` for a `roots` entry that cannot be opened or holds
 /// no certificate, `InvalidInput` for a `min_version` this build does not
-/// speak, and whatever opening the key log reported. `AlreadyExists` when a
-/// session has already run against the compiled-in default, which is a boot
-/// that reached the network before it read its own configuration.
+/// speak, and whatever opening the key log reported — each of which names the
+/// file it is about, because the caller reporting it is a boot and the
+/// operator's next move is to open that file. `AlreadyExists` when a session
+/// has already run against the compiled-in default, which is a boot that
+/// reached the network before it read its own configuration.
 pub fn configure(policy: &ClientPolicy) -> io::Result<()> {
     let built = Arc::new(built_from(policy)?);
     DEFAULT.set(built).map_err(|_| {
@@ -521,9 +523,19 @@ fn built_from(policy: &ClientPolicy) -> io::Result<ClientConfig> {
     let mut config =
         floored(policy.min_version.as_deref(), store_for(&policy.roots)?).with_no_client_auth();
     if let Some(path) = policy.keylog.as_deref() {
-        config.key_log = Arc::new(KeyLogTo::at(path)?);
+        config.key_log = Arc::new(KeyLogTo::at(path).map_err(|err| at_path(path, &err))?);
     }
     Ok(config)
+}
+
+/// `err` with `path` in front of it, keeping its kind.
+///
+/// `std::io::Error` carries no path of its own, so a boot refusing a `roots`
+/// entry or a key log would otherwise report a reason with nothing to act on —
+/// and the operator's next move is always to look at a file. This is the last
+/// frame that still knows which one.
+fn at_path(path: &Path, err: &io::Error) -> io::Error {
+    io::Error::new(err.kind(), format!("`{}`: {err}", path.display()))
 }
 
 /// The anchor set a `roots` list names: the compiled-in one wherever
@@ -566,7 +578,7 @@ fn read_anchors(path: &Path, store: &mut RootCertStore) -> io::Result<()> {
     // bundle" into one error type, and those are the two an operator acts on
     // differently. Opening it here keeps them apart: past this line every
     // refusal is `InvalidData` and is about the content.
-    drop(std::fs::File::open(path)?);
+    drop(std::fs::File::open(path).map_err(|err| at_path(path, &err))?);
 
     let refused = |why: &dyn std::fmt::Display| {
         io::Error::new(

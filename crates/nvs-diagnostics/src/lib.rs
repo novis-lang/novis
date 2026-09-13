@@ -1861,6 +1861,19 @@ pub mod code {
     /// reviewer to catch.
     pub const E_KEYLOG_IN_PRODUCTION: Code = Code::new("E0640");
 
+    /// `[http.client.tls]` resolved, and the outbound client it describes
+    /// could not be built from it — a `roots` entry that cannot be opened or
+    /// holds no certificate, or a `keylog` whose file will not open.
+    ///
+    /// The keys are checked where they are read and the anchors are parsed
+    /// where they are believed, so this is the second half arriving at boot:
+    /// the block passed `E0638`–`E0640` and the files it names still did not
+    /// yield a client. It is a refusal to start rather than a warning,
+    /// because the alternative is a process that answers every outbound
+    /// `https` call with a handshake failure an operator reads as the
+    /// origin's fault. The message names the file.
+    pub const E_TLS_CLIENT_UNBUILDABLE: Code = Code::new("E0641");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

@@ -1808,6 +1808,16 @@ fn run_run(
         }
         render_diagnostics(&mut diags, &config_sources);
     }
+    // The outbound TLS client is the process's, so it is built here — once, off
+    // the snapshot, before anything this run compiles or executes can reach the
+    // network. `config::install_tls_client` owns why the call sits at the run
+    // sites rather than inside the boot every subcommand shares.
+    if let Err(diagnostic) = config::install_tls_client(&snapshot) {
+        let mut diags = Diagnostics::new();
+        diags.report(diagnostic);
+        render_diagnostics(&mut diags, &config_sources);
+        return ExitCode::FAILURE;
+    }
 
     // `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` and `rule:config/opcache-file-cache-directives-are-system`: the unit comes off disk when this environment has an
     // artifact for this program and out of Cranelift when it does not, and
@@ -2259,6 +2269,16 @@ fn run_test(
                 return ExitCode::FAILURE;
             }
         };
+        // The same install `run_run` does above, for the same reason: a suite
+        // runs the program, and a `#[Test]` method reaching an origin asks the
+        // anchors the tree named rather than whichever set a first call happened
+        // to settle.
+        if let Err(diagnostic) = config::install_tls_client(&snapshot) {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &config_sources);
+            return ExitCode::FAILURE;
+        }
         // `--filter` reaches both suites, and means the same thing in each:
         // `runner::selected` owns the rule and why it is the `.nvst` tree's.
         return match front_end(path) {
