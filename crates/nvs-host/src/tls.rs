@@ -157,8 +157,9 @@ use rustls::crypto::CryptoProvider;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName, UnixTime};
 use rustls::{
-    CertificateError, ClientConfig, ClientConnection, ConfigBuilder, DigitallySignedStruct,
-    RootCertStore, SignatureScheme, StreamOwned, WantsVerifier,
+    CertificateError, CipherSuite, ClientConfig, ClientConnection, ConfigBuilder,
+    DigitallySignedStruct, ProtocolVersion, RootCertStore, SignatureScheme, StreamOwned,
+    WantsVerifier,
 };
 use sha2::{Digest, Sha256};
 use x509_parser::prelude::{FromDer, X509Certificate};
@@ -284,6 +285,113 @@ impl<T: Read + Write> NvsTls<T> {
     ) -> io::Result<Self> {
         upgraded(stream, name, config_for(policy, identity)?)
     }
+
+    /// What this session negotiated: the protocol version, the cipher suite and
+    /// the peer's certificate chain.
+    ///
+    /// `rule:http-server/a-reply-reports-its-tls-session`'s three facts, read
+    /// off the completed handshake rather than off the configuration the
+    /// handshake ran under. A caller asserting what one call got has to be
+    /// answered by the session, because a policy is what was *asked* for and
+    /// the peer is the other half of what was agreed. Whether the chain and the
+    /// name were checked is not a fact about the session at all — that is
+    /// [`CallPolicy::verifies`], which belongs to the call.
+    ///
+    /// A version or a cipher that reads empty would be a session that
+    /// negotiated neither, which none of the doors above can hand back: each
+    /// returns only once the handshake is complete.
+    #[must_use]
+    pub fn session(&self) -> Session {
+        let state = &self.inner.conn;
+        Session {
+            version: state
+                .protocol_version()
+                .map(named_version)
+                .unwrap_or_default(),
+            cipher: state
+                .negotiated_cipher_suite()
+                .map(|suite| named_suite(suite.suite()))
+                .unwrap_or_default(),
+            chain: state
+                .peer_certificates()
+                .unwrap_or_default()
+                .iter()
+                .map(|cert| cert.as_ref().to_vec())
+                .collect(),
+        }
+    }
+}
+
+/// What one TLS session negotiated, as `Core\Http\Response::tls` reports it.
+///
+/// A **snapshot and not a handle**, which is the whole shape: the connection a
+/// reply arrived over goes back into the per-core store the moment the reply is
+/// framed
+/// (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`),
+/// while the response object a program holds outlives it and may be read at any
+/// point afterwards. Three owned values taken at the framing cannot disagree
+/// with a session that has since served somebody else's request.
+///
+/// The chain is **DER**, leaf first, because that is what `rustls` hands over.
+/// Which encoding a program reads it in — PEM, per ADR 0180 § 13 — and what the
+/// leaf's fields say are `Core\Http\TlsInfo`'s questions, and answering them
+/// here would put a certificate parser in the layer that owns the socket.
+///
+/// What it spends: one copy of the peer's chain per reply that arrived over
+/// TLS, released with the response, which is O(in-flight) and never O(replies
+/// served).
+#[derive(Clone, Debug)]
+pub struct Session {
+    /// The protocol version, spelled as [`named_version`] writes it.
+    version: String,
+    /// The cipher suite, spelled as [`named_suite`] writes it.
+    cipher: String,
+    /// The peer's certificate chain as DER, leaf first.
+    chain: Vec<Vec<u8>>,
+}
+
+impl Session {
+    /// The protocol version — `TLSv1.3` or `TLSv1.2`.
+    #[must_use]
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+
+    /// The negotiated cipher suite, under its IANA registry name.
+    #[must_use]
+    pub fn cipher(&self) -> &str {
+        &self.cipher
+    }
+
+    /// The peer's certificate chain as DER, leaf first, or empty where the peer
+    /// presented none.
+    #[must_use]
+    pub fn chain(&self) -> &[Vec<u8>] {
+        &self.chain
+    }
+}
+
+/// A protocol version as a program reads it: `TLSv1.3`, not `rustls`'s Rust
+/// identifier `TLSv1_3` for the same constant, and the registry's own code for
+/// one this build negotiated but cannot name.
+fn named_version(version: ProtocolVersion) -> String {
+    version.as_str().map_or_else(
+        || format!("0x{:04x}", u16::from(version)),
+        |spelled| spelled.replace('_', "."),
+    )
+}
+
+/// A cipher suite under its IANA name.
+///
+/// `rustls` spells the TLS 1.3 suites with the version inside the prefix —
+/// `TLS13_AES_128_GCM_SHA256` — where the registry and every other tool write
+/// `TLS_AES_128_GCM_SHA256`; its TLS 1.2 names already match. So the prefix is
+/// the one thing rewritten, and a suite with no name reports its code.
+fn named_suite(suite: CipherSuite) -> String {
+    suite.as_str().map_or_else(
+        || format!("0x{:04x}", u16::from(suite)),
+        |spelled| spelled.replacen("TLS13_", "TLS_", 1),
+    )
 }
 
 /// A client identity: the certificate chain a handshake presents when a server
@@ -627,6 +735,27 @@ pub struct CallPolicy {
     /// because it can only tighten, and a value below `[http.client.tls]
     /// min_version` is refused before it reaches here.
     pub min_version: Option<String>,
+}
+
+impl CallPolicy {
+    /// Whether a session under this policy checked **both** the chain and the
+    /// name, which is what `Core\Http\TlsInfo::verified` reports
+    /// (`rule:http-server/a-reply-reports-its-tls-session`).
+    ///
+    /// `anchors` is not a relaxation and answers `true`: `tlsCa` replaces the
+    /// trust set and then builds and checks the chain against it exactly as the
+    /// configured roots are, which is ADR 0180 § 13's *against `roots` or
+    /// `tlsCa`*. `min_version` only tightens. Each of the other three drops one
+    /// of the two checks — a pin accepts a key with no chain built at all — so
+    /// any of them answers `false`.
+    ///
+    /// It lives on the policy rather than at the call site that reports it
+    /// because what each field means is this type's, and a second reading of
+    /// these five fields is the copy that comes to disagree.
+    #[must_use]
+    pub fn verifies(&self) -> bool {
+        self.pins.is_empty() && !self.any_name && !self.insecure
+    }
 }
 
 /// Builds the process's one outbound client configuration from `policy` and
@@ -1962,5 +2091,64 @@ mod tests {
             Arc::ptr_eq(&plain, &identity.config),
             "a call that relaxes nothing built a second session instead of reusing the identity's"
         );
+    }
+
+    /// Which of the five option fields is a relaxation, as one table: `tlsCa`
+    /// and `tlsMinVersion` still check the chain and the name, and each of the
+    /// other three drops one of them
+    /// (`rule:http-server/a-reply-reports-its-tls-session`, ADR 0180 § 13).
+    ///
+    /// Every field, in one case, because the answer is a statement about the
+    /// *set*: a reading that missed one would report a call as verified that
+    /// checked nothing, and the two fields that are not relaxations are the pair
+    /// a plausible reading gets wrong. No handshake, because what each option
+    /// does on the wire is what the cases above already prove.
+    #[test]
+    fn a_policy_verifies_unless_it_dropped_the_chain_or_the_name() {
+        for (policy, verifies, why) in [
+            (CallPolicy::default(), true, "the default relaxes nothing"),
+            (
+                CallPolicy {
+                    anchors: Some("a bundle the call handed over".to_owned()),
+                    ..CallPolicy::default()
+                },
+                true,
+                "`tlsCa` replaces the trust set and then checks against it",
+            ),
+            (
+                CallPolicy {
+                    min_version: Some("1.3".to_owned()),
+                    ..CallPolicy::default()
+                },
+                true,
+                "`tlsMinVersion` only tightens",
+            ),
+            (
+                CallPolicy {
+                    pins: vec!["sha256//a key this case never hashes".to_owned()],
+                    ..CallPolicy::default()
+                },
+                false,
+                "a pin accepts a key with no chain built at all",
+            ),
+            (
+                CallPolicy {
+                    any_name: true,
+                    ..CallPolicy::default()
+                },
+                false,
+                "`tlsVerifyHost: false` drops the name",
+            ),
+            (
+                CallPolicy {
+                    insecure: true,
+                    ..CallPolicy::default()
+                },
+                false,
+                "`tlsVerify: false` drops both",
+            ),
+        ] {
+            assert_eq!(policy.verifies(), verifies, "{why}");
+        }
     }
 }
