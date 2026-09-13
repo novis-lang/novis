@@ -301,258 +301,6 @@ memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 620 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 617 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 608 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 601 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 587 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 567 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 555 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 540 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 531 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 522 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 518 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 510 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 499 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 486 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 476 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 466 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 457 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 447 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 440 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 425 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 417 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 410 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 403 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 395 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 388 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 383 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 372 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 363 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 354 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 343 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 339 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 327 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 319 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 311 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 302 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 293 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 282 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 280 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 272 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 267 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 250 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 201 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- `rule:security/launderer-answers-a-carrier`'s carrier rule, accepted after M4 reported `Core\Html` done. It is
 # FIRST in this file because the run order inside a class is this file's order: an escaper that answers a
@@ -602,12 +350,6 @@ tests = [
   # never run in this check and would have held the whole acceptance list behind
   # it; the `contains` check naming the same file is where it is measured.
 ]
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 174 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- `rule:core-classes/regex-two-tiers`'s tiering. It changes what an EXISTING pattern does, so every regex case written
@@ -662,18 +404,6 @@ tests = [
   "a_literal_patterns_tier_is_settled_while_checking",
   "a_regex_pattern_argument_refuses_a_tainted_operand",
 ]
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 135 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 102 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s containment rule, which was accepted after M4 was reported done. It runs in the
@@ -853,11 +583,6 @@ tests = [
   "no_registry_card_cites_an_adr",
 ]
 
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 80 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 [[check]]
 kind = "nvs-suite"
 stage = "1 floor"
@@ -911,12 +636,6 @@ kind = "exact"
 stage = "1 floor"
 file = "examples/program.nvs"
 want = ["alpha", "beta", "gamma", "count=3"]
-
-# <<< goal-switch: floor checks are inserted below this line >>>
-
-# 61 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
-# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
-# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- THE OPERATOR TABLE. `tools/loop.py` runs a `stage = "0..."` cargo check BEFORE the program

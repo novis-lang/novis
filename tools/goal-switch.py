@@ -17,6 +17,9 @@ stage, and inserts them into the new goal at its marker line:
 
     # <<< goal-switch: floor checks are inserted below this line >>>
 
+The one thing not carried is the previous switch's own marker and banner, which sit in the comment
+run above the live goal's first floor check: carried, they would stack one copy deeper per goal.
+
 The `files` lists are unioned, since a floor whose fixtures are missing fails before anything is
 built. `[valgrind] skip` is unioned for the same reason. Everything else in the new goal -- its
 `[context]` block, its own checks, its `[wsl]` target -- is left exactly as written: this script
@@ -93,6 +96,38 @@ def blocks(text):
 def check_blocks(text):
     """Just the `[[check]]` blocks, in file order, as lists of lines."""
     return [lines for header, lines in blocks(text) if header == "[[check]]"]
+
+
+BANNER = (
+    re.compile(r"^# \d+ check\(s\) carried from .* by tools/goal-switch\.py\.$"),
+    re.compile(r'^# They are the previous goal\'s acceptance list VERBATIM, relabelled to stage ".*"\.$'),
+    re.compile(r"^# Do not edit them to make something pass: a floor that has been adjusted is not a floor\.$"),
+)
+
+
+def unbannered(lines):
+    """This block's lines with any earlier switch's marker and banner taken out of its leading
+    comments, and the blank lines that separated them collapsed.
+
+    The live goal's first floor check sits directly under the marker and banner the switch before
+    this one wrote, and `blocks` hands a header the whole comment run above it. Carried as they are,
+    those four lines land under the new marker and banner, and the switch after that carries both --
+    one more copy per goal, each banner naming a floor size that was true one switch ago. The marker
+    is also load-bearing: `chain.py` and `dossier.py` test a goal for it, and a copy inside a
+    comment run is one they cannot tell from the real one.
+    """
+    at = next(i for i, ln in enumerate(lines) if HEADER.match(ln))
+    lead = [ln for ln in lines[:at]
+            if ln.strip() != MARKER and not any(p.match(ln) for p in BANNER)]
+    out = []
+    for ln in lead:
+        if ln.strip() or (out and out[-1].strip()):
+            out.append(ln)
+    while out and not out[0].strip():
+        out.pop(0)
+    while out and not out[-1].strip():
+        out.pop()
+    return [*out, *lines[at:]]
 
 
 def relabel(lines, stage):
@@ -183,7 +218,7 @@ def main():
     if MARKER not in new_text:
         return die(f"{new_path} has no marker line. Add it where the floor belongs:\n    {MARKER}")
 
-    floor = [relabel(b, opts.stage) for b in check_blocks(live_text)]
+    floor = [relabel(unbannered(b), opts.stage) for b in check_blocks(live_text)]
     if not floor:
         return die(f"{live_path} holds no [[check]] block -- refusing to write an empty floor")
 
