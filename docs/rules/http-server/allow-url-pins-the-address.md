@@ -9,6 +9,12 @@ answers a `Target` carrying **the URL and every address that was approved**
 failed, rather than returning a falsy value. The text is judged before the deployment is asked,
 so a refusal on the URL itself never depends on a grant.
 
+The roster the scheme is checked against is four: `http` and `https` for a request, `ws` and `wss` for the
+row that opens a socket (`rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`). The
+launderer admits all four and pins them identically, because what it approves is a host and its addresses
+rather than an intention; which of the four a given row serves is the row's own refusal, so a URL laundered
+for one use cannot be spent on the other.
+
 The `Target` return is the load-bearing part. A launderer answering a plain `string` would leave a
 gap between the check and the connection in which a second DNS resolution could return a
 different address — the classic rebinding attack. Because every `Core\Http\Client` member

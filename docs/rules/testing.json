@@ -226,6 +226,17 @@
       ]
     },
     {
+      "id": "testing/an-outbound-socket-is-answered-by-a-scripted-peer",
+      "title": "`Core\\Test`'s table answers a WebSocket handshake, plays the frames it was given and records what the program sent, and an unmatched socket throws rather than connecting",
+      "status": "designed",
+      "because": ["0183"],
+      "seeAlso": [
+        "testing/an-outbound-call-is-answered-from-a-table",
+        "testing/determinism-declared-on-the-test",
+        "http-server/an-outbound-socket-is-opened-like-an-outbound-call"
+      ]
+    },
+    {
       "id": "testing/property-testing",
       "title": "`#[Property]` derives its generators from the parameters' declared types",
       "status": "designed",

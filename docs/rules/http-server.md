@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*8 of 77 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1063,6 +1063,12 @@ answers a `Target` carrying **the URL and every address that was approved**
 failed, rather than returning a falsy value. The text is judged before the deployment is asked,
 so a refusal on the URL itself never depends on a grant.
 
+The roster the scheme is checked against is four: `http` and `https` for a request, `ws` and `wss` for the
+row that opens a socket ([`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call)). The
+launderer admits all four and pins them identically, because what it approves is a host and its addresses
+rather than an intention; which of the four a given row serves is the row's own refusal, so a URL laundered
+for one use cannot be spent on the other.
+
 The `Target` return is the load-bearing part. A launderer answering a plain `string` would leave a
 gap between the check and the connection in which a second DNS resolution could return a
 different address — the classic rebinding attack. Because every `Core\Http\Client` member
@@ -1076,7 +1082,7 @@ questions at the member that connects, so there is one implementation of the pol
 and it lives in the capability rather than the client
 ([`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability)).
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0058](../decisions/0058.md), [0074](../decisions/0074.md), [0180](../decisions/0180.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0058](../decisions/0058.md), [0074](../decisions/0074.md), [0180](../decisions/0180.md), [0183](../decisions/0183.md).</sub>
 
 <a id="http-server-an-outbound-call-tries-every-approved-address"></a>
 
@@ -1398,6 +1404,113 @@ The chain is `tainted` and the timings are not here: where a call's time went is
 that disagrees.
 
 <sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0180](../decisions/0180.md).</sub>
+
+<a id="http-server-an-outbound-socket-is-opened-like-an-outbound-call"></a>
+
+## A WebSocket is opened by `Core\Http\Client::openSocket` under every rule an outbound call obeys, `ws` and `wss` serve that row alone, and a socket is never pooled  *(designed — not yet in the compiler)*
+
+`rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+
+```
+Core\Http\Client::openSocket(string|Core\Http\Target $url, ...$options): Core\Http\Socket
+```
+
+A WebSocket is opened through the door every outbound call passes, because the opening handshake **is** an
+outbound call. The URL is [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink)'s sink on both its spellings, so a
+`tainted` value at that position is a compile-time diagnostic and `Core\Http::allowUrl` is the only way
+past it; the `net.connect` grant, [`security/net-address-policy`](security.md#security-net-address-policy), the pin over every approved address,
+`connectTimeout`, the TLS policy options and their grants, a client identity, `headers` — a `secret` value
+among them — and the operator's proxy tunnel
+([`http-server/an-outbound-proxy-is-operator-configured`](http-server.md#http-server-an-outbound-proxy-is-operator-configured)) all apply exactly as they apply to `get`.
+A door of its own would be a second implementation of the same policy, and the second copy is the one that
+comes to be missing a check.
+
+`ws` and `wss` join the scheme roster for this row alone
+([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)): the request rows refuse them, and `openSocket` refuses
+`http` and `https`, so what a URL is *for* is written in the row that takes it. `ws` is admitted as plain
+`http` is, and there is no upgrade question, because a socket follows no redirect — a `3xx` answering an
+upgrade is a `RuntimeError` naming the `Location` rather than a hop taken.
+
+What the row answers is `Core\Http\Socket`, and what that answers is `Core\Socket\Message` — the shape a
+server-side connection already answers in ([`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate)), because one
+RFC 6455 frame gets one shape in this language. `protocols` offers subprotocols as
+`Sec-WebSocket-Protocol`, a `101` choosing one that was not offered is refused, and the socket reports the
+one chosen. The bag carries the connection keys and not the exchange keys: there is no `body`, no
+`followRedirects` and no retry trio, because a bag is a closed set and a key that could never do anything
+is one a program would write and then wait for.
+
+**A socket is never pooled.** It consumes its connection and nothing goes back to
+[`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned)'s pool, because a connection
+that has been upgraded can no longer carry a request.
+
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned). Decided in [0183](../decisions/0183.md).</sub>
+
+<a id="http-server-an-outbound-socket-belongs-to-the-task-that-opened-it"></a>
+
+## An outbound socket is charged to the task that opened it and closed with `1001` when that task ends, and it is never a root isolate  *(designed — not yet in the compiler)*
+
+`rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`
+
+An outbound socket is a value the program opened, so it belongs to the task that opened it: its
+connection, its buffers and its reassembly space are charged to that task's budget, and when the task ends
+the socket is closed with `1001` and its memory is released with everything else the task held. A request's
+`wall_time` therefore bounds a socket opened inside a request without having to know what a socket is.
+
+**It is never a root isolate.** A server-side connection is one because it *outlives* the request that
+upgraded it ([`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate)), and the arena, globals, budget and
+timeline entry it is given are what that escape costs. An outbound socket has no request to escape from:
+it is held by the running program that opened it, so an isolate of its own would put a boundary between
+the program and the socket it is reading, costing an arena and a copy per socket and buying nothing. Memory
+stays O(open sockets), and because no socket outlives its task, that is O(in-flight) rather than O(sockets
+opened).
+
+It never crosses an isolate boundary — [`classes/graph-copy`](classes.md#classes-graph-copy) refuses it as it refuses every other
+resource — so there is no question of who closes one. A program that wants a socket to outlive a request
+opens it in something that outlives a request: a command, a queue job, a spawned script. Two `receive`s
+waiting at once on one socket is a `LogicError`, because one message has one recipient and the alternative
+is a fan-out policy invented for what is a program bug.
+
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`classes/graph-copy`](classes.md#classes-graph-copy), [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call). Decided in [0183](../decisions/0183.md).</sub>
+
+<a id="http-server-an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"></a>
+
+## `idle`, `maxDuration`, `maxMessage` and `sendTimeout` bound every outbound socket, each inherits a finite default, and none has an unbounded spelling  *(designed — not yet in the compiler)*
+
+`rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`
+
+Four bounds cover an outbound socket, and none of them has a spelling for "forever".
+
+| Option | Bounds | Inherits when omitted |
+|---|---|---|
+| `idle` | the longest silence | `[http.client] idle` |
+| `maxDuration` | the socket's whole life | `[http.client] max_duration` |
+| `maxMessage` | the largest message after reassembly | `[http.client.socket] max_message` |
+| `sendTimeout` | how long a frame may wait to be written | `[http.client.socket] send_timeout` |
+
+`idle` and `maxDuration` are the two bounds and the two directives a streamed reply already reads
+([`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime)), for the same reason one level
+down: an idle check alone never ends a peer that dribbles, and a lifetime alone lets a dead connection sit
+until it expires. A message past `maxMessage` closes the socket with `1009`. `ping` is the one knob with an
+off position and it is off by default, because a ping is traffic the peer did not ask for; a program that
+sets it is choosing to have `idle` end a *dead* peer rather than a quiet one. A peer's ping is always
+answered regardless — that is the protocol, not a policy.
+
+Every bound is a `Duration` or a `uint` of bytes, and neither type has an infinite value
+([`types/duration-literal`](types.md#types-duration-literal), [`core-api/units-are-types`](core-api.md#core-api-units-are-types)). There is no `null` and no `0` meaning
+unbounded, so an outbound socket that waits forever is not something a program can express — the guarantee
+comes from the absence of a spelling, exactly as it does for a call
+([`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait)). Expiry throws `TimeoutError`
+([`core-api/failure-throws`](core-api.md#core-api-failure-throws)).
+
+`[http.client.socket]` carries `max_message` and `send_timeout`, both `Runtime`
+([`config/three-changeability-classes`](config.md#config-three-changeability-classes)), as `[http.client] deadline` is and for its reason: each
+bounds one call, and neither is a shared resource one request could spend on another's behalf. Shipped:
+`max_message` is four mebibytes and `send_timeout` is thirty seconds — the numbers this process already
+applies to the other half of RFC 6455, because one process holding two opinions about the size of one
+message is how a program comes to work in one direction and not the other. Neither ships unbounded, which
+[`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect) requires of exactly this kind of wait.
+
+<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0183](../decisions/0183.md).</sub>
 
 <a id="http-server-a-requests-blast-radius-is-bounded-at-four-tiers"></a>
 

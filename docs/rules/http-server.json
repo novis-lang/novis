@@ -1090,7 +1090,8 @@
       "because": [
         "0058",
         "0074",
-        "0180"
+        "0180",
+        "0183"
       ],
       "divergesFromPhp": "`file_get_contents($userUrl)` and `curl_setopt(CURLOPT_URL, $userUrl)` are a compile-time diagnostic, and the laundered value is a `Target` the program cannot read an address back out of, not a string",
       "seeAlso": [
@@ -1315,6 +1316,48 @@
         "tests/conformance/core/http-response-tls-is-null-for-a-reply-the-table-answered.nvst",
         "tests/conformance/reject/http-tls-info-is-read-only-behind-the-null-check.nvst",
         "tests/conformance/reject/http-tls-info-names-are-tainted-and-what-the-handshake-settled-is-not.nvst"
+      ]
+    },
+    {
+      "id": "http-server/an-outbound-socket-is-opened-like-an-outbound-call",
+      "title": "A WebSocket is opened by `Core\\Http\\Client::openSocket` under every rule an outbound call obeys, `ws` and `wss` serve that row alone, and a socket is never pooled",
+      "status": "designed",
+      "because": [
+        "0183"
+      ],
+      "divergesFromPhp": "there is no outbound WebSocket in PHP's standard library at all — `ext-sockets` and a userland client are what a program reaches for, and neither passes an address policy",
+      "seeAlso": [
+        "http-server/allow-url-pins-the-address",
+        "security/outbound-url-is-a-sink",
+        "concurrency/a-connection-is-a-root-isolate",
+        "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned"
+      ]
+    },
+    {
+      "id": "http-server/an-outbound-socket-belongs-to-the-task-that-opened-it",
+      "title": "An outbound socket is charged to the task that opened it and closed with `1001` when that task ends, and it is never a root isolate",
+      "status": "designed",
+      "because": [
+        "0183"
+      ],
+      "seeAlso": [
+        "concurrency/a-connection-is-a-root-isolate",
+        "classes/graph-copy",
+        "http-server/an-outbound-socket-is-opened-like-an-outbound-call"
+      ]
+    },
+    {
+      "id": "http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap",
+      "title": "`idle`, `maxDuration`, `maxMessage` and `sendTimeout` bound every outbound socket, each inherits a finite default, and none has an unbounded spelling",
+      "status": "designed",
+      "because": [
+        "0183"
+      ],
+      "seeAlso": [
+        "http-server/no-spelling-for-an-unbounded-wait",
+        "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime",
+        "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+        "config/three-changeability-classes"
       ]
     },
     {
