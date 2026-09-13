@@ -7955,11 +7955,13 @@ mod tests {
             "a core answered a request the fleet had no place left for, so it was counting \
              against a ceiling of its own: {answer}"
         );
+        // `Ok` is the one answer that fails. The sender lives in the idle
+        // core's handler, and that core serves one connection, so by the time
+        // the `503` has been read to its end the core may already have left
+        // its loop and dropped it: a disconnected channel says the handler is
+        // gone, not that it was asked.
         assert!(
-            matches!(
-                idle_admitted.try_recv(),
-                Err(std::sync::mpsc::TryRecvError::Empty)
-            ),
+            idle_admitted.try_recv().is_err(),
             "the handler was asked for a request the fleet's ceiling had already refused"
         );
         assert_eq!(
