@@ -1915,10 +1915,16 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   disk into a document that is then committed. [until: reviewed 2026-09-13]
 - **A `rule:` target after an option on `peek.py`'s command line is refused as an unrecognized
   argument.** The option ends the positional run argparse is collecting targets into, so
-  `peek.py a.rs:1-20 --context 5 rule:topic/slug` fails outright while the same call with the
+  `peek.py a.rs:1-20 --context 5 rule:types/conversion` fails outright while the same call with the
   `rule:` token written before `--context` reads both. Put every target first and every option
   last, which is the order the tool's own usage line prints them in.
   [until: reviewed 2026-09-13]
+- **A `rule:` token written as an illustrative placeholder turns the rulebook floor red.** `python
+  tools/rules.py --check` resolves every `rule:` citation under `docs/`, the playbook included, so a
+  bullet showing a command line as `peek.py a.rs:1-20 --context 5 rule:topic/slug` fails the `1 floor`
+  rulebook check for every later session while reading as a perfectly good example. Write a real id in
+  an example — `rule:types/conversion` — and run `python tools/rules.py --check` before the wrap, which
+  is the same call the floor makes. [until: reviewed 2026-09-13]
 
 ## Running things
 
