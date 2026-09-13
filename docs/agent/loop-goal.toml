@@ -106,6 +106,16 @@ modules = [
   "crates/nvs-cli/src/serve.rs",
   "crates/nvs-syntax/src/lib.rs",
   "crates/nvs-test/src/lib.rs",
+  # What may be written where the cursor is.
+  "crates/nvs-lsp/src/completion.rs",
+  # `Core\Queue` — `rule:concurrency/enqueue-commits-with-your-write`'s durable background job,
+  # over the `[db.<name>]` block a `[queue] connection` names.
+  "crates/nvs-stdlib/src/queue.rs",
+  # `Core\Http\Method` — the closed set of verbs a route is declared under — `Core\Router`'s link
+  # half, which is as much of `rule:routing/routes-are-compiled-not-registered`'s router as exists
+  # today, and `Core\Router\Match`, the match `rule:routing/matched-once-before-the-handler` has
+  # the door take once and `Core\Request::route()` hand back.
+  "crates/nvs-stdlib/src/router.rs",
 ]
 
 rules = [
