@@ -2934,10 +2934,8 @@ mod tests {
     /// A loopback origin that answers one opening handshake with a `101`, then
     /// holds the connection until the client lets it go.
     ///
-    /// This is the one origin here that has to **read** a request before it can
-    /// write its reply: `tungstenite` hashes the `Sec-WebSocket-Key` it sent
-    /// and refuses an answer whose `Sec-WebSocket-Accept` is anything else, so
-    /// a static `101` from [`origin`] opens no socket at all. `chosen` is the
+    /// The exchange is [`handshook`]'s, which is where the reply has to be
+    /// derived from the request rather than written out. `chosen` is the
     /// subprotocol the reply names, and `None` is a reply that names none.
     ///
     /// The handle carries the opening request as it arrived, which is where a
@@ -2980,6 +2978,18 @@ mod tests {
         stream
             .set_read_timeout(Some(Duration::from_secs(5)))
             .expect("a bound on this origin's own wait");
+        handshook(&mut stream, chosen)
+    }
+
+    /// [`handshake`] over whatever carries the octets, which is what lets the
+    /// `wss` origin answer the same exchange from inside a TLS session.
+    ///
+    /// The reply is derived rather than written out: `tungstenite` hashes the
+    /// `Sec-WebSocket-Key` it sent and refuses an accept that is anything else,
+    /// so an origin whose reply is a constant opens no socket at all. That is
+    /// the whole reason this half is generic — one derivation, plaintext and
+    /// TLS alike, rather than a second one behind the session.
+    fn handshook(stream: &mut (impl Read + Write), chosen: Option<&'static str>) -> String {
         let mut request = [0_u8; 4096];
         let Ok(read) = stream.read(&mut request) else {
             return String::new();
@@ -4947,21 +4957,7 @@ mod tests {
         let accepted = Arc::new(AtomicUsize::new(0));
         let counting = Arc::clone(&accepted);
         std::thread::spawn(move || {
-            let config = Arc::new(
-                rustls::ServerConfig::builder_with_provider(Arc::new(
-                    rustls::crypto::ring::default_provider(),
-                ))
-                .with_safe_default_protocol_versions()
-                .expect("the provider refused the shipped versions")
-                .with_no_client_auth()
-                .with_single_cert(
-                    vec![cert],
-                    rustls::pki_types::PrivateKeyDer::Pkcs8(
-                        rustls::pki_types::PrivatePkcs8KeyDer::from(key),
-                    ),
-                )
-                .expect("the certificate and the key did not pair"),
-            );
+            let config = serving(cert, key);
             let ends = Instant::now() + Duration::from_secs(20);
             while Instant::now() < ends {
                 let Ok((sock, _)) = listener.accept() else {
@@ -4974,6 +4970,76 @@ mod tests {
             }
         });
         (port, accepted)
+    }
+
+    /// The server side of [`trusted`]'s certificate: the one `rustls`
+    /// configuration an origin thread terminates TLS under, whichever exchange
+    /// it goes on to answer.
+    fn serving(cert: CertificateDer<'static>, key: Vec<u8>) -> Arc<rustls::ServerConfig> {
+        Arc::new(
+            rustls::ServerConfig::builder_with_provider(Arc::new(
+                rustls::crypto::ring::default_provider(),
+            ))
+            .with_safe_default_protocol_versions()
+            .expect("the provider refused the shipped versions")
+            .with_no_client_auth()
+            .with_single_cert(
+                vec![cert],
+                rustls::pki_types::PrivateKeyDer::Pkcs8(
+                    rustls::pki_types::PrivatePkcs8KeyDer::from(key),
+                ),
+            )
+            .expect("the certificate and the key did not pair"),
+        )
+    }
+
+    /// [`socket_origin`] behind TLS: one opening handshake, answered with a
+    /// `101` from inside a session under [`trusted`]'s certificate, with the
+    /// request as it arrived on the far side of it.
+    ///
+    /// Both halves are the ones already here — [`serving`]'s certificate and
+    /// [`handshook`]'s derived accept — because what a `wss` case is written to
+    /// see is the one outbound TLS client carrying the handshake this module
+    /// already writes (`rule:security/one-tls-client`), and an origin with its
+    /// own idea of either would be asserting against a path nothing runs.
+    ///
+    /// A client that walks away from the certificate leaves this thread with
+    /// nothing to report, which is the empty string: what such a case asserts
+    /// on is the refusal on the client's side.
+    fn tls_socket_origin(
+        cert: CertificateDer<'static>,
+        key: Vec<u8>,
+        chosen: Option<&'static str>,
+    ) -> (u16, std::thread::JoinHandle<String>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let port = listener.local_addr().expect("its own address").port();
+        listener
+            .set_nonblocking(true)
+            .expect("an accept that does not outlive the case");
+        let served = std::thread::spawn(move || {
+            let config = serving(cert, key);
+            // A case that never opens what it said it would ends here rather
+            // than holding the run, for [`origin_raw`]'s reason.
+            let ends = Instant::now() + Duration::from_secs(20);
+            while Instant::now() < ends {
+                let Ok((mut sock, _)) = listener.accept() else {
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                };
+                // Said rather than assumed, for [`answer`]'s reason: an
+                // accepted connection inherits the listener's non-blocking mode
+                // on Windows.
+                drop(sock.set_nonblocking(false));
+                drop(sock.set_read_timeout(Some(Duration::from_secs(5))));
+                let Ok(mut conn) = rustls::ServerConnection::new(Arc::clone(&config)) else {
+                    return String::new();
+                };
+                let mut tls = rustls::Stream::new(&mut conn, &mut sock);
+                return handshook(&mut tls, chosen);
+            }
+            String::new()
+        });
+        (port, served)
     }
 
     /// One connection's handshake and the one request behind it.
@@ -5739,5 +5805,139 @@ mod tests {
 
         let asked = served.join().expect("the origin thread").asked;
         assert_eq!(asked.len(), 1, "nothing followed the hop: {asked:?}");
+    }
+
+    /// `rule:security/one-tls-client`, as [ADR 0183](/docs/decisions/0183.md)
+    /// § 4 reads it for a socket: a `wss` handshake is a `ws` handshake inside
+    /// a session the process's one outbound client established, built from the
+    /// policy the `Call` carries, and what it leaves is the same [`Upgraded`].
+    ///
+    /// Both sides of that policy, because the opening half alone would pass
+    /// just as well on an end that handed the session no policy at all: the
+    /// same handshake, against an origin holding the same certificate, under a
+    /// call whose own anchors vouch for a different one, never reaches a `101`.
+    /// The refusal is read as the TLS one rather than as any error, since a
+    /// socket that failed to connect at all would satisfy a bare `is_err`.
+    #[test]
+    fn wss_socket_completes_over_the_tls_client_under_the_calls_policy() {
+        let (cert, key) = trusted();
+        let offered = vec!["chat.v1".to_owned()];
+
+        let (port, served) = tls_socket_origin(cert.clone(), key.clone(), Some("chat.v1"));
+        let mut opening = call(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+            "Core\\Http\\Client::openSocket",
+        );
+        opening.url = format!("wss://localhost:{port}/chat");
+
+        let opened = upgrade(&opening, &offered, WebSocketConfig::default())
+            .expect("a `101` inside the session the roots file vouches for");
+        assert_eq!(
+            opened.protocol.as_deref(),
+            Some("chat.v1"),
+            "a `wss` handshake settles a subprotocol as a `ws` one does"
+        );
+        // Before the join: the origin ends its connection when this one does.
+        drop(opened.socket);
+
+        let asked = served.join().expect("the origin thread");
+        assert_eq!(
+            asked.lines().next(),
+            Some("GET /chat HTTP/1.1"),
+            "the handshake crossed the session intact: {asked}"
+        );
+        assert_eq!(
+            header_of(&asked, "host"),
+            Some(format!("localhost:{port}")),
+            "the authority the URL wrote is what `Host:` carries: {asked}"
+        );
+
+        let elsewhere = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+            .expect("a second loopback certificate could not be generated");
+        let (port, served) = tls_socket_origin(cert.clone(), key.clone(), Some("chat.v1"));
+        let mut asking = call(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+            "Core\\Http\\Client::openSocket",
+        );
+        asking.url = format!("wss://localhost:{port}/chat");
+        asking.policy = CallPolicy {
+            anchors: Some(elsewhere.cert.pem()),
+            ..CallPolicy::default()
+        };
+
+        let Err(why) = upgrade(&asking, &offered, WebSocketConfig::default()) else {
+            panic!("a certificate the call's own anchors do not vouch for opened a socket");
+        };
+        let refused = format!("{why:?}").to_lowercase();
+        assert!(
+            refused.contains("tls handshake"),
+            "the refusal is the session's, not the socket's: {refused}"
+        );
+        served.join().expect("the origin thread");
+    }
+
+    /// `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`,
+    /// as [ADR 0183](/docs/decisions/0183.md) § 4 reads it for a socket: the
+    /// operator's tunnel is the call's, so a handshake goes through `CONNECT`
+    /// to the address the door approved and the `101` comes back over it.
+    ///
+    /// The bypassed half is asserted beside it, because an end that tunnelled
+    /// unconditionally would pass the first half alone and quietly send a host
+    /// the operator excluded through the proxy anyway. What says so is the
+    /// proxy's own count, read rather than joined, for [`tls_origin`]'s reason:
+    /// a tunnel that was never asked for leaves nothing to join on.
+    #[test]
+    fn a_socket_is_opened_through_the_proxy_tunnel_when_one_is_configured() {
+        let offered = vec!["chat.v1".to_owned()];
+
+        let (at, served) = socket_origin(Some("chat.v1"));
+        let (proxying, _, asked) = proxy(1, None);
+        let mut opening = call(at, "Core\\Http\\Client::openSocket");
+        opening.url = format!("ws://{at}/chat");
+        opening.proxy = Some(through(proxying));
+
+        let opened = upgrade(&opening, &offered, WebSocketConfig::default())
+            .expect("a `101` from behind the tunnel");
+        assert_eq!(
+            opened.protocol.as_deref(),
+            Some("chat.v1"),
+            "the conversation the tunnel carries is the one that was opened"
+        );
+        // Before the join: the origin ends its connection when this one does.
+        drop(opened.socket);
+
+        let asked = asked.join().expect("the proxy thread");
+        assert!(
+            asked[0].starts_with(&format!("CONNECT {at} HTTP/1.1\r\n")),
+            "the tunnel is opened to the address the door approved: {asked:?}"
+        );
+        let behind = served.join().expect("the origin thread");
+        assert_eq!(
+            behind.lines().next(),
+            Some("GET /chat HTTP/1.1"),
+            "and the handshake itself is what crossed it: {behind}"
+        );
+        assert!(
+            !behind.contains("CONNECT"),
+            "nothing of the tunnel's own exchange reaches the origin: {behind}"
+        );
+
+        let (at, served) = socket_origin(Some("chat.v1"));
+        let (proxying, reached, _) = proxy(1, None);
+        let mut direct = call(at, "Core\\Http\\Client::openSocket");
+        direct.url = format!("ws://{at}/chat");
+        let mut past = through(proxying);
+        past.bypass = vec![at.ip().to_string()];
+        direct.proxy = Some(past);
+
+        let opened = upgrade(&direct, &offered, WebSocketConfig::default())
+            .expect("a `101` from the origin itself");
+        drop(opened.socket);
+        served.join().expect("the origin thread");
+        assert_eq!(
+            reached.load(Ordering::Relaxed),
+            0,
+            "a bypassed host is dialled directly, tunnel configured or not"
+        );
     }
 }

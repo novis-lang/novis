@@ -7,51 +7,57 @@ call and closed with the task that opened it.** Stage 1 (goal `outbound-proxy`'s
 and passes; stage 2's record, [ADR 0183](../decisions/0183.md), is accepted; stage 3's scripted peer
 is on disk and green.
 
-**Stage 4's code is landed, and four of the six tests its `cargo-named` check pins are green** —
-the two handshake cases, the unoffered-subprotocol refusal and the redirect. `openSocket` branches on
-`ctx.faked_http().is_armed()`: the armed arm keeps the table's `LogicError`, and the unarmed arm
-assembles a `transport::Call` and calls `transport::upgrade`, which dials through
-`transport::dialled` — one connect implementation, shared with `one` — and runs `tungstenite`'s
-`client_with_config` over the connection it left. Nothing is pooled, the live conversation is filed
-in the request's table under the class's `held` slot, and `close` gives the connection back.
+**Stage 4 is closed.** All six tests its `cargo-named` check pins pass, and so do the two `.nvst`
+cases of its `nvs-suite` check — the whole conformance tree is green. The handshake is live over
+every transport it has: plaintext `ws`, `wss` through the process's one outbound TLS client under
+the policy the `Call` carries, and either of those through the operator's `CONNECT` tunnel, with a
+bypassed host dialled directly.
 
-**The subprotocol judgement is now `transport::settled`**, which both arms pass through: the live one
-inside `upgrade`, the scripted one at the call site in `socket.rs`. `socket.rs`'s own `offered` is
-gone. `tungstenite` asks the same question of a live `101` and gets there first, refusing without
-naming the name — so the wording is asserted of `settled` directly, and the live case asserts only
-that the `101` was refused.
+**`openSocket` branches on `ctx.faked_http().is_armed()`** — the armed arm keeps the table's
+`LogicError`, the unarmed arm assembles a `transport::Call` and calls `transport::upgrade`, which
+dials through `transport::dialled`, the one connect implementation `one` also uses. Nothing is
+pooled, the live conversation is filed in the request's table under the class's `held` slot, and
+`close` gives the connection back. The subprotocol judgement is `transport::settled`, which both
+arms pass through.
 
-**What is not real yet is the conversation.** `receive`, `send` and `sendBytes` still read and write
-the *scripted* table, so a socket opened against a real host completes its handshake and then reads
-as a peer that said nothing — stage 5's work, with `maxMessage`, `idle`, `maxDuration`, the send wait
-and `ping` (judged, never applied) and `close`'s `$code`/`$reason` (accepted, never sent).
+**What is not real yet is the conversation.** `receive`, `send`, `sendBytes` and `close` still read
+and write the *scripted* table, so a socket opened against a real host completes its handshake and
+then reads as a peer that said nothing. `[http.client.socket]` does not exist in
+`crates/nvs-config/src/directive.rs` at all, so neither bound has a value to be read from.
 
 ## Next group
 
-**Stage 4: the last two loopback tests, which is what the stage's first check still owes** — one file
-set: `crates/nvs-stdlib/src/http/transport.rs` (its `mod tests`, from line 2772).
+**Stage 5: the conversation and its bounds** — one file set: `crates/nvs-stdlib/src/http/socket.rs`,
+with `crates/nvs-config/src/directive.rs` for the block the bounds are read from.
 
-- [ ] **A TLS socket origin, then `wss_socket_completes_over_the_tls_client_under_the_calls_policy`** —
-      `rule:security/one-tls-client`, [ADR 0183](../decisions/0183.md) § 4.
-      `crates/nvs-stdlib/src/http/transport.rs:4810` (`tls_origin`) and
-      `crates/nvs-stdlib/src/http/transport.rs:4782` (`trusted`) are the helpers, but `answer_tls`
-      writes a **static** reply and so cannot open a socket: the `101`'s accept has to be derived per
-      request, which is what `crates/nvs-stdlib/src/http/transport.rs:2894` (`handshake`) already
-      does over a plain stream. The cheapest shape is a `tls_origin` that takes a reply *closure*, or
-      a sibling that runs `handshake`'s body over a `rustls::Stream`. `wss` reaches TLS through
-      `crates/nvs-stdlib/src/http/transport.rs:2476` (`parts`), and the policy the case sets is
-      `CallPolicy`, as `crates/nvs-stdlib/src/http/transport.rs:4887` sets it.
-- [ ] **`a_socket_is_opened_through_the_proxy_tunnel_when_one_is_configured`** —
-      `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`. The loopback
-      proxy at `crates/nvs-stdlib/src/http/transport.rs:2951` (`proxy`) pumps octets both ways
-      untouched, so the `ws` handshake crosses it as a TLS flight does; `through` at
-      `crates/nvs-stdlib/src/http/transport.rs:2930` is the `[http.client.proxy]` block, and
-      `socket_origin` at `crates/nvs-stdlib/src/http/transport.rs:2853` is the far end. Assert the
-      `CONNECT` head names the pinned address and that the socket opened behind it.
+- [ ] **`[http.client.socket]` — `max_message` and `send_timeout`, both `Runtime` and both bounded** —
+      `rule:http-server/no-spelling-for-an-unbounded-wait`,
+      `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, and the goal's
+      § *Standing decisions* for why the class is `Runtime` rather than `System`.
+      `crates/nvs-config/src/directive.rs:127` is where the `[http.client]` rows sit, beside the two
+      exceptions whose comments say what makes a key `System`. The check that closes it is
+      `http_client_socket_max_message_and_send_timeout_are_bounded_and_runtime_class`, in
+      `nvs-config`; the template and the directive sweep both count the new leaf keys, so the shipped
+      default goes in with the row.
+- [ ] **`receive`, `send` and `sendBytes` read and write the held conversation where the table is not
+      armed** — [ADR 0183](../decisions/0183.md) § 5, and the goal's § *Standing decisions* for every
+      received payload being `tainted`. `crates/nvs-stdlib/src/http/socket.rs:536` (`receive`),
+      `crates/nvs-stdlib/src/http/socket.rs:562` (`send`) and
+      `crates/nvs-stdlib/src/http/socket.rs:581` (`sendBytes`) are the three bodies; the live socket
+      is the `held` slot at `crates/nvs-stdlib/src/http/socket.rs:322`, and
+      `crates/nvs-stdlib/src/http/socket.rs:302` is the branch both arms already pass through.
+- [ ] **The bounds and the two closes** — `rule:http-server/no-spelling-for-an-unbounded-wait` for the
+      waits, [ADR 0183](../decisions/0183.md) § 5 for `ping` (judged, never applied) and for `close`'s
+      `$code`/`$reason`. `crates/nvs-stdlib/src/http/socket.rs:609` (`close`). The six tests stage 5's
+      `cargo-named` check names are the shape: `socket_idle_ends_a_silent_peer`,
+      `socket_ping_keeps_a_quiet_live_peer_open`, `socket_max_duration_ends_an_endless_conversation`,
+      `a_message_past_max_message_closes_the_socket_with_1009`,
+      `a_socket_is_closed_with_1001_when_its_task_ends` and
+      `two_receives_waiting_on_one_socket_is_a_logic_error`.
 
 ## Backlog
 
-- Stage 5 is the whole conversation: `receive`/`send`/`sendBytes` over `Open` rather than the
-  scripted table, and the bounds `openSocket` already judges — `docs/agent/loop-goal.md` § stages.
-- `permessage-deflate`, RFC 8441, reconnection and subprotocol libraries stay out — the goal's
-  § *Standing decisions* says so.
+- Stage 5's two `.nvst` cases are not on disk yet — `docs/agent/loop-goal.toml:9993` names them.
+- Stage 6 is the rulebook, and stage 7 the reference surface — `docs/agent/loop-goal.md`.
+- `permessage-deflate`, RFC 8441, reconnection and the subprotocol libraries are out of this goal on
+  purpose — `docs/agent/loop-goal.md` § *Standing decisions*.
