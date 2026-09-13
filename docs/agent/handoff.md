@@ -2,50 +2,50 @@
 
 ## State
 
-**Goal `gap-register` — one register reads every place a gap is written, and a milestone is an owner.
-Stages 1–3 are green.** The two sides now agree on what an owner is: `tools/owners.py`'s module doc is
-the rule, and `crates/nvs-stdlib/tests/spec_registry_coverage.rs` enforces it over the ratchet keys.
+**Goal `gap-register` — stages 1–3 green, stage 4 open.** `python tools/owners.py` now names every
+module-doc heading that records owed work outside a `# Known gaps` block and counts them as
+`sections outside Known gaps: N` (`tools/owners.py:164` is the pattern, `:379` the walk, `:701` the
+line). The stage 4 check wants `0` (`docs/agent/loop-goal.toml:10111`); it stands at **18**.
 
-- `owner_problem` takes the plan's table and accepts three kinds: a live goal slug, `unowned`, and a
-  milestone tag with a row in `docs/implementation-plan.md` that is M9 or later and not `done`. The
-  three refusals are `tools/owners.py:@classify`'s three, in its order.
-- `FIRST_FUTURE_MILESTONE` now has a second home, in Rust — no file both sides can read it from — and
-  each is held by its own test. No ratchet key uses a milestone tag yet; the gate accepts one now.
-- The floor check `no document in the tree still cites this goal's subject by ADR number`
-  (`tools/check-links.py`) was red on three crate-relative paths in `tools/loop.py`'s partition comment
-  and is green; the playbook carries the trap.
+- The goal's stage 4 authored a list of six from a substring sweep. The tool's pattern is
+  word-bounded and spans `not … yet`, so it drops the false hits and finds the `# What is not here
+  yet` headings that sweep could not see. The remaining 18 are the work, and `owners.py` prints them.
+- Five sections are moved: `crates/nvs-stdlib/src/test.rs`, `crates/nvs-cli/src/runner.rs`,
+  `crates/nvs-render/src/lib.rs`, `crates/nvs-server/src/schedule.rs` (new block, three items), and
+  the two `nvs-types` headings whose sections owed nothing and only said they did.
+- Owners are evidence, not guesses: `docs/decisions/0079.md:872` puts § 2's parallelism at M5 (goal
+  `m5-proofs`) and § 22's output at the M4S tail, which goal `m8-stdlib-depth` § *Standing decisions*
+  claims; `docs/decisions/0092.md:439` puts the compiler diagnostic's producer at M10.
+- The gate is unchanged and green: `--check --untagged-is-an-error --reasons` passes, and
+  `--deferrals` accepts the new `M10` tag against `docs/plan/m10.md`.
 
-Nothing is blocked, and no gap was closed — this goal builds the register, it does not empty it.
+Nothing is blocked. `[context] modules` printed no crate module doc, which is the file kind this
+stage edits; the driver's sweep picks up what these commits touched.
 
 ## Next group
 
-**Stage 4: owed work is written under one heading** — one file set: the module docs that record it
-elsewhere, plus `tools/owners.py`.
+**Stage 4 continued: `nvs-db`'s five sections** — one file set: `crates/nvs-db/src/`, whose gaps M8's
+database half owns (goal `m8-db-queue`, `docs/agent/goals/58-m8-db-queue.md`). The rule is the goal's
+stage 4 and `tools/owners.py`'s module doc § *A heading is not a register*.
 
-- [ ] **`owners.py` warns when owed work is written outside a `# Known gaps` block** —
-      `tools/owners.py:@report`. The line is `sections outside Known gaps: N`, which the stage 4 check
-      wants at `0` (`docs/agent/loop-goal.toml:10111`); the sweep that finds them is
-      `python tools/peek.py "crates/**/*.rs:re://! #+ .*(not yet|owe|still missing|not armed)"`, and the
-      goal's stage 4 says to re-run it rather than trust the list. The rule is that stage and this
-      module's own doc.
-- [ ] **Two module docs move their owed work into their `# Known gaps` block** —
-      `crates/nvs-stdlib/src/test.rs:138` (§ 18's in-process request; the block it moves into is
-      `crates/nvs-stdlib/src/test.rs:92`, owner goal `m7-server-surface`) and
-      `crates/nvs-cli/src/runner.rs:83` (§ 2's test parallelism, whose owner this stage decides). Numbered
-      items with an owner tag, and the emptied heading rewritten to say what the module does rather than
-      deleted — `AGENTS.md` rule 7 and `tools/owners.py`'s module doc § *Three owner kinds*.
-- [ ] **The three that share one owner between two crates** — `crates/nvs-render/src/lib.rs:12` (the HTML
-      rendering and three producers, goal `m8-stdlib-depth`), `crates/nvs-server/src/schedule.rs:77` and
-      `crates/nvs-cli/src/serve.rs:763` (a `fleet` entry is never armed under `nvs serve`, goal
-      `m7-server-surface`). Same shape as the item above.
+- [ ] **`crates/nvs-db/src/tds/mod.rs:86` — `# The one gap` becomes the block it is already
+      written as**, and `crates/nvs-db/src/tds/mod.rs:54` loses its `what is not yet` clause. The
+      refused `bytes` bind is the item; this file has no `# Known gaps` block today.
+- [ ] **`crates/nvs-db/src/lib.rs:100` — what each of the five wire implementations still owes**
+      moves out of the prose into a new `# Known gaps` block, one numbered item per driver, and the
+      heading becomes what is here.
+- [ ] **`crates/nvs-db/src/span.rs:30` and `crates/nvs-db/src/ddl.rs:45`.** Span's section prices what
+      it holds (`rule:programs/memory-priority` § *Say what you spend*, which is why the section
+      stays) and names one capability no set can express yet — that half is the gap.
+      `crates/nvs-db/src/ddl.rs:45` says a limit is *not* a gap here, so only its wording changes; its
+      block is `crates/nvs-db/src/ddl.rs:73`.
 
 ## Backlog
 
-- Eight more module docs the goal's stage 4 names are *read each*, and one recording no owed work is
-  left alone — `docs/agent/loop-goal.md` § Stage 4.
-- `crates/nvs-stdlib/src/process.rs` has no gap block at all and `Core\Process::spawn` is owed — stage 4
-  gives it one.
-- Stage 5 is `python tools/plan.py --past` over `owners.py --json`, then `--sync` writing `done` into a
-  complete milestone's *Carried by* cell — `docs/agent/loop-goal.md` § Stage 5.
-- The ratchet keys tagged `unowned` stay that way; re-tagging spec § 17's four classes to a milestone is
-  goal `unowned-closures`', not this goal's — `docs/agent/loop-goal.md` § Standing decisions.
+- 13 sections outside a block in eight other crates — `python tools/owners.py` prints them with
+  anchors; `crates/nvs-stdlib/src/http.rs:102` and `crates/nvs-server/src/serve.rs:32` are the two
+  whose prose argues the omission is deliberate.
+- Stage 5: `python tools/plan.py --past`, reading `owners.py --json` (goal prose stage 5).
+- Stage 6: `tools/brief.py:471-483` routes `gap`, `owner` and `register` to `tools/owners.py`.
+- 21 items are still tagged to a milestone the program has passed; `--past-is-an-error` names them
+  and the closure goals empty them (goal `gap-register` § *Standing decisions*).

@@ -1989,6 +1989,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   comment held the whole floor red. Cite a crate file from the root, and read a `retired` finding whose
   path you cannot find in the line it names as the tail of a longer one.
   [until: gone tools/check-links.py:MENTION_TOPS]
+- **The sweep stage 4 of goal `gap-register` was authored from both over- and under-reports, so the
+  list it prints is not the work.** `python tools/peek.py "crates/**/*.rs:re://! #+ .*(not yet|owe|still
+  missing|not armed)"` matches `owe` inside `lowers` and `borrowed`, so headings about lowering and
+  borrowing come back, while `# Not here yet` and `# What is not a region yet` match nothing and stay
+  hidden — the tree holds three times as many as the goal's list names. Run `python tools/owners.py`
+  instead and read its `OWED` section: the pattern is word-bounded and lets up to three words sit
+  between `not` and `yet`. [until: gone tools/owners.py:OWED]
 
 ## Running things
 

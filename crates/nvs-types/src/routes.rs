@@ -16,7 +16,7 @@
 //! which is why what it may hold is the roster below rather than an alias
 //! lookup.
 //!
-//! # What is checked here, and what the table still owes
+//! # What is checked here, and which pass asks it
 //!
 //! Two passes, and they are two because they read different things — the same
 //! split [`crate::commands`] makes, for the same reason.

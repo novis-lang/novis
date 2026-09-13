@@ -18,7 +18,7 @@
 //! `#[Command(nmae: "deploy")]` silently, which is the whole argument
 //! [`crate::derive`]'s own gap 3 makes for keeping the list short.
 //!
-//! # What is checked here, and what the table still owes
+//! # What is checked here, and which pass asks it
 //!
 //! The passes below are separate because they read different things.
 //!
