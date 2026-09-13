@@ -137,6 +137,14 @@ pub const DIRECTIVES: &[Directive] = &[
     // reads the block and the pool's key carries the proxy, so nothing the old value made can serve
     // one (`rule:http-server/an-outbound-proxy-is-operator-configured`).
     Directive { key: "http.client.proxy", class: Class::System, apply: Apply::Reload },
+    // `[http.client.socket]` is the block inside `[http.client]` that is **not** an exception, and
+    // it carries a row of its own to say so: `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`
+    // puts its two keys on `[http.client] deadline`'s footing — each bounds one call, a program that
+    // knows its own peer names its own value at the call site, and neither spends a resource another
+    // request then goes without. The `http` row above already answers `Runtime` for it; the row is
+    // written because a block sitting after three `System` ones is where the next reader assumes the
+    // exception carries on.
+    Directive { key: "http.client.socket", class: Class::Runtime, apply: Apply::Reload },
     // `[log] format` and `level` are rows of `rule:config/a-mode-is-five-defaults`'s mode table, and no row in that table is
     // `System`-class.
     Directive { key: "log", class: Class::Runtime, apply: Apply::Reload },

@@ -751,6 +751,85 @@ pub fn advise(config: &Config, origins: &BTreeMap<String, Origin>) -> Vec<Diagno
     announced
 }
 
+/// `[http.client.socket]`'s two bounds, refused where either is written with no bound in it.
+///
+/// # Errors
+///
+/// [`socket_bound`]'s `E0647`, and `E0601` for a value that is not a quantity at all.
+fn socket(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    let Some(block) = config
+        .http
+        .as_ref()
+        .and_then(|http| http.client.as_ref())
+        .and_then(|client| client.socket.as_ref())
+    else {
+        return Ok(());
+    };
+    socket_bound(
+        "http.client.socket.max_message",
+        Unit::Bytes,
+        block.max_message.as_ref(),
+        origins,
+    )?;
+    socket_bound(
+        "http.client.socket.send_timeout",
+        Unit::Duration,
+        block.send_timeout.as_ref(),
+        origins,
+    )
+}
+
+/// One of those bounds, and `Ok(())` for one the block left out.
+///
+/// [`mod@crate::value`] is the parser, so `"4MB"`, `4194304` and `"30s"` all read as what they
+/// spell and a suffix it does not know is refused in its own words. What is left for this function
+/// is the pair of values that parse and are not bounds: `false`, which removes a ceiling everywhere
+/// else in this file, and zero, which is the same value written the other way round — a cap of
+/// nothing admits no message and a wait of nothing writes no frame. An outbound socket has no
+/// spelling for either (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
+fn socket_bound(
+    key: &str,
+    unit: Unit,
+    written: Option<&Setting>,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    let Some(setting) = written else {
+        return Ok(());
+    };
+    let quantity = Quantity::parse(key, unit, setting)
+        .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
+    let removed = match quantity {
+        Quantity::Unbounded => true,
+        Quantity::Bytes(magnitude) | Quantity::Nanos(magnitude) | Quantity::Count(magnitude) => {
+            magnitude == 0
+        }
+        // Unreachable in either unit above, and answered rather than left out: a ratio is neither a
+        // size nor a wait, so a value that spelled one has already been refused by the parser.
+        Quantity::Ratio(_) => false,
+    };
+    if !removed {
+        return Ok(());
+    }
+    Err(Diagnostic::error(
+        code::E_SOCKET_BOUND_REMOVED,
+        format!(
+            "`{key}` is `{}`, which is not a bound",
+            crate::value::as_written(setting)
+        ),
+    )
+    .with_note(format!(
+        "a socket this host holds open reassembles a message into the opening task's memory and \
+         waits to write one, and neither has a spelling for \"no limit\": `false` removes a \
+         ceiling, and zero admits no message and writes no frame{}",
+        origin_note(origins.get(key))
+    ))
+    .with_help(
+        "write the bound this deployment wants, or leave the key out for the shipped one — \
+         `max_message = 4194304` and `send_timeout = \"30s\"`"
+            .to_string(),
+    ))
+}
+
 /// §§ 2-3's two refusals, asked of the merged tree at boot.
 ///
 /// # Errors
@@ -764,7 +843,8 @@ pub fn advise(config: &Config, origins: &BTreeMap<String, Origin>) -> Vec<Diagno
 /// `roots`, `E0639` for a `min_version` this client cannot speak, `E0640` for a `keylog` on a
 /// `production` host — and then `[http.client.proxy]`'s four, `E0643` for a block with no
 /// `resolve`, `E0644` for a third word, `E0645` for a `url` this client cannot dial and `E0646` for
-/// a `bypass` entry that is not a host name.
+/// a `bypass` entry that is not a host name. After those, `[http.client.socket]`'s `E0647` for a
+/// bound written as `false` or as zero, which is a bound that is not one.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     // The outbound block first, and its `keylog` is why: a tree that leaks its own TLS secrets is
     // priority 1, so it is refused before any question about what a response header means.
@@ -772,6 +852,10 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
     // The proxy beside it, for the same ordering reason: where every outbound byte goes, and who
     // gets to resolve the destination, outranks what a response header means.
     proxy(config, origins)?;
+    // The socket block last of the outbound three and still ahead of everything inbound: what it
+    // refuses is a bound taken off a conversation this host holds open, which outranks what a
+    // response header means and sits under where the bytes go.
+    socket(config, origins)?;
     // § 1's free-text policies, before anything about meaning: a value the wire cannot carry
     // is not a policy that is wrong, it is a policy that never reaches a peer at all.
     let headers = config.http.as_ref().and_then(|http| http.headers.as_ref());

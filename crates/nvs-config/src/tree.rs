@@ -575,6 +575,8 @@ pub struct HttpClient {
     pub tls: Option<HttpClientTls>,
     /// `[http.client.proxy]`.
     pub proxy: Option<HttpClientProxy>,
+    /// `[http.client.socket]`.
+    pub socket: Option<HttpClientSocket>,
 }
 
 /// `[http.client.tls]` — whose certificates an outbound `https` call believes, the version floor it
@@ -653,6 +655,33 @@ pub struct HttpClientProxy {
     /// The file whose whole content is the password, on [`Database::password_file`]'s footing and
     /// read by the same pass.
     pub password_file: Option<String>,
+}
+
+/// `[http.client.socket]` — the two bounds an outbound WebSocket has that no other outbound call
+/// does: the largest message it will reassemble, and how long one frame may wait to be written.
+///
+/// `Runtime` as a block, and for `[http.client] deadline`'s reason
+/// (`rule:config/three-changeability-classes`): each key bounds one call, a program that knows its
+/// own peer names its own value at the call site, and neither is a resource one request could spend
+/// on another's behalf. They are written here rather than among [`HttpClient`]'s own keys because
+/// they mean nothing to a row that is not `openSocket`, and a block is the smallest thing a
+/// `nvs config dump` reader can skip.
+///
+/// Neither has a spelling that removes the bound: `false` and zero are both `E0647`, because
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` is about exactly this pair of
+/// waits and `rule:http-server/no-spelling-for-an-unbounded-wait` is the same closure one level up.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct HttpClientSocket {
+    /// The largest message the socket reassembles, in bytes. Unset is `4194304` — four mebibytes,
+    /// which is what this process already applies to the inbound half of RFC 6455, since one
+    /// process holding two opinions about the size of one message is how a program comes to work in
+    /// one direction and not the other. A message past it closes the socket with `1009` rather than
+    /// growing the opening task's memory to whatever the peer sends.
+    pub max_message: Option<Setting>,
+    /// How long one frame may wait to be written, after which the send fails. Unset is `"30s"`,
+    /// the wait the inbound half takes, on [`max_message`](Self::max_message)'s reasoning.
+    pub send_timeout: Option<Setting>,
 }
 
 /// The `mail.*` grants.

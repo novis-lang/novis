@@ -1,12 +1,13 @@
 //! The registry's two fields are two fields — `rule:config/reloadability-is-its-own-field` against `rule:config/three-changeability-classes` — plus the lookup rule
 //! the module doc states.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
 use nvs_config::Config;
 use nvs_config::directive::{Apply, Class, DIRECTIVES, Directive, lookup};
-use nvs_diagnostics::SourceMap;
+use nvs_diagnostics::{Code, SourceMap, code};
 
 /// The row governing `key`, or a failure naming the key, so a census assertion reads as the claim
 /// it is making rather than as an `unwrap` chain.
@@ -176,7 +177,8 @@ fn a_key_reports_the_block_it_is_written_in() {
 }
 
 /// Every key the header `[block]` accepts, read back out of the refusal `deny_unknown_fields`
-/// writes for one it does not (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`). The list is `nvs_config::tree`'s own field set rather
+/// writes for one it does not (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`), in whichever of serde's three shapes that
+/// block's width gives it. The list is `nvs_config::tree`'s own field set rather
 /// than a copy of it, which is the whole point of the case below: a key added to one of those
 /// blocks joins this list in the commit that adds it, with no edit here to remember.
 fn keys_in(block: &str) -> Vec<String> {
@@ -188,12 +190,17 @@ fn keys_in(block: &str) -> Vec<String> {
         .unwrap_or_else(|| panic!("`[{block}]` accepted an unknown key"))
         .message;
     let listed = message
-        .split_once("expected one of ")
+        .split_once("expected ")
         .unwrap_or_else(|| panic!("`[{block}]` refused without listing its keys: {message:?}"))
         .1;
+    // Every backtick-quoted name in the list, rather than a split on one separator: serde writes
+    // ``a` or `b`` for a two-key block and reaches "one of `a`, `b`, `c`" only at three, so a
+    // separator scan answers about whichever form the block happens to have today.
     let keys: Vec<String> = listed
-        .split(", ")
-        .map(|name| name.trim_matches('`').to_string())
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .map(str::to_string)
         .collect();
     assert!(
         !keys.is_empty(),
@@ -234,6 +241,90 @@ fn every_http_response_directive_is_runtime_class() {
                  (`rule:config/reloadability-is-its-own-field`)",
             );
         }
+    }
+}
+
+/// The code a `[http.client.socket]` block spelling `written` is refused with, and `None` for one
+/// this boot accepts.
+///
+/// The block goes through the same `file::parse` every other case here uses and then through
+/// `http::validate`, which is the function a boot calls: what is asserted below is the refusal an
+/// operator gets, not a helper's return value.
+fn socket_refusal(written: &str) -> Option<Code> {
+    let text = format!("[http.client.socket]\n{written}\n");
+    let mut sources = SourceMap::new();
+    let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", &text);
+    let config = parsed.unwrap_or_else(|err| panic!("{text}-- did not parse: {}", err.message));
+    nvs_config::http::validate(&config, &BTreeMap::new())
+        .err()
+        .map(|refused| refused.code.expect("a boot refusal carries its code"))
+}
+
+/// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`: the one
+/// block inside `[http.client]` that is not a `System` exception, and the one whose keys have no
+/// spelling for removing themselves.
+///
+/// Both halves in one case because either alone reads as the whole claim and is not. A `Runtime`
+/// key an operator may write as `false` hands a *request* a bound with nothing in it, which is
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` reached the long way round; a
+/// bounded key that resolved to `System` is a program that cannot name the message size it knows
+/// its own peer sends, which is the whole reason the block is not in `[http.client.tls]`'s company.
+///
+/// The keys come from `keys_in`, so the class half is asserted of **every** key the block accepts,
+/// and the bounds half is counted rather than read off a line: a check that grew a hole still
+/// answers plausibly for every value that is not in it.
+#[test]
+fn http_client_socket_max_message_and_send_timeout_are_bounded_and_runtime_class() {
+    for key in keys_in("http.client.socket") {
+        let dotted = format!("http.client.socket.{key}");
+        let row = governing(&dotted);
+        assert_eq!(
+            row.class,
+            Class::Runtime,
+            "`{dotted}` resolves through `{}` to {:?}, and each of this block's keys bounds one \
+             call the way `[http.client] deadline` does — a program that knows its own peer names \
+             its own value at the call site, and spends nothing another request then goes without",
+            row.key,
+            row.class,
+        );
+        assert_eq!(
+            row.apply,
+            Apply::Reload,
+            "`{dotted}` is read out of the snapshot when a socket opens, so a new snapshot applies \
+             it (`rule:config/reloadability-is-its-own-field`)",
+        );
+    }
+
+    assert_eq!(
+        socket_refusal("max_message = 4194304\nsend_timeout = \"30s\""),
+        None,
+        "the shipped pair is what a deployment inherits, so writing it back is never a refusal",
+    );
+
+    let no_bound = [
+        "max_message = false",
+        "max_message = 0",
+        "send_timeout = false",
+        "send_timeout = 0",
+        "send_timeout = \"0s\"",
+    ];
+    let accepted: Vec<&str> = no_bound
+        .iter()
+        .copied()
+        .filter(|written| socket_refusal(written).is_none())
+        .collect();
+    assert!(
+        accepted.is_empty(),
+        "a socket reassembles a message into the opening task's memory and waits to write one, so \
+         neither bound has a spelling that removes it — and these were accepted: {accepted:?}",
+    );
+    for written in no_bound {
+        assert_eq!(
+            socket_refusal(written),
+            Some(code::E_SOCKET_BOUND_REMOVED),
+            "`{written}` is a bound with nothing in it, which is the block's own refusal rather \
+             than the value band's: what is wrong is not how the number is spelled",
+        );
     }
 }
 

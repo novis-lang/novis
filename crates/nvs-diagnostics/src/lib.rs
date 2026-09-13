@@ -1945,6 +1945,22 @@ pub mod code {
     /// entry.
     pub const E_PROXY_BYPASS_ENTRY: Code = Code::new("E0646");
 
+    /// A `[http.client.socket]` bound written with no bound in it — a
+    /// `max_message` or a `send_timeout` of `false` or of zero.
+    ///
+    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
+    /// : an outbound socket has no spelling for reassembling a message of any
+    /// size or for waiting forever to write one, the same way
+    /// `Core\Http\Options` has none for an unbounded call
+    /// (`rule:http-server/no-spelling-for-an-unbounded-wait`). `false` removes
+    /// a ceiling everywhere else in this file, and a socket whose message cap
+    /// it removed is the memory of the task that opened it spent by whatever
+    /// the peer decides to send. Zero is that value written the other way
+    /// round: a cap of nothing admits no message and a wait of nothing writes
+    /// no frame, so the block configured a socket that can hold no
+    /// conversation. The refusal names the key and the two shipped values.
+    pub const E_SOCKET_BOUND_REMOVED: Code = Code::new("E0647");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

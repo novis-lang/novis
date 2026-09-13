@@ -312,6 +312,20 @@
 #pool_idle = 16
 #pool_idle_timeout = "30s"
 
+#[http.client.socket]
+# The two bounds an outbound WebSocket has that no other outbound call does
+# (`rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`). Both are
+# settable by a request, as `[http.client] deadline` is: each bounds one call, so a program that
+# knows its own peer writes `maxMessage` or `sendTimeout` at the call instead. Neither has a
+# spelling that removes the bound — `false` and `0` are both refused — and both are the numbers
+# this process already applies to the inbound half of RFC 6455, because one process holding two
+# opinions about the size of one message is how a program comes to work in one direction and not
+# the other.
+# The largest message reassembled, in bytes; a message past it closes the socket with `1009`.
+#max_message = 4194304
+# How long one frame may wait to be written before the send fails.
+#send_timeout = "30s"
+
 #[http.client.tls]
 # Whose certificates an outbound `https` call believes. Each entry is `"bundled"` — the Mozilla set
 # carried in the binary — or a PEM file, so `["bundled", "/etc/novis/corp-ca.pem"]` adds a company
