@@ -45,22 +45,16 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 | Gap | Owner | Where the detail lives |
 |---|---|---|
-| `nvs check` builds no grants, so `rule:core-classes/db-literal-query-checking`'s host diagnostic fires for nobody | `carried-gaps` | `crates/nvs-types/src/intrinsics.rs` gap 6 |
-| A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` | `carried-gaps` | `crates/nvs-runtime/src/object.rs` § *The five walks*, `rule:security/isolate-teardown-is-a-drain-then-a-sweep` |
 | `Core\Db::stream` on four drivers, `streamAs` whole, § 18's `serverVersion` | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 3 |
-| `scope = "fleet"` parses, boots and is not armed | `carried-gaps` | `crates/nvs-server/src/schedule.rs` § *What is not armed*, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` |
-| `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `carried-gaps` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
+| `scope = "fleet"` parses, boots and is not armed | `m7-server-surface` | `crates/nvs-server/src/schedule.rs` § *The fallback, when there is no lease to take*, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` |
+| `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `M7` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
-| Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `carried-gaps` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
-| `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | `test-request` | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
+| Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `gap-zero` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
+| `Core\Response::html` and `sendFile`, the two § 15 members still outstanding | `m7-server-surface` | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
 | `rule:testing/in-process-request` states two response readings rather than `Core\Test`'s signature, and spec § 13's `Core\Test` row is one English cell | `test-request` | `docs/rules/testing/in-process-request.md`, `docs/spec/01-core-library.md:999` |
-| `nvs serve` runs on one core, and no path in the process starts a second | `per-core` | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
-| `Core\Net`, `Core\Os`, `Core\Signal` — spec § 16, named by no milestone at all | `net-os-signal` | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
-| ~110 module-doc `# Known gaps` items name no owner and are in no index | `gap-owners` | this file's own contract, applied one level down |
-| `Core\Uri::with` replaces a component and cannot remove one | `unowned-sweep` | `crates/nvs-stdlib/src/uri.rs` gap 1 |
-| `Core\Queue`'s `limits`/`grants` are undeclared and `$args` does not refuse a `secret` | `unowned-sweep` | `crates/nvs-stdlib/src/queue.rs` gaps 1–2 |
-| `array<T>` is invariant — **decided: widen to a covariant read** | `unowned-sweep` | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
-| The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | `input-shapes` | `crates/nvs-db/src/matrix.rs` gap 1 |
+| `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
+| `array<T>` is invariant, so an `array<int|string>` parameter takes only that spelling | `unowned-closures` | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
+| The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | `m8-db-queue` | `crates/nvs-db/src/matrix.rs` gap 1 |
 | An integer where a grant expects a bool, a path or a list validates clean and grants nothing: `[capabilities.fs] read = 1` passes `nvs config check` at `0 warnings` and is denied at run time | `config-is-written` | `crates/nvs-config/src/tree.rs:50`'s untagged `Setting`, which every directive shares |
 
 ## Unowned
@@ -318,15 +312,6 @@ where taking it is the work and the code that follows it is not.
   milestone claims this either. `crates/nvs-db/src/ddl.rs`, `crates/nvs-db/src/catalog.rs` and
   `crates/nvs-db/src/schema.rs` § *Known gaps* carry the tags.
   [until: gone crates/nvs-db/src/ddl.rs:owner: unowned]
-- **The database matrix's `AF_UNIX` leg is asked for and never published**, so the transport
-  `rule:core-classes/db-unix-socket-path` gives MySQL, MariaDB and PostgreSQL is asserted against
-  listeners `nvs-db` binds itself and against no real server. `Location` has its third arm and
-  `tests/handshake.rs` dials whichever one it is handed; `tools/db-matrix.py` sets no `SOCKET_VAR`,
-  which would need a container's socket directory bind-mounted onto the host. What has to be
-  decided is what that leg runs: the whole TCP case list a second time, which is what would say
-  the driver agrees across both transports and doubles the matrix, or a handshake-only case that
-  says the transport connects and no more. `crates/nvs-db/src/matrix.rs` gap 1.
-  [until: reviewed 2026-09-10]
 - **How much of a `mixed` value's tag dispatch is written at once.**
   `rule:types/erased-member-access` has already decided what an erased read, write and call *do* — a
   checked, catchable throw when the name is not there, never a silent value — but `nvs_ir::Ty::Tagged`
