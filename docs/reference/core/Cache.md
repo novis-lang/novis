@@ -1,5 +1,5 @@
 ---
-summary: three cache tiers with three promises — `local` may forget and may not be seen by the next request, `process` is shared by every core of one process, `shared` is the store every core and machine sees
+summary: three cache tiers with three promises — `local` is one core's own memory and the next request may not see it, `process` is one map for the whole `nvs serve` (or `nvs run`) process, `shared` is an external store such as Redis that every process and machine sees
 keywords: apcu_store, apcu_fetch, apcu_delete, apcu_exists, shmop, sysvshm, cache, memoize, per-core, per-process, redis, ttl, coherence, hit, miss, cross-request state
 ---
 
@@ -11,11 +11,13 @@ that served it before — so a value one request writes **may or may not** be th
 request asks, because that request is usually on a different core with an empty map of its own. It
 is the fastest tier, with nothing locked and nothing shared, and it fits only a value every core can
 cheaply rebuild for itself: a hot lookup table, a parsed template, a per-core counter like the one
-`Core\RateLimit::shed` keeps. **`process()` is one map every core of the process shares**, so a
-follow-up request on the same machine finds what an earlier one wrote, at the cost of a lock on each
-access; it is the tier for ordinary application caching. **`shared()` is a real store over the
-network**, the only tier where a write is seen on every machine and survives a restart, and the only
-one for anything two requests must agree on — sessions, locks, quotas, idempotency keys. On every
+`Core\RateLimit::shed` keeps. **`process()` is one map for the whole process** — every core of one
+`nvs serve`, or the single core of one `nvs run` — so a follow-up request on the same machine finds
+what an earlier one wrote, at the cost of a lock on each access; it is the tier for ordinary
+application caching. **`shared()` is an external store**, Redis at the `[cache.shared] url` an
+operator configured, the only tier where a write is seen by every process on every machine and
+survives a restart, and the only one for anything two requests must agree on — sessions, locks,
+quotas, idempotency keys. On every
 tier a `get` may answer `null`, a program that would be *wrong* on `null` is on the wrong tier, a
 value is copied in on `put` and out on `get` rather than shared live, and a full tier forgets old
 entries instead of failing a `put`.
