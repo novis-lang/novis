@@ -42,6 +42,14 @@ nvs-syntax.workspace = true
 # no third option, so this stays a two-entry list. `nvs-host` depends on
 # `nvs-runtime` and on nothing this crate exports, so the graph stays a tree.
 nvs-host.workspace = true
+# ADR 0183 § 4: the opening handshake of `Core\Http\Client::openSocket` is an
+# outbound call, and what runs over the connection it leaves behind is
+# `tungstenite`'s client half — the same crate the server's half already speaks,
+# over the same parking stream and with no adapter. Masking, fragmentation,
+# UTF-8 validation and the close handshake are that crate's; a second
+# implementation of any of them here would be a second thing to get wrong, which
+# is the workspace row's own argument read in the other direction.
+tungstenite.workspace = true
 # ADR 0132 § 1: `Core\Db`'s registry rows, reference cards and helper bodies
 # belong here with every other class's, and the five drivers' wire code belongs
 # in one crate an audit can open on its own. So the edge runs this way and only

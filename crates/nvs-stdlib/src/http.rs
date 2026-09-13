@@ -552,12 +552,16 @@ nvs_runtime::nvs_helper! {
 /// from source: the option's declared type is checked while compiling, and
 /// those slots were written by a read of the same two octet strings that had
 /// already been accepted.
-fn identity_option(args: &[Value], member: &str) -> Result<Option<transport::Identity>, Fault> {
-    if matches!(args[IDENTITY_AT].tag(), Some(Tag::Null | Tag::Unset)) {
+fn identity_option(
+    args: &[Value],
+    member: &str,
+    bag: Bag,
+) -> Result<Option<transport::Identity>, Fault> {
+    if matches!(args[bag.identity].tag(), Some(Tag::Null | Tag::Unset)) {
         return Ok(None);
     }
 
-    let receiver = crate::instance::receiver(args[IDENTITY_AT], &IDENTITY, member)?;
+    let receiver = crate::instance::receiver(args[bag.identity], &IDENTITY, member)?;
     let chain_slot = crate::instance::slot(receiver, IDENTITY_CHAIN_SLOT);
     let pkcs8_slot = crate::instance::slot(receiver, IDENTITY_PKCS8_SLOT);
     let print_slot = crate::instance::slot(receiver, IDENTITY_FINGERPRINT_SLOT);
@@ -1347,17 +1351,10 @@ const CONTENT_TYPE: usize = 11;
 const MULTIPART: usize = 12;
 /// The client identity's slot, last of the shared keys — see [`DEADLINE`].
 const IDENTITY_AT: usize = 13;
-/// The relaxing keys' own slots, in [`OPTIONS`]' order, and the floor after them
-/// — see [`DEADLINE`].
+/// The first of the relaxing keys, whose group [`connection_options`] emits as
+/// one run: the other four are counted off this one by [`Bag`], so a bag's
+/// flattening of the whole group is this number. See [`DEADLINE`].
 const TLS_CA: usize = 14;
-/// See [`TLS_CA`].
-const TLS_PIN: usize = 15;
-/// See [`TLS_CA`].
-const TLS_VERIFY_HOST: usize = 16;
-/// See [`TLS_CA`].
-const TLS_VERIFY: usize = 17;
-/// See [`TLS_CA`].
-const TLS_MIN_VERSION: usize = 18;
 /// The address a call names for itself, last of the shared keys — see
 /// [`DEADLINE`].
 const CONNECT_TO: usize = 19;
@@ -1390,6 +1387,16 @@ const STREAM_ARITY: usize = STREAM_OPTIONS.len() + 1;
 const SOCKET_DEADLINE: usize = 1;
 /// See [`SOCKET_DEADLINE`].
 const SOCKET_CONNECT_TIMEOUT: usize = 2;
+/// See [`SOCKET_DEADLINE`].
+const SOCKET_HEADERS: usize = 3;
+/// The client identity's slot, first of the keys after the exchange half's hole
+/// — see [`SOCKET_DEADLINE`].
+const SOCKET_IDENTITY: usize = 4;
+/// The first of the five relaxing TLS keys, which [`connection_options`] emits
+/// as one run — see [`SOCKET_DEADLINE`] and [`Bag::relaxing`].
+const SOCKET_TLS_CA: usize = 5;
+/// See [`SOCKET_DEADLINE`].
+const SOCKET_CONNECT_TO: usize = 10;
 /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`'s
 /// group, after every connection key's slot — see [`SOCKET_DEADLINE`].
 const SOCKET_PROTOCOLS: usize = 11;
@@ -1405,6 +1412,77 @@ const SOCKET_PING: usize = 16;
 /// How many arguments `openSocket` takes: the URL plus one per key of
 /// [`SOCKET_OPTIONS`]. Derived for [`REQUEST_ARITY`]'s reason.
 pub(crate) const SOCKET_ARITY: usize = SOCKET_OPTIONS.len() + 1;
+
+/// Where one row's bag put the keys every row shares, and which schemes its URL
+/// may name.
+///
+/// The readings below — the pin, the trust grants, the policy and the identity
+/// — are one question asked by every row of `Core\Http\Client`, and the answer
+/// is in a different ABI slot for each bag: a bag without the exchange half
+/// flattens the same keys onto lower numbers. Handing the flattening in is what
+/// keeps those readings one implementation rather than one per bag, which is
+/// [`connection_options`]' argument one layer down.
+#[derive(Clone, Copy)]
+struct Bag {
+    /// The first of the five relaxing TLS keys. The other four are the next
+    /// four slots, because [`connection_options`] emits the group as one run
+    /// and this is the offset that run starts at.
+    relaxing: usize,
+    /// Where `identity` landed.
+    identity: usize,
+    /// Where `connectTo` landed.
+    connect_to: usize,
+    /// The schemes this row's URL may name — see [`Roster`].
+    roster: Roster,
+}
+
+/// The relaxing group's five slots, counted off [`Bag::relaxing`] in the order
+/// [`connection_options`] writes them. The order lives there and is read here,
+/// so a key inserted into that run moves every slot at once rather than in as
+/// many places as there are bags.
+impl Bag {
+    /// `tlsCa`'s slot.
+    const fn ca(self) -> usize {
+        self.relaxing
+    }
+
+    /// `tlsPin`'s slot.
+    const fn pin(self) -> usize {
+        self.relaxing + 1
+    }
+
+    /// `tlsVerifyHost`'s slot.
+    const fn verify_host(self) -> usize {
+        self.relaxing + 2
+    }
+
+    /// `tlsVerify`'s slot.
+    const fn verify(self) -> usize {
+        self.relaxing + 3
+    }
+
+    /// `tlsMinVersion`'s slot.
+    const fn min_version(self) -> usize {
+        self.relaxing + 4
+    }
+}
+
+/// [`OPTIONS`]' flattening, which every request row and `stream` share.
+const REQUEST_BAG: Bag = Bag {
+    relaxing: TLS_CA,
+    identity: IDENTITY_AT,
+    connect_to: CONNECT_TO,
+    roster: Roster::Request,
+};
+
+/// [`SOCKET_OPTIONS`]' flattening, which the one row that opens a socket has to
+/// itself.
+const SOCKET_BAG: Bag = Bag {
+    relaxing: SOCKET_TLS_CA,
+    identity: SOCKET_IDENTITY,
+    connect_to: SOCKET_CONNECT_TO,
+    roster: Roster::Socket,
+};
 
 /// [`TARGET`]'s two slots, by index — see [`STATUS_SLOT`].
 const TARGET_URL_SLOT: usize = 0;
@@ -2537,26 +2615,26 @@ fn judge_attempts(args: &[Value], member: &str) -> Result<(), Fault> {
 /// A thrown `LogicError` naming the grant, for an option whose host the grant
 /// does not list, and [`judge_floor`]'s. [`judged_host`]'s three cannot fire: a
 /// URL that reaches here has already been approved.
-fn judge_trust(ctx: &Ctx, args: &[Value], url: &str, member: &str) -> Result<(), Fault> {
-    let host = judged_host(url, member, Roster::Request)?;
+fn judge_trust(ctx: &Ctx, args: &[Value], url: &str, member: &str, bag: Bag) -> Result<(), Fault> {
+    let host = judged_host(url, member, bag.roster)?;
     for (asked, cap, option) in [
         (
-            !matches!(args[TLS_CA].tag(), Some(Tag::Null)),
+            !matches!(args[bag.ca()].tag(), Some(Tag::Null)),
             Cap::TlsAnchors,
             TLS_CA_OPTION,
         ),
         (
-            !matches!(args[TLS_PIN].tag(), Some(Tag::Null)),
+            !matches!(args[bag.pin()].tag(), Some(Tag::Null)),
             Cap::TlsPin,
             TLS_PIN_OPTION,
         ),
         (
-            args[TLS_VERIFY_HOST].as_bool() == Some(false),
+            args[bag.verify_host()].as_bool() == Some(false),
             Cap::TlsAnyName,
             TLS_VERIFY_HOST_OPTION,
         ),
         (
-            args[TLS_VERIFY].as_bool() == Some(false),
+            args[bag.verify()].as_bool() == Some(false),
             Cap::TlsInsecure,
             TLS_VERIFY_OPTION,
         ),
@@ -2571,7 +2649,7 @@ fn judge_trust(ctx: &Ctx, args: &[Value], url: &str, member: &str) -> Result<(),
             )?;
         }
     }
-    judge_floor(ctx, args, member)
+    judge_floor(ctx, args, member, bag)
 }
 
 /// `tlsMinVersion` against `[http.client.tls] min_version`: the one key of the
@@ -2588,8 +2666,8 @@ fn judge_trust(ctx: &Ctx, args: &[Value], url: &str, member: &str) -> Result<(),
 /// A thrown `LogicError` naming `tlsMinVersion`, for a floor under the
 /// deployment's or outside the two versions. A directive that will not parse is
 /// not an error here, for [`bound_of`]'s reason.
-fn judge_floor(ctx: &Ctx, args: &[Value], member: &str) -> Result<(), Fault> {
-    let Some(asked) = args[TLS_MIN_VERSION].as_text() else {
+fn judge_floor(ctx: &Ctx, args: &[Value], member: &str, bag: Bag) -> Result<(), Fault> {
+    let Some(asked) = args[bag.min_version()].as_text() else {
         return Ok(());
     };
     let Some(rank) = tls_version_rank(asked) else {
@@ -2650,13 +2728,13 @@ const DEFAULT_MIN_VERSION: &str = "1.2";
 ///
 /// A [`Fault::fatal`] for a slot whose tag is not what its key declares, which
 /// the rows' `string`, `bool` and `string|array<string>` rule out from source.
-fn policy_of(args: &[Value], member: &str) -> Result<CallPolicy, Fault> {
+fn policy_of(args: &[Value], member: &str, bag: Bag) -> Result<CallPolicy, Fault> {
     Ok(CallPolicy {
-        anchors: relaxing_text(args, TLS_CA, TLS_CA_OPTION, member)?,
-        pins: pins_of(args, member)?,
-        any_name: args[TLS_VERIFY_HOST].as_bool() == Some(false),
-        insecure: args[TLS_VERIFY].as_bool() == Some(false),
-        min_version: relaxing_text(args, TLS_MIN_VERSION, TLS_MIN_VERSION_OPTION, member)?,
+        anchors: relaxing_text(args, bag.ca(), TLS_CA_OPTION, member)?,
+        pins: pins_of(args, member, bag)?,
+        any_name: args[bag.verify_host()].as_bool() == Some(false),
+        insecure: args[bag.verify()].as_bool() == Some(false),
+        min_version: relaxing_text(args, bag.min_version(), TLS_MIN_VERSION_OPTION, member)?,
     })
 }
 
@@ -2693,17 +2771,18 @@ fn relaxing_text(
 ///
 /// A [`Fault::fatal`] for a slot or an element that is neither text nor an
 /// array of it, which the row's `string|array<string>` rules out from source.
-fn pins_of(args: &[Value], member: &str) -> Result<Vec<String>, Fault> {
-    if matches!(args[TLS_PIN].tag(), Some(Tag::Null | Tag::Unset)) {
+fn pins_of(args: &[Value], member: &str, bag: Bag) -> Result<Vec<String>, Fault> {
+    let at = bag.pin();
+    if matches!(args[at].tag(), Some(Tag::Null | Tag::Unset)) {
         return Ok(Vec::new());
     }
-    if let Some(one) = args[TLS_PIN].as_text() {
+    if let Some(one) = args[at].as_text() {
         return Ok(vec![one.to_owned()]);
     }
-    let Some(array) = args[TLS_PIN].array_ptr() else {
+    let Some(array) = args[at].array_ptr() else {
         return Err(Fault::fatal(format!(
             "{member} expected a `string` or an `array<string>` for `{TLS_PIN_OPTION}`, got tag {}",
-            args[TLS_PIN].tag_byte()
+            args[at].tag_byte()
         )));
     };
     let mut pins = Vec::new();
@@ -2971,13 +3050,18 @@ fn judge_downgrade(ctx: &Ctx, args: &[Value], hop: &str, member: &str) -> Result
 /// approved. A
 /// [`Fault::fatal`] for an argument of another shape or a target whose slots
 /// this crate did not write, both unreachable from source.
-fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, Vec<IpAddr>), Fault> {
+fn approved(
+    ctx: &mut Ctx,
+    args: &[Value],
+    member: &str,
+    bag: Bag,
+) -> Result<(String, Vec<IpAddr>), Fault> {
     let url = given_url(args, member)?;
-    let named = args[CONNECT_TO].as_text();
+    let named = args[bag.connect_to].as_text();
     if !matches!(args[0].tag(), Some(Tag::Object)) {
         let addresses = match named {
             Some(named) => named_address(ctx, &url, named, member)?,
-            None => pin(ctx, &url, member, Roster::Request)?,
+            None => pin(ctx, &url, member, bag.roster)?,
         };
         return Ok((url, addresses));
     }
@@ -3530,7 +3614,7 @@ fn exchanged(
     // second measurement that disagrees with the first.
     let pinned_already = matches!(args[0].tag(), Some(Tag::Object));
     let began = Instant::now();
-    let (url, addresses) = approved(ctx, args, &named)?;
+    let (url, addresses) = approved(ctx, args, &named, REQUEST_BAG)?;
     let resolve = if pinned_already {
         Duration::ZERO
     } else {
@@ -3542,7 +3626,7 @@ fn exchanged(
     judge_bound(args, RETRY_BACKOFF, "retryBackoff", &named)?;
     judge_attempts(args, &named)?;
     judge_verb(args, verb, &named)?;
-    judge_trust(ctx, args, &url, &named)?;
+    judge_trust(ctx, args, &url, &named, REQUEST_BAG)?;
 
     // Framed before the clock below starts: the encode and the open are this
     // end's work, and a budget spent on them is not a budget the other end was
@@ -3599,8 +3683,8 @@ fn exchanged(
         body,
         pool: pool_of(ctx),
         compress: crate::compress::Bound::ceiling(ctx),
-        identity: identity_option(args, &named)?,
-        policy: policy_of(args, &named)?,
+        identity: identity_option(args, &named, REQUEST_BAG)?,
+        policy: policy_of(args, &named, REQUEST_BAG)?,
         traceparent: traceparent_of(ctx),
         span: std::cell::RefCell::new(span::HttpSpan::opened(verb, resolve)),
         proxy: proxy_of(ctx),
@@ -4468,11 +4552,13 @@ mod tests {
         BODY_OPTION, BODY_OPTIONS, BODY_SLOT, CONNECT_TIMEOUT, CONNECT_TO, CONNECT_TO_OPTION,
         CONTENT_TYPE_OPTION, DEADLINE, FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, HEADERS_SLOT,
         IDENTITY_AT, IDENTITY_OPTION, IDLE, JSON, JSON_OPTION, MAX_DURATION, MULTIPART_OPTION,
-        OPTIONS, REDIRECT_TO_HTTP, REDIRECT_TO_HTTP_OPTION, REQUEST_ARITY, RESPONSE,
+        OPTIONS, REDIRECT_TO_HTTP, REDIRECT_TO_HTTP_OPTION, REQUEST_ARITY, REQUEST_BAG, RESPONSE,
         RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION, RETRY_BACKOFF, RETRY_KEY, RETRY_KEY_OPTION,
-        STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS, TARGET, TARGET_ADDRESSES_SLOT, TARGET_URL_SLOT,
-        TLS_CA, TLS_CA_OPTION, TLS_MIN_VERSION, TLS_MIN_VERSION_OPTION, TLS_PIN, TLS_PIN_OPTION,
-        TLS_VERIFY, TLS_VERIFY_HOST, TLS_VERIFY_HOST_OPTION, TLS_VERIFY_OPTION,
+        SOCKET_ARITY, SOCKET_BAG, SOCKET_CONNECT_TIMEOUT, SOCKET_DEADLINE, SOCKET_HEADERS,
+        SOCKET_IDLE, SOCKET_MAX_DURATION, SOCKET_OPTIONS, SOCKET_PING, SOCKET_PROTOCOLS,
+        SOCKET_SEND_TIMEOUT, STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS, TARGET,
+        TARGET_ADDRESSES_SLOT, TARGET_URL_SLOT, TLS_CA_OPTION, TLS_MIN_VERSION_OPTION,
+        TLS_PIN_OPTION, TLS_VERIFY_HOST_OPTION, TLS_VERIFY_OPTION,
     };
 
     /// The grant every case here starts from: the host is reachable and no
@@ -4779,11 +4865,11 @@ mod tests {
             (RETRY_BACKOFF, "retryBackoff"),
             (RETRY_KEY, RETRY_KEY_OPTION),
             (IDENTITY_AT, IDENTITY_OPTION),
-            (TLS_CA, TLS_CA_OPTION),
-            (TLS_PIN, TLS_PIN_OPTION),
-            (TLS_VERIFY_HOST, TLS_VERIFY_HOST_OPTION),
-            (TLS_VERIFY, TLS_VERIFY_OPTION),
-            (TLS_MIN_VERSION, TLS_MIN_VERSION_OPTION),
+            (REQUEST_BAG.ca(), TLS_CA_OPTION),
+            (REQUEST_BAG.pin(), TLS_PIN_OPTION),
+            (REQUEST_BAG.verify_host(), TLS_VERIFY_HOST_OPTION),
+            (REQUEST_BAG.verify(), TLS_VERIFY_OPTION),
+            (REQUEST_BAG.min_version(), TLS_MIN_VERSION_OPTION),
             (CONNECT_TO, CONNECT_TO_OPTION),
             (REDIRECT_TO_HTTP, REDIRECT_TO_HTTP_OPTION),
         ] {
@@ -4801,6 +4887,34 @@ mod tests {
             assert_eq!(STREAM_OPTIONS[slot - 1].name, name, "slot {slot}");
         }
         assert_eq!(STREAM_ARITY, STREAM_OPTIONS.len() + 1);
+    }
+
+    /// The socket bag's flattening, asserted the same way and separately: it
+    /// shares every key here with the request bag and puts none of them at the
+    /// same number, so a reading handed the wrong [`Bag`] reads the key beside
+    /// the one it meant and this is what says so.
+    #[test]
+    fn every_socket_slot_is_its_position_in_the_socket_bag() {
+        for (slot, name) in [
+            (SOCKET_DEADLINE, "deadline"),
+            (SOCKET_CONNECT_TIMEOUT, "connectTimeout"),
+            (SOCKET_HEADERS, "headers"),
+            (SOCKET_BAG.identity, IDENTITY_OPTION),
+            (SOCKET_BAG.ca(), TLS_CA_OPTION),
+            (SOCKET_BAG.pin(), TLS_PIN_OPTION),
+            (SOCKET_BAG.verify_host(), TLS_VERIFY_HOST_OPTION),
+            (SOCKET_BAG.verify(), TLS_VERIFY_OPTION),
+            (SOCKET_BAG.min_version(), TLS_MIN_VERSION_OPTION),
+            (SOCKET_BAG.connect_to, CONNECT_TO_OPTION),
+            (SOCKET_PROTOCOLS, "protocols"),
+            (SOCKET_IDLE, "idle"),
+            (SOCKET_MAX_DURATION, "maxDuration"),
+            (SOCKET_SEND_TIMEOUT, "sendTimeout"),
+            (SOCKET_PING, "ping"),
+        ] {
+            assert_eq!(SOCKET_OPTIONS[slot - 1].name, name, "slot {slot}");
+        }
+        assert_eq!(SOCKET_ARITY, SOCKET_OPTIONS.len() + 1);
     }
 
     /// Every body key is an option of the bag, and `contentType` with them —
@@ -5094,7 +5208,7 @@ mod tests {
         // A written `null` under `json` is the document `null`, which is a body,
         // and this call sends none — the bag's own `Const::NeverWritten`.
         args[JSON] = Value::unset();
-        args[TLS_VERIFY] = Value::bool(false);
+        args[REQUEST_BAG.verify()] = Value::bool(false);
         let refused = super::request(&mut ctx, &args, "get", "GET")
             .expect_err("`tlsVerify: false` under a deployment that granted no `tls.insecure`");
         #[expect(
@@ -5138,15 +5252,20 @@ mod tests {
         let anchors = Value::str(NvsStr::new(b"-----BEGIN CERTIFICATE-----"));
         let pins = Value::str(NvsStr::new(b"sha256//ZDk="));
         for (slot, value, grant, key) in [
-            (TLS_CA, anchors, "anchors", "tls.anchors"),
-            (TLS_PIN, pins, "pin", "tls.pin"),
+            (REQUEST_BAG.ca(), anchors, "anchors", "tls.anchors"),
+            (REQUEST_BAG.pin(), pins, "pin", "tls.pin"),
             (
-                TLS_VERIFY_HOST,
+                REQUEST_BAG.verify_host(),
                 Value::bool(false),
                 "any_name",
                 "tls.any_name",
             ),
-            (TLS_VERIFY, Value::bool(false), "insecure", "tls.insecure"),
+            (
+                REQUEST_BAG.verify(),
+                Value::bool(false),
+                "insecure",
+                "tls.insecure",
+            ),
         ] {
             let mut args = [Value::null(); REQUEST_ARITY];
             args[slot] = value;
@@ -5155,7 +5274,7 @@ mod tests {
             elsewhere.set_config(granting(&format!(
                 "{REACHABLE}[capabilities.tls]\n{grant} = [\"api.example.com\"]\n"
             )));
-            let refused = super::judge_trust(&elsewhere, &args, URL, MEMBER)
+            let refused = super::judge_trust(&elsewhere, &args, URL, MEMBER, super::REQUEST_BAG)
                 .expect_err("the grant names a host this call is not made to");
             assert!(
                 format!("{refused:?}").contains(key),
@@ -5166,7 +5285,7 @@ mod tests {
             named.set_config(granting(&format!(
                 "{REACHABLE}[capabilities.tls]\n{grant} = [\"127.0.0.1\"]\n"
             )));
-            super::judge_trust(&named, &args, URL, MEMBER)
+            super::judge_trust(&named, &args, URL, MEMBER, super::REQUEST_BAG)
                 .expect("the deployment named this host under this option's own grant");
         }
         #[expect(
@@ -5194,18 +5313,18 @@ mod tests {
         let asked = Value::str(NvsStr::new(b"1.2"));
         let ancient = Value::str(NvsStr::new(b"1.0"));
         let mut args = [Value::null(); REQUEST_ARITY];
-        args[TLS_MIN_VERSION] = asked;
+        args[REQUEST_BAG.min_version()] = asked;
 
         let mut shipped = Ctx::buffered();
         shipped.set_config(granting(REACHABLE));
-        super::judge_trust(&shipped, &args, URL, MEMBER)
+        super::judge_trust(&shipped, &args, URL, MEMBER, super::REQUEST_BAG)
             .expect("`1.2` is the floor a deployment that set none speaks over");
 
         let mut raised = Ctx::buffered();
         raised.set_config(granting(&format!(
             "{REACHABLE}[http.client.tls]\nmin_version = \"1.3\"\n"
         )));
-        let refused = super::judge_trust(&raised, &args, URL, MEMBER)
+        let refused = super::judge_trust(&raised, &args, URL, MEMBER, super::REQUEST_BAG)
             .expect_err("`1.2` is under the floor this operator set");
         let Fault::Thrown(class, message) = refused else {
             panic!("a floor the program asked for and cannot have is catchable")
@@ -5216,9 +5335,9 @@ mod tests {
             "the refusal names the key and the floor it is under: {message}"
         );
 
-        args[TLS_MIN_VERSION] = ancient;
+        args[REQUEST_BAG.min_version()] = ancient;
         assert!(
-            super::judge_trust(&shipped, &args, URL, MEMBER).is_err(),
+            super::judge_trust(&shipped, &args, URL, MEMBER, super::REQUEST_BAG).is_err(),
             "this client implements neither TLS 1.0 nor 1.1, so `1.0` is not a floor to ask for"
         );
         #[expect(
@@ -5262,7 +5381,7 @@ mod tests {
 
         let mut granted = Ctx::buffered();
         granted.set_config(granting(STEERABLE));
-        let (sent, addresses) = super::approved(&mut granted, &args, MEMBER)
+        let (sent, addresses) = super::approved(&mut granted, &args, MEMBER, super::REQUEST_BAG)
             .expect("the deployment named this host under both grants and excepted the address");
         assert_eq!(
             sent, URL,
@@ -5279,7 +5398,7 @@ mod tests {
             "[capabilities.net]\nconnect = [\"other.example.invalid\"]\nconnect_to = \
              [\"other.example.invalid\"]\ninternal = [\"127.0.0.1\"]\n",
         ));
-        let refused = super::approved(&mut elsewhere, &args, MEMBER)
+        let refused = super::approved(&mut elsewhere, &args, MEMBER, super::REQUEST_BAG)
             .expect_err("`connectTo` is not a way around the grant over the URL's own host");
         assert!(
             format!("{refused:?}").contains("api.example.invalid"),
@@ -5327,7 +5446,7 @@ mod tests {
 
         let mut proxied = Ctx::buffered();
         proxied.set_config(granting(AT_THE_PROXY));
-        let (sent, addresses) = super::approved(&mut proxied, &args, MEMBER)
+        let (sent, addresses) = super::approved(&mut proxied, &args, MEMBER, super::REQUEST_BAG)
             .expect("the proxy resolves this destination, so nothing here had to");
         assert_eq!(
             sent, URL,
@@ -5343,7 +5462,7 @@ mod tests {
             "[capabilities.net]\nconnect = [\"other.example.invalid\"]\n\n\
              [http.client.proxy]\nurl = \"http://proxy.internal:3128\"\nresolve = \"proxy\"\n",
         ));
-        let refused = super::approved(&mut ungranted, &args, MEMBER)
+        let refused = super::approved(&mut ungranted, &args, MEMBER, super::REQUEST_BAG)
             .expect_err("the grant's host list is asked of a proxied call like any other");
         assert!(
             format!("{refused:?}").contains("api.example.invalid"),
@@ -5351,7 +5470,7 @@ mod tests {
         );
 
         args[0] = elsewhere;
-        let outside = super::approved(&mut proxied, &args, MEMBER)
+        let outside = super::approved(&mut proxied, &args, MEMBER, super::REQUEST_BAG)
             .expect_err("the scheme roster is a statement about the text, not about the network");
         assert!(
             format!("{outside:?}").contains("scheme"),
@@ -5364,7 +5483,7 @@ mod tests {
             "[capabilities.net]\nconnect = [\"api.example.invalid\"]\n\n\
              [http.client.proxy]\nurl = \"http://proxy.internal:3128\"\nresolve = \"local\"\n",
         ));
-        super::approved(&mut locally, &args, MEMBER)
+        super::approved(&mut locally, &args, MEMBER, super::REQUEST_BAG)
             .expect_err("`local` keeps the pin, and this host resolves to no address to pin");
 
         #[expect(
@@ -5415,7 +5534,7 @@ mod tests {
         );
         let mut args = [Value::null(); REQUEST_ARITY];
         args[0] = target;
-        let (sent, addresses) = super::approved(&mut proxied, &args, MEMBER)
+        let (sent, addresses) = super::approved(&mut proxied, &args, MEMBER, super::REQUEST_BAG)
             .expect("a target with no address in it is an approval, not an unreadable slot");
         assert_eq!(
             sent, URL,
@@ -5438,7 +5557,7 @@ mod tests {
             ],
         );
         args[0] = wrong;
-        let unreadable = super::approved(&mut proxied, &args, MEMBER)
+        let unreadable = super::approved(&mut proxied, &args, MEMBER, super::REQUEST_BAG)
             .expect_err("an entry that is not an address is a target this crate did not write");
         assert!(
             matches!(unreadable, Fault::Fatal(_)),
@@ -5577,7 +5696,7 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(STEERABLE));
-        let refused = super::approved(&mut ctx, &args, MEMBER)
+        let refused = super::approved(&mut ctx, &args, MEMBER, super::REQUEST_BAG)
             .expect_err("a pinned target and a named address are two answers to one question");
         #[expect(
             unsafe_code,
@@ -5635,7 +5754,7 @@ mod tests {
 
         let mut ctx = Ctx::buffered();
         ctx.set_config(granting(STEERABLE));
-        let read = super::approved(&mut ctx, &args, MEMBER);
+        let read = super::approved(&mut ctx, &args, MEMBER, super::REQUEST_BAG);
         #[expect(
             unsafe_code,
             reason = "this frame owns exactly the target it built, and \

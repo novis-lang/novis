@@ -88,6 +88,8 @@ use nvs_host::net::NvsTcp;
 use nvs_host::tls::{CallPolicy, NvsTls, Session};
 use nvs_runtime::{Fault, ThrownClass};
 use rand::RngExt;
+use tungstenite::http::{HeaderName, HeaderValue};
+use tungstenite::protocol::{WebSocket, WebSocketConfig};
 
 use super::pool;
 use super::span::HttpSpan;
@@ -1172,8 +1174,8 @@ struct Parts {
     port: u16,
     /// The request-target: path, and query if there was one.
     target: String,
-    /// Whether the scheme was `https`, and so whether a handshake runs before
-    /// the request goes out.
+    /// Whether the scheme runs inside TLS — `https`, and `wss` for the row that
+    /// opens a socket — and so whether a handshake runs before anything is sent.
     tls: bool,
 }
 
@@ -1451,25 +1453,6 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     // door approved its host and stopped there, so there is one connection to
     // look for and it is filed under the name the `CONNECT` below carries.
     let by_name = through.is_some_and(|proxy| proxy.by_name);
-    // An approved set with nothing in it says *ask for this one by name*, and
-    // there is one network it can be asked in. `[http.client.proxy]` is
-    // `Reload`, so a `Core\Http\Target` outlives the word that laundered it: the
-    // operator can put this host in `bypass`, write `resolve = "local"` or
-    // remove the block, and the call arrives holding an approval of a host with
-    // no address beside it. Refusing here is what keeps the emptiness from
-    // being read as *every address is fine*
-    // (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
-    if approved.is_empty() && !by_name {
-        return Err(Fault::thrown_as(
-            ThrownClass::Runtime,
-            format!(
-                "{}: `{}` was approved without an address, which only a deployment whose proxy \
-                 resolves the destination does, and nothing tunnels this call — there is no \
-                 address to dial and no name to ask for",
-                call.member, parts.host
-            ),
-        ));
-    }
     // A connection to *any* approved address serves the call, since each of
     // them was approved and each is filed under the address it actually goes
     // to: one lookup per address rather than one on the set's first
@@ -1511,6 +1494,86 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         }
     }
 
+    let (connection, socket) = match dialled(call, &parts, &approved, through)? {
+        Dialled::Open { connection, at } => (connection, at),
+        Dialled::Failed(why) => return Ok(Attempt::Failed(why)),
+    };
+    let reached = reached_at(&parts, socket);
+    let key = pool_key(&parts, socket, fingerprint, &call.policy, through);
+
+    Ok(
+        match exchange(call, connection, &request, &reached, bounds, &key)? {
+            Sent::Answered(reply) => Attempt::Answered(reply),
+            // On a socket opened for this request, nothing arriving at all is a
+            // statement about the other end rather than weather: a second identical
+            // request gets the same non-reply.
+            Sent::Silent(_) => return Err(malformed(call.member, "no header section ended it")),
+            Sent::WhileSending(why) | Sent::Failed(why) => Attempt::Failed(why),
+        },
+    )
+}
+
+/// What dialling the destination left behind: a connection to speak over, or a
+/// sentence saying why there is none.
+enum Dialled {
+    /// An open connection, plaintext or inside a TLS session, and the approved
+    /// address it goes to — `None` where the destination was asked for by name
+    /// because this deployment's proxy resolves it.
+    Open {
+        /// The connection itself, past the point where plaintext and TLS are
+        /// still distinct types.
+        connection: Box<dyn Connection>,
+        /// Where it goes, as [`pool_key`] and [`reached_at`] want it.
+        at: Option<SocketAddr>,
+    },
+    /// Nothing was reached, with the sentence a refusal would carry. On the
+    /// same footing as any other attempt that failed, since nothing was asked
+    /// of the destination and nothing can have acted on it.
+    Failed(String),
+}
+
+/// One connection to `parts`: through the operator's tunnel where one covers
+/// this destination, then inside TLS where the scheme asks for it.
+///
+/// **One implementation for both things this module opens.** A request's
+/// attempt and a socket's opening handshake make the same connection under the
+/// same pin, the same `connectTimeout` and the same policy, and a second copy
+/// of this would be the one that comes to disagree about which address was
+/// approved — which is `rule:security/one-tls-client`'s argument at the layer
+/// under it. The pool is the caller's: a request files what it drew and what it
+/// opened, and a socket consumes its connection and files nothing.
+///
+/// # Errors
+///
+/// A `RuntimeError` for an approved set with no address that nothing tunnels,
+/// and a thrown `RuntimeError` where the TLS handshake was refused rather than
+/// failed — the settled answers, which no second attempt changes. Everything
+/// else comes back as [`Dialled::Failed`].
+fn dialled(
+    call: &Call<'_>,
+    parts: &Parts,
+    approved: &[SocketAddr],
+    through: Option<&Proxy>,
+) -> Result<Dialled, Fault> {
+    // An approved set with nothing in it says *ask for this one by name*, and
+    // there is one network it can be asked in. `[http.client.proxy]` is
+    // `Reload`, so a `Core\Http\Target` outlives the word that laundered it: the
+    // operator can put this host in `bypass`, write `resolve = "local"` or
+    // remove the block, and the call arrives holding an approval of a host with
+    // no address beside it. Refusing here is what keeps the emptiness from
+    // being read as *every address is fine*
+    // (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+    if approved.is_empty() && !through.is_some_and(|proxy| proxy.by_name) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Runtime,
+            format!(
+                "{}: `{}` was approved without an address, which only a deployment whose proxy \
+                 resolves the destination does, and nothing tunnels this call — there is no \
+                 address to dial and no name to ask for",
+                call.member, parts.host
+            ),
+        ));
+    }
     // The handshake's own bound, clamped by what is left of the total: a
     // `connectTimeout` longer than the remaining deadline would be the one
     // spelling § 5 says does not exist, arrived at by arithmetic.
@@ -1525,28 +1588,29 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         // the door approved and no second resolution happened anywhere in the
         // path
         // (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
-        Some(proxy) => match tunnel(call, proxy, &parts, &approved, budget)? {
+        Some(proxy) => match tunnel(call, proxy, parts, approved, budget)? {
             Tunnel::Open { stream, at } => (stream, at),
-            Tunnel::Unreachable(why) => return Ok(Attempt::Failed(why)),
+            Tunnel::Unreachable(why) => return Ok(Dialled::Failed(why)),
         },
         None => {
             // Unreachable from source: the one set with no address in it
             // belongs to a destination the proxy resolves, which the arm above
-            // tunnels and the refusal before this match ends where it does not.
+            // tunnels and the refusal at the head of this function ends where
+            // it does not.
             let Some(&first) = approved.first() else {
                 return Err(Fault::fatal(format!(
                     "{}: an approved set with no address in it",
                     call.member
                 )));
             };
-            let stream = match NvsTcp::connect_racing(&approved, budget) {
+            let stream = match NvsTcp::connect_racing(approved, budget) {
                 Ok(stream) => stream,
                 // `nvs_host` names every approved address and what it answered,
                 // which is the rule's *one `IOError` naming each*; what this end
                 // adds is the host the set was approved for, since the addresses
                 // alone do not say which call failed.
                 Err(err) => {
-                    return Ok(Attempt::Failed(format!(
+                    return Ok(Dialled::Failed(format!(
                         "connecting to `{}` failed: {err}",
                         parts.host
                     )));
@@ -1554,15 +1618,14 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
             };
             // The address the walk stopped at, which is not always the set's
             // first: a connection goes back into the pool under where it
-            // actually goes, and the key above was built before there was an
-            // answer to build it from.
+            // actually goes, and a key built before the walk was built before
+            // there was an answer to build it from.
             let at = stream.peer_addr().unwrap_or(first);
             (stream, Some(at))
         }
     };
     call.span.borrow_mut().connected(socket, opened.elapsed());
-    let reached = reached_at(&parts, socket);
-    let key = pool_key(&parts, socket, fingerprint, &call.policy, through);
+    let reached = reached_at(parts, socket);
     // Before the handshake, not after it: the TLS flight waits on this socket
     // and the deadline is what bounds every wait on it.
     stream.set_deadline(Some(call.deadline));
@@ -1580,7 +1643,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
             stream,
             &parts.host,
             &call.policy,
-            identity.map(|held| &held.session),
+            call.identity.as_ref().map(|held| &held.session),
         );
         match handshake {
             Ok(tls) => {
@@ -1597,7 +1660,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
                 )));
             }
             Err(err) => {
-                return Ok(Attempt::Failed(format!(
+                return Ok(Dialled::Failed(format!(
                     "the TLS handshake with {reached} failed: {err}"
                 )));
             }
@@ -1606,16 +1669,213 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         Box::new(stream)
     };
 
-    Ok(
-        match exchange(call, connection, &request, &reached, bounds, &key)? {
-            Sent::Answered(reply) => Attempt::Answered(reply),
-            // On a socket opened for this request, nothing arriving at all is a
-            // statement about the other end rather than weather: a second identical
-            // request gets the same non-reply.
-            Sent::Silent(_) => return Err(malformed(call.member, "no header section ended it")),
-            Sent::WhileSending(why) | Sent::Failed(why) => Attempt::Failed(why),
-        },
-    )
+    Ok(Dialled::Open {
+        connection,
+        at: socket,
+    })
+}
+
+/// What an opening handshake left: the framed conversation, and the name the
+/// two ends settled on.
+pub(crate) struct Upgraded {
+    /// `tungstenite`'s client half, over the connection the `101` arrived on.
+    pub(crate) socket: WebSocket<Box<dyn Connection>>,
+    /// The subprotocol the peer chose, or `None` where it chose none. Judged
+    /// against what the call offered by the row that asked, since only that
+    /// layer holds the offer.
+    pub(crate) protocol: Option<String>,
+}
+
+/// An outbound WebSocket's opening handshake — [ADR 0183](/docs/decisions/0183.md) § 4.
+///
+/// **The `Call` is the value a request carries**, and its exchange half is what
+/// an upgrade is: `GET`, no body, one attempt and no hop. That is not a
+/// borrowed shape — the pin, the `connectTimeout`, the deadline that ends at
+/// the `101`, the TLS policy, the identity and the operator's tunnel are the
+/// same fields answering the same questions, and a struct of their own here
+/// would be the copy that comes to be missing one.
+///
+/// **Nothing is pooled.** A connection that has been upgraded can carry no
+/// request, so this one is neither drawn from
+/// `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`'s
+/// store nor returned to it: the socket consumes it and releases it with the
+/// task that opened it.
+///
+/// # Errors
+///
+/// A `TimeoutError` where the deadline is gone, an `IOError` naming what was
+/// not reached — one attempt, so a dial that failed is the answer rather than a
+/// retry — and a `RuntimeError` for an answer that is not a `101`, naming the
+/// `Location` where that answer was a redirect: a socket has no spelling for
+/// following one, so a `3xx` is the end of the call
+/// (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`).
+pub(crate) fn upgrade(
+    call: &Call<'_>,
+    protocols: &[String],
+    config: WebSocketConfig,
+) -> Result<Upgraded, Fault> {
+    let parts = parts(&call.url, call.member)?;
+    call.span
+        .borrow_mut()
+        .at(parts.tls, &parts.host, parts.port, &parts.target);
+    let approved: Vec<SocketAddr> = call
+        .addresses
+        .iter()
+        .map(|&address| SocketAddr::new(address, parts.port))
+        .collect();
+    let through = call
+        .proxy
+        .as_ref()
+        .filter(|proxy| !proxy.bypasses(&parts.host));
+    if Instant::now() >= call.deadline {
+        return Err(expired(call.member));
+    }
+
+    call.span.borrow_mut().attempted();
+    let connection = match dialled(call, &parts, &approved, through)? {
+        Dialled::Open { connection, .. } => connection,
+        Dialled::Failed(why) => {
+            // The same reading [`attempts`] gives a last attempt that failed,
+            // and a socket's every attempt is its last: a budget already gone
+            // is what ended this rather than the destination.
+            if Instant::now() >= call.deadline {
+                return Err(expired(call.member));
+            }
+            return Err(Fault::thrown_as(
+                ThrownClass::Io,
+                format!("{}: {why}", call.member),
+            ));
+        }
+    };
+
+    let (socket, answered) = match tungstenite::client::client_with_config(
+        asked(call, protocols)?,
+        connection,
+        Some(config),
+    ) {
+        Ok(upgraded) => upgraded,
+        // Unreachable from source: `nvs_host`'s stream parks the core
+        // rather than answering `WouldBlock`, which is the whole of why
+        // this codec runs over it with no adapter.
+        Err(tungstenite::HandshakeError::Interrupted(_)) => {
+            return Err(Fault::fatal(format!(
+                "{}: the handshake asked to be resumed on a stream that parks",
+                call.member
+            )));
+        }
+        Err(tungstenite::HandshakeError::Failure(why)) => return Err(refused(call, why)),
+    };
+
+    let protocol = answered
+        .headers()
+        .get("sec-websocket-protocol")
+        .and_then(|chosen| chosen.to_str().ok())
+        .map(str::to_owned);
+    Ok(Upgraded { socket, protocol })
+}
+
+/// The opening request, as the caller's headers and offers put it.
+///
+/// The `Host`, the key, the version and the two upgrade fields are
+/// `tungstenite`'s: they are the handshake rather than the call, and the key in
+/// particular is what the `101`'s accept is checked against, so this end never
+/// writes one.
+///
+/// # Errors
+///
+/// Whatever [`field`] refuses — a header a request would not carry is not one a
+/// handshake carries either — and a `RuntimeError` for a URL no request can be
+/// built from, which the roster and [`parts`] have already ruled out.
+fn asked(
+    call: &Call<'_>,
+    protocols: &[String],
+) -> Result<tungstenite::handshake::client::Request, Fault> {
+    use tungstenite::client::IntoClientRequest;
+
+    let mut request = call.url.as_str().into_client_request().map_err(|why| {
+        Fault::thrown(format!(
+            "{}: `{}` is not a URL a handshake can be built from — {why}",
+            call.member, call.url
+        ))
+    })?;
+    // Every field goes through the judgement an outbound header line already
+    // passes, so one refused at a request is refused here in the same words.
+    // What it writes is thrown away: the line itself is `http`'s to write.
+    let mut judged = String::new();
+    for (name, value) in &call.headers {
+        field(&mut judged, name, value, call.member)?;
+        request.headers_mut().append(
+            header_name(name, call.member)?,
+            header_value(value, call.member)?,
+        );
+    }
+    if !protocols.is_empty() {
+        let offered = protocols.join(", ");
+        field(&mut judged, "Sec-WebSocket-Protocol", &offered, call.member)?;
+        request.headers_mut().insert(
+            HeaderName::from_static("sec-websocket-protocol"),
+            header_value(&offered, call.member)?,
+        );
+    }
+    Ok(request)
+}
+
+/// A header name as `http` holds one.
+///
+/// # Errors
+///
+/// A `RuntimeError` naming the field. Unreachable after [`field`], which
+/// refuses everything this does and more.
+fn header_name(name: &str, member: &str) -> Result<HeaderName, Fault> {
+    HeaderName::from_bytes(name.as_bytes())
+        .map_err(|why| Fault::thrown(format!("{member}: `{name}` is not a header name — {why}")))
+}
+
+/// A header value as `http` holds one — [`header_name`]'s other half.
+///
+/// # Errors
+///
+/// A `RuntimeError` naming the field, for [`header_name`]'s reason.
+fn header_value(value: &str, member: &str) -> Result<HeaderValue, Fault> {
+    HeaderValue::from_str(value)
+        .map_err(|why| Fault::thrown(format!("{member}: `{value}` is not a header value — {why}")))
+}
+
+/// What a handshake that did not end in a `101` throws.
+///
+/// A redirect is named as a redirect and carries its `Location`, because that
+/// is the one answer a caller would otherwise read as a network failure: a
+/// socket follows no hop, so a `3xx` is the end of the call rather than the
+/// middle of one.
+fn refused(call: &Call<'_>, why: tungstenite::Error) -> Fault {
+    let tungstenite::Error::Http(answered) = why else {
+        let class = if matches!(why, tungstenite::Error::Io(_)) {
+            ThrownClass::Io
+        } else {
+            ThrownClass::Runtime
+        };
+        return Fault::thrown_as(
+            class,
+            format!("{}: the opening handshake failed — {why}", call.member),
+        );
+    };
+    let status = answered.status();
+    if status.is_redirection() {
+        let location = answered
+            .headers()
+            .get("location")
+            .and_then(|to| to.to_str().ok())
+            .unwrap_or("nowhere it named");
+        return Fault::thrown(format!(
+            "{}: the peer answered `{status}` pointing at `{location}` — a socket follows no \
+             redirect, so this is the answer rather than a hop",
+            call.member
+        ));
+    }
+    Fault::thrown(format!(
+        "{}: the peer answered `{status}` rather than upgrading the connection",
+        call.member
+    ))
 }
 
 /// How much of a proxy's answer to a `CONNECT` is read before the answer is
@@ -2217,7 +2477,11 @@ fn parts(url: &str, member: &str) -> Result<Parts, Fault> {
     let reference =
         UriRef::parse(url).map_err(|_| Fault::thrown(format!("{member}: `{url}` is not a URL")))?;
     let scheme = reference.scheme().map(Scheme::as_str).unwrap_or_default();
-    let tls = scheme.eq_ignore_ascii_case("https");
+    // `wss` is `https`'s answer to this question and gets it for the same
+    // reason: the roster refusal at the row is what keeps a scheme off the path
+    // that is not that row's, so what reaches here is already one of the two
+    // this end speaks (`rule:http-server/allow-url-pins-the-address`).
+    let tls = scheme.eq_ignore_ascii_case("https") || scheme.eq_ignore_ascii_case("wss");
     let authority = reference
         .authority()
         .ok_or_else(|| Fault::thrown(format!("{member}: `{url}` names no host to connect to")))?;

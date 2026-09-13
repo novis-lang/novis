@@ -26,19 +26,26 @@
 //!
 //! # What a socket holds
 //!
-//! Its URL, the subprotocol the handshake chose, how far through the peer's
-//! frames it has read, and whether it has been closed — four slots, all of them
-//! values Novis can hold, which is [`crate::instance`]'s requirement of every
-//! `Core` class. The frames themselves are the scripted peer's and live in
+//! Its URL, the subprotocol the handshake chose, how far through a scripted
+//! peer's frames it has read, whether it has been closed, and the key its live
+//! connection is filed under in the request's own table — all of them values
+//! Novis can hold, which is [`crate::instance`]'s requirement of every `Core`
+//! class. A socket a test answered holds `null` there, having no connection at
+//! all: its frames are the scripted peer's and live in
 //! [`nvs_runtime::AnswerTable`] beside the answers an outbound call is served
 //! from, so two sockets opened to one URL each read the same script from their
 //! own cursor.
 //!
-//! **What it spends:** four slots per open socket, and the cursor's worth of
-//! nothing beyond them — a scripted peer's frames are the test's and are held
-//! once however many sockets read them. What a socket against a real host
-//! spends is [ADR 0183](/docs/decisions/0183.md) § 10's, and lands with the
-//! handshake.
+//! **The conversation is still the table's.** [`Open`] holds the framed
+//! connection a real handshake left, and the request gives it back when it
+//! ends; what [`nvs_core_http_socket_receive`] and its siblings read is the
+//! scripted peer, so a socket opened against a host completes its handshake and
+//! then reads as a peer that said nothing.
+//!
+//! **What it spends:** five slots per open socket, and against a real host what
+//! [ADR 0183](/docs/decisions/0183.md) § 10 prices — one connection, a TLS
+//! session for `wss`, and `tungstenite`'s own buffers — charged to the task
+//! that opened it.
 
 use super::*;
 
@@ -69,6 +76,35 @@ const PROTOCOL_AT: usize = 1;
 const AT_AT: usize = 2;
 /// Whether `close` has ended this socket.
 const CLOSED_AT: usize = 3;
+/// The key [`Open`] is filed under in the request's table, or `null` for a
+/// socket a test answered, which holds no connection.
+const HELD_AT: usize = 4;
+
+/// The live conversation a real handshake left, as the request's own table
+/// holds it.
+///
+/// A `Core` class's slots hold values Novis can hold, so what the socket
+/// carries is a key and what the key names is this
+/// ([`nvs_runtime::Ctx::hold_open_socket`] argues why a handle is a number).
+/// The table is the request's, so the connection is closed when the task that
+/// opened it ends whatever the program did with the socket — which is § 5's
+/// lifetime with nothing here to remember it.
+pub(crate) struct Open(pub(crate) transport::Upgraded);
+
+impl std::fmt::Debug for Open {
+    /// The table's own `Debug`, which nothing but a panic message reads. Written
+    /// by hand because the framed connection under it is a trait object and has
+    /// none.
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        out.write_str("an open outbound WebSocket")
+    }
+}
+
+impl nvs_runtime::HeldSocket for Open {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
 
 /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`'s
 /// conversation: what a program does with a socket once it has one.
@@ -151,7 +187,7 @@ pub(crate) const SOCKET: CoreClass = CoreClass {
             doc: Some(&PROTOCOL_DOC),
         },
     ],
-    slots: &["url", "protocol", "at", "closed"],
+    slots: &["url", "protocol", "at", "closed", "held"],
     constants: &[],
 };
 
@@ -244,10 +280,16 @@ nvs_runtime::nvs_helper! {
     /// keeps each of those refusals, so a wrong URL fails the same way scripted
     /// and real — which is [`super::faked`]'s rule one door over.
     ///
+    /// **The connect is the rule and the table is the exception**, which is the
+    /// same branch every request row takes one door over: a context no test has
+    /// armed opens a connection through [`super::transport`], and one that has
+    /// been armed reaches no network at all.
+    ///
     /// **The subprotocol is judged against what was offered**, because a `101`
     /// choosing a name the request never sent is a peer answering a question
     /// nobody asked, and a program reading `protocol()` afterwards would act on
-    /// it.
+    /// it. Both paths pass it, so a scripted peer cannot say what a real one
+    /// would have been refused for.
     fn nvs_core_http_client_open_socket(ctx, args: [SOCKET_ARITY]) {
         let url = super::given_url(args, MEMBER)?;
         super::judged_host(&url, MEMBER, Roster::Socket)?;
@@ -258,17 +300,11 @@ nvs_runtime::nvs_helper! {
         judge_bound(args, SOCKET_SEND_TIMEOUT, "sendTimeout", MEMBER)?;
         judge_bound(args, SOCKET_PING, "ping", MEMBER)?;
 
-        let Some(peer) = ctx.faked_http().socket_for(&url) else {
-            return Err(Fault::thrown_as(
-                ThrownClass::Logic,
-                format!(
-                    "{MEMBER}: this test answers outbound sockets from a table and no peer is \
-                     registered for {url} — `Core\\Test::answerSocket` registers one, exactly or \
-                     as a prefix ending in `*`"
-                ),
-            ));
+        let (chosen, held) = if ctx.faked_http().is_armed() {
+            (scripted(ctx, &url)?, Value::null())
+        } else {
+            connected(ctx, args)?
         };
-        let chosen = peer.protocol.clone();
         if let Some(name) = &chosen
             && !offered(args, name)
         {
@@ -288,33 +324,170 @@ nvs_runtime::nvs_helper! {
                 protocol,
                 Value::int(0),
                 Value::bool(false),
+                held,
             ],
         ))
     }
 }
 
-/// Whether this call offered `name` as a subprotocol.
+/// The subprotocol the peer scripted for `url` chose, for a context a test has
+/// armed.
 ///
-/// Anything in the array that is not text answers `false` rather than being
-/// refused: the key's own type is `array<string>`, so `E0401` has already
-/// refused a call that wrote anything else, and a check here would be a refusal
-/// no program can reach.
-fn offered(args: &[Value], name: &str) -> bool {
+/// # Errors
+///
+/// A `LogicError` naming the URL no row answers. It names a test because only a
+/// test can reach it: nothing arms the table but `Core\Test`, and the branch
+/// above is what keeps this refusal off a program's path
+/// (`rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`).
+fn scripted(ctx: &Ctx, url: &str) -> Result<Option<String>, Fault> {
+    let Some(peer) = ctx.faked_http().socket_for(url) else {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{MEMBER}: this test answers outbound sockets from a table and no peer is \
+                 registered for {url} — `Core\\Test::answerSocket` registers one, exactly or \
+                 as a prefix ending in `*`"
+            ),
+        ));
+    };
+    Ok(peer.protocol.clone())
+}
+
+/// The handshake against the host the URL names: the subprotocol it settled on,
+/// and the key the live connection is filed under.
+///
+/// **The call is assembled here and made in [`super::transport`]**, which is
+/// the split every request row already takes: the questions that need a `Ctx` —
+/// the pin, the grants, the deployment's bounds, the operator's proxy — are
+/// this crate's, and what crosses into that module is their answers. The
+/// exchange half of a [`transport::Call`] is what an upgrade is: a `GET` with
+/// no body, one attempt, and no hop to follow.
+///
+/// # Errors
+///
+/// [`super::approved`]'s refusals, [`super::judge_trust`]'s, and whatever
+/// [`transport::upgrade`] raised — which includes the `3xx` a socket cannot
+/// follow.
+fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), Fault> {
+    // The resolve time the event reports is this call's own, and a call handed
+    // an already-pinned `Core\Http\Target` spent none of it, exactly as at a
+    // request row.
+    let pinned_already = matches!(args[0].tag(), Some(Tag::Object));
+    let began = Instant::now();
+    let (url, addresses) = super::approved(ctx, args, MEMBER, super::SOCKET_BAG)?;
+    let resolve = if pinned_already {
+        Duration::ZERO
+    } else {
+        began.elapsed()
+    };
+    super::judge_trust(ctx, args, &url, MEMBER, super::SOCKET_BAG)?;
+
+    let call = transport::Call {
+        member: MEMBER,
+        verb: "GET",
+        url,
+        addresses,
+        deadline: Instant::now()
+            + super::bound_of(
+                ctx,
+                args,
+                SOCKET_DEADLINE,
+                "deadline",
+                "http.client.deadline",
+                super::DEFAULT_DEADLINE,
+            )?,
+        connect_timeout: super::bound_of(
+            ctx,
+            args,
+            SOCKET_CONNECT_TIMEOUT,
+            "connectTimeout",
+            "http.client.connect_timeout",
+            super::DEFAULT_CONNECT_TIMEOUT,
+        )?,
+        idle: super::bound_of(
+            ctx,
+            args,
+            SOCKET_IDLE,
+            "idle",
+            "http.client.idle",
+            super::DEFAULT_IDLE,
+        )?,
+        max_duration: super::bound_of(
+            ctx,
+            args,
+            SOCKET_MAX_DURATION,
+            "maxDuration",
+            "http.client.max_duration",
+            super::DEFAULT_MAX_DURATION,
+        )?,
+        headers: super::headers_of(args, SOCKET_HEADERS, MEMBER)?,
+        // The exchange half, as an upgrade spells it: no hop, one attempt, and
+        // therefore no backoff and no key for a retry to carry.
+        redirects: 0,
+        attempts: 1,
+        backoff: Duration::ZERO,
+        idempotency_key: None,
+        body: None,
+        // Two ceilings nothing on this path reads: a socket is never pooled
+        // (ADR 0183 § 4) and nothing here arrives under a content coding. They
+        // are the call's fields, so they are answered rather than left out.
+        pool: super::pool_of(ctx),
+        compress: crate::compress::Bound::ceiling(ctx),
+        identity: super::identity_option(args, MEMBER, super::SOCKET_BAG)?,
+        policy: super::policy_of(args, MEMBER, super::SOCKET_BAG)?,
+        traceparent: super::traceparent_of(ctx),
+        span: std::cell::RefCell::new(super::span::HttpSpan::opened("GET", resolve)),
+        proxy: super::proxy_of(ctx),
+    };
+
+    // `tungstenite`'s own bounds until § 7's are applied to it, which is what
+    // the `maxMessage` and the send wait this call already judged are for. Its
+    // defaults are finite in both directions, so nothing here is the unbounded
+    // spelling `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
+    // refuses.
+    let upgraded = transport::upgrade(
+        &call,
+        &offers(args),
+        tungstenite::protocol::WebSocketConfig::default(),
+    )?;
+    super::traced(ctx, &call);
+    let protocol = upgraded.protocol.clone();
+    Ok((
+        protocol,
+        Value::uint(ctx.hold_open_socket(Box::new(Open(upgraded)))),
+    ))
+}
+
+/// The subprotocols this call offered, in the order the array wrote them.
+///
+/// Anything in it that is not text is skipped rather than refused: the key's
+/// own type is `array<string>`, so `E0401` has already refused a call that
+/// wrote anything else, and a check here would be a refusal no program can
+/// reach.
+fn offers(args: &[Value]) -> Vec<String> {
     let Some(array) = args[SOCKET_PROTOCOLS].array_ptr() else {
-        return false;
+        return Vec::new();
     };
     let array = crate::arr::borrowed(array);
+    let mut names = Vec::new();
     let mut from = 0_usize;
     while let Some(slot) = array.next_slot(from) {
         from = slot + 1;
         let offer = array
             .value_at(slot)
             .expect("next_slot only names live entries");
-        if offer.as_text() == Some(name) {
-            return true;
+        if let Some(name) = offer.as_text() {
+            names.push(name.to_owned());
         }
     }
-    false
+    names
+}
+
+/// Whether this call offered `name` as a subprotocol — [`offers`] read for one
+/// question, so what the handshake sent and what it is judged against are one
+/// walk of one array.
+fn offered(args: &[Value], name: &str) -> bool {
+    offers(args).iter().any(|offer| offer == name)
 }
 
 /// The peer's next frame, as a `Core\Socket\Message`, or `null` where the
@@ -439,9 +612,23 @@ nvs_runtime::nvs_helper! {
     /// Closing a socket that is already closed does nothing, rather than
     /// throwing: a program ending a conversation it has already ended has made
     /// no mistake a refusal could tell it about.
-    fn nvs_core_http_socket_close(_ctx, args: [3]) {
+    ///
+    /// A socket that holds a connection gives it back here rather than at the
+    /// end of the task: the close frame goes out and the request's table drops
+    /// its entry, which is the connection released. Neither write is an error a
+    /// program hears about — a peer that never answers its own close is closed
+    /// anyway, and the connection is gone either way.
+    fn nvs_core_http_socket_close(ctx, args: [3]) {
         let receiver = crate::instance::receiver(args[0], &SOCKET, "close")?;
         crate::instance::set_slot(receiver, CLOSED_AT, Value::bool(true));
+        if let Some(key) = crate::instance::slot(receiver, HELD_AT).as_uint()
+            && let Some(mut held) = ctx.take_open_socket(key)
+            && let Some(open) = held.as_any_mut().downcast_mut::<Open>()
+        {
+            drop(open.0.socket.close(None));
+            drop(open.0.socket.flush());
+        }
+        crate::instance::set_slot(receiver, HELD_AT, Value::null());
         Ok(Value::null())
     }
 }
