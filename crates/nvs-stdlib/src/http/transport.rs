@@ -242,6 +242,65 @@ pub(crate) struct Call<'a> {
     /// reason, and `Core\Http\Client`'s member decides whether to file it. A
     /// call that never reaches an answer drops it.
     pub(crate) span: RefCell<HttpSpan>,
+    /// The forward proxy every destination leaves through, or `None` where the
+    /// operator wrote no `[http.client.proxy]` block
+    /// (`rule:http-server/an-outbound-proxy-is-operator-configured`).
+    ///
+    /// Read in `super::proxy_of` for [`Call::pool`]'s reason, and `System`-class
+    /// besides, so every call on a core carries the same block and nothing a
+    /// request writes can move it.
+    pub(crate) proxy: Option<Proxy>,
+}
+
+/// The forward proxy a call leaves through, as the operator wrote it and as
+/// [`tunnel`] dials it.
+///
+/// The `url` text travels beside the address because it is what a refusal names
+/// and what [`pool_key`] files a tunnelled connection under: two proxies are two
+/// pools, and a reload that changes the text leaves nothing the old one made
+/// drawable.
+pub(crate) struct Proxy {
+    /// `[http.client.proxy] url`, as written.
+    pub(crate) url: String,
+    /// The host [`Proxy::url`] names, resolved at each new tunnel and never
+    /// asked `rule:security/net-address-policy`'s question: an endpoint in
+    /// root-owned configuration is authorized by that writing, and the table
+    /// exists to keep a *program-supplied* address away from the local machine.
+    pub(crate) host: String,
+    /// The port [`Proxy::url`] names, or `nvs_config::http::DEFAULT_PROXY_PORT`.
+    pub(crate) port: u16,
+    /// `[http.client.proxy] bypass`: the hosts reached directly, each entry
+    /// exact or a leading `.` for a suffix.
+    pub(crate) bypass: Vec<String>,
+    /// The whole `Proxy-Authorization` value `[http.client.proxy] username` and
+    /// its password make, or `None` where the operator wrote no credential.
+    ///
+    /// Built in `super::proxy_of` and carried rather than the pair, so that the
+    /// one place holding a password in this module is the one line that writes
+    /// it to the proxy: it goes on the `CONNECT` request alone — never to the
+    /// destination, never on a redirect hop, and never into a trace event, a log
+    /// record or an error message, all of which name [`Proxy::url`], which the
+    /// boot refuses to let carry a credential.
+    pub(crate) authorization: Option<String>,
+}
+
+impl Proxy {
+    /// Whether `host` is one the operator listed in `bypass`, matched on the
+    /// URL's own text before anything is resolved — so a bypassed destination is
+    /// dialled directly and under the full address policy, and a list that could
+    /// carry a range would be handing back traffic nobody can see.
+    fn bypasses(&self, host: &str) -> bool {
+        let host = host.as_bytes();
+        self.bypass.iter().any(|entry| {
+            let entry = entry.as_bytes();
+            if entry.first() == Some(&b'.') {
+                host.len() > entry.len()
+                    && host[host.len() - entry.len()..].eq_ignore_ascii_case(entry)
+            } else {
+                host.eq_ignore_ascii_case(entry)
+            }
+        })
+    }
 }
 
 /// A client identity, as a call carries it: the session configuration every
@@ -1364,12 +1423,20 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     };
     let identity = call.identity.as_ref();
     let fingerprint = identity.map(|held| held.fingerprint.as_str());
+    // Whether this destination leaves through the proxy at all, asked of the
+    // URL's own host text before an address is chosen and before the pool is
+    // read: a bypassed host is dialled directly, so it is also a key of its own
+    // (`rule:http-server/an-outbound-proxy-is-operator-configured`).
+    let through = call
+        .proxy
+        .as_ref()
+        .filter(|proxy| !proxy.bypasses(&parts.host));
     // A connection to *any* approved address serves the call, since each of
     // them was approved and each is filed under the address it actually goes
     // to: one lookup per address rather than one on the set's first
     // (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`).
     let drawn = approved.iter().find_map(|&address| {
-        let key = pool_key(&parts, address, fingerprint, &call.policy);
+        let key = pool_key(&parts, address, fingerprint, &call.policy, through);
         pool::take(&key, Instant::now()).map(|held| (address, key, held))
     });
 
@@ -1400,25 +1467,41 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         .connect_timeout
         .min(call.deadline.saturating_duration_since(Instant::now()));
     let opened = Instant::now();
-    let mut stream = match NvsTcp::connect_racing(&approved, budget) {
-        Ok(stream) => stream,
-        // `nvs_host` names every approved address and what it answered, which
-        // is the rule's *one `IOError` naming each*; what this end adds is the
-        // host the set was approved for, since the addresses alone do not say
-        // which call failed.
-        Err(err) => {
-            return Ok(Attempt::Failed(format!(
-                "connecting to `{}` failed: {err}",
-                parts.host
-            )));
+    let (mut stream, socket) = match through {
+        // Over the tunnel this end speaks exactly what it would have spoken to
+        // that address directly — the same TLS under the same server name, or
+        // plain HTTP in origin form — because the address `CONNECT` named is one
+        // the door approved and no second resolution happened anywhere in the
+        // path
+        // (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+        Some(proxy) => match tunnel(call, proxy, &approved, budget)? {
+            Tunnel::Open { stream, at } => (stream, at),
+            Tunnel::Unreachable(why) => return Ok(Attempt::Failed(why)),
+        },
+        None => {
+            let stream = match NvsTcp::connect_racing(&approved, budget) {
+                Ok(stream) => stream,
+                // `nvs_host` names every approved address and what it answered,
+                // which is the rule's *one `IOError` naming each*; what this end
+                // adds is the host the set was approved for, since the addresses
+                // alone do not say which call failed.
+                Err(err) => {
+                    return Ok(Attempt::Failed(format!(
+                        "connecting to `{}` failed: {err}",
+                        parts.host
+                    )));
+                }
+            };
+            // The address the walk stopped at, which is not always the set's
+            // first: a connection goes back into the pool under where it
+            // actually goes, and the key above was built before there was an
+            // answer to build it from.
+            let at = stream.peer_addr().unwrap_or(first);
+            (stream, at)
         }
     };
-    // The address the walk stopped at, which is not always the set's first: a
-    // connection goes back into the pool under where it actually goes, and the
-    // key above was built before there was an answer to build it from.
-    let socket = stream.peer_addr().unwrap_or(first);
     call.span.borrow_mut().connected(socket, opened.elapsed());
-    let key = pool_key(&parts, socket, fingerprint, &call.policy);
+    let key = pool_key(&parts, socket, fingerprint, &call.policy, through);
     // Before the handshake, not after it: the TLS flight waits on this socket
     // and the deadline is what bounds every wait on it.
     stream.set_deadline(Some(call.deadline));
@@ -1477,6 +1560,181 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
 /// What a connection is filed under while it waits for the next call.
 ///
 /// Built here and not in [`super::pool`] because
+/// How much of a proxy's answer to a `CONNECT` is read before the answer is
+/// itself the refusal: a status line and its fields, and nothing the size of a
+/// body a tunnel has no room for.
+const TUNNEL_HEAD: usize = 8 * 1024;
+
+/// What asking a proxy for a tunnel left behind it.
+enum Tunnel {
+    /// An open tunnel, and the approved address `CONNECT` named — which is where
+    /// the bytes go and what [`pool_key`] files the connection under, since the
+    /// socket underneath is the proxy's and says nothing about the destination.
+    Open {
+        /// The stream to speak the destination's protocol over, plaintext still.
+        stream: NvsTcp,
+        /// The approved address the tunnel reaches.
+        at: SocketAddr,
+    },
+    /// The proxy was not reached at all. This attempt's failure, on the same
+    /// footing as a destination that never answered and retried under the same
+    /// rules — nothing was asked of the destination, so nothing can have acted
+    /// on it.
+    Unreachable(String),
+}
+
+/// A tunnel to one of `approved`, opened through `proxy` inside `budget`.
+///
+/// The address `CONNECT` names is one the door approved and the `Host` beside it
+/// names the same, so a proxy reopens no check-then-connect gap: there is no
+/// second resolution in this path, and what comes back is a stream to the
+/// address the pin already answered for
+/// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+///
+/// The approved set is still walked, one `CONNECT` per address, because a proxy
+/// that will not reach the first address has said nothing about the second. Each
+/// gets a connection of its own: a refusal leaves a stream whose state is the
+/// proxy's to decide, and reusing one would be reading the next answer off it.
+///
+/// # Errors
+///
+/// A `RuntimeError` naming proxy authentication for a `407`, and an `IOError`
+/// naming each address and what the proxy answered when the whole set was
+/// refused. Neither is an attempt that failed and neither is retried, because
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed` retries an answer from
+/// the destination and a proxy that refused the tunnel is not one.
+fn tunnel(
+    call: &Call<'_>,
+    proxy: &Proxy,
+    approved: &[SocketAddr],
+    budget: Duration,
+) -> Result<Tunnel, Fault> {
+    let until = Instant::now() + budget;
+    // Resolved and not judged: an endpoint an operator wrote into root-owned
+    // configuration is authorized by that writing, which is the one exception
+    // `rule:security/net-address-policy` states. It is also the one lookup a
+    // tunnelled call makes that a direct call does not, and it is paid per
+    // connection opened rather than per request.
+    let at = match nvs_runtime::capability::resolve_host(&proxy.host, call.member) {
+        Ok(address) => SocketAddr::new(address, proxy.port),
+        Err(_) => {
+            return Ok(Tunnel::Unreachable(format!(
+                "the proxy at `{}` resolves to no address",
+                proxy.url
+            )));
+        }
+    };
+    let mut refused = Vec::new();
+    for &address in approved {
+        let mut stream =
+            match NvsTcp::connect_timeout(at, until.saturating_duration_since(Instant::now())) {
+                Ok(stream) => stream,
+                Err(err) => {
+                    return Ok(Tunnel::Unreachable(format!(
+                        "connecting to the proxy at `{}` failed: {err}",
+                        proxy.url
+                    )));
+                }
+            };
+        // Before the request, for the reason the handshake's own bound is set
+        // before it: every wait on this socket is inside what is left of the
+        // connect budget, which is itself inside the call's deadline.
+        stream.set_deadline(Some(until));
+        let asked = match &proxy.authorization {
+            Some(credential) => format!(
+                "CONNECT {address} HTTP/1.1\r\nHost: {address}\r\n\
+                 Proxy-Authorization: {credential}\r\n\r\n"
+            ),
+            None => format!("CONNECT {address} HTTP/1.1\r\nHost: {address}\r\n\r\n"),
+        };
+        if let Err(err) = stream
+            .write_all(asked.as_bytes())
+            .and_then(|()| stream.flush())
+        {
+            return Ok(Tunnel::Unreachable(format!(
+                "asking the proxy at `{}` for a tunnel to `{address}` failed: {err}",
+                proxy.url
+            )));
+        }
+        let head = match tunnel_head(&mut stream) {
+            Ok(head) => head,
+            Err(why) => {
+                return Ok(Tunnel::Unreachable(format!(
+                    "the proxy at `{}` {why}",
+                    proxy.url
+                )));
+            }
+        };
+        let end = find(&head, b"\r\n\r\n").unwrap_or(head.len());
+        let (status, _) = head_of(&head[..end], call.member)?;
+        if (200..300).contains(&status) {
+            if head.len() > end + 4 {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!(
+                        "{}: the proxy at `{}` sent octets after the head of an open tunnel, \
+                         which the destination cannot have written",
+                        call.member, proxy.url
+                    ),
+                ));
+            }
+            return Ok(Tunnel::Open {
+                stream,
+                at: address,
+            });
+        }
+        // A `407` is what the proxy says about this deployment rather than about
+        // this address, so the rest of the set is not walked for a second
+        // opinion it cannot give.
+        if status == 407 {
+            return Err(Fault::thrown(format!(
+                "{}: the proxy at `{}` refused the tunnel and asked for proxy authentication \
+                 (`407`)",
+                call.member, proxy.url
+            )));
+        }
+        refused.push(format!("`{address}` answered `{status}`"));
+    }
+    Err(Fault::thrown_as(
+        ThrownClass::Io,
+        format!(
+            "{}: the proxy at `{}` refused a tunnel to every approved address: {}",
+            call.member,
+            proxy.url,
+            refused.join(", ")
+        ),
+    ))
+}
+
+/// The head of a proxy's answer to a `CONNECT`, read off the socket without
+/// reaching past it.
+///
+/// An open tunnel has nothing behind the blank line — a `2xx` carries no body,
+/// and the destination has not been spoken to yet — so octets after it are the
+/// proxy's own and would otherwise land in the session about to start over the
+/// same stream. [`tunnel`] refuses on them rather than dropping them.
+///
+/// # Errors
+///
+/// The clause a refusal writes after the proxy's name: a connection closed
+/// before the answer, a head longer than [`TUNNEL_HEAD`], or the socket's own
+/// failure.
+fn tunnel_head(stream: &mut NvsTcp) -> Result<Vec<u8>, String> {
+    let mut head = Vec::new();
+    let mut chunk = [0_u8; 512];
+    while find(&head, b"\r\n\r\n").is_none() {
+        if head.len() >= TUNNEL_HEAD {
+            return Err("answered with a head longer than a tunnel's answer can be".to_owned());
+        }
+        match stream.read(&mut chunk) {
+            Ok(0) => return Err("closed the connection before answering".to_owned()),
+            Ok(read) => head.extend_from_slice(&chunk[..read]),
+            Err(err) => return Err(format!("could not be read: {err}")),
+        }
+    }
+    Ok(head)
+}
+
 /// `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`
 /// keys reuse on **what the door approved**: the address the URL was pinned to
 /// and the port the bytes go to, the scheme that decides whether a session
@@ -1500,18 +1758,28 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
 /// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`). The strict
 /// default writes an empty field, so every call that asked for nothing shares
 /// one key and each distinct relaxation gets its own.
+///
+/// **And so is the proxy it was tunnelled through**, as the operator's own text:
+/// a tunnelled connection and a direct one to the same address are two
+/// connections with two sets of terms, and an operator who changes `url` and
+/// reloads has said that nothing the old value made is to carry a request. A
+/// call that leaves directly — no block, or a `bypass` entry naming this host —
+/// writes the empty field, so the two are two keys rather than one key that is a
+/// prefix of the other.
 fn pool_key(
     parts: &Parts,
     socket: SocketAddr,
     identity: Option<&str>,
     policy: &CallPolicy,
+    through: Option<&Proxy>,
 ) -> String {
     let scheme = if parts.tls { "https" } else { "http" };
     format!(
-        "{scheme}|{host}|{socket}|{identity}|{policy}",
+        "{scheme}|{host}|{socket}|{identity}|{policy}|{proxy}",
         host = parts.host,
         identity = identity.unwrap_or_default(),
-        policy = policy_key(policy)
+        policy = policy_key(policy),
+        proxy = through.map_or("", |proxy| proxy.url.as_str())
     )
 }
 
@@ -2289,7 +2557,358 @@ mod tests {
             policy: CallPolicy::default(),
             traceparent: None,
             span: RefCell::new(HttpSpan::opened("GET", Duration::ZERO)),
+            proxy: None,
         }
+    }
+
+    /// The `[http.client.proxy]` block a case carries: the loopback proxy at
+    /// `at`, with nothing bypassed.
+    fn through(at: SocketAddr) -> super::Proxy {
+        super::Proxy {
+            url: format!("http://{at}"),
+            host: at.ip().to_string(),
+            port: at.port(),
+            bypass: Vec::new(),
+            authorization: None,
+        }
+    }
+
+    /// A loopback proxy that answers a `CONNECT` by opening the connection it
+    /// was asked for and pumping octets both ways, so what reaches the origin is
+    /// exactly what the client wrote over the tunnel — a TLS flight included,
+    /// which is what makes the handshake in these cases the client's own rather
+    /// than one a test stood in for.
+    ///
+    /// It answers `refusal`'s status line instead, where a case gives one, and
+    /// opens nothing. The counter is live and the handle carries every `CONNECT`
+    /// head in arrival order: a case asserting that nothing was retried reads
+    /// the counter without joining, for [`tls_origin`]'s reason.
+    fn proxy(
+        expects: usize,
+        refusal: Option<&'static str>,
+    ) -> (
+        SocketAddr,
+        Arc<AtomicUsize>,
+        std::thread::JoinHandle<Vec<String>>,
+    ) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        let at = listener.local_addr().expect("its own address");
+        listener
+            .set_nonblocking(true)
+            .expect("an accept that does not outlive the count");
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let opened = Arc::new(AtomicUsize::new(0));
+        let (mine, counting) = (Arc::clone(&asked), Arc::clone(&opened));
+        let thread = std::thread::spawn(move || {
+            let ends = Instant::now() + Duration::from_secs(20);
+            while asked.lock().expect("the proxy's record").len() < expects && Instant::now() < ends
+            {
+                let Ok((stream, _)) = listener.accept() else {
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                };
+                counting.fetch_add(1, Ordering::Relaxed);
+                let recording = Arc::clone(&asked);
+                std::thread::spawn(move || tunnelled(stream, refusal, &recording));
+            }
+            let held = mine.lock().expect("the proxy's record");
+            held.clone()
+        });
+        (at, opened, thread)
+    }
+
+    /// One connection's `CONNECT` and whatever the tunnel behind it carries.
+    ///
+    /// Every failure ends this thread quietly rather than panicking it, for
+    /// [`answer_tls`]'s reason: a client that walks away from a refused tunnel
+    /// is what two of these cases are written to see, and each claim they make
+    /// is made on the client's side.
+    fn tunnelled(
+        mut stream: std::net::TcpStream,
+        refusal: Option<&'static str>,
+        state: &Mutex<Vec<String>>,
+    ) {
+        drop(stream.set_nonblocking(false));
+        drop(stream.set_read_timeout(Some(Duration::from_secs(5))));
+        let mut head = Vec::new();
+        let mut chunk = [0_u8; 512];
+        while super::find(&head, b"\r\n\r\n").is_none() {
+            let Ok(read) = stream.read(&mut chunk) else {
+                return;
+            };
+            if read == 0 {
+                return;
+            }
+            head.extend_from_slice(&chunk[..read]);
+        }
+        let asked = String::from_utf8_lossy(&head).into_owned();
+        let target = asked.split(' ').nth(1).unwrap_or_default().to_owned();
+        state.lock().expect("the proxy's record").push(asked);
+        if let Some(refusal) = refusal {
+            drop(stream.write_all(refusal.as_bytes()));
+            drop(stream.flush());
+            return;
+        }
+        let Ok(origin) = std::net::TcpStream::connect(target.as_str()) else {
+            return;
+        };
+        if stream
+            .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
+            .is_err()
+        {
+            return;
+        }
+        drop(stream.flush());
+        let mut from_client = stream.try_clone().expect("the client's half");
+        let mut to_origin = origin.try_clone().expect("the origin's half");
+        std::thread::spawn(move || drop(std::io::copy(&mut from_client, &mut to_origin)));
+        let (mut from_origin, mut to_client) = (origin, stream);
+        drop(std::io::copy(&mut from_origin, &mut to_client));
+    }
+
+    /// The keystone: a proxied `https` call is tunnelled to **the address the
+    /// door approved** and speaks TLS over it under the name the URL was
+    /// approved for, so the pin survives the proxy
+    /// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+    ///
+    /// Both halves are asserted on the far side of the seam rather than on this
+    /// one: the `CONNECT` line is the proxy's own record of what it was asked
+    /// for, and the handshake completing at all is what says the client verified
+    /// a certificate issued for `localhost` — a client that had sent the pinned
+    /// address as its server name would have been refused by its own anchors.
+    #[test]
+    fn connect_tunnel_is_opened_to_the_pinned_address_and_tls_names_the_host() {
+        let (cert, key) = trusted();
+        let (port, accepted) = tls_origin(
+            cert.clone(),
+            key.clone(),
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
+        let (proxying, _, asked) = proxy(1, None);
+
+        let mut asking = call(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+            "test",
+        );
+        asking.url = format!("https://localhost:{port}/ok");
+        asking.proxy = Some(through(proxying));
+        let reply = send(&asking, &mut never).expect("the answer from behind the tunnel");
+
+        assert_eq!(reply.status, 200);
+        assert_eq!(reply.body, b"ok");
+        let asked = asked.join().expect("the proxy thread");
+        assert_eq!(
+            asked.len(),
+            1,
+            "one call through a proxy is one `CONNECT`: {asked:?}"
+        );
+        assert!(
+            asked[0].starts_with(&format!("CONNECT 127.0.0.1:{port} HTTP/1.1\r\n")),
+            "the tunnel was asked for the pinned address and not for the name: {asked:?}"
+        );
+        assert!(
+            asked[0].contains(&format!("Host: 127.0.0.1:{port}\r\n")),
+            "`Host` names the same address the request line does: {asked:?}"
+        );
+        assert_eq!(
+            accepted.load(Ordering::Relaxed),
+            1,
+            "the origin was reached once, through the tunnel"
+        );
+    }
+
+    /// Every destination is tunnelled, an `http` one included, so there is one
+    /// mechanism and no path on which the proxy is handed a whole request in
+    /// absolute form (`rule:http-server/an-outbound-proxy-is-operator-configured`).
+    ///
+    /// The origin's own copy of the request is what the second half is asserted
+    /// against: absolute form would be a request line this client never writes,
+    /// and the only way to say so is to read what actually arrived.
+    #[test]
+    fn a_plain_http_url_is_tunnelled_and_never_sent_in_absolute_form() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let (proxying, _, asked) = proxy(1, None);
+
+        let mut asking = call(at, "test");
+        asking.proxy = Some(through(proxying));
+        let reply = send(&asking, &mut never).expect("the answer from behind the tunnel");
+
+        assert_eq!(reply.status, 200);
+        let asked = asked.join().expect("the proxy thread");
+        assert!(
+            asked[0].starts_with(&format!("CONNECT {at} HTTP/1.1\r\n")),
+            "a plain `http` destination is tunnelled like any other: {asked:?}"
+        );
+        let behind = served.join().expect("the origin thread");
+        assert!(
+            behind.asked[0].starts_with("GET /ok HTTP/1.1\r\n"),
+            "the request over the tunnel is in origin form: {:?}",
+            behind.asked
+        );
+        assert!(
+            !behind.asked[0].contains("http://"),
+            "nothing on this path writes an absolute-form request line: {:?}",
+            behind.asked
+        );
+    }
+
+    /// The credential goes to the proxy and stops there: it is on the `CONNECT`
+    /// request and on nothing behind it, which is the whole of what
+    /// `rule:http-server/an-outbound-proxy-is-operator-configured` says about
+    /// where a `Proxy-Authorization` may appear.
+    ///
+    /// Both halves are read off the wire — the proxy's own copy of the request
+    /// it was asked, and the origin's copy of what arrived over the tunnel —
+    /// because the failure this is written to catch is a header carried further
+    /// than it was meant to go, which only the far ends can see.
+    #[test]
+    fn proxy_authorization_is_sent_on_connect_and_never_to_the_destination() {
+        use base64::Engine as _;
+
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let (proxying, _, asked) = proxy(1, None);
+
+        let mut asking = call(at, "test");
+        let mut through = through(proxying);
+        // What `super::super::proxy_of` builds out of `username` and the
+        // materialized password, spelled here so the case is about where the
+        // value goes rather than about how it is encoded.
+        through.authorization = Some(format!(
+            "Basic {}",
+            base64::engine::general_purpose::STANDARD.encode("operator:must-not-be-forwarded")
+        ));
+        asking.proxy = Some(through);
+        let reply = send(&asking, &mut never).expect("the answer from behind the tunnel");
+
+        assert_eq!(reply.status, 200);
+        let asked = asked.join().expect("the proxy thread");
+        assert!(
+            asked[0]
+                .contains("Proxy-Authorization: Basic b3BlcmF0b3I6bXVzdC1ub3QtYmUtZm9yd2FyZGVk"),
+            "the credential is on the `CONNECT` request: {asked:?}"
+        );
+        let behind = served.join().expect("the origin thread");
+        assert!(
+            !behind.asked[0]
+                .to_ascii_lowercase()
+                .contains("proxy-authorization"),
+            "the destination is never sent the proxy's credential: {:?}",
+            behind.asked
+        );
+        assert!(
+            !behind.asked[0].contains("b3BlcmF0b3I6bXVzdC1ub3QtYmUtZm9yd2FyZGVk"),
+            "nor the value under another field name: {:?}",
+            behind.asked
+        );
+    }
+
+    /// A proxy that will not open the tunnel is two failures and they are two
+    /// classes: a `407` is a `RuntimeError` naming proxy authentication, because
+    /// what is missing is a credential the operator writes, and every other
+    /// refusal is an `IOError` naming the address and what came back.
+    #[test]
+    fn a_proxy_refusing_connect_is_an_io_error_and_407_names_authentication() {
+        let nowhere: SocketAddr = "192.0.2.1:443".parse().expect("a literal address");
+        let (forbidding, _, _) = proxy(
+            1,
+            Some("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n"),
+        );
+        let (challenging, _, _) = proxy(
+            1,
+            Some("HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n"),
+        );
+
+        let mut asking = call(nowhere, "test");
+        asking.url = "https://origin.example/ok".to_owned();
+        asking.addresses = vec![nowhere.ip()];
+        asking.proxy = Some(through(forbidding));
+        let refused = send(&asking, &mut never).expect_err("a refused tunnel is not an answer");
+        assert!(
+            matches!(refused, Fault::Thrown(nvs_runtime::ThrownClass::Io, _)),
+            "a refused `CONNECT` is an `IOError`: {refused:?}"
+        );
+        let said = format!("{refused:?}");
+        assert!(
+            said.contains("192.0.2.1:443") && said.contains("403"),
+            "the refusal names the address it was asked for and what came back: {said}"
+        );
+
+        asking.proxy = Some(through(challenging));
+        let challenged =
+            send(&asking, &mut never).expect_err("a challenged tunnel is not an answer");
+        assert!(
+            matches!(
+                challenged,
+                Fault::Thrown(nvs_runtime::ThrownClass::Runtime, _)
+            ),
+            "a `407` is a `RuntimeError`: {challenged:?}"
+        );
+        let said = format!("{challenged:?}");
+        assert!(
+            said.contains("proxy authentication") && said.contains("407"),
+            "the refusal says what is missing: {said}"
+        );
+    }
+
+    /// `retryAttempts` retries an answer from the destination, and a proxy that
+    /// refused the tunnel is not one — so a `503` from the proxy, which is a
+    /// status this client would retry if the origin had sent it, is spent once
+    /// (`rule:http-server/retry-is-opt-in-jittered-and-closed`).
+    ///
+    /// The pause is what makes the count final: a retry would be out on the wire
+    /// inside this call's millisecond of backoff.
+    #[test]
+    fn a_refused_connect_is_not_retried_as_an_answer() {
+        let nowhere: SocketAddr = "192.0.2.1:443".parse().expect("a literal address");
+        let (refusing, opened, _) = proxy(
+            4,
+            Some("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n"),
+        );
+
+        let mut asking = call(nowhere, "test");
+        asking.url = "https://origin.example/ok".to_owned();
+        asking.addresses = vec![nowhere.ip()];
+        asking.attempts = 3;
+        asking.proxy = Some(through(refusing));
+        send(&asking, &mut never).expect_err("a refused tunnel is not an answer");
+
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(
+            opened.load(Ordering::Relaxed),
+            1,
+            "a refusal of the tunnel is settled, so the three attempts were not spent on it"
+        );
+    }
+
+    /// A tunnelled connection and a direct one to the same approved address are
+    /// two keys, so neither is ever served to a call the other's terms do not
+    /// cover — the pool's half of
+    /// `rule:http-server/an-outbound-proxy-is-operator-configured`.
+    ///
+    /// The origin's count is what says it: a key short of the proxy would have
+    /// handed the second call the connection the first left, and the proxy would
+    /// have been reached no times at all.
+    #[test]
+    fn a_tunnelled_connection_is_pooled_apart_from_a_direct_one() {
+        let ok = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+        let (at, served) = origin(vec![ok, ok]);
+        let (proxying, opened, _) = proxy(1, None);
+
+        send(&call(at, "test"), &mut never).expect("the direct answer");
+        let mut tunnelled = call(at, "test");
+        tunnelled.proxy = Some(through(proxying));
+        send(&tunnelled, &mut never).expect("the tunnelled answer");
+
+        assert_eq!(
+            opened.load(Ordering::Relaxed),
+            1,
+            "the tunnelled call opened its own tunnel rather than drawing the direct connection"
+        );
+        assert_eq!(
+            served.join().expect("the origin thread").connections,
+            2,
+            "the origin was reached twice, once directly and once through the tunnel"
+        );
     }
 
     /// A reply carrying `frame` under `coding`, framed by length the way an
@@ -3515,6 +4134,7 @@ mod tests {
                 SocketAddr::new(at.ip(), parts.port),
                 None,
                 &CallPolicy::default(),
+                None,
             ),
             Box::new(Retired),
             asking.pool,
@@ -3575,7 +4195,7 @@ mod tests {
             super::parts("https://api.example/v1", "test").expect("the URL this case wrote");
         let socket = SocketAddr::new(IpAddr::from([203, 0, 113, 7]), parts.port);
         let strict = CallPolicy::default();
-        let under_mine = super::pool_key(&parts, socket, Some(&mine.fingerprint), &strict);
+        let under_mine = super::pool_key(&parts, socket, Some(&mine.fingerprint), &strict, None);
 
         assert!(
             under_mine.contains(&mine.fingerprint),
@@ -3583,12 +4203,12 @@ mod tests {
         );
         assert_ne!(
             under_mine,
-            super::pool_key(&parts, socket, Some(&theirs.fingerprint), &strict),
+            super::pool_key(&parts, socket, Some(&theirs.fingerprint), &strict, None),
             "two identities never share a connection"
         );
         assert_ne!(
             under_mine,
-            super::pool_key(&parts, socket, None, &strict),
+            super::pool_key(&parts, socket, None, &strict, None),
             "an identity is not the absence of one"
         );
     }
@@ -4038,6 +4658,7 @@ mod tests {
             SocketAddr::new(at.ip(), parts.port),
             Some(&identity.fingerprint),
             &CallPolicy::default(),
+            None,
         );
         super::pool::release(
             theirs.clone(),
@@ -4090,6 +4711,7 @@ mod tests {
                 insecure: true,
                 ..CallPolicy::default()
             },
+            None,
         );
         super::pool::release(
             relaxed.clone(),

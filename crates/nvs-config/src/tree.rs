@@ -645,8 +645,6 @@ pub struct HttpClientProxy {
     pub bypass: Option<Vec<String>>,
     /// The user half of the `Proxy-Authorization: Basic` header the `CONNECT` request carries, and
     /// which nothing else does.
-    ///
-    /// [unread: the config half of goal `outbound-proxy` landed ahead of its transport, so nothing builds a `CONNECT` request yet and the pair below reaches no header; `nvs_stdlib::http::transport` is what reads both. owner: rule:http-server/an-outbound-proxy-is-operator-configured]
     pub username: Option<String>,
     /// The password half, inline. It is `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s
     /// kind of value, so [`password_file`](Self::password_file) is the spelling an audited

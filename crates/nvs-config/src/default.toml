@@ -356,9 +356,6 @@
 # and `password_file` is `[db.<name>]`'s, under the same rule and with the same audit property.
 #password = "s3cret"
 #password_file = "/run/secrets/http-proxy"
-# NOT IMPLEMENTED — the block landed ahead of the transport that reads it, so nothing builds a
-# `CONNECT` request yet and the pair reaches no header.
-# `rule:http-server/an-outbound-proxy-is-operator-configured` is what closes it.
 # The user half. Both go onto `Proxy-Authorization: Basic` on the `CONNECT` request alone — never
 # to the destination, never on a redirect hop, and never into a log record or an error message.
 #username = "app"

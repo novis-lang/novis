@@ -3270,6 +3270,7 @@ fn exchanged(
         policy: policy_of(args, &named)?,
         traceparent: traceparent_of(ctx),
         span: std::cell::RefCell::new(span::HttpSpan::opened(verb, resolve)),
+        proxy: proxy_of(ctx),
     };
 
     // The one difference between the two members, and it is which bounds the
@@ -3611,6 +3612,39 @@ fn pool_of(ctx: &Ctx) -> pool::Caps {
                 Duration::from_nanos(nanos.unsigned_abs())
             }),
     }
+}
+
+/// The forward proxy this call leaves through, or `None` where the operator
+/// wrote no `[http.client.proxy]` block — which is how a deployment asks for no
+/// proxy (`rule:http-server/an-outbound-proxy-is-operator-configured`).
+///
+/// No option slot and no `Result`, for [`pool_of`]'s two reasons: the block is
+/// `System`-class, so a request has no key to move where its bytes go, and a
+/// `url` this client cannot dial was refused where the configuration was loaded.
+/// A block that reached here with one anyway is read as no proxy rather than as
+/// a failed call, which is the safe direction only because the boot cannot let
+/// one through: `nvs_config::http::proxy_endpoint` is the same grammar both
+/// sides ask.
+fn proxy_of(ctx: &Ctx) -> Option<transport::Proxy> {
+    let written = nvs_config::http::written_proxy(&ctx.config()?.snapshot().config)?;
+    let url = written.url.as_deref()?;
+    let (host, port) = nvs_config::http::proxy_endpoint(url).ok()?;
+    Some(transport::Proxy {
+        url: url.to_owned(),
+        host: host.to_owned(),
+        port,
+        bypass: written.bypass.clone().unwrap_or_default(),
+        authorization: written.username.as_deref().map(|user| {
+            // The password arrives already materialized, whether the operator
+            // wrote it inline or named the file whose content it is
+            // (`rule:config/a-secret-is-a-file-whose-content-is-the-value`), and
+            // a block with a user and no password is the empty half of the pair
+            // rather than a refusal — `Basic` has a spelling for it and the
+            // proxy is the end that decides.
+            let password = written.password.as_deref().unwrap_or_default();
+            format!("Basic {}", STANDARD.encode(format!("{user}:{password}")))
+        }),
+    })
 }
 
 /// How many redirect hops this call may follow: the option, then
