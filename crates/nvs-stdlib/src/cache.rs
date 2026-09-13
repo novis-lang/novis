@@ -1079,6 +1079,19 @@ pub(crate) fn store_forget(key: &[u8]) {
 /// `[cache.process] max_size` — what this process's entries may hold together.
 const PROCESS_MAX_SIZE: &str = "cache.process.max_size";
 
+/// `[cache.process] fill_wait` — how long a caller waits for the one filler in
+/// this process before it gives up on that fill.
+const PROCESS_FILL_WAIT: &str = "cache.process.fill_wait";
+
+/// The wait a call inherits when neither its own `wait` nor `nvs.toml` names
+/// one, which is the figure `nvs_config`'s `default.toml` states beside that
+/// key.
+///
+/// Long enough for a token endpoint on the other side of the internet to answer
+/// once, and short enough that a request behind a fetch that will never answer
+/// ends as a request rather than holding a core for as long as the fetch takes.
+const DEFAULT_FILL_WAIT: Duration = Duration::from_secs(5);
+
 /// How many pieces the process map is cut into, so that two cores writing keys
 /// that hash apart do not wait on each other.
 ///
@@ -1160,6 +1173,52 @@ fn process_cap(ctx: &Ctx) -> Option<usize> {
         Ok(Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(usize::MAX)),
         _ => Some(DEFAULT_MAX_SIZE),
     }
+}
+
+/// The `{wait?: Duration}` written in argument slot `at`, or
+/// `[cache.process] fill_wait`, or [`DEFAULT_FILL_WAIT`].
+///
+/// An omitted option inherits the directive rather than removing the bound, and
+/// a directive naming none inherits the figure above, so a caller waits on
+/// another request's `fill` for a time it can name and never for as long as that
+/// `fill` takes. Neither place has a spelling for waiting until the filler
+/// answers, which is `rule:http-server/no-spelling-for-an-unbounded-wait`'s
+/// shape one class over: the guarantee is the absence of the spelling rather
+/// than a check.
+///
+/// A directive that will not parse, or that parses to nothing, leaves the
+/// shipped bound standing — [`timeout_of`]'s reasoning, that `nvs.toml` is
+/// refused where it is loaded, and `nvs_config::store` has already failed both
+/// of those spellings with `E0642` where the operator can still see the file. A
+/// `wait` a program writes is taken as written, and one written negative is no
+/// wait at all rather than its magnitude.
+///
+/// # Errors
+///
+/// [`crate::time::nanos_of`]'s fatal for a slot holding neither a duration nor
+/// the `null` [`GET_SECRET_OPTIONS`] defaults it to, which the option's own
+/// declared type has already refused at the call site.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the fill table that waits on this bound is the next slice"
+    )
+)]
+fn wait_of(ctx: &Ctx, args: &[Value], at: usize, member: &str) -> Result<Duration, Fault> {
+    if let Some(held) = args.get(at)
+        && !matches!(held.tag(), Some(Tag::Null))
+    {
+        let nanos = crate::time::nanos_of(args, at, member)?;
+        return Ok(Duration::from_nanos(u64::try_from(nanos).unwrap_or(0)));
+    }
+    let written = configured(ctx, PROCESS_FILL_WAIT).and_then(|text| {
+        Quantity::parse(PROCESS_FILL_WAIT, Unit::Duration, &Setting::Text(text)).ok()
+    });
+    Ok(match written {
+        Some(Quantity::Nanos(nanos)) if nanos > 0 => Duration::from_nanos(nanos),
+        _ => DEFAULT_FILL_WAIT,
+    })
 }
 
 /// The key an entry is really held under: the `[[app]]` it was written for and
@@ -2123,11 +2182,12 @@ mod tests {
     use crate::tests::granting;
 
     use super::{
-        CLASS, Ctx, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, Lifetime,
-        MAX_SIZE, PROCESS, PROCESS_DOC, PROCESS_MAX_SIZE, SHARDS, SHARED_DOC, Value, bound,
-        charged, endpoint, local_cap, open_configured, process_cap, process_forget, process_get,
-        process_put, scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of,
-        store_forget, store_get, store_put,
+        CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC,
+        LOCAL_DOC, Lifetime, MAX_SIZE, PROCESS, PROCESS_DOC, PROCESS_FILL_WAIT, PROCESS_MAX_SIZE,
+        SHARDS, SHARED_DOC, Value, bound, charged, endpoint, local_cap, open_configured,
+        process_cap, process_forget, process_get, process_put, scoped, sealed_key,
+        sealed_plaintext, sealed_value, shard_cap, shard_of, store_forget, store_get, store_put,
+        wait_of,
     };
 
     /// Taken by every case that touches the process tier, first thing.
@@ -2719,6 +2779,52 @@ mod tests {
         assert_eq!(
             over, 0,
             "{over} shard(s) hold more than the share the cap leaves them"
+        );
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: a caller that
+    /// writes no `wait` is bounded by `[cache.process] fill_wait`, and by the
+    /// shipped figure where the file names none.
+    ///
+    /// The refusals are the boot check's — `nvs_config::store` fails a `0` and
+    /// the `false` that removes a ceiling elsewhere with `E0642` — so what is
+    /// asked here is the half that check cannot cover: a configuration that
+    /// reaches a request having been cleared to nothing, or holding a word that
+    /// is not a measurement, leaves the bound standing rather than removing it.
+    /// A reader that answered "no wait" to either would make every concurrent
+    /// caller but the filler throw. The directive's class is asserted beside
+    /// them for [`process_cap`]'s reason: a bound read once per process would
+    /// outlive the snapshot that set it.
+    #[test]
+    fn an_omitted_wait_inherits_the_process_directive_and_never_removes_the_bound() {
+        let mut ctx = Ctx::buffered();
+        let waited = |ctx: &Ctx| wait_of(ctx, &[], 4, "getSecret").expect("an absent slot is null");
+
+        assert_eq!(waited(&ctx), DEFAULT_FILL_WAIT, "a file naming none");
+        ctx.set_config(granting("[cache.process]\nfill_wait = \"250ms\"\n"));
+        assert_eq!(waited(&ctx), Duration::from_millis(250));
+        ctx.set_config(granting("[cache.process]\nfill_wait = \"\"\n"));
+        assert_eq!(
+            waited(&ctx),
+            DEFAULT_FILL_WAIT,
+            "a cleared key is an absent one"
+        );
+        ctx.set_config(granting("[cache.process]\nfill_wait = \"soon\"\n"));
+        assert_eq!(
+            waited(&ctx),
+            DEFAULT_FILL_WAIT,
+            "a word is not a measurement"
+        );
+        ctx.set_config(granting("[cache.process]\nfill_wait = \"0s\"\n"));
+        assert_eq!(
+            waited(&ctx),
+            DEFAULT_FILL_WAIT,
+            "a wait of nothing is not a wait, and boot refuses it"
+        );
+        assert_eq!(
+            nvs_config::directive::lookup(PROCESS_FILL_WAIT).map(|row| row.apply),
+            Some(nvs_config::Apply::Reload),
+            "a wait read once per process would outlive the snapshot that set it"
         );
     }
 
