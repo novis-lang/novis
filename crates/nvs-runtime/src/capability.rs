@@ -21,6 +21,12 @@
 //! same deny-by-default the absent block gets, and a request path that reached a capability check
 //! without a snapshot has a bug that should fail closed rather than quietly succeed.
 //!
+//! **The one call here that leaves the thread is a name lookup.** [`install_resolver`] is that seam:
+//! a worker installs a resolver handing the lookup to its blocking pool, because this crate is the
+//! bottom of the tree and cannot reach `nvs_host` itself
+//! (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). Everything either side of it — the
+//! grant, and § 3's table over every address the name answered — stays on the core.
+//!
 
 use std::borrow::Cow;
 use std::fs::{File, ReadDir};
@@ -161,9 +167,13 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
     format!("{subject}\nhelp: grant it in nvs.toml under `[capabilities.{family}]`")
 }
 
-/// `rule:http-server/allow-url-pins-the-address`'s outbound door: the one address
+/// `rule:http-server/allow-url-pins-the-address`'s outbound door: the first address
 /// `host` is approved to be reached at, once [`Cap::NetConnect`] has been shown to cover the name
-/// and § 3's policy has been shown to cover the address.
+/// and § 3's policy has been shown to cover every address that name answered.
+///
+/// [`pin_host_addresses`] is this same door answering the whole approved set, which is what
+/// `Core\Http\Target` carries; this one is for a member that connects to a single address, and the
+/// address it hands back is the head of that set.
 ///
 /// **The address is the answer, and that is § 2's load-bearing part.** A door that said only "yes"
 /// would leave a gap between this check and the connection in which a second DNS resolution could
@@ -176,10 +186,11 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
 /// effect, which every `Core` member reaches through a door in this module and through nothing
 /// else.
 ///
-/// The resolution is synchronous. `Core\Http\Client`'s own transport will run over the parking
-/// stream, and moving this call onto the blocking pool belongs with it rather than ahead of it —
-/// what it costs today is one core parked in the resolver for the length of a lookup, which is the
-/// same cost the file doors above already pay.
+/// **The lookup is the only part of this that leaves the thread.** The grant is asked here, on the
+/// core, before any name is looked up; the lookup goes through whatever [`install_resolver`] put on
+/// this thread, which on a worker is a handoff to the blocking pool
+/// (`rule:http-server/a-core-is-never-blocked-on-a-syscall`); and § 3's table is asked back on the
+/// core, once per address the name answered.
 ///
 /// `member` is what a refusal names — see [`require`].
 ///
@@ -187,13 +198,34 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `net.connect` for
 /// `host`; a `RuntimeError` when the name resolves to no address at all; and a `RuntimeError`
-/// naming the range when the address it resolves to is one § 3 denies and this deployment's
-/// `net.internal` does not except ([`nvs_config::tree::CapNet::internal`]). The order is the point: a
-/// host outside the grant is refused before it is looked up, so an ungranted program cannot use
-/// this door as a resolver.
+/// naming the range when **any** address the name answered is one § 3 denies and this deployment's
+/// `net.internal` does not except ([`nvs_config::tree::CapNet::internal`]) — one denied address
+/// refuses the whole host. The order is the point: a host outside the grant is refused before it is
+/// looked up, so an ungranted program cannot use this door as a resolver.
 pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
     require(ctx, Cap::NetConnect, Scope::Host(host), member)?;
     pinned_address(ctx, host, member)
+}
+
+/// [`pin_host`]'s whole answer: every address `host` resolved to that § 3's policy approves, in the
+/// resolver's order and at most [`PINNED_ADDRESSES`] of them.
+///
+/// `rule:http-server/an-outbound-call-tries-every-approved-address` is what the set is for — a call
+/// falls back across it when the first address does not connect, and a retry reuses it rather than
+/// resolving again, so a retried call still performs exactly one lookup. The set is never empty: a
+/// name answering nothing is the error below rather than an approval of no addresses.
+///
+/// # Errors
+///
+/// [`pin_host`]'s, in the same order — the grant before the lookup, and one denied address refusing
+/// the whole host.
+pub fn pin_host_addresses(
+    ctx: &Ctx,
+    host: &str,
+    member: &str,
+) -> Result<Vec<std::net::IpAddr>, Fault> {
+    require(ctx, Cap::NetConnect, Scope::Host(host), member)?;
+    pinned_addresses(ctx, host, member)
 }
 
 /// The address `host` resolves to, and nothing asked about it — [`pinned_address`]'s first half,
@@ -215,7 +247,82 @@ pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr,
 /// A `RuntimeError` when the name resolves to no address at all. There is no second failure here:
 /// every refusal [`pinned_address`] can add is one this door's callers do not ask.
 pub fn resolve_host(host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
-    use std::net::{IpAddr, ToSocketAddrs};
+    resolve_addresses(host, member)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| unresolved(host, member))
+}
+
+/// How many of the addresses one name answers an approval keeps.
+///
+/// **Eight**, which is `rule:http-server/an-outbound-call-tries-every-approved-address`'s number:
+/// falling back across the set is what a name's second address is for, and a set as long as
+/// whatever a resolver felt like answering is a connect budget nothing bounds. The cap is applied in
+/// the resolver's order and before the policy is asked, so a caller holds the head of the answer
+/// rather than a sample of it.
+pub const PINNED_ADDRESSES: usize = 8;
+
+/// How a name becomes addresses, for the crate that has a pool to hand the lookup to.
+///
+/// `rule:http-server/a-core-is-never-blocked-on-a-syscall` sends name resolution to the blocking
+/// pool, and this crate is the bottom of the tree: it cannot reach `nvs_host`, where that pool
+/// lives. So the handoff arrives as a function pointer, [`install_resolver`] installs it, and every
+/// door here reaches it through [`resolve_addresses`]. An [`std::io::Error`] and an empty answer are
+/// the same outcome to a caller — the name has no address — and the sentence it reads is the door's
+/// either way.
+pub type Resolver = fn(&str) -> std::io::Result<Vec<std::net::IpAddr>>;
+
+thread_local! {
+    /// This thread's resolver, or none, in which case [`lookup_on_this_thread`] is it.
+    ///
+    /// Per thread rather than per process, which is what makes the fallback *exact* rather than
+    /// merely safe: a worker installs a resolver that hands the lookup to its own pool, and a thread
+    /// that is not a worker — a test, a CLI path — has no core to protect and resolves inline, which
+    /// is what `nvs_host::blocking::run` does off a core anyway.
+    static RESOLVER: std::cell::Cell<Option<Resolver>> = const { std::cell::Cell::new(None) };
+}
+
+/// Installs `resolver` as this thread's, replacing whatever was installed before it.
+///
+/// Called once per worker thread at boot, by the crate that owns the blocking pool. Nothing on the
+/// request path installs anything, so the answer a door gets is fixed for the life of the thread.
+pub fn install_resolver(resolver: Resolver) {
+    RESOLVER.with(|slot| slot.set(Some(resolver)));
+}
+
+/// Every address `host` answers, resolved **on this thread** — the lookup a [`Resolver`] wraps, and
+/// the one spelling of it in the tree.
+///
+/// `nvs-host` calls this from inside its pool, so that the grammar of resolution stays here beside
+/// the policy that judges what comes back rather than being written a second time in the crate that
+/// owns the handoff.
+///
+/// # Errors
+///
+/// Whatever the platform resolver reported. A caller turns it into the door's own sentence, since
+/// only the door knows which member to name.
+pub fn lookup_on_this_thread(host: &str) -> std::io::Result<Vec<std::net::IpAddr>> {
+    use std::net::ToSocketAddrs;
+
+    Ok((host, 0_u16)
+        .to_socket_addrs()?
+        .map(|socket| socket.ip())
+        .collect())
+}
+
+/// Every address `host` resolves to that a door will carry: the resolver's order, no address twice,
+/// and at most [`PINNED_ADDRESSES`] of them.
+///
+/// It answers no policy question — [`pinned_addresses`] is the one that does — and an IP literal is
+/// a set of one that reaches no resolver at all, on a core or off it, because there is nothing for a
+/// lookup to answer differently.
+///
+/// # Errors
+///
+/// A `RuntimeError` when the name answers no address, which is also what a resolver's own failure
+/// looks like from here.
+pub fn resolve_addresses(host: &str, member: &str) -> Result<Vec<std::net::IpAddr>, Fault> {
+    use std::net::IpAddr;
 
     // A bracketed IPv6 literal is written `[::1]` inside an authority and is not one anywhere else,
     // so the brackets come off before the address is read and stay off afterwards.
@@ -223,23 +330,39 @@ pub fn resolve_host(host: &str, member: &str) -> Result<std::net::IpAddr, Fault>
         .strip_prefix('[')
         .and_then(|held| held.strip_suffix(']'))
         .unwrap_or(host);
-    match bare.parse::<IpAddr>() {
-        Ok(literal) => Ok(literal),
-        Err(_) => (host, 0_u16)
-            .to_socket_addrs()
-            .ok()
-            .and_then(|mut found| found.next())
-            .map(|socket| socket.ip())
-            .ok_or_else(|| {
-                Fault::thrown(format!(
-                    "{member} could not resolve {host}, so there is no address to pin"
-                ))
-            }),
+    if let Ok(literal) = bare.parse::<IpAddr>() {
+        return Ok(vec![literal]);
     }
+
+    let resolver = RESOLVER
+        .with(std::cell::Cell::get)
+        .unwrap_or(lookup_on_this_thread);
+    let mut kept: Vec<IpAddr> = Vec::new();
+    for address in resolver(host).unwrap_or_default() {
+        if kept.len() == PINNED_ADDRESSES {
+            break;
+        }
+        // The same address twice is one connect attempt and not two: a resolver answering the same
+        // machine under two records, or the same record over both families, is ordinary.
+        if !kept.contains(&address) {
+            kept.push(address);
+        }
+    }
+    if kept.is_empty() {
+        return Err(unresolved(host, member));
+    }
+    Ok(kept)
 }
 
-/// [`pin_host`]'s second half on its own: [`resolve_host`] once, and the address refused if § 3's
-/// table denies it.
+/// The sentence a name with no address gets, from whichever door asked for it.
+fn unresolved(host: &str, member: &str) -> Fault {
+    Fault::thrown(format!(
+        "{member} could not resolve {host}, so there is no address to pin"
+    ))
+}
+
+/// [`pin_host`]'s second half on its own: [`resolve_addresses`] once, and the whole host refused if
+/// § 3's table denies any address the name answered.
 ///
 /// **Split out because one member asks the capability question differently and the address
 /// question identically.** `Core\Db::open`'s grant is `db.open`, whose scope is the host a
@@ -261,7 +384,11 @@ pub fn resolve_host(host: &str, member: &str) -> Result<std::net::IpAddr, Fault>
 /// that takes a path; a `RuntimeError` when the name resolves to no address at all; and a
 /// `RuntimeError` naming the range when the address it resolves to is one § 3 denies and this deployment's
 /// `net.internal` does not except.
-pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
+pub fn pinned_addresses(
+    ctx: &Ctx,
+    host: &str,
+    member: &str,
+) -> Result<Vec<std::net::IpAddr>, Fault> {
     // `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`: a socket path is a
     // way onto the local machine that § 3's table cannot see, because there is no address for it to
     // match. It is refused here, in front of the resolution and of every caller's socket, so the
@@ -278,26 +405,44 @@ pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::I
         )));
     }
 
-    let address = resolve_host(host, member)?;
+    let addresses = resolve_addresses(host, member)?;
 
-    // § 3's table, less whatever this deployment excepted from it with `net.internal`. A context
-    // with no snapshot, and one whose snapshot grants no capability at all, both get the table
-    // itself -- an exception is something an operator wrote, so its absence is the default and not
-    // a reason to skip the question.
-    let refused = match ctx.config() {
-        Some(config) => match config.snapshot().config.capabilities.as_ref() {
-            Some(caps) => caps.address_refused(address),
+    // § 3's table, less whatever this deployment excepted from it with `net.internal`, asked of
+    // every address the name answered: one denied refuses the whole host and names that address,
+    // per `rule:http-server/an-outbound-call-tries-every-approved-address`. A context with no
+    // snapshot, and one whose snapshot grants no capability at all, both get the table itself -- an
+    // exception is something an operator wrote, so its absence is the default and not a reason to
+    // skip the question.
+    for &address in &addresses {
+        let refused = match ctx.config() {
+            Some(config) => match config.snapshot().config.capabilities.as_ref() {
+                Some(caps) => caps.address_refused(address),
+                None => nvs_config::capability::denied_by_default(address),
+            },
             None => nvs_config::capability::denied_by_default(address),
-        },
-        None => nvs_config::capability::denied_by_default(address),
-    };
-
-    match refused {
-        Some(range) => Err(Fault::thrown(format!(
-            "{member} refuses {address}: it is {range}, which `net.internal` does not except"
-        ))),
-        None => Ok(address),
+        };
+        if let Some(range) = refused {
+            return Err(Fault::thrown(format!(
+                "{member} refuses {address}: it is {range}, which `net.internal` does not except"
+            )));
+        }
     }
+
+    Ok(addresses)
+}
+
+/// [`pinned_addresses`]'s first address: the head of the approved set, for a door whose member
+/// connects to one address and a caller that has already shown its own grant.
+///
+/// # Errors
+///
+/// [`pinned_addresses`]'s, unchanged — every address the name answered is still judged, so the
+/// address this hands back is the first of a set none of which was refused.
+pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
+    pinned_addresses(ctx, host, member)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| unresolved(host, member))
 }
 
 /// § 2's read door: the file at `path`, open for reading, once [`Cap::FsRead`] has been shown to
@@ -1080,9 +1225,12 @@ pub fn io_failure(member: &str, path: &Path, err: &std::io::Error) -> Fault {
 mod tests {
     use std::sync::Arc;
 
+    use std::net::{IpAddr, Ipv4Addr};
+
     use super::{
-        Cap, Ctx, Fault, Path, Scope, ThrownClass, exec, granted, require, shell_target,
-        spawn_target, temp_dir,
+        Cap, Ctx, Fault, PINNED_ADDRESSES, Path, Scope, ThrownClass, exec, granted,
+        install_resolver, pin_host, pin_host_addresses, require, shell_target, spawn_target,
+        temp_dir,
     };
 
     /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
@@ -1102,6 +1250,165 @@ mod tests {
             table,
             ..nvs_config::Snapshot::default()
         })
+    }
+
+    thread_local! {
+        /// What [`scripted`] answers next. Thread-locals rather than shared state, for the same
+        /// reason the resolver seam itself is one: a case owns its thread, so two of them scripting
+        /// different answers cannot reach each other's.
+        static ANSWER: std::cell::RefCell<Vec<IpAddr>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+        /// How many times a door has asked [`scripted`] for it.
+        static LOOKUPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    /// A resolver answering what [`scripted_to_answer`] wrote, and counting the asking — which is
+    /// what lets a case assert that a lookup did *not* happen.
+    fn scripted(_host: &str) -> std::io::Result<Vec<IpAddr>> {
+        LOOKUPS.with(|count| count.set(count.get() + 1));
+        Ok(ANSWER.with_borrow(Clone::clone))
+    }
+
+    /// Installs [`scripted`] on this thread with `addresses` as its answer and nothing asked yet.
+    fn scripted_to_answer(addresses: &[IpAddr]) {
+        install_resolver(scripted);
+        ANSWER.with_borrow_mut(|slot| *slot = addresses.to_vec());
+        LOOKUPS.with(|count| count.set(0));
+    }
+
+    /// How many lookups [`scripted`] has been asked for since it was installed.
+    fn lookups() -> usize {
+        LOOKUPS.with(std::cell::Cell::get)
+    }
+
+    /// The `n`th address of TEST-NET-3, which § 3's table does not deny and which no machine a case
+    /// can reach answers on.
+    fn public(n: u8) -> IpAddr {
+        IpAddr::V4(Ipv4Addr::new(203, 0, 113, n))
+    }
+
+    /// A context granting `net.connect` for `host` and excepting no address, written as an operator
+    /// would write it per [`snapshot_of`].
+    fn reaching(host: &str) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(snapshot_of(&format!(
+            "[capabilities.net]\nconnect = [\"{host}\"]\n"
+        )));
+        ctx
+    }
+
+    /// `rule:http-server/a-core-is-never-blocked-on-a-syscall`, asserted as an **order**: the grant
+    /// is asked on the core before the lookup leaves the thread, so a program outside `net.connect`
+    /// cannot use this door as a resolver for a name it may not reach.
+    ///
+    /// The resolver seam is what makes that observable. A case cannot see which thread ran a lookup,
+    /// but it can see whether one happened at all, and a refused host that asked for none is the
+    /// whole claim. The literal at the end is the other half: a set of one reaches no resolver, so
+    /// nothing is handed off for an address that was already written down.
+    #[test]
+    fn the_grant_is_asked_before_the_lookup_leaves_the_core() {
+        const HOST: &str = "names.test";
+        const OUTBOUND: &str = "Core\\Http::allowUrl";
+        scripted_to_answer(&[public(7)]);
+
+        let outside = Ctx::buffered();
+        let refused = pin_host(&outside, HOST, OUTBOUND)
+            .expect_err("a context with no configuration grants nothing");
+        assert!(
+            format!("{refused:?}").contains("net.connect"),
+            "the host is refused as a capability: {refused:?}"
+        );
+        assert_eq!(
+            lookups(),
+            0,
+            "and refused before the lookup, or this door is a resolver for an ungranted program"
+        );
+
+        assert_eq!(
+            pin_host(&reaching(HOST), HOST, OUTBOUND)
+                .expect("a public address § 3's table does not deny"),
+            public(7)
+        );
+        assert_eq!(
+            lookups(),
+            1,
+            "the lookup ran once, through the resolver this thread installed"
+        );
+
+        assert_eq!(
+            pin_host(&reaching("203.0.113.7"), "203.0.113.7", OUTBOUND)
+                .expect("a literal is its own approval"),
+            public(7)
+        );
+        assert_eq!(lookups(), 1, "and a literal asked no resolver at all");
+    }
+
+    /// `rule:http-server/an-outbound-call-tries-every-approved-address`: a name answering one
+    /// address § 3 denies refuses the **whole host**, naming that address, whichever position it
+    /// arrived in — a door that dropped it and used the rest would approve exactly the answer a
+    /// rebinding attack produces.
+    #[test]
+    fn a_host_resolving_to_one_denied_address_is_refused_whole() {
+        const HOST: &str = "split.test";
+        const OUTBOUND: &str = "Core\\Http::allowUrl";
+        let loopback = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        let private = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 4));
+
+        for (answer, named) in [
+            (vec![public(1), loopback], "127.0.0.1"),
+            (vec![loopback, public(1)], "127.0.0.1"),
+            (vec![public(1), public(2), private], "10.0.0.4"),
+        ] {
+            scripted_to_answer(&answer);
+            let refused = pin_host_addresses(&reaching(HOST), HOST, OUTBOUND)
+                .expect_err("one denied address refuses the host");
+            let sentence = format!("{refused:?}");
+            assert!(
+                sentence.contains(named),
+                "the refusal names the address that failed, not the host: {sentence}"
+            );
+            assert!(
+                sentence.contains("net.internal"),
+                "and the key an operator would have to write: {sentence}"
+            );
+        }
+
+        scripted_to_answer(&[public(1), public(2)]);
+        assert_eq!(
+            pin_host_addresses(&reaching(HOST), HOST, OUTBOUND)
+                .expect("nothing but public addresses"),
+            vec![public(1), public(2)],
+            "a set the table approves is approved whole"
+        );
+    }
+
+    /// `rule:http-server/an-outbound-call-tries-every-approved-address`'s set: the resolver's order
+    /// kept, no address twice, and at most `PINNED_ADDRESSES` of it — a cap because falling back
+    /// across the set is a connect budget, and an uncapped one is whatever a resolver answered.
+    #[test]
+    fn every_approved_address_is_kept_in_the_resolvers_order_up_to_eight() {
+        const HOST: &str = "many.test";
+        const OUTBOUND: &str = "Core\\Http::allowUrl";
+
+        let answered: Vec<IpAddr> = (1_u8..=12).map(public).collect();
+        scripted_to_answer(&answered);
+        assert_eq!(
+            pin_host_addresses(&reaching(HOST), HOST, OUTBOUND).expect("every address is public"),
+            answered[..PINNED_ADDRESSES].to_vec(),
+            "the head of the resolver's answer, in its order"
+        );
+        assert_eq!(
+            pin_host(&reaching(HOST), HOST, OUTBOUND).expect("every address is public"),
+            public(1),
+            "and the single-address door is the head of that set"
+        );
+
+        scripted_to_answer(&[public(1), public(2), public(1)]);
+        assert_eq!(
+            pin_host_addresses(&reaching(HOST), HOST, OUTBOUND).expect("every address is public"),
+            vec![public(1), public(2)],
+            "the same machine under two records is one address and one connect attempt"
+        );
     }
 
     /// `rule:security/denial-is-a-runtime-error`, asked of the process door: an unconfigured context starts nothing, and the

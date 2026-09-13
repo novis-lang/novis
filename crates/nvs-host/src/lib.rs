@@ -162,6 +162,21 @@ impl<T> std::fmt::Debug for Worker<T> {
     }
 }
 
+/// A name resolved on this worker's blocking pool: `nvs-runtime`'s own lookup,
+/// handed off the core.
+///
+/// This is the whole of what that crate cannot write for itself — it is the
+/// bottom of the crate tree and the pool is here — and nothing more: the
+/// grammar of resolution, the cap on the answer and the refusal a caller reads
+/// all stay in the door, per
+/// `rule:http-server/an-outbound-call-tries-every-approved-address`. The name is
+/// copied because a job outlives the borrow that submitted it, which is one
+/// allocation per lookup against a call that costs a network round trip.
+fn resolve_off_core(host: &str) -> std::io::Result<Vec<std::net::IpAddr>> {
+    let named = host.to_owned();
+    blocking::run(move || nvs_runtime::capability::lookup_on_this_thread(&named))
+}
+
 impl<T: Send + 'static> Worker<T> {
     /// Starts a worker on `cpu` and runs `body` with that core's scheduler.
     ///
@@ -188,6 +203,13 @@ impl<T: Send + 'static> Worker<T> {
                 // which cannot happen while it is blocked on `recv` below; if
                 // it somehow did, running the body anyway is still correct.
                 let _ = tx.send(pinned);
+                // `rule:http-server/a-core-is-never-blocked-on-a-syscall`: the
+                // capability door's name lookup is the one call `nvs-runtime`
+                // cannot wait on, and this crate is the half that owns a pool to
+                // hand it to. Installed on the worker's own thread because the
+                // seam is per thread, for the reason
+                // `nvs_runtime::capability::install_resolver` gives.
+                nvs_runtime::capability::install_resolver(resolve_off_core);
                 // Built here, on this thread, which is the whole reason
                 // `Scheduler` never has to be `Send`.
                 let mut sched = Scheduler::new();
