@@ -117,6 +117,9 @@ modules = [
   "crates/nvs-cli/src/serve.rs",
   # `Core\Session`'s rows (:135-215), which gain `setSecret` and `getSecret`. Stage 7.
   "crates/nvs-stdlib/src/session.rs",
+  # `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s boot half: what a
+  # configuration already says about the coherent tier before any request asks for it.
+  "crates/nvs-config/src/store.rs",
 ]
 
 # Every stage works inside these three: cross-request state is a named store, a store's bytes are its
