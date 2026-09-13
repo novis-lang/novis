@@ -2,39 +2,27 @@
 
 ## State
 
-**Goal `websocket-client` is met.** Stage 6 flipped its four rules to `shipped` with `guardedBy`
-filled from this goal's cases and tests, and `python tools/rules.py --render` rewrote the three
-generated files. Stages 1–5 were already green, so every `[[check]]` in `docs/agent/loop-goal.toml`
-now passes.
+**Goal 52 — every plan file and module doc says what the tree does — has just started; nothing of it has landed yet.** Goal `websocket-client`'s whole list is this goal's Stage 1 floor.
 
-**One divergence stage 5 left is closed**: `close` sends its frame and then waits for the peer's own
-under the send wait, which is what ADR 0183 § 5 and the member's card both say
-(`crates/nvs-stdlib/src/http/socket.rs:937`). A peer that never answers is still closed, and no exit
-from that wait throws.
-
-**One defect this goal found and did not fix**, because it belongs to another rule and to every
-`Core` class at once: `rule:classes/graph-copy` states that an object holding a host handle is
-refused at a copy boundary, and no carrier makes that refusal — a `Core\Http\Socket` handed to
-`spawn script … with(args:)` arrives in the child with every slot intact, and `Core\Serialize::encode`
-takes one too. It is written up as `crates/nvs-runtime/src/graph.rs` gap 3 and carried in
-[carried-gaps.md](carried-gaps.md) § *Unowned*, where the decision it waits on is named. Nothing is
-shared by the copy — a handle table belongs to one `Ctx` — but the copied key indexes the receiving
-side's table, so it reads whatever that side opened at that index.
+Settled before the first session: this is the first goal of the gap program the user set on 2026-09-13
+(M0–M8 complete, only M9+ deferrals). It changes text, not behaviour. The stale sentences in the goal
+prose were found by an audit and are **anchors to re-check**, not a list to apply blind.
 
 ## Next group
 
-**The goal is closed, so the next group is the chain's next goal, not a stage of this one.** If the
-driver has not switched yet, this is the one slice left in the file set this goal loaded, and it needs
-the user's answer before any of it is written:
+**Stage 2 and stage 3: the stale-sentence lint, then the plan files** — one file set: `tools/plan.py`,
+`docs/plan/`, `docs/implementation-plan.md`.
 
-- [ ] **`rule:classes/graph-copy`'s host-handle refusal, which nothing implements** —
-      `crates/nvs-runtime/src/graph.rs:59` gap 3, refused where
-      `crates/nvs-runtime/src/graph.rs:371`'s `refusable` refuses a closure. What has to be decided is
-      where the mark saying a class holds a handle lives: a bit on the `ClassDesc`, which is the same
-      representation question gap 1 asks for a closure, or the declared type at the copy site.
+- [ ] **`plan.py --stale`** — `tools/plan.py:@main`, reusing `tools/plan.py:@live_goal` and
+      `:@chain_goals`; its last line is `sentences deferring to a walked goal: N`.
+- [ ] **M1–M4S plan files** — `docs/plan/m1.md:3`, `docs/plan/m2.md:40`, `docs/plan/m3.md:21`,
+      `docs/plan/m4.md:3`, `docs/plan/m4s.md:3`, each rewritten whole to what the tree does.
+- [ ] **M5–M8 plan files and the status block** — `docs/plan/m5.md:22`, `docs/plan/m6.md:5`,
+      `docs/plan/m7.md:1`, `docs/plan/m8.md:1`, `docs/implementation-plan.md:19`.
 
 ## Backlog
 
-- `crates/nvs-runtime/src/graph.rs` gap 3 — carried in [carried-gaps.md](carried-gaps.md) § *Unowned*.
-- `permessage-deflate`, RFC 8441, reconnecting and the subprotocol libraries stay out of `Core` — goal
-  `websocket-client` § *Standing decisions* is their one home.
+- Stage 4, the module docs — `crates/nvs-cli/src/serve.rs:79`, `crates/nvs-syntax/src/lib.rs:57`, the six
+  retired-owner items `python tools/owners.py` lists. Shares no file with stage 3.
+- Stage 5, `docs/agent/carried-gaps.md` § *Owned* — `python tools/playbook.py --check` is the worklist.
+- When this goal's last check goes green the driver takes goal `gap-register`.
