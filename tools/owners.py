@@ -67,6 +67,14 @@ a `carried-gaps.md` § *Owned* row whose owner is retired -- one behaviour for o
 files. Striking the owner is a judgement (is the gap closed, or was it left behind?), so the tool
 surfaces it and a session decides.
 
+**A heading is not a register.** Owed work stated under a section of its own -- `# What is here, and
+what is not yet`, `# What a caller owes` -- is in the one shape nothing can read: no item number, no
+owner tag, no way to ask who closes it. The roster names every such heading and counts them on the
+`sections outside Known gaps` line, and never fails on one, because the answer is always the same
+edit: move what is owed into that file's `# Known gaps` block as numbered items with owners, and
+rewrite the heading to say what the module does. The wording is matched on whole words -- `lowers`
+and `borrowed` both contain `owe`, and a warning listing those is one nobody reads twice.
+
 **Six registers, and this reads all of them.** A module doc is where a gap belongs, and it is not the
 only place this repository writes owed work down: a refusal site's reason is in
 `docs/agent/carried-refusals.md`, an unregistered spec member is a key in one of
@@ -144,6 +152,17 @@ DOC = re.compile(r"^\s*//!(?: ?(.*))?$")
 HEADING = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
 BOLD = re.compile(r"^\*\*(.+?)(?:\*\*|$)")
 GAPS = re.compile(r"^Known gaps?\b", re.IGNORECASE)
+
+#: Owed-work wording in a heading that opens no gap block. A section titled `# What is here, and what
+#: is not yet` records what its module owes in the one place no roster reads, so the roster counts
+#: them and says where, as a warning rather than a gate. The word `gap` under any heading but the
+#: block's own is here too: the block reader recognizes `Known gap` and nothing else, so a section
+#: titled for a gap is either owed work in the wrong place or a heading using the word for something
+#: that is not one, and the edit differs but the reading does not. The alternation is word-bounded
+#: because the wording is ordinary English inside longer words -- `lowers` and `borrowed` both
+#: contain `owe`, and a warning that names those is read as noise and then not read at all.
+OWED = re.compile(r"\b(?:not(?:\s+\w+){0,3}\s+yet|owe[sd]?|owing|still missing|not armed|gaps?)\b",
+                  re.IGNORECASE)
 
 #: An item inside a block, and the marker that names its owner. Both list markers count: the crates
 #: write a gap list either way, and a `-` block whose five bullets carried one tag between them
@@ -354,6 +373,25 @@ def collect() -> list[dict]:
                                   "item": item["num"], "line": item["line"], "lead": item["lead"],
                                   "text": one_line(" ".join(t for _, t in item["body"])),
                                   "owner": owner, "why": why})
+    return found
+
+
+def outside_blocks() -> list[dict]:
+    """Every module doc heading that words owed work while opening no gap block.
+
+    A heading is what this reads, and prose is not: "the parser does not honour this yet" inside a
+    paragraph is a sentence about the code, while a *section* titled for what is missing is a
+    register of owed work that nothing counts and no owner tag reaches. The gap block's own heading
+    is exempt, since that is the one place the wording belongs.
+    """
+    found = []
+    for path in sorted({p for pattern in SOURCES for p in ROOT.glob(pattern)}):
+        for run in doc_runs(path.read_text(encoding="utf-8").split("\n")):
+            for line, text in run:
+                m = HEADING.match(text)
+                if not m or GAPS.match(m.group(2)) or not OWED.search(m.group(2)):
+                    continue
+                found.append({"file": rel(path), "line": line, "lead": one_line(m.group(2))})
     return found
 
 
@@ -592,7 +630,7 @@ def count_lines(kinds: dict) -> list[str]:
     return [f"  {label}: {len(kinds[kind])}" for kind, label in LABELS]
 
 
-def report(kinds: dict, found: list[dict], regs: list[dict]) -> None:
+def report(kinds: dict, found: list[dict], regs: list[dict], sections: list[dict]) -> None:
     files = len({gap["file"] for gap in found})
     blocks_seen = len({(gap["file"], gap["block"]) for gap in found})
 
@@ -650,9 +688,17 @@ def report(kinds: dict, found: list[dict], regs: list[dict]) -> None:
     if not kinds["unowned"]:
         print("  none")
 
+    if sections:
+        print("\n== OWED WORK UNDER A HEADING OF ITS OWN, WHERE NO OWNER TAG REACHES IT")
+        for sec in sections:
+            print(f"  {sec['file']}:{sec['line']}  {sec['lead'][:78]}")
+        print("  move each one into that file's `# Known gaps` block as a numbered item naming its "
+              "owner, and rewrite the heading to say what the module does")
+
     print(f"\n== {len(found)} item(s) in {blocks_seen} block(s) across {files} file(s)")
     for line in count_lines(kinds):
         print(line)
+    print(f"  sections outside Known gaps: {len(sections)}")
     print(f"  of the {len(found)}, {len(kinds['retired'])} owned by a retired goal -- a finding "
           f"rather than a failure, and a session decides it")
 
@@ -731,10 +777,11 @@ def main() -> int:
     found = collect()
     kinds = classify(found)
     regs = registers(found)
+    sections = outside_blocks()
 
     if opts.json:
         counts = {reg["name"]: len(reg["items"]) for reg in regs}
-        print(json.dumps({**kinds, "registers": counts}, indent=2))
+        print(json.dumps({**kinds, "registers": counts, "sections": sections}, indent=2))
         return 0
     if opts.registers:
         report_registers(regs)
@@ -755,7 +802,7 @@ def main() -> int:
         print(f"\n  {len(kinds['unowned'])} item(s), each with its reason in "
               f"docs/agent/carried-gaps.md § *Unowned* or docs/agent/carried-refusals.md")
         return 0
-    report(kinds, found, regs)
+    report(kinds, found, regs, sections)
     return 0
 
 
