@@ -127,6 +127,12 @@ modules = [
   # application knows, as both halves of it: `consume` over the shared store, `shed` over this
   # core's own memory, and the `Core\RateLimit\Decision` each answers with.
   "crates/nvs-stdlib/src/ratelimit.rs",
+  # A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve to, and
+  # `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
+  "crates/nvs-types/src/expr/calls.rs",
+  # `rule:security/tainted-qualifier`'s `tainted` and `rule:security/secret-qualifier`'s `secret`:
+  # one representation, two independent axes, and the sinks that refuse them.
+  "crates/nvs-types/src/expr/quals.rs",
 ]
 
 # Every stage works inside these three: cross-request state is a named store, a store's bytes are its
