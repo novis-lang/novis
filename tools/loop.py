@@ -1608,36 +1608,69 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # `verify.py`'s rule for its own green cache. Nothing is keyed on what a session says it touched,
 # because a session's diff is not what a check reads, and the dirty tree counts as much as HEAD.
 #
-# Each set is a SUPERSET on purpose, and the safe direction is always wider. A fixture reads the
-# binary, its own file and whatever it opens -- `examples/*.nvs` name paths under `tests/` -- so
-# a program's set is those three, and the two whole-leg memos, the `.nvst` suites and an `{nvs}`
-# command read the same things. `docs/` is not in that set on evidence, not on trust: every
-# `docs/` in `examples/` and `tests/` is a comment, a case's title citation or a string a program
-# never opens, and nothing under `crates/*/src` reads a path there -- `grep -rn "docs/"` over the
-# three is what to re-run before widening it back. A crate's tests read the tree at run time (the
-# policy tests grep other crates' sources, `nvs-stdlib`'s `spec_registry_coverage` walks
-# `docs/agent/goals/` and reads `docs/spec/`, `nvs-lsp`'s `extension_reference` reads
-# `editors/vscode/package.json`), so a cargo check's set is every partition but `tools/`, which
-# nothing under `crates/` opens. A Python tool
-# reads whatever it likes -- `chain.py`, `plan.py` and `playbook.py` read the handoff -- so a tool
-# command keys on the whole tree, the session's own state files included, and is the one kind a
-# wrap invalidates every session. Narrowing a set is a claim to be shown, not a knob to turn.
+# Each set is a SUPERSET on purpose, and the safe direction is always wider. Narrowing a set is
+# a claim to be shown, not a knob to turn, and each partition below names the grep that shows it.
+#
+# `crates` is WHAT THE BINARY IS BUILT FROM: every crate's sources, build script and manifest, the
+# workspace manifests and toolchain, and the files outside `crates/*/src` that a source embeds or
+# a build script reads -- `LICENSE` and `THIRD-PARTY-LICENSES.txt` (`nvs-cli/src/info.rs`),
+# `tools/data/php-builtins.txt` and `docs/spec/02-php-migration.md` (`nvs-stdlib/build.rs`),
+# `docs/reference/` (`nvs-cli/src/agent.rs`) and `crates/nvs-stdlib/tests/vectors/`
+# (`nvs-stdlib/src/tests/vectors.rs`). The two greps that derive it, to re-run before a source
+# starts embedding something new: `grep -rn 'include_str!\|include_bytes!' crates/*/src` and
+# `grep -n rerun-if-changed crates/*/build.rs`. A crate's `tests/` and `benches/` directories are
+# `crate-tests`: cargo runs them, the binary is not built from them, so a fixture never keys on
+# them -- the split that let a test-only text file stale every fixture, the WSL leg and the
+# valgrind sweep before it existed.
+#
+# `docs/` is three partitions by what under `crates/` opens it. `docs` is `docs/reference/` and
+# `docs/spec/`: embedded in the binary (above) and read again by `nvs-cli/tests/agent.rs`,
+# `nvs-stdlib/tests/php_names.rs`, `spec_registry_coverage.rs` and `nvs-lsp`'s
+# `extension_reference.rs`. `goals` is `docs/agent/goals/`, which `spec_registry_coverage` walks
+# for owner tags and which no source embeds. `prose` is every other file under `docs/` -- the
+# plan, the decisions, the rules, the perf notes, the process docs -- which nothing under `crates/`
+# opens: `grep -rn 'read_to_string\|read_dir\|include_str' crates/ -B3 | grep docs/` is the
+# evidence, and a docs-only session used to re-run every cargo check on it.
+#
+# A fixture reads the binary, its own file and whatever it opens -- `examples/*.nvs` name paths
+# under `tests/` -- so a program's set is `crates`, `docs`, `examples` and `tests`, and the two
+# whole-leg memos, the `.nvst` suites and an `{nvs}` command read the same things. A crate's tests
+# read the tree at run time (the policy tests grep other crates' sources, `spec_registry_coverage`
+# walks the goals, `extension_reference` reads `editors/vscode/package.json`), so a cargo check's
+# set is that plus `crate-tests`, `goals` and `editors` -- not `tools/` (its one read file is in
+# `crates`) and not `prose`. A Python tool reads whatever it likes -- `chain.py`, `plan.py` and
+# `playbook.py` read the handoff -- so a tool command keys on the whole tree, the session's own
+# state files included, and is the one kind a wrap invalidates every session.
 #
 # What no partition holds is a SERVICE's state -- the database a `queue migrate` check or the
 # `examples/queue.nvs` fixture reaches -- so a memo cannot see that drift. It is not a change a
 # session makes to the tree, which is what the memo exists to catch, and the full sweep the driver
 # runs before a goal is reached (`full`) sees it exactly as every sweep used to.
 PARTITIONS = {
-    "crates": ("crates", "benches", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
-               "rustfmt.toml", "deny.toml", "nvs.toml"),
+    "crates": ("crates", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rustfmt.toml",
+               "deny.toml", "nvs.toml", "LICENSE", "THIRD-PARTY-LICENSES.txt"),
+    "crate-tests": ("benches",),
     "examples": ("examples",),
     "tests": ("tests",),
-    "docs": ("docs",),
+    "docs": (),
+    "goals": (),
+    "prose": ("docs",),
     "tools": ("tools",),
     "editors": ("editors",),
 }
+# The splits below the top level, first match wins: a path under one of these prefixes belongs to
+# the named partition whatever its top-level entry says. The `vectors/` row is before the
+# `crate-tests` rule in `partition_of` on purpose -- it is under a `tests/` directory and embedded.
+SPLITS = (
+    ("crates/nvs-stdlib/tests/vectors/", "crates"),
+    ("tools/data/php-builtins.txt", "crates"),
+    ("docs/reference/", "docs"),
+    ("docs/spec/", "docs"),
+    ("docs/agent/goals/", "goals"),
+)
+CRATE_TEST_DIRS = ("tests", "benches")
 # Every other top-level entry -- `website/`, `fuzz/`, `docker/`, `AGENTS.md`, the dotfiles -- is
-# `other`. The files the wrap rewrites every session are `state`: the `docs` partition counts them
+# `other`. The files the wrap rewrites every session are `state`: their own partition counts them
 # by NAME only, so that a handoff does not stale every fixture, suite and crate test in the tree,
 # and only a set that holds `state` sees their bytes.
 OTHER, STATE = "other", "state"
@@ -1645,9 +1678,23 @@ STATE_FILES = re.compile(r"^docs/agent/(handoff\.md|goals/[^/]+\.handoff\.md)$")
 NOT_INPUTS = {".git", "target", ".loop", ".agent-tmp", "node_modules", "out", ".vscode-test",
               "__pycache__"}
 EVERYTHING = tuple(PARTITIONS) + (OTHER, STATE)
-PROGRAM_READS = ("crates", "examples", "tests")
-CARGO_READS = ("crates", "examples", "tests", "docs", "editors")
+PROGRAM_READS = ("crates", "docs", "examples", "tests")
+CARGO_READS = ("crates", "crate-tests", "docs", "goals", "examples", "tests", "editors")
 EDITOR_READS = ("crates", "editors")
+TOP_OWNER = {top: name for name, tops in PARTITIONS.items() for top in tops}
+
+
+def partition_of(rel):
+    """The partition a tree path (posix, relative to the root) is hashed into: a `SPLITS` prefix
+    first, then a crate's `tests/` or `benches/` directory, then its top-level entry's owner, and
+    `other` for a top-level entry no partition names."""
+    for prefix, name in SPLITS:
+        if rel.startswith(prefix):
+            return name
+    parts = rel.split("/")
+    if parts[0] == "crates" and len(parts) > 3 and parts[2] in CRATE_TEST_DIRS:
+        return "crate-tests"
+    return TOP_OWNER.get(parts[0], OTHER)
 # The two memos that are a whole leg rather than a check: keyed like a program, because that is
 # what they run. `Goal.__init__` builds their specs.
 LEG_MEMOS = ("wsl leg", "valgrind sweep")
@@ -2302,7 +2349,6 @@ class Goal:
         """
         hashers = {name: hashlib.blake2b(digest_size=16) for name in EVERYTHING}
         hashers["crates"].update(rustc_version().encode("utf-8", "replace"))
-        owner = {top: name for name, tops in PARTITIONS.items() for top in tops}
         # A file path, or a wholly ignored directory with a trailing `/`. Empty when git cannot
         # answer, and then everything is hashed, which is the wide direction.
         ignored = {p for p in git("ls-files", "--others", "--ignored", "--exclude-standard",
@@ -2317,10 +2363,9 @@ class Goal:
             for top in sorted(os.listdir(ROOT)):
                 if top in NOT_INPUTS or top in ignored or f"{top}/" in ignored:
                     continue
-                name = owner.get(top, OTHER)
                 base = ROOT / top
                 if base.is_file():
-                    feed(hashers[name], top, base)
+                    feed(hashers[partition_of(top)], top, base)
                     continue
                 if not base.is_dir():
                     continue
@@ -2332,6 +2377,7 @@ class Goal:
                         relf = f"{rel}/{f}"
                         if relf in ignored:
                             continue
+                        name = partition_of(relf)
                         if STATE_FILES.match(relf):
                             feed(hashers[STATE], relf, ROOT / relf)
                             hashers[name].update(relf.encode("utf-8") + b"\0")

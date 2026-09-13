@@ -303,24 +303,31 @@ Two things are remembered, and neither decides a goal. Within one run, an identi
 cargo once — the list names `nvs-runtime` twice on purpose, for different guard tests, and the second
 run cannot answer differently. Across runs, **every check's green verdict** is remembered in
 `.loop/goal-green.json` against a content hash of **the partitions of the tree its kind reads** and
-of its own spec. The partitions are the top-level names — `crates/` with `benches/` and the manifests,
-`examples/`, `tests/`, `docs/`, `tools/`, `editors/`, everything else — and the sets are supersets on
-purpose: a fixture, a `.nvst` suite, an `{nvs}` command and both whole-leg memos key on the binary,
-the fixtures and the tests, and not on `docs/`, which nothing they run opens — every `docs/` in
-`examples/` and `tests/` is a comment or a citation, and `reads_of`'s comment says what to grep
-before widening that back; a crate's tests, which read `docs/spec/`, the
-goals directory and the editor's manifest at run time, key on everything but `tools/`; a Python tool,
-which may read anything, keys on the whole tree. Identical bytes into a deterministic check cannot come
-out a different verdict, which is the same argument `verify.py` makes for its own green cache, and
-`reads_of` in `tools/loop.py` is the one home of which set a kind gets. Narrowing one is a claim to
-be shown, never a tuning knob. What no partition holds is a service's state — the database a
-`queue migrate` check reaches — which is not something a session changes in the tree, and which the
-full sweep below sees exactly as every sweep used to.
+of its own spec. A partition is a set of paths cut by what reads them, not by directory: `crates` is
+what the binary is built from — the sources, build scripts and manifests, plus the files they embed
+from elsewhere, the two license texts, `tools/data/php-builtins.txt`, `docs/reference/`, one spec
+page and one test-vector directory — while a crate's `tests/` and `benches/` are `crate-tests`;
+`docs/` is `docs` (`docs/reference/` and `docs/spec/`, embedded and read by four tests), `goals`
+(`docs/agent/goals/`, walked by one) and `prose` (everything else there, which nothing under
+`crates/` opens); then `examples/`, `tests/`, `tools/`, `editors/`, everything else. The sets are
+supersets on purpose: a fixture, a `.nvst` suite, an `{nvs}` command and both whole-leg memos key
+on `crates`, `docs`, the fixtures and the tests; a crate's tests, which read the goals and the
+editor's manifest at run time, key on that plus `crate-tests`, `goals` and `editors`; a Python
+tool, which may read anything, keys on the whole tree. So a session that edits the plan, a rule, the
+playbook or a decision stales no cargo check, and one that edits a crate's test fixture stales no
+fixture or leg. Identical bytes into a deterministic check cannot come out a different verdict,
+which is the same argument `verify.py` makes for its own green cache, and `PARTITIONS`, `SPLITS`
+and `reads_of` in `tools/loop.py` are the one home of which paths a partition holds and which set a
+kind gets, each with the grep that derived it. Narrowing one is a claim to be shown, never a tuning
+knob. What no partition holds is a service's state — the database a `queue migrate` check reaches —
+which is not something a session changes in the tree, and which the full sweep below sees exactly
+as every sweep used to.
 
 The two files the wrap rewrites every session — the handoff and a goal's `.handoff.md` — count
-toward `docs/` by name alone and toward a `state` partition by content, which only the whole-tree
-set holds. That is what lets a session that wrote nothing but its handoff skip the floor, and it is
-why a tool command is re-run every session: `chain.py`, `plan.py` and `playbook.py` read the handoff.
+toward their own partition by name alone and toward a `state` partition by content, which only the
+whole-tree set holds. That is what lets a session that wrote nothing but its handoff skip the floor,
+and it is why a tool command is re-run every session: `chain.py`, `plan.py` and `playbook.py` read
+the handoff.
 
 **A goal is never reached on the memo.** A green sweep that answered anything from the file is run
 again in full, remembering nothing, before the driver declares the goal done — `python tools/loop.py
