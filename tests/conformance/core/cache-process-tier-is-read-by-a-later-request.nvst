@@ -1,0 +1,50 @@
+--TEST--
+an entry `Core\Cache::process()` holds outlives the request that wrote it: the isolate a `spawn` runs reads what the parent put there, and the parent reads what that isolate wrote after it has finished — `rule:concurrency/the-process-tier-is-one-store-per-process` and `rule:core-api/two-cache-tiers`
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: `spawn script` asks for
+# `script.spawn` at its own door, and deny-by-default means a case with no
+# configuration cannot spawn at all. The tier itself is granted nothing, which is
+# the asymmetry `nvs_stdlib::registry`'s capability table states beside
+# `Core\Cache::shared`.
+[capabilities.script]
+spawn = true
+--FILE child.nvs--
+<?nvs
+// A later request, in the sense that decides this: its own isolate, its own
+// heap and its own statics, sharing with the parent only what
+// `rule:security/isolate-shares-nothing` lets it share. The process tier is one
+// of those things and the per-core tier is not — whichever core runs this
+// isolate is the scheduler's business, so a case reading `local()` here would be
+// a case about scheduling.
+var $cache = Core\Cache::process();
+echo "the next request reads ", $cache->get("written-before-the-spawn") as string, "\n";
+
+// Written for whoever runs next, which is the parent: this isolate is finished
+// by the time that read happens, so nothing holding the entry belongs to a
+// request any more.
+$cache->put("written-by-the-child", "the-childs-value");
+return "done";
+--FILE--
+<?nvs
+var $cache = Core\Cache::process();
+$cache->put("written-before-the-spawn", "the-parents-value");
+
+var $job = spawn script "child.nvs" with(output: "capture");
+var $done = await $job;
+echo "ok=", $done->ok ? "true" : "false", "\n";
+echo $done->output;
+
+// The direction that makes this a store rather than an inheritance: the entry
+// was written by an isolate that no longer exists, and it is read here through a
+// handle taken before that isolate started.
+echo "and reads what it left behind: ", $cache->get("written-by-the-child") as string, "\n";
+
+// A miss is an ordinary answer on this tier for every reason it is one on the
+// per-core tier, and for one more: this may be a different process than the one
+// that wrote the entry.
+echo "a name nothing wrote: ", $cache->get("never-written") == null ? "null" : "something", "\n";
+--EXPECT--
+ok=true
+the next request reads the-parents-value
+and reads what it left behind: the-childs-value
+a name nothing wrote: null

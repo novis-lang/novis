@@ -1,0 +1,45 @@
+--TEST--
+the process tier forgets entries rather than failing the write that crossed `[cache.process] max_size`, and the write that made the room is still readable — `rule:concurrency/the-process-tier-is-one-store-per-process` and `rule:concurrency/cache-memory-is-charged-to-the-core`
+--FILE--
+<?nvs
+// The cap evicts rather than failing an allocation, so nothing here is wrapped
+// in a `try`: a `put` that has to make room answers exactly what a `put` with
+// room to spare answers, and this case fails on an uncaught throw the moment
+// that stops being true.
+var $cache = Core\Cache::process();
+var $payload = Core\Str::repeat('x', 512);
+
+// Far more than the cap, written under it. Counted rather than named: the map is
+// cut into shards and which one a key lands in is a hash's business, so what is
+// asserted is the bound the cap promises and not which entry went.
+int $puts = 0;
+for (int $i = 0; $i < 200; $i = $i + 1) {
+    $cache->put("entry-" . ($i as string), $payload);
+    $puts = $puts + 1;
+}
+echo "every put returned: ", $puts, " of 200\n";
+
+int $seen = 0;
+for (int $read = 0; $read < 200; $read = $read + 1) {
+    if ($cache->get("entry-" . ($read as string)) != null) {
+        $seen = $seen + 1;
+    }
+}
+// A hundred kilobytes of entries do not fit under a sixty-four kilobyte cap, so
+// some of them are gone — which is the tier's contract rather than a failure,
+// and `null` is what a program was told to handle from the first line of it.
+echo "the tier forgot rather than refusing: ", $seen < 200 ? "yes" : "no", "\n";
+
+// And forgetting is by write age, so the write that had to make the room is the
+// one still there.
+echo "the newest write is still readable: ", $cache->get("entry-199") == null ? "no" : "yes", "\n";
+--FILE nvs.toml--
+# The cap is a `System` directive an operator sets, and nothing in the program
+# above can raise it for itself: the memory it bounds belongs to the process, not
+# to any request in it.
+[cache.process]
+max_size = "64K"
+--EXPECT--
+every put returned: 200 of 200
+the tier forgot rather than refusing: yes
+the newest write is still readable: yes

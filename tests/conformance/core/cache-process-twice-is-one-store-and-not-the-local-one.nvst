@@ -1,0 +1,47 @@
+--TEST--
+`Core\Cache::process()` names the process's one store rather than handing back a container, and that store is not the per-core one: a handle taken after every write reads them all, and a key written on one tier is not the key read on the other — `rule:core-api/two-cache-tiers`
+--FILE--
+<?nvs
+// The claim `cache-local-twice-is-one-store-and-not-two.nvst` makes about the
+// per-core tier, asked of the per-process one: the value `process()` answers is a
+// name for the store and not the thing holding the entries, so a second handle
+// reads what the first wrote.
+var $first = Core\Cache::process();
+
+// Taken before a single entry exists, so nothing it reads below can be a
+// snapshot it was handed at this line.
+var $second = Core\Cache::process();
+
+array<string> $keys = ["alpha", "beta", "gamma"];
+$first->put("alpha", "<alpha>");
+$second->put("beta", "<beta>");
+$first->put("gamma", "<gamma>");
+
+// A third handle, taken after all three writes, reads every one of them —
+// counted rather than read off a line, because a store that were per-handle would
+// answer for the two its own handle wrote and `null` for the third, which is a
+// plausible-looking half.
+var $third = Core\Cache::process();
+string $back = "";
+int $seen = 0;
+foreach ($keys as string $key) {
+    $back = $third->get($key) as string;
+    if ($back == "<" . $key . ">") {
+        $seen = $seen + 1;
+    }
+}
+echo "a handle taken last reads them all: ", $seen, " of ", Core\Arr::count($keys), "\n";
+
+// And the two in-process tiers are two stores rather than one under two names,
+// which is what a member each buys: what a program wrote where is visible in its
+// source instead of in an argument.
+var $core = Core\Cache::local();
+$core->put("alpha", "<the core's own>");
+echo "the process tier keeps its own entry: ", $third->get("alpha") as string, "\n";
+echo "and the per-core tier keeps its own: ", $core->get("alpha") as string, "\n";
+echo "a name only the process tier has: ", $core->get("beta") == null ? "null" : "something", "\n";
+--EXPECT--
+a handle taken last reads them all: 3 of 3
+the process tier keeps its own entry: <alpha>
+and the per-core tier keeps its own: <the core's own>
+a name only the process tier has: null
