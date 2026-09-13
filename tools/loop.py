@@ -1977,6 +1977,7 @@ class Goal:
         self._green_dirty = False  # `_green` holds a verdict `.loop/goal-green.json` does not yet
         self.full = False  # consult no memo: a goal is reached only on a sweep that skipped nothing
         self.skipped = []  # memo keys this run answered from the file rather than by running
+        self._ran_green = set()  # memo keys THIS run made green; a later duplicate is not a memo hit
         # The two memos that are a leg rather than a check, as specs so they key like one: the
         # fixtures they run over, and for the valgrind sweep the suppressions it runs under.
         supp = ROOT / "tools" / "valgrind.supp"
@@ -2372,20 +2373,32 @@ class Goal:
 
     def skip(self, c, leg="", what=""):
         """`remembered`, taken: the key goes on `skipped` for the cost line and the goal-end
-        decision, and the status line says what was not run."""
+        decision, and the status line says what was not run.
+
+        Unless this run made the key green itself. The list names one check many times -- the
+        conformance tree once per stage that leans on it -- and `remember` files the first pass
+        before the duplicates are reached, so they answer from the memo too. That is not a verdict
+        taken from the file: the check ran, this run, over these inputs, and it does not go on
+        `skipped`. It did once, and a scoped sweep whose only memo hits were its own duplicates
+        was re-run whole to confirm twelve verdicts it had just produced."""
         if not self.remembered(c, leg):
             return False
         key = self.memo_key(c, leg)
+        label = what or f"{leg + ' ' if leg else ''}{c.get('name') or c.get('file')}"
+        if key in self._ran_green:
+            self.trace(f"{label} (ran above)")
+            return True
         if key not in self.skipped:
             self.skipped.append(key)
-        label = what or f"{leg + ' ' if leg else ''}{c.get('name') or c.get('file')}"
         self.trace(f"{label} (green on these inputs already)")
         return True
 
     def remember(self, c, leg=""):
         want = self.inputs_for(c)
         if want is not None:
-            self._green[self.memo_key(c, leg)] = want
+            key = self.memo_key(c, leg)
+            self._green[key] = want
+            self._ran_green.add(key)
             self._green_dirty = True
 
     def save_green(self):
@@ -2747,6 +2760,7 @@ class Goal:
         self._crate_runs = {}
         self.short = []  # thresholds not met yet, judged after everything else
         self.skipped = []
+        self._ran_green = set()
         self._begun = time.monotonic()
         TICKER.set(done=0, total=0)
         # Two hashes: the `git diff HEAD` behind `tree_id`, and the content walk of the tree behind
