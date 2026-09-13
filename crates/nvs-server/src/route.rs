@@ -18,7 +18,7 @@
 //! left untouched: nothing here calls the annotated method, and nothing here
 //! decides what a return value means.
 //!
-//! # What the answer is read for, and what is still missing
+//! # What the answer is read for
 //!
 //! Two of § 1's three rules read it here: [`csrf_required`] is `rule:security/csrf-is-on-by-default`'s
 //! question and [`label`] is `rule:observability/route-label-is-the-declared-name`'s `route` label. Neither matches
@@ -27,30 +27,33 @@
 //! subsystem each belongs to. § 8's access decision has no reader here on
 //! purpose: it is the *dispatcher's*, and this crate does not dispatch.
 //!
-//! **Known gap 1: the door answers whether a request is CSRF-checked and does
-//! not yet refuse one.** § 4's refusal needs the presented token *verified*,
-//! and verification is `rule:security/protocol-roster`'s constant-time comparison against a key bound
-//! to the session that issued the token — of which this crate has neither half
-//! in reach. `Core\Csrf::verify` is `nvs-stdlib`'s, a crate above this one and
-//! deliberately not a dependency of it, and no `[http]` directive names a key
-//! for the door to verify against. Closing it is therefore a configuration
-//! decision and a seam, not an omission here: what this module owns is which
-//! requests the check covers, and that is landed.
-//! Decided: At the server door, before an isolate runs — Move token verification into a crate nvs-
-//! server can reach and add an `[http]` key naming the key; the fastest and smallest attack surface, at
-//! the cost of one config key and a crate move.
-//! — owner: unowned-closures
+//! # Known gaps
 //!
-//! **Known gap 2: the label has a consumer and no caller.**
-//! [`crate::metrics::Registry::request`] is what `rule:observability/route-label-is-the-declared-name`'s `route` label
-//! reaches — the two request series carry it, and that member's doc owns what an
-//! unmatched request's label is — but no core owns a registry yet, because § 8's
-//! two exporters are not in this crate's graph and nothing would read one. So
-//! [`label`] still has no caller, and it is written here for the reason it
-//! always was: the *value* is the part that rule interlocks with `rule:routing/routes-are-compiled-not-registered` over —
-//! a name out of the compile-time table and never the request's path — and
-//! deriving it anywhere else would be the second match § 1 removes.
-//! — owner: unowned
+//! 1. **The door answers whether a request is CSRF-checked and does not yet
+//!    refuse one.** § 4's refusal needs the presented token *verified*, and
+//!    verification is `rule:security/protocol-roster`'s constant-time comparison against a key bound
+//!    to the session that issued the token — of which this crate has neither
+//!    half in reach. `Core\Csrf::verify` is `nvs-stdlib`'s, a crate above this
+//!    one and deliberately not a dependency of it, and no `[http]` directive
+//!    names a key for the door to verify against. Closing it is therefore a
+//!    configuration decision and a seam, not an omission here: what this module
+//!    owns is which requests the check covers, and that is landed.
+//!    Decided: At the server door, before an isolate runs — Move token verification into a crate
+//!    nvs-server can reach and add an `[http]` key naming the key; the fastest and smallest attack
+//!    surface, at the cost of one config key and a crate move.
+//!    — owner: unowned-closures
+//!
+//! 2. **The label has a consumer and no caller.**
+//!    [`crate::metrics::Registry::request`] is what `rule:observability/route-label-is-the-declared-name`'s `route` label
+//!    reaches — the two request series carry it, and that member's doc owns what
+//!    an unmatched request's label is — but no core owns a registry yet, because
+//!    § 8's two exporters are not in this crate's graph and nothing would read
+//!    one. So [`label`] still has no caller, and it is written here for the
+//!    reason it always was: the *value* is the part that rule interlocks with
+//!    `rule:routing/routes-are-compiled-not-registered` over — a name out of the compile-time table and never the
+//!    request's path — and deriving it anywhere else would be the second match
+//!    § 1 removes.
+//!    — owner: unowned
 //!
 //! # Where it sits among the door's other decisions
 //!

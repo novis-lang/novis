@@ -652,7 +652,7 @@ where taking it is the work and the code that follows it is not.
   names a key. The label is what `rule:observability/route-label-is-the-declared-name` reaches, and
   no core owns a metrics registry because nothing exports one yet. What has to be decided is which
   side verifies a token — the door with a configured key, or a handler calling `Core\Csrf` — and
-  which crate owns the registry a label lands in. `crates/nvs-server/src/route.rs`, both gap blocks.
+  which crate owns the registry a label lands in. `crates/nvs-server/src/route.rs` gaps 1 and 2.
   [until: reviewed 2026-09-10]
 - **A write to a field of `Core\Task::all`'s result is checked against the tags of the literal that
   started it.** The result is built with the argument's own shape class, because
