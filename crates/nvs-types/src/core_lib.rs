@@ -428,13 +428,15 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // argument still reaches this parameter, because `super::assign` widens
         // onto a qualifier bit and never off one.
         CoreTy::SecretBytes | CoreTy::SecretBlob(_) => interner.secret_bytes(),
-        // The same arm on the text base, and the row that needs it is
-        // `Core\Crypto::deriveKey`: a password is `secret` where a key is, and
-        // a parameter spelled `string` would refuse one outright, because
-        // `super::assign` narrows through no qualifier bit and the marks that
-        // admit a `secret` argument are `rule:core-classes/secret-reveal`'s two
-        // classes wide.
-        CoreTy::SecretText(_) => interner.secret_string(),
+        // The same arm on the text base, and the two rows that need it are
+        // `Core\Crypto::deriveKey`'s parameter and `Core\Cache\Store::getSecret`'s
+        // return. A password is `secret` where a key is, and a parameter spelled
+        // `string` would refuse one outright, because `super::assign` narrows
+        // through no qualifier bit and the marks that admit a `secret` argument
+        // are `rule:core-classes/secret-reveal`'s two classes wide; a return
+        // spelled this way is a promise instead, which is what the unclassified
+        // half of the pair exists for.
+        CoreTy::SecretStr | CoreTy::SecretText(_) => interner.secret_string(),
         // The same pair of questions as the arm above, on the other axis: this
         // is a qualifier and not a classification, so it interns qualified.
         // `rule:security/verification-does-not-launder` is what needs it — a verified signature does not

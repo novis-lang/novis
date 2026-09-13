@@ -142,6 +142,13 @@ pub(crate) fn infer_method_call(
         // [`crate::reasons`], whose module doc owns why that is not the rule
         // above read backwards.
         crate::reasons::check_call(owner, name, args, ctx, env);
+        // `rule:security/secret-sinks-refuse`'s graph copy at the one *instance*
+        // member that makes one: `Core\Cache\Store::put` declares `mixed` for its
+        // value, so the written argument is the last place the qualifier is
+        // visible, exactly as it is at the static carriers. Slots for the reason
+        // `Core\Topic::publish` reads them. See
+        // [`super::quals::reject_secret_cached_argument`].
+        reject_secret_cached_argument(owner, name, args, &arg_types, &slots, env);
     }
     // `rule:types/erased-member-access`'s deferral, and the one receiver the refusal above
     // deliberately leaves alone: `mixed` is `rule:types/conversion`'s one unchecked

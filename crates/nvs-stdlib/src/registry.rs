@@ -316,6 +316,17 @@ pub enum CoreTy {
     /// still owes `rule:security/unclassified-parameter-refuses-tainted`'s separate answer about where the value came
     /// from.
     SecretBlob(Qual),
+    /// `secret string`, **unclassified** — [`Self::SecretBytes`] on the text
+    /// base, and the spelling a *return* takes.
+    ///
+    /// A [`Qual`] on a parameter says what the member does with that argument,
+    /// so the strongest thing a classified spelling can produce is
+    /// [`Qual::Contagious`]'s conditional. A member answering this one promises
+    /// confidentiality outright — `Core\Cache\Store::getSecret` is the row that
+    /// needs it, and what comes back out of a sealed entry is `secret` whatever
+    /// the `string` that went in was typed as. [`Self::TaintedStr`] is the same
+    /// promise one axis over, and its docs work the reasoning through.
+    SecretStr,
     /// `secret string` — [`Self::SecretBlob`] on the text base, and a *demand*
     /// in parameter position for that variant's reason: `nvs_types`'
     /// assignment relation widens onto a qualifier bit and narrows through
@@ -1152,7 +1163,7 @@ impl CoreTy {
             Self::Str | Self::Text(_) | Self::Entry => "string".into(),
             Self::Bytes | Self::Blob(_) => "bytes".into(),
             Self::SecretBytes | Self::SecretBlob(_) => "secret bytes".into(),
-            Self::SecretText(_) => "secret string".into(),
+            Self::SecretStr | Self::SecretText(_) => "secret string".into(),
             Self::TaintedStr => "tainted string".into(),
             Self::TaintedBytes => "tainted bytes".into(),
             Self::SecretTaintedStr => "secret tainted string".into(),
@@ -1213,6 +1224,7 @@ impl CoreTy {
                 | Self::Blob(_)
                 | Self::SecretBytes
                 | Self::SecretBlob(_)
+                | Self::SecretStr
                 | Self::SecretText(_)
         )
     }
@@ -4022,7 +4034,7 @@ mod tests {
     fn every_member_parameter_carries_a_qualifier_classification() {
         fn unclassified(ty: &CoreTy) -> bool {
             match ty {
-                CoreTy::Str | CoreTy::Bytes | CoreTy::SecretBytes => true,
+                CoreTy::Str | CoreTy::Bytes | CoreTy::SecretBytes | CoreTy::SecretStr => true,
                 CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => unclassified(inner),
                 CoreTy::Union(members) => members.iter().any(unclassified),
                 CoreTy::Options(options) => options.iter().any(|option| unclassified(&option.ty)),

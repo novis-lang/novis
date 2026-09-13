@@ -42,7 +42,9 @@
 //! `spawn` bullet, which is one check for both of `rule:classes/graph-copy`'s carriers —
 //! [`reject_secret_published_argument`], which is `rule:core-classes/topic`'s bus reaching
 //! that same graph copy through a third carrier,
-//! [`reject_secret_encoded_argument`],
+//! [`reject_secret_cached_argument`], which is `Core\Cache\Store::put` reaching
+//! it through a fourth and is the one refusal that names a member taking the
+//! secret rather than a reveal, [`reject_secret_encoded_argument`],
 //! [`reject_secret_enqueued_argument`], which is that same encoder reached
 //! through `Core\Queue::push` rather than written at the call, and
 //! [`reject_secret_logged_argument`], whose open type is `array<mixed>` **by
@@ -956,6 +958,7 @@ pub(crate) fn reject_secret_boundary_argument(
             &arg.value,
             ty,
             "`Core\\Serialize::encode` writes it into bytes that outlive the request",
+            None,
             env,
         );
     }
@@ -974,10 +977,27 @@ pub(crate) fn reject_secret_boundary_argument(
 /// The type is the *argument's* inferred type, never the parameter's: `encode`
 /// declares `mixed` and `args:` declares nothing at all, so the written
 /// expression is the last place the qualifier is still visible.
-pub(crate) fn reject_secret_crossing(at: &Expr, ty: TypeId, carrier: &str, env: &mut Env<'_>) {
+///
+/// `instead` is the one carrier-specific clause the help gets, and it is
+/// `Some` only where the language has a member that takes the secret and
+/// carries it safely — `Core\Cache\Store::putSecret` is the first. A reveal is
+/// always available and is what the rest of the help offers; where there is a
+/// sealed door, naming it first is the difference between a rule and an
+/// instruction.
+pub(crate) fn reject_secret_crossing(
+    at: &Expr,
+    ty: TypeId,
+    carrier: &str,
+    instead: Option<&str>,
+    env: &mut Env<'_>,
+) {
     if !is_secret(ty, env.interner) {
         return;
     }
+    let reveal = "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`, at \
+                  the one call site where handing the secret over is the point; a \
+                  `secret`-typed *property* of a copied object needs nothing here — the walk \
+                  refuses that one itself";
     env.diags.report(
         Diagnostic::error(
             code::E_SECRET_CROSSES_A_BOUNDARY,
@@ -987,13 +1007,63 @@ pub(crate) fn reject_secret_crossing(at: &Expr, ty: TypeId, carrier: &str, env: 
             ),
         )
         .with_primary(at.span, "secret value copied out here")
-        .with_help(
-            "reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`, at \
-             the one call site where handing the secret over is the point; a \
-             `secret`-typed *property* of a copied object needs nothing here — the walk \
-             refuses that one itself",
-        ),
+        .with_help(instead.map_or_else(
+            || reveal.to_owned(),
+            |instead| format!("{instead}; or {reveal}"),
+        )),
     );
+}
+
+/// `rule:concurrency/cross-request-state-is-explicit`'s store, which is
+/// [`reject_secret_crossing`]'s fourth carrier: `Core\Cache\Store::put` copies
+/// its value out of the request heap through `rule:classes/graph-copy`'s graph
+/// copy, into a tier that outlives the request that wrote it.
+///
+/// **The one carrier with a door of its own.** `putSecret` takes the same
+/// secret, seals it under a key ring and puts ciphertext in the tier, so what
+/// this refusal points at is that member rather than a reveal — the sealed door
+/// is the only door, and a program that reveals here to get past the check has
+/// put a plaintext secret in a store instead of being told where the sealed one
+/// goes.
+///
+/// A call-site rule rather than a parameter type, exactly as every sibling here
+/// is one: `put` declares `mixed` for its value, which a `secret string`
+/// satisfies, so the written argument is the last place the qualifier is still
+/// visible. The value is found through its [`ArgSlot`] rather than by position,
+/// because `value:` fills the parameter as surely as the second positional
+/// argument does — and `$key` is not asked about, being text that reaches no
+/// answer at all.
+pub(crate) fn reject_secret_cached_argument(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    slots: &[ArgSlot],
+    env: &mut Env<'_>,
+) {
+    if qname.to_string() != r"Core\Cache\Store" || member != "put" {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    // Slot 1 is `$value` in `nvs_stdlib::cache`'s row, whose parameters are
+    // `[CoreTy::Text(Qual::Neutral), CoreTy::Mixed, CoreTy::Options(…)]`.
+    for ((arg, &ty), &slot) in list.iter().zip(arg_types).zip(slots) {
+        if slot != ArgSlot::Param(1) {
+            continue;
+        }
+        reject_secret_crossing(
+            &arg.value,
+            ty,
+            "`Core\\Cache\\Store::put` copies it into a tier that outlives the request",
+            Some(
+                "write `putSecret($key, $value, $ttl, $keys)` instead, which seals the value \
+                 under a key ring so that what reaches the tier is ciphertext",
+            ),
+            env,
+        );
+    }
 }
 
 /// `rule:core-classes/topic`'s bus, which is [`reject_secret_crossing`]'s third carrier:
@@ -1041,6 +1111,7 @@ pub(crate) fn reject_secret_published_argument(
             ty,
             "`Core\\Topic::publish` copies it into every subscriber's own arena, on this core \
              and on every other",
+            None,
             env,
         );
     }

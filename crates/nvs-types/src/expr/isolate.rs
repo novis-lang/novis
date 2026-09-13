@@ -172,6 +172,7 @@ pub(crate) fn check_spawn_script(
                 ty,
                 "`spawn script`'s `args:` copies it into a child whose arena this request \
                  cannot reach into",
+                None,
                 env,
             );
         }
@@ -319,7 +320,7 @@ pub(crate) fn check_core_isolate_call(
             entry_operand(&arg.value, ty, &form, env);
             continue;
         }
-        reject_secret_crossing(&arg.value, ty, &carrier, env);
+        reject_secret_crossing(&arg.value, ty, &carrier, None, env);
     }
 }
 
