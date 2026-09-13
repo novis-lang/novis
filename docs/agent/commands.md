@@ -599,16 +599,20 @@ workspace was ~6 GB when this was found, and nine of them were on disk at once.
 an artifact it considers fresh, so a superseded generation and a live one can carry the same date. It asks
 cargo instead: warm `--message-format=json` runs of the commands `verify.py` builds with name every file
 the current graph uses. Age only ever *keeps*: anything written in the last `GRACE_HOURS` survives
-whatever cargo said, which is what protects the `-p`, feature and `--test` variants a goal's checks build
-and no fixed list can name; `release/deps` is never swept. Nothing it does can produce a wrong build —
+whatever cargo said — a build still in flight, and the `--test <name>` shape the rule above leaves open.
+That grace was a day once, every `-p` copy a session minted was younger than that, and the sweep freed
+nothing; `release/deps` is never swept. Nothing it does can produce a wrong build —
 cargo re-checks every fingerprint against what is really on disk, so a mistake costs a rebuild and nothing
 else.
 
-`[profile.dev.package."*"] debug = 0` in `Cargo.toml` is the other half, and it is why a generation now
-holds 1.7 GB of debug info rather than 3.9 GB: on windows-msvc the linker copies the debug info of every
-linked object into each binary's PDB, so cranelift and wasmtime were being written into all ~60 test
-binaries at once. Novis's own crates keep full debug info; only the dependency wall lost it, and a session's
-own `verify.py` got *faster* (51s → 43s) because there is less to link and to load.
+The two `debug` settings in `Cargo.toml`'s dev profile are the other half. On windows-msvc the linker
+copies the debug info of every linked object into each binary's PDB, so whatever the workspace carries
+is written into all ~60 test binaries at once. `[profile.dev.package."*"] debug = 0` took cranelift and
+wasmtime out of them, and a session's own `verify.py` got *faster* (51s → 43s) because there is less to
+link and to load; `[profile.dev] debug = "line-tables-only"` then took the type and variable info of
+Novis's own crates out, which was three quarters of what remained. A panic location and a backtrace
+still name file and line, so every `debug_assert` and the runtime's owner-stamp check report as they
+did; a session that needs to step in a debugger sets `CARGO_PROFILE_DEV_DEBUG=2` for that one build.
 
 Four things live outside this repository and `disk.py` reports them without ever deleting them — another
 tool's state is not a repo script's to remove. `/var/tmp/nvs-linux` and `/var/tmp/nvs-target-wsl` are the

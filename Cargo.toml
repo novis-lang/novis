@@ -933,6 +933,14 @@ print_stderr = "warn"
 # task root). `panic = "abort"` would break that guarantee, so unwinding is
 # mandatory in every profile. See docs/adr/0003.
 panic = "unwind"
+# Line tables only, for Novis's own crates: a panic location and a backtrace still name file and
+# line, which is what every `debug_assert` and the owner stamp in `nvs-runtime` report through, so
+# the debug build keeps the checks that make it worth building. What goes is the type and variable
+# info a debugger steps with, and on windows-msvc that was most of every test binary's PDB -- the
+# bulk of a build, some sixty binaries each carrying the same crates. A session that needs to step
+# sets `CARGO_PROFILE_DEV_DEBUG=2` for that one build. The dependency wall below is at `debug = 0`
+# already, and the bench profile keeps `debug = true` for its own reasons.
+debug = "line-tables-only"
 
 [profile.release]
 panic = "unwind"
@@ -953,9 +961,9 @@ overflow-checks = true
 # Compiling Novis's own dependencies with optimisation makes debug builds of the
 # compiler usable; Cranelift is unbearably slow otherwise.
 #
-# `debug = 0` applies to dependencies only -- Novis's own crates keep full debug
-# info, so a backtrace or a debugger session through this repository's code is
-# unchanged. What it drops is the debug info for code nobody here steps into,
+# `debug = 0` applies to dependencies only -- Novis's own crates keep their line
+# tables (`[profile.dev]` above), so a backtrace through this repository's code
+# is unchanged. What it drops is the debug info for code nobody here steps into,
 # and on windows-msvc that is nearly all of it: the linker copies the debug
 # info of every linked object into each binary's PDB, so cranelift and wasmtime
 # were being written into all ~60 test binaries at once. Measured 2026-08-25:
