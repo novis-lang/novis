@@ -2,7 +2,7 @@
 # `nvs_stdlib::registry::CLASSES` does not declare yet. One key per line,
 # `§<section> <Class>::<member>` where the spec's bullet names a class, and
 # `§<section> <member>` where a table row does not -- then the goal that will
-# strike it, named by its slug: `§18 stream  # carried-gaps`, read against
+# strike it, named by its slug: `§18 streamAs  # gap-zero`, read against
 # docs/agent/goals/ by `every_outstanding_key_names_an_owner`. That test's doc
 # owns the column.
 #
@@ -27,9 +27,9 @@
 # seven members, its sealed pair being owed. What is left of ADR 0139 is § 4's
 # write-back at the end of the request, which is a server question rather than a
 # member.
-§15 Response::html      # test-request
-§15 Response::sendFile  # test-request
+§15 Response::html      # m7-server-surface
+§15 Response::sendFile  # m7-server-surface
 
 # § 18 -- `Core\Db`, whose remaining members each need a driver and a server to
 # talk to. `inList` and `quoteIdentifier` need neither and have landed.
-§18 streamAs            # carried-gaps
+§18 streamAs            # gap-zero
