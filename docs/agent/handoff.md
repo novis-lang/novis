@@ -2,60 +2,58 @@
 
 ## State
 
-**Goal `process-cache` — stage 5's first member is on disk and green: `Core\Cache\SecretEntry`, with
-its one static `of(secret string $value, Duration $ttl)`.** Nothing seals or opens anything yet:
-`putSecret` and `getSecret` are unwritten, so an entry is a value a program can build and nothing can
-consume. Stage 4 is unchanged and still green, as are goal `http-client`'s list and this goal's stage
-1 floor.
+**Goal `process-cache` — stage 5 is on disk and green.** `Core\Cache\Store::putSecret` and
+`getSecret` are the only door a secret meets a cache through, with the three cargo tests and the four
+`.nvst` cases the acceptance check names. Stages 1–4 are unchanged, as is goal `http-client`'s list.
+Stage 6's `{fill?, wait?}` bag is deliberately absent from `getSecret`'s row.
 
-The entry is a **handle** — two slots, `value` and `nanos`, no instance member, and the sentence
-`registry.rs`'s `HANDLES` list wants beside it. The lifetime is held as the nanosecond count
-`Lifetime` reads rather than as the `Duration` instance, because that is the number every sealing
-path turns into a deadline; `crates/nvs-stdlib/src/cache.rs:495` is the class doc that owns both.
+**What a sealed entry is**, so the next session does not re-derive it — `crates/nvs-stdlib/src/cache.rs`'s
+`bound`, `sealed_plaintext` and `SEALED_SPACE` own it in full. The AEAD's additional data is a domain
+octet ‖ the application ‖ the entry's name; the plaintext is an eight-octet big-endian expiry in
+milliseconds ‖ the value; the stored key is `SEALED_SPACE` ‖ the program's key, which is what makes a
+plain `get` on the same name an ordinary miss rather than a decode failure.
 
-**`putSecret` and `getSecret` cannot land in separate sessions.** The conformance floor is per member
-and counts cases that *call* one, and a `putSecret` with no reader has nothing a `.nvst` case can
-observe — so the next group is the two members together, not one each.
+**`crate::crypto::seal_under` and `open_under` now take `bound: &[u8]`** — the AEAD's additional data —
+and every other caller passes `&[]`, which is the empty-associated-data construction and therefore the
+same octets they produced before. The goal's own stage-5 prose settled that question (additional data,
+not a plaintext prefix) where the last handoff had it open.
 
-**`crate::crypto` has no associated-data door.** `seal_under`
-(`crates/nvs-stdlib/src/crypto.rs:1465`) and `open_under` (`:1522`) take a key, a message and a
-member name and nothing else, so binding an entry to the app, its name and its expiry is either a new
-AAD-carrying variant beside them or those three fields written into the plaintext ahead of the value
-and checked after the open. The second needs no change to `crypto.rs` and the tag covers it either
-way. Not decided.
+**`put` did not refuse a `secret` before this session**, whatever its row comment said: `CoreTy::Mixed`
+refuses `tainted` only. `crates/nvs-types/src/expr/quals.rs`'s `reject_secret_cached_argument` is now the
+graph copy's fourth carrier and the one that names a member taking the secret rather than a reveal; it is
+wired in from the *instance*-call arm of `expr/calls.rs`. The playbook bullet is the trap.
 
-The `[context]` gap this session paid for is closed in the goal's own toml: the base `playbook` now
-names `'Tooling > Registering a'`, which every stage left in this goal needs and none of them had.
+**The `[context]` gap this session paid for**: the pack prints the goal's `## Standing decisions` but not
+the current stage's own prose, and `docs/agent/loop-goal.md:92-117` is what settled the additional-data
+question above. There is no `[context]` field for it; the stage header the driver already prints above
+the failing check is where it would belong.
 
 ## Next group
 
-**Stage 5: the sealed secret, as the two members that are its only door** — one file set:
-`crates/nvs-stdlib/src/cache.rs`, `crates/nvs-stdlib/src/crypto.rs`, `crates/nvs-stdlib/src/keyring.rs`.
+**Stage 6: `fill`, once per process** — one file set: `crates/nvs-stdlib/src/cache.rs`,
+`crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/default.toml`.
 
-- [ ] **`putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void`
-      and `getSecret(string $key, array<secret bytes> $keys): ?secret string`, as one slice** — two
-      rows beside `forget` at `crates/nvs-stdlib/src/cache.rs:330`, two helpers after
-      `nvs_core_cache_forget` at `crates/nvs-stdlib/src/cache.rs:1611`. Seal under the ring's newest
-      key and open against every key of it, `crates/nvs-stdlib/src/keyring.rs:86` being `borrow`,
-      `:136` `newest` and `:117` `entries`; the nonce is drawn through `crate::random::draw` as
-      `crates/nvs-stdlib/src/crypto.rs:3019` draws one. The sealed payload goes to whichever tier the
-      store names, through the same three arms `put` takes. `rule:security/secret-qualifier` is why
-      the value parameter is a demand and not an admission, and the spec's `Core\Cache` row is the
-      signature. Leave `getSecret`'s `{fill?: …, wait?: …}` bag out — it is stage 6.
-- [ ] **The three cargo tests the acceptance check names**, in `cache.rs`'s own `#[cfg(test)]` module
-      at `crates/nvs-stdlib/src/cache.rs:1665`:
-      `sealed_entry_moved_to_another_key_or_app_is_a_miss`,
-      `sealed_entry_past_its_sealed_expiry_is_a_miss_whatever_the_store_says`,
-      `every_sealed_entry_nonce_is_drawn_through_core_random`. The first two are what decides the
-      binding question in `## State`; the third reads `crate::random`, not the OS.
-- [ ] **The four `.nvst` cases the check names**, three under `tests/conformance/core/` and
-      `cache-put-refuses-a-secret-and-names-put-secret.nvst` under `tests/conformance/reject/`. The
-      reject one is over `put`'s existing `CoreTy::Mixed` value parameter at
-      `crates/nvs-stdlib/src/cache.rs:311` and needs no new code — its diagnostic has to name
-      `putSecret` as what to write instead.
+- [ ] **`getSecret`'s trailing `{fill?: callable(): Core\Cache\SecretEntry, wait?: Duration}` bag**, as
+      the row and the card alone — the row at `crates/nvs-stdlib/src/cache.rs:367`, the card at
+      `crates/nvs-stdlib/src/cache.rs:574`, and `PUT_OPTIONS` at `crates/nvs-stdlib/src/cache.rs:279`
+      the shape to copy. `rule:core-api/shape-rules` R2 is the trailing-shape rule, and
+      `crates/nvs-stdlib/src/cache.rs:622`'s `SECRET_ENTRY` slots are what a fill's answer is read out of.
+- [ ] **The fill table: exactly one caller in the process runs `fill`, every other waits for it** —
+      beside `PROCESS` at `crates/nvs-stdlib/src/cache.rs:1050`, with the miss path at
+      `crates/nvs-stdlib/src/cache.rs:1980`. A `fill` that throws releases the waiters with nothing, and
+      a request that ends holding one releases it; `rule:security/no-cross-request-state` is why an
+      exception may not cross.
+- [ ] **`[cache.process] fill_wait`, the directive `wait` inherits** —
+      `crates/nvs-config/src/tree.rs:1098`'s block beside `max_size`, the roster row at
+      `crates/nvs-config/src/directive.rs:180`, and the commentary at
+      `crates/nvs-config/src/default.toml:523`. Past the wait is a `TimeoutError` and never an unbounded
+      one (`rule:http-server/no-spelling-for-an-unbounded-wait`).
 
 ## Backlog
 
-- Stage 6's single-flight `fill` and its `wait`, which is what `SecretEntry` exists for — `docs/agent/goals/49-process-cache.md`.
-- Stage 7's `setSecret`/`getSecret` on the session — same goal file.
-- A fleet-wide single fill, a `secret bytes` value and the `nvs/rest` package are all out of this goal — `docs/agent/loop-goal.md` § *Standing decisions*.
+- Refresh-ahead: an entry in the last part of its lifetime is still answered while one caller refills —
+  `docs/agent/goals/49-process-cache.md` stage 6 fixes the fraction.
+- Stage 7's `setSecret`/`getSecret` on `Core\Session`, sealed the same way — same goal file.
+- A fleet-wide single fill is a lease over the shared tier and is not this goal — same goal file.
+- `Core\Cache\Store::forget` does not reach a sealed entry; nothing yet says whether it should —
+  `crates/nvs-stdlib/src/cache.rs`'s `SEALED_SPACE`.

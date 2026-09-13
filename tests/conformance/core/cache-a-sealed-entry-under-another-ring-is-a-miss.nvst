@@ -1,0 +1,65 @@
+--TEST--
+Every way a sealed entry fails to open is the same miss and never an error — another ring, another name, and a lifetime already over all answer `null` — while a ring that is wrong in itself throws instead — `rule:security/protocol-roster`, `rule:concurrency/cross-request-state-is-explicit`
+--FILE--
+<?nvs
+// A caller that could tell "wrong ring" from "tampered" apart would learn
+// something about the ring from an entry it cannot read, so `getSecret` gives
+// one answer for all of it. That answer being a miss rather than a throw is
+// what lets a rotated ring re-fetch instead of failing the request.
+secret bytes $mine = Core\Crypto::generateKey();
+secret bytes $theirs = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$mine];
+array<secret bytes> $other = [$theirs];
+
+secret string $token = "hunter2";
+
+var $local = Core\Cache::local();
+var $process = Core\Cache::process();
+
+$local->putSecret("token", $token, 1h, $ring);
+$process->putSecret("token", $token, 1h, $ring);
+
+// Counted over both in-process tiers: a tier that answered the miss and a tier
+// that handed the ciphertext back both print one row on their own, and only the
+// count tells them apart.
+int $misses = 0;
+if ($local->getSecret("token", $other) == null) {
+    $misses = $misses + 1;
+}
+if ($process->getSecret("token", $other) == null) {
+    $misses = $misses + 1;
+}
+echo "a ring that sealed nothing here is a miss: ", $misses, " of 2", "\n";
+
+// The bound asserted on the other side, so the line above is the ring and not
+// the entry having never been written.
+echo "and its own ring still opens it: ",
+    ($local->getSecret("token", $ring) ?? "") == $token ? "yes" : "no", "\n";
+
+// The entry's name is sealed in as well as used to find it, so a secret is not
+// readable under a second name even by the ring that sealed it.
+echo "a name nothing sealed under is a miss: ",
+    $local->getSecret("never-written", $ring) == null ? "null" : "something", "\n";
+
+// The lifetime is sealed in beside the value as an expiry of its own, so an
+// entry the tier was slow to forget is still past it.
+$local->putSecret("over", $token, 0s, $ring);
+echo "a lifetime already over is a miss: ",
+    $local->getSecret("over", $ring) == null ? "null" : "something", "\n";
+
+// And the one thing that is not a miss: a ring that cannot key anything is the
+// program's bug, so it is the exception class a program's bugs get rather than
+// a `null` a caller would read as "no entry".
+array<secret bytes> $empty = [];
+try {
+    $local->getSecret("token", $empty);
+    echo "an empty ring read something", "\n";
+} catch (LogicError $noKeys) {
+    echo "an empty ring is a program bug and not a miss", "\n";
+}
+--EXPECT--
+a ring that sealed nothing here is a miss: 2 of 2
+and its own ring still opens it: yes
+a name nothing sealed under is a miss: null
+a lifetime already over is a miss: null
+an empty ring is a program bug and not a miss

@@ -21434,13 +21434,15 @@ The coherent tier: a real store over the network, shared by every core and every
 <a id="core-core-cache-store"></a>
 ### `Core\Cache\Store`
 
-Keywords: put, get, forget
+Keywords: put, get, forget, putSecret, getSecret
 
 | Member | Signature |
 |---|---|
 | [`Core\Cache\Store->put`](#core-core-cache-store-put) | `put(string $key, mixed $value, {ttl?: Core\Time\Duration}): void` |
 | [`Core\Cache\Store->get`](#core-core-cache-store-get) | `get(string $key): mixed` |
 | [`Core\Cache\Store->forget`](#core-core-cache-store-forget) | `forget(string $key): void` |
+| [`Core\Cache\Store->putSecret`](#core-core-cache-store-putsecret) | `putSecret(string $key, secret string $value, Core\Time\Duration $ttl, array<secret bytes> $keys): void` |
+| [`Core\Cache\Store->getSecret`](#core-core-cache-store-getsecret) | `getSecret(string $key, array<secret bytes> $keys): ?secret string` |
 
 <a id="core-core-cache-store-put"></a>
 #### `Core\Cache\Store->put`
@@ -21494,6 +21496,44 @@ Takes the entry under `$key` out of this store, whether or not there was one the
 **Returns** `void` — Nothing. A key nothing was stored under is already forgotten, so there is no second answer here for whether there had been an entry — the same reading `get` gives a miss, and for the same reason: on these tiers an entry may be absent at any time.
 
 **Throws** `IOError` — On the shared tier only: the store cannot be reached or refused the command. The in-process tiers have nothing to be unreachable.
+
+<a id="core-core-cache-store-putsecret"></a>
+#### `Core\Cache\Store->putSecret`
+
+```nvs skip
+$store->putSecret(string $key, secret string $value, Core\Time\Duration $ttl, array<secret bytes> $keys): void
+```
+
+Seals `$value` under the newest key of `$keys` and stores the ciphertext under `$key` — the only way a secret reaches a cache, and no `secret` value ever enters a tier.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The name to store under; `tainted` is admitted, as it is on `put`. It is bound into the ciphertext, so the same entry moved to another name does not open. |
+| `$value` | `secret string` (neutral) | The secret to store. A plain `string` reaches this parameter too, and nothing is laundered either way — what makes the value confidential is its own type. |
+| `$ttl` | `Core\Time\Duration` | How long the secret stays readable, counted from this call. Required, where `put`'s is optional: the lifetime is sealed into the entry as well as given to the tier, so an entry written back under a longer store lifetime is still past its own expiry. |
+| `$keys` | `array<secret bytes>` | The key ring, newest first, as `Core\SignedCookie` takes one. The newest key seals; every key opens, so a rotated ring reads what the retired one wrote. |
+
+**Returns** `void` — Nothing. What sealing buys is that code which knows an entry's name but not the ring cannot read it, and that a tampered, moved or replayed entry is a miss — **it does not protect a secret from a compromised process**, which holds the ring in the same memory.
+
+**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length. A ring that cannot key anything is the program's bug rather than a miss.; `IOError` — On the shared tier only: the store cannot be reached or refused the write, as on `put`.
+
+<a id="core-core-cache-store-getsecret"></a>
+#### `Core\Cache\Store->getSecret`
+
+```nvs skip
+$store->getSecret(string $key, array<secret bytes> $keys): ?secret string
+```
+
+Opens the secret stored under `$key` against every key of `$keys`, or answers `null` when there is none that opens.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The name to read; the one `putSecret` wrote under, since the name is sealed in. |
+| `$keys` | `array<secret bytes>` | The key ring, newest first. Every key is tried, so an entry sealed under a key still in the ring opens after a rotation. |
+
+**Returns** `?secret string` — The secret, or `null`. A sealed entry that opens under no key of this ring, or whose own expiry has passed, is a miss like any other — never an error, so a rotated ring re-fetches rather than failing. A plain `get` on the same name is a miss too: the sealed door is the only door.
+
+**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length — `putSecret`'s refusal, unchanged.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null`, as it is on `get`.
 
 <a id="core-core-cache-secretentry"></a>
 ### `Core\Cache\SecretEntry`

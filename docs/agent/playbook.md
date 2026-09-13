@@ -1899,6 +1899,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `-p nvs-config --test directives` failed naming that key. Put an unimplemented key last in its
   block behind a blank line, and keep the field's `[unread: <why> owner: <who>]` trailer on one line
   — the reader takes it from the doc comment's last line. [until: reviewed 2026-09-12]
+- **A `Core` row's `mixed` parameter refuses `tainted` and admits `secret`**, so a comment beside one
+  saying "the value is refused" is about one axis only. `CoreTy::Mixed` interns as `mixed`, which the
+  assignment relation widens onto every qualifier bit, so the `secret` axis is a call-site rule instead —
+  `crates/nvs-types/src/expr/quals.rs`'s `reject_secret_*_argument` family, one per carrier of the graph
+  copy. Before pinning a `secret` refusal at a `mixed` parameter, run the three-line program and read the
+  output: nothing reported means that carrier has not joined the family yet.
+  [until: reviewed 2026-09-13]
 
 ## Running things
 

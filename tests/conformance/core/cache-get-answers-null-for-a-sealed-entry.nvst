@@ -1,0 +1,49 @@
+--TEST--
+The sealed door is the only door: `get` answers `null` for a name `putSecret` wrote, a plain `put` under that name is a separate entry, and `forget` takes the plain one and leaves the sealed one — `rule:security/secret-crosses-no-boundary`, `rule:concurrency/cross-request-state-is-explicit`
+--FILE--
+<?nvs
+// `put` refuses a `secret` at the boundary and `getSecret` is where one goes
+// instead. The other half of that is asserted here: nothing a `putSecret` wrote
+// is reachable through the members that copy a value in and out, so a program
+// cannot arrive at the ciphertext by asking the ordinary way.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+secret string $token = "hunter2";
+
+var $local = Core\Cache::local();
+var $process = Core\Cache::process();
+
+$local->putSecret("token", $token, 1h, $ring);
+$process->putSecret("token", $token, 1h, $ring);
+
+// Counted over both tiers, because a tier that handed back the sealed payload
+// and a tier that answered the miss print the same shape of row on their own.
+int $blind = 0;
+if ($local->get("token") == null) {
+    $blind = $blind + 1;
+}
+if ($process->get("token") == null) {
+    $blind = $blind + 1;
+}
+echo "get is blind to a sealed entry: ", $blind, " of 2", "\n";
+
+// The two live in key spaces of their own, so writing the ordinary way under
+// the same name neither replaces the sealed entry nor is replaced by it.
+$local->put("token", "plain");
+echo "a plain put under the same name: ", $local->get("token") as string, "\n";
+echo "and the sealed entry is untouched: ",
+    ($local->getSecret("token", $ring) ?? "") == $token ? "yes" : "no", "\n";
+
+// The same claim through the third member: forgetting the name takes the entry
+// `put` wrote and leaves the one `putSecret` wrote.
+$local->forget("token");
+echo "forget takes the plain entry: ", $local->get("token") == null ? "null" : "something", "\n";
+echo "and leaves the sealed one: ",
+    ($local->getSecret("token", $ring) ?? "") == $token ? "yes" : "no", "\n";
+--EXPECT--
+get is blind to a sealed entry: 2 of 2
+a plain put under the same name: plain
+and the sealed entry is untouched: yes
+forget takes the plain entry: null
+and leaves the sealed one: yes
