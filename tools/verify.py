@@ -27,7 +27,7 @@ and a session's wall clock is very nearly its number of turns times a constant. 
 green verification is one call and about ten lines.
 
     python tools/verify.py                  # every step
-    python tools/verify.py -p nvs-ir        # scope build/test/clippy to one package
+    python tools/verify.py -p nvs-ir        # the same build; only nvs-ir's test binaries run
     python tools/verify.py --fast           # build and test only, for a mid-work check
     python tools/verify.py --doc            # the rustdoc gate alone; the driver's goal-end call
     python tools/verify.py --start          # run it detached and return at once
@@ -296,21 +296,25 @@ def run(step):
     return step.code == 0
 
 
-def test_jobs(scope):
+def test_jobs(package):
     """What `cargo test` would run, as jobs -- or `(None, output)` when the build fails.
 
-    A job is `{name, argv, cwd, env, rerun}`. The build is `cargo test --no-run`, so on a tree
-    `build` just compiled it costs only the test harnesses, and its diagnostics are rendered to
-    stderr as a plain `cargo test` would print them. The package is read off `package_id` the way
-    `tools/loop.py`'s `test_executables` reads it."""
+    A job is `{name, argv, cwd, env, rerun}`. The build is the bare `cargo test --no-run`, so on a
+    tree `build` just compiled it costs only the test harnesses, and its diagnostics are rendered
+    to stderr as a plain `cargo test` would print them. `package` narrows which of the binaries
+    then run and never what is built: a `-p` on the build resolves features over that one
+    package's graph and writes a second copy of every workspace crate beside the first --
+    AGENTS.md's rule, and commands.md § *A debug cargo command never takes `-p`* for the
+    measurement. A scoped run skips the doc-tests, which cargo can only narrow with a `-p`. The
+    package is read off `package_id` the way `tools/loop.py`'s `test_executables` reads it."""
     built = subprocess.run(
-        ["cargo", "test", "--no-run", "--message-format=json-render-diagnostics", *scope],
+        ["cargo", "test", "--no-run", "--message-format=json-render-diagnostics"],
         cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace")
     if built.returncode != 0:
         return None, (built.stderr or "") + (built.stdout or "")
     flags = {"lib": "--lib", "bin": "--bin", "test": "--test", "example": "--example",
              "bench": "--bench"}
-    jobs, libs = [], 0
+    jobs = []
     for line in built.stdout.splitlines():
         try:
             m = json.loads(line)
@@ -321,19 +325,21 @@ def test_jobs(scope):
         if not m.get("profile", {}).get("test"):
             continue
         source, _, tail = m.get("package_id", "").rpartition("#")
-        package = tail.split("@", 1)[0] if "@" in tail else source.rstrip("/").rsplit("/", 1)[-1]
+        owner = tail.split("@", 1)[0] if "@" in tail else source.rstrip("/").rsplit("/", 1)[-1]
+        if package and owner != package:
+            continue
         target = m["target"]["name"]
         kind = next((k for k in m["target"].get("kind", []) if k in flags), "lib")
-        libs += kind == "lib"
         cwd = str(Path(m["manifest_path"]).parent)
-        flag = flags[kind] if kind == "lib" else f"{flags[kind]} {target}"
-        jobs.append({"name": f"{package} {kind} {target}", "argv": [m["executable"]], "cwd": cwd,
-                     "env": {"CARGO_MANIFEST_DIR": cwd},
-                     "rerun": f"cargo test -p {package} {flag}"})
-    # A package with no library has no doc-tests, and `cargo test --doc -p` refuses it outright.
-    if libs or not scope:
-        jobs.append({"name": "doc-tests", "argv": ["cargo", "test", "--doc", *scope],
-                     "cwd": str(ROOT), "env": {}, "rerun": " ".join(["cargo", "test", "--doc", *scope])})
+        # The reproduction a reader types stays inside the same build: a target flag under
+        # `cargo test` narrows the run and keeps every hash, a `-p` would not.
+        rerun = (f"python tools/verify.py -p {owner}" if kind == "lib"
+                 else f"cargo test {flags[kind]} {target}")
+        jobs.append({"name": f"{owner} {kind} {target}", "argv": [m["executable"]], "cwd": cwd,
+                     "env": {"CARGO_MANIFEST_DIR": cwd}, "rerun": rerun})
+    if not package:
+        jobs.append({"name": "doc-tests", "argv": ["cargo", "test", "--doc"],
+                     "cwd": str(ROOT), "env": {}, "rerun": "cargo test --doc"})
     return jobs, ""
 
 
@@ -349,9 +355,10 @@ def run_job(job):
     return time.monotonic() - started, code, out
 
 
-def run_tests(step):
-    """The `test` step -- the module docstring's *Why `test` runs its binaries side by side*."""
-    jobs, fail = test_jobs(step.args[1:])
+def run_tests(step, package=None):
+    """The `test` step -- the module docstring's *Why `test` runs its binaries side by side*.
+    `package` is `-p`: which binaries run, off the one build."""
+    jobs, fail = test_jobs(package)
     if jobs is None:
         return 1, fail
     try:
@@ -507,9 +514,10 @@ def doc_step(opts):
     turn into an anchor, and denying it would be a rule against citing the code by name.
 
     One home for the command, with two callers -- `tools/loop.py`'s goal-end gate and a by-hand
-    `--doc`. The module docstring says why it is not one of `steps_for`'s steps."""
-    scope = ["--workspace"] if not opts.package else ["-p", opts.package]
-    return Step("doc", ["doc", "--no-deps", *scope], summarize_doc,
+    `--doc`. The module docstring says why it is not one of `steps_for`'s steps. Always the whole
+    workspace, whatever `-p` says: a `-p` here would check every workspace crate a second time under
+    its own hashes (AGENTS.md's rule), and the gate is periodic, not a mid-work check."""
+    return Step("doc", ["doc", "--no-deps", "--workspace"], summarize_doc,
                 env={"RUSTDOCFLAGS": "-A rustdoc::private_intra_doc_links -D warnings"})
 
 
@@ -519,7 +527,6 @@ def steps_for(opts):
     # a session stopped paying.
     if opts.doc:
         return [doc_step(opts)]
-    scope = ["-p", opts.package] if opts.package else []
     steps = []
     if not opts.fast:
         # Write mode, first, with its exit status held until the end -- *Why `fmt` formats* in
@@ -555,8 +562,13 @@ def steps_for(opts):
         # had to cover both would name neither.
         steps.append(Step("template", ["tools/directives.py", "--check-template"],
                           summarize_template, exe=sys.executable))
-    steps.append(Step("build", ["build", *scope], summarize_build))
-    steps.append(Step("test", ["test", *scope], summarize_test, runner=run_tests))
+    # Bare, whatever `-p` says: these are the shapes `tools/disk.py`'s `LIVE_QUERIES` keep, and a
+    # `-p` build resolves features over one package's graph and writes a second copy of every
+    # workspace crate beside the first -- AGENTS.md's rule. `-p` narrows which test binaries
+    # `run_tests` runs, and nothing else.
+    steps.append(Step("build", ["build"], summarize_build))
+    steps.append(Step("test", ["test"], summarize_test,
+                      runner=lambda step: run_tests(step, opts.package)))
     if not opts.fast:
         # The `.nvst` trees, through the binary `build` above just produced. Until this step
         # existed, `verify.py` ran no case at all: a case that failed to compile, or whose
@@ -586,7 +598,7 @@ def steps_for(opts):
                      exe=sys.executable)
             )
         steps.append(
-            Step("clippy", ["clippy", "--all-targets", *scope, "--", "-D", "warnings"],
+            Step("clippy", ["clippy", "--all-targets", "--", "-D", "warnings"],
                  summarize_clippy)
         )
         # The VS Code extension's headless suites -- the TextMate grammar snapshots, the
@@ -859,7 +871,8 @@ def wait_background():
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("-p", "--package", help="scope build/test/clippy to one package")
+    ap.add_argument("-p", "--package",
+                    help="run only this package's test binaries; the build stays the whole tree's")
     ap.add_argument("--fast", action="store_true", help="build and test only")
     ap.add_argument("--doc", action="store_true",
                     help="the rustdoc gate alone; tools/loop.py runs it when a goal's checks pass")

@@ -196,12 +196,40 @@ and answers with the two `peek.py` calls that would have landed. Claude Code is 
 reads `.claude/`; every other one gets the same floor from `peek.py`, which is why the hook imports the
 number rather than holding one.
 
+## A debug cargo command never takes `-p`
+
+`cargo build`, `cargo test` and `cargo clippy --all-targets -- -D warnings` — bare, at the root — are
+the three shapes `verify.py` runs and `disk.py`'s `LIVE_QUERIES` keep. Warm, each is a fingerprint
+scan of a few seconds, so there is nothing to save by narrowing the build. There is a lot to lose:
+cargo resolves features over the packages named on the command line, so `cargo test -p nvs-types`
+gives `serde`, `sha2`, `base64` and their like a feature set the workspace build does not, every
+workspace crate downstream takes a new metadata hash, and cargo writes a second copy of all of them
+beside the first — rlibs, every test binary with its PDB, and one incremental cache per copy.
+`cargo build --bin nvs` does the same to every workspace library through the LTO plan. Nothing
+removes a copy: cargo has no garbage collector on stable, and `disk.py` keeps anything younger than
+its grace. When this was found, nine copies of one day's builds held 120 GB of `target/`.
+
+So a debug build is one of the three shapes, and a narrowing goes on what *runs*. Under `cargo test`
+the target flags do exactly that — `--lib`, `--bin nvs` and `--test <name>` keep every hash:
+
+```sh
+python tools/verify.py -p nvs-types                    # the tree's build; only nvs-types's test binaries run
+cargo test --test closures a_filter                    # one integration-test target, by name, off the same build
+cargo test --bin nvs cache::tests::                    # the CLI's unit tests, filtered
+cargo test --lib a_filter                              # every crate's unit tests, filtered; warm, seconds
+```
+
+`--release -p nvs-abi-probe` and `--release -p nvs-cli` are the cost guards' own profile, which
+nothing else builds and `disk.py` never sweeps; they stay as they are. `tools/loop.py` keeps the same
+rule: an acceptance check written `cargo test -p <crate>`, bare or with one `--test <name>`, runs that
+crate's binaries off one shared `cargo test --no-run`, and the CLI prebuild is a bare `cargo build`.
+
 ## Verifying
 
 ```sh
 python tools/verify.py                                         # build + fmt + test + clippy, one call
 python tools/verify.py --fast                                  # build + test only, for a mid-work check
-python tools/verify.py -p nvs-ir                               # the same, scoped to one package
+python tools/verify.py -p nvs-ir                               # the same build; only nvs-ir's test binaries run
 python tools/verify.py --start   ... --wait                    # run it while you write the wrap file
 python tools/verify.py --no-cache                              # re-run even on an unchanged tree
 python tools/verify.py --doc                                   # the rustdoc gate alone (the driver's)

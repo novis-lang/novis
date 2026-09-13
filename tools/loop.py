@@ -1440,7 +1440,11 @@ class NativeLeg:
         self.binary = None
 
     def prepare(self):
-        r = capture("cargo", ["build", "--quiet", "-p", "nvs-cli"])
+        # The whole workspace, never `-p nvs-cli`: this is `verify.py`'s own `build` step, so on a
+        # tree a session just verified it is a fingerprint scan, and a `-p` build resolves features
+        # over one package's graph and writes a second copy of every workspace crate that
+        # `disk.py`'s live set cannot name -- AGENTS.md's rule.
+        r = capture("cargo", ["build", "--quiet"])
         if r.code != 0:
             return f"the {self.name} build failed -- {r.first_err_line}"
         self.binary = str(ROOT / "target" / "debug" / ("nvs.exe" if IS_WINDOWS else "nvs"))
@@ -1484,7 +1488,7 @@ class WslLeg(NativeLeg):
 
     def prepare(self):
         r = self.bash(
-            f"cd {self.repo} && CARGO_TARGET_DIR={self.target_dir} cargo build --quiet -p nvs-cli"
+            f"cd {self.repo} && CARGO_TARGET_DIR={self.target_dir} cargo build --quiet"
         )
         if r.code != 0:
             return f"the {self.name} build failed -- {r.first_err_line}"
@@ -1620,8 +1624,14 @@ MEMO_NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
 
 
 def plain_crate_test(args):
-    """The crate a check's `args` is exactly `cargo test -p <crate>` for, else None."""
-    return args[2] if len(args) == 3 and args[0] == "test" and args[1] == "-p" else None
+    """`(crate, target)` for a check whose `args` is `cargo test -p <crate>`, or that plus one
+    `--test <name>` -- `target` is None for the bare form. None for anything else."""
+    if len(args) >= 3 and args[0] == "test" and args[1] == "-p":
+        if len(args) == 3:
+            return args[2], None
+        if len(args) == 5 and args[3] == "--test":
+            return args[2], args[4]
+    return None
 
 
 def suite_widening(checks):
@@ -2076,25 +2086,29 @@ class Goal:
         self._exes = exes
         return exes, ""
 
-    def crate_tests(self, crate):
+    def crate_tests(self, crate, target=None):
         """`cargo test -p <crate>`'s verdict off the shared build: each of the crate's test
-        executables run in turn, where cargo would run it -- the package's own directory, with
-        `CARGO_MANIFEST_DIR` set -- and the outputs joined so a check reads them as it read the
-        one cargo output. Shared by every check naming the crate, like `cargo()`.
+        executables -- or the one `--test <target>` names -- run in turn, where cargo would run it
+        -- the package's own directory, with `CARGO_MANIFEST_DIR` set -- and the outputs joined so
+        a check reads them as it read the one cargo output. Shared by every check naming the same
+        crate and target, like `cargo()`.
 
         The exit code is the first non-zero one, and the run stops there as cargo's does. libtest
         reports a failure on STDOUT, so the stderr the ledger's line is read from is given one
         naming the failing tests: without it the line would end at `exit 101 --`."""
-        if crate in self._crate_runs:
-            return self._crate_runs[crate]
+        key = (crate, target)
+        if key in self._crate_runs:
+            return self._crate_runs[key]
         exes, fail = self.test_executables()
+        chosen = [t for t in exes.get(crate, []) if target is None or t[0] == target] if exes else []
         if exes is None:
             r = Result(-1, "", fail)
-        elif crate not in exes:
-            r = Result(-1, "", f"no test executable in the workspace build belongs to {crate!r}")
+        elif not chosen:
+            r = Result(-1, "", f"no test executable in the workspace build belongs to {crate!r}"
+                       + (f" under the target {target!r}" if target else ""))
         else:
             code, outs, errs = 0, [], []
-            for target, exe, cwd in exes[crate]:
+            for target, exe, cwd in chosen:
                 TICKER.set(detail=f"{crate}: {target}")
                 one = capture(exe, [], cwd=cwd, env=dict(os.environ, CARGO_MANIFEST_DIR=cwd))
                 outs.append(one.out)
@@ -2108,7 +2122,7 @@ class Goal:
                         else f"exit {one.code} -- {one.first_err_line}"))
                     break
             r = Result(code, "\n".join(outs), "\n".join(errs))
-        self._crate_runs[crate] = r
+        self._crate_runs[key] = r
         return r
 
     # -- the release build, moved off the critical path ---------------------------------
@@ -2382,12 +2396,13 @@ class Goal:
             # leg, exactly as `cargo()` shares a cargo run -- see the class doc.
             r = self.timed(label, lambda: self.suite(
                 leg, c["args"], exact=c.get("min_passing") is not None))
-        elif crate := plain_crate_test(c["args"]):
-            # `cargo test -p <crate>` and nothing else: the crate's binaries off the shared
-            # workspace build rather than a cargo run of its own -- the class doc has the rebuild
-            # a `-p` run pays. Anything more than that -- `--release`, `--test`, a feature -- is
-            # a different build and keeps its own invocation.
-            r = self.timed(label, lambda: self.crate_tests(crate))
+        elif plain := plain_crate_test(c["args"]):
+            # `cargo test -p <crate>`, bare or with one `--test <name>`: the crate's binaries off
+            # the shared workspace build rather than a cargo run of its own, which would resolve
+            # features over that one package and write a second copy of every workspace crate --
+            # the class doc, and AGENTS.md's rule. Anything else -- `--release`, a feature -- is a
+            # different build and keeps its own invocation.
+            r = self.timed(label, lambda: self.crate_tests(*plain))
         else:
             r = self.timed(label, lambda: self.cargo(c["args"]))
         if r.code != 0:

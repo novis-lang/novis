@@ -73,7 +73,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   only for an edit Edit genuinely cannot express (a non-unique anchor, a whole-field rewrite).
   [until: reviewed 2026-09-06]
 - **`cargo test` does not always relink `target/debug/nvs.exe`.** A stale binary reports a member
-  you just registered as `mixed`, which reads as a registry bug. Run `cargo build -p nvs-cli` before
+  you just registered as `mixed`, which reads as a registry bug. Run `cargo build` before
   running a fixture or a `.nvst` case by hand. [until: reviewed 2026-09-06]
 - **`wsl.exe` needs PowerShell and a script file.** An inline `bash -lc "…"` mangles, and WSL's
   default shell has no `grep`/`sed` on `PATH` from a bare `bash -c`. For the whole suite, background
@@ -655,7 +655,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **`INSTA_FORCE_UPDATE=1` rewrites every `nvs-ir` snapshot, not the ones your change moved — use
   `INSTA_UPDATE=always` alone.** The extra variable rewrites snapshots that *pass* as well, and
   stale `source:` headers come back as a one-line diff on each that buries the ones that matter.
-  `INSTA_UPDATE=always cargo test -p nvs-ir --lib` touches only what differs; if it already
+  `INSTA_UPDATE=always python tools/verify.py -p nvs-ir` touches only what differs; if it already
   happened, `git checkout --` the rest before the wrap, because `session.py --wrap` sweeps
   everything unnamed into the last commit. [until: reviewed 2026-09-06]
 - **A docs/reference/core/<Class>.md page is hand-written prose, not a render of the class's cards,
@@ -2021,7 +2021,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **`target/release/nvs.exe` is whatever the *last* session built, and rebuilding it costs two
   minutes for a verdict the debug binary already gives.** A `.nvst` case a stale binary fails may
   simply predate it, and `cargo build --release -p nvs-cli` relinks the world for a one-line edit.
-  Build `cargo build -p nvs-cli` and run `target/debug/nvs.exe`: it is the same binary
+  Build `cargo build` and run `target/debug/nvs.exe`: it is the same binary
   `tools/loop.py`'s acceptance check judges you by, so it is the more faithful answer as well as the
   cheap one. [until: reviewed 2026-09-06]
 - **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works
@@ -2367,7 +2367,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   header. [until: reviewed 2026-09-06]
 - **`cargo test -p nvs-cli --lib` is `error: no library targets found in package`, and the unit
   tests it was meant to run are in the bin target.** `nvs-cli` has no `lib.rs`, so a module's
-  `#[cfg(test)] mod tests` runs under `cargo test -p nvs-cli --bin nvs <filter>`, and
+  `#[cfg(test)] mod tests` runs under `cargo test --bin nvs <filter>`, and
   `crates/nvs-cli/tests/*.rs` drive the built binary instead of linking to anything. The same is
   true of every binary-only crate here. [until: exists crates/nvs-cli/src/lib.rs]
 - **Guessing what a backend emits costs a design; a throwaway `#[test]` that prints it costs one
@@ -2387,7 +2387,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   ratio, so a loaded machine fails it from either side.** Each half takes the fastest of five
   attempts, but the halves do not run at the same moment, so under load warm can come out *slower*
   than cold — an inversion no cache regression produces, since a real one narrows the gap toward 1x
-  rather than crossing it. `cargo test -p nvs-cli --bin nvs cache::tests::a_warm_start` alone
+  rather than crossing it. `cargo test --bin nvs cache::tests::a_warm_start` alone
   settles it in a second.
   [until: gone crates/nvs-cli/src/cache.rs:a_warm_start_is_faster_than_a_cold_one]
 - **A wall-clock regression in `nvs run` can sit entirely outside the code that caused it; one
@@ -2418,7 +2418,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **A new file under `examples/` is walked by `crates/nvs-cli/tests/ast.rs`, which asserts that every
   node's span sits inside its parent's and that siblings are in offset order.** An example writing
   `|>` fails both, because the parser substitutes the left side into a call written to its right, and
-  the panic prints a JSON node rather than saying which property broke. Run `cargo test -p nvs-cli
+  the panic prints a JSON node rather than saying which property broke. Run `cargo test
   --test ast` when an example's tree will not follow its source, and hand that file the walk's
   `in_source_order = false`. [until: reviewed 2026-09-07]
 - **A stack overflow from `target/debug/nvs.exe` on a deep expression tree that
@@ -2453,7 +2453,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   stale, not the logic.** `cargo build --workspace` then an edit then `cargo test -p nvs-types`
   leaves `target/debug/nvs.exe` at the *pre-edit* behaviour, and the resulting diagnostic looks
   exactly like a real bug in whatever you just wrote — a checker relaxation reads as an ordering
-  bug in your own comparison. Rebuild with `cargo build -p nvs-cli` before believing a `.nvst`
+  bug in your own comparison. Rebuild with `cargo build` before believing a `.nvst`
   failure that a `-p <crate>` test contradicts. [until: reviewed 2026-09-08]
 - **`nvs run --request` hands a program the request but never matches it against the route table, so
   `Core\Request::route()` answers `null` in that leg.** `crates/nvs-cli/src/main.rs:1651` installs the
@@ -3184,7 +3184,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **The `unreachable from source` phrase is counted from the line the `Fault::` sits on, not from
   its statement.** The gate wants it within 8 lines, so a builder chain between the comment and the
   `Fault::fatal` pushes it out of `DECLARATION_WINDOW`. Put the phrase on the comment's last line
-  and run `cargo test -p nvs-stdlib --test conformance_coverage every_error_path` after a batch.
+  and run `cargo test --test conformance_coverage every_error_path` after a batch.
   [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:DECLARATION_WINDOW]
 - **A reachable `Fault::fatal` is pinned with `--EXPECT-ERROR--`, and the program's own
   `try`/`catch` around it is worth writing anyway.** `FATAL:` goes to standard error and the process
@@ -3469,7 +3469,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **A new `Core` member owes three conformance cases, not one, and the second gate says so late.**
   `every_part_one_member_has_a_conformance_case` wants one;
   `every_core_class_has_a_conformance_floor_of_three` counts distinct case files per member, and a
-  repeated question does not. Budget three shapes, run `cargo test -p nvs-stdlib --test
+  repeated question does not. Budget three shapes, run `cargo test --test
   conformance_coverage` first, and never add to `BELOW_THE_FLOOR`.
   [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:const FLOOR: usize = 3]
 - **A `Core\Fatal::onLimit` handler runs only when the breach lands inside the reserve, so a large
@@ -5826,7 +5826,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `nvs_ir::lower::exception::synthesized_exception_constructors`, a hand-kept list nothing ties to
   the row, and the functions list of
   `a_file_with_no_class_still_carries_every_compiler_declared_class`. Land all in one change;
-  `INSTA_UPDATE=always cargo test -p nvs-ir --lib` rewrites the snapshots that go red.
+  `INSTA_UPDATE=always python tools/verify.py -p nvs-ir` rewrites the snapshots that go red.
   [until: reviewed 2026-09-06]
 - **A `catch` binding in a closure that shadows the enclosing frame's name is lowered as a capture,
   and the compiler panics.** The panic in `crates/nvs-ir/src/lower/expr.rs` reads "the closure at …
@@ -6502,7 +6502,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `every_launderer_for_an_auto_escaping_sink_answers_a_carrier`, which asserts that roster whole
   across every class, and an unclassified `CoreTy::Str` in a `CoreOption` fails
   `every_member_parameter_carries_a_qualifier_classification`, because an option is a parameter.
-  Run `cargo test -p nvs-stdlib --lib` after writing a row and before the full gate.
+  Run `python tools/verify.py -p nvs-stdlib` after writing a row and before the full gate.
   [until: reviewed 2026-09-09]
 - **A depth-ceiling constant is not evidence that a recursive walk over a document that deep
   survives.** `Core\Xml`'s ceiling is 1024 and `nvs_host::TASK_STACK_SIZE` is 1 MiB, so one native

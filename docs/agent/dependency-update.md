@@ -186,7 +186,7 @@ Needs you
 
 ## Tooling notes that cost a session to rediscover
 
-- `cargo test` does not always relink `target/debug/nvs.exe` — run `cargo build -p nvs-cli` before testing a
+- `cargo test` does not always relink `target/debug/nvs.exe` — run `cargo build` before testing a
   fixture by hand.
 - `wsl.exe` needs PowerShell and prefers a **script file**; a long inline `bash -lc "…"` mangles.
 - `cargo test --release -p nvs-abi-probe` takes over two minutes — background it.

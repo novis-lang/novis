@@ -88,13 +88,18 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
    anchor and read around it. Context, not the clock, is what caps a session.
 4. **Verify with one call, once, at the end:** `python tools/verify.py` — build, fmt, test, the `.nvst` trees and clippy in
    order, stopping at the first failure.
-5. **Finish with one call:** `python tools/session.py --wrap <file>` applies steps 4 and 5 below — plan
+5. **A debug cargo command never takes `-p`.** `cargo build`, `cargo test` and `cargo clippy
+   --all-targets` are the whole tree and warm in seconds; a `-p <crate>` resolves features over that one
+   package and writes a second copy of every workspace crate beside the first, and a day of those
+   filled the disk. Narrow what *runs* — `python tools/verify.py -p <crate>`, or a `--test <name>`
+   or `--lib` filter under `cargo test` — and leave `--release -p` to the cost guards.
+6. **Finish with one call:** `python tools/session.py --wrap <file>` applies steps 4 and 5 below — plan
    fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.
-6. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
+7. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
    old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
    history this repository keeps: no dates, no counts of things that can change, no measured figures
    the code does not enforce.
-7. **Verify a claim before you make it, not when it is questioned.** Every claim carries a `file:line`
+8. **Verify a claim before you make it, not when it is questioned.** Every claim carries a `file:line`
    or the words *not checked*, and advice you volunteered meets the same bar as the answer — a
    follow-up that sends you to the code and changes what you said means the answer went out early.
 

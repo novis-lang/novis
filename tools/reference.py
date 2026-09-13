@@ -173,7 +173,7 @@ def class_intro(name: str) -> tuple[dict[str, str], str] | None:
 def registry() -> dict:
     if not BINARY.is_file():
         sys.exit(f"reference.py: no binary at {BINARY.relative_to(ROOT).as_posix()} -- "
-                 "`cargo build -p nvs-cli` first")
+                 "`cargo build` first")
     p = subprocess.run([str(BINARY), "meta", "--json"], capture_output=True, cwd=ROOT)
     if p.returncode != 0:
         sys.exit(f"reference.py: `nvs meta --json` failed:\n{p.stderr.decode('utf-8', 'replace')}")
