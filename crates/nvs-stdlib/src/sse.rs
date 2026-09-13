@@ -85,17 +85,23 @@
 //! where an event stream's bytes go is a property of the context and never of
 //! what was framed.
 //!
-//! # What is not here yet
+//! # Door one's far side, and the wait that is the whole of it
 //!
-//! Door one's far side. `Core\Sse->receive()` is unregistered and so is
-//! `Core\Sse\Message`, so a connection isolate can write its events and cannot
-//! yet wait on a topic for the next one. The response half is landed:
-//! `nvs_server::serve_connection` answers a request that filled the cell with a
-//! `200 text/event-stream` and hands the isolate that body, which is what
-//! [`nvs_core_sse_current`] answers inside door one. The method entry form
-//! throws for [`crate::socket`]'s reason, unchanged: a `callable` carries no
-//! parameter names and `rule:security/isolate-shares-nothing` binds `args:` by
-//! name.
+//! [`nvs_core_sse_receive`] is [`crate::socket`]'s wait with its first source
+//! taken away. An event stream is handed no peer, so a connection isolate waits
+//! on the queue `rule:core-classes/topic`'s bus fills and on nothing else, and
+//! each delivery arrives as a `Core\Sse\Message` — two slots, `topic` and
+//! `value`, read back by the members beside them. A streaming response holds
+//! the same handle and cannot wait; that member's own doc owns why that is a
+//! refusal rather than a `null`.
+//!
+//! The response half is behind the door. `nvs_server::serve_connection` answers
+//! a request that filled the cell with a `200 text/event-stream` and hands the
+//! isolate that body, which is what [`nvs_core_sse_current`] answers inside
+//! door one. A method entry — `Feed::run(...)` — opens the same isolate a path
+//! entry does, because the parameter names `rule:security/isolate-shares-nothing`
+//! binds `args:` by ride on the callable value: [`crate::socket`] § *The method
+//! form carries its names on the value* is the home of that.
 
 use nvs_runtime::sse::{DECLARED_HEADERS, Event, MEDIA_TYPE};
 use nvs_runtime::{

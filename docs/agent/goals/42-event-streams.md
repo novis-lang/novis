@@ -16,8 +16,7 @@ carries its cell (`nvs_runtime::SseSlot`, `crates/nvs-runtime/src/ctx/inbound.rs
 `crates/nvs-server/src/serve.rs:811`), the both-cells-filled `500` is decided, and the isolate is
 started at `crates/nvs-server/src/serve.rs:938` — after the request is joined and its arena released,
 which is `rule:concurrency/a-connection-is-a-root-isolate`'s ordering. A program that calls it today
-opens a root isolate with nothing wired to a wire, which
-`crates/nvs-stdlib/src/sse.rs:47` § *What is not here yet* says in its own words.
+opens a root isolate with nothing wired to a wire.
 
 **This goal builds the body, and then spends it twice.** One cell in `nvs-runtime`, one framing
 module in `nvs-server`, and the two doors the rule already names: `Core\Sse::stream` for a stream
