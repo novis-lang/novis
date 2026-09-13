@@ -21433,18 +21433,19 @@ The coherent tier: a real store over the network, shared by every core and every
 <a id="core-core-cache-store"></a>
 ### `Core\Cache\Store`
 
-Keywords: put, get
+Keywords: put, get, forget
 
 | Member | Signature |
 |---|---|
-| [`Core\Cache\Store->put`](#core-core-cache-store-put) | `put(string $key, mixed $value): void` |
+| [`Core\Cache\Store->put`](#core-core-cache-store-put) | `put(string $key, mixed $value, {ttl?: Core\Time\Duration}): void` |
 | [`Core\Cache\Store->get`](#core-core-cache-store-get) | `get(string $key): mixed` |
+| [`Core\Cache\Store->forget`](#core-core-cache-store-forget) | `forget(string $key): void` |
 
 <a id="core-core-cache-store-put"></a>
 #### `Core\Cache\Store->put`
 
 ```nvs skip
-$store->put(string $key, mixed $value): void
+$store->put(string $key, mixed $value, {ttl?: Core\Time\Duration}): void
 ```
 
 Copies `$value` into the store under `$key`, replacing whatever was there — a recursive graph copy, so the entry shares nothing with the request that wrote it.
@@ -21453,6 +21454,7 @@ Copies `$value` into the store under `$key`, replacing whatever was there — a 
 |---|---|---|
 | `$key` | `string` (neutral) | The name to store under; `tainted` is admitted, since no byte of it reaches any answer. |
 | `$value` | `mixed` | The value to copy in. A closure and a `secret` may not cross, exactly as at the isolate boundary. |
+| `{ttl: …}` | `Core\Time\Duration` (default `null`) | How long the entry stays readable, counted from this call. Omitted, it stays until the tier's cap forgets it or another `put` replaces it. A lifetime that has already run out forgets whatever was under the key and stores nothing. |
 
 **Returns** `void` — Nothing. A successful `put` is still no promise that a later `get` answers — see `Core\Cache::local`.
 
@@ -21474,6 +21476,23 @@ Copies the entry stored under `$key` back into this request, or answers `null` w
 **Returns** `mixed` — The value as it was copied in, or `null` — an entry may be absent at any time, for any reason, and on the local tier that is the contract rather than a failure.
 
 **Throws** `ParseError` — The entry names a class this program cannot resolve — the same refusal `Core\Serialize::decode` makes, and the ordinary consequence of a deployment whose classes changed under a store that outlives them.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null` on either tier, which is the difference between a miss and a failure.
+
+<a id="core-core-cache-store-forget"></a>
+#### `Core\Cache\Store->forget`
+
+```nvs skip
+$store->forget(string $key): void
+```
+
+Takes the entry under `$key` out of this store, whether or not there was one there.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$key` | `string` (neutral) | The name to forget; `tainted` is admitted, as it is on `put`. |
+
+**Returns** `void` — Nothing. A key nothing was stored under is already forgotten, so there is no second answer here for whether there had been an entry — the same reading `get` gives a miss, and for the same reason: on these tiers an entry may be absent at any time.
+
+**Throws** `IOError` — On the shared tier only: the store cannot be reached or refused the command. The in-process tiers have nothing to be unreachable.
 
 <a id="core-core-ratelimit"></a>
 ### `Core\RateLimit`

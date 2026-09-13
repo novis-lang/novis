@@ -193,11 +193,26 @@ rules = [
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.4]
+# `put` grows a trailing options shape and the store grows a member, so this stage is written
+# inside the shape rules, the card every row owes, and the one rule about how a lifetime is
+# written -- which this one deliberately reads differently from.
+rules = [
+  "core-api/shape-rules",
+  "core-api/reference-card",
+  "core-api/a-lifetime-is-written",
+]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.5]
-# A sealed entry is keyed by the ring's rules, and a revealed value is still what it was.
-rules = ["security/secret-qualifier", "security/protocol-roster"]
+# A sealed entry is keyed by the ring's rules, and a revealed value is still what it was. Two new
+# members, so the shape rules and the reference card come with them as they do at every stage that
+# adds one.
+rules = [
+  "security/secret-qualifier",
+  "security/protocol-roster",
+  "core-api/shape-rules",
+  "core-api/reference-card",
+]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.6]

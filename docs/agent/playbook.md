@@ -4690,6 +4690,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   asserts nothing. Keep an entry under the share, cross the whole cap several times over, and assert the
   bound rather than which key went, because which shard a key lands in is a hash's business.
   [until: reviewed 2026-09-13]
+- **`??` binds tighter than `as`, so `$store->get($k) ?? "" as string` casts the *fallback* and
+  leaves the whole expression `string|mixed`.** The obvious spelling for reading back a
+  `mixed`-returning member is `string $back = $x->get($k) ?? "" as string;`, and it fails
+  `E0401: expected string, found string|mixed` with the caret under the whole expression — which
+  reads as though `??` had not removed the `mixed`, rather than as a precedence question. Write the
+  coalesce in parentheses, `($x->get($k) ?? "") as string`, which is what every case reading a
+  `mixed` back wants. [until: reviewed 2026-09-13]
 
 ## Splitting a file that got too big
 
