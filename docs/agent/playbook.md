@@ -1926,6 +1926,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   this trap did exactly that. Write a real id in an example, `rule:types/conversion`, or describe the
   token in words; `session.py --wrap` refuses a wrap body that carries one, but an Edit made by hand
   goes straight to the tree, so run the check yourself after one. [until: reviewed 2026-09-13]
+- **The pack's "THE DRIVER'S LAST ACCEPTANCE CHECK FAILED" line survives a hold, so a done-claim that a
+  person then closed by hand opens the next session on a check that is already green.** The driver writes
+  that failure when it stops and the ledger keeps it verbatim, while the commits closing it can land under
+  someone else's hand while the run is held — so the line can describe a tree several commits older than
+  the one the session is in. Run the named check's own `argv` once before treating it as the session's
+  work; when it exits 0 the job is to collect the acceptance and re-claim, not to re-fix.
+  [until: reviewed 2026-09-13]
 
 ## Running things
 
