@@ -170,16 +170,22 @@ impl HttpSpan {
     /// The two zeroes are the honest answer rather than a missing measurement —
     /// this call spent nothing on either, which is what pooling is for
     /// (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`).
-    pub(crate) fn drawn(&mut self, address: SocketAddr) {
-        self.address = Some(address);
+    ///
+    /// `None` is the same kind of honesty about the address: under
+    /// `[http.client.proxy] resolve = "proxy"` nothing in this process ever
+    /// learned one, so the event names the host it asked for and no address at
+    /// all rather than the proxy's, which is not where the request went.
+    pub(crate) fn drawn(&mut self, address: Option<SocketAddr>) {
+        self.address = address;
         self.connect = Duration::ZERO;
         self.handshake = Duration::ZERO;
     }
 
     /// Files a socket this attempt opened, and what the walk across the
-    /// approved set cost to get it.
-    pub(crate) fn connected(&mut self, address: SocketAddr, took: Duration) {
-        self.address = Some(address);
+    /// approved set cost to get it. `None` where there was no approved set to
+    /// walk, for the reason [`HttpSpan::drawn`] gives.
+    pub(crate) fn connected(&mut self, address: Option<SocketAddr>, took: Duration) {
+        self.address = address;
         self.connect = took;
         self.handshake = Duration::ZERO;
     }

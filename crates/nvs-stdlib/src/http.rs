@@ -391,6 +391,40 @@ fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<Vec<std::net::IpAddr>,
     nvs_runtime::capability::pin_host_addresses(ctx, &host, member)
 }
 
+/// [`pin`]'s questions, less the one a deployment writing
+/// `[http.client.proxy] resolve = "proxy"` has said this process cannot ask:
+/// there the proxy resolves the destination and no address for it is ever
+/// learned here, so the text, the scheme and the `net.connect` grant's host
+/// list are asked exactly as they are for a direct call and
+/// `rule:security/net-address-policy`'s table is the proxy's to enforce
+/// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+///
+/// The empty set it answers with is what carries that downstream: `CONNECT`
+/// then names the host rather than an address, and the connection is pooled
+/// under the same text. A host the operator listed in `bypass` is not this
+/// case — it is dialled directly and under the full policy — so the fork is
+/// asked of the host and not of the block alone.
+///
+/// Every door a *call* reaches an address through asks this rather than
+/// [`pin`]: the member's own URL through [`approved`], and a redirect hop
+/// through [`repinned`].
+///
+/// # Errors
+///
+/// [`pin`]'s, less the address one under the word above.
+fn pin_unless_the_proxy_resolves(
+    ctx: &mut Ctx,
+    text: &str,
+    member: &str,
+) -> Result<Vec<std::net::IpAddr>, Fault> {
+    let host = judged_host(text, member)?;
+    if proxy_of(ctx).is_some_and(|proxy| proxy.resolves(&host)) {
+        nvs_runtime::capability::require(ctx, Cap::NetConnect, Scope::Host(&host), member)?;
+        return Ok(Vec::new());
+    }
+    nvs_runtime::capability::pin_host_addresses(ctx, &host, member)
+}
+
 /// [`pin`]'s first two questions — the ones a URL answers by itself — and the
 /// host they leave: the text parses, and its scheme is one of the two this
 /// class speaks.
@@ -2578,7 +2612,8 @@ fn named_address(ctx: &Ctx, url: &str, named: &str, member: &str) -> Result<Vec<
 ///
 /// # Errors
 ///
-/// [`judge_downgrade`]'s two for a hop down into plaintext, and [`pin`]'s four.
+/// [`judge_downgrade`]'s two for a hop down into plaintext, and
+/// [`pin_unless_the_proxy_resolves`]'s.
 fn repinned(
     ctx: &mut Ctx,
     args: &[Value],
@@ -2589,7 +2624,7 @@ fn repinned(
     if downgrade {
         judge_downgrade(ctx, args, hop, member)?;
     }
-    pin(ctx, hop, member)
+    pin_unless_the_proxy_resolves(ctx, hop, member)
 }
 
 /// A hop out of `https` and into `http`, against the call's own word and the
@@ -2637,9 +2672,10 @@ fn judge_downgrade(ctx: &Ctx, args: &[Value], hop: &str, member: &str) -> Result
 ///
 /// # Errors
 ///
-/// [`pin`]'s four for a `string`, [`named_address`]'s for a call that wrote
-/// `connectTo`, and a thrown `LogicError` where that key sits beside a `Target`,
-/// which already carries the address its laundering approved. A
+/// [`pin_unless_the_proxy_resolves`]'s for a `string`, [`named_address`]'s for
+/// a call that wrote `connectTo`, and a thrown `LogicError` where that key sits
+/// beside a `Target`, which already carries the address its laundering
+/// approved. A
 /// [`Fault::fatal`] for an argument of another shape or a target whose slots
 /// this crate did not write, both unreachable from source.
 fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, Vec<IpAddr>), Fault> {
@@ -2648,7 +2684,7 @@ fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, Vec<
     if !matches!(args[0].tag(), Some(Tag::Object)) {
         let addresses = match named {
             Some(named) => named_address(ctx, &url, named, member)?,
-            None => pin(ctx, &url, member)?,
+            None => pin_unless_the_proxy_resolves(ctx, &url, member)?,
         };
         return Ok((url, addresses));
     }
@@ -3633,6 +3669,7 @@ fn proxy_of(ctx: &Ctx) -> Option<transport::Proxy> {
         url: url.to_owned(),
         host: host.to_owned(),
         port,
+        by_name: written.resolve.as_deref() == Some(nvs_config::http::RESOLVE_AT_THE_PROXY),
         bypass: written.bypass.clone().unwrap_or_default(),
         authorization: written.username.as_deref().map(|user| {
             // The password arrives already materialized, whether the operator
@@ -4956,6 +4993,129 @@ mod tests {
         unsafe {
             url.release();
             named.release();
+        }
+    }
+
+    /// What a deployment writes when only its proxy can resolve a destination:
+    /// the URL's host granted, and `resolve = "proxy"` beside the proxy's own
+    /// address.
+    const AT_THE_PROXY: &str = "[capabilities.net]\nconnect = [\"api.example.invalid\"]\n\n\
+                                [http.client.proxy]\nurl = \"http://proxy.internal:3128\"\n\
+                                resolve = \"proxy\"\n";
+
+    /// `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`'s
+    /// narrowing, and its edges: under `resolve = "proxy"` the door approves a
+    /// host it never looked up, and everything the URL's own text can be judged
+    /// on is judged exactly as it is for a direct call.
+    ///
+    /// `api.example.invalid` resolves nowhere, which is what carries the first
+    /// half: an approval that had reached the resolver could not have answered
+    /// at all, and the empty set it answers with is what sends the host name to
+    /// the proxy. The same URL under `local` is the control — there the address
+    /// question is asked, and this host cannot answer it.
+    #[test]
+    fn resolve_proxy_sends_the_host_name_and_skips_only_the_address_check() {
+        const MEMBER: &str = "Core\\Http\\Client::get";
+        const URL: &str = "https://api.example.invalid/ok";
+
+        let url = Value::str(NvsStr::new(URL.as_bytes()));
+        let elsewhere = Value::str(NvsStr::new(b"ftp://api.example.invalid/ok"));
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[0] = url;
+
+        let mut proxied = Ctx::buffered();
+        proxied.set_config(granting(AT_THE_PROXY));
+        let (sent, addresses) = super::approved(&mut proxied, &args, MEMBER)
+            .expect("the proxy resolves this destination, so nothing here had to");
+        assert_eq!(
+            sent, URL,
+            "the URL is handed on untouched, and its host is what `CONNECT` carries"
+        );
+        assert!(
+            addresses.is_empty(),
+            "no address was learned for a host this deployment does not resolve: {addresses:?}"
+        );
+
+        let mut ungranted = Ctx::buffered();
+        ungranted.set_config(granting(
+            "[capabilities.net]\nconnect = [\"other.example.invalid\"]\n\n\
+             [http.client.proxy]\nurl = \"http://proxy.internal:3128\"\nresolve = \"proxy\"\n",
+        ));
+        let refused = super::approved(&mut ungranted, &args, MEMBER)
+            .expect_err("the grant's host list is asked of a proxied call like any other");
+        assert!(
+            format!("{refused:?}").contains("api.example.invalid"),
+            "the refusal names the host the URL wrote: {refused:?}"
+        );
+
+        args[0] = elsewhere;
+        let outside = super::approved(&mut proxied, &args, MEMBER)
+            .expect_err("the scheme roster is a statement about the text, not about the network");
+        assert!(
+            format!("{outside:?}").contains("scheme"),
+            "a scheme outside the roster is refused under a proxy too: {outside:?}"
+        );
+
+        args[0] = url;
+        let mut locally = Ctx::buffered();
+        locally.set_config(granting(
+            "[capabilities.net]\nconnect = [\"api.example.invalid\"]\n\n\
+             [http.client.proxy]\nurl = \"http://proxy.internal:3128\"\nresolve = \"local\"\n",
+        ));
+        super::approved(&mut locally, &args, MEMBER)
+            .expect_err("`local` keeps the pin, and this host resolves to no address to pin");
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the two references `NvsStr::new` \
+                      produced, and `approved` reads an argument without taking \
+                      one"
+        )]
+        unsafe {
+            url.release();
+            elsewhere.release();
+        }
+    }
+
+    /// No spelling of the ambient proxy variables is read anywhere on the
+    /// outbound path: the block an operator wrote is the only way a call is
+    /// proxied (`rule:http-server/an-outbound-proxy-is-operator-configured`).
+    ///
+    /// Asserted over the source rather than by setting one, because the failure
+    /// this guards against is a future reader being *added* — and an
+    /// environment a case sets is process-wide state every other case on the
+    /// core would then share (`rule:security/no-cross-request-state`). Each
+    /// file is scanned down to its first `#[cfg(test)]` and with its comments
+    /// dropped, so this case's own prose is not what it reads.
+    #[test]
+    fn no_proxy_environment_variable_is_ever_read() {
+        let shipped = |source: &'static str| {
+            source
+                .lines()
+                .take_while(|line| line.trim_start() != "#[cfg(test)]")
+                .filter(|line| !line.trim_start().starts_with("//"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        for (module, source) in [
+            ("http.rs", shipped(include_str!("http.rs"))),
+            (
+                "http/transport.rs",
+                shipped(include_str!("http/transport.rs")),
+            ),
+        ] {
+            for spelling in ["HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY"] {
+                assert!(
+                    !source.contains(spelling),
+                    "`{module}` names `{spelling}`; where a call goes is the operator's \
+                     `[http.client.proxy]` block and nothing else"
+                );
+            }
+            assert!(
+                !source.contains("env::var"),
+                "`{module}` reads the environment, which is ambient state shared by every \
+                 request in this process"
+            );
         }
     }
 

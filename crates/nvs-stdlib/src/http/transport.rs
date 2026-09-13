@@ -269,6 +269,15 @@ pub(crate) struct Proxy {
     pub(crate) host: String,
     /// The port [`Proxy::url`] names, or `nvs_config::http::DEFAULT_PROXY_PORT`.
     pub(crate) port: u16,
+    /// Whether `[http.client.proxy] resolve` says the **proxy** resolves the
+    /// destination: `CONNECT` then carries the URL's own `host:port`, because
+    /// the door approved the host and never learned an address for it, and
+    /// `rule:security/net-address-policy`'s table is the proxy's to enforce
+    /// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+    ///
+    /// `false` is `resolve = "local"`, where the set this end approved is what
+    /// the tunnel is asked for, one `CONNECT` per address.
+    pub(crate) by_name: bool,
     /// `[http.client.proxy] bypass`: the hosts reached directly, each entry
     /// exact or a leading `.` for a suffix.
     pub(crate) bypass: Vec<String>,
@@ -300,6 +309,18 @@ impl Proxy {
                 host.eq_ignore_ascii_case(entry)
             }
         })
+    }
+
+    /// Whether this proxy is the one that resolves `host`: the operator wrote
+    /// `resolve = "proxy"` and did not list the host in `bypass`.
+    ///
+    /// The door asks this — `super::pin_unless_the_proxy_resolves` — because it
+    /// is what decides whether an address is looked up at all, and the answer
+    /// has to be the same one [`one`] reads when it builds the `CONNECT`. A
+    /// bypassed host is left out of it deliberately: it is reached directly and
+    /// under the full address policy, so it is pinned like any other.
+    pub(crate) fn resolves(&self, host: &str) -> bool {
+        self.by_name && !self.bypasses(host)
     }
 }
 
@@ -1413,14 +1434,6 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         .iter()
         .map(|&address| SocketAddr::new(address, parts.port))
         .collect();
-    // Unreachable from source: [`Call::addresses`] is what a door approved, and
-    // a door that approved nothing refused instead.
-    let Some(&first) = approved.first() else {
-        return Err(Fault::fatal(format!(
-            "{}: an approved set with no address in it",
-            call.member
-        )));
-    };
     let identity = call.identity.as_ref();
     let fingerprint = identity.map(|held| held.fingerprint.as_str());
     // Whether this destination leaves through the proxy at all, asked of the
@@ -1431,14 +1444,23 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         .proxy
         .as_ref()
         .filter(|proxy| !proxy.bypasses(&parts.host));
+    // A destination the proxy resolves has no address on this side at all: the
+    // door approved its host and stopped there, so there is one connection to
+    // look for and it is filed under the name the `CONNECT` below carries.
+    let by_name = through.is_some_and(|proxy| proxy.by_name);
     // A connection to *any* approved address serves the call, since each of
     // them was approved and each is filed under the address it actually goes
     // to: one lookup per address rather than one on the set's first
     // (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`).
-    let drawn = approved.iter().find_map(|&address| {
-        let key = pool_key(&parts, address, fingerprint, &call.policy, through);
-        pool::take(&key, Instant::now()).map(|held| (address, key, held))
-    });
+    let drawn = if by_name {
+        let key = pool_key(&parts, None, fingerprint, &call.policy, through);
+        pool::take(&key, Instant::now()).map(|held| (None, key, held))
+    } else {
+        approved.iter().find_map(|&address| {
+            let key = pool_key(&parts, Some(address), fingerprint, &call.policy, through);
+            pool::take(&key, Instant::now()).map(|held| (Some(address), key, held))
+        })
+    };
 
     if let Some((socket, key, mut held)) = drawn {
         // The drawn connection carries no bound of its own: the call's deadline
@@ -1448,7 +1470,14 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         // event reports for a call this core was already holding a connection
         // for.
         call.span.borrow_mut().drawn(socket);
-        match exchange(call, held, &request, socket, bounds, &key)? {
+        match exchange(
+            call,
+            held,
+            &request,
+            &reached_at(&parts, socket),
+            bounds,
+            &key,
+        )? {
             Sent::Answered(reply) => return Ok(Attempt::Answered(reply)),
             // The rule's *replaced once without spending an attempt*: the
             // request did not leave this process whole, so the far end cannot
@@ -1474,11 +1503,21 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
         // the door approved and no second resolution happened anywhere in the
         // path
         // (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
-        Some(proxy) => match tunnel(call, proxy, &approved, budget)? {
+        Some(proxy) => match tunnel(call, proxy, &parts, &approved, budget)? {
             Tunnel::Open { stream, at } => (stream, at),
             Tunnel::Unreachable(why) => return Ok(Attempt::Failed(why)),
         },
         None => {
+            // Unreachable from source: a set with no address in it is what a
+            // destination the proxy resolves leaves behind, and that call is
+            // tunnelled by the arm above; every door a direct dial can come
+            // through approved an address or refused.
+            let Some(&first) = approved.first() else {
+                return Err(Fault::fatal(format!(
+                    "{}: an approved set with no address in it",
+                    call.member
+                )));
+            };
             let stream = match NvsTcp::connect_racing(&approved, budget) {
                 Ok(stream) => stream,
                 // `nvs_host` names every approved address and what it answered,
@@ -1497,10 +1536,11 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
             // actually goes, and the key above was built before there was an
             // answer to build it from.
             let at = stream.peer_addr().unwrap_or(first);
-            (stream, at)
+            (stream, Some(at))
         }
     };
     call.span.borrow_mut().connected(socket, opened.elapsed());
+    let reached = reached_at(&parts, socket);
     let key = pool_key(&parts, socket, fingerprint, &call.policy, through);
     // Before the handshake, not after it: the TLS flight waits on this socket
     // and the deadline is what bounds every wait on it.
@@ -1537,7 +1577,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
             }
             Err(err) => {
                 return Ok(Attempt::Failed(format!(
-                    "the TLS handshake with {socket} failed: {err}"
+                    "the TLS handshake with {reached} failed: {err}"
                 )));
             }
         }
@@ -1546,7 +1586,7 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     };
 
     Ok(
-        match exchange(call, connection, &request, socket, bounds, &key)? {
+        match exchange(call, connection, &request, &reached, bounds, &key)? {
             Sent::Answered(reply) => Attempt::Answered(reply),
             // On a socket opened for this request, nothing arriving at all is a
             // statement about the other end rather than weather: a second identical
@@ -1557,9 +1597,6 @@ fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Resu
     )
 }
 
-/// What a connection is filed under while it waits for the next call.
-///
-/// Built here and not in [`super::pool`] because
 /// How much of a proxy's answer to a `CONNECT` is read before the answer is
 /// itself the refusal: a status line and its fields, and nothing the size of a
 /// body a tunnel has no room for.
@@ -1573,8 +1610,10 @@ enum Tunnel {
     Open {
         /// The stream to speak the destination's protocol over, plaintext still.
         stream: NvsTcp,
-        /// The approved address the tunnel reaches.
-        at: SocketAddr,
+        /// The approved address the tunnel reaches, and `None` where the
+        /// `CONNECT` named the destination instead because
+        /// [`Proxy::by_name`] says this deployment never resolves one.
+        at: Option<SocketAddr>,
     },
     /// The proxy was not reached at all. This attempt's failure, on the same
     /// footing as a destination that never answered and retried under the same
@@ -1583,29 +1622,34 @@ enum Tunnel {
     Unreachable(String),
 }
 
-/// A tunnel to one of `approved`, opened through `proxy` inside `budget`.
+/// A tunnel to the destination, opened through `proxy` inside `budget`.
 ///
-/// The address `CONNECT` names is one the door approved and the `Host` beside it
-/// names the same, so a proxy reopens no check-then-connect gap: there is no
-/// second resolution in this path, and what comes back is a stream to the
-/// address the pin already answered for
+/// Under `resolve = "local"` the address `CONNECT` names is one the door
+/// approved and the `Host` beside it names the same, so a proxy reopens no
+/// check-then-connect gap: there is no resolution of the destination in this
+/// path at all, and what comes back is a stream to the address the pin already
+/// answered for. Under `resolve = "proxy"` there is no such address to name —
+/// the door approved the host and stopped — so one `CONNECT` carries the URL's
+/// own `host:port` and the address question is the proxy's
 /// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
 ///
-/// The approved set is still walked, one `CONNECT` per address, because a proxy
-/// that will not reach the first address has said nothing about the second. Each
-/// gets a connection of its own: a refusal leaves a stream whose state is the
-/// proxy's to decide, and reusing one would be reading the next answer off it.
+/// An approved set is walked, one `CONNECT` per address, because a proxy that
+/// will not reach the first address has said nothing about the second. Each gets
+/// a connection of its own: a refusal leaves a stream whose state is the proxy's
+/// to decide, and reusing one would be reading the next answer off it. A
+/// destination asked for by name is one request, there being one name.
 ///
 /// # Errors
 ///
 /// A `RuntimeError` naming proxy authentication for a `407`, and an `IOError`
-/// naming each address and what the proxy answered when the whole set was
-/// refused. Neither is an attempt that failed and neither is retried, because
-/// `rule:http-server/retry-is-opt-in-jittered-and-closed` retries an answer from
-/// the destination and a proxy that refused the tunnel is not one.
+/// naming each destination and what the proxy answered when every one of them
+/// was refused. Neither is an attempt that failed and neither is retried,
+/// because `rule:http-server/retry-is-opt-in-jittered-and-closed` retries an
+/// answer from the destination and a proxy that refused the tunnel is not one.
 fn tunnel(
     call: &Call<'_>,
     proxy: &Proxy,
+    parts: &Parts,
     approved: &[SocketAddr],
     budget: Duration,
 ) -> Result<Tunnel, Fault> {
@@ -1615,7 +1659,7 @@ fn tunnel(
     // `rule:security/net-address-policy` states. It is also the one lookup a
     // tunnelled call makes that a direct call does not, and it is paid per
     // connection opened rather than per request.
-    let at = match nvs_runtime::capability::resolve_host(&proxy.host, call.member) {
+    let endpoint = match nvs_runtime::capability::resolve_host(&proxy.host, call.member) {
         Ok(address) => SocketAddr::new(address, proxy.port),
         Err(_) => {
             return Ok(Tunnel::Unreachable(format!(
@@ -1624,18 +1668,29 @@ fn tunnel(
             )));
         }
     };
+    // What each `CONNECT` asks for: every address the door approved, or the one
+    // name it approved instead where this deployment's `resolve` says the proxy
+    // is what resolves the destination.
+    let asked_for: Vec<Option<SocketAddr>> = if proxy.by_name {
+        vec![None]
+    } else {
+        approved.iter().copied().map(Some).collect()
+    };
     let mut refused = Vec::new();
-    for &address in approved {
-        let mut stream =
-            match NvsTcp::connect_timeout(at, until.saturating_duration_since(Instant::now())) {
-                Ok(stream) => stream,
-                Err(err) => {
-                    return Ok(Tunnel::Unreachable(format!(
-                        "connecting to the proxy at `{}` failed: {err}",
-                        proxy.url
-                    )));
-                }
-            };
+    for at in asked_for {
+        let address = reached_at(parts, at);
+        let mut stream = match NvsTcp::connect_timeout(
+            endpoint,
+            until.saturating_duration_since(Instant::now()),
+        ) {
+            Ok(stream) => stream,
+            Err(err) => {
+                return Ok(Tunnel::Unreachable(format!(
+                    "connecting to the proxy at `{}` failed: {err}",
+                    proxy.url
+                )));
+            }
+        };
         // Before the request, for the reason the handshake's own bound is set
         // before it: every wait on this socket is inside what is left of the
         // connect budget, which is itself inside the call's deadline.
@@ -1678,10 +1733,7 @@ fn tunnel(
                     ),
                 ));
             }
-            return Ok(Tunnel::Open {
-                stream,
-                at: address,
-            });
+            return Ok(Tunnel::Open { stream, at });
         }
         // A `407` is what the proxy says about this deployment rather than about
         // this address, so the rest of the set is not walked for a second
@@ -1698,7 +1750,7 @@ fn tunnel(
     Err(Fault::thrown_as(
         ThrownClass::Io,
         format!(
-            "{}: the proxy at `{}` refused a tunnel to every approved address: {}",
+            "{}: the proxy at `{}` refused a tunnel to every destination it was asked for: {}",
             call.member,
             proxy.url,
             refused.join(", ")
@@ -1766,9 +1818,16 @@ fn tunnel_head(stream: &mut NvsTcp) -> Result<Vec<u8>, String> {
 /// call that leaves directly — no block, or a `bypass` entry naming this host —
 /// writes the empty field, so the two are two keys rather than one key that is a
 /// prefix of the other.
+///
+/// **The address field is a name where there is no address**: under
+/// `resolve = "proxy"` nothing here ever learned one, so what a connection is
+/// filed under is the same `host:port` its `CONNECT` asked for
+/// ([`reached_at`]). The port is in it because two ports on one host are two
+/// destinations, and the proxy's own `url` beside it is what keeps that key
+/// away from every direct connection to the same name.
 fn pool_key(
     parts: &Parts,
-    socket: SocketAddr,
+    at: Option<SocketAddr>,
     identity: Option<&str>,
     policy: &CallPolicy,
     through: Option<&Proxy>,
@@ -1777,10 +1836,30 @@ fn pool_key(
     format!(
         "{scheme}|{host}|{socket}|{identity}|{policy}|{proxy}",
         host = parts.host,
+        socket = reached_at(parts, at),
         identity = identity.unwrap_or_default(),
         policy = policy_key(policy),
         proxy = through.map_or("", |proxy| proxy.url.as_str())
     )
+}
+
+/// Where an attempt's octets go, in the one spelling a `CONNECT` line, a pool
+/// key, a trace's refusal and an `IOError` all use: the address this end
+/// approved and connected to, or the destination's own `host:port` where
+/// `resolve = "proxy"` means no address for it was ever learned
+/// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+///
+/// One function for all four so that the text a proxy is asked for is the text
+/// the connection it answers with is filed under. The port is always written,
+/// since a request line has no default to fall back on, and an IPv6 literal
+/// keeps the brackets [`Parts::host`] took off it — that spelling is an
+/// authority, and a server name is not.
+fn reached_at(parts: &Parts, at: Option<SocketAddr>) -> String {
+    match at {
+        Some(socket) => socket.to_string(),
+        None if parts.host.contains(':') => format!("[{}]:{}", parts.host, parts.port),
+        None => format!("{}:{}", parts.host, parts.port),
+    }
 }
 
 /// [`pool_key`]'s last field: one line per distinct [`CallPolicy`], and the
@@ -1825,25 +1904,25 @@ fn exchange(
     call: &Call<'_>,
     mut stream: Box<dyn Connection>,
     request: &str,
-    socket: SocketAddr,
+    reached: &str,
     bounds: Bounds,
     key: &str,
 ) -> Result<Sent, Fault> {
     if let Err(err) = stream.write_all(request.as_bytes()) {
         return Ok(Sent::WhileSending(format!(
-            "sending to {socket} failed: {err}"
+            "sending to {reached} failed: {err}"
         )));
     }
     if let Some(body) = &call.body
         && let Some(err) = write_body(body, &mut stream, call.member)?
     {
         return Ok(Sent::WhileSending(format!(
-            "sending to {socket} failed: {err}"
+            "sending to {reached} failed: {err}"
         )));
     }
     if let Err(err) = stream.flush() {
         return Ok(Sent::WhileSending(format!(
-            "sending to {socket} failed: {err}"
+            "sending to {reached} failed: {err}"
         )));
     }
 
@@ -1867,7 +1946,7 @@ fn exchange(
             // so a second identical request gets the same non-reply.
             Ok(0) if raw.is_empty() => {
                 return Ok(Sent::Silent(format!(
-                    "{socket} closed the connection before answering"
+                    "{reached} closed the connection before answering"
                 )));
             }
             Ok(0) => return Err(malformed(call.member, "no header section ended it")),
@@ -1876,7 +1955,7 @@ fn exchange(
                 raw.extend_from_slice(&buffer[..read]);
             }
             Err(err) if err.kind() == ErrorKind::Interrupted => {}
-            Err(err) => return Ok(Sent::Failed(format!("reading {socket} failed: {err}"))),
+            Err(err) => return Ok(Sent::Failed(format!("reading {reached} failed: {err}"))),
         }
     };
 
@@ -2562,12 +2641,13 @@ mod tests {
     }
 
     /// The `[http.client.proxy]` block a case carries: the loopback proxy at
-    /// `at`, with nothing bypassed.
+    /// `at`, with nothing bypassed and this end resolving the destination.
     fn through(at: SocketAddr) -> super::Proxy {
         super::Proxy {
             url: format!("http://{at}"),
             host: at.ip().to_string(),
             port: at.port(),
+            by_name: false,
             bypass: Vec::new(),
             authorization: None,
         }
@@ -2748,6 +2828,89 @@ mod tests {
         assert!(
             !behind.asked[0].contains("http://"),
             "nothing on this path writes an absolute-form request line: {:?}",
+            behind.asked
+        );
+    }
+
+    /// Under `resolve = "proxy"` the `CONNECT` carries the destination's own
+    /// name: the door approved the host and never learned an address for it, so
+    /// [`Call::addresses`] arrives empty and there is nothing else to ask for
+    /// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+    ///
+    /// The proxy's own record of the request line is what says so, and the
+    /// answer coming back is what says the tunnel it opened was the right one.
+    #[test]
+    fn a_destination_the_proxy_resolves_is_asked_for_by_name() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let (proxying, _, asked) = proxy(1, None);
+
+        let mut asking = call(at, "test");
+        asking.url = format!("http://localhost:{}/ok", at.port());
+        asking.addresses = Vec::new();
+        let mut through = through(proxying);
+        through.by_name = true;
+        asking.proxy = Some(through);
+        let reply = send(&asking, &mut never).expect("the answer from behind the tunnel");
+
+        assert_eq!(reply.status, 200);
+        let asked = asked.join().expect("the proxy thread");
+        assert!(
+            asked[0].starts_with(&format!("CONNECT localhost:{} HTTP/1.1\r\n", at.port())),
+            "the tunnel is asked for the name, there being no address to ask for: {asked:?}"
+        );
+        assert!(
+            asked[0].contains(&format!("Host: localhost:{}\r\n", at.port())),
+            "`Host` names the same destination the request line does: {asked:?}"
+        );
+        let behind = served.join().expect("the origin thread");
+        assert!(
+            behind.asked[0].starts_with("GET /ok HTTP/1.1\r\n"),
+            "and what arrives over the tunnel is the request itself: {:?}",
+            behind.asked
+        );
+    }
+
+    /// A host the operator listed in `bypass` never reaches the proxy, and the
+    /// address it is dialled at is one the door pinned — the bypass is what
+    /// puts a destination back under the whole of
+    /// `rule:security/net-address-policy` in a deployment that otherwise hands
+    /// that question to its proxy.
+    ///
+    /// Both halves are read where each is decided: [`Proxy::resolves`] is the
+    /// question the door asks before it looks a name up, and the proxy's
+    /// connection counter is what says the octets went straight to the origin.
+    #[test]
+    fn a_bypassed_host_connects_directly_under_the_full_policy() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let (proxying, opened, _) = proxy(1, None);
+
+        let mut through = through(proxying);
+        through.by_name = true;
+        through.bypass = vec!["localhost".to_owned()];
+        assert!(
+            !through.resolves("localhost"),
+            "a bypassed host is this end's to resolve, so it is pinned like any other"
+        );
+        assert!(
+            through.resolves("api.example.invalid"),
+            "and every other destination under the same block is the proxy's"
+        );
+
+        let mut asking = call(at, "test");
+        asking.url = format!("http://localhost:{}/ok", at.port());
+        asking.proxy = Some(through);
+        let reply = send(&asking, &mut never).expect("the answer from the origin itself");
+
+        assert_eq!(reply.status, 200);
+        assert_eq!(
+            opened.load(Ordering::Relaxed),
+            0,
+            "a bypassed destination is dialled directly and the proxy is never asked"
+        );
+        let behind = served.join().expect("the origin thread");
+        assert_eq!(
+            behind.connections, 1,
+            "the origin answered the call itself: {:?}",
             behind.asked
         );
     }
@@ -4131,7 +4294,7 @@ mod tests {
         super::pool::release(
             super::pool_key(
                 &parts,
-                SocketAddr::new(at.ip(), parts.port),
+                Some(SocketAddr::new(at.ip(), parts.port)),
                 None,
                 &CallPolicy::default(),
                 None,
@@ -4195,7 +4358,8 @@ mod tests {
             super::parts("https://api.example/v1", "test").expect("the URL this case wrote");
         let socket = SocketAddr::new(IpAddr::from([203, 0, 113, 7]), parts.port);
         let strict = CallPolicy::default();
-        let under_mine = super::pool_key(&parts, socket, Some(&mine.fingerprint), &strict, None);
+        let under_mine =
+            super::pool_key(&parts, Some(socket), Some(&mine.fingerprint), &strict, None);
 
         assert!(
             under_mine.contains(&mine.fingerprint),
@@ -4203,12 +4367,18 @@ mod tests {
         );
         assert_ne!(
             under_mine,
-            super::pool_key(&parts, socket, Some(&theirs.fingerprint), &strict, None),
+            super::pool_key(
+                &parts,
+                Some(socket),
+                Some(&theirs.fingerprint),
+                &strict,
+                None
+            ),
             "two identities never share a connection"
         );
         assert_ne!(
             under_mine,
-            super::pool_key(&parts, socket, None, &strict, None),
+            super::pool_key(&parts, Some(socket), None, &strict, None),
             "an identity is not the absence of one"
         );
     }
@@ -4655,7 +4825,7 @@ mod tests {
         let parts = super::parts(&asking.url, "test").expect("the URL this case wrote");
         let theirs = super::pool_key(
             &parts,
-            SocketAddr::new(at.ip(), parts.port),
+            Some(SocketAddr::new(at.ip(), parts.port)),
             Some(&identity.fingerprint),
             &CallPolicy::default(),
             None,
@@ -4705,7 +4875,7 @@ mod tests {
         let parts = super::parts(&asking.url, "test").expect("the URL this case wrote");
         let relaxed = super::pool_key(
             &parts,
-            SocketAddr::new(at.ip(), parts.port),
+            Some(SocketAddr::new(at.ip(), parts.port)),
             None,
             &CallPolicy {
                 insecure: true,
