@@ -688,6 +688,34 @@ impl Capabilities {
         }
     }
 
+    /// Every host `[capabilities.tls]` relaxes outbound verification for, as the capability that
+    /// relaxes it and the host it names — what the boot prints, one line per grant and host, per
+    /// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s last sentence.
+    ///
+    /// The grants are found by [`Cap::family`] rather than by a roster of their own, because every
+    /// capability under `tls` is a relaxation of verification — that is what the block is — so one
+    /// added later is reported the day it exists rather than the day someone notices a second list.
+    ///
+    /// The reading is [`grant_for`]'s, like every other asker's: a `true`, which none of these
+    /// grants has a spelling for, names no host here either, so a deployment that wrote one is told
+    /// about no weakening and has none. The order is the roster's, then the operator's within a
+    /// grant.
+    #[must_use]
+    pub fn tls_relaxations(&self) -> Vec<(Cap, &str)> {
+        Cap::ALL
+            .iter()
+            .copied()
+            .filter(|cap| cap.family() == "tls")
+            .flat_map(|cap| {
+                let hosts = match cap.grant(self).map(|setting| grant_for(cap, setting)) {
+                    Some(Grant::These(hosts)) => hosts,
+                    Some(Grant::Nothing | Grant::Everything) | None => &[][..],
+                };
+                hosts.iter().map(move |host| (cap, host.as_str()))
+            })
+            .collect()
+    }
+
     /// `rule:security/net-address-policy`'s question, asked of a
     /// **resolved address** rather than of a name: which denied range this address is in, or `None`
     /// when nothing refuses it.
