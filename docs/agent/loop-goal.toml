@@ -109,6 +109,14 @@ modules = [
   "crates/nvs-config/src/directive.rs",
   # The server's framing over `tungstenite`, the precedent for the client half. Stages 4 and 5.
   "crates/nvs-server/src/socket.rs",
+  # `rule:testing/an-outbound-call-is-answered-from-a-table`'s table and
+  # `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`'s: what a test says an
+  # outbound call answers with, what a scripted peer sends over a socket, and what the program
+  # sent instead of connecting.
+  "crates/nvs-runtime/src/ctx/answers.rs",
+  # `Core\Http\Socket` — ADR 0183's outbound WebSocket: a conversation the program opened through
+  # the door every outbound call passes, and holds until its own task ends.
+  "crates/nvs-stdlib/src/http/socket.rs",
 ]
 
 # Every stage works inside these three: the URL is a sink, no wait is unbounded, and the pin survives.
