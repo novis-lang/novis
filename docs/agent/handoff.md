@@ -2,32 +2,40 @@
 
 ## State
 
-**Goal `http-client` is met.** Stage 14 was the rulebook, and the eleven rules this goal shipped now
-read `status: shipped` — the four request-shape rules and the six TLS-and-address ones under
-`docs/rules/http-server.json`, `security/tls-trust-is-relaxed-only-under-a-host-grant` and
-`testing/an-outbound-call-is-answered-from-a-table`. Each carries a `guardedBy` list naming what holds
-it: the transport, the pool, the config resolver, and the `.nvst` cases under `tests/conformance/`.
-`docs/rules/http-server.md`, `security.md`, `testing.md` and `docs/ground-rules.md` are re-rendered.
+**Goal `process-cache` — a value outlives a request in the serving process, and a secret does so only sealed — has just started; nothing of it has landed yet.** Goal `http-client`'s whole list is this goal's Stage 1 floor.
 
-`python tools/verify.py` is 11 of 11 green, and `python tools/verify.py --doc` resolves every link —
-it named one broken intra-doc link into a `#[cfg(test)]` item, which is now written as the plain code
-span its two neighbours in the same file already use.
-
-Stages 1–13 are on disk behind this. Nothing is blocked.
+**The design is settled with the user and is written into the goal's § *Standing decisions*; the record
+that states it is not written yet.** Stage 2 writes it — one new record, the goal names no number — and it
+transcribes those decisions rather than re-deriving them. The things not to re-decide: `process()` is a
+general third tier beside `local()` and `shared()`; a secret meets a cache only through `putSecret` and
+`getSecret`, both taking a key ring, and is stored as ciphertext bound to the app, the name and the
+expiry; a sealed entry that does not open is a miss; `fill` runs once per process and a failure is never
+shared. A user's secret in `Core\Session` is sealed the same way, through `setSecret` and `getSecret`.
 
 ## Next group
 
-**The goal is closed — the next session opens goal `process-cache` on its own seed handoff.**
+**Stage 2: the record** — one file set: `docs/decisions/`, `docs/rules/concurrency*`,
+`docs/rules/core-api*`, `docs/rules/http-server*`, `docs/spec/`.
 
-- [x] The four request-shape rules go `shipped`, each naming the transport and its `.nvst` cases.
-- [x] The four TLS and address rules go `shipped`, plus the trust-roots and TLS-session ones, guarded
-      by `crates/nvs-config/tests/capability.rs`, `crates/nvs-config/tests/resolve.rs` and
-      `crates/nvs-host/src/tls.rs`.
-- [x] `rule:testing/an-outbound-call-is-answered-from-a-table` goes `shipped`, guarded by
-      `crates/nvs-stdlib/src/test.rs` and the three `test-*-http-*.nvst` cases.
+- [ ] **The record** — the next free number in `docs/decisions/`, `changes.creates` the four rules the
+      goal's stage 2 names, `changes.modifies` the six Stage 0 lists. It says whether
+      `core-api/two-cache-tiers` is amended in place or superseded, how many shards the process map has,
+      the refresh-ahead fraction, and the shipped `[cache.process] max_size` and `fill_wait`.
+- [ ] **The four rule fragments and their JSON entries**, all `designed`, and the six modified ones,
+      then `python tools/rules.py --render`.
+- [ ] **The spec row** — `docs/spec/01-core-library.md:1178` (`Core\Cache`) takes `process()`, `ttl`,
+      `forget`, `putSecret` and `getSecret`, and `Core\Session`'s row takes `setSecret` and `getSecret`.
 
 ## Backlog
 
-- The stage 10 call-site options — `connectTo`, `redirectToHttp` and the four `tls.*` ones — are held
-  by Rust tests alone; no `.nvst` case names one. `python tools/gaps.py` is where that surfaces.
-- The REST package and OAuth are the unscheduled `nvs/rest` work — `docs/agent/carried-gaps.md`.
+- Stage 3 — the process tier. `crates/nvs-stdlib/src/cache.rs`, `crates/nvs-config/src/directive.rs`,
+  and `crates/nvs-cli/src/serve.rs` where the map is made. The keystone. Its own session.
+- Stage 4 — `ttl` and `forget` on every tier. `cache.rs`, `cache/redis.rs`. Shares `cache.rs` with
+  stage 3.
+- Stage 5 — `putSecret`, `getSecret`, and `secret string` in the registry. `cache.rs`, `crypto.rs`'s
+  seams, `keyring.rs`, `registry.rs`. Its own session.
+- Stage 6 — `fill`. `cache.rs` and the process-wide fill table. Shares `cache.rs` with stage 5.
+- Stage 7 — a user's secret in the session. `crates/nvs-stdlib/src/session.rs`, over stage 5's sealing;
+  its cases need Redis, which the floor already starts.
+- Stage 8 — the flips. `docs/rules/` only.
+- When this goal's last check goes green the driver takes goal `outbound-proxy`.
