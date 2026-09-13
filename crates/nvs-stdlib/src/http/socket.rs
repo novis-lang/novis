@@ -920,6 +920,29 @@ fn ending(code: &Value, reason: &Value) -> CloseFrame {
     }
 }
 
+/// The peer's own close, waited for under the send wait — the other half of
+/// [ADR 0183](/docs/decisions/0183.md) § 5's close handshake, and the reason
+/// `close` is a member that takes a wait at all.
+///
+/// Whatever the peer says before its close is read and dropped: this end has
+/// ended the conversation, and a program that ended it is not owed the frames
+/// that were already on their way. **Every exit is silent** — the peer's close,
+/// a peer that hung up instead of answering, or the wait running out — for
+/// [`CLOSE_DOC`]'s reason: a close that threw would put a `catch` around every
+/// normal ending, and the connection is gone either way.
+///
+/// The bound is the send wait, and `maxDuration` still caps it: a socket whose
+/// life has already run out waits no longer for a farewell than for anything
+/// else.
+fn farewell(open: &mut Open) {
+    let bound = open.until.min(Instant::now() + open.send);
+    open.framed.socket.get_mut().bound_by(Some(bound));
+    // A read answers what is still arriving and then fails — on the peer's
+    // close, on its hanging up, or on the bound — so the first failure is the
+    // conversation being over however it ended.
+    while open.framed.socket.read().is_ok() {}
+}
+
 /// A second `receive` on a socket one is already waiting on.
 ///
 /// A `LogicError` because it is a program bug and not a condition: one message
@@ -1045,10 +1068,10 @@ nvs_runtime::nvs_helper! {
     ///
     /// A socket that holds a connection gives it back here rather than at the
     /// end of the task: the close frame goes out carrying [`ending`]'s code and
-    /// reason, and the request's table drops its entry, which is the connection
-    /// released. Neither write is an error a program hears about — a peer that
-    /// never answers its own close is closed anyway, and the connection is gone
-    /// either way.
+    /// reason, [`farewell`] waits for the peer's own close under the send wait,
+    /// and the request's table drops its entry, which is the connection
+    /// released. None of it is an error a program hears about — a peer that
+    /// never answers is closed anyway, and the connection is gone either way.
     fn nvs_core_http_socket_close(ctx, args: [3]) {
         let receiver = crate::instance::receiver(args[0], &SOCKET, "close")?;
         crate::instance::set_slot(receiver, CLOSED_AT, Value::bool(true));
@@ -1058,6 +1081,7 @@ nvs_runtime::nvs_helper! {
         {
             drop(open.framed.socket.close(Some(ending(&args[1], &args[2]))));
             drop(open.framed.socket.flush());
+            farewell(open);
         }
         crate::instance::set_slot(receiver, HELD_AT, Value::null());
         Ok(Value::null())
@@ -1088,7 +1112,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Open, ending, heard};
+    use super::{Open, ending, farewell, heard};
     use crate::http::transport::{self, tests::Say, tests::call, tests::talking_origin};
     use nvs_runtime::{Ctx, Fault, OutputSink, Tag, ThrownClass, Value};
     use std::net::SocketAddr;
@@ -1357,6 +1381,41 @@ mod tests {
             u16::from(nonsense.code),
             u16::MAX,
             "a number no close code holds goes out as one the peer refuses, not as its low half"
+        );
+    }
+
+    /// [ADR 0183](/docs/decisions/0183.md) § 5: a `close` sends its frame and
+    /// then waits for the peer's own, rather than writing one and walking away.
+    ///
+    /// What says the handshake happened is the peer's side of it: an end that
+    /// hung up on its own frame would leave the origin's read failing on a
+    /// reset rather than recording the code it was sent. The peer is still
+    /// talking when the close goes out, so this is also the frame in flight
+    /// being read and dropped rather than turning into a failure.
+    #[test]
+    fn a_close_waits_for_the_peers_own_close() {
+        let (at, served) = talking_origin(None, vec![Say::Text("hello")]);
+        let mut open = opened(at, Duration::from_secs(5), Duration::from_secs(5), 1 << 20);
+
+        let began = Instant::now();
+        drop(
+            open.framed
+                .socket
+                .close(Some(ending(&Value::uint(4001), &Value::null()))),
+        );
+        drop(open.framed.socket.flush());
+        farewell(&mut open);
+        let waited = began.elapsed();
+
+        let heard = served.join().expect("the peer's own thread");
+        assert_eq!(
+            heard.closed,
+            Some((4001, String::new())),
+            "the peer read the close this end sent, so the conversation ended by the handshake"
+        );
+        assert!(
+            waited < Duration::from_secs(5),
+            "a peer that answers is not waited on for the whole send wait: {waited:?}"
         );
     }
 
