@@ -19,6 +19,12 @@
 //! attempt of one call reuses the address the launderer approved, so there is
 //! no second resolution for a rebinding attack to answer differently.
 //!
+//! The closure is handed one thing this module knows and the caller does not:
+//! whether the hop steps out of `https` and into plaintext. Both schemes are
+//! only in view here, and what to do about it belongs to the caller's grant and
+//! the caller's options
+//! (`rule:http-server/an-https-redirect-never-becomes-plaintext`).
+//!
 //! # A connection outlives its call, under a key this module builds
 //!
 //! [`one`] draws from [`super::pool`] before it opens anything, and the reply's
@@ -1039,11 +1045,12 @@ struct Parts {
 /// with.
 fn sent(
     call: &Call<'_>,
-    repin: &mut dyn FnMut(&str) -> Result<IpAddr, Fault>,
+    repin: &mut dyn FnMut(&str, bool) -> Result<IpAddr, Fault>,
     bounds: Bounds,
 ) -> Result<Streamed, Fault> {
     let mut url = call.url.clone();
     let mut address = call.address;
+    let mut tls = parts(&url, call.member)?.tls;
     let mut hops = 0_u32;
     loop {
         let reply = attempts(call, &url, address, bounds)?;
@@ -1055,10 +1062,14 @@ fn sent(
         }
         hops += 1;
         url = resolved(&url, &location, call.member)?;
+        let onward = parts(&url, call.member)?.tls;
         // Before the connection and not after it: § 4 refuses a hop on its
         // *address*, and an address that has not been asked about yet is one
-        // the first URL's approval is standing in for.
-        address = repin(&url)?;
+        // the first URL's approval is standing in for. The second argument is
+        // the question this module can answer and must not decide — a hop out
+        // of TLS into plaintext, which is the module doc's paragraph above.
+        address = repin(&url, tls && !onward)?;
+        tls = onward;
     }
 }
 
@@ -1070,7 +1081,7 @@ fn sent(
 /// [`coding_of`]'s for a reply under a coding [`OFFERED`] does not name.
 pub(crate) fn send(
     call: &Call<'_>,
-    repin: &mut dyn FnMut(&str) -> Result<IpAddr, Fault>,
+    repin: &mut dyn FnMut(&str, bool) -> Result<IpAddr, Fault>,
 ) -> Result<Reply, Fault> {
     let mut answer = sent(call, repin, Bounds::Whole)?;
     let body = answer.body.whole(REPLY_CEILING)?;
@@ -1186,7 +1197,7 @@ fn own_offer(member: &str, name: &str) -> Fault {
 /// ([`Incoming::pull`]).
 pub(crate) fn send_streamed(
     call: &Call<'_>,
-    repin: &mut dyn FnMut(&str) -> Result<IpAddr, Fault>,
+    repin: &mut dyn FnMut(&str, bool) -> Result<IpAddr, Fault>,
 ) -> Result<Streamed, Fault> {
     let bounds = Bounds::Streamed {
         idle: call.idle,
@@ -2000,15 +2011,15 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Call, Incoming, Streamed, backoff, send, send_streamed};
+    use super::{Call, Incoming, Reply, Streamed, backoff, send, send_streamed};
     use crate::compress::{Bound, Codec, compress_to};
     use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
     use nvs_host::scheduler::Scheduler;
     use nvs_host::tls::CallPolicy;
-    use nvs_runtime::{Ctx, Fault, OutputSink, TaskRoot};
+    use nvs_runtime::{Ctx, Fault, OutputSink, TaskRoot, Value};
     use rustls::pki_types::CertificateDer;
     use std::cell::RefCell;
-    use std::io::{Read, Write};
+    use std::io::{ErrorKind, Read, Write};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
     use std::rc::Rc;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -2166,7 +2177,7 @@ mod tests {
     }
 
     /// What a redirect hop must never be asked for.
-    fn never(_url: &str) -> Result<IpAddr, Fault> {
+    fn never(_url: &str, _downgrade: bool) -> Result<IpAddr, Fault> {
         panic!("a call with no redirect hop must not re-pin")
     }
 
@@ -2280,7 +2291,7 @@ mod tests {
         followed.redirects = 1;
 
         let mut hops: Vec<String> = Vec::new();
-        let refused = send(&followed, &mut |url| {
+        let refused = send(&followed, &mut |url, _downgrade| {
             hops.push(url.to_owned());
             Err(Fault::thrown("test refuses this address".to_owned()))
         })
@@ -3525,6 +3536,122 @@ mod tests {
         );
     }
 
+    /// What a deployment writes to let one host be redirected down into
+    /// plaintext, and the same deployment without that one key.
+    const DOWNGRADE_GRANTED: &str = "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = \
+                                     [\"127.0.0.1\"]\ndowngrade = [\"127.0.0.1\"]\n";
+    /// See [`DOWNGRADE_GRANTED`].
+    const DOWNGRADE_UNGRANTED: &str =
+        "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n";
+
+    /// One `https` call to an origin whose only answer is a `Location` into
+    /// `plain`, run through the very re-pin `super::super::exchanged` hands this
+    /// module.
+    ///
+    /// The closure is the real one and not a stand-in, which is what makes the
+    /// three cases below statements about the client rather than about a test's
+    /// own copy of the rule: `grant` is what the deployment wrote and `option`
+    /// is what the call wrote, so each case moves exactly one of them.
+    fn downgrade_hop(plain: SocketAddr, grant: &str, option: bool) -> Result<Reply, Fault> {
+        let (cert, key) = trusted();
+        let location: &'static str = Box::leak(
+            format!(
+                "HTTP/1.1 301 Moved\r\nLocation: http://{plain}/next\r\nContent-Length: 0\r\n\r\n"
+            )
+            .into_boxed_str(),
+        );
+        let (port, _) = tls_origin(cert.clone(), key.clone(), location);
+
+        let mut followed = call(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+            "test",
+        );
+        followed.url = format!("https://localhost:{port}/ok");
+        followed.redirects = 1;
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(grant));
+        let mut args = [Value::null(); super::super::REQUEST_ARITY];
+        if option {
+            args[super::super::REDIRECT_TO_HTTP] = Value::bool(true);
+        }
+        send(&followed, &mut |hop, downgrade| {
+            super::super::repinned(&mut ctx, &args, hop, downgrade, "test")
+        })
+    }
+
+    /// `rule:http-server/an-https-redirect-never-becomes-plaintext`'s
+    /// deployment half: the call asked for the hop and nobody said this host
+    /// could be reached in the clear.
+    ///
+    /// The refusal has to land before the plaintext socket, which is what the
+    /// accept below asserts — a client that checked afterwards would have sent
+    /// the request in the clear and then complained about it.
+    #[test]
+    fn https_to_http_redirect_is_refused_without_the_downgrade_grant() {
+        let plain = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        plain
+            .set_nonblocking(true)
+            .expect("a listener that answers now rather than waiting");
+        let at = plain.local_addr().expect("its own address");
+
+        let refused = downgrade_hop(at, DOWNGRADE_UNGRANTED, true)
+            .expect_err("a hop out of TLS to a host no `net.downgrade` names");
+        let said = format!("{refused:?}");
+        assert!(
+            said.contains("net.downgrade"),
+            "the refusal names the grant an operator would write: {said}"
+        );
+
+        match plain.accept() {
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {}
+            Ok(_) => panic!("the grant was missing and the request went out in the clear anyway"),
+            Err(err) => panic!("the listener failed for a reason that is not the point: {err}"),
+        }
+    }
+
+    /// The same rule's call half: the deployment named this host, and the call
+    /// never said it expected to leave TLS behind. Following a redirect is
+    /// already opt-in, and this is the one hop opting in does not include.
+    #[test]
+    fn https_to_http_redirect_is_refused_under_the_grant_without_the_option() {
+        let plain = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        plain
+            .set_nonblocking(true)
+            .expect("a listener that answers now rather than waiting");
+        let at = plain.local_addr().expect("its own address");
+
+        let refused = downgrade_hop(at, DOWNGRADE_GRANTED, false)
+            .expect_err("a grant is not a downgrade the call asked for");
+        let said = format!("{refused:?}");
+        assert!(
+            said.contains(super::super::REDIRECT_TO_HTTP_OPTION) && said.contains("net.downgrade"),
+            "the refusal names both halves, since the operator reading it holds one: {said}"
+        );
+
+        match plain.accept() {
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {}
+            Ok(_) => panic!("the call expected no downgrade and the request went out anyway"),
+            Err(err) => panic!("the listener failed for a reason that is not the point: {err}"),
+        }
+    }
+
+    /// Both halves written, and the hop is taken: the body that comes back is
+    /// the plaintext origin's, so the two refusals above are about the two keys
+    /// rather than about a hop this client cannot follow at all.
+    #[test]
+    fn https_to_http_redirect_is_followed_under_the_grant_and_the_option() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nplain"]);
+
+        let reply = downgrade_hop(at, DOWNGRADE_GRANTED, true)
+            .expect("the deployment named the host and the call expected the hop");
+        assert_eq!(reply.status, 200);
+        assert_eq!(reply.body, b"plain");
+
+        let served = served.join().expect("the plaintext origin's thread");
+        assert_eq!(served.asked.len(), 1, "one hop is one request in the clear");
+    }
+
     /// A call that names no identity never draws a connection that presented
     /// one.
     ///
@@ -3655,7 +3782,8 @@ mod tests {
             ("X-Api-Key".to_owned(), "k-93ce".to_owned()),
         ];
 
-        let reply = send(&followed, &mut |_url| Ok(elsewhere.ip())).expect("the hop's own answer");
+        let reply =
+            send(&followed, &mut |_url, _downgrade| Ok(elsewhere.ip())).expect("the hop's answer");
         assert_eq!(reply.status, 200);
 
         let hop = &answering.join().expect("the second origin thread").asked[0];
@@ -3702,7 +3830,8 @@ mod tests {
             ("X-Api-Key".to_owned(), "k-93ce".to_owned()),
         ];
 
-        let reply = send(&followed, &mut |_url| Ok(at.ip())).expect("the hop's own answer");
+        let reply =
+            send(&followed, &mut |_url, _downgrade| Ok(at.ip())).expect("the hop's own answer");
         assert_eq!(reply.status, 200);
 
         let asked = served.join().expect("the origin thread").asked;

@@ -772,6 +772,27 @@ macro_rules! request_options {
         ty: CoreTy::Text(Qual::Neutral),
         default: Const::Null,
     },
+    // `rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`'s
+    // key: the address this call connects to, instead of the one the URL's host
+    // resolves to. Last of the shared keys, and unqualified like the URL beside
+    // it for `rule:security/outbound-url-is-a-sink`'s reason — the address a
+    // connect is made to is a sink, and an address that came from outside is
+    // the whole of what it must not admit.
+    CoreOption {
+        name: CONNECT_TO_OPTION,
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    // `rule:http-server/an-https-redirect-never-becomes-plaintext`'s half of
+    // the pair the deployment does not hold. `false` unless the call writes
+    // otherwise, like the two relaxing bools above and for the same reason: the
+    // default a call inherits is the safe answer, and a hop out of TLS is a
+    // word at the call site rather than the absence of one.
+    CoreOption {
+        name: REDIRECT_TO_HTTP_OPTION,
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
     $($trailing,)*
 ] };
 }
@@ -845,6 +866,14 @@ pub(crate) const TLS_VERIFY_OPTION: &str = "tlsVerify";
 /// The floor a call may raise without a grant, spelled beside the four that
 /// need one — see [`TLS_CA_OPTION`].
 pub(crate) const TLS_MIN_VERSION_OPTION: &str = "tlsMinVersion";
+/// `rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`'s
+/// key, spelled once for the row that declares it, the grant question that
+/// unlocks it and the refusal a `Core\Http\Target` beside it raises.
+pub(crate) const CONNECT_TO_OPTION: &str = "connectTo";
+/// `rule:http-server/an-https-redirect-never-becomes-plaintext`'s key, spelled
+/// once: the row declares it and the refusal for a hop the call did not expect
+/// names the same spelling.
+pub(crate) const REDIRECT_TO_HTTP_OPTION: &str = "redirectToHttp";
 /// The header the framing writes that key into, lower-cased as a record's names
 /// are — see [`faked`].
 const CONTENT_TYPE_HEADER: &str = "content-type";
@@ -1135,11 +1164,17 @@ const TLS_VERIFY_HOST: usize = 16;
 const TLS_VERIFY: usize = 17;
 /// See [`TLS_CA`].
 const TLS_MIN_VERSION: usize = 18;
+/// The address a call names for itself, last of the shared keys — see
+/// [`DEADLINE`].
+const CONNECT_TO: usize = 19;
+/// The one hop a call has to expect before it is taken, last of the shared keys
+/// — see [`DEADLINE`].
+const REDIRECT_TO_HTTP: usize = 20;
 /// [`STREAM_OPTIONS`]' own two slots, after every shared key's, and reachable
 /// only from the one row that declares them — see [`DEADLINE`].
-const IDLE: usize = 19;
+const IDLE: usize = 21;
 /// See [`IDLE`].
-const MAX_DURATION: usize = 20;
+const MAX_DURATION: usize = 22;
 
 /// How many arguments a request member takes: the URL plus one per option, which
 /// is what every `nvs_helper!` row below writes as its arity. Derived rather
@@ -1635,6 +1670,24 @@ macro_rules! request_params {
         desc: "The version floor this call speaks over, `\"1.2\"` or `\"1.3\"`. It needs no grant \
                because it can only tighten, and a value below the runtime's `[http.client.tls] \
                min_version` throws.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "connectTo",
+        desc: "The IP address to connect to, instead of resolving the URL's host — which is still \
+               the name the certificate is checked against. Needs that host in the \
+               `net.connect_to` grant, and the address is judged by the deployment's address \
+               policy exactly as a resolved one is. Beside a `Core\\Http\\Target`, which already \
+               carries the address its laundering approved, it throws.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "redirectToHttp",
+        desc: "Written as `true`, a redirect out of `https` into plaintext may be followed — and \
+               only where the hop's host is in the `net.downgrade` grant as well. Left out, such \
+               a hop throws, because one `Location` header is otherwise all it takes for an \
+               origin to strip a call's TLS. A plain `http` URL asked for directly is untouched \
+               by this.",
         shape: &[],
     },
     $($trailing,)*
@@ -2228,24 +2281,149 @@ pub(crate) fn headers_of(
     Ok(headers)
 }
 
+/// The address a call named with `connectTo`, once both grants and the address
+/// policy have approved it —
+/// `rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`.
+///
+/// Three questions, and the first is the one the option does not remove: naming
+/// an address does not make a host reachable, so `net.connect` is still asked
+/// about the host the URL wrote, and the handshake still checks the certificate
+/// against that same name. `net.connect_to` is asked about it too, so a
+/// deployment says which hosts a call may steer itself at rather than granting
+/// the steering everywhere at once. The address then goes through
+/// [`nvs_runtime::capability::pinned_address`], which is the one home of
+/// `rule:security/net-address-policy` and of `net.internal`'s exceptions — the
+/// option therefore chooses among addresses the deployment already allows and
+/// widens nothing.
+///
+/// **An IP literal, and a name refused rather than resolved.** A lookup here
+/// would be a second resolution reached through the option instead of through
+/// the URL, which is exactly what pinning an address exists to remove
+/// (`rule:http-server/allow-url-pins-the-address`).
+///
+/// # Errors
+///
+/// [`judged_host`]'s three, a thrown `RuntimeError` naming whichever grant this
+/// deployment did not write, a thrown `LogicError` for a value that is not an
+/// IP literal, and `pinned_address`'s refusal for an address the policy denies.
+fn named_address(ctx: &Ctx, url: &str, named: &str, member: &str) -> Result<IpAddr, Fault> {
+    let host = judged_host(url, member)?;
+    nvs_runtime::capability::require(ctx, Cap::NetConnect, Scope::Host(&host), member)?;
+    nvs_runtime::capability::require(
+        ctx,
+        Cap::NetConnectTo,
+        Scope::Host(&host),
+        &format!("{member}'s `{CONNECT_TO_OPTION}`"),
+    )?;
+    if named.parse::<IpAddr>().is_err() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{member}: `{CONNECT_TO_OPTION}` is the IP address to connect to, and `{named}` \
+                 is not one — a name written here would be resolved a second time, which is what \
+                 pinning an address exists to remove"
+            ),
+        ));
+    }
+    nvs_runtime::capability::pinned_address(ctx, named, member)
+}
+
+/// One redirect hop's re-pin, in the shape [`transport::send`] asks for it: the
+/// downgrade question first, where the deployment can be asked about it, and
+/// then the same approval the first URL passed.
+///
+/// The transport reports whether this hop leaves TLS behind and decides
+/// nothing, because only there are both schemes known, while the `Ctx` and the
+/// call's own bag — the two halves
+/// `rule:http-server/an-https-redirect-never-becomes-plaintext` needs — are
+/// only here.
+///
+/// # Errors
+///
+/// [`judge_downgrade`]'s two for a hop down into plaintext, and [`pin`]'s four.
+fn repinned(
+    ctx: &mut Ctx,
+    args: &[Value],
+    hop: &str,
+    downgrade: bool,
+    member: &str,
+) -> Result<IpAddr, Fault> {
+    if downgrade {
+        judge_downgrade(ctx, args, hop, member)?;
+    }
+    pin(ctx, hop, member)
+}
+
+/// A hop out of `https` and into `http`, against the call's own word and the
+/// deployment's — `rule:http-server/an-https-redirect-never-becomes-plaintext`.
+///
+/// The call is asked first, and one that wrote nothing is refused without the
+/// deployment being consulted at all: the key ships off, so an ordinary program
+/// never reaches the grant question, and a deployment that granted a downgrade
+/// somewhere still does not hand one to a call that was not expecting it.
+///
+/// A `RuntimeError` and not [`judge_trust`]'s `LogicError`, because what has
+/// happened is a reply this origin chose to send rather than something the
+/// program asked for, and a program that degrades instead of insisting is a
+/// reasonable program (`rule:security/denial-is-a-runtime-error`).
+///
+/// # Errors
+///
+/// [`judged_host`]'s three, a thrown `RuntimeError` for a call that did not
+/// write the key, and `require`'s for a hop host outside the grant.
+fn judge_downgrade(ctx: &Ctx, args: &[Value], hop: &str, member: &str) -> Result<(), Fault> {
+    let host = judged_host(hop, member)?;
+    if args[REDIRECT_TO_HTTP].as_bool() != Some(true) {
+        return Err(Fault::thrown(format!(
+            "{member}: this `https` call was redirected to `{hop}`, which is plaintext. A \
+             downgrade takes both halves — the `net.downgrade` grant for `{host}`, and \
+             `{REDIRECT_TO_HTTP_OPTION}: true` at the call, which this one did not write"
+        )));
+    }
+    nvs_runtime::capability::require(
+        ctx,
+        Cap::NetDowngrade,
+        Scope::Host(&host),
+        &format!("{member}'s `{REDIRECT_TO_HTTP_OPTION}`"),
+    )
+}
+
 /// The URL to send to and the address it was approved at.
 ///
 /// A `Target` argument was pinned by the launderer that built it, and asking
 /// again would be the second resolution `rule:http-server/allow-url-pins-the-address` exists to remove — so its
 /// two slots are read back here and no name is looked up. A plain `string` is
 /// the form § 1 keeps for a URL the program authored, and it goes through the
-/// same door.
+/// same door — or through [`named_address`], where the call named the address
+/// itself.
 ///
 /// # Errors
 ///
-/// [`pin`]'s four for a `string`. A [`Fault::fatal`] for an argument of another
-/// shape or a target whose slots this crate did not write, both unreachable
-/// from source.
+/// [`pin`]'s four for a `string`, [`named_address`]'s for a call that wrote
+/// `connectTo`, and a thrown `LogicError` where that key sits beside a `Target`,
+/// which already carries the address its laundering approved. A
+/// [`Fault::fatal`] for an argument of another shape or a target whose slots
+/// this crate did not write, both unreachable from source.
 fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, IpAddr), Fault> {
     let url = given_url(args, member)?;
+    let named = args[CONNECT_TO].as_text();
     if !matches!(args[0].tag(), Some(Tag::Object)) {
-        let address = pin(ctx, &url, member)?;
+        let address = match named {
+            Some(named) => named_address(ctx, &url, named, member)?,
+            None => pin(ctx, &url, member)?,
+        };
         return Ok((url, address));
+    }
+
+    if let Some(named) = named {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{member}: a `Core\\Http\\Target` already carries the address its laundering \
+                 approved, and this call wrote `{CONNECT_TO_OPTION}: \"{named}\"` beside it — the \
+                 two are answers to one question, so the call has not said which it meant"
+            ),
+        ));
     }
 
     let target = crate::instance::receiver(args[0], &TARGET, member)?;
@@ -2742,11 +2920,15 @@ fn exchanged(
     // `idle` and `maxDuration`
     // (`rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`).
     if streamed {
-        let answer = transport::send_streamed(&call, &mut |hop| pin(ctx, hop, &named))?;
+        let answer = transport::send_streamed(&call, &mut |hop, downgrade| {
+            repinned(ctx, args, hop, downgrade, &named)
+        })?;
         let headers = header_map(&answer.headers);
         return Ok((answer.status, filed(ctx, answer.body), headers));
     }
-    let reply = transport::send(&call, &mut |hop| pin(ctx, hop, &named))?;
+    let reply = transport::send(&call, &mut |hop, downgrade| {
+        repinned(ctx, args, hop, downgrade, &named)
+    })?;
     let headers = header_map(&reply.headers);
     Ok((
         reply.status,
@@ -3377,9 +3559,10 @@ mod tests {
     use crate::tests::granting;
 
     use super::{
-        BODY_OPTION, BODY_OPTIONS, BODY_SLOT, CONNECT_TIMEOUT, CONTENT_TYPE_OPTION, DEADLINE,
-        FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, HEADERS_SLOT, IDENTITY_AT, IDENTITY_OPTION, IDLE,
-        JSON, JSON_OPTION, MAX_DURATION, MULTIPART_OPTION, OPTIONS, REQUEST_ARITY, RESPONSE,
+        BODY_OPTION, BODY_OPTIONS, BODY_SLOT, CONNECT_TIMEOUT, CONNECT_TO, CONNECT_TO_OPTION,
+        CONTENT_TYPE_OPTION, DEADLINE, FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, HEADERS_SLOT,
+        IDENTITY_AT, IDENTITY_OPTION, IDLE, JSON, JSON_OPTION, MAX_DURATION, MULTIPART_OPTION,
+        OPTIONS, REDIRECT_TO_HTTP, REDIRECT_TO_HTTP_OPTION, REQUEST_ARITY, RESPONSE,
         RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION, RETRY_BACKOFF, RETRY_KEY, RETRY_KEY_OPTION,
         STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT,
         TLS_CA, TLS_CA_OPTION, TLS_MIN_VERSION, TLS_MIN_VERSION_OPTION, TLS_PIN, TLS_PIN_OPTION,
@@ -3431,6 +3614,8 @@ mod tests {
             (TLS_VERIFY_HOST, TLS_VERIFY_HOST_OPTION),
             (TLS_VERIFY, TLS_VERIFY_OPTION),
             (TLS_MIN_VERSION, TLS_MIN_VERSION_OPTION),
+            (CONNECT_TO, CONNECT_TO_OPTION),
+            (REDIRECT_TO_HTTP, REDIRECT_TO_HTTP_OPTION),
         ] {
             assert_eq!(OPTIONS[slot - 1].name, name, "slot {slot}");
         }
@@ -3785,5 +3970,165 @@ mod tests {
             asked.release();
             ancient.release();
         }
+    }
+
+    /// What a deployment writes to let a call steer itself: the URL's host in
+    /// both `net.connect` and `net.connect_to`, and the address it will be
+    /// steered to excepted from the denied ranges.
+    const STEERABLE: &str = "[capabilities.net]\nconnect = [\"api.example.invalid\"]\nconnect_to = \
+                             [\"api.example.invalid\"]\ninternal = [\"127.0.0.1\"]\n";
+
+    /// `rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`'s
+    /// two halves in one call: the address connected to is the one the option
+    /// named, and the URL is handed on untouched, so the certificate is still
+    /// checked against the host it wrote. That host resolves nowhere, which is
+    /// what the first half rests on — an approval that had gone through the
+    /// resolver rather than through the option could not have answered at all.
+    ///
+    /// The second half is the same call under a deployment that granted another
+    /// host. Naming an address is not a way around `net.connect`, so a program
+    /// cannot reach a host nobody granted by writing its address down.
+    #[test]
+    fn connect_to_connects_to_the_named_address_and_checks_the_urls_host() {
+        const MEMBER: &str = "Core\\Http\\Client::get";
+        const URL: &str = "http://api.example.invalid:8080/ok";
+
+        let url = Value::str(NvsStr::new(URL.as_bytes()));
+        let named = Value::str(NvsStr::new(b"127.0.0.1"));
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[0] = url;
+        args[CONNECT_TO] = named;
+
+        let mut granted = Ctx::buffered();
+        granted.set_config(granting(STEERABLE));
+        let (sent, address) = super::approved(&mut granted, &args, MEMBER)
+            .expect("the deployment named this host under both grants and excepted the address");
+        assert_eq!(
+            sent, URL,
+            "the URL is unchanged, so the handshake checks the name it wrote"
+        );
+        assert_eq!(address, IpAddr::V4(Ipv4Addr::LOCALHOST));
+
+        let mut elsewhere = Ctx::buffered();
+        elsewhere.set_config(granting(
+            "[capabilities.net]\nconnect = [\"other.example.invalid\"]\nconnect_to = \
+             [\"other.example.invalid\"]\ninternal = [\"127.0.0.1\"]\n",
+        ));
+        let refused = super::approved(&mut elsewhere, &args, MEMBER)
+            .expect_err("`connectTo` is not a way around the grant over the URL's own host");
+        assert!(
+            format!("{refused:?}").contains("api.example.invalid"),
+            "the refusal names the host the URL wrote: {refused:?}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the two references `NvsStr::new` \
+                      produced, and `approved` reads an argument without taking \
+                      one"
+        )]
+        unsafe {
+            url.release();
+            named.release();
+        }
+    }
+
+    /// The address policy is asked of a named address exactly as of a resolved
+    /// one, and the refusal lands where it has to: before the socket. A
+    /// listener is bound on the address the option names, the deployment grants
+    /// the host under both keys and excepts nothing, and the assertion is that
+    /// nothing was ever accepted.
+    #[test]
+    fn connect_to_an_address_the_policy_denies_throws_before_connecting() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        listener
+            .set_nonblocking(true)
+            .expect("a listener that answers now rather than waiting");
+        let at = listener.local_addr().expect("its own address");
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(
+            "[capabilities.net]\nconnect = [\"api.example.invalid\"]\nconnect_to = \
+             [\"api.example.invalid\"]\n",
+        ));
+
+        let url = Value::str(NvsStr::new(
+            format!("http://api.example.invalid:{}/ok", at.port()).as_bytes(),
+        ));
+        let named = Value::str(NvsStr::new(b"127.0.0.1"));
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[0] = url;
+        // A written `null` under `json` is the document `null`, which is a body,
+        // and this call sends none — the bag's own `Const::NeverWritten`.
+        args[JSON] = Value::unset();
+        args[CONNECT_TO] = named;
+        let refused = super::request(&mut ctx, &args, "get", "GET")
+            .expect_err("loopback, which this deployment's `net.internal` does not except");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the two references `NvsStr::new` \
+                      just produced, and a native member never releases an \
+                      argument its caller still owns"
+        )]
+        unsafe {
+            url.release();
+            named.release();
+        }
+        assert!(
+            format!("{refused:?}").contains("net.internal"),
+            "the refusal names the exception an operator would have to write: {refused:?}"
+        );
+
+        match listener.accept() {
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {}
+            Ok(_) => panic!("the policy denied the address and a socket was opened to it anyway"),
+            Err(err) => panic!("the listener failed for a reason that is not the point: {err}"),
+        }
+    }
+
+    /// A `Core\Http\Target` carries the address its laundering approved, so a
+    /// call that also names one has written two answers to one question. A
+    /// `LogicError` rather than a silent override in either direction: the
+    /// program has not said which of them it meant, and picking one for it is
+    /// how a pin gets stepped around.
+    #[test]
+    fn connect_to_beside_a_target_is_a_logic_error() {
+        const MEMBER: &str = "Core\\Http\\Client::get";
+
+        let target = crate::instance::build(
+            &TARGET,
+            [
+                Value::str(NvsStr::new(b"http://api.example.invalid:8080/ok")),
+                Value::str(NvsStr::new(b"127.0.0.1")),
+            ],
+        );
+        let named = Value::str(NvsStr::new(b"127.0.0.2"));
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[0] = target;
+        args[CONNECT_TO] = named;
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(STEERABLE));
+        let refused = super::approved(&mut ctx, &args, MEMBER)
+            .expect_err("a pinned target and a named address are two answers to one question");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the target it built and the \
+                      reference `NvsStr::new` produced, and `approved` reads an \
+                      argument without taking one"
+        )]
+        unsafe {
+            target.release();
+            named.release();
+        }
+
+        let Fault::Thrown(class, message) = refused else {
+            panic!("a call that wrote both is a mistake in the program, and catchable")
+        };
+        assert_eq!(class, ThrownClass::Logic, "{message}");
+        assert!(
+            message.contains(CONNECT_TO_OPTION) && message.contains("Target"),
+            "the refusal names the option and the value it cannot sit beside: {message}"
+        );
     }
 }
