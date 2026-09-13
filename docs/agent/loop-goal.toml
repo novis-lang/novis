@@ -195,14 +195,26 @@ shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.5]
 # A payload is input, a resource never crosses an isolate, and nothing outlives the task that made it.
+# The last two are what the stage implements: every bound and every close code is in one of them, and a
+# session that has to fetch them by hand has paid for this manifest's gap rather than for the work.
 rules = [
   "security/tainted-sources",
   "classes/graph-copy",
   "concurrency/nothing-is-still-running-when-a-call-returns",
+  "http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap",
+  "http-server/an-outbound-socket-belongs-to-the-task-that-opened-it",
 ]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
+# The four rules whose status this stage flips, printed whole: what `shipped` claims is every sentence
+# in them, and that is what the stage has to judge against the tree.
 [context.stage.6]
+rules = [
+  "http-server/an-outbound-socket-is-opened-like-an-outbound-call",
+  "http-server/an-outbound-socket-belongs-to-the-task-that-opened-it",
+  "http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap",
+  "testing/an-outbound-socket-is-answered-by-a-scripted-peer",
+]
 shapes = ["A rule fragment"]
 
 # A socket is a host handle like any connection; no refcounted value crosses it. No cycle shape, so

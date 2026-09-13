@@ -4790,6 +4790,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   pin a reader's qualifier reads as being refused for the union instead, and its `--EXPECTF-ERROR--`
   freezes the wrong claim. Write the default with the mark on it, `?? ("" as tainted string)`, and the
   diagnostic says `found tainted string`. [until: reviewed 2026-09-13]
+- **A loopback peer that answers a close by hanging up reads as a protocol error, not as the end.**
+  `tungstenite` writes its close echo only on the next read, write or flush, so a peer thread that
+  breaks out of its loop and drops the socket sends a bare FIN and the client's codec answers
+  `ResetWithoutClosingHandshake`. A case asserting `null` after a close rests on the read loop in
+  `crates/nvs-stdlib/src/http/socket.rs` reading a failure after *this* end closed as the end; one
+  about the *peer* closing has to make the peer flush first.
+  [until: gone crates/nvs-stdlib/src/http/transport.rs:talking_origin]
 
 ## Splitting a file that got too big
 

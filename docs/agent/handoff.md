@@ -2,61 +2,48 @@
 
 ## State
 
-**Goal `websocket-client` — stage 5, the conversation.** Stages 1–4 are closed: the handshake is live
-over plaintext `ws`, over `wss` through the process's one outbound TLS client, and through the
-operator's `CONNECT` tunnel. Stage 5's configuration half landed earlier — `[http.client.socket]` at
-`crates/nvs-config/src/tree.rs:679`, with `max_message` reaching the framing.
+**Goal `websocket-client` — stage 5, the conversation, is done.** All six of the stage's
+`cargo test -p nvs-stdlib` names pass; its two `.nvst` cases and
+`crates/nvs-config/tests/directives.rs:277` were already green, so the stage's three checks should be
+too. Stages 1–4 stay closed.
 
-**The conversation is now live.** `receive`, `send` and `sendBytes` take the branch `openSocket`
-already took: a socket holding a key in `HELD_AT` reads and writes `Open`'s framed connection out of
-the request's table, one holding `null` reads and records the scripted peer. A ping or a pong is
-answered by the codec and never handed to the program, and a close — the peer's or the connection's —
-reads as the `null` that already means the conversation is over.
+**What the conversation does now.** `Open` carries `idle`, `until`, the send wait, `ping` and the
+read mark, and `receive` arms each wait with whichever instant is nearest; a peer's ping or pong
+restarts the silence, and a wait that ended at the ping's asks whether the peer is there. A message
+past `maxMessage` closes with `1009` and throws naming the cap, `close` sends the program's code and
+reason, and `Open`'s `Drop` sends `1001`. A failure read after this end has closed answers `null`.
 
-**Three of the four bounds are armed**, because the handshake left the stream bound by the *opening
-call's* deadline and that instant says nothing about how long a conversation may wait. `Open` carries
-`idle`, `until` (`maxDuration`, measured from where the opening call began) and the send wait, and
-each member arms the wait it is about to take; an expired one throws `TimeoutError`
-(`crates/nvs-stdlib/src/http/socket.rs:713` and `:724` are the two spellings). `DEFAULT_SEND_TIMEOUT`
-is new in `crates/nvs-stdlib/src/http.rs`.
-
-**What is still not real**: `ping`, the `1009` close on a message past the cap, the `1001` close when
-the task ends, and `close`'s own `code` and `reason`, which the member takes and drops. Nothing at the
-Rust level reaches the live half yet: `crates/nvs-stdlib/src/http/transport.rs:2943`'s loopback origin
-holds its connection and says nothing, so a peer that talks is the harness stage 5's six named tests
-are waiting on.
-
-**The pack's `[context] rules` names neither socket rule stage 5 is about** —
-`http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap` and
-`http-server/an-outbound-socket-belongs-to-the-task-that-opened-it` — and both were fetched by hand.
+**The one divergence between this class's cards and its code**: `CLOSE_DOC` says a `close` waits for
+the peer's own close under the send wait (`crates/nvs-stdlib/src/http/socket.rs:361`) and it does not
+— the frame goes out and the connection is let go.
 
 ## Next group
 
-**Stage 5: the bounds, the two closes and the peer that talks** — one file set:
-`crates/nvs-stdlib/src/http/socket.rs`, with `crates/nvs-stdlib/src/http/transport.rs`'s test module
-for the loopback peer the assertions need.
+**Stage 6: the rulebook** — one file set: `docs/rules/http-server.json`, `docs/rules/testing.json`,
+and what `python tools/rules.py --render` rewrites from them. Each item is one rule's `status`, which
+is `designed` today and which `python tools/rules.py --show <id>` is what the check reads; every
+sentence of a rule is what `shipped` claims, so each item is that judgement and not a flag.
 
-- [ ] **A loopback peer that talks** — the harness stage 5's six `cargo test -p nvs-stdlib` names in
-      `docs/agent/loop-goal.toml:10011` are all waiting on: frames on demand, a silence, a ping, and a
-      message past the cap. `crates/nvs-stdlib/src/http/transport.rs:2943` is `socket_origin`, which
-      answers one handshake and then holds the connection saying nothing.
-- [ ] **`ping`, and `close`'s code and reason** —
-      `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap` for the
-      ping being off unless a program sets it, ADR 0183 § 7 for the codes. The read loop is
-      `crates/nvs-stdlib/src/http/socket.rs:632`, and `crates/nvs-stdlib/src/http/socket.rs:846` is
-      the `close` that takes two arguments and writes neither.
-- [ ] **The `1009` and the `1001`** — a message past `maxMessage` closes with `1009` and the waiting
-      `receive` throws naming it (`crates/nvs-stdlib/src/http/socket.rs:692` is `failed`, where the
-      codec's capacity error arrives); a task that ends closes with `1001`
-      (`rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`), which is the request
-      giving the connection back at `crates/nvs-stdlib/src/http/socket.rs:846`.
-- [ ] **Two `receive`s waiting on one socket is a `LogicError`** — ADR 0183 § 7. Nothing holds the
-      state to know; `crates/nvs-stdlib/src/http/socket.rs:613` is `open_at`, the one door to the held
-      conversation, so the mark belongs on `Open`.
+- [ ] **The two bounds-and-lifetime rules stage 5 implemented** — `docs/rules/http-server.json:1337`
+      and `docs/rules/http-server.json:1350`. The read loop that arms every bound is
+      `crates/nvs-stdlib/src/http/socket.rs:726`, the `1001` is `Open`'s `Drop` above it, and the
+      `1009` and the second-`receive` refusal are its two named faults.
+- [ ] **`an-outbound-socket-is-opened-like-an-outbound-call`** — `docs/rules/http-server.json:1322`.
+      The row, the `ws`/`wss` roster and "never pooled" are stages 1–4's, landed and tested in
+      `crates/nvs-stdlib/src/http/transport.rs:1713`.
+- [ ] **`testing/an-outbound-socket-is-answered-by-a-scripted-peer`** — `docs/rules/testing.json:229`.
+      The scripted arm is `crates/nvs-stdlib/src/http/socket.rs:458`, and the `.nvst` cases under
+      `tests/conformance/core/http-socket-*` are what it is guarded by.
+- [ ] **Re-render the rulebook** — `tools/rules.py:63` writes `docs/rules/*.md` and
+      `docs/ground-rules.md` from the JSON, so a status flipped by hand leaves both stale;
+      `python tools/rules.py --render --check` is the gate that says so.
 
 ## Backlog
 
-- `Core\Http\Socket`'s module is past 870 lines, which is where
-  `docs/agent/playbook.md` § *Splitting a file that got too big* starts to apply.
-- `permessage-deflate`, RFC 8441, reconnecting and a socket handed to another isolate are out of this
-  goal on purpose (docs/agent/loop-goal.md § *Standing decisions*).
+- `close` does not wait for the peer's close under the send wait, which `CLOSE_DOC` says it does —
+  `crates/nvs-stdlib/src/http/socket.rs:361` is the card that has to change or be met.
+- `Core\Http\Options`' `ping` reaches no `.nvst` case: the conversation is only reachable against a
+  live host, so the Rust case at `crates/nvs-stdlib/src/http/socket.rs:1176` is its whole coverage.
+- ADR 0183 § 10's memory price is stated, never asserted — no case pins a socket's cost to the task.
+- `permessage-deflate`, RFC 8441, reconnection and the subprotocol libraries stay out of this goal
+  (`docs/agent/loop-goal.md` § *Standing decisions*).

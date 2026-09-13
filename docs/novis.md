@@ -20871,7 +20871,7 @@ Waits for the peer's next message and answers it, or answers `null` once the pee
 
 **Returns** `?Core\Socket\Message` — A `Core\Socket\Message` whose `text()` or `bytes()` carries the payload — `tainted`, because it came off a wire — and whose `topic()` and `value()` are `null`, since those are what a delivery from another isolate fills. `null` means the conversation is over: the peer closed, or this end did.
 
-**Throws** `TimeoutError` — The peer sent nothing for longer than `idle`, or the socket's `maxDuration` ran out while this call was waiting. A peer whose only traffic is pings is not silent and is bounded by `maxDuration` instead.; `IOError` — The connection failed while this call was waiting for a message.
+**Throws** `TimeoutError` — The peer sent nothing for longer than `idle`, or the socket's `maxDuration` ran out while this call was waiting. A peer whose only traffic is pings is not silent and is bounded by `maxDuration` instead.; `IOError` — The connection failed while this call was waiting for a message.; `RuntimeError` — The peer sent a message past `maxMessage`. The socket is closed with `1009` before this is thrown, because a message nobody will read is memory the peer chose to make this task hold.; `LogicError` — Another `receive()` is already waiting on this socket. One message has one recipient, so a socket is read by the one task that holds it.
 
 <a id="core-core-http-socket-send"></a>
 #### `Core\Http\Socket->send`
