@@ -1,0 +1,36 @@
+--TEST--
+`Core\Http\Socket::receive` answers a message whose `text` and `bytes` are both `tainted`, so a plain binding of either is refused — `rule:security/tainted-sources`, `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+--FILE--
+<?nvs
+// Agreement, asked of both of a message's payload readers: one mark on both,
+// and the refusal is the only thing that can pin it. A plain value is
+// assignable into a `tainted` target, so a case that bound the readers the
+// other way round would pass over a member that had dropped the mark.
+//
+// Frames off a socket are input in the same sense a reply's body is: pinning an
+// address settles which host the octets came from and says nothing about what
+// is in them, and a conversation a program opened is no safer than one it was
+// handed.
+Core\Test::answerSocket("wss://gateway.example.com/feed", ["a text frame", "AB" as bytes]);
+
+var $socket = Core\Http\Client::openSocket("wss://gateway.example.com/feed");
+var $message = $socket->receive();
+
+// Accepted: the qualifier is what the value is, and this is where it can be
+// held.
+tainted string $held = $message?->text() ?? ("" as tainted string);
+echo $held, "\n";
+
+// Refused, both of them: narrowing through an assignment is the one direction
+// the qualifier never goes, and there is no generic launderer to put in front
+// of it. The default carries the mark too, so what each binding is refused for
+// is the qualifier and not a union of the two spellings.
+string $text = $message?->text() ?? ("" as tainted string);
+bytes $octets = $message?->bytes() ?? ("" as tainted bytes);
+echo $text, Core\Bytes::length($octets), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error: aborting due to 2 errors

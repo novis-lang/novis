@@ -20871,6 +20871,8 @@ Waits for the peer's next message and answers it, or answers `null` once the pee
 
 **Returns** `?Core\Socket\Message` — A `Core\Socket\Message` whose `text()` or `bytes()` carries the payload — `tainted`, because it came off a wire — and whose `topic()` and `value()` are `null`, since those are what a delivery from another isolate fills. `null` means the conversation is over: the peer closed, or this end did.
 
+**Throws** `TimeoutError` — The peer sent nothing for longer than `idle`, or the socket's `maxDuration` ran out while this call was waiting. A peer whose only traffic is pings is not silent and is bounded by `maxDuration` instead.; `IOError` — The connection failed while this call was waiting for a message.
+
 <a id="core-core-http-socket-send"></a>
 #### `Core\Http\Socket->send`
 
@@ -20886,7 +20888,7 @@ Sends one text message to the peer.
 
 **Returns** `void` — Nothing.
 
-**Throws** `LogicError` — The socket has been closed, so there is nobody left to send to.
+**Throws** `LogicError` — The socket has been closed, so there is nobody left to send to.; `TimeoutError` — The frame was still waiting to be written when the send wait ran out — a peer that has stopped reading — or the socket's `maxDuration` ran out first.; `IOError` — The connection failed while the frame was going out.
 
 <a id="core-core-http-socket-sendbytes"></a>
 #### `Core\Http\Socket->sendBytes`
@@ -20903,7 +20905,7 @@ Sends one binary message to the peer — the other of RFC 6455's two payload kin
 
 **Returns** `void` — Nothing.
 
-**Throws** `LogicError` — The socket has been closed, so there is nobody left to send to.
+**Throws** `LogicError` — The socket has been closed, so there is nobody left to send to.; `TimeoutError` — The frame was still waiting to be written when the send wait ran out — a peer that has stopped reading — or the socket's `maxDuration` ran out first.; `IOError` — The connection failed while the frame was going out.
 
 <a id="core-core-http-socket-close"></a>
 #### `Core\Http\Socket->close`

@@ -1,0 +1,38 @@
+--TEST--
+`Core\Http\Socket::close` ends the conversation for good — every `receive` after it answers `null` however much of the peer was left to read, and the close itself is not a message the peer was sent — `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`, `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`
+--FILE--
+<?nvs
+// Invariance over a sweep, counted rather than read off one line: a close that
+// only stopped the *next* read would answer `null` once and then go on handing
+// over the frames the peer had left, and one assertion after the close cannot
+// tell that apart from an ended conversation. The peer is scripted with more
+// frames than are read for exactly that reason.
+Core\Test::answerSocket("wss://gateway.example.com/ticker", ["one", "two", "three", "four"]);
+
+var $socket = Core\Http\Client::openSocket("wss://gateway.example.com/ticker");
+echo "read: ", $socket->receive()?->text() ?? "-", "\n";
+$socket->close();
+
+var $reads = 0;
+var $nulls = 0;
+while ($reads < 3) {
+    if ($socket->receive() == null) {
+        $nulls = $nulls + 1;
+    }
+    $reads = $reads + 1;
+}
+echo "after close: ", $nulls, " null of ", $reads, "\n";
+
+// The other direction, and the other half of "ends the conversation": a close
+// is the end of the socket rather than something said over it, so the peer was
+// sent nothing at all — a program that sends nothing and closes has written no
+// frame.
+var $sent = 0;
+foreach (Core\Test::sentSocket() as Core\Socket\Message $frame) {
+    $sent = $sent + 1;
+}
+echo "frames sent: ", $sent, "\n";
+--EXPECT--
+read: one
+after close: 3 null of 3
+frames sent: 0
