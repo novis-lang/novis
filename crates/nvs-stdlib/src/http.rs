@@ -2855,12 +2855,8 @@ fn bound_of(
     directive: &str,
     fallback: Duration,
 ) -> Result<Duration, Fault> {
-    if args
-        .get(at)
-        .is_some_and(|held| !matches!(held.tag(), Some(Tag::Null)))
-    {
-        let nanos = crate::time::nanos_of(args, at, option)?;
-        return Ok(Duration::from_nanos(nanos.unsigned_abs()));
+    if let Some(written) = wait_of(args, at, option)? {
+        return Ok(written);
     }
     let configured = ctx
         .config()
@@ -2868,6 +2864,30 @@ fn bound_of(
         .and_then(|text| duration::parse(&text).ok())
         .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()));
     Ok(configured.unwrap_or(fallback))
+}
+
+/// The wait the call itself wrote at `at`, or `None` where it wrote none.
+///
+/// [`bound_of`]'s first step alone, which is the whole of a key that has no
+/// directive behind it and no default: a socket's `ping` is off until a program
+/// asks for one
+/// (`rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`),
+/// so an omitted one has nothing to fall through to. Every *bound* still has a
+/// value, which is what that rule requires — this is the one key that is a
+/// request rather than a bound.
+///
+/// # Errors
+///
+/// [`crate::time::nanos_of`]'s fatal for a slot the row's own type rules out.
+fn wait_of(args: &[Value], at: usize, option: &str) -> Result<Option<Duration>, Fault> {
+    if args
+        .get(at)
+        .is_some_and(|held| !matches!(held.tag(), Some(Tag::Null)))
+    {
+        let nanos = crate::time::nanos_of(args, at, option)?;
+        return Ok(Some(Duration::from_nanos(nanos.unsigned_abs())));
+    }
+    Ok(None)
 }
 
 /// The octet cap the call wrote at `at`, then the directive, then `fallback` —

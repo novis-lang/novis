@@ -49,6 +49,8 @@
 //! that opened it.
 
 use super::*;
+use tungstenite::protocol::CloseFrame;
+use tungstenite::protocol::frame::coding::CloseCode;
 
 /// `Core\Http\Client::openSocket`, as its refusals spell it.
 const MEMBER: &str = r"Core\Http\Client::openSocket";
@@ -108,6 +110,43 @@ pub(crate) struct Open {
     until: Instant,
     /// How long one frame may wait to be written — the send wait.
     send: Duration,
+    /// How long a silence runs before this end asks whether the peer is still
+    /// there, or `None` where the call asked for no ping — which is the shipped
+    /// answer, because a ping is traffic the peer did not ask for.
+    ping: Option<Duration>,
+    /// Whether a `receive` is already waiting on this conversation — the mark
+    /// [`Reading`] sets and clears, shared so that the guard can clear it
+    /// without holding the socket.
+    reading: std::rc::Rc<std::cell::Cell<bool>>,
+}
+
+/// The mark a `receive` holds while it is waiting on a conversation.
+///
+/// Two `receive`s waiting at once on one socket is a `LogicError`
+/// (`rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`),
+/// and nothing but a mark can answer that question: the wait is a park, so the
+/// second call runs *while* the first is still inside its own and finds a
+/// socket that looks idle. Clearing on drop is what keeps the refusal narrow —
+/// a first wait that ended in a `TimeoutError` leaves a socket a program may
+/// sensibly receive on again, and every way out of that wait passes through
+/// here.
+struct Reading(std::rc::Rc<std::cell::Cell<bool>>);
+
+impl Drop for Reading {
+    fn drop(&mut self) {
+        self.0.set(false);
+    }
+}
+
+impl Open {
+    /// Marks this conversation as being read, or `None` where a `receive` is
+    /// already waiting on it.
+    fn reading(&self) -> Option<Reading> {
+        if self.reading.replace(true) {
+            return None;
+        }
+        Some(Reading(std::rc::Rc::clone(&self.reading)))
+    }
 }
 
 impl std::fmt::Debug for Open {
@@ -122,6 +161,34 @@ impl std::fmt::Debug for Open {
 impl nvs_runtime::HeldSocket for Open {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+}
+
+impl Drop for Open {
+    /// The task that opened this socket has ended, so the conversation ends with
+    /// it: `1001`, which is the code for an end that is going away rather than
+    /// one with anything to say about the conversation
+    /// (`rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`).
+    ///
+    /// **Here rather than at the request's teardown** because this is the one
+    /// place that runs however the socket was let go — the table dropping it
+    /// with the task, a `close` taking it out, or a handshake whose socket never
+    /// reached the table at all. A socket the program closed itself is already
+    /// closed and `tungstenite` writes no second frame, so the code a program
+    /// chose is never overwritten by this one.
+    ///
+    /// The write is bounded by the send wait and its failure is dropped: a peer
+    /// that has already gone must not hold up a teardown or fail it.
+    fn drop(&mut self) {
+        self.framed
+            .socket
+            .get_mut()
+            .bound_by(Some(Instant::now() + self.send));
+        drop(self.framed.socket.close(Some(CloseFrame {
+            code: CloseCode::Away,
+            reason: "the task that opened this socket has ended".into(),
+        })));
+        drop(self.framed.socket.flush());
     }
 }
 
@@ -229,6 +296,17 @@ const RECEIVE_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "IOError",
             desc: "The connection failed while this call was waiting for a message.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The peer sent a message past `maxMessage`. The socket is closed with `1009` \
+                   before this is thrown, because a message nobody will read is memory the peer \
+                   chose to make this task hold.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "Another `receive()` is already waiting on this socket. One message has one \
+                   recipient, so a socket is read by the one task that holds it.",
         },
     ],
 };
@@ -514,6 +592,12 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
             "http.client.socket.send_timeout",
             super::DEFAULT_SEND_TIMEOUT,
         )?,
+        // The one key with an off position, and the reason it is read with no
+        // directive and no default behind it: a program that sets it is
+        // choosing to have `idle` end a *dead* peer rather than a quiet one,
+        // and that is a request rather than a bound.
+        ping: super::wait_of(args, SOCKET_PING, "ping")?,
+        reading: std::rc::Rc::new(std::cell::Cell::new(false)),
     };
     Ok((protocol, Value::uint(ctx.hold_open_socket(Box::new(open)))))
 }
@@ -623,40 +707,85 @@ fn open_at(ctx: &mut Ctx, key: u64) -> Option<&mut Open> {
 /// the protocol asking whether this end is alive and the codec queues the pong
 /// itself, a pong is the answer to a ping this end sent, and neither is a
 /// message anyone wrote — so the loop goes back round and waits for one that
-/// is. The peer's close is the end, and `null` is how that reads.
+/// is. Both are the peer *speaking*, so the silence `idle` bounds starts again
+/// from each of them: a peer whose only traffic is pings is alive, and what
+/// ends it is `maxDuration`. The peer's close is the end, and `null` is how
+/// that reads.
+///
+/// **A ping this end sends is the one bound that is a question**, and it is off
+/// unless the call asked for one. Every wait takes whichever of the three
+/// instants is nearest, and a wait that ended at the ping's asks the peer
+/// whether it is there rather than ending the conversation — so a silence the
+/// peer answers is not a silence, and one it does not is over at `idle` all the
+/// same.
 ///
 /// # Errors
 ///
 /// A `TimeoutError` for a silence past `idle` or a conversation past its
 /// `maxDuration`, and whatever else the connection failed with.
 fn heard(open: &mut Open) -> Result<Value, Fault> {
+    let Some(_reading) = open.reading() else {
+        return Err(crowded("receive"));
+    };
+    // The silence this wait bounds is the peer's, so it is measured from the
+    // last thing the peer said and not from each round of the loop.
+    let mut spoke = Instant::now();
+    let mut prod = open.ping.map(|after| spoke + after);
     loop {
         let now = Instant::now();
         if now >= open.until {
             return Err(outlived("receive"));
         }
-        // Both bounds on the one wait, which is [`transport`]'s streamed reader
-        // one protocol up: whichever is nearer is what the socket parks under,
-        // and which of them fired is read back off the clock.
         let (idle, until) = (open.idle, open.until);
-        open.framed
-            .socket
-            .get_mut()
-            .bound_by(Some(until.min(now + idle)));
-        return match open.framed.socket.read() {
-            Ok(tungstenite::Message::Text(text)) => Ok(text_message(text.as_str())),
-            Ok(tungstenite::Message::Binary(octets)) => Ok(bytes_message(&octets)),
-            Ok(tungstenite::Message::Ping(_) | tungstenite::Message::Pong(_)) => continue,
+        let quiet_ends = spoke + idle;
+        if now >= quiet_ends {
+            return Err(silent("receive", idle));
+        }
+        // Every bound on the one wait, which is [`transport`]'s streamed reader
+        // one protocol up: whichever is nearest is what the socket parks under,
+        // and which of them fired is read back off the clock.
+        let bound = until.min(quiet_ends).min(prod.unwrap_or(quiet_ends));
+        open.framed.socket.get_mut().bound_by(Some(bound));
+        let read = open.framed.socket.read();
+        match read {
+            Ok(tungstenite::Message::Text(text)) => return Ok(text_message(text.as_str())),
+            Ok(tungstenite::Message::Binary(octets)) => return Ok(bytes_message(&octets)),
+            Ok(tungstenite::Message::Ping(_) | tungstenite::Message::Pong(_)) => {
+                spoke = Instant::now();
+                prod = open.ping.map(|after| spoke + after);
+            }
             // `Frame` is a raw frame the codec only produces for a caller that
             // asked for one, which this is not.
             Ok(tungstenite::Message::Close(_) | tungstenite::Message::Frame(_)) => {
-                Ok(Value::null())
+                return Ok(Value::null());
             }
             Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
-                Ok(Value::null())
+                return Ok(Value::null());
             }
-            Err(why) => Err(failed(why, idle, until, "receive")),
-        };
+            Err(tungstenite::Error::Capacity(why)) => return Err(oversized(open, &why, "receive")),
+            Err(why) => {
+                let asking = open
+                    .ping
+                    .filter(|_| timed_out(&why) && prod.is_some_and(|at| Instant::now() >= at));
+                let Some(after) = asking else {
+                    // A connection that ends after *this* end has closed is the
+                    // conversation being over and not a failure: a peer is free
+                    // to answer a close by hanging up, and a program that has
+                    // already been told why the socket closed would otherwise
+                    // hear about it twice, the second time as an `IOError`.
+                    if !open.framed.socket.can_write() {
+                        return Ok(Value::null());
+                    }
+                    return Err(failed(why, idle, until, "receive"));
+                };
+                written(
+                    open,
+                    tungstenite::Message::Ping(Vec::new().into()),
+                    "receive",
+                )?;
+                prod = Some(Instant::now() + after);
+            }
+        }
     }
 }
 
@@ -690,9 +819,7 @@ fn written(open: &mut Open, message: tungstenite::Message, member: &str) -> Resu
 /// An expired wait arrives as an ordinary timed-out read, so which bound fired
 /// is read off the clock the same way [`transport`]'s streamed body reads it.
 fn failed(why: tungstenite::Error, idle: Duration, until: Instant, member: &str) -> Fault {
-    if let tungstenite::Error::Io(error) = &why
-        && error.kind() == std::io::ErrorKind::TimedOut
-    {
+    if timed_out(&why) {
         return if Instant::now() >= until {
             outlived(member)
         } else {
@@ -707,6 +834,48 @@ fn failed(why: tungstenite::Error, idle: Duration, until: Instant, member: &str)
         },
         format!("{SOCKET_NAME}::{member}(): the conversation failed — {why}"),
     )
+}
+
+/// A message past `maxMessage`, which ends the conversation with `1009`.
+///
+/// **The close goes out before the throw rather than leaving the socket open.**
+/// The codec stopped mid-reassembly, so what is still arriving belongs to a
+/// message nobody will read, and every octet of it is memory a peer chose to
+/// make this task hold; `1009` is the code that says which bound was crossed
+/// (`rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`).
+/// The write is bounded by the send wait and its failure is dropped: the
+/// conversation is over either way, and what the program hears about is the
+/// message that was refused.
+fn oversized(open: &mut Open, why: &tungstenite::error::CapacityError, member: &str) -> Fault {
+    let cap = open.framed.socket.get_config().max_message_size;
+    open.framed
+        .socket
+        .get_mut()
+        .bound_by(Some(Instant::now() + open.send));
+    drop(open.framed.socket.close(Some(CloseFrame {
+        code: CloseCode::Size,
+        reason: "a message past this socket's `maxMessage`".into(),
+    })));
+    drop(open.framed.socket.flush());
+    Fault::thrown_as(
+        ThrownClass::Runtime,
+        format!(
+            "{SOCKET_NAME}::{member}(): the peer sent a message past this socket's `maxMessage` \
+             of {} octets — {why} — so the conversation is closed with `1009`",
+            cap.unwrap_or(usize::MAX)
+        ),
+    )
+}
+
+/// Whether a wait on the connection ended because the bound it was armed with
+/// ran out, which is the one failure that is a clock rather than a connection.
+///
+/// An expired bound arrives as an ordinary timed-out read — `NvsTcp` has the
+/// `Read` and `Write` return to report it through and no other channel — so
+/// this is where the two readings of `TimedOut` are told apart, and every caller
+/// asks the same way.
+fn timed_out(why: &tungstenite::Error) -> bool {
+    matches!(why, tungstenite::Error::Io(error) if error.kind() == std::io::ErrorKind::TimedOut)
 }
 
 /// A conversation still going past its `maxDuration`.
@@ -727,6 +896,42 @@ fn silent(member: &str, idle: Duration) -> Fault {
         format!(
             "{SOCKET_NAME}::{member}(): the peer sent nothing for {idle:?}, which is as long a \
              silence as this socket's `idle` allows"
+        ),
+    )
+}
+
+/// The close frame a `close` sends, as the program wrote it.
+///
+/// An omitted code is `1000` rather than a frame carrying no code at all: a
+/// peer reading a bare close cannot tell a program that ended the conversation
+/// from a connection that fell over, and "a normal ending" is what an omitted
+/// code means. An omitted reason is the empty one — a close carrying its code
+/// and nothing else.
+///
+/// A code no `u16` holds goes out as `u16::MAX`, which is not a close code
+/// either: a number that is not one is never quietly turned into a different
+/// valid one, so the peer refuses what the program actually wrote.
+fn ending(code: &Value, reason: &Value) -> CloseFrame {
+    CloseFrame {
+        code: code.as_uint().map_or(CloseCode::Normal, |written| {
+            u16::try_from(written).unwrap_or(u16::MAX).into()
+        }),
+        reason: reason.as_text().unwrap_or_default().into(),
+    }
+}
+
+/// A second `receive` on a socket one is already waiting on.
+///
+/// A `LogicError` because it is a program bug and not a condition: one message
+/// has one recipient, and the alternative is a fan-out policy invented for
+/// something nobody meant to write
+/// (`rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`).
+fn crowded(member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{SOCKET_NAME}::{member}(): another {member}() is already waiting on this socket, and \
+             one message has one recipient — a socket is read by the one task that holds it"
         ),
     )
 }
@@ -839,10 +1044,11 @@ nvs_runtime::nvs_helper! {
     /// no mistake a refusal could tell it about.
     ///
     /// A socket that holds a connection gives it back here rather than at the
-    /// end of the task: the close frame goes out and the request's table drops
-    /// its entry, which is the connection released. Neither write is an error a
-    /// program hears about — a peer that never answers its own close is closed
-    /// anyway, and the connection is gone either way.
+    /// end of the task: the close frame goes out carrying [`ending`]'s code and
+    /// reason, and the request's table drops its entry, which is the connection
+    /// released. Neither write is an error a program hears about — a peer that
+    /// never answers its own close is closed anyway, and the connection is gone
+    /// either way.
     fn nvs_core_http_socket_close(ctx, args: [3]) {
         let receiver = crate::instance::receiver(args[0], &SOCKET, "close")?;
         crate::instance::set_slot(receiver, CLOSED_AT, Value::bool(true));
@@ -850,7 +1056,7 @@ nvs_runtime::nvs_helper! {
             && let Some(mut held) = ctx.take_open_socket(key)
             && let Some(open) = held.as_any_mut().downcast_mut::<Open>()
         {
-            drop(open.framed.socket.close(None));
+            drop(open.framed.socket.close(Some(ending(&args[1], &args[2]))));
             drop(open.framed.socket.flush());
         }
         crate::instance::set_slot(receiver, HELD_AT, Value::null());
@@ -878,4 +1084,331 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         PROTOCOL_SYMBOL => (nvs_core_http_socket_protocol as *const ()).cast(),
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Open, ending, heard};
+    use crate::http::transport::{self, tests::Say, tests::call, tests::talking_origin};
+    use nvs_runtime::{Ctx, Fault, OutputSink, Tag, ThrownClass, Value};
+    use std::net::SocketAddr;
+    use std::time::{Duration, Instant};
+
+    /// A live socket to `at`, under the bounds a case names.
+    ///
+    /// The handshake is the real one, over the loopback peer that is about to
+    /// talk, because every case here asserts a wait *taken on a connection* —
+    /// which is the one thing a hand-built [`Open`] could not carry. The send
+    /// wait is generous throughout: nothing here is about a peer that stopped
+    /// reading.
+    fn opened(at: SocketAddr, idle: Duration, life: Duration, cap: usize) -> Open {
+        let mut opening = call(at, super::MEMBER);
+        opening.url = format!("ws://{at}/chat");
+        let framing = tungstenite::protocol::WebSocketConfig::default().max_message_size(Some(cap));
+        // The lifetime runs from before the handshake, as the row's does: a
+        // socket's whole life includes the call that opened it.
+        let began = Instant::now();
+        let framed =
+            transport::upgrade(&opening, &[], framing).expect("a `101` from the loopback peer");
+        Open {
+            framed,
+            idle,
+            until: began + life,
+            send: Duration::from_secs(5),
+            // Off, as it ships: the one case about it turns it on itself.
+            ping: None,
+            reading: std::rc::Rc::new(std::cell::Cell::new(false)),
+        }
+    }
+
+    /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`:
+    /// `idle` bounds the silence, so a peer that says nothing for longer than it
+    /// ends the wait.
+    ///
+    /// The peer is alive and answering the protocol for the whole of it, which
+    /// is what makes this a case about the bound: a connection that had gone
+    /// away is a failure any wait would have noticed. What says the bound fired
+    /// rather than the peer's own clock is the time it took.
+    #[test]
+    fn socket_idle_ends_a_silent_peer() {
+        let (at, served) = talking_origin(None, vec![Say::Quiet(Duration::from_secs(3))]);
+        let mut open = opened(
+            at,
+            Duration::from_millis(200),
+            Duration::from_secs(30),
+            1 << 20,
+        );
+
+        let began = Instant::now();
+        let refused = heard(&mut open).expect_err("a silence longer than `idle`");
+        let took = began.elapsed();
+
+        let Fault::Thrown(class, why) = refused else {
+            panic!("a bound that ran out is a throw")
+        };
+        assert!(
+            matches!(class, ThrownClass::Timeout),
+            "a silence past `idle` is a `TimeoutError`: {why}"
+        );
+        assert!(
+            why.contains("sent nothing"),
+            "the refusal names the silence rather than the lifetime: {why}"
+        );
+        assert!(
+            took < Duration::from_secs(3),
+            "the wait ended at `idle` and not when the peer gave up: {took:?}"
+        );
+
+        drop(open);
+        served.join().expect("the origin thread");
+    }
+
+    /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`:
+    /// a program that sets `ping` is choosing to have `idle` end a *dead* peer
+    /// rather than a quiet one, so a live peer with nothing to say stays open
+    /// past a silence that would otherwise have ended it.
+    ///
+    /// The peer says nothing for twice the `idle` and then speaks. What keeps
+    /// the socket open is its pong, which is why the peer holds its silence by
+    /// reading rather than by sleeping: a peer that had stopped answering the
+    /// protocol is the case this one is written to be distinguishable from.
+    #[test]
+    fn socket_ping_keeps_a_quiet_live_peer_open() {
+        let (at, served) = talking_origin(
+            None,
+            vec![Say::Quiet(Duration::from_millis(400)), Say::Text("late")],
+        );
+        let mut open = opened(
+            at,
+            Duration::from_millis(200),
+            Duration::from_secs(30),
+            1 << 20,
+        );
+        open.ping = Some(Duration::from_millis(60));
+
+        let began = Instant::now();
+        let message = heard(&mut open).expect("the message a quiet peer sent when it had one");
+        let took = began.elapsed();
+
+        assert_eq!(
+            message.tag(),
+            Some(Tag::Object),
+            "what a live peer eventually said is a message and not the end of the conversation"
+        );
+        assert!(
+            took > Duration::from_millis(200),
+            "the wait outlived an `idle` a pong is what carried it past: {took:?}"
+        );
+
+        drop(open);
+        served.join().expect("the origin thread");
+    }
+
+    /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`:
+    /// a message past `maxMessage` closes the socket with `1009`.
+    ///
+    /// Both halves are asserted, because either alone reads as done: the program
+    /// hears a refusal naming the cap, and the *peer* is told which bound ended
+    /// the conversation. A socket that threw and left the connection open would
+    /// pass the first half while still holding everything the peer was sending.
+    #[test]
+    fn a_message_past_max_message_closes_the_socket_with_1009() {
+        let (at, served) = talking_origin(None, vec![Say::Bytes(4096)]);
+        let mut open = opened(at, Duration::from_secs(5), Duration::from_secs(30), 1024);
+
+        let refused = heard(&mut open).expect_err("a message past `maxMessage`");
+        let Fault::Thrown(class, why) = refused else {
+            panic!("a refused message is a throw")
+        };
+        assert!(
+            matches!(class, ThrownClass::Runtime),
+            "a peer that sent too much is not this end's timing or its connection: {why}"
+        );
+        assert!(
+            why.contains("`maxMessage`") && why.contains("`1009`"),
+            "the refusal names the bound that was crossed and the code the peer was sent: {why}"
+        );
+        assert_eq!(
+            heard(&mut open).expect("a receive after the close").tag(),
+            Some(Tag::Null),
+            "the conversation is over, so a later receive answers `null` rather than waiting"
+        );
+
+        drop(open);
+        let ended = served.join().expect("the origin thread");
+        assert_eq!(
+            ended.closed.map(|(code, _)| code),
+            Some(1009),
+            "the peer is told which bound ended it, which is what the code is for"
+        );
+    }
+
+    /// `rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`:
+    /// a socket the program never closed is closed with `1001` when the task
+    /// that opened it ends.
+    ///
+    /// The task ending is the request's table being given back, so that is what
+    /// this drops — not the socket itself. A socket closed only by its own
+    /// value being dropped would pass a case that dropped it directly and still
+    /// leave a conversation open for as long as the table held one.
+    #[test]
+    fn a_socket_is_closed_with_1001_when_its_task_ends() {
+        let (at, served) = talking_origin(None, Vec::new());
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let key = ctx.hold_open_socket(Box::new(opened(
+            at,
+            Duration::from_secs(5),
+            Duration::from_secs(30),
+            1 << 20,
+        )));
+        assert!(
+            ctx.open_socket_mut(key).is_some(),
+            "the request holds the connection for as long as the task runs"
+        );
+
+        drop(ctx);
+
+        let ended = served.join().expect("the origin thread");
+        let (code, reason) = ended
+            .closed
+            .expect("a close frame rather than a dropped connection");
+        assert_eq!(
+            code, 1001,
+            "a task that ended is an end going away, which is what `1001` says"
+        );
+        assert!(
+            reason.contains("task"),
+            "and the reason says so rather than leaving the peer the code alone: {reason}"
+        );
+    }
+
+    /// `rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`:
+    /// two `receive`s waiting at once on one socket is a `LogicError`, because
+    /// one message has one recipient.
+    ///
+    /// The mark is what the second call sees of the first, and it is all it
+    /// could see: the wait is a park, so a socket one task is already inside
+    /// looks idle to the next. What the case asserts beside the refusal is that
+    /// the mark is *cleared* — a socket that refused a second wait for ever
+    /// would refuse the program's next ordinary `receive` too.
+    #[test]
+    fn two_receives_waiting_on_one_socket_is_a_logic_error() {
+        let (at, served) = talking_origin(
+            None,
+            vec![Say::Quiet(Duration::from_millis(200)), Say::Text("mine")],
+        );
+        let mut open = opened(at, Duration::from_secs(5), Duration::from_secs(30), 1 << 20);
+
+        let waiting = open
+            .reading()
+            .expect("what a receive already parked here holds");
+        let refused = heard(&mut open).expect_err("a second receive while one is waiting");
+        let Fault::Thrown(class, why) = refused else {
+            panic!("a program bug is a throw")
+        };
+        assert!(
+            matches!(class, ThrownClass::Logic),
+            "receiving twice at once is a bug in the program and not a condition: {why}"
+        );
+        assert!(
+            why.contains("already waiting"),
+            "the refusal says what the other call is doing: {why}"
+        );
+
+        drop(waiting);
+        assert_eq!(
+            heard(&mut open)
+                .expect("a receive once the first has returned")
+                .tag(),
+            Some(Tag::Object),
+            "the socket is read again once nothing is waiting on it"
+        );
+
+        drop(open);
+        served.join().expect("the origin thread");
+    }
+
+    /// ADR 0183 § 7's close codes, as the frame a program's own `close` sends:
+    /// an omitted code is a normal ending, and a number that is no close code
+    /// is not turned into one that is.
+    #[test]
+    fn a_close_carries_the_programs_code_and_reason() {
+        let quiet = ending(&Value::null(), &Value::null());
+        assert_eq!(
+            u16::from(quiet.code),
+            1000,
+            "a `close()` that named no code ended the conversation normally"
+        );
+        assert_eq!(
+            quiet.reason.as_str(),
+            "",
+            "and carried its code with nothing beside it"
+        );
+
+        let named = ending(&Value::uint(4001), &Value::null());
+        assert_eq!(
+            u16::from(named.code),
+            4001,
+            "the code the program wrote is the code on the wire"
+        );
+
+        let nonsense = ending(&Value::uint(70_000), &Value::null());
+        assert_eq!(
+            u16::from(nonsense.code),
+            u16::MAX,
+            "a number no close code holds goes out as one the peer refuses, not as its low half"
+        );
+    }
+
+    /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`:
+    /// `maxDuration` bounds the whole conversation, so a peer that never stops
+    /// talking is ended by the lifetime.
+    ///
+    /// The two bounds are told apart by the peer rather than by the message
+    /// alone: it speaks every few milliseconds under an `idle` of seconds, so a
+    /// socket that only ever checked the silence would read this conversation as
+    /// endless. The count of what arrived first is what says it was talking.
+    #[test]
+    fn socket_max_duration_ends_an_endless_conversation() {
+        let script = (0..50)
+            .flat_map(|_| [Say::Text("tick"), Say::Quiet(Duration::from_millis(20))])
+            .collect();
+        let (at, served) = talking_origin(None, script);
+        let mut open = opened(
+            at,
+            Duration::from_secs(5),
+            Duration::from_millis(300),
+            1 << 20,
+        );
+
+        let mut arrived = 0;
+        let refused = loop {
+            match heard(&mut open) {
+                Ok(message) if message.tag() == Some(Tag::Null) => {
+                    panic!("the peer was still talking, so nothing here is the end of it")
+                }
+                Ok(_) => arrived += 1,
+                Err(why) => break why,
+            }
+        };
+
+        let Fault::Thrown(class, why) = refused else {
+            panic!("a bound that ran out is a throw")
+        };
+        assert!(
+            matches!(class, ThrownClass::Timeout),
+            "a conversation past `maxDuration` is a `TimeoutError`: {why}"
+        );
+        assert!(
+            why.contains("`maxDuration`"),
+            "the refusal names the lifetime rather than the silence: {why}"
+        );
+        assert!(
+            arrived > 0,
+            "the peer was talking, so what ended this is the lifetime and not a silence"
+        );
+
+        drop(open);
+        served.join().expect("the origin thread");
+    }
 }
