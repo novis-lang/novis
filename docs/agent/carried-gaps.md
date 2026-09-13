@@ -328,6 +328,24 @@ where taking it is the work and the code that follows it is not.
   milestone claims this either. `crates/nvs-db/src/ddl.rs`, `crates/nvs-db/src/catalog.rs` and
   `crates/nvs-db/src/schema.rs` § *Known gaps* carry the tags.
   [until: gone crates/nvs-db/src/ddl.rs:owner: unowned]
+- **SQL Server refuses a `bytes` parameter, and unrefusing it is a plan-cache decision.** The read
+  half of ADR 0067 § 9's row is whole on that driver; the bind half is the one place a `bytes` does
+  not reach a server, because every TDS parameter goes out as one `nvarchar` for the server to cast
+  and `varbinary` is the type no text form casts back to. A real `@params` entry makes
+  `sp_prepexec`'s declaration a function of the *values* a call binds, which § 1's cache key —
+  SQL text plus expansion arity — does not distinguish. What has to be decided is whether that key
+  grows the bound types, or the `bytes` binds outside the cache. Goal `m8-db-queue` takes the row
+  side and stage 10's gate names every tag it closes, so it does not claim this one.
+  `crates/nvs-db/src/tds/mod.rs` gap 1.
+  [until: gone crates/nvs-db/src/tds/mod.rs:owner: unowned]
+- **Nothing reads a `debug.trace` grant into the flag every probe is gated on.** `Capability::DebugTrace`
+  is in the vocabulary and `DebugFlags::TRACE` is the bit codegen branches on, and outside a test
+  nothing sets the second from the first — so a query span, an HTTP span and every call probe render
+  on a flag a program cannot ask for. What has to be decided is where the read lives: once per
+  request as the capability set is resolved into the `Ctx`, or on the probe path each time, which is
+  the difference between a grant that can be tightened mid-request and one fixed at dispatch.
+  `crates/nvs-db/src/span.rs` gap 1.
+  [until: gone crates/nvs-db/src/span.rs:owner: unowned]
 - **How much of a `mixed` value's tag dispatch is written at once.**
   `rule:types/erased-member-access` has already decided what an erased read, write and call *do* — a
   checked, catchable throw when the name is not there, never a silent value — but `nvs_ir::Ty::Tagged`

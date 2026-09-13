@@ -51,7 +51,7 @@
 //! a legal, complete message — which is exactly what
 //! [`PacketType::Attention`] is.
 //!
-//! # What is here, and what is not yet
+//! # What this module holds
 //!
 //! Framing; the block that says which server to frame *to*, since [`TdsTarget`]
 //! reads a `[db.<name>]` block the way every other driver's target does; and
@@ -83,25 +83,25 @@
 //! read-only transaction to offer at all. Every member `rule:core-classes/db-one-api` declares is
 //! therefore reachable on this backend.
 //!
-//! # The one gap, and it is a bind rather than a read
+//! # Known gaps
 //!
-//! **A `bytes` parameter is refused**, which is this driver's only departure
-//! from [ADR 0067 § 9](/docs/decisions/0067.md)'s table — the *read*
-//! side of that row is whole, since [`decode_column`] answers `varbinary`,
-//! `binary` and `image` as `bytes` like every other driver. Both halves of the
-//! refusal say so where they are, [`encode`] and [`text_param`], and
-//! `a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_is_refused` pins it.
-//!
-//! It is recorded here rather than fixed because closing it is not a rendering
-//! change. Every parameter goes out as one `nvarchar` and the server casts it
-//! ([`start_statement`]), and `varbinary` is the one type no text form casts
-//! back to — so a `bytes` needs its own entry in `sp_prepexec`'s `@params`
-//! declaration, which makes that declaration a function of the *values* a call
-//! binds rather than of the statement alone. § 1 keys the plan cache on SQL text
-//! plus expansion arity, so two calls binding the same statement with a `bytes`
-//! in different positions would share a plan declared for the wrong types. The
-//! fix is therefore the cache key's shape as much as the encoder's, and that is
-//! a § 1 question rather than a § 9 one.
+//! 1. **A `bytes` parameter is refused**, which is this driver's only departure
+//!    from [ADR 0067 § 9](/docs/decisions/0067.md)'s table — the *read* side of
+//!    that row is whole, since [`decode_column`] answers `varbinary`, `binary`
+//!    and `image` as `bytes` like every other driver. Both halves of the refusal
+//!    say so where they are, [`encode`] and [`text_param`], and
+//!    `a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_is_refused` pins
+//!    it. Closing it is not a rendering change: every parameter goes out as one
+//!    `nvarchar` and the server casts it ([`start_statement`]), and `varbinary`
+//!    is the one type no text form casts back to — so a `bytes` needs its own
+//!    entry in `sp_prepexec`'s `@params` declaration, which makes that
+//!    declaration a function of the *values* a call binds rather than of the
+//!    statement alone. § 1 keys the plan cache on SQL text plus expansion arity,
+//!    so two calls binding the same statement with a `bytes` in different
+//!    positions would share a plan declared for the wrong types. The fix is
+//!    therefore the cache key's shape as much as the encoder's, and that is a
+//!    § 1 question rather than a § 9 one.
+//!    — owner: unowned
 
 use std::borrow::Cow;
 use std::cell::Cell;
