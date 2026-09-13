@@ -1327,7 +1327,7 @@
     {
       "id": "security/tls-trust-is-relaxed-only-under-a-host-grant",
       "title": "Verification is relaxed only where a `capabilities.tls` grant names the host and the call asks for it, and no such grant has a `true` spelling",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0180"
       ],
@@ -1339,7 +1339,12 @@
         "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
         "http-server/a-reply-reports-its-tls-session"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-config/src/capability.rs",
+        "crates/nvs-config/tests/capability.rs",
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "crates/nvs-host/src/tls.rs"
+      ]
     },
     {
       "id": "security/protocol-roster",

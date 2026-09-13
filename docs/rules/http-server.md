@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*16 of 74 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 74 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -879,7 +879,7 @@ deadline it reports is the one that covers the whole call
 
 <a id="http-server-an-outbound-request-carries-one-body"></a>
 
-## An outbound request carries at most one body, named by which of four flat keys it is written under, and a second key or a body on `get` is a compile-time diagnostic  *(designed — not yet in the compiler)*
+## An outbound request carries at most one body, named by which of four flat keys it is written under, and a second key or a body on `get` is a compile-time diagnostic
 
 `rule:http-server/an-outbound-request-carries-one-body`
 
@@ -932,7 +932,7 @@ itself more time ([`http-server/redirects-are-off-and-every-hop-is-re-pinned`](h
 
 <a id="http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime"></a>
 
-## `deadline` ends at the head of a streamed reply, its body runs under `idle` and `maxDuration`, and the body is read one way, once  *(designed — not yet in the compiler)*
+## `deadline` ends at the head of a streamed reply, its body runs under `idle` and `maxDuration`, and the body is read one way, once
 
 `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
 
@@ -1048,7 +1048,7 @@ and it lives in the capability rather than the client
 
 <a id="http-server-an-outbound-call-tries-every-approved-address"></a>
 
-## Every address a name resolves to is checked, one denied refuses the host, and the call falls back across the approved set without ever resolving twice  *(designed — not yet in the compiler)*
+## Every address a name resolves to is checked, one denied refuses the host, and the call falls back across the approved set without ever resolving twice
 
 `rule:http-server/an-outbound-call-tries-every-approved-address`
 
@@ -1078,7 +1078,7 @@ the address check back on the core after it.
 
 <a id="http-server-an-outbound-call-names-its-address-only-under-a-grant"></a>
 
-## `connectTo` names an outbound call's address only where `net.connect_to` names the host, and the address policy and the certificate's host check still apply  *(designed — not yet in the compiler)*
+## `connectTo` names an outbound call's address only where `net.connect_to` names the host, and the address policy and the certificate's host check still apply
 
 `rule:http-server/an-outbound-call-names-its-address-only-under-a-grant`
 
@@ -1125,7 +1125,7 @@ Both the redirect chain and every retry attempt are covered by one `deadline`
 
 <a id="http-server-an-https-redirect-never-becomes-plaintext"></a>
 
-## A redirect from `https` to `http` needs `net.downgrade` for its host and `redirectToHttp` at the call; a plain `http` URL asked for directly stays allowed  *(designed — not yet in the compiler)*
+## A redirect from `https` to `http` needs `net.downgrade` for its host and `redirectToHttp` at the call; a plain `http` URL asked for directly stays allowed
 
 `rule:http-server/an-https-redirect-never-becomes-plaintext`
 
@@ -1183,7 +1183,7 @@ and this is what makes that a tested property rather than a habit.
 
 <a id="http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned"></a>
 
-## An outbound connection is pooled per core under a key carrying everything the check approved, and returns to the pool only after a reply read to the end under known framing  *(designed — not yet in the compiler)*
+## An outbound connection is pooled per core under a key carrying everything the check approved, and returns to the pool only after a reply read to the end under known framing
 
 `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`
 
@@ -1220,7 +1220,7 @@ than a request's ([`config/three-changeability-classes`](config.md#config-three-
 
 <a id="http-server-the-client-trust-roots-are-the-operators"></a>
 
-## `[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`  *(designed — not yet in the compiler)*
+## `[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`
 
 `rule:http-server/the-client-trust-roots-are-the-operators`
 
@@ -1249,7 +1249,7 @@ never through any of these three keys.
 
 <a id="http-server-a-reply-reports-its-tls-session"></a>
 
-## `Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none  *(designed — not yet in the compiler)*
+## `Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none
 
 `rule:http-server/a-reply-reports-its-tls-session`
 

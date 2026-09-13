@@ -956,7 +956,7 @@
     {
       "id": "http-server/an-outbound-request-carries-one-body",
       "title": "An outbound request carries at most one body, named by which of four flat keys it is written under, and a second key or a body on `get` is a compile-time diagnostic",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0180"
       ],
@@ -969,9 +969,14 @@
         "security/secret-sinks-refuse"
       ],
       "guardedBy": [
+        "crates/nvs-stdlib/src/http/transport.rs",
         "tests/conformance/reject/http-client-two-body-keys-are-refused.nvst",
         "tests/conformance/reject/http-client-a-body-on-get-or-head-is-refused.nvst",
-        "tests/conformance/reject/http-client-a-content-type-without-a-body-is-refused.nvst"
+        "tests/conformance/reject/http-client-a-content-type-without-a-body-is-refused.nvst",
+        "tests/conformance/core/http-client-sends-a-json-a-form-a-raw-and-a-multipart-body.nvst",
+        "tests/conformance/core/http-client-every-body-carrying-verb-frames-a-body-alike.nvst",
+        "tests/conformance/core/http-client-streams-a-file-as-the-whole-body.nvst",
+        "tests/conformance/core/http-part-refuses-what-it-cannot-send-and-draws-a-boundary-per-call.nvst"
       ]
     },
     {
@@ -996,7 +1001,7 @@
     {
       "id": "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime",
       "title": "`deadline` ends at the head of a streamed reply, its body runs under `idle` and `maxDuration`, and the body is read one way, once",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0180"
       ],
@@ -1008,7 +1013,13 @@
         "core-classes/io-write-stream",
         "config/three-changeability-classes"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "crates/nvs-config/tests/tree.rs",
+        "tests/conformance/core/http-stream-reads-lines-and-chunks-and-refuses-a-second-read.nvst",
+        "tests/conformance/core/http-stream-caps-a-line-and-one-events-data.nvst",
+        "tests/conformance/core/http-stream-save-to-stops-at-its-bound.nvst"
+      ]
     },
     {
       "id": "http-server/retry-is-opt-in-jittered-and-closed",
@@ -1076,7 +1087,7 @@
     {
       "id": "http-server/an-outbound-call-tries-every-approved-address",
       "title": "Every address a name resolves to is checked, one denied refuses the host, and the call falls back across the approved set without ever resolving twice",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0180"
       ],
@@ -1087,12 +1098,18 @@
         "http-server/a-core-is-never-blocked-on-a-syscall",
         "http-server/redirects-are-off-and-every-hop-is-re-pinned"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http.rs",
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "crates/nvs-stdlib/src/http/pool.rs",
+        "tests/conformance/core/an-approved-url-is-pinned-to-one-address.nvst",
+        "tests/conformance/core/a-granted-host-is-still-refused-at-a-denied-address.nvst"
+      ]
     },
     {
       "id": "http-server/an-outbound-call-names-its-address-only-under-a-grant",
       "title": "`connectTo` names an outbound call's address only where `net.connect_to` names the host, and the address policy and the certificate's host check still apply",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0180"
       ],
@@ -1103,7 +1120,11 @@
         "security/capability-question-is-grant-and-scope",
         "http-server/allow-url-pins-the-address"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http.rs",
+        "crates/nvs-config/src/capability.rs",
+        "crates/nvs-config/tests/capability.rs"
+      ]
     },
     {
       "id": "http-server/redirects-are-off-and-every-hop-is-re-pinned",
@@ -1128,7 +1149,7 @@
     {
       "id": "http-server/an-https-redirect-never-becomes-plaintext",
       "title": "A redirect from `https` to `http` needs `net.downgrade` for its host and `redirectToHttp` at the call; a plain `http` URL asked for directly stays allowed",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0180"
       ],
@@ -1139,7 +1160,11 @@
         "security/tls-trust-is-relaxed-only-under-a-host-grant",
         "http-server/a-cross-origin-redirect-drops-credentials"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "crates/nvs-config/src/capability.rs",
+        "crates/nvs-config/tests/capability.rs"
+      ]
     },
     {
       "id": "http-server/a-cross-origin-redirect-drops-credentials",
@@ -1162,7 +1187,7 @@
     {
       "id": "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
       "title": "An outbound connection is pooled per core under a key carrying everything the check approved, and returns to the pool only after a reply read to the end under known framing",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0180"
       ],
@@ -1174,12 +1199,16 @@
         "security/tls-trust-is-relaxed-only-under-a-host-grant",
         "config/three-changeability-classes"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http/pool.rs",
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "crates/nvs-config/tests/tree.rs"
+      ]
     },
     {
       "id": "http-server/the-client-trust-roots-are-the-operators",
       "title": "`[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0180"
       ],
@@ -1190,12 +1219,18 @@
         "config/three-changeability-classes",
         "http-server/an-unsafe-or-unbounded-default-is-a-defect"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-config/src/http.rs",
+        "crates/nvs-cli/src/config.rs",
+        "crates/nvs-host/src/tls.rs",
+        "crates/nvs-config/tests/resolve.rs",
+        "crates/nvs-config/tests/tree.rs"
+      ]
     },
     {
       "id": "http-server/a-reply-reports-its-tls-session",
       "title": "`Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0180"
       ],
@@ -1206,7 +1241,12 @@
         "security/tainted-qualifier",
         "core-api/a-lifetime-is-an-object"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http.rs",
+        "tests/conformance/core/http-response-tls-is-null-for-a-reply-the-table-answered.nvst",
+        "tests/conformance/reject/http-tls-info-is-read-only-behind-the-null-check.nvst",
+        "tests/conformance/reject/http-tls-info-names-are-tainted-and-what-the-handshake-settled-is-not.nvst"
+      ]
     },
     {
       "id": "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",

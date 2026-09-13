@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*18 of 88 rules below are **designed** rather than shipped, and are marked where they appear.*
+*17 of 88 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1614,7 +1614,7 @@ the peer address — so there is still one clock, on the thing that waits.
 
 <a id="security-tls-trust-is-relaxed-only-under-a-host-grant"></a>
 
-## Verification is relaxed only where a `capabilities.tls` grant names the host and the call asks for it, and no such grant has a `true` spelling  *(designed — not yet in the compiler)*
+## Verification is relaxed only where a `capabilities.tls` grant names the host and the call asks for it, and no such grant has a `true` spelling
 
 `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`
 

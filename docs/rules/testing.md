@@ -3,7 +3,7 @@
 
 # Testing
 
-*16 of 54 rules below are **designed** rather than shipped, and are marked where they appear.*
+*15 of 54 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -346,7 +346,7 @@ reading a deployment's configuration would make the test's subject the deploymen
 
 <a id="testing-an-outbound-call-is-answered-from-a-table"></a>
 
-## One registered answer makes every outbound call in that test come from the table, and an unmatched one throws rather than reaching the network  *(designed — not yet in the compiler)*
+## One registered answer makes every outbound call in that test come from the table, and an unmatched one throws rather than reaching the network
 
 `rule:testing/an-outbound-call-is-answered-from-a-table`
 
