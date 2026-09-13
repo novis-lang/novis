@@ -57,8 +57,35 @@ use crate::{Fault, ThrownClass};
 /// `FATAL`: a denial is known before any work is done and leaves nothing behind, so a program that
 /// degrades when a capability is missing is a reasonable program (`rule:security/denial-is-a-runtime-error`).
 pub fn require(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Result<(), Fault> {
+    require_as(ctx, cap, scope, ThrownClass::Runtime, member)
+}
+
+/// [`require`]'s question with the class of the throw chosen by the door, so that one sentence
+/// serves both readings of a missing grant.
+///
+/// A grant that unlocks an **ability** is `rule:security/denial-is-a-runtime-error`'s
+/// `RuntimeError`: the operator said no to something the program set out to do, and a program that
+/// degrades instead is a reasonable program. A grant that unlocks a **relaxation** —
+/// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s four — is a `LogicError`, which
+/// is where [ADR 0180 § *Diagnostics*](/docs/decisions/0180.md) files it: the program asked
+/// for its own guarantee to be weakened at a host nobody said it could be, and that is a mistake in
+/// the program rather than a verdict on the world.
+///
+/// The class is the only thing that varies. The message stays [`denial`]'s, because an operator
+/// reading either one is about to paste the same grant name into the same table.
+///
+/// # Errors
+///
+/// [`require`]'s message, thrown as `class`.
+pub fn require_as(
+    ctx: &Ctx,
+    cap: Cap,
+    scope: Scope<'_>,
+    class: ThrownClass,
+    member: &str,
+) -> Result<(), Fault> {
     match refusal(ctx, cap, scope, member) {
-        Some(message) => Err(Fault::thrown(message)),
+        Some(message) => Err(Fault::thrown_as(class, message)),
         None => Ok(()),
     }
 }
