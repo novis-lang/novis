@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*10 of 77 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 77 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1252,7 +1252,7 @@ than a request's ([`config/three-changeability-classes`](config.md#config-three-
 
 <a id="http-server-an-outbound-proxy-is-operator-configured"></a>
 
-## `[http.client.proxy]` is the only way an outbound call is proxied: `System` class, written by the operator, and never a call option or an environment variable  *(designed — not yet in the compiler)*
+## `[http.client.proxy]` is the only way an outbound call is proxied: `System` class, written by the operator, and never a call option or an environment variable
 
 `rule:http-server/an-outbound-proxy-is-operator-configured`
 
@@ -1307,7 +1307,7 @@ and a proxy that refused the tunnel is not one.
 
 <a id="http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"></a>
 
-## `resolve` is mandatory: `local` tunnels to the address Novis approved and keeps the pin, `proxy` narrows the policy to the URL's text and warns at every boot  *(designed — not yet in the compiler)*
+## `resolve` is mandatory: `local` tunnels to the address Novis approved and keeps the pin, `proxy` narrows the policy to the URL's text and warns at every boot
 
 `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`
 
