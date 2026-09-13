@@ -66,12 +66,14 @@
 //! # An outstanding key names its owner, in a column
 //!
 //! Every key in every one of these files carries `# <owner>` after it: the goal
-//! from [the goals directory](/docs/agent/goals/) that will strike the line, or
-//! the word `unowned` for a key that is nobody's yet and is a scheduling
-//! question for the user. [`every_outstanding_key_names_an_owner`] is what
-//! makes that a field rather than a note — it reads the chain and fails on an
-//! owner no entry there answers for, so a goal renamed or dropped cannot leave a
-//! key pointing at nothing.
+//! from [the goals directory](/docs/agent/goals/) that will strike the line, a
+//! milestone ahead of the program whose own plan carries the work, or the word
+//! `unowned` for a key that is nobody's yet and is a scheduling question for
+//! the user. [`every_outstanding_key_names_an_owner`] is what makes that a
+//! field rather than a note — it reads the chain and the plan's table and fails
+//! on an owner neither of them answers for, so a goal renamed or dropped cannot
+//! leave a key pointing at nothing. [`owner_problem`] is where the three kinds
+//! are decided, and `tools/owners.py`'s module doc is the rule they come from.
 //!
 //! The column exists because these facts were header prose, where one paragraph
 //! owned eight keys and could not say which was which.
@@ -416,44 +418,128 @@ fn chain_goals() -> BTreeSet<String> {
     out
 }
 
+/// The first milestone a key may be deferred to.
+///
+/// Everything before it is complete at the end of the program, so a key tagged
+/// to an earlier one names a carrier that has been and gone rather than work
+/// that is scheduled. `tools/owners.py`'s `FIRST_FUTURE_MILESTONE` is the same
+/// number for the same reason over the module docs; there is no file both sides
+/// can read it from, so each states it and each is held by its own test.
+const FIRST_FUTURE_MILESTONE: u32 = 9;
+
+/// Every milestone in the plan's table, mapped to its *Carried by* cell.
+///
+/// The row shape is `tools/owners.py`'s `PLAN_ROW`: the carrier cell first, then
+/// the milestone as a link to its own file under `docs/plan/`. That cell is the
+/// only place a milestone is finished — the plan's own § under the table says
+/// so — and `done` is the whole vocabulary for it.
+fn plan_milestones() -> BTreeMap<String, String> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/implementation-plan.md");
+    let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    let row = Regex::new(r"^\|\s*([^|]*?)\s*\|\s*\[(M\d+[A-Z]?)\]").expect("the plan's table row");
+    let mut found = BTreeMap::new();
+    for line in text.lines() {
+        if let Some(cells) = row.captures(line) {
+            found.insert(cells[2].to_owned(), cells[1].to_owned());
+        }
+    }
+    found
+}
+
+/// The number a milestone tag names, or `None` when the owner is not a tag.
+///
+/// A suffixed milestone is its number's — `M4S` and `M4B` are both M4's, which
+/// is what the suffix means in the plan's table — so the suffix is read and
+/// dropped rather than making the tag unparseable. The shape is
+/// `tools/owners.py`'s `MILESTONE`, and a goal slug cannot collide with it: a
+/// slug is lower case throughout.
+fn milestone_number(owner: &str) -> Option<u32> {
+    let rest = owner.strip_prefix('M')?;
+    let digits = match rest.strip_suffix(|c: char| c.is_ascii_uppercase()) {
+        Some(head) => head,
+        None => rest,
+    };
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse().ok()
+}
+
 /// What is wrong with one key's owner column, or `None` if nothing is.
 ///
-/// Two kinds of owner pass where
-/// [carried-gaps.md](/docs/agent/carried-gaps.md) § *The contract* allows three.
-/// A milestone tag is an owner for a *gap*, which a plan can cover; a key here
-/// is struck by a session, and only a goal runs sessions. A milestone nobody has
-/// cut into goals therefore reads here as `unowned`, which is what it is — that
-/// is the correction spec § 17's four classes needed, having been filed under an
-/// M9 whose plan carries none of them.
+/// The three kinds [carried-gaps.md](/docs/agent/carried-gaps.md) § *The
+/// contract* allows all pass here: a goal the chain still holds, named by its
+/// slug; the word `unowned`; and a milestone tag. A milestone owns a key the way
+/// it owns a gap — the work is scheduled rather than missing — and the three
+/// things that make a tag empty are the same three `tools/owners.py:@classify`
+/// asks about, in its order. A tag the plan's table does not list names no
+/// milestone at all; one before [`FIRST_FUTURE_MILESTONE`] is behind the
+/// program, so nothing is left to carry the key; and a row whose *Carried by*
+/// cell reads `done` closed without closing this.
 ///
 /// It is a function rather than a `match` inside the gate so that
 /// [`an_owner_that_is_not_a_live_chain_entry_fails`] can ask it about an owner
 /// no file on disk writes: a refusal nothing ever exercises is a refusal that
-/// can stop refusing without anything going red.
-fn owner_problem(owner: Option<&String>, goals: &BTreeSet<String>) -> Option<String> {
-    match owner {
-        Some(owner) if owner == "unowned" || goals.contains(owner.as_str()) => None,
-        Some(owner) => Some(format!(
-            "names goal `{owner}`, which is no goal under docs/agent/goals/"
-        )),
-        None => Some("names no owner".to_owned()),
+/// can stop refusing without anything going red. The table arrives as an
+/// argument for that reason too — a `done` future milestone is a row the plan
+/// does not currently hold.
+fn owner_problem(
+    owner: Option<&String>,
+    goals: &BTreeSet<String>,
+    plan: &BTreeMap<String, String>,
+) -> Option<String> {
+    let Some(owner) = owner else {
+        return Some("names no owner".to_owned());
+    };
+    if owner == "unowned" || goals.contains(owner.as_str()) {
+        return None;
     }
+    if let Some(number) = milestone_number(owner) {
+        let Some(carried) = plan.get(owner.as_str()) else {
+            return Some(format!(
+                "names milestone {owner}, which is no row in the plan's table"
+            ));
+        };
+        if number < FIRST_FUTURE_MILESTONE {
+            return Some(format!(
+                "names milestone {owner}, which is behind the program — only \
+                 M{FIRST_FUTURE_MILESTONE} and later is a deferral"
+            ));
+        }
+        if carried.to_lowercase().starts_with("done") {
+            return Some(format!(
+                "names milestone {owner}, which the plan's table marks done"
+            ));
+        }
+        return None;
+    }
+    Some(format!(
+        "names goal `{owner}`, which is no goal under docs/agent/goals/"
+    ))
 }
 
 /// Every key in every [`RATCHETS`] file names an owner a reader can act on: a
 /// goal [docs/agent/goals/](/docs/agent/goals/) still holds, named by its slug,
-/// or the word `unowned`.
+/// the word `unowned`, or a milestone ahead of the program.
 ///
-/// [`owner_problem`] owns which two those are, and the module doc owns why the
+/// [`owner_problem`] owns which three those are, and the module doc owns why the
 /// owner is a column rather than a header sentence.
 #[test]
 fn every_outstanding_key_names_an_owner() {
     let goals = chain_goals();
+    let plan = plan_milestones();
     assert!(
         goals.len() > 10,
         "docs/agent/goals/ yielded only {} goal(s) — the chain's shape has changed under this \
          walk, and every owner below is being accepted against almost nothing",
         goals.len()
+    );
+    assert!(
+        plan.len() > 10,
+        "docs/implementation-plan.md's table yielded only {} milestone(s) — the row shape has \
+         moved under `plan_milestones`, and every milestone owner below is being refused for the \
+         wrong reason",
+        plan.len()
     );
 
     let mut wrong = Vec::new();
@@ -462,7 +548,7 @@ fn every_outstanding_key_names_an_owner() {
         let ratchet = outstanding_file(name);
         for key in &ratchet.keys {
             checked += 1;
-            if let Some(problem) = owner_problem(ratchet.owners.get(key), &goals) {
+            if let Some(problem) = owner_problem(ratchet.owners.get(key), &goals, &plan) {
                 wrong.push(format!("{name}: `{key}` {problem}"));
             }
         }
@@ -472,8 +558,9 @@ fn every_outstanding_key_names_an_owner() {
         wrong.is_empty(),
         "{} outstanding key(s) name an owner nobody can act on:\n  {}\n\
          Write `# <goal-slug>` after the key, taking the slug from docs/agent/goals/, or \
-         `# unowned` with a bullet in docs/agent/carried-gaps.md § Unowned saying why it is \
-         nobody's. An owner that went green without striking its key is struck, not renamed.",
+         `# M<n>` naming a milestone the plan's table still carries, or `# unowned` with a \
+         bullet in docs/agent/carried-gaps.md § Unowned saying why it is nobody's. An owner \
+         that went green without striking its key is struck, not renamed.",
         wrong.len(),
         wrong.join("\n  ")
     );
@@ -485,14 +572,23 @@ fn every_outstanding_key_names_an_owner() {
 }
 
 /// The refusal [`every_outstanding_key_names_an_owner`] is written around, asked
-/// of the three columns no file on disk writes: a goal the chain does not list,
-/// and no column at all.
+/// of the columns no file on disk writes: a goal the chain does not list, a
+/// milestone the plan's table has no row for, a milestone whose row reads
+/// `done`, and no column at all.
+///
+/// The `done` case is handed a table of its own, because every milestone the
+/// plan currently marks `done` is also behind the program and would be refused
+/// one branch earlier. [`a_future_milestone_owns_a_key_and_a_past_one_does_not`]
+/// is the half that reads the real table.
 #[test]
 fn an_owner_that_is_not_a_live_chain_entry_fails() {
     let goals = chain_goals();
+    let plan = plan_milestones();
     let live = "carried-gaps".to_owned();
     let unowned = "unowned".to_owned();
     let orphan = "no-such-goal".to_owned();
+    let unplanned = "M99".to_owned();
+    let finished = "M9".to_owned();
 
     assert!(
         goals.contains(live.as_str()),
@@ -505,16 +601,70 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
          file uses"
     );
 
-    assert_eq!(owner_problem(Some(&live), &goals), None);
-    assert_eq!(owner_problem(Some(&unowned), &goals), None);
     assert!(
-        owner_problem(Some(&orphan), &goals).is_some(),
+        !plan.contains_key(unplanned.as_str()),
+        "the plan's table now carries {unplanned}, so this case is asserting nothing — take a tag \
+         no row writes"
+    );
+
+    assert_eq!(owner_problem(Some(&live), &goals, &plan), None);
+    assert_eq!(owner_problem(Some(&unowned), &goals, &plan), None);
+    assert!(
+        owner_problem(Some(&orphan), &goals, &plan).is_some(),
         "an owner naming goal `{orphan}`, which the chain does not hold, was accepted — a key can \
          point at nothing again"
     );
     assert!(
-        owner_problem(None, &goals).is_some(),
+        owner_problem(Some(&unplanned), &goals, &plan).is_some(),
+        "an owner naming milestone {unplanned}, which the plan's table has no row for, was \
+         accepted — a key can be deferred to a milestone nobody has planned"
+    );
+    let done = BTreeMap::from([(finished.clone(), "done".to_owned())]);
+    assert!(
+        owner_problem(Some(&finished), &goals, &done).is_some(),
+        "an owner naming milestone {finished}, whose row reads `done`, was accepted — a milestone \
+         that finished without closing this key still reads as its carrier"
+    );
+    assert!(
+        owner_problem(None, &goals, &plan).is_some(),
         "a key with no owner column at all was accepted"
+    );
+}
+
+/// The owner kind stage 3 of goal `gap-register` adds: a key deferred to a
+/// milestone ahead of the program is scheduled work, and one deferred to a
+/// milestone behind it is not.
+///
+/// Both tags are read from the real table, because the claim is about the plan
+/// as it stands: M9 and later are what the program has left, and M1 is carried
+/// by goals that are walking now. `tools/owners.py`'s module doc § *A milestone
+/// tag* is the rule, and the user's decision behind it is goal `gap-register`
+/// § *Standing decisions*.
+#[test]
+fn a_future_milestone_owns_a_key_and_a_past_one_does_not() {
+    let goals = chain_goals();
+    let plan = plan_milestones();
+    let future = format!("M{FIRST_FUTURE_MILESTONE}");
+    let past = format!("M{}", FIRST_FUTURE_MILESTONE - 1);
+
+    for tag in [&future, &past] {
+        assert!(
+            plan.contains_key(tag.as_str()),
+            "the plan's table has no row for {tag}, so this case is asserting nothing about the \
+             milestone either side of M{FIRST_FUTURE_MILESTONE}"
+        );
+    }
+
+    assert_eq!(
+        owner_problem(Some(&future), &goals, &plan),
+        None,
+        "a key deferred to {future}, which the plan still carries, was refused — a milestone ahead \
+         of the program owns a key the way it owns a gap"
+    );
+    assert!(
+        owner_problem(Some(&past), &goals, &plan).is_some(),
+        "a key deferred to {past} was accepted — everything before M{FIRST_FUTURE_MILESTONE} is \
+         complete at the end of the program, so the tag names a carrier that has been and gone"
     );
 }
 
