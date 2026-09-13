@@ -338,6 +338,49 @@ pub(crate) const STORE: CoreClass = CoreClass {
             symbol: "nvs_core_cache_forget",
             doc: Some(&FORGET_DOC),
         },
+        CoreMethod {
+            name: "putSecret",
+            names: &["key", "value", "ttl", "keys"],
+            // The value is a **demand** and not an admission, which is
+            // `rule:security/secret-qualifier` read through `nvs_types`'
+            // assignment relation: it widens onto a qualifier bit and narrows
+            // through none, so a plain `string` reaches this parameter and a
+            // `secret` one does too, with nothing laundered either way. What
+            // the row says is that this member is written for a confidential
+            // value — `put`'s `mixed` refuses one, and this is where it goes
+            // instead.
+            //
+            // The `ttl` is required where `put`'s is an option, because a
+            // secret never outlives a lifetime someone stated.
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::SecretText(Qual::Neutral),
+                CoreTy::Instance(crate::time::DURATION_NAME),
+                CoreTy::Array(&crate::keyring::KEY),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_cache_put_secret",
+            doc: Some(&PUT_SECRET_DOC),
+        },
+        CoreMethod {
+            name: "getSecret",
+            names: &["key", "keys"],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Array(&crate::keyring::KEY),
+            ],
+            defaults: &[],
+            // `rule:core-api/shape-rules` R7's `?T` where `get` had no `T` to
+            // make nullable: a sealed entry holds the one type `putSecret`
+            // admitted. The `secret` is a promise rather than a conditional —
+            // what comes back out is confidential whatever the `string` that
+            // went in was typed as — which is why the return spells
+            // `CoreTy::SecretStr` and not the parameter form beside it.
+            return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
+            symbol: "nvs_core_cache_get_secret",
+            doc: Some(&GET_SECRET_DOC),
+        },
     ],
     slots: &["tier"],
     constants: &[],
@@ -479,6 +522,90 @@ const FORGET_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Cache\Store::putSecret`'s reference card — `rule:core-api/reference-card`.
+const PUT_SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Seals `$value` under the newest key of `$keys` and stores the ciphertext under `$key` — \
+            the only way a secret reaches a cache, and no `secret` value ever enters a tier.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "The name to store under; `tainted` is admitted, as it is on `put`. It is bound \
+                   into the ciphertext, so the same entry moved to another name does not open.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The secret to store. A plain `string` reaches this parameter too, and nothing is \
+                   laundered either way — what makes the value confidential is its own type.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "ttl",
+            desc: "How long the secret stays readable, counted from this call. Required, where \
+                   `put`'s is optional: the lifetime is sealed into the entry as well as given to \
+                   the tier, so an entry written back under a longer store lifetime is still past \
+                   its own expiry.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The key ring, newest first, as `Core\\SignedCookie` takes one. The newest key \
+                   seals; every key opens, so a rotated ring reads what the retired one wrote.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. What sealing buys is that code which knows an entry's name but not the ring \
+          cannot read it, and that a tampered, moved or replayed entry is a miss — **it does not \
+          protect a secret from a compromised process**, which holds the ring in the same memory.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty, or an entry of it is not a key of the construction's length. \
+                   A ring that cannot key anything is the program's bug rather than a miss.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "On the shared tier only: the store cannot be reached or refused the write, as \
+                   on `put`.",
+        },
+    ],
+};
+
+/// `Core\Cache\Store::getSecret`'s reference card — `rule:core-api/reference-card`.
+const GET_SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Opens the secret stored under `$key` against every key of `$keys`, or answers `null` \
+            when there is none that opens.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "The name to read; the one `putSecret` wrote under, since the name is sealed in.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The key ring, newest first. Every key is tried, so an entry sealed under a key \
+                   still in the ring opens after a rotation.",
+            shape: &[],
+        },
+    ],
+    ret: "The secret, or `null`. A sealed entry that opens under no key of this ring, or whose own \
+          expiry has passed, is a miss like any other — never an error, so a rotated ring re-fetches \
+          rather than failing. A plain `get` on the same name is a miss too: the sealed door is the \
+          only door.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty, or an entry of it is not a key of the construction's length — \
+                   `putSecret`'s refusal, unchanged.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "On the shared tier only: the store cannot be reached. An entry that is simply \
+                   not there is `null`, as it is on `get`.",
+        },
+    ],
+};
+
 /// What a `getSecret` fill answers with: a secret, and how long it stays good.
 ///
 /// An object rather than a pair, because `rule:core-api/shape-rules` R14 makes
@@ -555,6 +682,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cache_put" => (nvs_core_cache_put as *const ()).cast(),
         "nvs_core_cache_get" => (nvs_core_cache_get as *const ()).cast(),
         "nvs_core_cache_forget" => (nvs_core_cache_forget as *const ()).cast(),
+        "nvs_core_cache_put_secret" => (nvs_core_cache_put_secret as *const ()).cast(),
+        "nvs_core_cache_get_secret" => (nvs_core_cache_get_secret as *const ()).cast(),
         "nvs_core_cache_secret_entry_of" => (nvs_core_cache_secret_entry_of as *const ()).cast(),
         _ => return None,
     })
@@ -1009,10 +1138,7 @@ fn process_cap(ctx: &Ctx) -> Option<usize> {
 /// part and still inside the application that wrote it.
 fn scoped(ctx: &Ctx, key: &[u8]) -> Vec<u8> {
     let snapshot = ctx.config().map(nvs_config::Request::snapshot);
-    let app = snapshot
-        .and_then(|snapshot| snapshot.blocks.last())
-        .map(|block| block.as_os_str().as_encoded_bytes())
-        .unwrap_or_default();
+    let app = application(ctx);
     let generation = snapshot.map_or(0, |snapshot| snapshot.generation);
 
     let mut real = Vec::with_capacity(app.len() + key.len() + 24);
@@ -1022,6 +1148,145 @@ fn scoped(ctx: &Ctx, key: &[u8]) -> Vec<u8> {
     real.push(0);
     real.extend_from_slice(key);
     real
+}
+
+/// The application this request belongs to, as the bytes that name it, or
+/// nothing at all on a context nobody configured.
+///
+/// The innermost configured block, which is the application in the sense both
+/// callers mean: [`scoped`] keeps one application's process-tier entries away
+/// from another's, and [`bound`] keeps one application's sealed entries from
+/// opening inside another. One reader so the two cannot come to disagree about
+/// which block that is.
+fn application(ctx: &Ctx) -> &[u8] {
+    ctx.config()
+        .map(nvs_config::Request::snapshot)
+        .and_then(|snapshot| snapshot.blocks.last())
+        .map(|block| block.as_os_str().as_encoded_bytes())
+        .unwrap_or_default()
+}
+
+/// The octet every sealed entry's additional data opens with.
+///
+/// A number rather than a name because it is never read back and never shown:
+/// the whole of what it does is differ from whatever the next construction over
+/// a key ring picks for itself, so a `Core\SignedCookie` answer pasted into
+/// this store opens under none of the ring it was sealed with.
+const SEAL_DOMAIN: u8 = 1;
+
+/// The key space sealed entries live in.
+///
+/// **A space of its own is why `get` answers `null` for a sealed entry** rather
+/// than throwing over a payload it cannot read: the sealed door is the only
+/// door, and a miss is what every other name that was never written gives. The
+/// separator is a `NUL` for [`scoped`]'s reason. A program that writes these
+/// octets into its own key does reach the space — a cache key is arbitrary text
+/// — and what a `get` there finds is a payload `Core\Serialize` refuses, which
+/// is the `ParseError` that member already documents; no secret is readable
+/// either way, the payload being ciphertext.
+const SEALED_SPACE: &[u8] = b"\0secret\0";
+
+/// The name `key`'s sealed entry is stored under.
+fn sealed_key(key: &[u8]) -> Vec<u8> {
+    let mut stored = Vec::with_capacity(SEALED_SPACE.len() + key.len());
+    stored.extend_from_slice(SEALED_SPACE);
+    stored.extend_from_slice(key);
+    stored
+}
+
+/// What a sealed entry is bound to: this construction, the application that
+/// wrote it, and the name it was written under.
+///
+/// The AEAD's additional data rather than a prefix of the plaintext, so the tag
+/// covers it without the value needing a frame to be told apart from it. It
+/// travels with neither the ciphertext nor the ring, so the reader states it
+/// again from what it knows and an entry lifted into another application or
+/// moved to another name opens under none of them —
+/// [`crate::crypto::open_under`]'s `None` is where that becomes the miss this
+/// module reads.
+///
+/// The configuration's generation is deliberately absent where [`scoped`] has
+/// it: a reload renames every process-tier key on purpose, and doing the same
+/// here would make an operator's reload silently discard every secret the
+/// shared tier is holding for the whole fleet.
+///
+/// `app` is [`application`]'s answer at every call site; it is an argument
+/// rather than read here so that the two halves a sealed entry is bound to can
+/// be varied one at a time by whatever is asking.
+fn bound(app: &[u8], key: &[u8]) -> Vec<u8> {
+    let mut aad = Vec::with_capacity(app.len() + key.len() + 2);
+    aad.push(SEAL_DOMAIN);
+    aad.extend_from_slice(app);
+    aad.push(0);
+    aad.extend_from_slice(key);
+    aad
+}
+
+/// How wide the expiry written ahead of a sealed value is.
+const EXPIRY_LEN: usize = 8;
+
+/// The plaintext a sealed entry holds: when the secret stops being readable,
+/// and the secret.
+///
+/// Milliseconds since the epoch, big-endian, because the reading has to survive
+/// the shared tier — a monotonic instant means nothing in the process that
+/// reads it back, and [`Entry::until`]'s deadline is the writing core's own
+/// clock. The value is the rest of the buffer and carries no length of its own:
+/// the expiry is fixed-width, and the tag covers the whole of it.
+fn sealed_plaintext(expiry: i64, value: &[u8]) -> Vec<u8> {
+    let mut plain = Vec::with_capacity(EXPIRY_LEN + value.len());
+    plain.extend_from_slice(&expiry.to_be_bytes());
+    plain.extend_from_slice(value);
+    plain
+}
+
+/// The secret inside an opened entry, or `None` for one whose sealed expiry has
+/// passed at `now`.
+///
+/// **Whatever the store says.** A tier slow to forget an entry, and one an
+/// operator copied forward under a longer store lifetime, both answer a miss
+/// here: the expiry the secret was sealed with is the one that decides, and it
+/// is under the tag rather than beside it.
+fn sealed_value(plain: &[u8], now: i64) -> Option<&[u8]> {
+    let (expiry, value) = plain.split_first_chunk::<EXPIRY_LEN>()?;
+    (now < i64::from_be_bytes(*expiry)).then_some(value)
+}
+
+/// The wall clock this request reads, in milliseconds since the epoch.
+///
+/// [`crate::time::wall_clock`] and not a [`std::time::SystemTime`] of this
+/// module's own, so that a `#[Test(at: …)]` moves a sealed expiry exactly as it
+/// moves every other reading in `Core`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a fixed reading outside the representable range,
+/// which `Core\Test::advance` refuses to store — so it is a state no program
+/// can reach and no member has anything to say about.
+fn clock_ms(ctx: &Ctx, member: &str) -> Result<i64, Fault> {
+    crate::time::wall_clock(ctx)
+        .map(|at| at.as_millisecond())
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{STORE_NAME}::{member} read a fixed clock outside the representable range"
+            ))
+        })
+}
+
+/// The `secret string` in argument slot `at`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for [`key_of`]'s reason with one more
+/// on top: `secret` is checked once and erased before codegen, so what arrives
+/// here is a `string` or compiled code's bug.
+fn secret_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fault> {
+    args[at].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{STORE_NAME}::{member} expected a `string` value, got tag {}",
+            args[at].tag_byte()
+        ))
+    })
 }
 
 /// Writes `payload` under `key` for every core of this process, replacing any
@@ -1622,6 +1887,128 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Cache\Store::putSecret(string $key, secret string $value, Duration
+    /// $ttl, array<secret bytes> $keys): void` — the one door through which a
+    /// secret meets a cache.
+    ///
+    /// **What reaches the tier is ciphertext**, by that tier's ordinary path
+    /// and as bytes, so `rule:security/secret-crosses-no-boundary` is untouched
+    /// — no `secret` value crosses the copy at all, and a sealed entry is as
+    /// safe on the shared tier as on this core's own. The ring's newest key
+    /// seals and [`bound`] is what the entry may not be moved away from.
+    ///
+    /// **The lifetime is written twice, on purpose.** The tier is told it, so
+    /// that a secret nobody reads is forgotten on the ordinary schedule and
+    /// costs the cap nothing after it is over; and it is sealed in as an
+    /// absolute expiry, so that a tier which kept the entry longer than it was
+    /// asked to still answers a miss. [`sealed_value`] is where the second
+    /// reading wins.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
+    /// something that is not a key, and a thrown `IOError` on the shared tier
+    /// for a store that cannot be reached or that refuses the write.
+    fn nvs_core_cache_put_secret(ctx, args: [5]) {
+        let tier = tier_of(args, "putSecret")?;
+        let key = key_of(args, 1, "putSecret")?.as_bytes().to_vec();
+        let value = secret_of(args, 2, "putSecret")?;
+        let nanos = crate::time::nanos_of(args, 3, "putSecret")?;
+
+        let who = format!("{STORE_NAME}::putSecret");
+        let ring = crate::keyring::borrow(args, 4, &who)?;
+        let (slot, held) = crate::keyring::newest(&ring);
+        let cipher = crate::keyring::cipher_at(&held, slot, &who)?;
+
+        // Rounded up rather than down, so that a lifetime shorter than this
+        // clock's resolution is still a lifetime: an entry whose sealed expiry
+        // had passed before the write would be a miss no program could account
+        // for. A zero stays zero, which is the lifetime that is already over.
+        let expiry = clock_ms(ctx, "putSecret")?
+            .saturating_add(nanos.max(0).saturating_add(999_999) / 1_000_000);
+        let aad = bound(application(ctx), &key);
+        let plain = sealed_plaintext(expiry, value.as_bytes());
+        let sealed = crate::crypto::seal_under(ctx, &cipher, &aad, &plain, &who)?;
+
+        let stored = sealed_key(&key);
+        let lifetime = Lifetime::of(nanos);
+        match tier {
+            Tier::Local => store_put(&stored, sealed, lifetime, local_cap(ctx)),
+            Tier::Process => {
+                process_put(&scoped(ctx, &stored), sealed, lifetime, process_cap(ctx));
+            }
+            // [`nvs_core_cache_put`]'s three commands, unchanged: the store
+            // keeps its own clock, so it is told a length of time, and a
+            // lifetime already over leaves it in the state the in-process
+            // tiers are left in.
+            Tier::Shared => on_shared(STORE_NAME, "putSecret", |open| {
+                if lifetime.elapsed() {
+                    return open.del(&stored);
+                }
+                match lifetime {
+                    Lifetime::Forever => open.set(&stored, &sealed),
+                    Lifetime::For(ttl) => open.set_expiring(&stored, &sealed, ttl),
+                }
+            })?,
+        }
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache\Store::getSecret(string $key, array<secret bytes> $keys):
+    /// ?secret string` — [`nvs_core_cache_put_secret`]'s door in the other
+    /// direction.
+    ///
+    /// **Every way of not opening is the same miss**, and never an error: a
+    /// ring that has rotated past the key this entry was sealed under, an entry
+    /// moved to another name or lifted into another application, a tampered
+    /// payload, and one past its sealed expiry all answer `null`. A caller that
+    /// could tell them apart would learn something about the ring from an entry
+    /// it cannot read, and a rotated ring is meant to re-fetch rather than fail.
+    /// A ring that is wrong in itself is a different thing and throws.
+    ///
+    /// Every key of the ring is tried rather than the newest alone, which is
+    /// `Core\SignedCookie`'s walk and buys the same thing: an entry written
+    /// before a rotation stays readable until it expires on its own.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
+    /// something that is not a key, and a thrown `IOError` on the shared tier
+    /// for a store that cannot be reached.
+    fn nvs_core_cache_get_secret(ctx, args: [3]) {
+        let tier = tier_of(args, "getSecret")?;
+        let key = key_of(args, 1, "getSecret")?.as_bytes().to_vec();
+
+        let who = format!("{STORE_NAME}::getSecret");
+        let ring = crate::keyring::borrow(args, 2, &who)?;
+
+        let stored = sealed_key(&key);
+        let held = match tier {
+            Tier::Local => store_get(&stored),
+            Tier::Process => process_get(&scoped(ctx, &stored)),
+            Tier::Shared => on_shared(STORE_NAME, "getSecret", |open| open.get(&stored))?,
+        };
+        let Some(sealed) = held else {
+            return Ok(Value::null());
+        };
+
+        let aad = bound(application(ctx), &key);
+        let now = clock_ms(ctx, "getSecret")?;
+        for (slot, entry) in crate::keyring::entries(&ring) {
+            let cipher = crate::keyring::cipher_at(&entry, slot, &who)?;
+            if let Some(plain) = crate::crypto::open_under(&cipher, &aad, &sealed, &who)?
+                && let Some(value) = sealed_value(&plain, now)
+            {
+                return Ok(Value::str(NvsStr::new(value)));
+            }
+        }
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Cache\SecretEntry::of(secret string $value, Duration $ttl):
     /// Core\Cache\SecretEntry` — the two halves a fill learned, as the one
     /// value it hands back.
@@ -1680,9 +2067,10 @@ mod tests {
 
     use super::{
         CLASS, Ctx, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, Lifetime,
-        MAX_SIZE, PROCESS, PROCESS_DOC, PROCESS_MAX_SIZE, SHARDS, SHARED_DOC, Value, charged,
-        endpoint, local_cap, open_configured, process_cap, process_forget, process_get,
-        process_put, scoped, shard_cap, shard_of, store_forget, store_get, store_put,
+        MAX_SIZE, PROCESS, PROCESS_DOC, PROCESS_MAX_SIZE, SHARDS, SHARED_DOC, Value, bound,
+        charged, endpoint, local_cap, open_configured, process_cap, process_forget, process_get,
+        process_put, scoped, sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of,
+        store_forget, store_get, store_put,
     };
 
     /// Taken by every case that touches the process tier, first thing.
@@ -2747,5 +3135,149 @@ mod tests {
         }
 
         let _ = std::fs::remove_file(&present);
+    }
+
+    /// The cipher every sealed-entry case keys, from one key, so that what
+    /// varies between the assertions below is the binding and never the key.
+    fn sealing() -> chacha20poly1305::XChaCha20Poly1305 {
+        crate::crypto::cipher(&[3_u8; crate::crypto::KEY_LEN])
+            .expect("a key of the construction's own length")
+    }
+
+    /// A sealed entry opens where it was written and nowhere else: the
+    /// application and the entry's name are both under the tag, so a ciphertext
+    /// an operator copied to another name, or one an application read out of a
+    /// store it shares with a neighbour, is a miss.
+    ///
+    /// Four refusals rather than one, because each alone passes something
+    /// broken: a binding that held only the name would open across
+    /// applications, one that held only the application would open across
+    /// names, one that compared prefixes would open `token` against `tok`, and
+    /// one with no domain octet would open a ciphertext another member of this
+    /// crate produced under the same ring.
+    #[test]
+    fn sealed_entry_moved_to_another_key_or_app_is_a_miss() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_random_state(11);
+        let cipher = sealing();
+        let plain = sealed_plaintext(i64::MAX, b"hunter2");
+        let sealed =
+            crate::crypto::seal_under(&mut ctx, &cipher, &bound(b"shop", b"token"), &plain, "test")
+                .expect("a short value seals");
+
+        let opens = |app: &[u8], key: &[u8]| {
+            crate::crypto::open_under(&cipher, &bound(app, key), &sealed, "test")
+                .expect("nothing is unaffordable here")
+                .is_some()
+        };
+
+        assert!(opens(b"shop", b"token"), "where it was written, it opens");
+        assert!(
+            !opens(b"shop", b"other"),
+            "the same ring under another name does not"
+        );
+        assert!(
+            !opens(b"admin", b"token"),
+            "and another application under the same name does not"
+        );
+        assert!(
+            !opens(b"shop", b"tok"),
+            "nor a name the written one begins with, which a comparison by prefix would admit"
+        );
+        assert!(
+            crate::crypto::open_under(&cipher, &[], &sealed, "test")
+                .expect("nothing is unaffordable here")
+                .is_none(),
+            "and a construction that bound nothing at all does not open it either"
+        );
+    }
+
+    /// The expiry sealed into an entry is what decides whether it is readable,
+    /// and the tier's own answer does not enter into it.
+    ///
+    /// The bound is asserted on both sides — the last readable moment and the
+    /// first that is not — because a member that stopped one millisecond early
+    /// prints plausibly against either half alone. The tier holds the entry
+    /// [`Lifetime::Forever`] throughout, so what the second half reads is the
+    /// seal and not a store that had already forgotten it.
+    #[test]
+    fn sealed_entry_past_its_sealed_expiry_is_a_miss_whatever_the_store_says() {
+        const KEY: &[u8] = b"past-its-seal";
+        let plain = sealed_plaintext(1_000, b"hunter2");
+
+        store_put(&sealed_key(KEY), plain, Lifetime::Forever, None);
+        let held = store_get(&sealed_key(KEY)).expect("the tier was given no lifetime to run out");
+
+        assert_eq!(
+            sealed_value(&held, 999),
+            Some(b"hunter2".as_ref()),
+            "a millisecond before the sealed expiry, the secret is readable"
+        );
+        assert_eq!(
+            sealed_value(&held, 1_000),
+            None,
+            "at the expiry itself it is not, which is where a lifetime of zero lands"
+        );
+        assert_eq!(
+            sealed_value(&held, 1_001),
+            None,
+            "and past it the store still holds the entry and still answers nothing"
+        );
+
+        store_forget(&sealed_key(KEY));
+
+        // A buffer too short to carry an expiry at all is the same miss, which
+        // is what keeps a truncated payload from being read as a secret.
+        assert_eq!(sealed_value(b"short", 0), None);
+    }
+
+    /// Every nonce a sealed entry carries is drawn through
+    /// [`crate::random::draw`], so one `#[Test(seed: …)]` reproduces a sealed
+    /// entry along with every other draw the test made.
+    ///
+    /// Both halves, because either alone passes something broken. The seeded
+    /// pair is what a generator of this module's own would fail; the scan of
+    /// the shipped half is what a *later* draw added beside one would fail,
+    /// and it is the same structural assertion `crate::crypto`'s own case
+    /// makes about its members' bodies.
+    #[test]
+    fn every_sealed_entry_nonce_is_drawn_through_core_random() {
+        let sealed_under = |seed: u64| {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            ctx.set_random_state(seed);
+            let aad = bound(b"shop", b"token");
+            crate::crypto::seal_under(
+                &mut ctx,
+                &sealing(),
+                &aad,
+                &sealed_plaintext(1_000, b"hunter2"),
+                "test",
+            )
+            .expect("a short value seals")
+        };
+
+        assert_eq!(
+            sealed_under(9),
+            sealed_under(9),
+            "one seed seals one entry the same way, so the nonce came from the seeded generator"
+        );
+        assert_ne!(
+            sealed_under(9),
+            sealed_under(10),
+            "and another seed draws another nonce, so the first line is not a constant one"
+        );
+
+        let shipped: Vec<&str> = include_str!("cache.rs")
+            .lines()
+            .take_while(|line| line.trim_start() != "#[cfg(test)]")
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect();
+        assert!(
+            !shipped
+                .iter()
+                .any(|line| line.contains("rand::") || line.contains("random::")),
+            "a sealed entry's nonce is `crate::crypto::seal_under`'s draw, so the shipped half \
+             of this module names no generator at all"
+        );
     }
 }
