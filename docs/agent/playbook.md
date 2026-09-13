@@ -1963,6 +1963,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   key nothing *applies* looks like it owes are refused, by that gate and by
   `no_key_with_a_reader_still_claims_to_be_unread`. Land the key with its refusal and no trailer, and
   say in the handoff that nothing acts on the value yet. [until: reviewed 2026-09-13]
+- **A `carried-gaps.md` gap can be written twice — a § *Owned* row and a § *Unowned* bullet — and only
+  the row is gated.** `playbook.py --check` reads the *Owner* column alone, so a row re-owned to a live
+  goal leaves the bullet behind as a second copy of the same gap, which is exactly what
+  `crates/nvs-db/src/matrix.rs` gap 1 was in. Before striking or re-owning a row, read § *Unowned* for
+  the module path the row's third cell names, and delete whichever copy the module doc's own
+  `— owner:` tag makes redundant. [until: gone docs/agent/carried-gaps.md:## Unowned]
 
 ## Running things
 
