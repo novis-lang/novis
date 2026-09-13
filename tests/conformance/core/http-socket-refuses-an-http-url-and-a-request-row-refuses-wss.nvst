@@ -1,0 +1,66 @@
+--TEST--
+The four schemes the launderer admits are put to both halves of `Core\Http\Client` and the answers are counted, so the two rosters are disjoint rather than merely plausible line by line — `rule:http-server/allow-url-pins-the-address`, `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+--FILE--
+<?nvs
+// One peer and one answer per scheme, so a URL a row takes completes rather
+// than failing for the other reason a table armed against the network gives.
+Core\Test::answerSocket("ws://gateway.example.test/feed", ["plain"]);
+Core\Test::answerSocket("wss://gateway.example.test/feed", ["secure"]);
+Core\Test::answerHttp("http://gateway.example.test/feed", 200, {body: "plain"});
+Core\Test::answerHttp("https://gateway.example.test/feed", 200, {body: "secure"});
+
+array<string> $urls = [
+    "http://gateway.example.test/feed",
+    "https://gateway.example.test/feed",
+    "ws://gateway.example.test/feed",
+    "wss://gateway.example.test/feed",
+];
+
+// The sweep asks each row the same question about each scheme and counts the
+// four ways the pair of answers can come back. A row that grew its own roster
+// still looks right on its own line and moves one of these numbers.
+int $socketOnly = 0;
+int $requestOnly = 0;
+int $both = 0;
+int $neither = 0;
+foreach ($urls as string $url) {
+    bool $atSocket = true;
+    try {
+        var $socket = Core\Http\Client::openSocket($url);
+        echo "socket ", $socket->receive()?->text() ?? "-", "\n";
+    } catch (RuntimeError $refusedSocket) {
+        $atSocket = false;
+        echo $refusedSocket->message, "\n";
+    }
+    bool $atRequest = true;
+    try {
+        var $reply = Core\Http\Client::get($url);
+        echo "request ", $reply->text(), "\n";
+    } catch (RuntimeError $refusedRequest) {
+        $atRequest = false;
+        echo $refusedRequest->message, "\n";
+    }
+    if ($atSocket && $atRequest) {
+        $both += 1;
+    } elseif ($atSocket) {
+        $socketOnly += 1;
+    } elseif ($atRequest) {
+        $requestOnly += 1;
+    } else {
+        $neither += 1;
+    }
+}
+
+// Two schemes each and no scheme shared: what a URL is for is written in the
+// row that takes it, and neither row can be spent as the other.
+echo "socketOnly=", $socketOnly, " requestOnly=", $requestOnly, " both=", $both, " neither=", $neither, "\n";
+--EXPECT--
+Core\Http\Client::openSocket: the scheme must be `ws` or `wss`, and this URL names `http`
+request plain
+Core\Http\Client::openSocket: the scheme must be `ws` or `wss`, and this URL names `https`
+request secure
+socket plain
+Core\Http\Client::get: the scheme must be `http` or `https`, and this URL names `ws`
+socket secure
+Core\Http\Client::get: the scheme must be `http` or `https`, and this URL names `wss`
+socketOnly=2 requestOnly=2 both=0 neither=0

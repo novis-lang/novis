@@ -1,0 +1,42 @@
+--TEST--
+A socket opens a `wss` URL and reports the subprotocol the handshake settled on, and a peer choosing a name that was never offered is refused — `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`, `rule:http-server/allow-url-pins-the-address`
+--FILE--
+<?nvs
+// The secure half of the roster, opened the way every outbound call is: the URL
+// goes through the row that speaks `ws` and `wss`, and the bag carries what this
+// end offered. `protocol()` reads back the one name both ends agreed on.
+Core\Test::answerSocket("wss://gateway.example.com/v1", ["ready"], {protocol: "chat.v2"});
+
+var $socket = Core\Http\Client::openSocket("wss://gateway.example.com/v1", {
+    protocols: ["chat.v1", "chat.v2"],
+});
+echo "protocol=", $socket->protocol() ?? "none", "\n";
+echo "first ", $socket->receive()?->text() ?? "-", "\n";
+
+// A peer that chooses a name nobody offered is answering a question nobody
+// asked, and a program reading `protocol()` afterwards would act on it — so the
+// handshake is refused instead of completing.
+Core\Test::answerSocket("wss://gateway.example.com/v2", ["ready"], {protocol: "chat.v9"});
+try {
+    var $stray = Core\Http\Client::openSocket("wss://gateway.example.com/v2", {
+        protocols: ["chat.v1"],
+    });
+} catch (RuntimeError $unoffered) {
+    echo $unoffered->message, "\n";
+}
+
+// A call that offered nothing settles on nothing, which is the same reading one
+// step earlier: a name is chosen only out of the ones that were on the table.
+Core\Test::answerSocket("wss://gateway.example.com/v3", ["ready"]);
+var $bare = Core\Http\Client::openSocket("wss://gateway.example.com/v3");
+echo "bare=", $bare->protocol() ?? "none", "\n";
+
+// Nothing left this process: the socket that opened is the table's, and the one
+// that was refused sent no frame before it threw.
+echo "sent=", Core\Arr::count(Core\Test::sentSocket()), "\n";
+--EXPECT--
+protocol=chat.v2
+first ready
+Core\Http\Client::openSocket: the peer chose the subprotocol `chat.v9`, which this call never offered
+bare=none
+sent=0
