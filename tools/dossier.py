@@ -87,8 +87,8 @@ the safety argument -- **no `crates/`, no `git`, no `cargo`, no ledger, no polic
 batch or has exactly one writer, and a second writer arriving in parallel fails silently.
 
 The two things a worker hands back rather than writing are the Rust `#[test]` half of the `tests`
-proof, which lands in the `mod tests` of an implementing file all eighteen of a goal's features
-share, and any bug a proof found. The parent splices the first in one `tools/splice.py --patch`,
+proof, which lands in the `mod tests` of an implementing file the goal's other features share,
+and any bug a proof found. The parent splices the first in one `tools/splice.py --patch`,
 collects the second with `--findings`, and fixes them as one batch. Then, and only after every
 worker has stopped, it runs `--run all`, `--record-perf` -- a figure measured while eight workers
 are running is not a measurement -- and `tools/verify.py`, and commits.
@@ -210,8 +210,8 @@ FANOUT = ROOT / ".loop" / "dossier-fanout"
 FINDINGS = ROOT / ".loop" / "dossier-findings"
 
 #: No worker writes under one of these, and `partition()` refuses a lane that would. Every entry is
-#: either shared by a goal's whole batch -- `crates/` holds the `mod tests` all eighteen of its
-#: features append to -- or is a ledger with exactly one writer. A second writer arriving in
+#: either shared by a goal's whole batch -- `crates/` holds the `mod tests` its features append
+#: to -- or is a ledger with exactly one writer. A second writer arriving in
 #: parallel is how both of those fail silently instead of loudly.
 #:
 #: `docs/decisions/` is the ledger a goal's one record lands in. `docs/adr/` holds only README.md's
@@ -1340,9 +1340,10 @@ def owned_paths(entry: Entry) -> list[str]:
     of trusting this comment.
 
     The Rust half of the `tests` proof is deliberately absent. It lands in the `#[cfg(test)] mod
-    tests` of the *implementing* file, and a goal is batched by shared implementing file, so all
-    eighteen of its features want the same `crates/nvs-stdlib/src/str.rs`. It comes back as text
-    and one hand splices the lot.
+    tests` of the *implementing* file, and a goal is batched by implementing file, so its
+    features want one file or a few of one crate -- a string-class goal wants
+    `crates/nvs-stdlib/src/str.rs` and nothing else. It comes back as text and one hand splices
+    the lot.
     """
     return [rel(entry.examples_dir), rel(entry.hostile_dir), rel(entry.bench_file)]
 
@@ -1465,7 +1466,8 @@ def feature_block(i: int, e: Entry, missing: dict[str, str], p: Proofs, policy: 
             lines.append(f"- **tests (Rust)** -- hand back one `#[test]` for the `mod tests` of")
             lines.append(f"  `{e.impl_file or 'its implementing file'}`, carrying "
                          f"`// covers: {e.id}`.")
-            lines.append("  **Do not write it** -- every feature in this goal wants that same file.")
+            lines.append("  **Do not write it** -- other lanes' features want that same file, and "
+                         "the parent splices them all in one patch.")
         if p.nvst:
             lines.append(f"  {len(p.nvst)} case(s) already credit it, e.g.")
             lines.append(f"  `{p.nvst[0]}` -- read one before adding")
@@ -1527,7 +1529,7 @@ def lanes_for(todo: list[tuple[Entry, dict]], workers: int) -> list[list[tuple[E
 
 
 def partition(scope: list[Entry], proofs: dict[str, Proofs], policy: dict, skips: dict,
-              workers: int, label: str) -> int:
+              workers: int, label: str, flags: str) -> int:
     """Cut a scope into worker briefs, or refuse to.
 
     The refusal is the point. Everything else here is arithmetic; what makes fanning this work out
@@ -1606,12 +1608,13 @@ def partition(scope: list[Entry], proofs: dict[str, Proofs], policy: dict, skips
     print("Then, in the parent and only after every worker has stopped, in this order:")
     print("  1. python tools/dossier.py --findings          # fix what they hit, as one batch")
     print("  2. python tools/splice.py --patch <file>       # every handed-back #[test], one call")
-    print(f"  3. python tools/dossier.py --run all --group '{label}'")
+    print(safe(f"  3. python tools/dossier.py --run all {flags}".rstrip()))
     # Only where a figure is actually owed: `types:enum` and every other kind `POLICY` excuses
     # would send a session to measure a scope with no bench in it, and a step that does nothing is
     # a step the next session learns to skip.
     if any("perf" in m for _, m in todo) or parent_only:
-        print(f"  4. python tools/dossier.py --record-perf --group '{label}'   # nothing else running")
+        print(safe(f"  4. python tools/dossier.py --record-perf {flags}".rstrip()
+                   + "   # nothing else running"))
     print("  5. python tools/verify.py, then the wrap. One commit per feature still.")
     return 0
 
@@ -1646,8 +1649,8 @@ def print_findings(clear: bool) -> int:
               f"wrote passed, or none has been run yet.")
         return 0
     print(f"== WHAT THE WORKERS FOUND  ({len(files)} finding(s))")
-    print("-- fix these as ONE batch: they cluster in the implementing file a goal's whole batch")
-    print("-- shares, which is the reason no worker was allowed to touch it. Fixing, and then the")
+    print("-- fix these as ONE batch: they cluster in the implementing files a goal's batch shares,")
+    print("-- which is the reason no worker was allowed to touch them. Fixing, and then the")
     print("-- proof that found it, land in the same commit -- or the bug goes in that crate's")
     print("-- `# Known gaps` with a `// dossier: known-gap <file> -- <what breaks>` on the proof.")
     print()
@@ -1687,52 +1690,75 @@ GOAL_PLAYBOOK = [
 ]
 
 
+#: How small a class must be to share a goal with a class of a different implementing file. A small
+#: `Core` class nearly always has a file of its own, so merging only by shared file left it a goal
+#: of one to three features: a session's whole fixed cost and the fan-out's serial tail, spent on a
+#: width of two lanes. What a merge spends is the parent's window -- its manifest, its batch fix and
+#: its spliced Rust tests reach several files of one crate rather than one -- which is why only
+#: small classes merge, and only inside one crate under `crates/`.
+MERGE_SMALL = 6
+
+
 def goal_batches(entries: list[Entry], size: int) -> list[tuple[str, list[Entry]]]:
     """Cut the roster into goals, **by file set and never across a group**.
 
     A goal is a finite contained group of work whose `[context]` manifest is what keeps a session
-    under the ceiling, so the split follows the files its sessions open: one class, or a run of
-    small classes sharing an implementing module. A class larger than `size` becomes several goals
-    numbered `(1/3)`, `(2/3)` — the file set is identical, so the manifests are too.
+    under the ceiling, so the split follows the files its sessions open: one class, a run of
+    classes sharing an implementing file, or a run of classes of at most `MERGE_SMALL` features
+    each from one crate. A class larger than `size` becomes several goals of even size numbered
+    `(1/3)`, `(2/3)`, so no part is a remainder of a feature or two -- the file set is identical,
+    so the manifests are too.
     """
     groups: dict[str, list[Entry]] = {}
     for e in entries:
         groups.setdefault(e.group, []).append(e)
 
     def file_set(members: list[Entry]) -> str:
-        """The implementing file most of a group's features live in -- what two adjacent groups
-        have to share before merging them into one goal is worth anything. Merging by name would
-        put `Core\\Ast` beside `Core\\Bytes` because A precedes B, and their sessions would open
-        two file sets to save one goal."""
+        """The implementing file most of a group's features live in. Two adjacent groups merge
+        when they share it -- ordering by name instead would put classes together because A
+        precedes B, and a session would open two file sets to save one goal -- or when both are
+        small and `crate()` puts them in one crate."""
         files = [e.impl_file for e in members if e.impl_file]
         return max(set(files), key=files.count) if files else ""
+
+    def crate(members: list[Entry]) -> str:
+        """The crate a group's implementing file sits in, or "" when that file is outside
+        `crates/` -- a reference chapter, or no file at all -- which never merges across files."""
+        parts = file_set(members).replace(BS, "/").split("/")
+        return "/".join(parts[:2]) if parts[0] == "crates" and len(parts) > 2 else ""
 
     batches: list[tuple[str, list[Entry]]] = []
     pending: list[Entry] = []
     pending_names: list[str] = []
+    pending_small = True
 
     def flush() -> None:
-        nonlocal pending, pending_names
+        nonlocal pending, pending_names, pending_small
         if pending:
             label = pending_names[0] if len(pending_names) == 1 else \
                 f"{pending_names[0]} and {len(pending_names) - 1} more"
             batches.append((label, pending))
-            pending, pending_names = [], []
+            pending, pending_names, pending_small = [], [], True
 
     ordered = sorted(groups.items(), key=lambda kv: (kv[1][0].kind, file_set(kv[1]), kv[0]))
     for name, members in ordered:
         members.sort(key=lambda e: e.id)
         if len(members) > size:
             flush()
-            chunks = [members[i:i + size] for i in range(0, len(members), size)]
+            parts = -(-len(members) // size)
+            step = -(-len(members) // parts)
+            chunks = [members[i:i + step] for i in range(0, len(members), step)]
             for n, chunk in enumerate(chunks, 1):
                 batches.append((f"{name} ({n}/{len(chunks)})", chunk))
             continue
-        if pending and (len(pending) + len(members) > size
-                        or file_set(pending) != file_set(members)):
+        small = len(members) <= MERGE_SMALL
+        joins = file_set(pending) == file_set(members) or (
+            small and pending_small and crate(pending) != "" and crate(pending) == crate(members))
+        if pending and (len(pending) + len(members) > size or not joins):
             flush()
         pending += members
         pending_names.append(name)
+        pending_small = pending_small and small
     flush()
     return batches
 
@@ -1958,18 +1984,27 @@ def numbering(batches: list[tuple[str, list]]) -> tuple[dict[str, int], int]:
     return out, fresh
 
 
+def scope_flags(group: str | None, only: list[str] | None) -> str:
+    """The `--group` and `--only` arguments naming one scope, so a command line printed for a
+    session reaches exactly the features the command that printed it did."""
+    flags = [f"--group '{group}'"] if group else []
+    if only:
+        flags.append("--only " + " ".join(f"'{i}'" for i in only))
+    return " ".join(flags)
+
+
 def partition_command(members: list[Entry], only: list[str] | None) -> str:
     """The `--partition` line for one goal, scoped exactly the way its own check is.
 
-    A class larger than `--per-goal` is split across several goals, and every one of them gates on
-    its own features rather than on the class. The fan-out has to be cut the same way or goal `core-depth`/`governance`
-    hands its workers the whole class -- so a split goal names both: `--group` for the lane
-    directory's name, `--only` for what is actually in scope."""
-    group = members[0].group if members else ""
-    line = f"python tools/dossier.py --partition --group '{group}'"
-    if only:
-        line += " --only " + " ".join(f"'{i}'" for i in only)
-    return line
+    `--group` alone reaches the wrong features in two shapes of goal, and both name theirs by
+    `--only`. A part of a class larger than `--per-goal` keeps `--group` for the lane directory's
+    name and narrows it with `--only`, or every part hands its workers the whole class. A goal
+    holding several classes names no group at all: `--group` narrows before `--only` is read, so
+    the first class's name would refuse every feature of the others."""
+    if len({e.group for e in members}) > 1:
+        return "python tools/dossier.py --partition " + scope_flags(None, [e.id for e in members])
+    return "python tools/dossier.py --partition " + scope_flags(
+        members[0].group if members else None, only)
 
 
 def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proofs], policy: dict,
@@ -2026,10 +2061,10 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "Then, in this session and only after every worker has stopped, in this order:",
         "",
         "1. `python tools/dossier.py --findings` — what they hit. Fix it as **one batch**, because",
-        "   the fixes cluster in the implementing file this whole goal shares.",
+        "   the fixes cluster in the implementing files this goal shares.",
         "2. Splice every Rust `#[test]` they handed back into its `mod tests`, in one",
         "   `python tools/splice.py --patch`. No worker writes under `crates/` for exactly this",
-        "   reason: all of this goal's features want the same file.",
+        "   reason: this goal's features share their implementing files.",
         "3. `--run all` and then `--record-perf`, over that same scope — the `--partition` run",
         "   prints both lines back with the scope already in them. A figure taken while eight",
         "   workers are running is not a measurement, so nothing else may be in flight.",
@@ -2206,8 +2241,9 @@ def goal_handoff(n: int, label: str, members: list[Entry], proofs: dict[str, Pro
         "",
         "## The next group",
         "",
-        "One slice is one feature with all four proofs. Take them in this order — they share an",
-        "implementing file, so the second and third cost a fraction of the first:",
+        "One slice is one feature with all four proofs. Take them in this order — the list runs in",
+        "file order, so neighbours share an implementing file and the second and third cost a",
+        "fraction of the first:",
         "",
     ]
     for e in first:
@@ -2405,7 +2441,8 @@ def main() -> int:
         return print_brief(args.brief, entries, proofs, policy, skips)
     if args.partition:
         return partition(scope, proofs, policy, skips, args.workers,
-                         scope_label(args) or "the whole roster")
+                         scope_label(args) or "the whole roster",
+                         scope_flags(args.group, args.only))
 
     if args.record_perf:
         rc = record_perf(nvs, scope, args.reps, args.note, proofs, policy, skips, args.force)
