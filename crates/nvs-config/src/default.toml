@@ -392,8 +392,9 @@
 # ----------------------------------------------------------------------------------------------
 
 #[session]
-# `shared` or `db`. The local cache tier is deliberately unspellable and writing it is `E0626`: a
-# tier that is one core's own memory cannot hold what must be coherent across cores.
+# `shared` or `db`. The local and process cache tiers are deliberately unspellable and writing
+# either is `E0626`: a tier that is one core's own memory, or one process's, cannot hold what must
+# be coherent across every core and process serving this deployment.
 #backend = "shared"
 # How long an untouched record survives, written onto the entry so the store expires it. Unset, the
 # two hours `nvs_stdlib::session` ships, which is that module's to state because it is the one thing
@@ -508,8 +509,8 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [cache.*] — the two tiers `Core\Cache` hands back. This is not the artifact cache, which is
-# `[opcache]` and has no key here.
+# [cache.*] — the tiers `Core\Cache` hands back, one block each. This is not the artifact cache,
+# which is `[opcache]` and has no key here.
 # ----------------------------------------------------------------------------------------------
 
 #[cache.local]
@@ -518,6 +519,22 @@
 # enforces it. Exceeding it forgets entries rather than failing a write, so it is never a reason a
 # `put` throws. `System`-class: the footprint is charged to the core and not to any one request.
 #max_size = "32M"
+
+#[cache.process]
+# NOT IMPLEMENTED — writing this bounds nothing yet. The map it would cap is not built:
+# `Core\Cache::process()` is unwritten, so there is no tier holding a byte for a ceiling to forget.
+# `rule:concurrency/the-process-tier-is-one-store-per-process` is what closes it.
+# What the entries of the one map every core of this process reads may hold together — a size, or
+# `false` for no ceiling at all. Unset, the cap `nvs_stdlib::cache` ships. It is the same figure the
+# local tier takes, and the same number here is less memory rather than more: this map is held once
+# per process where that one is held once per core. `System`-class, and read by the next write.
+#max_size = "32M"
+
+# How long a caller waits for the one filler in this process before it throws `TimeoutError`, and
+# the default a `getSecret` overrides by writing `wait` at its own call site. `0` and `false` are
+# both refused at boot: a wait of nothing releases every concurrent caller throwing, and a wait
+# nothing ends has no spelling here.
+#fill_wait = "5s"
 
 #[cache.shared]
 # Where the coherent tier lives: `redis://host[:port]`, or `unix:/path/to.sock` for a store on this

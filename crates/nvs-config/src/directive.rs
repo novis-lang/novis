@@ -171,6 +171,13 @@ pub const DIRECTIVES: &[Directive] = &[
     // core then goes without — and `Reload` rather than `Boot` because a new ceiling is read by the
     // next write and enforced by forgetting entries, which re-creates nothing and re-dials nothing.
     Directive { key: "cache.local", class: Class::System, apply: Apply::Reload },
+    // `rule:concurrency/the-process-tier-is-one-store-per-process`'s two keys are `System` for the row above's reason doubled: the map
+    // `max_size` bounds is held once for the whole process, so a request raising it would spend what
+    // every request on the box then goes without, and `fill_wait` is how long a request on one core
+    // may be held waiting on a fetch another core started. `Reload` because a new ceiling is read by
+    // the next write and a new wait by the next fill — neither re-creates the map, which exists
+    // before the workers do, and neither re-dials anything.
+    Directive { key: "cache.process", class: Class::System, apply: Apply::Reload },
     Directive { key: "control.socket", class: Class::System, apply: Apply::Boot },
     // `rule:core-classes/temporary-dir-sweep`. `System` because the root is the runtime's and not a request's — a request that
     // could move it would be choosing where every *other* request's temporaries land — and `Boot`

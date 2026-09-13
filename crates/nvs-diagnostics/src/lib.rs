@@ -1630,13 +1630,15 @@ pub mod code {
 
     /// `[session] backend` names a store a session may not live in.
     ///
-    /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed the local cache tier from the candidates and said
+    /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed both weak cache tiers from the candidates and said
     /// the removal is "enforced rather than documented"; this code is that
     /// enforcement, and `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` is where the roster it checks against is
     /// written. A session read on one core and written on another must see one
-    /// value, and a per-core map cannot give one — so a deployment that wrote
+    /// value, and neither weak tier can give one — so a deployment that wrote
     /// `local` has an authentication surface that forgets people at a rate set
-    /// by which core accepted the request.
+    /// by which core accepted the request, and one that wrote `process` has the
+    /// same surface at the distance that tier reaches: it holds until the
+    /// deployment runs a second process, or until this one restarts.
     ///
     /// Refused where the key is written rather than where a session is started,
     /// for `E0613`'s reason applied to a worse failure: a session that vanishes
@@ -1873,6 +1875,22 @@ pub mod code {
     /// `https` call with a handshake failure an operator reads as the
     /// origin's fault. The message names the file.
     pub const E_TLS_CLIENT_UNBUILDABLE: Code = Code::new("E0641");
+
+    /// A `[cache.process] fill_wait` that is not a wait — `0`, or `false`.
+    ///
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`
+    /// : on a miss exactly one caller in the process runs the fill while
+    /// every other caller waits for it, so this key is what bounds that
+    /// wait. Zero makes every concurrent caller but one throw
+    /// `TimeoutError` — the stampede's failure mode with the fetches
+    /// removed, and nothing bought with it — and `false` asks for a wait
+    /// nothing ends, which
+    /// `rule:http-server/no-spelling-for-an-unbounded-wait` gives no
+    /// spelling for anywhere else either. A caller that wants a shorter
+    /// wait than the operator's writes `wait` at its own call site, where
+    /// that decision is visible in review; an operator who wants a longer
+    /// one raises this key.
+    pub const E_FILL_WAIT_NOT_A_WAIT: Code = Code::new("E0642");
 
     // --- E07xx types, continued --------------------------------------------
     //

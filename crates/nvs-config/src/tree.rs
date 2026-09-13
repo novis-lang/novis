@@ -1068,6 +1068,10 @@ pub struct Cache {
     /// `[cache.local]` — `rule:concurrency/cache-memory-is-charged-to-the-core`'s bound on the per-core tier, for the reason `shared` below
     /// sits here: `Core\Cache` is one class, and its two tiers are looked for under its own name.
     pub local: Option<CacheLocal>,
+    /// `[cache.process]` — `rule:concurrency/the-process-tier-is-one-store-per-process`'s tier between the other two, one map
+    /// every core of this process reads. It sits here for the reason `local` above does: `Core\Cache`
+    /// is one class, and every tier of it is looked for under that name.
+    pub process: Option<CacheProcess>,
     /// `[cache.shared]` — `rule:core-api/two-cache-tiers`'s coherent tier, a *store* a fleet dials rather than a map
     /// in this core's memory. It sits here rather than in a block of its own because `Core\Cache` is
     /// one class and an operator looking for where its entries live looks under its own name;
@@ -1089,6 +1093,39 @@ pub struct CacheLocal {
     /// the one thing that enforces it. Exceeding this **forgets** entries rather than failing a
     /// write (§ 3), so it is never a reason a `put` throws.
     pub max_size: Option<Setting>,
+}
+
+/// `[cache.process]` — what bounds the tier `Core\Cache::process()` hands back, and how long a
+/// caller waits on another's fill.
+///
+/// Two keys, and both are facts about the process rather than about a request: the memory one map
+/// holds is spent by every request on the box, and the time one core's request may block on
+/// another's fetch is not a bargain a single request strikes on everyone's behalf. Both are
+/// `System`-class and `Reload`-apply per `crate::directive`'s `cache.process` row. There is no
+/// shard count here and no capability: the first is a fixed constant of the map
+/// (`rule:concurrency/the-process-tier-is-one-store-per-process`) and the second has nothing to
+/// gate, because this tier has no door onto an effect.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct CacheProcess {
+    /// What this process's entries may hold together — `32M`, or `false` for no ceiling at all.
+    /// Omitted, the cap `nvs_stdlib::cache` ships, which is that module's to state because it is
+    /// the one thing that enforces it; it is the same figure the local tier ships, and the same
+    /// number here means *less* memory rather than more, because this map is held once per process
+    /// where that one is held once per core. Exceeding it forgets the entry written longest ago
+    /// rather than failing a write, so it is never a reason a `put` throws.
+    ///
+    /// [unread: the map this bounds is not built yet — `Core\Cache::process()` is unwritten, so there is no tier holding a byte against a ceiling and a value written here bounds nothing. owner: rule:concurrency/the-process-tier-is-one-store-per-process]
+    pub max_size: Option<Setting>,
+    /// How long a caller waits for the one filler in this process before it throws `TimeoutError`
+    /// (`rule:concurrency/a-secret-fill-runs-once-per-process`), and the default a `getSecret` that
+    /// wants a different one overrides by writing `wait` at its own call site. Omitted, the wait
+    /// `nvs_stdlib::cache` ships, for the reason its cap sits there too.
+    ///
+    /// A wait of nothing and an unbounded one are both refused at boot with `E0642`
+    /// (`crate::store::validate`): the first makes every concurrent caller but one throw, and the
+    /// second is the spelling `rule:http-server/no-spelling-for-an-unbounded-wait` does not give.
+    pub fill_wait: Option<String>,
 }
 
 /// `[cache.shared]` — where `Core\Cache::shared()` connects, and what bounds a command.
@@ -1123,8 +1160,8 @@ pub struct CacheShared {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Session {
-    /// `shared` or `db`. The local cache tier is deliberately unspellable here and writing it is
-    /// `E0626` — `crate::session::Backend` is the roster and `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` is the reason.
+    /// `shared` or `db`. Neither weak cache tier is spellable here and writing one is `E0626` —
+    /// `crate::session::Backend` is the roster and `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` is the reason.
     pub backend: Option<String>,
     /// How long an untouched record survives, written onto the entry so the store expires it.
     /// Omitted, the two hours `nvs_stdlib::session` ships, which is that module's to state because

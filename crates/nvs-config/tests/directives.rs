@@ -88,6 +88,11 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         // Its sibling `cache.shared` is `Boot` above; this one bounds a map in the core's own
         // memory (`rule:concurrency/cache-memory-is-charged-to-the-core`), so a new ceiling is read by the next write and re-dials nothing.
         "cache.local.max_size",
+        // The third tier's two, which are this class for the same reason doubled: what they bound
+        // is one map for the whole process rather than one per core
+        // (`rule:concurrency/the-process-tier-is-one-store-per-process`).
+        "cache.process.max_size",
+        "cache.process.fill_wait",
     ] {
         let row = governing(key);
         assert_eq!(

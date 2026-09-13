@@ -13,13 +13,22 @@
 //! because [`validate`] returns and [`advise`] does not — the difference `resolve`'s two call sites
 //! are written around.
 //!
+//! The third is about a tier that dials nothing and lands here for the same reason: `[cache.process]
+//! fill_wait` bounds how long a caller waits for the one filler in this process
+//! (`rule:concurrency/a-secret-fill-runs-once-per-process`), and a wait of nothing or an unbounded
+//! one is [`E0642`](nvs_diagnostics::code::E_FILL_WAIT_NOT_A_WAIT). A value that is not a duration at
+//! all is [`mod@crate::value`]'s `E0601`, which writes that sentence once for every key that takes a
+//! measurement, so this module only asks what the quantity *is*.
+//!
 //! **Here rather than in [`mod@crate::capability`]**, which is the pure decision procedure: it
 //! answers a grant question and reports nothing, and a pass that builds diagnostics would be a
 //! second thing that module does. **Here rather than in [`mod@crate::cache`]**, which holds the
-//! unit-key formula and reads no `Config` at all. What this module is for is the `[cache.shared]`
-//! block as a *boot* reads it, which is where the next question about that block also lands.
+//! unit-key formula and reads no `Config` at all. What this module is for is the `[cache]` block as
+//! a *boot* reads it — which store an operator named, whether anything may reach it, and what the
+//! process tier's own key says — so the next question about that block lands here too.
 //!
-//! Cost: two `Option` reads over the merged tree, at boot, and nothing per request.
+//! Cost: a few `Option` reads over the merged tree and at most one duration parse, at boot, and
+//! nothing per request.
 
 use std::collections::BTreeMap;
 
@@ -27,7 +36,8 @@ use nvs_diagnostics::{Diagnostic, code};
 
 use crate::capability::Cap;
 use crate::resolve::{Origin, origin_note};
-use crate::tree::Config;
+use crate::tree::{Config, Setting};
+use crate::value::{Quantity, Unit};
 
 /// The scheme a `[cache.shared] url` spells a Unix-domain socket with —
 /// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`, whose other half is the bare
@@ -53,9 +63,24 @@ fn configured(config: &Config) -> Option<&str> {
         .filter(|url| !url.is_empty())
 }
 
+/// Every refusal the `[cache]` block earns before a request asks for a tier.
+///
+/// Asked of the merged tree for [`advise`]'s reason. The address question is answered first: a tree
+/// that names a store this binary cannot open describes a deployment that would run believing it
+/// has a coherent tier, and the process tier's own key is a smaller wrong than that.
+///
+/// # Errors
+///
+/// `E0635` for a `[cache.shared] url` this build has no transport for, then `E0601` for a
+/// `[cache.process] fill_wait` that is not a duration and `E0642` for one that is not a wait.
+pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    unix_transport(config, origins)?;
+    fill_wait(config, origins)
+}
+
 /// The refusal a tree earns by naming a socket this build has no transport for.
 ///
-/// Asked of the merged tree for [`advise`]'s reason, and a refusal rather than a warning because
+/// A refusal rather than a warning because
 /// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` is that a deployment
 /// must not run believing it has a store it will never reach.
 ///
@@ -64,7 +89,7 @@ fn configured(config: &Config) -> Option<&str> {
 /// `E0635` for a `[cache.shared] url` carrying [`UNIX_SCHEME`] on a build with no `AF_UNIX`
 /// transport. Never anything on a build that has one: there the spelling is ordinary, and what the
 /// path itself must look like is the door's question (`nvs_stdlib::cache`).
-pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+fn unix_transport(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     if cfg!(unix) {
         return Ok(());
     }
@@ -89,6 +114,56 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
         "write the store as `redis://host[:port]`; a `unix:` url is not quietly read as loopback \
          TCP, because a configuration that reads as one transport and runs as another is invisible \
          in exactly the review that would have caught it"
+            .to_string(),
+    ))
+}
+
+/// The refusal a `[cache.process] fill_wait` earns by not being a wait at all.
+///
+/// What is checked is the quantity and not the text, so every spelling of nothing is one refusal;
+/// reading it through [`Quantity`] is also what keeps this key's suffixes the same as every other
+/// duration's in the file.
+///
+/// # Errors
+///
+/// `E0601` for a value that is not a duration, which [`mod@crate::value`] writes for every key that
+/// takes a measurement. `E0642` for a duration of zero and for the `false` that removes a ceiling
+/// elsewhere: a wait is not a ceiling, and removing it leaves nothing holding a request off a fetch
+/// that may never answer.
+fn fill_wait(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    let Some(written) = config
+        .cache
+        .as_ref()
+        .and_then(|cache| cache.process.as_ref())
+        .and_then(|process| process.fill_wait.as_deref())
+    else {
+        return Ok(());
+    };
+
+    let key = "cache.process.fill_wait";
+    let wait = Quantity::parse(key, Unit::Duration, &Setting::Text(written.to_owned()))
+        .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
+    let complaint = match wait {
+        Quantity::Nanos(0) => "a wait of nothing is not a wait",
+        Quantity::Unbounded => "a wait nothing ends is not a wait",
+        _ => return Ok(()),
+    };
+
+    Err(Diagnostic::error(
+        code::E_FILL_WAIT_NOT_A_WAIT,
+        format!("`[cache.process] fill_wait = \"{written}\"`, and {complaint}"),
+    )
+    .with_note(format!(
+        "`rule:concurrency/a-secret-fill-runs-once-per-process`: one caller in this process runs a \
+         miss's fill while every other caller waits for it, and this key is the whole bound on that \
+         wait — at zero they are all released throwing `TimeoutError` with the fetch still in \
+         flight, and unbounded they are held for as long as a provider takes{}",
+        origin_note(origins.get(key))
+    ))
+    .with_help(
+        "write the longest a request may be held on another's fetch, as `5s`; a caller that can \
+         afford less writes `wait` at its own call site, which is where a decision about one \
+         request's latency is visible in review"
             .to_string(),
     ))
 }
@@ -142,7 +217,7 @@ mod tests {
     use nvs_diagnostics::code;
 
     use super::{advise, validate};
-    use crate::tree::{CacheShared, CapCache, Capabilities, Config, Setting};
+    use crate::tree::{CacheProcess, CacheShared, CapCache, Capabilities, Config, Setting};
 
     /// A tree whose `[cache.shared]` block names `url`, granted or not.
     fn wrote(url: Option<&str>, grant: Option<Setting>) -> Config {
@@ -162,6 +237,65 @@ mod tests {
             }),
             ..Config::default()
         }
+    }
+
+    /// A tree whose `[cache.process]` block writes `fill_wait`, and nothing else.
+    fn waits(written: &str) -> Config {
+        Config {
+            cache: Some(crate::tree::Cache {
+                process: Some(CacheProcess {
+                    fill_wait: Some(written.to_owned()),
+                    ..CacheProcess::default()
+                }),
+                ..crate::tree::Cache::default()
+            }),
+            ..Config::default()
+        }
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`'s wait at both of its ends: `E0642`
+    /// for a wait of nothing and for an unbounded one, `E0601` for a value that is not a duration,
+    /// and silence for a wait an operator can actually be held for.
+    ///
+    /// Every spelling of zero in one case because the refusal is over the *quantity*: a check on
+    /// the text passes against `"0"` and then admits `0ms`, which is the same wait with a suffix.
+    /// The `false` half is here rather than in a case of its own because it is the same sentence
+    /// from the other side — it is the spelling that removes a ceiling everywhere else in this
+    /// file, and `rule:http-server/no-spelling-for-an-unbounded-wait` is that a wait has no such
+    /// spelling.
+    #[test]
+    fn a_fill_wait_that_is_not_a_wait_is_refused_at_boot_however_it_is_spelled() {
+        let origins = BTreeMap::new();
+
+        for written in ["0", "0s", "0ms", "false"] {
+            let refused = validate(&waits(written), &origins)
+                .expect_err("a wait at either end is not one a caller can be held for");
+            assert_eq!(
+                refused.code,
+                Some(code::E_FILL_WAIT_NOT_A_WAIT),
+                "`fill_wait = \"{written}\"`: {}",
+                refused.message
+            );
+        }
+
+        assert_eq!(
+            validate(&waits("a fortnight"), &origins)
+                .expect_err("a value that is not a duration is refused as every other one is")
+                .code,
+            Some(code::E_BAD_DIRECTIVE),
+            "the unit's own refusal is `E0601` and not this key's"
+        );
+
+        for written in ["5s", "250ms", "1m"] {
+            assert!(
+                validate(&waits(written), &origins).is_ok(),
+                "`{written}` is a wait a request can be held for"
+            );
+        }
+        assert!(
+            validate(&Config::default(), &origins).is_ok(),
+            "a tree that wrote no `[cache.process]` block takes the shipped wait"
+        );
     }
 
     /// `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s boot report, on both
