@@ -1940,6 +1940,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   key whose field has a reader and rightly carries no `[unread:]` trailer, so the failure reads as a
   missing trailer rather than as a misplaced note. Order the block so every key that is read sits
   above the note and the unread one directly under it. [until: reviewed 2026-10-13]
+- **`peek.py`'s answer dies with `OSError: [Errno 22]` when it is piped into `head`.** The pipe closes
+  under it and Python reports the broken write as a traceback on top of a partial answer, so a call that
+  looked like a narrow read comes back as a crash with no usable result. Narrow the target instead — a
+  `:NN-NN` window, a `re:pat:3`, a `--locate` — rather than trimming a wide answer downstream.
+  [until: reviewed 2026-09-13]
 
 ## Running things
 
