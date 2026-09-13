@@ -507,9 +507,11 @@ fn written_tls(config: &Config) -> Option<&HttpClientTls> {
 
 /// The `[http.client.proxy]` block, where a tree wrote one. An absent block is no proxy.
 ///
-/// Reachable from [`mod@crate::secret`], whose roster holds the block's credential and would
-/// otherwise spell this chain a second time.
-pub(crate) fn written_proxy(config: &Config) -> Option<&HttpClientProxy> {
+/// The one spelling of this chain: [`mod@crate::secret`]'s roster holds the block's credential and
+/// `nvs_stdlib::http` builds a call's tunnel from it, and either of them walking the tree itself
+/// would be a second reader that agrees until a block moves.
+#[must_use]
+pub fn written_proxy(config: &Config) -> Option<&HttpClientProxy> {
     config
         .http
         .as_ref()
@@ -617,28 +619,43 @@ fn url_problem(written: Option<&str>) -> Option<String> {
     let Some(written) = written else {
         return Some("`[http.client.proxy]` is written and names no `url`".to_string());
     };
-    let bad = |why: &str| {
-        Some(format!(
-            "`[http.client.proxy] url` is `{written}`, which {why}"
-        ))
-    };
-    let Some(rest) = written.strip_prefix("http://") else {
-        return bad("is not an `http://` URL");
-    };
+    proxy_endpoint(written)
+        .err()
+        .map(|why| format!("`[http.client.proxy] url` is `{written}`, which {why}"))
+}
+
+/// Where a `[http.client.proxy] url` that names no port is dialled — an `http://` URL's own
+/// default, since the proxy is spoken to over plain TCP like any other origin.
+pub const DEFAULT_PROXY_PORT: u16 = 80;
+
+/// The host and port a `[http.client.proxy] url` names, so that the boot's refusal and the
+/// transport's `CONNECT` take one text apart the same way: a URL that passed [`validate`] is one
+/// `nvs_stdlib::http` can dial, and there is no second grammar for it to disagree with.
+///
+/// # Errors
+///
+/// Why this client cannot dial the text, as the clause [`url_problem`] writes after `which`.
+pub fn proxy_endpoint(written: &str) -> Result<(&str, u16), &'static str> {
+    let rest = written
+        .strip_prefix("http://")
+        .ok_or("is not an `http://` URL")?;
     let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
     if authority.contains('@') {
-        return bad("carries a credential");
+        return Err("carries a credential");
     }
     let (host, port) = if let Some(inside) = authority.strip_prefix('[') {
-        let Some((host, tail)) = inside.split_once(']') else {
-            return bad("has no closing `]` on its IPv6 address");
-        };
+        let (host, tail) = inside
+            .split_once(']')
+            .ok_or("has no closing `]` on its IPv6 address")?;
         match tail {
             "" => (host, None),
-            _ => match tail.strip_prefix(':') {
-                Some(port) => (host, Some(port)),
-                None => return bad("has text after its IPv6 address"),
-            },
+            _ => (
+                host,
+                Some(
+                    tail.strip_prefix(':')
+                        .ok_or("has text after its IPv6 address")?,
+                ),
+            ),
         }
     } else {
         match authority.split_once(':') {
@@ -647,12 +664,17 @@ fn url_problem(written: Option<&str>) -> Option<String> {
         }
     };
     if host.is_empty() {
-        return bad("names no host");
+        return Err("names no host");
     }
-    if port.is_some_and(|port| !port.parse::<u16>().is_ok_and(|port| port > 0)) {
-        return bad("names no port a connection can be opened to");
-    }
-    None
+    let port = match port {
+        Some(port) => port
+            .parse::<u16>()
+            .ok()
+            .filter(|port| *port > 0)
+            .ok_or("names no port a connection can be opened to")?,
+        None => DEFAULT_PROXY_PORT,
+    };
+    Ok((host, port))
 }
 
 /// Why a `[http.client.proxy] bypass` entry is not a host name, or `None` when it is one.
