@@ -55,15 +55,9 @@
 //! is the client's job, and it is the client that knows what it wants to put in
 //! the gap.
 //!
-//! # What is not a region yet
+//! # Formatting does not cross this wire
 //!
-//! **A markup literal's body.** ``html`…` `` (`rule:core-classes/html-literal`)
-//! is markup written in expression position, and the rule names it a region on
-//! the same terms — but the lexer has no token for one, so there is nothing
-//! here to report until it does. That lands as one more arm of the filter
-//! below rather than as a second mechanism.
-//!
-//! **Anything at all about formatting.** A client's format pass reads these
+//! A client's format pass reads these
 //! regions to find the markup it hands its own HTML formatter (ADR 0173 § 1),
 //! but nothing about a layout crosses this wire: `nvs fmt` is the only
 //! formatter of Novis there is, and no answer here can say otherwise — a
@@ -78,6 +72,16 @@
 //! outlives the reply. A request carrying a `text` carries that document once
 //! more on the wire and lexes it in place of the buffer, so it costs the one
 //! copy and no second walk.
+//!
+//! # Known gaps
+//!
+//! 1. **A markup literal's body is not a region.** ``html`…` ``
+//!    (`rule:core-classes/html-literal`) is markup written in expression
+//!    position, and the rule names it a region on the same terms. The lexer
+//!    frames one — [`TokenKind::MarkupOpen`] to [`TokenKind::MarkupClose`] — so
+//!    what is left is one more arm of the filter below, which reports
+//!    [`TokenKind::InlineHtml`] alone, rather than a second mechanism.
+//!    — owner: M10
 
 use lsp_types::TextDocumentIdentifier;
 use nvs_diagnostics::{Diagnostics, PositionEncoding, SourceFile, SourceMap};
