@@ -86,7 +86,8 @@
 //! is a refusal rather than a gap.
 //!
 //! What is **not** here yet is the rest of `[server]`. [`serve`]'s own docs
-//! § *What this module does not decide yet* is the list.
+//! § *What this loop does not decide, and who does* is the list, and each entry
+//! names the module the answer belongs to rather than owing one here.
 //!
 //! # Why `hyper` and not our own h1
 //!

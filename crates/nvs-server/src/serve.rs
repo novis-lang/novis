@@ -29,7 +29,7 @@
 //! 's accounting. O(in-flight) at both levels: nothing is held per connection
 //! already closed or per request already answered.
 //!
-//! # What this module does not decide yet
+//! # What this loop does not decide, and who does
 //!
 //! - **No routing inside this loop.** The handler is still the caller's
 //!   function; what [`crate::mount`] gives it is

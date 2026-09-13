@@ -1996,6 +1996,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   hidden — the tree holds three times as many as the goal's list names. Run `python tools/owners.py`
   instead and read its `OWED` section: the pattern is word-bounded and lets up to three words sit
   between `not` and `yet`. [until: gone tools/owners.py:OWED]
+- **Renaming a module-doc section leaves every citation of it pointing at a heading that no longer
+  exists, and nothing `verify.py` runs reads a `§ *Title*` reference.** Splitting `route.rs`'s and
+  `serve.rs`'s headings stranded `crates/nvs-server/src/lib.rs:88`, and moving a gap block moved the
+  `file.rs:NN-NN` spans that `docs/agent/goals/57-m7-server-surface.md:67` and `carried-gaps.md`
+  quote for it. Grep the old title *and* the old line span across `crates/`, `docs/agent/goals/` and
+  `docs/agent/carried-gaps.md` in the same call that makes the edit.
+  [until: reviewed 2026-09-14]
 
 ## Running things
 

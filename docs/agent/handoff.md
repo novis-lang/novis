@@ -2,22 +2,21 @@
 
 ## State
 
-**Goal `gap-register` — stages 1–3 green, stage 4 open.** `python tools/owners.py` counts every
-module-doc heading that records owed work outside a `# Known gaps` block as `sections outside Known
-gaps: N` (`tools/owners.py:164` is the pattern, `:701` the line). The stage 4 check wants `0`
-(`docs/agent/loop-goal.toml:10111`); it stands at **13**, down from 18.
+**Goal `gap-register` — stages 1–3 green, stage 4 open.** `python tools/owners.py`'s
+`sections outside Known gaps` line stands at **10**, down from 13; the stage 4 check wants `0`
+(`docs/agent/loop-goal.toml:10111`).
 
-- `crates/nvs-db/src/` is clear. Its five sections are gone: `tds/mod.rs` and `span.rs` each grew a
-  `# Known gaps` block they had none of, `lib.rs` and `ddl.rs` kept their prose and lost a heading
-  that only claimed to owe something, and the two headings that were stale said so — `lib.rs` still
-  read "what is left there is the statement" for TDS, whose statement path is whole
-  (`crates/nvs-db/src/tds/mod.rs:74-84`), and "SQLite is then what is left" for a driver that exists.
-- **Two new `unowned` gaps, both reasoned.** `crates/nvs-db/src/tds/mod.rs:88` (a `bytes` bind is
-  refused; the fix is ADR 0067 § 1's cache-key shape) and `crates/nvs-db/src/span.rs:64` (a span
-  renders on `DebugFlags::TRACE` and nothing outside a test sets that flag from the `debug.trace`
-  grant). Neither is goal `m8-db-queue`'s: its stage 10 gate is "no `— owner: m8-db-queue` tag left"
-  over an enumerated list, so tagging it would make that goal uncloseable. Both reasons are in
-  `docs/agent/carried-gaps.md` § *Unowned* with `[until:]` trailers.
+- `crates/nvs-server/src/` is clear, and the three sections went three different ways. `route.rs`
+  kept its prose under `# What the answer is read for` and its two gaps became numbered items under
+  `# Known gaps` (`crates/nvs-server/src/route.rs:30`). `metrics.rs` split into `# What it spends`
+  and a new `# Known gaps` block (`crates/nvs-server/src/metrics.rs:58`). `serve.rs` owed nothing —
+  every bullet under it names the module the answer belongs to — so only the title changed
+  (`crates/nvs-server/src/serve.rs:32`).
+- **Two owners came out of the goal files rather than out of `unowned`.** `metrics.rs` gap 1 is
+  `m7-server-surface`'s (its gap list names this section, stages 10 and 11) and gap 2 is
+  `m8-stdlib-depth`'s (stage 12, `Core\Metrics`'s three rows). `route.rs` gap 2 stays `unowned` even
+  though the same goal names it: what has to be decided there is which crate owns the registry, and
+  the goal's § *Standing decisions* leaves that kind to goal `unowned-closures`.
 - The gate is green: `--check --untagged-is-an-error --reasons` passes with `untagged: 0`,
   `broken-tag: 0`, `unreasoned: 0`.
 
@@ -26,28 +25,30 @@ this stage edits; the driver's sweep picks up what these commits touched.
 
 ## Next group
 
-**Stage 4 continued: `nvs-server`'s three sections** — one file set: `crates/nvs-server/src/`, whose
-gaps goal `m7-server-surface` already owns three of (`schedule.rs` gaps 1–3). The rule is the goal's
-stage 4 and `tools/owners.py`'s module doc § *A heading is not a register*.
+**Stage 4 continued: `nvs-stdlib`'s three sections** — one file set: `crates/nvs-stdlib/src/`. None
+of the three has a `# Known gaps` block yet, so each item writes the block as well as the items, the
+way `nvs-db`'s `span.rs` did. The rule is the goal's stage 4 and `tools/owners.py`'s module doc
+§ *A heading is not a register*.
 
-- [ ] **`crates/nvs-server/src/route.rs:21` — `# What the answer is read for, and what is still
-      missing` splits.** This file already has a `# Known gaps` block (`crates/nvs-server/src/route.rs:30`
-      gap 1, `:44` gap 1), so the owed half moves into it as a numbered item and the heading keeps
-      only what the answer is read for.
-- [ ] **`crates/nvs-server/src/metrics.rs:50` — `# What is not here yet` becomes a `# Known gaps`
-      block.** No block exists in this file today; each item needs an owner backed by a goal file or
-      a plan, `unowned` with a `docs/agent/carried-gaps.md` § *Unowned* reason otherwise.
-- [ ] **`crates/nvs-server/src/serve.rs:32` — `# What this module does not decide yet`.** Check
-      first whether it is stale rather than owed: goal `serve-runs-the-queue` landed after it was
-      written, and a heading that only claims to owe something is rewritten, not moved.
+- [ ] **`crates/nvs-stdlib/src/sse.rs:88` — `# What is not here yet` becomes a `# Known gaps`
+      block.** Goal `event-streams` cites the section by its title at
+      `docs/agent/goals/42-event-streams.md:20`, so that line is part of the slice.
+- [ ] **`crates/nvs-stdlib/src/http.rs:102` — `# What is not here yet, and why each is deliberate
+      rather than forgotten` splits.** The "deliberate" half is scope and keeps a heading saying so;
+      what is owed moves into `# Known gaps`. `docs/agent/goals/48-http-client.md:48` cites the
+      title and already names goal `http-client` as the owner of the request body and reply headers.
+- [ ] **`crates/nvs-stdlib/src/cache.rs:137` — same shape.**
+      `docs/agent/goals/49-process-cache.md:38` cites the title and names goal `process-cache`
+      stage 4 as the owner of "A TTL and a `forget`".
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/` holds four of the remaining sections — `cache.rs:137`, `http.rs:102`,
-  `sse.rs:88`, and `test.rs` is already done; one file set, one group.
-- `crates/nvs-runtime/src/budget.rs:55` and `dispatch.rs:21`; `budget.rs` gap 1 is already orphaned
-  per `docs/agent/carried-gaps.md`.
-- `crates/nvs-cli/src/openapi.rs:27` and `script.rs:42`; `script.rs`'s is a `Decision:` heading, so
-  it may be the false-positive kind.
-- `crates/nvs-host/src/ladder.rs:16`, `crates/nvs-lsp/src/regions.rs:58`,
-  `crates/nvs-test/src/lib.rs:148` — three singletons, one session between them.
+- One section each, in seven more crates, after `nvs-stdlib`: `crates/nvs-cli/src/openapi.rs:27`,
+  `crates/nvs-cli/src/script.rs:42`, `crates/nvs-host/src/ladder.rs:16`,
+  `crates/nvs-lsp/src/regions.rs:58`, `crates/nvs-runtime/src/budget.rs:55`,
+  `crates/nvs-runtime/src/dispatch.rs:21`, `crates/nvs-test/src/lib.rs:148`. `python
+  tools/owners.py`'s tail is the live list; this one is a snapshot of it.
+- A section whose bullets are all "decided elsewhere" needs no gap block, only an honest title —
+  `serve.rs` was one and `dispatch.rs`'s *What a caller owes* may be another.
+- `docs/agent/carried-gaps.md` § *Unowned* holds `route.rs`'s two gaps as one bullet; goal
+  `unowned-closures` is where that decision lands.
