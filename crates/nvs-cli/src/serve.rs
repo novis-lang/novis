@@ -76,18 +76,19 @@
 //! hold them in; nothing is written at a safepoint, and nothing accumulates per
 //! request answered.
 //!
-//! # Known gap: a served request carries no configuration, so it has no ceiling
+//! # Decision: the snapshot this command booted on is what a served request reads
 //!
-//! The publication above is the whole mechanism and it stops nothing yet,
-//! because what it publishes is the tree's ceiling and a served request's tree
-//! has none: a connection's context is built by `nvs_server`'s accept loop and
-//! is never handed the snapshot this command booted on, so `Ctx::cpu_limit` is
-//! `0`, every `[limits]` key reads as absent and `nvs_runtime::capability`
-//! denies every capability an entry asks for. `rule:config/the-config-is-an-immutable-snapshot`
-//! is the rule that is not met — "a request clones the `Arc` when it starts and
-//! reads from that clone for its whole life" — and closing it is what makes
-//! every ceiling on this path live, not the publication.
-//! — owner: M6
+//! What makes a ceiling live is the configuration reaching the request, not the
+//! publication above. `nvs_server`'s accept loop writes this command's snapshot
+//! onto the connection's own context at the start of every request, which is
+//! `rule:config/the-config-is-an-immutable-snapshot`'s one clone — taken when a
+//! request starts rather than when its peer dialled, because one connection
+//! carries any number of requests and a tree read once per socket would answer
+//! under whatever stood when that peer arrived. `Ctx::set_config` refreshes the
+//! limits off the snapshot it is handed, so `Ctx::cpu_limit` is the `[limits]`
+//! ceiling the tree wrote and `nvs_runtime::capability` answers with the grants
+//! a mounted entry asks for. The `Core` each worker is handed is what carries
+//! the snapshot there for that write.
 //!
 
 use std::cell::Cell;
