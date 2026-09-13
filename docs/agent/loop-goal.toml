@@ -125,6 +125,8 @@ modules = [
   # The typed block tree one configuration file deserializes into: every block an ADR states, with
   # its own fields, and an unknown key refused.
   "crates/nvs-config/src/tree.rs",
+  # `rule:classes/graph-copy`'s graph copy: one walk, reached by two carriers.
+  "crates/nvs-runtime/src/graph.rs",
 ]
 
 # Every stage works inside these three: the URL is a sink, no wait is unbounded, and the pin survives.
