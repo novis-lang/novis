@@ -1945,6 +1945,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   looked like a narrow read comes back as a crash with no usable result. Narrow the target instead — a
   `:NN-NN` window, a `re:pat:3`, a `--locate` — rather than trimming a wide answer downstream.
   [until: reviewed 2026-09-13]
+- **A `rule:` token is not derivable from the rule's title, and only `rules.py --check` says so.** Three
+  citations written from a remembered title were each one word off the real id —
+  `member-names-are-full-words` for `members-are-full-words`, `a-unit-is-a-type` for `units-are-types`,
+  `library-placement-tests` for `tier-placement`. Grep the topic's JSON for `"id"`, or paste the token into
+  `python tools/peek.py rule:<id>` and see whether a fragment comes back.
+  [until: reviewed 2026-09-13]
 
 ## Running things
 
