@@ -1933,6 +1933,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the one the session is in. Run the named check's own `argv` once before treating it as the session's
   work; when it exits 0 the job is to collect the acceptance and re-claim, not to re-fix.
   [until: reviewed 2026-09-13]
+- **A `# NOT IMPLEMENTED` note in `crates/nvs-config/src/default.toml` covers every key *below* it
+  down to the next blank line, not just the one under it.** Writing it above a run of `#username`,
+  `#password` and `#password_file` marked all three, and `directives.rs`'s
+  `every_unimplemented_key_in_the_default_file_is_marked_as_one` then failed naming `password` — a
+  key whose field has a reader and rightly carries no `[unread:]` trailer, so the failure reads as a
+  missing trailer rather than as a misplaced note. Order the block so every key that is read sits
+  above the note and the unread one directly under it. [until: reviewed 2026-10-13]
 
 ## Running things
 

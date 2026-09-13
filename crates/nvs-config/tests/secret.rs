@@ -265,6 +265,52 @@ fn setting_both_halves_of_the_pair_is_refused() {
     );
 }
 
+/// § 7 reaches a block that is not a map: `[http.client.proxy]`'s credential is the same pair in a
+/// block an operator does not name, so the file half is read into the value half and setting both
+/// is the same refusal a `[db.<name>]` gets.
+#[test]
+fn a_proxy_password_and_its_file_together_are_refused() {
+    const BLOCK: &str = "[http.client.proxy]\nurl = \"http://proxy.internal:3128\"\n\
+                         resolve = \"local\"\nusername = \"app\"\n";
+
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            &format!("{BLOCK}password = \"inline\"\npassword_file = \"secrets/proxy\"\n"),
+        ),
+        ("etc/secrets/proxy", "hunter2\n"),
+    ]);
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SECRET_FILE));
+    assert!(
+        diagnostic.message.contains("password")
+            && diagnostic.message.contains("password_file")
+            && diagnostic.message.contains("http.client.proxy"),
+        "the refusal names the block and both spellings: {}",
+        diagnostic.message,
+    );
+
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            &format!("{BLOCK}password_file = \"secrets/proxy\"\n"),
+        ),
+        ("etc/secrets/proxy", "hunter2\n"),
+    ]);
+    assert_eq!(
+        tree_of(&fs, "etc/nvs.toml")
+            .config
+            .http
+            .and_then(|http| http.client)
+            .and_then(|client| client.proxy)
+            .and_then(|proxy| proxy.password)
+            .as_deref(),
+        Some("hunter2"),
+        "the file half never reached the tree",
+    );
+}
+
 /// § 7's content refusals, each of which would otherwise become a credential: an empty file, a
 /// whitespace-only one, and one over the 64 KiB cap. Each is `E0608` and each names the path,
 /// because the operator's next move is to look at that file.
@@ -574,15 +620,21 @@ fn every_credential_on_the_tree_has_a_file_sibling_and_a_secrets_row() {
             pair.block,
         );
         let segments: Vec<&str> = pair.block.split('.').collect();
-        assert_eq!(
-            segments.iter().filter(|segment| **segment == "*").count(),
-            1,
-            "a row's block names exactly one operator-chosen segment: `{}`",
+        let named = segments.iter().filter(|segment| **segment == "*").count();
+        assert!(
+            named <= 1,
+            "a row's block names at most one operator-chosen segment — a map's, or none at all for \
+             a block that is a single one: `{}`",
             pair.block,
         );
         assert_eq!(
             pair.key("main"),
             format!("{}.{}", pair.block_of("main"), pair.value)
+        );
+        assert!(
+            named == 1 || pair.block_of("main") == pair.block,
+            "a block with no `*` has nowhere to put a name, so every key it builds is its own: `{}`",
+            pair.block,
         );
         assert_eq!(pair.file_key("main"), format!("{}_file", pair.key("main")));
     }

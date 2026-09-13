@@ -206,8 +206,9 @@ pub struct Resolved {
     pub overrides: Vec<Override>,
     /// What the tree is only *advised* about — § 7's readable secret file (`W1005`), its
     /// credential with an edge space (`W1007`), a configured store no capability may reach
-    /// (`W1008`, [`crate::store::advise`]) and a TLS key log a development host left on
-    /// (`W1009`, [`crate::http::advise`]). A
+    /// (`W1008`, [`crate::store::advise`]), a TLS key log a development host left on and a proxy
+    /// that resolves this deployment's destinations (`W1009` and `W1010`, both
+    /// [`crate::http::advise`]). A
     /// refusal is never here: it arrives as the `Err` of [`resolve`] instead, so a caller that
     /// ignores this field has lost a warning and never a boundary.
     pub warnings: Vec<Diagnostic>,
@@ -360,10 +361,11 @@ pub fn resolve(
     resolved
         .warnings
         .extend(crate::store::advise(&resolved.config, &origins));
-    // `[http.client.tls] keylog` on a host that accepted it, for the same reason in the other
-    // direction: `http::validate` above refused the `production` tree, so what is left is a
-    // development host whose whole outbound traffic is decryptable and says so at every start
-    // (`W1009`).
+    // The outbound block's two announcements, for the same reason in the other direction:
+    // `http::validate` above refused the trees that are wrong, so what is left is a development
+    // host whose whole outbound traffic is decryptable (`W1009`) and a deployment that handed the
+    // address question to its proxy (`W1010`) — each a tree somebody meant, and each owing the log
+    // the sentence at every start.
     resolved
         .warnings
         .extend(crate::http::advise(&resolved.config, &origins));

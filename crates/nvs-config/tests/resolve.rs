@@ -627,6 +627,179 @@ fn keylog_is_accepted_in_development() {
     );
 }
 
+/// A `[http.client.proxy]` block that never says who resolves the destination is refused, and the
+/// refusal names both words.
+///
+/// Neither is a default, because both are commonly right: `local` fails outright where only the
+/// proxy can resolve a name, and `proxy` gives up the address pin everywhere else. Naming both is
+/// what makes the refusal actionable — the deployment's own network is what picks between them.
+#[test]
+fn a_proxy_block_without_resolve_refuses_the_boot_naming_both_words() {
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[http.client.proxy]\nurl = \"http://proxy.internal:3128\"\n",
+    )]);
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_PROXY_RESOLVE_MISSING));
+    let said = format!("{} {}", diagnostic.message, diagnostic.notes.join(" "));
+    assert!(
+        said.contains("local") && said.contains("proxy"),
+        "the refusal did not name both words: {said}",
+    );
+}
+
+/// A third word is refused rather than read as either of the two, because the choice between them
+/// is a security posture and neither is a spelling to recover from a typo.
+#[test]
+fn a_third_resolve_word_is_refused() {
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[http.client.proxy]\nurl = \"http://proxy.internal:3128\"\nresolve = \"auto\"\n",
+    )]);
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_PROXY_RESOLVE_UNKNOWN));
+    assert!(
+        diagnostic.message.contains("auto"),
+        "the refusal did not name the word written: {}",
+        diagnostic.message
+    );
+}
+
+/// Every `url` this client cannot dial, each refused with the value named.
+///
+/// The block with no `url` at all is in the list on purpose: leaving the whole block out is how a
+/// deployment asks for no proxy, so a written block that names no address is one believing its
+/// egress is tunnelled when nothing tunnels it. A credential in the URL is refused for the sibling
+/// reason — `username` and `password` are where one is read from, so this one would be dropped in
+/// silence.
+#[test]
+fn a_proxy_url_this_client_cannot_dial_is_refused() {
+    for written in [
+        "",
+        "url = \"https://proxy.internal:3128\"\n",
+        "url = \"socks5://proxy.internal:1080\"\n",
+        "url = \"http://\"\n",
+        "url = \"http://app:s3cret@proxy.internal:3128\"\n",
+        "url = \"http://proxy.internal:0\"\n",
+        "url = \"http://proxy.internal:http\"\n",
+    ] {
+        let fs = Fake::with(&[(
+            "etc/nvs.toml",
+            &format!("[http.client.proxy]\nresolve = \"local\"\n{written}"),
+        )]);
+
+        assert_eq!(
+            refusal(&fs, "etc/nvs.toml").code,
+            Some(code::E_PROXY_URL_UNDIALABLE),
+            "`{written}` was taken as a proxy this client can dial",
+        );
+    }
+
+    // The two shapes that are dialable, one of them an IPv6 literal with no port.
+    for written in ["http://proxy.internal:3128", "http://[::1]"] {
+        let fs = Fake::with(&[(
+            "etc/nvs.toml",
+            &format!("[http.client.proxy]\nresolve = \"local\"\nurl = \"{written}\"\n"),
+        )]);
+
+        assert_eq!(
+            tree_of(&fs, "etc/nvs.toml")
+                .config
+                .http
+                .and_then(|http| http.client)
+                .and_then(|client| client.proxy)
+                .and_then(|proxy| proxy.url)
+                .as_deref(),
+            Some(written),
+        );
+    }
+}
+
+/// A `bypass` entry that is not a host name is refused, naming the entry.
+///
+/// Matching happens against the URL's own text before anything is resolved, so an entry carrying a
+/// port or a scheme can never equal a host — a bypass an operator believes is in force — and a
+/// wildcard or a range is more traffic leaving unproxied than they can see they asked for.
+#[test]
+fn a_bypass_entry_that_is_not_a_host_name_is_refused() {
+    for entry in [
+        "internal.example.com:443",
+        "http://internal.example.com",
+        "*.example.com",
+        "10.0.0.0/8",
+        "",
+    ] {
+        let fs = Fake::with(&[(
+            "etc/nvs.toml",
+            &format!(
+                "[http.client.proxy]\nurl = \"http://proxy.internal:3128\"\n\
+                 resolve = \"local\"\nbypass = [\"{entry}\"]\n"
+            ),
+        )]);
+
+        let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+        assert_eq!(
+            diagnostic.code,
+            Some(code::E_PROXY_BYPASS_ENTRY),
+            "`{entry}` was taken as a host name",
+        );
+        assert!(
+            diagnostic.message.contains(entry),
+            "the refusal did not name the entry: {}",
+            diagnostic.message
+        );
+    }
+
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[http.client.proxy]\nurl = \"http://proxy.internal:3128\"\n\
+         resolve = \"local\"\nbypass = [\"localhost\", \".internal.example.com\"]\n",
+    )]);
+    assert!(
+        tree_of(&fs, "etc/nvs.toml")
+            .warnings
+            .iter()
+            .all(|warning| warning.code != Some(code::W_PROXY_RESOLVES_THE_DESTINATION)),
+        "a `local` tree announced a narrowing it did not make",
+    );
+}
+
+/// `resolve = "proxy"` boots, and says at every start that the address question has moved.
+///
+/// At every start and not once per deployment: a tree that has run this way for a year still owes
+/// today's log the sentence, because the alternative is an auditor reading a boot that claims
+/// `rule:security/net-address-policy` is in force when what is in force is the proxy's answer.
+#[test]
+fn resolve_proxy_writes_one_warn_at_every_boot() {
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[http.client.proxy]\nurl = \"http://proxy.internal:3128\"\nresolve = \"proxy\"\n",
+    )]);
+
+    for boot in 0..2 {
+        let resolved = tree_of(&fs, "etc/nvs.toml");
+        let announced: Vec<&Diagnostic> = resolved
+            .warnings
+            .iter()
+            .filter(|warning| warning.code == Some(code::W_PROXY_RESOLVES_THE_DESTINATION))
+            .collect();
+
+        assert_eq!(announced.len(), 1, "boot {boot} announced {announced:?}");
+        let said = format!("{} {}", announced[0].message, announced[0].notes.join(" "));
+        assert!(
+            said.contains("resolve")
+                && said.contains("proxy")
+                && said.contains("net-address-policy"),
+            "the announcement named neither the word nor the rule it narrows: {said}",
+        );
+    }
+}
+
 /// § 2: a cycle is refused with the chain named. The chain and not merely the repeated file, because
 /// an operator shown only the file that repeated has to rediscover how it was reached.
 #[test]

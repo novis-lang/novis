@@ -330,6 +330,39 @@
 # can read it — and announced at every start in `development`.
 #keylog = "/var/log/novis/tls-secrets.log"
 
+#[http.client.proxy]
+# The forward proxy every `Core\Http\Client` call leaves through
+# (`rule:http-server/an-outbound-proxy-is-operator-configured`). Written here and nowhere else:
+# there is no call option, no client option and no program-side spelling, and no environment
+# variable is read — not `HTTP_PROXY`, not `HTTPS_PROXY`, not `NO_PROXY`. Leave the block out and
+# every call is dialled directly, which is what a deployment with no proxy wants. `http://` only:
+# every destination is tunnelled with `CONNECT` over plain TCP, and TLS to the proxy is a second
+# trust decision with no spelling here.
+#url = "http://proxy.internal:3128"
+# Who resolves the destination, and there is no default — a block without this word refuses the
+# boot (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+# `"local"` keeps everything the address pin buys: Novis resolves, checks every address against
+# `rule:security/net-address-policy` and asks for a tunnel to one it approved. `"proxy"` is for the
+# network where only the proxy can resolve a name; it moves the address question to the proxy, and
+# every boot writes a warning saying so.
+#resolve = "local"
+# The hosts reached directly instead, matched against the URL's host text before anything is
+# resolved: each entry exact, or with a leading `.` for every host under it. No port, no scheme, no
+# wildcard and no CIDR — an entry carrying one is refused, because a range here is more traffic
+# leaving unproxied than an operator can see they are asking for.
+#bypass = [".internal.example.com", "localhost"]
+# The password half of the credential, inline or as the file whose whole content is the value
+# (`rule:config/a-secret-is-a-file-whose-content-is-the-value`). Exactly one of the two may be set,
+# and `password_file` is `[db.<name>]`'s, under the same rule and with the same audit property.
+#password = "s3cret"
+#password_file = "/run/secrets/http-proxy"
+# NOT IMPLEMENTED — the block landed ahead of the transport that reads it, so nothing builds a
+# `CONNECT` request yet and the pair reaches no header.
+# `rule:http-server/an-outbound-proxy-is-operator-configured` is what closes it.
+# The user half. Both go onto `Proxy-Authorization: Basic` on the `CONNECT` request alone — never
+# to the destination, never on a redirect hop, and never into a log record or an error message.
+#username = "app"
+
 
 # ----------------------------------------------------------------------------------------------
 # [server] — `Boot`-class as a whole block: a change here needs a restart, not a reload

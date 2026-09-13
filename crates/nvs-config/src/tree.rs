@@ -573,6 +573,8 @@ pub struct HttpClient {
     pub pool_idle_timeout: Option<String>,
     /// `[http.client.tls]`.
     pub tls: Option<HttpClientTls>,
+    /// `[http.client.proxy]`.
+    pub proxy: Option<HttpClientProxy>,
 }
 
 /// `[http.client.tls]` — whose certificates an outbound `https` call believes, the version floor it
@@ -607,6 +609,52 @@ pub struct HttpClientTls {
     /// Refused at boot when the host runs in `production` (`E0640`): the file decrypts everything
     /// this deployment sends, credentials included, for whoever can read it.
     pub keylog: Option<String>,
+}
+
+/// `[http.client.proxy]` — the forward proxy every `Core\Http\Client` call leaves through, and the
+/// one word saying whether the address pin survives it.
+///
+/// `System` as a block and `Reload`
+/// (`rule:http-server/an-outbound-proxy-is-operator-configured`): where every outbound byte goes is
+/// a deployment's decision, so there is no call option, no client option and no program-side
+/// spelling, and no environment variable is read. A changed value is in force for the next call,
+/// because the pool's key carries the proxy and nothing the old value made can serve one.
+///
+/// An absent block is no proxy at all, which is why a written one that names no [`url`](Self::url)
+/// is refused rather than read as one: leaving the block out is how a deployment says it wants
+/// none.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct HttpClientProxy {
+    /// The proxy itself, as an `http://` URL with a host and an optional port — `CONNECT` over
+    /// plain TCP, since TLS *to* the proxy is a second trust decision with no spelling here. A
+    /// credential belongs in [`username`](Self::username) and [`password`](Self::password) and
+    /// never in this URL.
+    pub url: Option<String>,
+    /// Who resolves the destination — `"local"` or `"proxy"`, with no default and no third word
+    /// (`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`).
+    /// `"local"` keeps everything the pin buys: Novis resolves, checks every address against
+    /// `rule:security/net-address-policy` and asks for a `CONNECT` to one it approved. `"proxy"` is
+    /// for the network where only the proxy can resolve a name, and it moves the address question
+    /// to the proxy — which every boot says out loud.
+    pub resolve: Option<String>,
+    /// The hosts reached directly, matched against the URL's host text before anything is resolved:
+    /// each entry exact, or with a leading `.` for a suffix. A bypassed destination is dialled
+    /// under the full address policy. No port, no scheme, no wildcard and no CIDR — an entry
+    /// carrying one is refused, because a range here hands back more than an operator can see.
+    pub bypass: Option<Vec<String>>,
+    /// The user half of the `Proxy-Authorization: Basic` header the `CONNECT` request carries, and
+    /// which nothing else does.
+    ///
+    /// [unread: the config half of goal `outbound-proxy` landed ahead of its transport, so nothing builds a `CONNECT` request yet and the pair below reaches no header; `nvs_stdlib::http::transport` is what reads both. owner: rule:http-server/an-outbound-proxy-is-operator-configured]
+    pub username: Option<String>,
+    /// The password half, inline. It is `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s
+    /// kind of value, so [`password_file`](Self::password_file) is the spelling an audited
+    /// deployment wants and setting both is refused.
+    pub password: Option<String>,
+    /// The file whose whole content is the password, on [`Database::password_file`]'s footing and
+    /// read by the same pass.
+    pub password_file: Option<String>,
 }
 
 /// The `mail.*` grants.

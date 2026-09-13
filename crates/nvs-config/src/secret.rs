@@ -110,6 +110,10 @@ pub struct Materialized {
 pub struct SecretPair {
     /// The block the pair is written in, where `*` stands for the one segment an operator names —
     /// `db.*` for `rule:core-classes/db-one-api`'s `[db.<name>]`. Every key and every diagnostic is built out of this.
+    ///
+    /// A block with no `*` is a single block rather than a map, and it answers at most one site,
+    /// named with the empty string: there is no segment for a name to go in, so every key this row
+    /// builds is the block's own.
     pub block: &'static str,
     /// The value's own segment. Its `_file` sibling is this plus `_file`, and § 7 gives no way to
     /// spell either half differently.
@@ -199,6 +203,34 @@ pub const SECRETS: &[SecretPair] = &[
         set: |config, name, value| {
             if let Some(mail) = config.mail.get_mut(name) {
                 mail.password = Some(value.to_owned());
+            }
+        },
+    },
+    // `rule:http-server/an-outbound-proxy-is-operator-configured`'s proxy credential, which is the
+    // same value in a block that is not a map: it becomes `Proxy-Authorization: Basic` on the
+    // `CONNECT` request and nothing else ever sees it. The block names no `*`, so its one site is
+    // the unnamed one and every key this row builds is the block's own.
+    SecretPair {
+        block: "http.client.proxy",
+        value: "password",
+        sites: |config| {
+            crate::http::written_proxy(config)
+                .map(|proxy| Site {
+                    name: "",
+                    file: proxy.password_file.as_deref(),
+                    inline: proxy.password.as_deref(),
+                })
+                .into_iter()
+                .collect()
+        },
+        set: |config, _name, value| {
+            if let Some(proxy) = config
+                .http
+                .as_mut()
+                .and_then(|http| http.client.as_mut())
+                .and_then(|client| client.proxy.as_mut())
+            {
+                proxy.password = Some(value.to_owned());
             }
         },
     },

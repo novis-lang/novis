@@ -2,56 +2,57 @@
 
 ## State
 
-**Goal `outbound-proxy` — an operator routes outbound calls through a forward proxy, and the grant says
-what the address policy can no longer see. Stage 2 is done: nothing of the goal's code has landed yet.**
+**Goal `outbound-proxy` — an operator routes outbound calls through a forward proxy, and the grant
+says what the address policy can no longer see. Stage 3's config half is on disk; nothing dials a
+proxy yet.**
 
-[0182](../decisions/0182.md) is on disk and accepted, and it carries the whole design the goal's
-§ *Standing decisions* pre-authorized: the block is the operator's alone and the environment is never read,
-`resolve` is mandatory with no default, `local` tunnels to the address Novis approved so the pin survives,
-`proxy` narrows the policy to the URL's text and writes a `Warn` at every boot, and only
-`Core\Http\Client` is proxied. Its two rules —
+[0182](../decisions/0182.md) and its two rules —
 `rule:http-server/an-outbound-proxy-is-operator-configured` and
-`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise` — are in the rulebook as
-`designed`, `rule:security/net-address-policy` carries the one-sentence amendment, and the chapters are
-rendered. Stage 5 flips both to `shipped` and fills `guardedBy` from the goal's tests.
+`rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise` — are accepted and
+`designed`; stage 5 flips both to `shipped` and fills `guardedBy`. Both are now in the goal's base
+`[context] rules`, in `loop-goal.toml` and in `docs/agent/goals/50-outbound-proxy.toml` alike.
 
-The record and its rules are **one commit**, not two, because `conventions.md` § *A decision record* makes
-them one — `records.py --check` refuses a record naming a rule the rulebook does not define.
+`[http.client.proxy]` is a block an operator can write: `HttpClientProxy` in the typed tree, one
+`System`/`Reload` row in the registry, a commented-out section in `default.toml`, and a
+`secret::SECRETS` row — the roster's first block that is not a map, so its one site is the unnamed
+one. `nvs_config::http::validate` refuses `E0643` (no `resolve`, naming both words), `E0644` (a third
+word), `E0645` (a `url` this client cannot dial, an absent one included) and `E0646` (a `bypass`
+entry that is not a host name); `advise` writes `W1010` at every boot under `resolve = "proxy"`.
+Three of stage 4's named `-p nvs-config` cases are green with it.
+
+`HttpClientProxy::username` carries an `[unread:]` trailer, which `tools/directives.py --check`
+requires until the transport reads it; the next slice deletes both it and `default.toml`'s
+`# NOT IMPLEMENTED` note above the key.
 
 ## Next group
 
-**Stage 3: the keystone — a tunnel that keeps the pin** — one file set: `crates/nvs-config/src/directive.rs`,
-`crates/nvs-config/src/http.rs`, `crates/nvs-stdlib/src/http/transport.rs`.
+**Stage 3: the tunnel itself** — one file set: `crates/nvs-stdlib/src/http/transport.rs`,
+`crates/nvs-stdlib/src/http/pool.rs`.
 
-- [ ] **The `[http.client.proxy]` block** — the registry rows beside `[http.client]`'s at
-      `crates/nvs-config/src/directive.rs:126`, all `Class::System` and `Apply::Reload` (the `tls` row at
-      `:133` is `Boot` and this is deliberately not), and the typed tree plus its boot refusals beside
-      `[http.client.tls]`'s at `crates/nvs-config/src/http.rs:342`: a missing `resolve` naming both words, a
-      third word, a non-`http://` `url`, a `bypass` entry with a port, a scheme, a `*` or a `/`, and
-      `password` with `password_file`. `rule:http-server/an-outbound-proxy-is-operator-configured`.
-- [ ] **The `CONNECT` tunnel under `resolve = "local"`** — `crates/nvs-stdlib/src/http/transport.rs:1344`
-      (`fn one`, which is where an attempt opens or draws a connection): open to the proxy, send
-      `CONNECT <approved address>:<port>` with `Host` naming the same, wait for a `2xx` under the same
-      `connectTimeout` budget the direct path already clamps, then speak TLS with the launderer's server
-      name, or plain HTTP, over it. An `http` destination is tunnelled too — never an absolute-form request
-      line. `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`.
-- [ ] **The pool key gains the proxy, and `CONNECT` refusals are two faults** —
-      `crates/nvs-stdlib/src/http/transport.rs:1503` (`fn pool_key`, today
-      `scheme|host|socket|identity|policy`), so a tunnelled and a direct connection are never confused and a
-      reload strands the old value's connections; and in `fn attempts` at `:1290`, a `407` as a
-      `RuntimeError` naming proxy authentication, any other refusal as an `IOError`, neither retried.
-      `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`.
+- [ ] **The `CONNECT` tunnel under `resolve = "local"`** — in `one`, between the TCP connect at
+      `crates/nvs-stdlib/src/http/transport.rs:1403` and the TLS wrap at
+      `crates/nvs-stdlib/src/http/transport.rs:1426`: dial the proxy instead of the approved address,
+      write `CONNECT <addr>:<port>` for the address the pin approved, read the head, and hand the
+      same stream to `NvsTls::over_policy` with the host name unchanged. `bypass` is matched on the
+      URL's host text before any of it. How the transport reaches the snapshot is the first question
+      — `Call` is at `crates/nvs-stdlib/src/http/transport.rs:142`, and
+      `nvs_config::http::RESOLVE_LOCALLY`/`RESOLVE_AT_THE_PROXY` are the two words.
+      `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`.
+- [ ] **The pool key gains the proxy** — `crates/nvs-stdlib/src/http/transport.rs:1503`, whose doc
+      already says why every question the door asked is in the key: a tunnelled connection and a
+      direct one to the same origin are two keys.
+      `rule:http-server/an-outbound-proxy-is-operator-configured`.
+- [ ] **A refused `CONNECT` is two faults, and neither is retried** — a `407` is a `RuntimeError`
+      naming proxy authentication and anything else is an `IOError`; `retryable` at
+      `crates/nvs-stdlib/src/http/transport.rs:1932` is what must not treat either as an answer.
+      `rule:http-server/an-outbound-proxy-is-operator-configured`.
 
 ## Backlog
 
-- Stage 4 — `resolve = "proxy"`, the boot `Warn`, `nvs config dump`'s rendering, `bypass`, and
-  `Proxy-Authorization` on `CONNECT` alone — `docs/agent/loop-goal.md` § *Stage 4*.
-- Stage 5 — flip both rules to `shipped` with `guardedBy` filled, then `python tools/rules.py --render` —
-  `docs/agent/loop-goal.md` § *Stage 5*.
-- The `[context] adrs` field named only `0058:In short`; 0180's front matter and heading list were read by
-  hand for the client's shape. Add `0180:In short` and `0058:Consequences` to it.
-- The `[context] rules` field was missing `config/reloadability-is-its-own-field` and
-  `config/a-secret-is-a-file-whose-content-is-the-value`; both were fetched by hand and both are cited by
-  the new rules.
-- `crates/nvs-config/src/directive.rs` and `crates/nvs-config/src/http.rs` are not in `[context] modules`
-  and stage 3 edits both — the driver's sweep picks them up only after they are committed.
+- `nvs config dump` renders `resolve` beside `rule:security/net-address-policy`'s id — 0182 § 4's
+  second bullet, `crates/nvs-config/src/export.rs`, stage 4.
+- 0182 § *Diagnostics* calls the boot announcement an observability record rather than a diagnostic.
+  It landed as `W1010` on `W1009`'s footing, because the check that names it is `-p nvs-config` and
+  that crate emits warnings, not records. Worth one look at stage 5.
+- `no_proxy_environment_variable_is_ever_read` is stage 4's, in `-p nvs-stdlib`: nothing in
+  `nvs-config` reads the environment, so the case belongs where a transport could have.

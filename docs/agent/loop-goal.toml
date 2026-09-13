@@ -105,11 +105,15 @@ modules = [
   "crates/nvs-host/src/tls.rs",
 ]
 
-# Every stage works inside these three: the address policy, where it lives, and the pin.
+# Every stage works inside these three: the address policy, where it lives, and the pin. The goal's
+# own two joined them once stage 2 wrote them: every stage from 3 on implements them, and a session
+# that has to peek its own goal's rules is one the pack sent out short.
 rules = [
   "security/net-address-policy",
   "security/the-policy-lives-in-the-capability",
   "http-server/allow-url-pins-the-address",
+  "http-server/an-outbound-proxy-is-operator-configured",
+  "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
 ]
 
 adrs = []

@@ -131,6 +131,12 @@ pub const DIRECTIVES: &[Directive] = &[
     // `System` because that configuration is built once on first use and shared by `Arc` after it
     // (`nvs_host::tls`), so a new snapshot has nothing to apply a changed anchor set to.
     Directive { key: "http.client.tls", class: Class::System, apply: Apply::Boot },
+    // `[http.client.proxy]` is `System` on the first of those grounds — where every outbound byte
+    // goes is the deployment's decision and a per-call spelling would be a per-call way to narrow
+    // `rule:security/net-address-policy` — and `Reload` rather than `Boot`, because the next call
+    // reads the block and the pool's key carries the proxy, so nothing the old value made can serve
+    // one (`rule:http-server/an-outbound-proxy-is-operator-configured`).
+    Directive { key: "http.client.proxy", class: Class::System, apply: Apply::Reload },
     // `[log] format` and `level` are rows of `rule:config/a-mode-is-five-defaults`'s mode table, and no row in that table is
     // `System`-class.
     Directive { key: "log", class: Class::Runtime, apply: Apply::Reload },

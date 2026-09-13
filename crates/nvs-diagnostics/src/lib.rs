@@ -1892,6 +1892,59 @@ pub mod code {
     /// one raises this key.
     pub const E_FILL_WAIT_NOT_A_WAIT: Code = Code::new("E0642");
 
+    /// A `[http.client.proxy]` block that writes no `resolve`.
+    ///
+    /// `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`
+    /// : the word is mandatory and there is no default, because both
+    /// answers are commonly correct and either default silently does the
+    /// wrong thing in somebody's production — `local` fails outright in a
+    /// network where only the proxy resolves, and `proxy` gives up the
+    /// address pin everywhere else. The refusal names both words rather
+    /// than picking one, since the deployment's own network is what
+    /// decides which is true and this file cannot know it.
+    pub const E_PROXY_RESOLVE_MISSING: Code = Code::new("E0643");
+
+    /// A `[http.client.proxy] resolve` that is neither `local` nor
+    /// `proxy`.
+    ///
+    /// The two words are the whole roster, and they name who resolves the
+    /// destination — which is the one question that decides whether
+    /// `rule:security/net-address-policy` still sees an address. A third
+    /// word has no reading to fall back on, and reading it as either of
+    /// the two would pick a security posture out of a typo.
+    pub const E_PROXY_RESOLVE_UNKNOWN: Code = Code::new("E0644");
+
+    /// A `[http.client.proxy]` block whose `url` this client cannot dial —
+    /// absent, not `http://`, naming no host, or carrying a credential or
+    /// a port that is not one.
+    ///
+    /// `rule:http-server/an-outbound-proxy-is-operator-configured`
+    /// : every destination is reached by `CONNECT` over plain TCP to this
+    /// address, so `https://` is a second trust decision with no spelling
+    /// here and every other scheme is one this client does not speak. A
+    /// block with no `url` is refused rather than read as "no proxy":
+    /// leaving the block out is how a deployment asks for that, and a
+    /// written block that proxies nothing is a deployment believing its
+    /// egress is tunnelled when it is not. Userinfo in the URL is refused
+    /// for the same reason — `username` and `password` are where a
+    /// credential is read from, so one written here would be dropped in
+    /// silence.
+    pub const E_PROXY_URL_UNDIALABLE: Code = Code::new("E0645");
+
+    /// A `[http.client.proxy] bypass` entry that is not a host name — one
+    /// with a port, a scheme, a `*` or a `/`.
+    ///
+    /// `rule:http-server/an-outbound-proxy-is-operator-configured`
+    /// : the list matches the URL's host text, each entry exact or with a
+    /// leading `.` for a suffix, and it is matched before anything is
+    /// resolved. A range or a wildcard in that position hands back more
+    /// than the operator can see they are handing back — the destinations
+    /// it covers are the ones that then leave without the proxy — and a
+    /// port or a scheme is an entry that can never match, which is a
+    /// bypass an operator believes is in force. The refusal names the
+    /// entry.
+    pub const E_PROXY_BYPASS_ENTRY: Code = Code::new("E0646");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
@@ -3567,6 +3620,19 @@ pub mod code {
     /// `production` never reaches this, so the only host that sees it has
     /// already said it is being debugged.
     pub const W_TLS_KEYLOG_ON: Code = Code::new("W1009");
+    /// `[http.client.proxy] resolve` is `proxy`, so the destination's
+    /// address is the proxy's question and no longer this deployment's.
+    ///
+    /// `rule:security/net-address-policy` is not being violated — the
+    /// operator has said in configuration that the address question has
+    /// moved — but it is a real narrowing: Novis judges the scheme, the
+    /// `net.connect` host list and the tainted-URL check, and never learns
+    /// an address to judge. Written at every start rather than once,
+    /// because a deployment that has run this way for a year still owes
+    /// today's log the sentence, and the alternative is an auditor reading
+    /// a boot record that says the address policy is in force when what is
+    /// in force is the proxy's.
+    pub const W_PROXY_RESOLVES_THE_DESTINATION: Code = Code::new("W1010");
 }
 
 #[cfg(test)]
