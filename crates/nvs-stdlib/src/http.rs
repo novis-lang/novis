@@ -4042,10 +4042,15 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::io::ErrorKind;
     use std::net::{IpAddr, Ipv4Addr, TcpListener};
+    use std::rc::Rc;
 
-    use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, Value};
+    use nvs_host::blocking::pool_size;
+    use nvs_host::reactor::install;
+    use nvs_host::{Reactor, Scheduler, run_until_idle};
+    use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, TaskRoot, ThrownClass, Value};
 
     use crate::tests::granting;
 
@@ -4205,6 +4210,92 @@ mod tests {
         assert!(
             message.contains("net.connect") && !message.contains("net.internal"),
             "the host is refused before the address is judged: {message}"
+        );
+    }
+
+    /// The address [`unhurried`] answers with: TEST-NET-3, which § 3's table
+    /// does not deny and which no machine a case can reach answers on.
+    const UNHURRIED: IpAddr = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9));
+
+    /// A resolver that takes its time, and takes it **off the core**: the sleep
+    /// sits inside `nvs_host::blocking::run`, which is where a worker's own
+    /// `resolve_off_core` puts the lookup it wraps.
+    ///
+    /// The interval is what the case is named for and not what it asserts — the
+    /// order below holds for any of it, and a longer one would only make a
+    /// passing run slower.
+    fn unhurried(_host: &str) -> std::io::Result<Vec<IpAddr>> {
+        nvs_host::blocking::run(|| {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            Ok(vec![UNHURRIED])
+        })
+    }
+
+    /// `rule:http-server/a-core-is-never-blocked-on-a-syscall` over the one call
+    /// the launderer makes that can wait on the network without a readiness to
+    /// park on: the name is resolved on the blocking pool, so the core is handed
+    /// back for the interval the resolver spends there.
+    ///
+    /// The neighbour is what makes that an assertion rather than a hope. A
+    /// lookup that held the core would pin the same address and finish both
+    /// tasks — it would only be slower, and nothing about the pin's own answer
+    /// can tell the two apart. What can is the *order*: the neighbour is spawned
+    /// second and must run first, which happens only if the pin suspended.
+    /// `pool_size` is the other half, read on a thread that has started no pool
+    /// thread until this case makes it — a run where it is still zero is a run
+    /// where the lookup never left this thread.
+    ///
+    /// The resolver reaches `super::pin` through the per-thread seam
+    /// `nvs_runtime::capability::install_resolver` owns, which is the same one
+    /// `nvs_host::Worker::spawn` installs the real lookup into.
+    #[test]
+    fn a_slow_lookup_leaves_the_core_free_for_another_task() {
+        const HOST: &str = "slow.test";
+        const MEMBER: &str = "Core\\Http::allowUrl";
+
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        assert_eq!(
+            pool_size().0,
+            0,
+            "this thread's pool had already started threads, so the count below proves nothing"
+        );
+        nvs_runtime::capability::install_resolver(unhurried);
+
+        // The outcome is carried out as text rather than asserted inside the
+        // task: a panic at a task root is contained by the scheduler and
+        // reported through it, so an `expect` in there would fail quietly.
+        let order = Rc::new(RefCell::new(Vec::new()));
+        let looking = Rc::clone(&order);
+        let mut granted = Ctx::buffered();
+        granted.set_config(granting(&format!(
+            "[capabilities.net]\nconnect = [\"{HOST}\"]\n"
+        )));
+        sched.spawn(granted, TaskRoot::Worker, move |ctx| {
+            let answer = match super::pin(ctx, &format!("https://{HOST}/ok"), MEMBER) {
+                Ok(approved) => format!("pinned {approved:?}"),
+                Err(fault) => format!("{fault:?}"),
+            };
+            looking.borrow_mut().push(answer);
+        });
+        let neighbour = Rc::clone(&order);
+        sched.spawn(Ctx::buffered(), TaskRoot::Worker, move |_ctx| {
+            neighbour.borrow_mut().push("neighbour".to_owned());
+        });
+
+        let report = run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(report.finished, 2, "a task never came back off the pool");
+        assert_eq!(
+            *order.borrow(),
+            vec![
+                "neighbour".to_owned(),
+                format!("pinned {:?}", vec![UNHURRIED])
+            ],
+            "the core was held for the whole lookup, or the pin refused the host"
+        );
+        assert!(
+            pool_size().0 > 0,
+            "the lookup ran on this thread instead of on the pool"
         );
     }
 
