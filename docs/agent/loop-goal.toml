@@ -1,13 +1,13 @@
-# Goal 50 -- an operator routes outbound calls through a forward proxy, and the grant says what the address policy can no longer see
+# Goal 51 -- a program holds a WebSocket to another server, opened like an outbound call and closed with the task that opened it
 # The acceptance test, as data.
 #
-# `50-outbound-proxy.md` is the prose. One home each.
+# `51-websocket-client.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # No example of its own: a proxy is a deployment's, and every proof below is a Rust test against a
-  # loopback proxy and a loopback origin.
+  # No example of its own: a socket needs a peer, and every case below is answered by `Core\Test`'s
+  # scripted peer or by a Rust loopback one.
   # carried from the previous goal by tools/goal-switch.py
   "examples/webcrypto.nvs",
   "examples/finish.nvs",
@@ -95,48 +95,27 @@ files = [
 [context]
 
 modules = [
-  # The one connect (:252), the TLS server name (:36-54), the pool and the hop. Stages 3 and 4.
-  "crates/nvs-stdlib/src/http/transport.rs",
-  # The pin and its four questions, which `resolve = "proxy"` narrows. Stage 4.
+  # The row, the scheme roster (:262-263), the bag and the pin. Stage 4.
   "crates/nvs-stdlib/src/http.rs",
-  # Where `[http.client.proxy]` is declared and classed. Stages 3 and 4.
+  # The connect, the TLS hand-off and the tunnel the handshake reuses. Stage 4.
+  "crates/nvs-stdlib/src/http/transport.rs",
+  # `Core\Socket`'s rows (:222-299) and `Message` (:446-517), the shapes stage 5 answers in.
+  "crates/nvs-stdlib/src/socket.rs",
+  # The outbound table the scripted peer joins. Stage 3.
+  "crates/nvs-stdlib/src/test.rs",
+  # Where every row and class is registered.
+  "crates/nvs-stdlib/src/registry.rs",
+  # `[http.client.socket]`'s two rows. Stage 5.
   "crates/nvs-config/src/directive.rs",
-  # The TLS client a tunnel hands its stream to. Stage 3.
-  "crates/nvs-host/src/tls.rs",
-  # `rule:http-server/cors-is-closed-until-origins-are-named` and
-  # `rule:http-server/cookies-are-secure-httponly-and-lax`'s two meaningless combinations, in the
-  # one implementation the boot and `Core\Config::set` both ask — and, beside them, the values
-  # under `[http.*]` that are refused before either question is worth asking.
-  "crates/nvs-config/src/http.rs",
-  # The configuration tree, resolved: which file is the root, which files it pulls in, and the one
-  # ordered stream they flatten to.
-  "crates/nvs-config/src/resolve.rs",
-  # `rule:config/a-secret-is-a-file-whose-content-is-the-value`: a secret arrives as a file whose
-  # content is the value.
-  "crates/nvs-config/src/secret.rs",
-  # The typed block tree one configuration file deserializes into: every block an ADR states, with
-  # its own fields, and an unknown key refused.
-  "crates/nvs-config/src/tree.rs",
-  # ADR 0180 § 15's `http` trace event: the facts one outbound call contributes to a trace, and
-  # why a header value is not one of them.
-  "crates/nvs-stdlib/src/http/span.rs",
-  # `nvs config` — `rule:config/check-and-dump-audit-the-tree-offline`'s offline audit of the
-  # configuration tree, and the reader every caller in this binary resolves that tree through.
-  "crates/nvs-cli/src/config.rs",
-  # `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s boot half: what a
-  # configuration already says about the coherent tier before any request asks for it.
-  "crates/nvs-config/src/store.rs",
+  # The server's framing over `tungstenite`, the precedent for the client half. Stages 4 and 5.
+  "crates/nvs-server/src/socket.rs",
 ]
 
-# Every stage works inside these three: the address policy, where it lives, and the pin. The goal's
-# own two joined them once stage 2 wrote them: every stage from 3 on implements them, and a session
-# that has to peek its own goal's rules is one the pack sent out short.
+# Every stage works inside these three: the URL is a sink, no wait is unbounded, and the pin survives.
 rules = [
-  "security/net-address-policy",
-  "security/the-policy-lives-in-the-capability",
+  "security/outbound-url-is-a-sink",
+  "http-server/no-spelling-for-an-unbounded-wait",
   "http-server/allow-url-pins-the-address",
-  "http-server/an-outbound-proxy-is-operator-configured",
-  "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
 ]
 
 adrs = []
@@ -164,7 +143,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `50-outbound-proxy.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `51-websocket-client.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -177,45 +156,60 @@ plan = ["Open now", "Blocking"]
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The record answers 0058's open sentence; a mandatory word, and how a config key is classed.
-rules = ["config/scope-has-no-default", "config/three-changeability-classes"]
-adrs = ["0058"]
+# The record: how the row and the class are spelled, how the two keys are classed, the server's half
+# it answers in the shape of, and why a transport passes the admission test.
+rules = [
+  "core-api/verb-lexicon",
+  "config/three-changeability-classes",
+  "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+  "concurrency/a-connection-is-a-root-isolate",
+  "security/protocol-admission-test",
+]
 shapes = ["A decision record", "A rule fragment", "Citing a document"]
 
 [context.stage.3]
-# A tunnelled connection is bounded and re-pinned by the rules every connection is. Goal `http-client`'s
-# pool rule joins this list once that goal has written it; naming it before then fails the rulebook.
-rules = [
-  "http-server/one-deadline-covers-the-whole-call",
-  "http-server/redirects-are-off-and-every-hop-is-re-pinned",
-]
+# The peer answers in-process, the way `Core\Test::request` already does.
+rules = ["testing/in-process-request"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.4]
-# The proxy's password is a secret directive, and the environment is not configuration.
-rules = [
-  "config/a-secret-is-a-file-whose-content-is-the-value",
-  "security/no-cross-request-state",
-  "security/secret-sinks-refuse",
-]
+# The handshake is a call: the one TLS client, and the redirect it does not follow.
+rules = ["security/one-tls-client", "http-server/redirects-are-off-and-every-hop-is-re-pinned"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.5]
+# A payload is input, a resource never crosses an isolate, and nothing outlives the task that made it.
+rules = [
+  "security/tainted-sources",
+  "classes/graph-copy",
+  "concurrency/nothing-is-still-running-when-a-call-returns",
+]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.6]
 shapes = ["A rule fragment"]
 
-# A tunnel is a host socket like any other connection; no refcounted value crosses it. No cycle shape,
-# so nothing is added to the skip list.
+# A socket is a host handle like any connection; no refcounted value crosses it. No cycle shape, so
+# nothing is added to the skip list.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# None of this goal's own checks needs a daemon. The floor is goal `process-cache`'s whole list, whose
-# shared-tier and session checks need Redis, and the daemons are theirs.
+# None of this goal's own checks needs a daemon. The floor is goal `outbound-proxy`'s whole list, which
+# carries goal `process-cache`'s shared-tier and session checks, and the daemons are theirs.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 700 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -9830,23 +9824,20 @@ name = "a session holding a secret only sealed is shipped"
 argv = ["python", "tools/rules.py", "--show", "http-server/a-session-holds-a-secret-only-sealed"]
 want = ["shipped"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 5
 # flips the status.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "an operator-configured proxy is a rule"
 argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-proxy-is-operator-configured"]
 want = ["http-server/an-outbound-proxy-is-operator-configured"]
 
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "a proxied call keeping its pin is a rule"
 argv = ["python", "tools/rules.py", "--show", "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"]
 want = ["http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"]
@@ -9854,10 +9845,9 @@ want = ["http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-other
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- a tunnel that keeps the pin. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the tunnel"
+stage = "1 floor"
 name = "a tunnel is opened to the approved address, TLS names the approved host, and the pool knows the proxy"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -9871,10 +9861,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the proxy resolves, a bypass list, and authentication. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 resolve, bypass and auth"
+stage = "1 floor"
 name = "resolve proxy sends the host and warns, a bypass goes direct, and the password reaches CONNECT alone"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -9886,7 +9875,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 resolve, bypass and auth"
+stage = "1 floor"
 name = "a proxy block is refused without resolve, and resolve proxy warns at every boot"
 args = ["test", "-p", "nvs-config"]
 tests = [
@@ -9898,17 +9887,162 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the rulebook. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "5 the rulebook"
+stage = "1 floor"
 name = "an operator-configured proxy is shipped"
 argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-proxy-is-operator-configured"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "5 the rulebook"
+stage = "1 floor"
 name = "a proxied call keeping its pin is shipped"
 argv = ["python", "tools/rules.py", "--show", "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"]
+want = ["shipped"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 6
+# flips the status.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an outbound socket opened like an outbound call is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-socket-is-opened-like-an-outbound-call"]
+want = ["http-server/an-outbound-socket-is-opened-like-an-outbound-call"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an outbound socket belonging to its task is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-socket-belongs-to-the-task-that-opened-it"]
+want = ["http-server/an-outbound-socket-belongs-to-the-task-that-opened-it"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an outbound socket's bounds are a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"]
+want = ["http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an outbound socket answered by a scripted peer is a rule"
+argv = ["python", "tools/rules.py", "--show", "testing/an-outbound-socket-is-answered-by-a-scripted-peer"]
+want = ["testing/an-outbound-socket-is-answered-by-a-scripted-peer"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the scripted peer. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the scripted peer"
+name = "a test answers a socket with a scripted peer, records what was sent, and never connects"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/test-answer-socket-plays-its-frames-and-records-what-was-sent.nvst",
+  "tests/conformance/core/test-an-unanswered-socket-throws-and-never-connects.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the handshake. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the handshake"
+name = "a socket opens a ws or wss URL, reports its protocol, and each row refuses the other's schemes"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-socket-opens-a-wss-url-and-reports-its-protocol.nvst",
+  "tests/conformance/core/http-socket-refuses-an-http-url-and-a-request-row-refuses-wss.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the handshake"
+name = "the handshake is pinned, carries its headers, goes through TLS and the tunnel, and follows no redirect"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "socket_handshake_connects_to_the_approved_address",
+  "socket_handshake_carries_the_callers_headers_and_offered_protocols",
+  "a_101_choosing_a_protocol_not_offered_is_refused",
+  "a_redirect_answering_a_socket_handshake_is_a_runtime_error_naming_the_location",
+  "wss_socket_completes_over_the_tls_client_under_the_calls_policy",
+  "a_socket_is_opened_through_the_proxy_tunnel_when_one_is_configured",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the conversation and its bounds. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 the conversation"
+name = "a socket receives tainted text and bytes as messages, and close ends the conversation"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-socket-receives-text-and-bytes-as-tainted-messages.nvst",
+  "tests/conformance/core/http-socket-close-ends-the-conversation-and-receive-answers-null.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the conversation"
+name = "a socket is bounded by silence, a lifetime and a message cap, and closes with its task"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "socket_idle_ends_a_silent_peer",
+  "socket_ping_keeps_a_quiet_live_peer_open",
+  "socket_max_duration_ends_an_endless_conversation",
+  "a_message_past_max_message_closes_the_socket_with_1009",
+  "a_socket_is_closed_with_1001_when_its_task_ends",
+  "two_receives_waiting_on_one_socket_is_a_logic_error",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the conversation"
+name = "the socket block's two keys are bounded and runtime-class"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "http_client_socket_max_message_and_send_timeout_are_bounded_and_runtime_class",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the rulebook. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 the rulebook"
+name = "an outbound socket opened like an outbound call is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-socket-is-opened-like-an-outbound-call"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "6 the rulebook"
+name = "an outbound socket belonging to its task is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-socket-belongs-to-the-task-that-opened-it"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "6 the rulebook"
+name = "an outbound socket's bounds are shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "6 the rulebook"
+name = "an outbound socket answered by a scripted peer is shipped"
+argv = ["python", "tools/rules.py", "--show", "testing/an-outbound-socket-is-answered-by-a-scripted-peer"]
 want = ["shipped"]

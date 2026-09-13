@@ -1,112 +1,149 @@
 ---
 milestone: M8
 ---
-# Loop goal 50 — an operator routes outbound calls through a forward proxy, and the grant says what the address policy can no longer see
+# Loop goal 51 — a program holds a WebSocket to another server, opened like an outbound call and closed with the task that opened it
 
-A deployment whose egress goes through a corporate or cloud forward proxy can run Novis without giving up
-the outbound policy. An operator writes `[http.client.proxy]`; every `Core\Http\Client` call then opens a
-`CONNECT` tunnel through it. **By default the pin survives**: Novis resolves and checks the destination
-exactly as it does today and asks the proxy to connect to the address it approved, with the host name
-carried only in TLS's server name — so the proxy relays to where `rule:security/net-address-policy` said
-yes. Where the proxy alone can resolve names, the operator says so in one written word, the policy
-narrows to what can be judged from the URL's text, and the boot says that out loud every time. Nothing
-reads `HTTPS_PROXY` from the environment.
+A program can open a WebSocket to another server — a realtime API, a chat platform's gateway, another
+Novis instance — and hold a conversation over it. It is opened through the door every outbound call
+passes: the URL is a sink, the host is pinned and checked, the TLS policy, a client identity and the
+operator's proxy all apply, and a test answers it from `Core\Test`'s table instead of a listener. What
+comes back is read as the `Core\Socket\Message` a server-side connection already answers with, every
+wait on it is bounded, and it never outlives the task that opened it.
 
 ## Why here
 
-After goal `process-cache`, on the user's call: it was the one gap in the REST client's `Core` half that
-the user placed in a goal of its own, because it deliberately weakens a guarantee and so gets a record of
-its own. It needs goal `http-client`'s pool and hop — a tunnelled connection is pooled and re-pinned by
-the same rules — and nothing from goal `process-cache`. Before goal `gap-zero` for that goal's standing
-reason.
+After goal `outbound-proxy`, on the user's call, because the opening handshake is an outbound call and
+everything the three goals before it build governs it: goal `http-client`'s pin over every approved
+address, TLS policy, client identity, `idle` and `maxDuration`, and table in `Core\Test`, and goal
+`outbound-proxy`'s tunnel, which a socket opened behind a proxy must go through. Before goal `gap-zero`
+for that goal's standing reason — a register is emptied after everything that adds to it has run.
 
-What it needs already built, all on disk once goal `http-client` is: the one place the transport connects
-(`crates/nvs-stdlib/src/http/transport.rs:252`), the pin and its four questions (`crates/nvs-stdlib/src/http.rs`
-`pin`), the TLS client that names the approved host and not the address (`transport.rs:36-54`), the
-exception an operator-written endpoint already has (`docs/rules/security/net-address-policy.md:13-15`),
-and the `_file` sibling a secret directive gets (`rule:config/a-secret-is-a-file-whose-content-is-the-value`).
+What it needs already built: the server's half — `tungstenite` over the parking stream with no adapter
+(`Cargo.toml:149-167`), `Core\Socket`'s `receive`, `send` and `sendBytes`
+(`crates/nvs-stdlib/src/socket.rs:256-296`) and `Core\Socket\Message` (`:446-517`), whose `topic` and
+`value` already answer `null` for a peer frame; the URL half's scheme check
+(`crates/nvs-stdlib/src/http.rs:262-263`); and, once goal `http-client` lands, its transport's connect,
+TLS hand-off and outbound table.
 
 ## Stage 0 — the catch-up
 
-- `crates/nvs-stdlib/src/http/transport.rs` — its module doc says a connection is made to the pinned
-  address directly. Stage 3 says what a tunnel changes and what it does not.
-- `crates/nvs-stdlib/src/http.rs` — the pin's doc names no proxy. Stage 4, where `resolve = "proxy"` makes
-  the pin a check on the text alone.
-- [0058](../decisions/0058.md) § *Consequences* records a proxy as "a cost this ADR accepts" and that
-  "the grant syntax should make that explicit". Frozen: this goal's record is the answer it asked for, and
-  0058 is not edited.
+Sentences on disk this goal makes wrong. Each is corrected in the stage that makes it wrong. Re-grep before
+editing: these are anchors, and files move.
+
+- `crates/nvs-stdlib/src/http.rs:262-263` — the scheme roster is `http` and `https`. Stage 4 adds `ws` and
+  `wss` for the one row that opens a socket, and `rule:http-server/allow-url-pins-the-address`'s
+  "refuses a scheme outside the grant" moves with it by the record's `changes.modifies`.
+- `Cargo.toml:162-166` — the `tungstenite` block says why a `wss://` *listener* needs no TLS feature.
+  Stage 4 adds the client half, which needs none either: the transport hands `tungstenite` a stream
+  `nvs_host::tls` already decrypted.
+- `crates/nvs-stdlib/src/socket.rs:446-473` — `Core\Socket\Message` is "the one shape both of `receive`'s
+  sources answer in". Stage 5 makes it the shape an outbound socket answers in too, and rewrites that
+  doc whole.
 
 ## Stage 1 — the floor
 
-Goal `process-cache`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `outbound-proxy`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
 ## Stage 2 — the record
 
-One new record, and no other number. Its body is § *Standing decisions* below, argued, and it answers
-0058's open sentence. It creates two rules, both `designed`:
+One new record, and no other number. Its body is § *Standing decisions* below, argued. It creates four
+rules, all `designed`:
 
 | Rule | Says |
 |---|---|
-| `http-server/an-outbound-proxy-is-operator-configured` | `[http.client.proxy]` is the only source, `System`-class, never the environment; its keys and their refusals |
-| `http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise` | `resolve = "local"` keeps the pin; `resolve = "proxy"` narrows the policy to the URL's text, and says so at every boot |
+| `http-server/an-outbound-socket-is-opened-like-an-outbound-call` | the URL sink, the pin, every grant, the TLS policy, a client identity and the proxy apply to the opening handshake as to any call; `ws` and `wss` are its schemes; a socket is never pooled |
+| `http-server/an-outbound-socket-belongs-to-the-task-that-opened-it` | charged to that task's budget, closed with `1001` when it ends, never a root isolate and never handed to another isolate |
+| `http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap` | `idle`, `maxDuration`, `maxMessage` and the send wait, each inherited from `[http.client]` when omitted, none with an unbounded spelling |
+| `testing/an-outbound-socket-is-answered-by-a-scripted-peer` | `Core\Test`'s table answers the handshake and plays the frames it was given, and records what the program sent |
 
-It modifies `security/net-address-policy` by one sentence: a configured proxy is an operator-written
-endpoint and is not asked the table's question, and with `resolve = "proxy"` the destination's resolved
-address is not asked it either, because Novis never sees it.
+It modifies `http-server/allow-url-pins-the-address` (two schemes join, for one row). The record fixes
+the spellings the surface leaves open — the row's name and the socket class's — under
+`rule:core-api/verb-lexicon`.
 
-## Stage 3 — the keystone: a tunnel that keeps the pin
+## Stage 3 — the keystone: a socket answered by a scripted peer
 
-`crates/nvs-stdlib/src/http/transport.rs`. With `[http.client.proxy] url` set and `resolve = "local"`,
-the transport connects to the proxy — its address pre-approved by the operator's writing — sends
-`CONNECT <approved address>:<port> HTTP/1.1` with `Host` naming the same, waits for a `2xx` under the call's
-`connectTimeout` and `deadline`, and then speaks exactly what it speaks today over the tunnel: TLS with
-the server name the launderer approved (`transport.rs:45-54`), or plain HTTP for an `http` URL. A plain
-`http` URL is tunnelled too, so there is one mechanism and never an absolute-form request line.
+`crates/nvs-stdlib/src/test.rs`, beside goal `http-client`'s outbound table. A test registers a URL with
+the frames a peer should send; a matched socket completes its handshake without connecting, receives
+those frames in order and then a close, and every frame the program sent is recorded for the test to
+read back. An unmatched socket throws naming the URL, as an unmatched call does.
 
-- **The pool key gains the proxy**, so a direct connection and a tunnelled one are never confused, and a
-  reload that changes the proxy drops the connections made through the old one.
-- **A `407` is a `RuntimeError` naming proxy authentication; any other refusal of `CONNECT` is an
-  `IOError`**, and neither is retried by `retryAttempts`, which retries answers from the destination.
-- A redirect hop is re-pinned exactly as today and tunnelled the same way.
+Every later `.nvst` case is written against it. What it cannot reach — masking, fragmentation, the close
+handshake, a ping — is proved by Rust tests against a loopback peer, as `transport.rs`'s tests are.
 
-## Stage 4 — the proxy resolves, a bypass list, and authentication
+## Stage 4 — the handshake
 
-- **`resolve = "proxy"`.** `CONNECT <host>:<port>`; Novis judges the URL's text — scheme, grant — and
-  cannot check the address the proxy resolves. The boot writes one `Warn` record naming the block and the
-  rule every time it starts with this set, and `nvs config dump` renders it beside that rule's id. The
-  policy is then the proxy's to enforce, which is 0058's sentence made visible rather than implied.
-- **`bypass`**: an array of host names, each exact or with a leading `.` for a suffix, reached directly
-  and under the full policy. No wildcard, no CIDR and no port.
-- **`username` and `password`**, the password with its `password_file` sibling in the secret registry
-  (`rule:config/a-secret-is-a-file-whose-content-is-the-value`), sent as `Proxy-Authorization: Basic` on
-  `CONNECT` only — never to the destination, never in a trace, a log record or an error message.
+`crates/nvs-stdlib/src/http.rs` and `crates/nvs-stdlib/src/http/transport.rs`.
 
-## Stage 5 — the rulebook
+- **A row on `Core\Http\Client`** takes `string|Core\Http\Target $url` and the options bag, and answers
+  the socket once the `101` has arrived. `ws` and `wss` join the scheme roster for this row alone: the
+  request rows refuse them and this row refuses `http` and `https`, so what a URL is for is written in
+  it. `allowUrl` pins either exactly as it pins `http` and `https`.
+- **The handshake is an outbound call**: the same pin and fallback across addresses, the same
+  `connectTimeout`, a `deadline` that ends at the `101`, the same TLS policy options and grants, a
+  client identity, the proxy's tunnel, and `headers` — a `secret` value among them, as goal
+  `http-client`'s stage 4 allows. A redirect is not followed: a `3xx` answering an upgrade is a
+  `RuntimeError` naming the `Location`.
+- **`protocols?: array<string>`** is `Sec-WebSocket-Protocol`; a `101` choosing one that was not offered
+  is refused, and the socket reports the one chosen.
+- **`tungstenite`'s client half, over the stream the transport already has** — the parking stream, or
+  `nvs_host::tls`'s decrypted one — with no adapter and no new dependency, for the reason the server's
+  half gives (`Cargo.toml:155-160`). Masking, fragmentation, UTF-8 validation and the close handshake
+  are that crate's, never this repository's.
+- **Never pooled.** A socket consumes its connection, and nothing goes back.
 
-Flip stage 2's two rules to `shipped`, with `guardedBy` filled from this goal's tests, and `python
-tools/rules.py --render`.
+## Stage 5 — the conversation and its bounds
+
+A new module under `crates/nvs-stdlib/src/http/`, and `crates/nvs-stdlib/src/socket.rs` for the message.
+
+- **`receive()`, `send(string)`, `sendBytes(bytes)`, `close(?uint $code, ?string $reason)` and
+  `protocol()`**, the first three in `Core\Socket`'s shapes and for its reasons (`socket.rs:266-273`: two
+  classified parameters, not a union). `receive` answers `?Core\Socket\Message` — `text` or `bytes`
+  filled and `tainted`, `topic` and `value` `null` — and `null` once the peer has closed.
+- **The bounds**: `idle`, the longest silence; `maxDuration`, the socket's whole life; `maxMessage`, the
+  largest message after reassembly, past which the socket is closed with `1009`; and the send wait.
+  Each inherits `[http.client]` when omitted — goal `http-client`'s `idle` and `max_duration`, and a new
+  `[http.client.socket]` block for `max_message` and `send_timeout` — and none has an unbounded
+  spelling. `ping?: Duration` sends a ping after that much silence, so `idle` ends a dead peer rather
+  than a quiet one; unset sends none, and a peer's ping is always answered.
+- **It belongs to the task that opened it.** It is charged to that task's budget and closed with `1001`
+  when the task ends, so a request's `wall_time` bounds it too. It never crosses an isolate boundary —
+  `rule:classes/graph-copy` refuses it as it refuses any resource. Two `receive`s waiting at once on one
+  socket is a `LogicError`.
+- **`close`** sends the close frame and waits for the peer's under the send wait; a peer that never
+  answers is closed anyway, and that is not an error.
+
+## Stage 6 — the rulebook
+
+Flip stage 2's four rules to `shipped`, with `guardedBy` filled from this goal's cases and tests, and
+`python tools/rules.py --render`.
 
 ## Standing decisions
 
-- **Settled with the user**: a forward proxy is in, as its own goal, configured by the operator and never
-  by a program or the environment.
-- **`resolve` is mandatory, with no default**, for `rule:config/scope-has-no-default`'s reason: both
-  answers are commonly correct, and either default silently does the wrong thing in somebody's
-  production — `local` fails outright in a network where only the proxy resolves, and `proxy` quietly
-  gives up the pin everywhere else. A block without it refuses the boot naming both words.
-- **Only `Core\Http\Client` is proxied.** `Core\Net`, a database, the shared cache tier and mail connect
-  directly: each is either a raw socket the program asked for by address, or an endpoint the operator
-  already wrote.
-- **`http://` proxies only**: `CONNECT` over plain TCP to the proxy. A TLS connection *to* the proxy is not
-  this goal.
-- **Config**: `[http.client.proxy]` — `url`, `resolve`, `bypass`, `username`, `password` /
-  `password_file` — is `System`, because where every outbound byte goes is not a request's decision, and
-  `Reload`, because the next call reads it and the pool drops what the old value made.
-- **What it spends**: one `CONNECT` round trip per new connection, then nothing per request, since the
-  tunnel is pooled like any connection; per core, the pool's existing cap. Nothing is held per request
-  beyond today's.
+- **Settled with the user**: an outbound WebSocket client is in, as its own goal after goal
+  `outbound-proxy`. It is a transport rather than an authentication flow, so
+  `rule:security/protocol-admission-test`'s boundary does not keep it out of `Core`.
+- **Opened like a call, answered like a server-side connection.** The door, the pin, the grants, the TLS
+  policy, the identity and the proxy are the client's; the message shape is `Core\Socket`'s. A second
+  message class for the same RFC 6455 frame is the copy that disagrees.
+- **Not a root isolate.** A server-side connection is one because it outlives the request that upgraded
+  it (`rule:concurrency/a-connection-is-a-root-isolate`); a client socket is a value the program opened
+  and holds, so it lives and dies with that program's task and memory stays O(in-flight). A program
+  that wants a socket to outlive a request opens it in whatever outlives the request — a command, a
+  queue job, a spawned script. The fallback, if a socket cannot be tied to its task's end, is to refuse
+  opening one in a task that has no end.
+- **`ws` is allowed as plain `http` is.** There is no downgrade question, because a socket follows no
+  redirect.
+- **Every received payload is `tainted`**; a sent frame is not a sink (`socket.rs:277-280`).
+- **Config**: `[http.client.socket]` — `max_message` and `send_timeout` — is `Runtime`, as
+  `[http.client] deadline` is, because each bounds one call. The record fixes their shipped values, and a
+  default that is unbounded is a defect (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
+- **What it spends**: per open socket, one connection — a socket and, for `wss`, a TLS session —
+  `tungstenite`'s read and write buffers, and at most `maxMessage` for a message being reassembled, all
+  charged to the task that opened it and released when it closes. That is O(open sockets), and a socket
+  never outlives its task, so it is O(in-flight). Nothing per core and nothing per process.
 - **ADR slots**: the one record of stage 2.
-- **Not this goal**: a TLS connection to the proxy, SOCKS, PAC files, NTLM or Kerberos proxy
-  authentication, per-app proxies, and reading `HTTP_PROXY`, `HTTPS_PROXY` or `NO_PROXY` — the environment
-  is read-only ambient state `rule:security/no-cross-request-state` keeps out of behaviour. A session that
-  finds one on its path writes it to the handoff's `## Backlog`.
+- **Not this goal**: `permessage-deflate`, whose context takeover holds a window per socket and whose
+  inflate is a bomb surface of its own; WebSocket over HTTP/2 (RFC 8441); reconnecting, which is the
+  program's; a socket handed to another isolate; subprotocol libraries — STOMP, Socket.IO, GraphQL over
+  WebSocket — which are packages; any change to the server's half. A session that finds one on its path
+  writes it to the handoff's `## Backlog`.
