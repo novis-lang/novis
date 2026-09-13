@@ -52,7 +52,7 @@
 //! balance, because bytes written to a response are never given back, so it
 //! needs no sign.
 //!
-//! # Where the breach is noticed — and the shape it does not reach yet
+//! # Where the breach is noticed
 //!
 //! Counting is universal; *noticing* is not, and the difference is worth
 //! knowing before trusting the cap.
@@ -84,14 +84,16 @@
 //! and [`crate::array`], never this module's own `GlobalAlloc`, whose null
 //! reaches `handle_alloc_error` and aborts the process.
 //!
-//! **Known gap.** An allocator that does not ask [`affords`] still *makes* one
-//! allocation larger than the whole remaining budget before anything notices
-//! it: the compare in [`add`] happens after `Backing` has handed back the
-//! block, so a request that asks for its ceiling twice over in a single
-//! operation holds those bytes until its next poll.
-//! Decided: Route input-sized allocations in helpers through `affords` — Closes it where an attacker
-//! controls the size (repeat, fill, decode), at the cost of auditing the helpers.
-//! — owner: unowned-closures
+//! # Known gaps
+//!
+//! 1. **An allocator that does not ask [`affords`] makes one allocation larger
+//!    than the whole remaining budget before anything notices it.** The compare
+//!    in [`add`] happens after `Backing` has handed back the block, so a request
+//!    that asks for its ceiling twice over in a single operation holds those
+//!    bytes until its next poll.
+//!    Decided: Route input-sized allocations in helpers through `affords` — Closes it where an
+//!    attacker controls the size (repeat, fill, decode), at the cost of auditing the helpers.
+//!    — owner: unowned-closures
 //!
 //! # Whose bytes they are
 //!

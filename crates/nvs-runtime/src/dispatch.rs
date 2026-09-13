@@ -18,7 +18,7 @@
 //! cached, because a descriptor's method table is a compile-time constant of
 //! the unit that declared it.
 //!
-//! # What a caller owes
+//! # What the call retains, and what it hands back
 //!
 //! [`call_method`] retains the receiver and every argument before it calls,
 //! because a compiled Novis function releases its parameters — the same

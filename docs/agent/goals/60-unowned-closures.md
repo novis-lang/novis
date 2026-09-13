@@ -37,7 +37,7 @@ One file set: `crates/nvs-ir/src/lower/`, `crates/nvs-runtime/src/`, `crates/nvs
   the short-circuiting `Identical` (`crates/nvs-ir/src/lower/operator.rs:896-910`); when the checker
   recorded `ExprInfo::SecretEquality` and one side is `Ty::Tagged`, a helper untags a string or bytes
   operand and compares in constant time, answering `false` for any other tag.
-  `crates/nvs-runtime/src/budget.rs:87` gap 1 (one allocation past the budget) to its decision.
+  `crates/nvs-runtime/src/budget.rs:89` gap 1 (one allocation past the budget) to its decision.
 - **Builds with no choice left**: `crates/nvs-ir/src/lib.rs` gap 1 (a multi-condition `for`, and a label
   at a foreign representation compared through `lower_binary` — `crates/nvs-ir/src/lower/control.rs:460-465`,
   `:680-683`, `crates/nvs-ir/src/lower/expr.rs:1825-1827`) and gap 2 (the normalized subscript key on

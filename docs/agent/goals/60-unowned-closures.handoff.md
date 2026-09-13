@@ -16,7 +16,7 @@ no obvious build is a `BLOCKED` naming it.
 
 - [ ] **A `secret` compared against a `mixed` is constant-time** — `crates/nvs-ir/src/lower/operator.rs:896`,
       `crates/nvs-ir/src/lib.rs:405`.
-- [ ] **One allocation past the budget, to its decision** — `crates/nvs-runtime/src/budget.rs:87`.
+- [ ] **One allocation past the budget, to its decision** — `crates/nvs-runtime/src/budget.rs:89`.
 - [ ] **A hooked property is reached through an erased key** — `crates/nvs-runtime/src/object.rs:3403`.
 
 ## Backlog
