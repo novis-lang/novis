@@ -97,12 +97,12 @@
 //! have exactly one home in `tests/db/compose.yaml`, which is why nothing here
 //! carries a default for any of them.
 //!
-//! # What is here, and what is not yet
+//! # What is here
 //!
 //! The shared half, which `rule:core-classes/db-drivers-are-an-enum` keeps as plain functions and data rather
 //! than behind the drivers at all: [`Driver`]'s closed roster, [`State`] and
-//! [`Connection`]'s `match`-once entry points, and [`matrix`]. Of the five wire
-//! implementations, [`pg`] has its opening and its statement path: the socket,
+//! [`Connection`]'s `match`-once entry points, and [`matrix`]. Of the five
+//! drivers, [`pg`] has its opening and its statement path: the socket,
 //! § 3's in-band upgrade, the SASL exchange, and the extended-query state
 //! machine that walks [`State`]'s values over one flushed round trip, and
 //! `rule:security/db-pool-reset-is-a-boundary`'s reset — six commands pipelined into a second round trip, with
@@ -141,11 +141,15 @@
 //! because a token is cut wherever that size lands rather than at a message
 //! boundary. Its handshake is whole on top of that — a `[db.<name>]` block,
 //! PRELOGIN, § 3's TLS tunnelled inside PRELOGIN packets, LOGIN7 and the tokens
-//! that answer it — so [`TdsConn`] holds a live wire. What is left there is
-//! the statement: the row path, § 1's cache and § 13's reset.
-//! SQLite is then what is left. PostgreSQL comes first throughout because its
-//! extended protocol pays nothing extra for a prepare and so exercises the
-//! design rather than the driver's own quirks.
+//! that answer it — so [`TdsConn`] holds a live wire. Its statement path is
+//! whole on top of *that*: `sp_prepexec` under § 1's cache, the row path over
+//! the same reassembly, and § 13's `sp_reset_connection`. [`sqlite`] is the one
+//! driver with no wire at all — `rusqlite` is the protocol, reached through § 3's
+//! handoff to `nvs-host`'s blocking pool, which is why its rows come back
+//! materialized where every other driver's stream. PostgreSQL comes first
+//! throughout because its extended protocol pays nothing extra for a prepare and
+//! so exercises the design rather than the driver's own quirks. What a driver
+//! still owes is recorded in its own module's `# Known gaps`.
 //!
 //! **The anchor seam `rule:security/one-tls-client` anticipated exists**, so a handshake against
 //! `tests/db/compose.yaml`'s PostgreSQL completes: `NvsTls::over_bundle`
