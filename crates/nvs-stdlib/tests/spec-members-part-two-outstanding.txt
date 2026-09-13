@@ -23,11 +23,14 @@
 # one that needs a request. `Core\Env`, `Core\Cap` and `Core\Cli` are registered
 # whole; `Core\Request` has the request line (`method`, `path`, `query`), the
 # fields that arrived with it, all three readings of the body, the peer's three
-# and ADR 0102 § 1's `route`, and `Core\Session` is whole: § 1's seven members
-# all have registry rows. What is left of ADR 0139 is § 4's write-back at the end
-# of the request, which is a server question rather than a member.
+# and ADR 0102 § 1's `route`, and `Core\Session` has registry rows for § 1's
+# seven members, its sealed pair being owed. What is left of ADR 0139 is § 4's
+# write-back at the end of the request, which is a server question rather than a
+# member.
 §15 Response::html      # test-request
 §15 Response::sendFile  # test-request
+§15 Session::setSecret  # process-cache
+§15 Session::getSecret  # process-cache
 
 # § 18 -- `Core\Db`, whose remaining members each need a driver and a server to
 # talk to. `inList` and `quoteIdentifier` need neither and have landed.
