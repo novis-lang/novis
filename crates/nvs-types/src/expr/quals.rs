@@ -43,8 +43,10 @@
 //! [`reject_secret_published_argument`], which is `rule:core-classes/topic`'s bus reaching
 //! that same graph copy through a third carrier,
 //! [`reject_secret_cached_argument`], which is `Core\Cache\Store::put` reaching
-//! it through a fourth and is the one refusal that names a member taking the
-//! secret rather than a reveal, [`reject_secret_encoded_argument`],
+//! it through a fourth, [`reject_secret_session_argument`], which is
+//! `Core\Session::set` reaching it through the record a request writes back —
+//! those two being the refusals that name a member taking the secret rather
+//! than a reveal — [`reject_secret_encoded_argument`],
 //! [`reject_secret_enqueued_argument`], which is that same encoder reached
 //! through `Core\Queue::push` rather than written at the call, and
 //! [`reject_secret_logged_argument`], whose open type is `array<mixed>` **by
@@ -1060,6 +1062,56 @@ pub(crate) fn reject_secret_cached_argument(
             Some(
                 "write `putSecret($key, $value, $ttl, $keys)` instead, which seals the value \
                  under a key ring so that what reaches the tier is ciphertext",
+            ),
+            env,
+        );
+    }
+}
+
+/// `rule:http-server/a-session-holds-a-secret-only-sealed`'s record, which is
+/// [`reject_secret_crossing`]'s fifth carrier: `Core\Session::set` encodes its
+/// value into the record this request writes back to a store that outlives it.
+///
+/// **The second carrier with a door of its own**, and it names it exactly as
+/// [`reject_secret_cached_argument`] names `putSecret`: `setSecret` takes the
+/// same secret, seals it under a key ring and writes ciphertext into the
+/// record, so a program that revealed here to get past the check would have put
+/// a plaintext credential in a session store rather than being told where the
+/// sealed one goes.
+///
+/// A call-site rule rather than a parameter type, exactly as every sibling here
+/// is one: `set` declares `mixed` for its value, so the written argument is the
+/// last place the qualifier is visible. The value is found through its
+/// [`ArgSlot`] for [`reject_secret_published_argument`]'s reason, and `$key` is
+/// not asked about, being text that reaches no answer at all.
+pub(crate) fn reject_secret_session_argument(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    slots: &[ArgSlot],
+    env: &mut Env<'_>,
+) {
+    if qname.to_string() != r"Core\Session" || member != "set" {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    // Slot 1 is `$value` in `nvs_stdlib::session`'s row, whose parameters are
+    // `[CoreTy::Text(Qual::Neutral), CoreTy::Mixed]`.
+    for ((arg, &ty), &slot) in list.iter().zip(arg_types).zip(slots) {
+        if slot != ArgSlot::Param(1) {
+            continue;
+        }
+        reject_secret_crossing(
+            &arg.value,
+            ty,
+            "`Core\\Session::set` encodes it into the record this request writes back to a \
+             store that outlives it",
+            Some(
+                "write `setSecret($key, $value, $keys)` instead, which seals the value under a \
+                 key ring so that what reaches the record is ciphertext",
             ),
             env,
         );
