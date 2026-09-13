@@ -1522,6 +1522,10 @@ const DEFAULT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 /// one message is how a program comes to work in one direction and not the
 /// other.
 const DEFAULT_MAX_MESSAGE: u64 = 4 << 20;
+/// See [`DEFAULT_DEADLINE`]. `[http.client.socket] send_timeout`'s shipped
+/// value: how long one frame may wait to be written before the peer that
+/// stopped reading is a peer this end stops writing to.
+const DEFAULT_SEND_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, over `rule:security/outbound-url-is-a-sink`'s sink.
 ///

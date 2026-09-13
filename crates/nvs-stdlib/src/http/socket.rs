@@ -36,11 +36,12 @@
 //! from, so two sockets opened to one URL each read the same script from their
 //! own cursor.
 //!
-//! **The conversation is still the table's.** [`Open`] holds the framed
-//! connection a real handshake left, and the request gives it back when it
-//! ends; what [`nvs_core_http_socket_receive`] and its siblings read is the
-//! scripted peer, so a socket opened against a host completes its handshake and
-//! then reads as a peer that said nothing.
+//! **The key is which conversation a member speaks to.** A socket holding one
+//! reads and writes [`Open`]'s framed connection, and the request gives that
+//! connection back when it ends; a socket holding `null` reads the scripted
+//! peer and records what it sent where the test reads it back. Both halves
+//! answer the same shape, so a program written against a table is the program
+//! that runs against a host.
 //!
 //! **What it spends:** five slots per open socket, and against a real host what
 //! [ADR 0183](/docs/decisions/0183.md) § 10 prices — one connection, a TLS
@@ -89,7 +90,25 @@ const HELD_AT: usize = 4;
 /// The table is the request's, so the connection is closed when the task that
 /// opened it ends whatever the program did with the socket — which is § 5's
 /// lifetime with nothing here to remember it.
-pub(crate) struct Open(pub(crate) transport::Upgraded);
+///
+/// **The bounds are held beside the connection because every wait is one of
+/// them.** The handshake left the stream bound by the deadline that covered the
+/// opening call, and that instant says nothing about how long a conversation
+/// may wait for its next frame — so each member arms the wait it is about to
+/// take (`rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`).
+/// The message cap is not here: it is the framing's, applied by the codec as it
+/// reassembles.
+pub(crate) struct Open {
+    /// The framed conversation the handshake left.
+    framed: transport::Upgraded,
+    /// The longest silence this conversation may hold — `idle`.
+    idle: Duration,
+    /// When `maxDuration` runs out, measured from where the opening call began:
+    /// a socket's whole life includes the handshake that opened it.
+    until: Instant,
+    /// How long one frame may wait to be written — the send wait.
+    send: Duration,
+}
 
 impl std::fmt::Debug for Open {
     /// The table's own `Debug`, which nothing but a panic message reads. Written
@@ -200,7 +219,18 @@ const RECEIVE_DOC: MethodDoc = MethodDoc {
           because it came off a wire — and whose `topic()` and `value()` are `null`, since those \
           are what a delivery from another isolate fills. `null` means the conversation is over: \
           the peer closed, or this end did.",
-    errors: &[],
+    errors: &[
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "The peer sent nothing for longer than `idle`, or the socket's `maxDuration` ran \
+                   out while this call was waiting. A peer whose only traffic is pings is not \
+                   silent and is bounded by `maxDuration` instead.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while this call was waiting for a message.",
+        },
+    ],
 };
 
 /// `Core\Http\Socket::send`'s reference card — `rule:core-api/reference-card`.
@@ -214,10 +244,7 @@ const SEND_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "Nothing.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "The socket has been closed, so there is nobody left to send to.",
-    }],
+    errors: SEND_ERRORS,
 };
 
 /// `Core\Http\Socket::sendBytes`'s reference card — `rule:core-api/reference-card`.
@@ -230,11 +257,27 @@ const SEND_BYTES_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "Nothing.",
-    errors: &[ErrorDoc {
+    errors: SEND_ERRORS,
+};
+
+/// What either send member throws, written once because the two differ in their
+/// payload kind and in nothing else — a second list is the copy that comes to
+/// disagree.
+const SEND_ERRORS: &[ErrorDoc] = &[
+    ErrorDoc {
         error: "LogicError",
         desc: "The socket has been closed, so there is nobody left to send to.",
-    }],
-};
+    },
+    ErrorDoc {
+        error: "TimeoutError",
+        desc: "The frame was still waiting to be written when the send wait ran out — a peer that \
+               has stopped reading — or the socket's `maxDuration` ran out first.",
+    },
+    ErrorDoc {
+        error: "IOError",
+        desc: "The connection failed while the frame was going out.",
+    },
+];
 
 /// `Core\Http\Socket::close`'s reference card — `rule:core-api/reference-card`.
 const CLOSE_DOC: MethodDoc = MethodDoc {
@@ -456,10 +499,23 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
     let upgraded = transport::upgrade(&call, &offers(args), framing)?;
     super::traced(ctx, &call);
     let protocol = upgraded.protocol.clone();
-    Ok((
-        protocol,
-        Value::uint(ctx.hold_open_socket(Box::new(Open(upgraded)))),
-    ))
+    let open = Open {
+        framed: upgraded,
+        // The two bounds the handshake already read, now covering what it
+        // opened: one call's `idle` and `maxDuration` are the conversation's,
+        // which is why the bag carries one of each rather than a pair per side.
+        idle: call.idle,
+        until: began + call.max_duration,
+        send: super::bound_of(
+            ctx,
+            args,
+            SOCKET_SEND_TIMEOUT,
+            "sendTimeout",
+            "http.client.socket.send_timeout",
+            super::DEFAULT_SEND_TIMEOUT,
+        )?,
+    };
+    Ok((protocol, Value::uint(ctx.hold_open_socket(Box::new(open)))))
 }
 
 /// The subprotocols this call offered, in the order the array wrote them.
@@ -487,29 +543,42 @@ fn offers(args: &[Value]) -> Vec<String> {
     names
 }
 
-/// The peer's next frame, as a `Core\Socket\Message`, or `null` where the
-/// conversation is over.
+/// One text message, as the shape both halves of this module answer in.
+///
+/// `topic` and `value` are `null` because they are what a delivery from another
+/// isolate fills, and a frame off a wire is not one.
+fn text_message(text: &str) -> Value {
+    crate::instance::build(
+        &crate::socket::MESSAGE,
+        [
+            Value::null(),
+            Value::str(NvsStr::new(text.as_bytes())),
+            Value::null(),
+            Value::null(),
+        ],
+    )
+}
+
+/// One binary message — [`text_message`] for RFC 6455's other payload kind.
+fn bytes_message(octets: &[u8]) -> Value {
+    crate::instance::build(
+        &crate::socket::MESSAGE,
+        [
+            Value::null(),
+            Value::null(),
+            Value::bytes(NvsStr::new(octets)),
+            Value::null(),
+        ],
+    )
+}
+
+/// The scripted peer's next frame, as a `Core\Socket\Message`, or `None` where
+/// the script is over.
 fn taken(ctx: &Ctx, url: &str, at: usize) -> Option<Value> {
     let frame = ctx.faked_http().socket_for(url)?.frames.get(at)?;
     Some(match frame {
-        nvs_runtime::SocketFrame::Text(text) => crate::instance::build(
-            &crate::socket::MESSAGE,
-            [
-                Value::null(),
-                Value::str(NvsStr::new(text.as_bytes())),
-                Value::null(),
-                Value::null(),
-            ],
-        ),
-        nvs_runtime::SocketFrame::Bytes(octets) => crate::instance::build(
-            &crate::socket::MESSAGE,
-            [
-                Value::null(),
-                Value::null(),
-                Value::bytes(NvsStr::new(octets)),
-                Value::null(),
-            ],
-        ),
+        nvs_runtime::SocketFrame::Text(text) => text_message(text),
+        nvs_runtime::SocketFrame::Bytes(octets) => bytes_message(octets),
     })
 }
 
@@ -535,17 +604,162 @@ fn writable(value: Value, member: &str) -> Result<*mut nvs_runtime::ObjHeader, F
     Ok(receiver)
 }
 
+/// The live conversation filed under `key`, or `None` where the request's table
+/// no longer holds one.
+///
+/// A key that names nothing is a connection the task gave back, which is the
+/// conversation being over rather than a fault: the only writers of that table
+/// are the row that opened this socket and the task that ends it.
+fn open_at(ctx: &mut Ctx, key: u64) -> Option<&mut Open> {
+    ctx.open_socket_mut(key)?
+        .as_any_mut()
+        .downcast_mut::<Open>()
+}
+
+/// The peer's next message over the live conversation, or `null` where the
+/// conversation is over.
+///
+/// **A control frame is answered rather than handed to the program.** A ping is
+/// the protocol asking whether this end is alive and the codec queues the pong
+/// itself, a pong is the answer to a ping this end sent, and neither is a
+/// message anyone wrote — so the loop goes back round and waits for one that
+/// is. The peer's close is the end, and `null` is how that reads.
+///
+/// # Errors
+///
+/// A `TimeoutError` for a silence past `idle` or a conversation past its
+/// `maxDuration`, and whatever else the connection failed with.
+fn heard(open: &mut Open) -> Result<Value, Fault> {
+    loop {
+        let now = Instant::now();
+        if now >= open.until {
+            return Err(outlived("receive"));
+        }
+        // Both bounds on the one wait, which is [`transport`]'s streamed reader
+        // one protocol up: whichever is nearer is what the socket parks under,
+        // and which of them fired is read back off the clock.
+        let (idle, until) = (open.idle, open.until);
+        open.framed
+            .socket
+            .get_mut()
+            .bound_by(Some(until.min(now + idle)));
+        return match open.framed.socket.read() {
+            Ok(tungstenite::Message::Text(text)) => Ok(text_message(text.as_str())),
+            Ok(tungstenite::Message::Binary(octets)) => Ok(bytes_message(&octets)),
+            Ok(tungstenite::Message::Ping(_) | tungstenite::Message::Pong(_)) => continue,
+            // `Frame` is a raw frame the codec only produces for a caller that
+            // asked for one, which this is not.
+            Ok(tungstenite::Message::Close(_) | tungstenite::Message::Frame(_)) => {
+                Ok(Value::null())
+            }
+            Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
+                Ok(Value::null())
+            }
+            Err(why) => Err(failed(why, idle, until, "receive")),
+        };
+    }
+}
+
+/// One message out over the live conversation, under the send wait.
+///
+/// # Errors
+///
+/// A `TimeoutError` for a frame that waited longer than the send wait to be
+/// written, or a socket already past its `maxDuration`, and whatever else the
+/// connection failed with. A peer that has stopped reading is the one failure a
+/// program must hear about: a frame that went out and a frame that did not are
+/// otherwise the same call.
+fn written(open: &mut Open, message: tungstenite::Message, member: &str) -> Result<(), Fault> {
+    let now = Instant::now();
+    if now >= open.until {
+        return Err(outlived(member));
+    }
+    let (idle, until) = (open.idle, open.until);
+    open.framed
+        .socket
+        .get_mut()
+        .bound_by(Some(until.min(now + open.send)));
+    match open.framed.socket.send(message) {
+        Ok(()) => Ok(()),
+        Err(why) => Err(failed(why, idle, until, member)),
+    }
+}
+
+/// A live conversation that failed, as the class the failure belongs to.
+///
+/// An expired wait arrives as an ordinary timed-out read, so which bound fired
+/// is read off the clock the same way [`transport`]'s streamed body reads it.
+fn failed(why: tungstenite::Error, idle: Duration, until: Instant, member: &str) -> Fault {
+    if let tungstenite::Error::Io(error) = &why
+        && error.kind() == std::io::ErrorKind::TimedOut
+    {
+        return if Instant::now() >= until {
+            outlived(member)
+        } else {
+            silent(member, idle)
+        };
+    }
+    Fault::thrown_as(
+        if matches!(why, tungstenite::Error::Io(_)) {
+            ThrownClass::Io
+        } else {
+            ThrownClass::Runtime
+        },
+        format!("{SOCKET_NAME}::{member}(): the conversation failed — {why}"),
+    )
+}
+
+/// A conversation still going past its `maxDuration`.
+fn outlived(member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Timeout,
+        format!(
+            "{SOCKET_NAME}::{member}(): this socket's `maxDuration` ran out, which bounds the \
+             whole conversation however much of it was left"
+        ),
+    )
+}
+
+/// A peer that said nothing for longer than `idle`.
+fn silent(member: &str, idle: Duration) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Timeout,
+        format!(
+            "{SOCKET_NAME}::{member}(): the peer sent nothing for {idle:?}, which is as long a \
+             silence as this socket's `idle` allows"
+        ),
+    )
+}
+
+/// A socket whose connection the task it belonged to has already given back.
+fn gone(member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{SOCKET_NAME}::{member}(): the connection this socket held has been given back, so \
+             there is nobody left to send to"
+        ),
+    )
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Socket::receive(): ?Core\Socket\Message` — the peer's next
     /// message, and `null` once the conversation is over.
     ///
-    /// The cursor moves before the message is built, so a program that takes a
-    /// message and then takes another gets the next one whatever it did with
-    /// the first.
+    /// A socket holding a connection waits on it; one holding `null` reads the
+    /// scripted peer, where the cursor moves before the message is built, so a
+    /// program that takes a message and then takes another gets the next one
+    /// whatever it did with the first.
     fn nvs_core_http_socket_receive(ctx, args: [1]) {
         let receiver = crate::instance::receiver(args[0], &SOCKET, "receive")?;
         if crate::instance::slot(receiver, CLOSED_AT).as_bool() == Some(true) {
             return Ok(Value::null());
+        }
+        if let Some(key) = crate::instance::slot(receiver, HELD_AT).as_uint() {
+            let Some(open) = open_at(ctx, key) else {
+                return Ok(Value::null());
+            };
+            return heard(open);
         }
         let url = crate::instance::slot(receiver, URL_AT);
         let url = url.as_text().ok_or_else(|| {
@@ -569,7 +783,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\Socket::send(string $frame): void` — one text message to the
     /// peer.
     fn nvs_core_http_socket_send(ctx, args: [2]) {
-        let _ = writable(args[0], "send")?;
+        let receiver = writable(args[0], "send")?;
         let text = args[1].as_text().ok_or_else(|| {
             // Unreachable from source: the row's parameter is `CoreTy::Text`,
             // so `E0401` refuses anything else a phase earlier.
@@ -578,6 +792,11 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
+        if let Some(key) = crate::instance::slot(receiver, HELD_AT).as_uint() {
+            let open = open_at(ctx, key).ok_or_else(|| gone("send"))?;
+            written(open, tungstenite::Message::Text(text.into()), "send")?;
+            return Ok(Value::null());
+        }
         ctx.faked_http_mut()
             .record_frame(nvs_runtime::SocketFrame::Text(text.to_owned()));
         Ok(Value::null())
@@ -588,7 +807,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\Socket::sendBytes(bytes $frame): void` — one binary message
     /// to the peer.
     fn nvs_core_http_socket_send_bytes(ctx, args: [2]) {
-        let _ = writable(args[0], "sendBytes")?;
+        let receiver = writable(args[0], "sendBytes")?;
         let octets = args[1].as_bytes().ok_or_else(|| {
             // Unreachable from source, for `send`'s reason one type over.
             Fault::fatal(format!(
@@ -596,6 +815,15 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
+        if let Some(key) = crate::instance::slot(receiver, HELD_AT).as_uint() {
+            let open = open_at(ctx, key).ok_or_else(|| gone("sendBytes"))?;
+            written(
+                open,
+                tungstenite::Message::Binary(octets.to_vec().into()),
+                "sendBytes",
+            )?;
+            return Ok(Value::null());
+        }
         ctx.faked_http_mut()
             .record_frame(nvs_runtime::SocketFrame::Bytes(octets.to_vec()));
         Ok(Value::null())
@@ -622,8 +850,8 @@ nvs_runtime::nvs_helper! {
             && let Some(mut held) = ctx.take_open_socket(key)
             && let Some(open) = held.as_any_mut().downcast_mut::<Open>()
         {
-            drop(open.0.socket.close(None));
-            drop(open.0.socket.flush());
+            drop(open.framed.socket.close(None));
+            drop(open.framed.socket.flush());
         }
         crate::instance::set_slot(receiver, HELD_AT, Value::null());
         Ok(Value::null())
