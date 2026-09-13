@@ -2,41 +2,52 @@
 
 ## State
 
-**Goal `plan-truth` — every plan file and module doc says what the tree does — is through stages 2 and 3.**
-`python tools/plan.py --stale` exists and answers `sentences deferring to a walked goal: 0`, which is the
-stage-2 acceptance check; every milestone file `docs/plan/m1.md` through `m8.md`, plus the index's status
-block and its schedule paragraph, now state what is on disk rather than what a walked goal would do.
+**Goal `plan-truth` is through stages 2, 3 and 4.** Stage 4's check — `python tools/owners.py` — reports
+`0 owned by a retired goal`, with `0 untagged, 0 tagged wrongly, 0 unowned with no reason` still beside
+it. Five module-doc gaps named a goal that had walked without closing them: two are struck because the
+code closed them, three are re-owned. The three stale sentences the previous group named are rewritten.
 
-What that changed, and what it rests on: M1 is whole (the pipeline operator at
-`crates/nvs-syntax/src/token.rs:271`, the PHP 8.6 refusals at `:487`/`:491`, `===`/`!==` reported at
-`crates/nvs-syntax/src/lexer.rs:1039`); M4's corpus figure is met; M4S's spec ratchet holds no keys; M5's
-`Task::all` callable-variable refusal is gone (`crates/nvs-types/tests/core_members.rs:407`); the M6 control
-socket, M7's body surface and M5's `spawn` trace event name goals `m7-server-surface` and `m5-proofs`, which
-have not walked. Stages 1, 4 and 5 are untouched — stage 1 is goal `websocket-client`'s list, carried as the
-floor.
+Struck, each verified in the source first: `crates/nvs-cli/src/serve.rs` — a served request *does* carry
+the configuration (`crates/nvs-server/src/serve.rs:1101` writes the snapshot, `ctx/wiring.rs:366`
+`set_config` calls `refresh_limits`, `ctx/limits.rs:407` returns the ceiling); `crates/nvs-types/src/lib.rs`
+— `is` *does* narrow (`crates/nvs-types/src/locals.rs:409` dispatches `type_test_residue` at `:557`).
+Re-owned: LSP completion's inherited-member and visibility gaps to **M10**, whose plan takes `nvs-lsp`
+past M4B's minimal slice (`docs/plan/m10.md:12`, `:47`, `:58`); the router's mount prefix to
+**`m7-server-surface`**, which promises linking through the mount; `Core\Queue`'s `limits`/`grants` to
+**`gap-zero`**, beside the same file's gap 4.
+
+Stages 1 and 5 are open. Stage 1 is goal `websocket-client`'s list, carried as the floor.
 
 ## Next group
 
-**Stage 4: the module docs whose gaps the code already closed** — one file set: the three crate `//!`
-headers the goal's `[context] modules` already names.
+**Stage 5: the index** — one file set: `docs/agent/carried-gaps.md`'s § *Owned* table. The check is
+`python tools/playbook.py --check`, wanting `none -- every carried-gaps owner is live or struck`; fifteen
+rows, `:48`–`:64`, name a retired goal. This file's § *The contract* is the rule for all four items: a row
+leaves only when the gap is closed, so an owner that went green is **struck**, never renamed to hide it.
 
-- [ ] **`nvs serve` reads the config and takes every core** — `crates/nvs-cli/src/serve.rs:79` strike the
-      "a served request carries no configuration" gap (M6-tagged) with `crates/nvs-server/src/serve.rs:1101`
-      beside it, and rewrite any one-core wording against `crates/nvs-cli/src/serve.rs:427`.
-      `rule:security/isolate-shares-nothing` is the rule the header sits under.
-- [ ] **`|>` is a token** — `crates/nvs-syntax/src/lib.rs:57` says it is not one and must not become one;
-      `crates/nvs-syntax/src/token.rs:271` and `rule:expressions/pipeline-substitution` are what it is now.
-- [ ] **`nvs.toml` is read** — `crates/nvs-test/src/lib.rs:150` says it is not until M6, which has walked.
-      Say what `--INI--` does now, or record why it stays refused
-      (`rule:config/the-file-is-nvs-toml-and-it-is-toml`).
+- [ ] **The row the code already closed is struck, not re-owned** — `docs/agent/carried-gaps.md:57` says
+      "`nvs serve` runs on one core, and no path in the process starts a second". It does not: the fleet
+      loop at `crates/nvs-cli/src/serve.rs:427` starts one worker per core over `cpus[index % cpus.len()]`,
+      which this session read. `rule:http-server/the-accept-fan-out-is-one-worker-per-core` is the rule.
+- [ ] **The two rows this session already answered in the module doc** —
+      `docs/agent/carried-gaps.md:61` takes owner `gap-zero`, to match `crates/nvs-stdlib/src/queue.rs:85`;
+      `docs/agent/carried-gaps.md:62` takes `unowned-closures`, to match
+      `crates/nvs-stdlib/src/lib.rs:155`, where row 62's own *decided: widen to a covariant read* is now
+      written as that gap's `Decided:` sentence. `rule:types/arrays` is the invariance the widening amends.
+- [ ] **The five rows owned by the retired goal `carried-gaps`** — `docs/agent/carried-gaps.md:48`, `:49`,
+      `:51`, `:52`, `:54`. Each one's module doc already names a live owner (`owners.py` is green), so the
+      row follows the module doc rather than deciding for itself.
+- [ ] **The remaining rows** — `docs/agent/carried-gaps.md:55`, `:56`, `:58`, `:59`, `:60`, `:63`, `:64`.
+      Owners `test-request`, `per-core`, `net-os-signal`, `gap-owners`, `unowned-sweep`, `input-shapes`
+      and `config-is-written` have all walked.
 
 ## Backlog
 
-- `§16 Core\Metrics` is the one key left in `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`
-  and no goal registers it — stage 5's index, `docs/agent/carried-gaps.md` § *Unowned*.
-- `crates/nvs-runtime/tests/perf_guards.rs:1118` still says `PropertyObserver` has no implementation
-  (`crates/nvs-stdlib/src/interfaces.rs:48` registers it) — stage 4, a different file set.
-- The `nvs-ir` half of `rule:expressions/one-equality-operator` (the null tag test and the three helpers) is
-  `docs/plan/m2.md:42`'s deferral to `nvs-ir`'s own gap list; not re-checked this session.
-- `[context] modules` names no `docs/plan/` path, so stage 3's own file set was not in the pack; harmless
-  now that the stage is done, and worth adding if a later stage reopens a milestone file.
+- `nvs_types::expr::is_assignable`'s own docs are cited as saying no variance was committed to, while
+  `rule:types/arrays` states invariance flatly — same stage-4 pass, and `owners.py` does not see it
+  because it is not a `# Known gaps` item. `crates/nvs-types/src/expr/`.
+- `crates/nvs-test/src/case.rs:351`'s `NOT_YET` reason string still names M6; correcting it is a code
+  change, which this goal's § *Standing decisions* forbids.
+- `crates/nvs-types/src/lib.rs:156` says definite assignment is "no longer conservative" — changelog
+  wording a comment may not carry (`AGENTS.md` rule 6).
+- Stage 1 is goal `websocket-client`'s carried floor and nothing in it is known red.
