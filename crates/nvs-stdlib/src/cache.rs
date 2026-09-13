@@ -134,16 +134,9 @@
 //! is forgotten as it lands. It is not a refusal, because § 1's store has no
 //! failure mode for one to be.
 //!
-//! # What is not here yet
+//! # What it spends
 //!
-//! **A shared store behind a password, a database index or TLS.** The URL this
-//! reads is `redis://host[:port]` and nothing else, and each of the three is
-//! refused with a sentence rather than half-served: `AUTH` needs `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s
-//! secret plumbing to carry the credential, a database index is a second
-//! namespace nothing yet names, and a `rediss://` client needs the trust-anchor
-//! decision `crate::http::transport` is also waiting on.
-//!
-//! **What it spends:** on the local tier, per core, one map entry and one queue
+//! On the local tier, per core, one map entry and one queue
 //! slot per live key — the key's bytes, its payload's and [`ENTRY_OVERHEAD`] —
 //! held until it is overwritten or forgotten, charged to the core rather than
 //! to any request, and bounded by `[cache.local] max_size`, which ships at
@@ -156,6 +149,19 @@
 //! their empty queues, which is a fixed cost paid once and not a per-entry one.
 //! On the shared tier, one socket per core and nothing per entry: the bytes are
 //! the store's.
+//!
+//! # Known gaps
+//!
+//! 1. **A shared store behind a password, a database index or TLS.** The URL
+//!    this reads is `redis://host[:port]` and nothing else, and each of the
+//!    three is refused with a sentence rather than half-served: `AUTH` needs
+//!    `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secret
+//!    plumbing to carry the credential, a database index is a second namespace
+//!    nothing yet names, and a `rediss://` store is a second caller of the TLS
+//!    client `crate::http::transport` dials through. Each is a key beside
+//!    `[cache.shared] url` before it is a connection, which is what makes the
+//!    three one decision rather than three pieces of plumbing.
+//!    — owner: unowned
 
 use std::borrow::Borrow;
 use std::cell::RefCell;
