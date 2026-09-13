@@ -1,12 +1,12 @@
-# Goal 52 -- every plan file and module doc says what the tree does
+# Goal 53 -- one register reads every place a gap is written, and a milestone is an owner
 # The acceptance test, as data.
 #
-# `52-plan-truth.md` is the prose. One home each.
+# `53-gap-register.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# A zero is written `label: 0` or `, 0 label` on purpose: `want` is a substring match, and a bare
-# `0 label` would also match `10 label`.
+# The `want` strings on the tool checks ARE the specification of `owners.py --registers`,
+# `--deferrals` and `plan.py --past`: none of those modes exists when this is written.
 
 files = [
   # carried from the previous goal by tools/goal-switch.py
@@ -96,32 +96,27 @@ files = [
 [context]
 
 modules = [
-  # `--stale`, beside `--check`; `live_goal` and `chain_goals` say which goals have walked. Stage 2.
+  # The register this goal widens rather than replaces. Stage 2 and stage 4's warning.
+  "tools/owners.py",
+  # The derivation shape `owners.py` follows -- a worklist read off the tree, never copied.
+  "tools/holes.py",
+  # `--past`, `done` in a `Carried by` cell, and `--check` accepting it. Stage 5.
   "tools/plan.py",
-  # The retired-owner report over the index, and the line it prints when that report is empty. Stage 5.
+  # `until:` bullets are one of the registers; the retired-owner report is the shape to match.
   "tools/playbook.py",
-  # The index whose Owned rows are struck or closed. Stage 5.
+  # `--where gap` routes to the index today. Stage 6.
+  "tools/brief.py",
+  # The index that is still read until goal `gap-zero` deletes it.
   "docs/agent/carried-gaps.md",
-  # Stale module docs, stage 4.
-  "crates/nvs-cli/src/serve.rs",
-  "crates/nvs-syntax/src/lib.rs",
-  "crates/nvs-test/src/lib.rs",
-  # What may be written where the cursor is.
-  "crates/nvs-lsp/src/completion.rs",
-  # `Core\Queue` — `rule:concurrency/enqueue-commits-with-your-write`'s durable background job,
-  # over the `[db.<name>]` block a `[queue] connection` names.
-  "crates/nvs-stdlib/src/queue.rs",
-  # `Core\Http\Method` — the closed set of verbs a route is declared under — `Core\Router`'s link
-  # half, which is as much of `rule:routing/routes-are-compiled-not-registered`'s router as exists
-  # today, and `Core\Router\Match`, the match `rule:routing/matched-once-before-the-handler` has
-  # the door take once and `Core\Request::route()` hand back.
-  "crates/nvs-stdlib/src/router.rs",
+  # The refusal register, one of the five.
+  "docs/agent/carried-refusals.md",
+  # The owner column's gate. Stage 3.
+  "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
 ]
 
 rules = [
-  # Stage 4's one rule fragment amended to the code, and stage 3's M1 sentence about it.
-  "types/arrays",
-  "types/literal-types",
+  "0004",
+  "programs/memory-priority",
 ]
 
 adrs = []
@@ -142,22 +137,21 @@ playbook = [
   'Tooling > another agent',
 ]
 
-plan = ["Open now", "Blocking", "Done"]
+plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `52-plan-truth.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `53-gap-register.md`, holding what only that stage needs.
 # These are the PROSE stage numbers; loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.3]
-rules = ["expressions/pipeline-substitution"]
-milestones = ["M1:lead", "M4:lead", "M5:verify", "M7:lead", "M8:lead"]
+rules = ["core-api/tier-roster"]
 
 [context.stage.4]
 shapes = ["A code comment"]
 
-# Nothing this goal writes runs in a program.
+# Nothing this goal writes allocates at run time: two tool modes and a test's match arm.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
@@ -171,6 +165,12 @@ compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 718 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -10013,22 +10013,19 @@ name = "an outbound socket answered by a scripted peer is shipped"
 argv = ["python", "tools/rules.py", "--show", "testing/an-outbound-socket-is-answered-by-a-scripted-peer"]
 want = ["shipped"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stages 2 and 3 -- the lint, and the plan files it reads. Goal prose stages 2, 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "2 the plan files"
+stage = "1 floor"
 name = "no plan sentence defers work to a goal that has already walked"
 argv = ["python", "tools/plan.py", "--stale"]
 want = ["sentences deferring to a walked goal: 0"]
 
 [[check]]
 kind = "command"
-stage = "2 the plan files"
+stage = "1 floor"
 name = "plan.py: the index and the chain still agree"
 argv = ["python", "tools/plan.py", "--check"]
 want = ["every cell agreeing with the chain"]
@@ -10036,10 +10033,9 @@ want = ["every cell agreeing with the chain"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the module docs. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "4 the module docs"
+stage = "1 floor"
 name = "no module-doc gap names a goal that walked without closing it"
 argv = ["python", "tools/owners.py"]
 want = [", 0 owned by a retired goal"]
@@ -10047,10 +10043,99 @@ want = [", 0 owned by a retired goal"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the index. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "5 the index"
+stage = "1 floor"
 name = "no index row names a goal that walked without closing it"
 argv = ["python", "tools/playbook.py", "--check"]
 want = ["none -- every carried-gaps owner is live or struck"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- one roster over every register. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the roster"
+name = "one roster over every register there is"
+argv = ["python", "tools/owners.py", "--registers"]
+want = [
+  "module docs",
+  "carried-refusals.md",
+  "outstanding keys",
+  "guard-name-debt.md",
+  "playbook until",
+  "carried-gaps.md",
+  "6 register(s)",
+]
+
+[[check]]
+kind = "command"
+stage = "2 the roster"
+name = "a past-milestone tag is counted, and every recorded gap names an owner"
+argv = ["python", "tools/owners.py", "--check", "--untagged-is-an-error", "--reasons"]
+# A zero is written `label: 0` on purpose: `want` is a substring match, and `0 untagged` would also
+# match `10 untagged`.
+want = [
+  "past-milestone:",
+  "untagged: 0",
+]
+
+[[check]]
+kind = "command"
+stage = "2 the roster"
+name = "every deferral names a future milestone whose plan states the scope"
+argv = ["python", "tools/owners.py", "--deferrals"]
+want = ["every deferral names a future milestone whose plan states the scope"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the ratchet test learns the same owner kinds. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the ratchet"
+name = "nvs-stdlib (a ratchet key may be owned by a future milestone and not by a past one)"
+args = ["test", "-p", "nvs-stdlib", "--test", "spec_registry_coverage"]
+tests = [
+  "every_outstanding_key_names_an_owner",
+  "a_future_milestone_owns_a_key_and_a_past_one_does_not",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- owed work is written under one heading. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 one heading"
+name = "no module doc records owed work outside its Known gaps block"
+argv = ["python", "tools/owners.py"]
+want = ["sections outside Known gaps: 0"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 and 6 -- a past milestone says whether it is complete, and routing. Goal prose stages 5, 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 past milestones"
+name = "each past milestone reports whether it is complete"
+argv = ["python", "tools/plan.py", "--past"]
+want = ["M0", "M4S", "M4B", "M8", "past milestone(s) complete"]
+
+[[check]]
+kind = "command"
+stage = "5 past milestones"
+name = "plan.py: the index and the chain still agree"
+argv = ["python", "tools/plan.py", "--check"]
+want = ["every cell agreeing with the chain"]
+
+[[check]]
+kind = "command"
+stage = "6 routing"
+name = "brief.py routes a gap question to the register"
+argv = ["python", "tools/brief.py", "--where", "gap"]
+want = ["tools/owners.py"]
