@@ -1,0 +1,73 @@
+--TEST--
+The sealed door is the only door into a session too: `get` answers `null` for a name `setSecret` wrote, a plain `set` under that name is a separate value, and `remove` takes the plain one and leaves the sealed one — `rule:http-server/a-session-holds-a-secret-only-sealed`, `rule:security/secret-crosses-no-boundary`
+--SKIPIF--
+<?nvs
+// As the round-trip case beside this one: the record crosses the store
+// `[cache.shared]` names, and a tree without one skips.
+try {
+    Core\Session::start();
+} catch (Throwable $nowhere) {
+    echo "skip - ", $nowhere->message, "\n";
+}
+--FILE--
+<?nvs
+// `set` refuses a `secret` at the boundary and `setSecret` is where one goes
+// instead. The other half of that is asserted here: nothing `setSecret` wrote
+// is reachable through the members that read and write the record the ordinary
+// way, so a program cannot arrive at the ciphertext by asking for the name.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+secret string $token = "sk-live-7";
+
+Core\Session::start();
+Core\Session::setSecret("refresh", $token, $ring);
+
+echo "get is blind to a sealed value: ",
+    Core\Session::get("refresh") == null ? "null" : "something", "\n";
+
+// The two live in spaces of their own, so writing the ordinary way under the
+// same name neither replaces the sealed value nor is replaced by it.
+Core\Session::set("refresh", "plain");
+echo "a plain set under the same name: ", Core\Session::get("refresh") as string, "\n";
+echo "and the sealed value is untouched: ",
+    (Core\Session::getSecret("refresh", $ring) ?? "") == $token ? "yes" : "no", "\n";
+
+// The same claim through the member that takes a key away: `remove` takes what
+// `set` wrote and leaves what `setSecret` wrote.
+Core\Session::remove("refresh");
+echo "remove takes the plain value: ",
+    Core\Session::get("refresh") == null ? "null" : "something", "\n";
+echo "and leaves the sealed one: ",
+    (Core\Session::getSecret("refresh", $ring) ?? "") == $token ? "yes" : "no", "\n";
+
+// And the one thing here that is not a miss: a ring that cannot key anything
+// is the program's own bug, so it is the exception class a program's bugs get
+// rather than a `null` a caller would read as "nothing was stored".
+array<secret bytes> $empty = [];
+try {
+    Core\Session::getSecret("refresh", $empty);
+    echo "an empty ring read something", "\n";
+} catch (LogicError $noKeys) {
+    echo "an empty ring is a program bug and not a miss", "\n";
+}
+--FILE nvs.toml--
+# As the round-trip case beside this one: one shared store, and the grant over
+# it. `redis` is `tests/db/compose.yaml`'s service.
+[[app]]
+entry = "case.nvs"
+
+[app.capabilities.cache]
+shared = true
+
+[session]
+backend = "shared"
+
+[cache.shared]
+url = "redis://127.0.0.1:16379"
+--EXPECT--
+get is blind to a sealed value: null
+a plain set under the same name: plain
+and the sealed value is untouched: yes
+remove takes the plain value: null
+and leaves the sealed one: yes
+an empty ring is a program bug and not a miss

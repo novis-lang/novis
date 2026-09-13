@@ -1,5 +1,5 @@
 --TEST--
-The six `Core\Session` members that need a session give one answer to a request that opened none, asserted by counting rather than read off any one of them -- `rule:core-api/session-roster`
+Every `Core\Session` member that needs a session gives one answer to a request that opened none, asserted by counting rather than read off any one of them -- `rule:core-api/session-roster`, `rule:http-server/a-session-holds-a-secret-only-sealed`
 --FILE--
 <?nvs
 // `rule:core-api/session-roster` states one rule for all of them, so this asks whether they
@@ -12,6 +12,12 @@ string $fromRemove = "";
 string $fromClear = "";
 string $fromRegenerate = "";
 string $fromDestroy = "";
+string $fromSetSecret = "";
+string $fromGetSecret = "";
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+secret string $token = "sk-live";
 
 try {
     Core\Session::get("cart");
@@ -49,6 +55,21 @@ try {
     $fromDestroy = Core\Str::replace($noSessionToForget->message, "::destroy()", "::<member>()");
 }
 
+// The sealed pair takes the same rule, and takes it before it looks at its key
+// ring: a member that refused the ring first would answer a request that opened
+// no session with a different rule's message.
+try {
+    Core\Session::setSecret("refresh", $token, $ring);
+} catch (RuntimeError $noRecordToSealInto) {
+    $fromSetSecret = Core\Str::replace($noRecordToSealInto->message, "::setSecret()", "::<member>()");
+}
+
+try {
+    Core\Session::getSecret("refresh", $ring);
+} catch (RuntimeError $noRecordToOpen) {
+    $fromGetSecret = Core\Str::replace($noRecordToOpen->message, "::getSecret()", "::<member>()");
+}
+
 uint $agreed = 0;
 if ($fromGet == $fromSet) {
     $agreed = $agreed + 1;
@@ -65,15 +86,21 @@ if ($fromClear == $fromRegenerate) {
 if ($fromRegenerate == $fromDestroy) {
     $agreed = $agreed + 1;
 }
-echo "the six refusals agree ", $agreed, " of 5\n";
+if ($fromDestroy == $fromSetSecret) {
+    $agreed = $agreed + 1;
+}
+if ($fromSetSecret == $fromGetSecret) {
+    $agreed = $agreed + 1;
+}
+echo "the refusals agree ", $agreed, " of 7\n";
 
-// Counting is not enough on its own: six empty strings agree too, and would
-// mean nothing was thrown at all. So the answer they agree on is also non-empty.
+// Counting is not enough on its own: empty strings agree too, and would mean
+// nothing was thrown at all. So the answer they agree on is also non-empty.
 if (Core\Str::length($fromGet) > 0) {
     echo "and what they agree on is an answer\n";
 } else {
     echo "and what they agree on is nothing at all\n";
 }
 --EXPECT--
-the six refusals agree 5 of 5
+the refusals agree 7 of 7
 and what they agree on is an answer

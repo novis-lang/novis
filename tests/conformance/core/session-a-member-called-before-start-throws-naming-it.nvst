@@ -5,9 +5,16 @@ Every `Core\Session` member but `start` throws while the request has started no 
 // `rule:core-api/session-roster`: "a member called before `start` throws naming it". That is the
 // whole of what `rule:core-classes/session-is-started-explicitly` was buying — "this request uses sessions" is a
 // line in the source — and it is worth nothing if the first `get` can silently
-// start one. So none of the six below opens a session: all six refuse.
+// start one. So none of the members below opens a session: all of them refuse,
+// the sealed pair `rule:http-server/a-session-holds-a-secret-only-sealed` adds
+// included — a member that reached for its key ring before it asked whether
+// there was a record would report the ring instead of the rule.
 uint $refused = 0;
 uint $named = 0;
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+secret string $token = "sk-live";
 
 try {
     Core\Session::get("cart");
@@ -67,12 +74,30 @@ try {
     }
 }
 
-echo "refused ", $refused, " of 6\n";
+try {
+    Core\Session::setSecret("refresh", $token, $ring);
+} catch (RuntimeError $noRecordToSealInto) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToSealInto->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::getSecret("refresh", $ring);
+} catch (RuntimeError $noRecordToOpen) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToOpen->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+echo "refused ", $refused, " of 8\n";
 
 // Naming the member is the half that makes the refusal actionable. A program
-// told only "no session" has to go and find which of the seven opens one, and
-// § 1's rule is specifically that the throw says so.
-echo "and each names the member that opens one ", $named, " of 6\n";
+// told only "no session" has to go and find which member opens one, and § 1's
+// rule is specifically that the throw says so.
+echo "and each names the member that opens one ", $named, " of 8\n";
 --EXPECT--
-refused 6 of 6
-and each names the member that opens one 6 of 6
+refused 8 of 8
+and each names the member that opens one 8 of 8
