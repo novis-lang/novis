@@ -1143,19 +1143,21 @@
     },
     {
       "id": "http-server/a-cross-origin-redirect-drops-credentials",
-      "title": "A redirect hop to another origin drops `Authorization`, `Cookie`, `Proxy-Authorization` and every header whose value was `secret`",
-      "status": "designed",
+      "title": "A redirect hop to another origin carries none of the caller's own headers, the three named credentials and every `secret` value among them",
+      "status": "shipped",
       "because": [
         "0180"
       ],
-      "divergesFromPhp": "an `Authorization` header set in a stream context is re-sent to whatever host a `Location` names; here a hop to another origin drops it, and every `secret` value with it",
+      "divergesFromPhp": "an `Authorization` header set in a stream context is re-sent to whatever host a `Location` names; here a hop to another origin carries no header the program wrote, that one and every `secret` value included",
       "seeAlso": [
         "http-server/redirects-are-off-and-every-hop-is-re-pinned",
         "security/secret-qualifier",
         "security/secret-sinks-refuse",
         "http-server/an-https-redirect-never-becomes-plaintext"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http/transport.rs"
+      ]
     },
     {
       "id": "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
