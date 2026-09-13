@@ -158,6 +158,21 @@ fn refusal(fs: &Fake, root: &str) -> Diagnostic {
         .expect_err("this tree should have been refused")
 }
 
+/// `[http.client.tls] roots` out of a resolved tree, which four blocks of `and_then` otherwise
+/// spell at each of its cases.
+fn roots_of(resolved: &Resolved) -> Option<Vec<String>> {
+    resolved
+        .config
+        .http
+        .as_ref()?
+        .client
+        .as_ref()?
+        .tls
+        .as_ref()?
+        .roots
+        .clone()
+}
+
 /// `[limits] memory` out of a resolved tree, which is the value most cases assert on.
 fn memory(resolved: &Resolved) -> Option<&Setting> {
     resolved.config.limits.as_ref()?.memory.as_ref()
@@ -452,6 +467,163 @@ fn a_db_blocks_tls_ca_file_reaches_the_table_resolved_too() {
     assert_eq!(
         resolved.table["db"]["main"]["tls_ca_file"].as_str(),
         Some(want.to_string_lossy().as_ref())
+    );
+}
+
+/// `[http.client.tls] roots` resolved: a file entry becomes the path the trust check examined, in
+/// the table as well as in the typed tree, and `"bundled"` is passed over untouched.
+///
+/// The table half is the one that matters — `Snapshot::retype` deserializes the tree back out of it,
+/// so a pass that rewrote only the typed side would prove one bundle safe and hand `nvs_host::tls` a
+/// relative path to open against whatever directory the process happened to start in.
+#[test]
+fn http_client_tls_roots_reach_the_table_resolved_and_leave_bundled_alone() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", "[[include]]\npath = \"conf.d/tls.toml\"\n"),
+        (
+            "etc/conf.d/tls.toml",
+            "[http.client.tls]\nroots = [\"bundled\", \"corp-ca.pem\"]\n",
+        ),
+        ("etc/conf.d/corp-ca.pem", "-----BEGIN CERTIFICATE-----\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let want = p("etc/conf.d/corp-ca.pem");
+    let want = want.to_string_lossy().into_owned();
+
+    assert_eq!(
+        roots_of(&resolved),
+        Some(vec!["bundled".to_string(), want.clone()]),
+        "the typed tree kept a relative bundle path or lost the compiled-in entry",
+    );
+    let table = resolved.table["http"]["client"]["tls"]["roots"]
+        .as_array()
+        .expect("`roots` left the table as something other than an array")
+        .iter()
+        .map(|entry| entry.as_str().unwrap_or_default().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(table, vec!["bundled".to_string(), want]);
+}
+
+/// The trust boundary over the anchors, which is the sharper half of the case above:
+/// `rule:config/ownership-is-the-trust-boundary` asks who *else* may write a file, and a `roots`
+/// entry decides which servers every outbound call in the process may be talking to.
+///
+/// So it is refused exactly as a `[db]` block's `tls_ca_file` is, and by the same `E0607`: a boot
+/// that accepted it would leave one file in the tree a stranger could rewrite to redirect the
+/// deployment's traffic to a server they hold a certificate for.
+#[test]
+fn a_group_writable_roots_file_is_refused_at_boot() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[http.client.tls]\nroots = [\"bundled\", \"corp-ca.pem\"]\n",
+        ),
+        ("etc/corp-ca.pem", "-----BEGIN CERTIFICATE-----\n"),
+    ])
+    .untrusting(&["etc/corp-ca.pem"]);
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_UNTRUSTED_CONFIG));
+    assert!(
+        diagnostic.message.contains("corp-ca.pem"),
+        "the refusal did not name the file: {}",
+        diagnostic.message
+    );
+}
+
+/// An empty `roots` is refused rather than read as "trust nothing", because trusting nothing is not
+/// a policy a deployment can run: every outbound `https` call would die at the handshake, naming an
+/// unknown issuer and sending an operator to look at the origin.
+#[test]
+fn an_empty_roots_list_is_refused_rather_than_trusting_nobody() {
+    let fs = Fake::with(&[("etc/nvs.toml", "[http.client.tls]\nroots = []\n")]);
+
+    assert_eq!(
+        refusal(&fs, "etc/nvs.toml").code,
+        Some(code::E_TLS_ROOTS_EMPTY)
+    );
+}
+
+/// A `min_version` beneath what the client implements is refused rather than clamped: accepting
+/// `"1.0"` would leave the real floor at 1.2 while the file told an operator they had chosen
+/// otherwise, which is the one outcome worse than a boot that stops.
+#[test]
+fn a_min_version_below_what_the_client_speaks_is_refused() {
+    let fs = Fake::with(&[("etc/nvs.toml", "[http.client.tls]\nmin_version = \"1.0\"\n")]);
+
+    assert_eq!(
+        refusal(&fs, "etc/nvs.toml").code,
+        Some(code::E_TLS_MIN_VERSION)
+    );
+
+    let raised = Fake::with(&[("etc/nvs.toml", "[http.client.tls]\nmin_version = \"1.3\"\n")]);
+    assert_eq!(
+        tree_of(&raised, "etc/nvs.toml")
+            .config
+            .http
+            .as_ref()
+            .unwrap()
+            .client
+            .as_ref()
+            .unwrap()
+            .tls
+            .as_ref()
+            .unwrap()
+            .min_version
+            .as_deref(),
+        Some("1.3"),
+        "the floor an operator raised did not survive the merge",
+    );
+}
+
+/// `[http.client.tls] keylog` on a `production` host is refused, and the mode with nothing written
+/// is `production` — so the tree below names no mode at all.
+///
+/// That is the pairing the key needs: the file it names decrypts everything this deployment sends,
+/// and a deployment that never wrote `[mode]` is the one most likely to have inherited the key from
+/// a development tree it copied.
+#[test]
+fn keylog_is_refused_at_boot_in_production() {
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[http.client.tls]\nkeylog = \"/tmp/tls-secrets.log\"\n",
+    )]);
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_KEYLOG_IN_PRODUCTION));
+    assert!(
+        diagnostic.message.contains("tls-secrets.log"),
+        "the refusal did not name the file it writes: {}",
+        diagnostic.message
+    );
+}
+
+/// The other side of it: a `development` host boots with the key, and says so.
+///
+/// A warning rather than silence because the state is one somebody switched on for an afternoon and
+/// nobody reports having switched off, and `W1009` is what an operator reads at every start until
+/// they remove it.
+#[test]
+fn keylog_is_accepted_in_development() {
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[mode]\ndefault = \"development\"\n\n\
+         [http.client.tls]\nkeylog = \"/tmp/tls-secrets.log\"\n",
+    )]);
+
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+
+    let warned = resolved
+        .warnings
+        .iter()
+        .find(|warning| warning.code == Some(code::W_TLS_KEYLOG_ON))
+        .expect("a development host took the key log and announced nothing");
+    assert!(
+        warned.message.contains("tls-secrets.log"),
+        "the announcement did not name the file: {}",
+        warned.message
     );
 }
 

@@ -1827,6 +1827,40 @@ pub mod code {
     /// a type.
     pub const E_UNGRANTED_QUEUE: Code = Code::new("E0637");
 
+    /// `[http.client.tls] roots` naming no trust anchor at all — an empty
+    /// list.
+    ///
+    /// Written out, that key is the whole answer to "whose certificates do
+    /// you believe" for every outbound `https` call this process makes, and
+    /// an empty list answers "nobody's". That is not a stricter deployment,
+    /// it is one where every such call dies at the handshake with an unknown
+    /// issuer — a message that sends an operator looking at the origin rather
+    /// than at the key they wrote. Omitting the key is how a deployment asks
+    /// for the compiled-in set, so there is nothing `[]` could have meant.
+    pub const E_TLS_ROOTS_EMPTY: Code = Code::new("E0638");
+
+    /// `[http.client.tls] min_version` naming a version this build does not
+    /// speak.
+    ///
+    /// The client implements TLS 1.2 and 1.3 and nothing beneath them, so
+    /// `"1.0"` and `"1.1"` are not floors it can be lowered to: accepting
+    /// either would leave the floor at 1.2 while telling an operator they had
+    /// chosen otherwise, which is the one outcome worse than refusing the
+    /// key.
+    pub const E_TLS_MIN_VERSION: Code = Code::new("E0639");
+
+    /// `[http.client.tls] keylog` written on a host whose mode is
+    /// `production`.
+    ///
+    /// The file it names collects every TLS session's secrets in the
+    /// `SSLKEYLOGFILE` format, which is what decrypts this deployment's
+    /// outbound traffic — the credentials inside it included — for anyone who
+    /// can read the file. It is a debugging instrument, and the mode is where
+    /// a deployment has already said whether it is debugging, so the key is
+    /// announced in `development` and refused here rather than left for a
+    /// reviewer to catch.
+    pub const E_KEYLOG_IN_PRODUCTION: Code = Code::new("E0640");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
@@ -3490,6 +3524,18 @@ pub mod code {
     /// nothing to fix. What it may not be is *silent*, since the failure it
     /// otherwise produces arrives one deploy later and names only the member.
     pub const W_STORE_CONFIGURED_UNGRANTED: Code = Code::new("W1008");
+    /// `[http.client.tls] keylog` is on, and this host is one where that is
+    /// allowed: every outbound TLS session is appending its secrets to the
+    /// named file.
+    ///
+    /// Announced at every start rather than once, because the state it
+    /// describes is one somebody switched on for an afternoon's debugging and
+    /// nobody reports having switched off — a capture left in place is the
+    /// deployment's whole outbound traffic readable by anyone who can read a
+    /// file. It is not a refusal here for the reason it is `E0640` elsewhere:
+    /// `production` never reaches this, so the only host that sees it has
+    /// already said it is being debugged.
+    pub const W_TLS_KEYLOG_ON: Code = Code::new("W1009");
 }
 
 #[cfg(test)]

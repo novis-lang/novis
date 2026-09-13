@@ -282,6 +282,24 @@
 #pool_idle = 16
 #pool_idle_timeout = "30s"
 
+#[http.client.tls]
+# Whose certificates an outbound `https` call believes. Each entry is `"bundled"` — the Mozilla set
+# carried in the binary — or a PEM file, so `["bundled", "/etc/novis/corp-ca.pem"]` adds a company
+# CA and a list without `"bundled"` trusts only its files. Each file is resolved against the
+# configuration file naming it and must be inside the trust boundary
+# (`rule:config/ownership-is-the-trust-boundary`), the same check a `[db]` block's `tls_ca_file`
+# passes. An empty list is refused: it would trust nobody, which is a handshake failure per call
+# rather than a policy.
+#roots = ["bundled"]
+# The version floor every call speaks over. `"1.3"` raises it for all of them; there is nothing
+# below `"1.2"` to write, because the client implements neither TLS 1.0 nor 1.1.
+#min_version = "1.2"
+# A file each session's secrets are appended to in the `SSLKEYLOGFILE` format, for reading this
+# deployment's own traffic in Wireshark. Unset, and nothing is written. Refused at boot when `[mode]
+# default` is `production` — the file decrypts everything sent, credentials included, for whoever
+# can read it — and announced at every start in `development`.
+#keylog = "/var/log/novis/tls-secrets.log"
+
 
 # ----------------------------------------------------------------------------------------------
 # [server] — `Boot`-class as a whole block: a change here needs a restart, not a reload

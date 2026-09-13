@@ -125,6 +125,12 @@ pub const DIRECTIVES: &[Directive] = &[
     // (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`).
     Directive { key: "http.client.pool_idle", class: Class::System, apply: Apply::Reload },
     Directive { key: "http.client.pool_idle_timeout", class: Class::System, apply: Apply::Reload },
+    // The other exception inside that block, and the stronger one: `[http.client.tls]` settles the
+    // single `ClientConfig` every session in the process shares, so a request that could set one of
+    // its keys would be choosing trust anchors for every co-resident request. `Boot` as well as
+    // `System` because that configuration is built once on first use and shared by `Arc` after it
+    // (`nvs_host::tls`), so a new snapshot has nothing to apply a changed anchor set to.
+    Directive { key: "http.client.tls", class: Class::System, apply: Apply::Boot },
     // `[log] format` and `level` are rows of `rule:config/a-mode-is-five-defaults`'s mode table, and no row in that table is
     // `System`-class.
     Directive { key: "log", class: Class::Runtime, apply: Apply::Reload },

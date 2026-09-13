@@ -55,12 +55,20 @@
 //!
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use nvs_diagnostics::{Diagnostic, code};
 
-use crate::resolve::{Origin, origin_note};
-use crate::tree::{Config, Http, Setting};
+use crate::resolve::{Files, Origin, origin_note};
+use crate::tree::{Config, Http, HttpClientTls, Setting};
 use crate::value::{Quantity, Unit};
+
+/// The `[http.client.tls] roots` entry naming the compiled-in Mozilla set rather than a file.
+///
+/// A constant because two crates spell it: this one skips it while resolving paths, and
+/// `nvs_host::tls` reads it as "extend with the bundled anchors". A literal in each would be one
+/// typo away from a `roots` list that silently trusted a file named `bundled`.
+pub const BUNDLED: &str = "bundled";
 
 /// The values §§ 2-3's two refusals are decided from, resolved to what is in force.
 ///
@@ -313,6 +321,189 @@ fn is_true(value: &str) -> bool {
     value.trim().eq_ignore_ascii_case("true")
 }
 
+/// Makes every PEM file under `[http.client.tls] roots` absolute — `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` — and proves each
+/// one is inside the trust boundary.
+///
+/// [`crate::db::canonicalize`]'s pass asked of the outbound client's anchors instead of a `[db]`
+/// block's, and a trust-boundary file for the same reason
+/// (`rule:config/ownership-is-the-trust-boundary`): whoever can rewrite one of these chooses which
+/// servers **every** outbound call in the process may be talking to, which is a wider authority
+/// than the per-block bundle and never a narrower one. Over the merged tree, because which list is
+/// in force is a question only the merge has answered.
+///
+/// The [`BUNDLED`] entry is passed over — it names no file — and nothing here reads a bundle it
+/// resolves. `nvs_host::tls` parses them, which is what keeps one answer to whose certificates this
+/// process believes (`rule:security/one-tls-client`).
+///
+/// # Errors
+///
+/// `E0607` for an entry outside the trust boundary and `E0605` for one that cannot be read at all,
+/// which is [`crate::resolve::untrusted`]'s split.
+pub fn canonicalize(
+    config: &mut Config,
+    table: &mut toml::value::Table,
+    origins: &BTreeMap<String, Origin>,
+    files: &dyn Files,
+) -> Result<(), Diagnostic> {
+    let Some(roots) = config
+        .http
+        .as_mut()
+        .and_then(|http| http.client.as_mut())
+        .and_then(|client| client.tls.as_mut())
+        .and_then(|tls| tls.roots.as_mut())
+    else {
+        return Ok(());
+    };
+    let base = crate::db::written_in(origins, "http.client.tls.roots");
+    for entry in roots.iter_mut() {
+        if entry == BUNDLED {
+            continue;
+        }
+        let path = crate::resolve::absolute(base, Path::new(entry));
+        let trusted = files.trust(&path).map_err(|why| {
+            crate::resolve::untrusted(
+                &path,
+                &why,
+                "`[http.client.tls] roots` names it, and whoever can write it chooses which servers \
+                 every outbound call this process makes may be talking to",
+            )
+        })?;
+        *entry = trusted.to_string_lossy().into_owned();
+    }
+    rewrite_roots(table, roots);
+    Ok(())
+}
+
+/// Puts the resolved `roots` back into the merged table as well as onto the typed tree.
+///
+/// [`crate::db::canonicalize`]'s reason exactly: `Snapshot::retype` deserializes the tree back out
+/// of the table, so a pass that rewrote only the typed side would prove one set of files safe and
+/// hand `nvs_host::tls` a different set to parse. A tree the table does not hold is not an error —
+/// the typed side is what says the block exists.
+fn rewrite_roots(table: &mut toml::value::Table, roots: &[String]) {
+    let Some(tls) = table
+        .get_mut("http")
+        .and_then(toml::Value::as_table_mut)
+        .and_then(|http| http.get_mut("client"))
+        .and_then(toml::Value::as_table_mut)
+        .and_then(|client| client.get_mut("tls"))
+        .and_then(toml::Value::as_table_mut)
+    else {
+        return;
+    };
+    let entries = roots
+        .iter()
+        .map(|entry| toml::Value::String(entry.clone()))
+        .collect();
+    tls.insert("roots".to_string(), toml::Value::Array(entries));
+}
+
+/// `[http.client.tls]`'s three values, asked of the merged tree at boot.
+///
+/// Here rather than beside the anchors in `nvs_host::tls` because each of the three is wrong in a
+/// way the file can be shown for: the parse that would otherwise discover it happens on the first
+/// outbound call, inside a request, where nothing can name the line an operator wrote.
+fn tls(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    let Some(tls) = written_tls(config) else {
+        return Ok(());
+    };
+    if tls.roots.as_deref().is_some_and(<[String]>::is_empty) {
+        return Err(Diagnostic::error(
+            code::E_TLS_ROOTS_EMPTY,
+            "`[http.client.tls] roots` is empty, so no certificate could vouch for any origin"
+                .to_string(),
+        )
+        .with_note(format!(
+            "the list is the whole answer to whose certificates an outbound `https` call believes, \
+             and an empty one answers nobody's: every such call would fail at the handshake with an \
+             unknown issuer{}",
+            origin_note(origins.get("http.client.tls.roots"))
+        ))
+        .with_help(format!(
+            "leave the key out for the compiled-in set, or name what this deployment trusts — \
+             `[\"{BUNDLED}\"]`, a PEM file, or both"
+        )));
+    }
+    if let Some(written) = tls.min_version.as_deref()
+        && !matches!(written, "1.2" | "1.3")
+    {
+        return Err(Diagnostic::error(
+            code::E_TLS_MIN_VERSION,
+            format!("`[http.client.tls] min_version` is `{written}`, which this client cannot speak"),
+        )
+        .with_note(format!(
+            "the client implements TLS 1.2 and 1.3 and nothing beneath them, so a lower floor would \
+             leave the real one at 1.2 while the file said otherwise{}",
+            origin_note(origins.get("http.client.tls.min_version"))
+        ))
+        .with_help("write `1.2` or `1.3` — or leave the key out, which is `1.2`".to_string()));
+    }
+    let Some(written) = tls.keylog.as_deref() else {
+        return Ok(());
+    };
+    if mode(config) != crate::mode::PRODUCTION {
+        return Ok(());
+    }
+    Err(Diagnostic::error(
+        code::E_KEYLOG_IN_PRODUCTION,
+        format!(
+            "`[http.client.tls] keylog` writes `{written}`, and this host runs in `production`"
+        ),
+    )
+    .with_note(format!(
+        "the file collects every TLS session's secrets, which decrypts everything this deployment \
+         sends — the credentials in it included — for whoever can read it{}",
+        origin_note(origins.get("http.client.tls.keylog"))
+    ))
+    .with_help(
+        "remove the key, or write it only in a tree whose `[mode] default` is `development`"
+            .to_string(),
+    ))
+}
+
+/// What `[mode] default` says, which is `production` with nothing written
+/// (`rule:config/two-modes-and-the-default-is-production`).
+fn mode(config: &Config) -> &str {
+    config
+        .mode
+        .as_ref()
+        .and_then(|mode| mode.default.as_deref())
+        .unwrap_or(crate::mode::PRODUCTION)
+}
+
+/// The `[http.client.tls]` block as the merge left it.
+fn written_tls(config: &Config) -> Option<&HttpClientTls> {
+    config
+        .http
+        .as_ref()
+        .and_then(|http| http.client.as_ref())
+        .and_then(|client| client.tls.as_ref())
+}
+
+/// The key log's announcement, once per start, on a host that accepted it.
+///
+/// A warning and not a line in the boot log's ordinary body, because a deployment reading its own
+/// TLS traffic is a state somebody switched on and nobody reports having switched off. `production`
+/// never reaches this — [`tls`] refused that tree — so the only host it fires on is one already
+/// saying it is being debugged.
+#[must_use]
+pub fn advise(config: &Config, origins: &BTreeMap<String, Origin>) -> Option<Diagnostic> {
+    let written = written_tls(config)?.keylog.as_deref()?;
+    Some(
+        Diagnostic::warning(
+            code::W_TLS_KEYLOG_ON,
+            format!("every TLS session's secrets are being appended to `{written}`"),
+        )
+        .with_note(format!(
+            "`[http.client.tls] keylog` is set and this host runs in `{}`, so the file decrypts \
+             this deployment's outbound traffic for anyone who can read it{}",
+            mode(config),
+            origin_note(origins.get("http.client.tls.keylog"))
+        ))
+        .with_help("remove the key once the capture you wanted is taken".to_string()),
+    )
+}
+
 /// §§ 2-3's two refusals, asked of the merged tree at boot.
 ///
 /// # Errors
@@ -322,7 +513,12 @@ fn is_true(value: &str) -> bool {
 /// `same_site` that is none of the three spellings — a value neither pair can be decided from.
 /// Before either, `E0625` for a value under `[http.headers]` or a list entry under `[http.cors]`
 /// that a header line cannot carry, and `E0601` for a `[http.cors] max_age` that is not a duration.
+/// Before all of them, `[http.client.tls]`'s three: `E0638` for an empty `roots`, `E0639` for a
+/// `min_version` this client cannot speak, and `E0640` for a `keylog` on a `production` host.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    // The outbound block first, and its `keylog` is why: a tree that leaks its own TLS secrets is
+    // priority 1, so it is refused before any question about what a response header means.
+    tls(config, origins)?;
     // § 1's free-text policies, before anything about meaning: a value the wire cannot carry
     // is not a policy that is wrong, it is a policy that never reaches a peer at all.
     let headers = config.http.as_ref().and_then(|http| http.headers.as_ref());

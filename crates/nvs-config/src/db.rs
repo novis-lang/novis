@@ -119,7 +119,11 @@ pub fn canonicalize(
 /// A key with no origin cannot have been written in a file anywhere, so there is nothing but the
 /// path itself to resolve against and `.` is the honest base — the same answer the process's own
 /// working directory would give.
-fn written_in<'a>(origins: &'a BTreeMap<String, Origin>, key: &str) -> &'a Path {
+///
+/// Reached by [`crate::http`] for `[http.client.tls] roots`, which resolves against the file that
+/// wrote it by the same rule: a second answer to "which directory is this relative to" is a second
+/// chance for the two passes to disagree about which file was trust-checked.
+pub(crate) fn written_in<'a>(origins: &'a BTreeMap<String, Origin>, key: &str) -> &'a Path {
     origins
         .get(key)
         .and_then(|origin| origin.path.parent())

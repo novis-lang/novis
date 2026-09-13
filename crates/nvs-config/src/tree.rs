@@ -526,6 +526,42 @@ pub struct HttpClient {
     /// How long one may sit idle before it is closed — see [`HttpClient::pool_idle`], under whose
     /// count alone a connection the far end retired hours ago would still be drawn.
     pub pool_idle_timeout: Option<String>,
+    /// `[http.client.tls]`.
+    pub tls: Option<HttpClientTls>,
+}
+
+/// `[http.client.tls]` — whose certificates an outbound `https` call believes, the version floor it
+/// speaks over, and the debugging file it may write its secrets to.
+///
+/// `System` as a block, and for the reason `rule:config/three-changeability-classes` gives: these
+/// three settle the one `ClientConfig` every session in the process shares
+/// (`nvs_host::tls`'s module doc § *The trust anchors are compiled in*), so a request setting one
+/// would be setting it for every co-resident request. There is no code-side spelling for any of
+/// them, which is the same closure `rule:security/one-tls-client` puts on a driver: a program does
+/// not widen a decision the deployment made.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct HttpClientTls {
+    /// The trust anchors, in order. Each entry is `"bundled"` — the compiled-in Mozilla set — or a
+    /// PEM file, so `["bundled", "/etc/novis/corp-ca.pem"]` adds a company CA to the shipped set
+    /// and a list naming only files trusts only those files. Unset is `["bundled"]`.
+    ///
+    /// Every file entry is resolved against the configuration file that wrote it and trust-checked
+    /// there (`rule:config/ownership-is-the-trust-boundary`), exactly as
+    /// [`Database::tls_ca_file`] is and for the same reason: whoever can rewrite one chooses which
+    /// server this deployment's outbound calls may be talking to. It is not *read* here —
+    /// `nvs_host::tls` parses it, because that crate owns the one answer to whose certificates this
+    /// process believes.
+    pub roots: Option<Vec<String>>,
+    /// The version floor every outbound call speaks over — `"1.2"` or `"1.3"`, and nothing below,
+    /// because the client implements neither TLS 1.0 nor 1.1. Unset is `"1.2"`.
+    pub min_version: Option<String>,
+    /// A file each session's secrets are appended to in the `SSLKEYLOGFILE` format, so an operator
+    /// can read their own traffic in Wireshark. Unset, and nothing is written.
+    ///
+    /// Refused at boot when the host runs in `production` (`E0640`): the file decrypts everything
+    /// this deployment sends, credentials included, for whoever can read it.
+    pub keylog: Option<String>,
 }
 
 /// The `mail.*` grants.

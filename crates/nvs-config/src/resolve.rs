@@ -205,8 +205,9 @@ pub struct Resolved {
     /// full and the boot log summarizes them; dropping them is not an option (see the module doc).
     pub overrides: Vec<Override>,
     /// What the tree is only *advised* about — § 7's readable secret file (`W1005`), its
-    /// credential with an edge space (`W1007`), and a configured store no capability may reach
-    /// (`W1008`, [`crate::store::advise`]). A
+    /// credential with an edge space (`W1007`), a configured store no capability may reach
+    /// (`W1008`, [`crate::store::advise`]) and a TLS key log a development host left on
+    /// (`W1009`, [`crate::http::advise`]). A
     /// refusal is never here: it arrives as the `Err` of [`resolve`] instead, so a caller that
     /// ignores this field has lost a warning and never a boundary.
     pub warnings: Vec<Diagnostic>,
@@ -306,6 +307,11 @@ pub fn resolve(
     // `[db]` block is resolved against the file that wrote it, and only the merge knows which of
     // them won.
     crate::db::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
+    // `[http.client.tls] roots`, immediately after the `[db]` bundles and through the same check:
+    // the anchors an outbound call verifies against are a wider authority than one block's, so a
+    // pass that resolved them anywhere but inside the trust boundary would be the one file in the
+    // tree a stranger could rewrite.
+    crate::http::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
     // `rule:security/db-pool-reset-is-a-boundary`'s pool bounds, in the same pass's second half: a `lifetime` that spells nothing
     // is a boot refusal naming its file, rather than the first acquire of the first request.
     crate::db::validate(&resolved.config, &origins)?;
@@ -354,6 +360,13 @@ pub fn resolve(
     resolved
         .warnings
         .extend(crate::store::advise(&resolved.config, &origins));
+    // `[http.client.tls] keylog` on a host that accepted it, for the same reason in the other
+    // direction: `http::validate` above refused the `production` tree, so what is left is a
+    // development host whose whole outbound traffic is decryptable and says so at every start
+    // (`W1009`).
+    resolved
+        .warnings
+        .extend(crate::http::advise(&resolved.config, &origins));
     // `rule:observability/metrics-and-trace-blocks-are-system`'s two exporters, over the merged tree for the log check's reason and with the
     // same shape of failure as the session one: both blocks are `System`, so what is in force is
     // what this boot read, and a sink nobody can spell exports nothing while looking exactly like a
