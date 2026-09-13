@@ -64,7 +64,7 @@ it wrong. Re-grep before editing: these are anchors, and files move.
   paragraph of `docs/rules/routing/an-origin-is-per-mount-and-checked-at-boot.md`. Stage 8.
 - `crates/nvs-server/src/schedule.rs:51-62` and `:77-91`, and the "Today `nvs serve` supplies none"
   paragraph of `docs/rules/config/a-fleet-entry-fires-at-most-once-under-a-lease.md`. Stage 9.
-- `crates/nvs-server/src/metrics.rs:50-63`, `crates/nvs-server/src/route.rs:41-50` (gap 2), the two
+- `crates/nvs-server/src/metrics.rs:58-73` (both gaps), `crates/nvs-server/src/route.rs:46-56` (gap 2), the two
   `[unread: …]` trailers at `crates/nvs-config/src/tree.rs:1020` and `:1024`, and
   `crates/nvs-config/src/default.toml:725`. Stages 10 and 11.
 - `crates/nvs-runtime/src/trace_context.rs:22-23` and `crates/nvs-server/src/trace.rs:20-25`, which say

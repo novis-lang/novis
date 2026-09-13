@@ -47,26 +47,30 @@
 //! [`PAUSE_BUCKETS`] is what `nvs_gc_pause_seconds` gets and
 //! [`LATENCY_BUCKETS`] is what a request duration does.
 //!
-//! # What is not here yet
+//! # What it spends
 //!
-//! **Nothing scrapes or pushes this.** `rule:observability/the-exporters-are-crates`'s exporters are
-//! feature-gated dependencies this crate does not carry yet, so what a core
-//! builds accumulates and is read only by a test. The registry is the half
-//! that could not be a crate — § 8 says so — and it is deliberately whole
-//! without them: an exporter reads [`Registry::series`] in order and formats it,
-//! and adding one changes nothing above.
-//!
-//! **`Core\Metrics`'s three members (`rule:observability/metrics-three-members`) have no row yet**, so the only writer
-//! is [`Registry::request`]. When they land they are three calls onto this same
-//! type, and § 3's "accumulates even with no exporter built" is
-//! [`Registry::new`] — a registry with no protocol in force, which
-//! [`Registry::of`] is the configured half of.
-//!
-//! **What it spends**, as `rule:programs/memory-priority`
+//! As `rule:programs/memory-priority`
 //! requires: O(cores × series), bounded by `max_series` per core, a counter or
 //! gauge costing its key and eight bytes and a histogram its bucket array on top.
 //! Nothing is charged to a request, nothing grows with requests served, and a
 //! process with no exporter configured builds no registry at all.
+//!
+//! # Known gaps
+//!
+//! 1. **Nothing scrapes or pushes this.** `rule:observability/the-exporters-are-crates`'s exporters are
+//!    feature-gated dependencies this crate does not carry yet, so what a core
+//!    builds accumulates and is read only by a test. The registry is the half
+//!    that could not be a crate — § 8 says so — and it is deliberately whole
+//!    without them: an exporter reads [`Registry::series`] in order and formats
+//!    it, and adding one changes nothing above.
+//!    — owner: m7-server-surface
+//!
+//! 2. **`Core\Metrics`'s three members (`rule:observability/metrics-three-members`) have no row yet**, so the only
+//!    writer is [`Registry::request`]. When they land they are three calls onto
+//!    this same type, and § 3's "accumulates even with no exporter built" is
+//!    [`Registry::new`] — a registry with no protocol in force, which
+//!    [`Registry::of`] is the configured half of.
+//!    — owner: m8-stdlib-depth
 
 use std::collections::BTreeMap;
 use std::fmt;
