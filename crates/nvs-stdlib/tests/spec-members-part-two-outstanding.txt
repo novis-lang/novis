@@ -29,8 +29,6 @@
 # member.
 §15 Response::html      # test-request
 §15 Response::sendFile  # test-request
-§15 Session::setSecret  # process-cache
-§15 Session::getSecret  # process-cache
 
 # § 18 -- `Core\Db`, whose remaining members each need a driver and a server to
 # talk to. `inList` and `quoteIdentifier` need neither and have landed.

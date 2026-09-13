@@ -1423,7 +1423,12 @@ fn scoped(ctx: &Ctx, key: &[u8]) -> Vec<u8> {
 /// from another's, and [`bound`] keeps one application's sealed entries from
 /// opening inside another. One reader so the two cannot come to disagree about
 /// which block that is.
-fn application(ctx: &Ctx) -> &[u8] {
+///
+/// `pub(crate)` because [`crate::session`]'s sealed pair binds a record entry to
+/// the same application through the same [`bound`], and a second reading of
+/// which block that is would be the disagreement this one reader exists to
+/// prevent.
+pub(crate) fn application(ctx: &Ctx) -> &[u8] {
     ctx.config()
         .map(nvs_config::Request::snapshot)
         .and_then(|snapshot| snapshot.blocks.last())
@@ -1431,13 +1436,18 @@ fn application(ctx: &Ctx) -> &[u8] {
         .unwrap_or_default()
 }
 
-/// The octet every sealed entry's additional data opens with.
+/// The octet this store's sealed entries open their additional data with.
 ///
 /// A number rather than a name because it is never read back and never shown:
 /// the whole of what it does is differ from whatever the next construction over
 /// a key ring picks for itself, so a `Core\SignedCookie` answer pasted into
 /// this store opens under none of the ring it was sealed with.
-const SEAL_DOMAIN: u8 = 1;
+///
+/// [`bound`] takes it as an argument rather than reading it here, because
+/// `crate::session`'s sealed pair writes the same additional data under an octet
+/// of its own: one construction, and two numbers that differ, is the whole of
+/// why a value sealed for a cache does not open as a session secret.
+pub(crate) const SEAL_DOMAIN: u8 = 1;
 
 /// The key space sealed entries live in.
 ///
@@ -1452,7 +1462,12 @@ const SEAL_DOMAIN: u8 = 1;
 const SEALED_SPACE: &[u8] = b"\0secret\0";
 
 /// The name `key`'s sealed entry is stored under.
-fn sealed_key(key: &[u8]) -> Vec<u8> {
+///
+/// `pub(crate)` because [`crate::session`]'s record holds its sealed values in
+/// the same space — a record is an array rather than a tier, and what the two
+/// share is the rule that one program-visible name reaches a sealed value only
+/// through the sealed door.
+pub(crate) fn sealed_key(key: &[u8]) -> Vec<u8> {
     let mut stored = Vec::with_capacity(SEALED_SPACE.len() + key.len());
     stored.extend_from_slice(SEALED_SPACE);
     stored.extend_from_slice(key);
@@ -1477,10 +1492,12 @@ fn sealed_key(key: &[u8]) -> Vec<u8> {
 ///
 /// `app` is [`application`]'s answer at every call site; it is an argument
 /// rather than read here so that the two halves a sealed entry is bound to can
-/// be varied one at a time by whatever is asking.
-fn bound(app: &[u8], key: &[u8]) -> Vec<u8> {
+/// be varied one at a time by whatever is asking. `domain` is the door's own
+/// octet — [`SEAL_DOMAIN`] here, `crate::session`'s beside it — so that the two
+/// doors share this construction instead of each writing one.
+pub(crate) fn bound(domain: u8, app: &[u8], key: &[u8]) -> Vec<u8> {
     let mut aad = Vec::with_capacity(app.len() + key.len() + 2);
-    aad.push(SEAL_DOMAIN);
+    aad.push(domain);
     aad.extend_from_slice(app);
     aad.push(0);
     aad.extend_from_slice(key);
@@ -1614,7 +1631,7 @@ fn seal_and_store(ctx: &mut Ctx, at: &Sealing<'_>, value: &[u8], nanos: i64) -> 
     // for. A zero stays zero, which is the lifetime that is already over.
     let ttl = nanos.max(0).saturating_add(999_999) / 1_000_000;
     let expiry = clock_ms(ctx, member)?.saturating_add(ttl);
-    let aad = bound(application(ctx), key);
+    let aad = bound(SEAL_DOMAIN, application(ctx), key);
     let plain = sealed_plaintext(expiry, ttl, value);
     let sealed = crate::crypto::seal_under(ctx, &cipher, &aad, &plain, who)?;
 
@@ -1678,7 +1695,7 @@ fn opened(ctx: &Ctx, at: &Sealing<'_>) -> Result<Option<Held<Value>>, Fault> {
         return Ok(None);
     };
 
-    let aad = bound(application(ctx), key);
+    let aad = bound(SEAL_DOMAIN, application(ctx), key);
     let now = clock_ms(ctx, member)?;
     for (slot, entry) in crate::keyring::entries(ring) {
         let cipher = crate::keyring::cipher_at(&entry, slot, who)?;
@@ -2586,8 +2603,8 @@ mod tests {
     use super::{
         CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC,
         LOCAL_DOC, Lifetime, MAX_SIZE, PROCESS, PROCESS_DOC, PROCESS_FILL_WAIT, PROCESS_MAX_SIZE,
-        SHARDS, SHARED_DOC, Value, bound, charged, elected, endpoint, local_cap, open_configured,
-        process_cap, process_forget, process_get, process_put, scoped, sealed_key,
+        SEAL_DOMAIN, SHARDS, SHARED_DOC, Value, bound, charged, elected, endpoint, local_cap,
+        open_configured, process_cap, process_forget, process_get, process_put, scoped, sealed_key,
         sealed_plaintext, sealed_value, shard_cap, shard_of, store_forget, store_get, store_put,
         wait_of, waited,
     };
@@ -3968,12 +3985,17 @@ mod tests {
         ctx.set_random_state(11);
         let cipher = sealing();
         let plain = sealed_plaintext(i64::MAX, 0, b"hunter2");
-        let sealed =
-            crate::crypto::seal_under(&mut ctx, &cipher, &bound(b"shop", b"token"), &plain, "test")
-                .expect("a short value seals");
+        let sealed = crate::crypto::seal_under(
+            &mut ctx,
+            &cipher,
+            &bound(SEAL_DOMAIN, b"shop", b"token"),
+            &plain,
+            "test",
+        )
+        .expect("a short value seals");
 
         let opens = |app: &[u8], key: &[u8]| {
-            crate::crypto::open_under(&cipher, &bound(app, key), &sealed, "test")
+            crate::crypto::open_under(&cipher, &bound(SEAL_DOMAIN, app, key), &sealed, "test")
                 .expect("nothing is unaffordable here")
                 .is_some()
         };
@@ -4051,7 +4073,7 @@ mod tests {
         let sealed_under = |seed: u64| {
             let mut ctx = nvs_runtime::Ctx::buffered();
             ctx.set_random_state(seed);
-            let aad = bound(b"shop", b"token");
+            let aad = bound(SEAL_DOMAIN, b"shop", b"token");
             crate::crypto::seal_under(
                 &mut ctx,
                 &sealing(),

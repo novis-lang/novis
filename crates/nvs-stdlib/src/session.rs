@@ -103,6 +103,10 @@
 //! and one write. Memory is one encoded record per in-flight request that started one, released
 //! with the request heap — O(in-flight), never O(sessions served).
 //!
+//! A `setSecret` spends one XChaCha20-Poly1305 seal and a `getSecret` one open per key of the ring
+//! tried, over a record entry holding the value plus a nonce and a tag. Nothing is held between
+//! calls: the ring is the program's and the ciphertext is the record's.
+//!
 //! **Every member that touches the record decodes it, and every member that changes it encodes it
 //! back** — O(record) per call, over the bytes [`nvs_runtime::Session`] already holds, with the
 //! decoded array living only for the length of the call. That is the accepted trade rather than an
@@ -121,7 +125,7 @@ use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
 
 use crate::cache::redis::Connection;
-use crate::cache::{configured, on_shared, open_configured};
+use crate::cache::{application, bound, configured, on_shared, open_configured, sealed_key};
 use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
 /// The class name, once, for the messages that all name it.
@@ -130,8 +134,9 @@ pub(crate) const NAME: &str = r"Core\Session";
 /// § 1's roster, of which `start` is the member that talks to the store.
 ///
 /// One class and no instance side: a session is the request's, not an object a program holds, so
-/// there is nothing for a handle to be and nothing to hand back. All seven are static for that
-/// reason, and this is § 1's list in its order.
+/// there is nothing for a handle to be and nothing to hand back. Every member is static for that
+/// reason, and this is § 1's list in its order, with the sealed pair
+/// `rule:http-server/a-session-holds-a-secret-only-sealed` adds standing after it.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -214,6 +219,44 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_session_destroy",
             doc: Some(&DESTROY_DOC),
+        },
+        CoreMethod {
+            name: "setSecret",
+            names: &["key", "value", "keys"],
+            // The value is a demand and not an admission, as `Core\Cache\Store::putSecret`'s is:
+            // the qualifier widens on and narrows through nothing, so a plain `string` reaches
+            // this parameter and a `secret` one does too, with nothing laundered either way. What
+            // the row says is that this member is written for a confidential value — `set`'s
+            // `mixed` refuses one, and this is where it goes instead.
+            //
+            // No `ttl` where the cache's door has one: a session value lives as long as its
+            // session (`rule:http-server/session-expiry-belongs-to-the-store`).
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::SecretText(Qual::Neutral),
+                CoreTy::Array(&crate::keyring::KEY),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_set_secret",
+            doc: Some(&SET_SECRET_DOC),
+        },
+        CoreMethod {
+            name: "getSecret",
+            names: &["key", "keys"],
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Array(&crate::keyring::KEY),
+            ],
+            defaults: &[],
+            // `rule:core-api/shape-rules` R7's `?T` where `get` had no `T` to make nullable: a
+            // sealed value is the one type `setSecret` admitted. The `secret` is a promise rather
+            // than a conditional — what comes back out is confidential whatever the `string` that
+            // went in was typed as — which is why this spells `CoreTy::SecretStr` and not the
+            // parameter form beside it.
+            return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
+            symbol: "nvs_core_session_get_secret",
+            doc: Some(&GET_SECRET_DOC),
         },
     ],
     instance: &[],
@@ -401,6 +444,90 @@ const DESTROY_DOC: MethodDoc = MethodDoc {
             desc: "The configured store cannot be reached, so the record is still there. It \
                    throws rather than closing the session quietly, because a program told the \
                    sign-out succeeded would stop trying.",
+        },
+    ],
+};
+
+/// `Core\Session::setSecret`'s reference card — `rule:core-api/reference-card`.
+const SET_SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Writes one key of this request's session record sealed under a key ring, which is the \
+            only way a user's own secret is held in a session.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "The key to write. It names a value no other member of this class can read: \
+                   `get()` answers `null` there, and `getSecret()` under the same ring is the one \
+                   door back.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The secret to seal — an access or refresh token a request holds on the user's \
+                   behalf. What reaches the store is ciphertext, and the record crosses it as the \
+                   byte carrier it already was.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The key ring, newest first. The newest key seals; every key of it is tried \
+                   when the value is read back, so a rotation leaves what it wrote readable.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. The record is marked changed, as `set()` marks it, which is what earns it a \
+          write back to the store when the request ends.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This request has not called `start()`, so there is no record to write.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty or holds something that is not a key — a ring that cannot \
+                   seal anything is the program's own bug rather than a value to write.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "As `get()`, because writing one key reads the whole record first.",
+        },
+    ],
+};
+
+/// `Core\Session::getSecret`'s reference card — `rule:core-api/reference-card`.
+const GET_SECRET_DOC: MethodDoc = MethodDoc {
+    short: "Reads back a value `setSecret` sealed into this request's session record, answering \
+            `null` where the ring does not open one.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "The key `setSecret` wrote. The name is sealed in as well as looked up, so a \
+                   value is not readable under a second one.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The key ring, newest first. Every key of it is tried, so a value sealed before \
+                   a rotation stays readable until it is written again.",
+            shape: &[],
+        },
+    ],
+    ret: "The secret sealed under `$key`, or `null`. Every way of not opening one is that same \
+          `null` — a ring that has rotated past it, a value moved to another name or another \
+          application, a tampered payload — so a caller learns nothing about the ring from a \
+          value it cannot read.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This request has not called `start()`, so there is no record to read.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty or holds something that is not a key, which is the one thing \
+                   here that is not a miss.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "As `get()`: the stored record names a class this program cannot resolve.",
         },
     ],
 };
@@ -745,6 +872,101 @@ fn key_at<'a>(key: &'a Value, member: &str) -> Result<&'a str, Fault> {
     })
 }
 
+/// The `$value` argument of [`nvs_core_session_set_secret`], as the checker has already
+/// guaranteed it.
+///
+/// A `secret string` is a `string` by the time anything runs: the qualifier is checked once and
+/// erased before codegen, so what arrives here is text or compiled code's bug — which is
+/// [`crate::cache`]'s reading of its own `putSecret` value, over the same erasure.
+fn secret_at<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
+    // Unreachable from source: a `secret string` parameter, refused at the checker before any of
+    // this runs. The guard is what makes the answer below total.
+    value.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected a string value, got tag {}",
+            value.tag_byte()
+        ))
+    })
+}
+
+/// The octet this class's sealed record entries open their additional data with.
+///
+/// [`crate::cache`]'s `SEAL_DOMAIN` is the other one taken, and the two differing is the whole of
+/// why a value sealed for a cache does not open as a session secret: the construction, the ring
+/// and the application can all be the same, and the first octet under the tag is not.
+const SEAL_DOMAIN: u8 = 2;
+
+/// Seals `value` under the ring's newest key and writes it into `held` under the sealed name.
+///
+/// **The additional data is the domain octet, the application and the key, and never the session
+/// identifier** — `rule:http-server/a-session-holds-a-secret-only-sealed`: `regenerate` issues a
+/// new id over the same record, and a value bound to the old one would stop opening at exactly the
+/// moment a login hardens. The plaintext is the secret and nothing else, because a session value
+/// has no lifetime of its own to seal in beside it: it lives as long as its session, which is the
+/// store's to expire (`rule:http-server/session-expiry-belongs-to-the-store`).
+///
+/// # Errors
+///
+/// [`crate::keyring`]'s `LogicError` for a ring whose newest entry is not a key, and a
+/// `RuntimeError` for a sealed value this process cannot spare the buffer for.
+fn sealed_into(
+    ctx: &mut Ctx,
+    held: &mut NvsArray,
+    key: &str,
+    value: &[u8],
+    ring: &NvsArray,
+    who: &str,
+) -> Result<(), Fault> {
+    let (slot, newest) = crate::keyring::newest(ring);
+    let cipher = crate::keyring::cipher_at(&newest, slot, who)?;
+    let aad = bound(SEAL_DOMAIN, application(ctx), key.as_bytes());
+    let sealed = crate::crypto::seal_under(ctx, &cipher, &aad, value, who)?;
+    held.set(
+        NvsStr::new(&sealed_key(key.as_bytes())),
+        Value::bytes(NvsStr::new(&sealed)),
+    );
+    Ok(())
+}
+
+/// The secret `held` carries under `key`, or `None` for every way of not opening one.
+///
+/// **Every way of not opening is the same miss**, which is [`crate::cache`]'s answer at its own
+/// sealed door and buys the same thing: a caller that could tell a rotated ring from a tampered
+/// payload would learn something about the ring from a value it cannot read. Every key of the ring
+/// is tried rather than the newest alone, so a value sealed before a rotation stays readable.
+///
+/// A record entry in the sealed space that is not bytes is that same miss. A program can reach the
+/// space — a session key is arbitrary text, and `set` will write whatever it is handed under one —
+/// and what it finds there is a value no ring opens.
+///
+/// # Errors
+///
+/// [`crate::keyring`]'s `LogicError` for an entry of the ring that is not a key, and a
+/// `RuntimeError` for a plaintext this process cannot spare the buffer for.
+fn opened_from(
+    ctx: &Ctx,
+    held: &NvsArray,
+    key: &str,
+    ring: &NvsArray,
+    who: &str,
+) -> Result<Option<Value>, Fault> {
+    let Some(found) = held.get(&sealed_key(key.as_bytes())) else {
+        return Ok(None);
+    };
+    let Some(sealed) = found.as_bytes() else {
+        return Ok(None);
+    };
+
+    let aad = bound(SEAL_DOMAIN, application(ctx), key.as_bytes());
+    for (slot, entry) in crate::keyring::entries(ring) {
+        let cipher = crate::keyring::cipher_at(&entry, slot, who)?;
+        if let Some(plain) = crate::crypto::open_under(&cipher, &aad, sealed, who)? {
+            return Ok(Some(Value::str(NvsStr::new(&plain))));
+        }
+    }
+    Ok(None)
+}
+
 /// The record this request has open, decoded — or an empty array where it holds none.
 ///
 /// Every member below reaches the record through this and none of them reads
@@ -898,6 +1120,73 @@ nvs_runtime::nvs_helper! {
         }
         held.set(NvsStr::new(key.as_bytes()), args[1]);
         write_back(ctx, held, "set")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::setSecret(string $key, secret string $value, array<secret bytes> $keys):
+    /// void` — `rule:http-server/a-session-holds-a-secret-only-sealed`'s door for a user's own
+    /// secret: the access or refresh token a web application holds on their behalf.
+    ///
+    /// **It is the session and not a cache tier** because a cache may evict at any time, and a
+    /// user logged out by a footprint decision is what storing one there buys. It is sealed
+    /// because the record crosses the store as bytes — so `rule:security/secret-crosses-no-boundary`
+    /// is untouched here, exactly as it is at `Core\Cache\Store::putSecret`: no `secret` value
+    /// crosses the copy at all, and what the store holds is ciphertext.
+    ///
+    /// **What the seal buys, and what it does not.** Code that knows a key's name but not the ring
+    /// cannot read the value, and a record moved, tampered with or lifted into another application
+    /// opens under none of it. It does not protect a secret from a compromised process: the ring
+    /// is in the same memory as the plaintext.
+    ///
+    /// The refusal before `start` comes first, so this member answers the same way its siblings do
+    /// for a request that opened no session rather than reporting the ring it never got to use.
+    ///
+    /// # Errors
+    ///
+    /// As [`record`] and [`write_back`], plus [`crate::keyring`]'s `LogicError` for a ring that is
+    /// empty or holds something that is not a key.
+    fn nvs_core_session_set_secret(ctx, args: [3]) {
+        let mut held = record(ctx, "setSecret")?;
+        let key = key_at(&args[0], "setSecret")?;
+        let value = secret_at(&args[1], "setSecret")?;
+
+        let who = format!("{NAME}::setSecret");
+        let ring = crate::keyring::borrow(args, 2, &who)?;
+        sealed_into(ctx, &mut held, key, value.as_bytes(), &ring, &who)?;
+        write_back(ctx, held, "setSecret")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::getSecret(string $key, array<secret bytes> $keys): ?secret string` —
+    /// [`nvs_core_session_set_secret`]'s door in the other direction.
+    ///
+    /// **A value that does not open is absent rather than an error**, and that is the whole of
+    /// what a program sees of a rotated ring, a tampered record or a name nothing sealed under.
+    /// The one thing that is not a miss is a ring that cannot key anything, which is the program's
+    /// own bug and throws.
+    ///
+    /// **A secret survives `regenerate`**, because what the value is bound to is the application
+    /// and the key rather than the identifier — the rule's own paragraph on why, and the reason a
+    /// login that hardens its session does not log the user out of the token it just stored.
+    ///
+    /// Reading marks nothing changed, as [`nvs_core_session_get`] does not, so a request that only
+    /// reads its secrets still makes one round trip.
+    ///
+    /// # Errors
+    ///
+    /// As [`record`], plus [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
+    /// something that is not a key.
+    fn nvs_core_session_get_secret(ctx, args: [2]) {
+        let held = record(ctx, "getSecret")?;
+        let key = key_at(&args[0], "getSecret")?;
+
+        let who = format!("{NAME}::getSecret");
+        let ring = crate::keyring::borrow(args, 1, &who)?;
+        let answer = opened_from(ctx, &held, key, &ring, &who)?;
+        drop(held);
+        Ok(answer.unwrap_or_else(Value::null))
     }
 }
 
@@ -1115,6 +1404,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_session_clear" => (nvs_core_session_clear as *const ()).cast(),
         "nvs_core_session_regenerate" => (nvs_core_session_regenerate as *const ()).cast(),
         "nvs_core_session_destroy" => (nvs_core_session_destroy as *const ()).cast(),
+        "nvs_core_session_set_secret" => (nvs_core_session_set_secret as *const ()).cast(),
+        "nvs_core_session_get_secret" => (nvs_core_session_get_secret as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1129,11 +1420,11 @@ mod tests {
     use std::time::Duration;
 
     use nvs_config::session::{BACKENDS, Backend};
-    use nvs_runtime::{Ctx, NvsStr, Value};
+    use nvs_runtime::{Ctx, NvsArray, NvsStr, Value};
 
     use super::{
-        DEFAULT_TTL, PREFIX, backend, cookie, destroy, key_of, load, mint, record, save, ttl,
-        write_back,
+        DEFAULT_TTL, PREFIX, SEAL_DOMAIN, backend, cookie, destroy, key_of, load, mint,
+        opened_from, record, save, sealed_into, sealed_key, ttl, write_back,
     };
     use crate::cache::redis::Connection;
     use crate::cache::{Target, store_get, store_put};
@@ -1525,5 +1816,143 @@ mod tests {
         );
         assert_eq!(ttl(&ctx), Duration::from_secs(30 * 60));
         assert_eq!(cookie(&ctx), "sid");
+    }
+
+    /// Releases one reference a case built, which is the whole of what it owns.
+    fn dropped(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "a test frame owns exactly the reference it built"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// A user's secret reaches the record only sealed: the entry `setSecret` leaves holds
+    /// ciphertext, the ordinary read is blind to it, and the sealed door reads it back.
+    ///
+    /// Asserted over the **encoded** record as well as the entry, because a member that sealed the
+    /// value and then also left it somewhere in the clear would pass on the entry alone — and what
+    /// crosses to the store is those bytes, not the array this process decoded.
+    #[test]
+    fn session_secret_is_stored_as_ciphertext_in_the_record() {
+        const TOKEN: &[u8] = b"sk-live-7";
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_random_state(23);
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: Vec::new(),
+            dirty: false,
+            write_back: super::send_at_end,
+        });
+
+        let ring = crate::keyring::tests::ring_of(&[&[7_u8; 32]]);
+        let keys = crate::keyring::tests::borrowed(&ring);
+
+        let mut writing = record(&ctx, "setSecret").expect("a started session has a record");
+        sealed_into(&mut ctx, &mut writing, "token", TOKEN, &keys, "test")
+            .expect("a ring of one key seals a short value");
+        write_back(&mut ctx, writing, "setSecret").expect("the changed record encodes");
+
+        let stored = ctx
+            .session()
+            .expect("the session is still open")
+            .record
+            .clone();
+        assert!(
+            !stored.windows(TOKEN.len()).any(|window| window == TOKEN),
+            "the bytes the store is handed carry the secret nowhere in the clear"
+        );
+
+        let reading = record(&ctx, "getSecret").expect("the record decodes again");
+        let entry = reading
+            .get(&sealed_key(b"token"))
+            .expect("the sealed entry is under the sealed name");
+        assert_ne!(
+            entry.as_bytes(),
+            Some(TOKEN),
+            "and neither does the entry itself"
+        );
+        assert!(
+            reading.get(b"token").is_none(),
+            "`get` is blind to it, so the sealed door is the only door here too"
+        );
+
+        let opened = opened_from(&ctx, &reading, "token", &keys, "test")
+            .expect("nothing here is unaffordable")
+            .expect("its own ring opens what it sealed");
+        assert_eq!(
+            opened.as_text(),
+            Some("sk-live-7"),
+            "what went in is what comes back out, across the encode and the decode between them"
+        );
+
+        dropped(opened);
+        drop(reading);
+        dropped(ring);
+    }
+
+    /// A value sealed for a cache does not open as a session secret, and a session secret does not
+    /// open as a cached value.
+    ///
+    /// The ring, the application and the name are the same on both sides here, so the one thing
+    /// that can refuse either direction is the domain octet under the tag — which makes this an
+    /// assertion about the two constructions rather than about a key that happened to differ. The
+    /// bound is asserted on the other side too: the session's own construction still opens it.
+    #[test]
+    fn a_value_sealed_for_the_cache_does_not_open_as_a_session_secret() {
+        const TOKEN: &[u8] = b"sk-live-7";
+        const KEY: &[u8] = b"token";
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_random_state(29);
+        let ring = crate::keyring::tests::ring_of(&[&[9_u8; 32]]);
+        let keys = crate::keyring::tests::borrowed(&ring);
+        let (slot, newest) = crate::keyring::newest(&keys);
+        let cipher =
+            crate::keyring::cipher_at(&newest, slot, "test").expect("the fixture is a key");
+
+        let app = crate::cache::application(&ctx).to_vec();
+        let cached = crate::cache::bound(crate::cache::SEAL_DOMAIN, &app, KEY);
+        let sessioned = crate::cache::bound(SEAL_DOMAIN, &app, KEY);
+
+        let mut held = NvsArray::new();
+        let for_the_cache = crate::crypto::seal_under(&mut ctx, &cipher, &cached, TOKEN, "test")
+            .expect("a short value seals");
+        held.set(
+            NvsStr::new(&sealed_key(KEY)),
+            Value::bytes(NvsStr::new(&for_the_cache)),
+        );
+        assert!(
+            opened_from(&ctx, &held, "token", &keys, "test")
+                .expect("nothing here is unaffordable")
+                .is_none(),
+            "a ciphertext an operator moved out of a cache and into a record is a miss"
+        );
+
+        sealed_into(&mut ctx, &mut held, "token", TOKEN, &keys, "test")
+            .expect("a ring of one key seals a short value");
+        let entry = held
+            .get(&sealed_key(KEY))
+            .expect("the sealed entry is there");
+        let sealed = entry.as_bytes().expect("a sealed entry is bytes");
+        assert!(
+            crate::crypto::open_under(&cipher, &cached, sealed, "test")
+                .expect("nothing here is unaffordable")
+                .is_none(),
+            "and the same ring reading it as a cached value gets nothing back"
+        );
+        assert!(
+            crate::crypto::open_under(&cipher, &sessioned, sealed, "test")
+                .expect("nothing here is unaffordable")
+                .is_some(),
+            "while the construction that wrote it opens it, which is what makes the octet the \
+             thing under test"
+        );
+
+        drop(held);
+        dropped(ring);
     }
 }
