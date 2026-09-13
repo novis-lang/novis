@@ -1616,16 +1616,16 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # a build script reads -- `LICENSE` and `THIRD-PARTY-LICENSES.txt` (`nvs-cli/src/info.rs`),
 # `tools/data/php-builtins.txt` and `docs/spec/02-php-migration.md` (`nvs-stdlib/build.rs`),
 # `docs/reference/` (`nvs-cli/src/agent.rs`) and `crates/nvs-stdlib/tests/vectors/`
-# (`nvs-stdlib/src/tests/vectors.rs`). The two greps that derive it, to re-run before a source
-# starts embedding something new: `grep -rn 'include_str!\|include_bytes!' crates/*/src` and
-# `grep -n rerun-if-changed crates/*/build.rs`. A crate's `tests/` and `benches/` directories are
-# `crate-tests`: cargo runs them, the binary is not built from them, so a fixture never keys on
-# them -- the split that let a test-only text file stale every fixture, the WSL leg and the
+# (`crates/nvs-stdlib/src/tests/vectors.rs`). The two greps that derive it, to re-run before a
+# source starts embedding something new: `grep -rn 'include_str!\|include_bytes!' crates/*/src`
+# and `grep -n rerun-if-changed crates/*/build.rs`. A crate's `tests/` and `benches/` directories
+# are `crate-tests`: cargo runs them, the binary is not built from them, so a fixture never keys
+# on them -- the split that let a test-only text file stale every fixture, the WSL leg and the
 # valgrind sweep before it existed.
 #
 # `docs/` is three partitions by what under `crates/` opens it. `docs` is `docs/reference/` and
-# `docs/spec/`: embedded in the binary (above) and read again by `nvs-cli/tests/agent.rs`,
-# `nvs-stdlib/tests/php_names.rs`, `spec_registry_coverage.rs` and `nvs-lsp`'s
+# `docs/spec/`: embedded in the binary (above) and read again by `crates/nvs-cli/tests/agent.rs`,
+# `crates/nvs-stdlib/tests/php_names.rs`, `spec_registry_coverage.rs` and `nvs-lsp`'s
 # `extension_reference.rs`. `goals` is `docs/agent/goals/`, which `spec_registry_coverage` walks
 # for owner tags and which no source embeds. `prose` is every other file under `docs/` -- the
 # plan, the decisions, the rules, the perf notes, the process docs -- which nothing under `crates/`
