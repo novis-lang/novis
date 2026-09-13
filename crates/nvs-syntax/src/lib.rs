@@ -54,14 +54,16 @@
 //!   likewise) is out of scope, not just unbuilt: `endif`/`endfor`/`endforeach`/`endswitch`/`endwhile`/
 //!   `enddeclare` are ordinary identifiers, not reserved words, and the parser never looks for a
 //!   `:`-delimited body form. Do not add `Keyword::End*` variants or colon-body parsing back.
-//! - **PHP 8.5's pipe operator** (`$x |> strlen(...)`) does not parse and never has — `|>` is not a
-//!   token, and there is no plan to add one. It is pure call-chain sugar (`$x |> f(...) |> g(...)` is
-//!   just `g(f($x))`), so it adds no expressiveness a nested call or a local variable doesn't already
-//!   give, while costing a new operator with its own precedence tier and a special-cased RHS shape
-//!   (reusing the `...` first-class-callable placeholder from `rule:types/callable-is-a-closure`). It also undercuts its own
-//!   usual justification here: `rule:classes/no-free-functions-or-constants` makes every function a method, so idiomatic Novis code already
-//!   reaches for `->` chaining instead of PHP's global-function nesting, which is the pain `|>` exists
-//!   to solve in vanilla PHP. Do not add a `Pipe`/`|>` token or an `ExprKind::Pipe` node.
+//! - **A pipeline *node*.** `|>` is a token (`TokenKind::PipeGreater`) and parses; what it is not is
+//!   PHP 8.5's operator, which applies a callable where Novis's substitutes the hole `$_` at compile
+//!   time (`rule:expressions/pipeline-substitution`). `Parser::parse_pipe` parks the left side in
+//!   `Parser::pipe_hole` and `parse_hole` hands it to the `$_` on the right, so `$x |> Str::trim($_)`
+//!   yields exactly the tree `Str::trim($x)` does and every later stage sees the substitution rather
+//!   than the operator. Do not add an `ExprKind::Pipe` node or a node for the hole: a right side with
+//!   no `$_`, one with a second, and a `$_` outside a pipeline are the three refusals
+//!   `rule:expressions/pipeline-hole-once` names — `E_PIPELINE_RIGHT_SIDE_HAS_NO_HOLE`,
+//!   `E_PIPELINE_RIGHT_SIDE_REPEATS_THE_HOLE` and `E_HOLE_OUTSIDE_A_PIPELINE` — not shapes the tree
+//!   carries.
 //! - **A grouped import** (`use App\{Foo, Bar};`) is refused rather than unbuilt — the parser eats
 //!   the `\{...}` and reports `E_IMPORT_GROUP_UNSUPPORTED`, whose help names the one supported
 //!   spelling: one `use` statement per imported name, each ending in the short name it introduces.
