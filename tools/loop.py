@@ -4462,22 +4462,28 @@ def enough_disk(opts):
 
 
 def clean_disk(opts):
-    """`python tools/disk.py --clean`, run in-process at the end of every goal the run reaches.
+    """`python tools/disk.py --clean`, run in-process after every session's acceptance check.
 
     In-process because the command refuses while `.loop/running` exists -- a person cannot see
-    whether a session is mid-build, and the driver can. A goal is only reached between sessions,
-    after the acceptance check, so nothing is building and that check has just left the build
-    warm, which makes the cargo queries `disk.clean` asks no-op builds. `PREBUILD_LOCK` is taken
-    anyway, for a release build the sweep started that may still be running. Hygiene, so a
-    failure is printed and the run goes on."""
+    whether a session is mid-build, and the driver can. The check runs between sessions, so
+    nothing is building and it has just left the build warm, which makes the cargo queries
+    `disk.clean` asks no-op builds. Every session rather than every goal because a goal is days of
+    sessions, and a day of builds is what filled the disk. A release build the check started may
+    still be running under `PREBUILD_LOCK`; then this session's sweep is skipped rather than
+    waited for, since the next one is a session away. Hygiene, so a failure is printed and the
+    run goes on."""
     TICKER.set(phase="cleaning disk", detail="tools/disk.py --clean")
     before = disk.free_gb(ROOT)
+    if not PREBUILD_LOCK.acquire(blocking=False):
+        say("disk: a release build is still running; the sweep waits for the next session", C.GRAY)
+        return
     try:
-        with PREBUILD_LOCK:
-            freed = disk.clean(keep_runs=opts.keep_runs)
+        freed = disk.clean(keep_runs=opts.keep_runs)
     except OSError as e:
         say(f"disk: the sweep failed -- {e}", C.YELLOW)
         return
+    finally:
+        PREBUILD_LOCK.release()
     after = disk.free_gb(ROOT)
     summary = f"disk: freed {disk.human(disk.total(freed))}, {before:.1f}G -> {after:.1f}G free"
     say(summary, C.GRAY)
@@ -5268,6 +5274,9 @@ def drive(opts, goal, chain):
         write_last_fail(goal.failed_name)
         step(f"acceptance check done in {mmss(time.monotonic() - checked)}", C.CYAN)
         ledger(f"       goal cost: {goal.summary()}")
+        # Every session, not only one that reaches the goal: the check has just left the build
+        # warm and nothing is building, and a day of sessions is what fills `target/`.
+        clean_disk(opts)
         # Beside the acceptance check because it is the same kind of thing: a gate the driver runs
         # between sessions, over the tree the session left, reported through a file a pack reads.
         widened = context_sweep(SLICES.base, chain.current.slug)
@@ -5282,10 +5291,6 @@ def drive(opts, goal, chain):
             done = chain.current.slug
             ledger(f"## goal reached: {done} -- every check in its acceptance list passes")
             say(f"GOAL REACHED: {done}", C.GREEN)
-            # The one moment a run knows nothing is building: between sessions, after a green
-            # acceptance check that left the build warm. Before the switch, so the last goal of a
-            # chain is swept too.
-            clean_disk(opts)
             # The goal that just passed may have been the one that writes the rest of the chain.
             grew = chain.refresh()
             if grew:

@@ -7,10 +7,10 @@
     python tools/disk.py --deep        # also size the four places outside this repository
 
 Nothing here runs on the session path. `tools/loop.py` runs `clean` -- the whole of `--clean` --
-at the end of every goal it reaches: between sessions, after the acceptance check, which is the
-one moment the driver knows nothing is building and the build is warm. A person runs the same
-`--clean` by hand, and it refuses while a driver holds `.loop/running`, because a person cannot
-see whether a session is mid-build.
+after every session's acceptance check: between sessions, which is the one moment the driver
+knows nothing is building and the build is warm. A person runs the same `--clean` by hand, and it
+refuses while a driver holds `.loop/running`, because a person cannot see whether a session is
+mid-build.
 
 Why this exists. Cargo never garbage-collects `target/`: every dependency bump, feature change
 or toolchain bump leaves the previous crate hash's rlib, rmeta, PDB and incremental directory
@@ -33,13 +33,18 @@ live one can carry the same date -- both were last written by the build that nee
 live set is *asked for* instead: the cargo commands in `LIVE_QUERIES`, each warm and with
 `--message-format=json`, name every file the graph `tools/verify.py` builds actually uses.
 
-Age is the second key, and only ever as a reason to *keep*. A `-p` run, a feature or a `--test`
-from a goal's acceptance list each resolve the graph their own way and mint their own hashes,
-which no fixed list of commands can name. So nothing written in the last `GRACE_HOURS` is swept
+Age is the second key, and only ever as a reason to *keep*. Every debug build is one of the shapes
+in `LIVE_QUERIES` -- AGENTS.md's rule against `-p` is what makes that true, and commands.md § *A
+debug cargo command never takes `-p`* is the measurement -- so the live set names everything a
+session's builds use, and the grace only has to cover a build a session is still in the middle
+of and the one target flag the rule leaves open, a `--test <name>` off the test family, which
+resolves one dev-dependency its own way. Nothing written in the last `GRACE_HOURS` is swept
 whatever the list says, and a variant idle for longer costs one rebuild the next time something
-asks for it. `incremental/` is a cache with no artifact list to ask, so there age and the newest
-`KEEP_INCREMENTAL` per crate are the whole rule. `release/deps` is never swept: its live set can
-only be asked for with a release build, the slowest build here.
+asks for it. The grace was a day once: a `-p` run per session then minted a copy of every
+workspace crate, every copy was younger than that, and the sweep freed nothing. `incremental/`
+is a cache with no artifact list to ask, so there age and the newest `KEEP_INCREMENTAL` per
+crate are the whole rule. `release/deps` is never swept: its live set can only be asked for with
+a release build, the slowest build here.
 
 Nothing here can produce a wrong build. Cargo re-checks every fingerprint against the files
 that are really on disk, so the worst a mistake costs is rebuilding something that was still
@@ -75,7 +80,7 @@ KEEP_RUNS = 5  # .loop/logs: how many loop runs keep their session logs
 SCRATCH_DAYS = 2  # .agent-tmp: older than this belongs to no session that is still running
 KEEP_INCREMENTAL = 2  # target/*/incremental: cache generations kept per crate
 MIN_FREE_GB = 10  # below this, tools/loop.py will not start a run
-GRACE_HOURS = 24  # target/: nothing written more recently than this is swept, whatever cargo says
+GRACE_HOURS = 2  # target/: nothing written more recently than this is swept, whatever cargo says
 
 # `libnvs_stdlib-2a3f7eaa9f84477e.rlib` -> `libnvs_stdlib`. Cargo's metadata hash is 16 hex
 # digits and always the last dash-separated component of the stem.
@@ -409,9 +414,9 @@ def report(deep=False):
     print(f"  {'':<12} {'':>8}   `--clean` keeps what verify builds and anything written in the "
           f"last {GRACE_HOURS}h; release/deps is never swept")
     print(f"  .loop/logs    {human(log_total):>8}   "
-          f"kept: newest {KEEP_RUNS} runs -- swept at the end of every goal the loop reaches")
+          f"kept: newest {KEEP_RUNS} runs -- swept after every loop session")
     print(f"  .agent-tmp    {human(scratch_total):>8}   "
-          f"kept: written within {SCRATCH_DAYS}d -- swept at the end of every goal the loop reaches")
+          f"kept: written within {SCRATCH_DAYS}d -- swept after every loop session")
     print()
 
     print("outside this repository -- reported, never touched by this script")
@@ -456,11 +461,11 @@ def main():
 
     # A driver is mid-run, so cargo may be writing target/ right now. Sweeping under a live
     # build is the one way this script could break something rather than merely cost a rebuild.
-    # The driver runs this same `clean` itself at the end of every goal, where it knows none is.
+    # The driver runs this same `clean` itself after every session, where it knows none is.
     if RUNNING.exists():
         print(f"a loop driver holds {RUNNING.relative_to(ROOT).as_posix()} -- stop it first.")
         print("Sweeping target/ under a running build is the one thing here that is not safe;")
-        print("the driver sweeps on its own at the end of every goal it reaches.")
+        print("the driver sweeps on its own after every session's acceptance check.")
         return 2
 
     before = free_gb()

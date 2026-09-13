@@ -581,8 +581,9 @@ python tools/disk.py --clean          # reclaim it
 python tools/disk.py --clean -n       # say what --clean would delete; delete nothing
 ```
 
-**The loop runs `--clean` itself, at the end of every goal it reaches** — between sessions, after the
-acceptance check, when nothing is building and the build is warm. Nothing about it touches the session
+**The loop runs `--clean` itself, after every session's acceptance check** — between sessions, when
+nothing is building and the build is warm. Every session rather than every goal, because a goal is days
+of sessions and a day of builds is what filled the disk once. Nothing about it touches the session
 path. By hand it refuses while `.loop/running` exists, because a person cannot see whether a session is
 mid-build. The driver's one other disk call is a free-space check that refuses to start a run below
 10 GB. That refusal is the point — a run that fills the disk dies inside a session with the tree
