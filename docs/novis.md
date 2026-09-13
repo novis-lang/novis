@@ -21387,11 +21387,12 @@ The kernel's load average over one, five and fifteen minutes — `sys_getloadavg
 <a id="core-core-cache"></a>
 ### `Core\Cache`
 
-Keywords: local, shared
+Keywords: local, process, shared
 
 | Member | Signature |
 |---|---|
 | [`Core\Cache::local`](#core-core-cache-local) | `local(): Core\Cache\Store` |
+| [`Core\Cache::process`](#core-core-cache-process) | `process(): Core\Cache\Store` |
 | [`Core\Cache::shared`](#core-core-cache-shared) | `shared(): Core\Cache\Store` |
 
 <a id="core-core-cache-local"></a>
@@ -21404,6 +21405,17 @@ Core\Cache::local(): Core\Cache\Store
 The per-core, in-process tier: one store per core, with no coherence between cores and no network behind it.
 
 **Returns** `Core\Cache\Store` — A `Core\Cache\Store` over this core's own entries. Any entry may be absent at any time, for any reason, and a write on one core is not visible on another — a program that would be incorrect if a `get` answered `null` wants `shared` instead.
+
+<a id="core-core-cache-process"></a>
+#### `Core\Cache::process`
+
+```nvs skip
+Core\Cache::process(): Core\Cache\Store
+```
+
+The per-process tier: one store every core of this serving process shares, in memory only, and gone when the process ends.
+
+**Returns** `Core\Cache\Store` — A `Core\Cache\Store` over this process's own entries, which every core of it reads and writes. Any entry may be absent at any time — for the cap, or because this is a different process than the one that wrote it — so a program that would be incorrect on a `null` wants `shared` instead.
 
 <a id="core-core-cache-shared"></a>
 #### `Core\Cache::shared`

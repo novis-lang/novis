@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*14 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
+*13 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -374,7 +374,7 @@ read and nothing decides on. Both are charged to a core and capped, which is the
 
 <a id="concurrency-the-process-tier-is-one-store-per-process"></a>
 
-## `Core\Cache::process()` is one store per serving process, coherent across its cores and gone when it ends  *(designed — not yet in the compiler)*
+## `Core\Cache::process()` is one store per serving process, coherent across its cores and gone when it ends
 
 `rule:concurrency/the-process-tier-is-one-store-per-process`
 

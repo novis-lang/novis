@@ -274,7 +274,7 @@
     {
       "id": "concurrency/the-process-tier-is-one-store-per-process",
       "title": "`Core\\Cache::process()` is one store per serving process, coherent across its cores and gone when it ends",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0181"
       ],
@@ -287,6 +287,8 @@
         "http-server/the-accept-fan-out-is-one-worker-per-core"
       ],
       "guardedBy": [
+        "tests/conformance/core/cache-process-tier-is-read-by-a-later-request.nvst",
+        "tests/conformance/core/cache-process-tier-evicts-past-its-cap-and-never-fails-a-put.nvst",
         "crates/nvs-stdlib/src/cache.rs"
       ]
     },
