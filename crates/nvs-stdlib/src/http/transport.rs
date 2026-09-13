@@ -85,7 +85,7 @@ use std::time::{Duration, Instant};
 use fluent_uri::component::{Authority, Scheme};
 use fluent_uri::{Uri, UriRef};
 use nvs_host::net::NvsTcp;
-use nvs_host::tls::{CallPolicy, NvsTls};
+use nvs_host::tls::{CallPolicy, NvsTls, Session};
 use nvs_runtime::{Fault, ThrownClass};
 use rand::RngExt;
 
@@ -340,6 +340,44 @@ pub(crate) struct Reply {
     /// list rather than a map because a field the origin sent twice is two
     /// lines, and `Core\Http\Response::headers` is the member that says so.
     pub(crate) headers: Vec<(String, String)>,
+    /// The TLS session this reply arrived over, or `None` for a plaintext one —
+    /// `Core\Http\Response::tls`'s answer, taken at the framing for
+    /// [`Session`]'s reason.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "`Core\\Http\\Response::tls` is the member that reads it, and the cases below \
+                      are what assert it is filled"
+        )
+    )]
+    pub(crate) tls: Option<Tls>,
+}
+
+/// The TLS session a reply arrived over, as `Core\Http\Response::tls` reports
+/// it: what the handshake settled, and whether it checked anything.
+///
+/// Two fields because neither place can answer for the other. The session is
+/// the completed handshake's own snapshot, from the layer that holds the socket;
+/// `verified` is the call's policy read back, from the layer that asked the
+/// deployment for it. `rule:http-server/a-reply-reports-its-tls-session` exists
+/// for the second one — a deployment that relaxed verification at one host has
+/// no other way to assert that every other call still verified.
+#[derive(Debug)]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "`Core\\Http\\TlsInfo` is what reads these two, and the cases below are what \
+                  assert they are filled"
+    )
+)]
+pub(crate) struct Tls {
+    /// The version, the cipher and the peer's chain.
+    pub(crate) session: Session,
+    /// Whether the chain and the name were both checked, which is
+    /// `CallPolicy::verifies` and not a reading of the five option fields here.
+    pub(crate) verified: bool,
 }
 
 /// One connected socket, plaintext or inside a TLS session.
@@ -353,17 +391,34 @@ pub(crate) trait Connection: Read + Write {
     /// Bounds every wait on this connection by `at`, or lifts the bound —
     /// `NvsTcp::set_deadline`, which owns what a deadline is.
     fn bound_by(&mut self, at: Option<Instant>);
+
+    /// What the session over this connection negotiated, or `None` where there
+    /// is no session.
+    ///
+    /// Asked here rather than remembered from [`one`]'s scheme, because this is
+    /// the one place a reply's connection is still the typed thing it was
+    /// opened as: past the box, plaintext and TLS are the same `Read` and
+    /// `Write`, and a pooled connection arrives with no scheme beside it at all.
+    fn tls(&self) -> Option<Session>;
 }
 
 impl Connection for NvsTcp {
     fn bound_by(&mut self, at: Option<Instant>) {
         self.set_deadline(at);
     }
+
+    fn tls(&self) -> Option<Session> {
+        None
+    }
 }
 
 impl Connection for NvsTls<NvsTcp> {
     fn bound_by(&mut self, at: Option<Instant>) {
         self.set_deadline(at);
+    }
+
+    fn tls(&self) -> Option<Session> {
+        Some(self.session())
     }
 }
 
@@ -976,6 +1031,8 @@ pub(crate) struct Streamed {
     pub(crate) headers: Vec<(String, String)>,
     /// The rest of the reply, still on the socket.
     pub(crate) body: Incoming,
+    /// The session it arrived over, as [`Reply::tls`] describes it.
+    pub(crate) tls: Option<Tls>,
 }
 
 /// What one attempt produced: an answer, or a failure worth trying again.
@@ -1090,6 +1147,7 @@ pub(crate) fn send(
             status: answer.status,
             body,
             headers: answer.headers,
+            tls: answer.tls,
         });
     };
     // A decoded reply is still a reply this call holds whole, so
@@ -1113,6 +1171,7 @@ pub(crate) fn send(
         status: answer.status,
         body,
         headers: answer.headers,
+        tls: answer.tls,
     })
 }
 
@@ -1509,11 +1568,20 @@ fn exchange(
         key: key.to_owned(),
         caps: call.pool,
     });
+    // Before the connection is handed to the reader, because that is the last
+    // line at which there is still a connection here to ask: from here it is
+    // [`Incoming`]'s, and on a streamed reply it goes back to the pool while the
+    // response a program holds is still being read.
+    let tls = stream.tls().map(|session| Tls {
+        session,
+        verified: call.policy.verifies(),
+    });
     let body = Incoming::over(stream, rest, frame, idle, until, call.member, reuse)?;
     Ok(Sent::Answered(Streamed {
         status,
         headers,
         body,
+        tls,
     }))
 }
 
@@ -2186,6 +2254,10 @@ mod tests {
     /// that ends an unframed body.
     impl super::Connection for std::io::Cursor<Vec<u8>> {
         fn bound_by(&mut self, _at: Option<Instant>) {}
+
+        fn tls(&self) -> Option<nvs_host::tls::Session> {
+            None
+        }
     }
 
     /// A whole reply read the way a socket delivers one — the head off the
@@ -2209,6 +2281,7 @@ mod tests {
                 status,
                 headers,
                 body,
+                tls: None,
             },
             octets,
         ))
@@ -2370,6 +2443,7 @@ mod tests {
             status,
             headers: vec![("retry-after".to_owned(), after.to_owned())],
             body: empty_body(),
+            tls: None,
         }
     }
 
@@ -3251,6 +3325,10 @@ mod tests {
 
     impl super::Connection for Retired {
         fn bound_by(&mut self, _at: Option<Instant>) {}
+
+        fn tls(&self) -> Option<nvs_host::tls::Session> {
+            None
+        }
     }
 
     /// The rule's *replaced once without spending an attempt*: a connection the
@@ -3490,6 +3568,127 @@ mod tests {
             1,
             "one call that handshook once is one connection"
         );
+    }
+
+    /// `rule:http-server/a-reply-reports-its-tls-session`'s three facts, and the
+    /// `null` beside them: an `https` reply carries what the handshake settled,
+    /// and a plaintext reply carries nothing at all.
+    ///
+    /// Both sides, because the report on its own would pass just as well on a
+    /// client that filled the slot for every reply, and telling the two apart is
+    /// the slot's whole purpose. The chain is asserted against the certificate
+    /// this origin was stood up with rather than against a length, so a client
+    /// reporting *a* chain rather than this peer's fails here too.
+    #[test]
+    fn tls_info_reports_version_cipher_and_the_peer_chain() {
+        let (cert, key) = trusted();
+        let (port, _) = tls_origin(
+            cert.clone(),
+            key.clone(),
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
+
+        let mut asking = call(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+            "test",
+        );
+        asking.url = format!("https://localhost:{port}/ok");
+        let reply = send(&asking, &mut never).expect("the loopback origin's answer");
+
+        let reported = reply.tls.expect("an https reply reports its session");
+        assert_eq!(reported.session.version(), "TLSv1.3");
+        assert!(
+            reported.session.cipher().starts_with("TLS_"),
+            "the suite is reported under its IANA name: {}",
+            reported.session.cipher()
+        );
+        assert_eq!(
+            reported.session.chain(),
+            [cert.as_ref().to_vec()].as_slice(),
+            "the chain is this peer's own certificate, leaf first"
+        );
+        assert!(
+            reported.verified,
+            "a call under the configured roots checked the chain and the name"
+        );
+
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let plain = send(&call(at, "test"), &mut never).expect("a plaintext answer");
+        assert!(
+            plain.tls.is_none(),
+            "a plaintext reply has no session to report"
+        );
+        served.join().expect("the origin thread");
+    }
+
+    /// `verified` is the member the reporting slot exists for: a pinned call and
+    /// a `tlsVerify: false` one both answer `false`, while `tlsCa` — which
+    /// replaces the trust set and then checks the chain and the name against it —
+    /// still answers `true` (ADR 0180 § 13).
+    ///
+    /// All three against an origin no configured root vouches for, so every
+    /// relaxation here is load-bearing: the same call under the default policy is
+    /// the refusal the case above asserts. That is what stops this passing on a
+    /// client that reported `false` for every session it ever negotiated.
+    #[test]
+    fn tls_info_is_unverified_after_a_pinned_or_relaxed_call() {
+        use base64::Engine as _;
+        use rcgen::PublicKeyData as _;
+        use sha2::Digest as _;
+
+        // The anchors this process runs under vouch for another certificate,
+        // which is what makes the origin below an unvouched-for one.
+        trusted();
+        let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+            .expect("the loopback certificate could not be generated");
+        let pin = format!(
+            "sha256//{}",
+            base64::engine::general_purpose::STANDARD.encode(sha2::Sha256::digest(
+                issued.signing_key.subject_public_key_info()
+            ))
+        );
+        let (port, _) = tls_origin(
+            issued.cert.der().clone(),
+            issued.signing_key.serialize_der(),
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
+
+        for (policy, verified, why) in [
+            (
+                CallPolicy {
+                    pins: vec![pin],
+                    ..CallPolicy::default()
+                },
+                false,
+                "a pin accepts a key with no chain built at all",
+            ),
+            (
+                CallPolicy {
+                    insecure: true,
+                    ..CallPolicy::default()
+                },
+                false,
+                "`tlsVerify: false` checks neither the chain nor the name",
+            ),
+            (
+                CallPolicy {
+                    anchors: Some(issued.cert.pem()),
+                    ..CallPolicy::default()
+                },
+                true,
+                "`tlsCa` checks both, against the certificates the call handed over",
+            ),
+        ] {
+            let mut asking = call(
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+                "test",
+            );
+            asking.url = format!("https://localhost:{port}/ok");
+            asking.policy = policy;
+            let reply = send(&asking, &mut never).expect("the relaxed call was refused");
+            let reported = reply.tls.expect("an https reply reports its session");
+            assert_eq!(reported.verified, verified, "{why}");
+        }
     }
 
     /// The same call against an origin holding a certificate no configured

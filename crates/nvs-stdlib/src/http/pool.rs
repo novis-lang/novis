@@ -135,6 +135,10 @@ mod tests {
 
     impl super::Connection for Nothing {
         fn bound_by(&mut self, _at: Option<Instant>) {}
+
+        fn tls(&self) -> Option<nvs_host::tls::Session> {
+            None
+        }
     }
 
     /// How many this core is holding.
