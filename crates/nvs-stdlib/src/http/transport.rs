@@ -148,7 +148,11 @@ pub(crate) struct Call<'a> {
     /// The longest a streamed body may take altogether, counted from the call.
     /// [`Call::idle`]'s other half, and read in the same one place.
     pub(crate) max_duration: Duration,
-    /// The caller's own headers, in the order the array wrote them.
+    /// The caller's own headers, in the order the array wrote them — sent while
+    /// the request is still inside the origin [`Call::url`] was approved at, and
+    /// held back whole on a hop to any other
+    /// (`rule:http-server/a-cross-origin-redirect-drops-credentials`, decided in
+    /// [`compose`]).
     pub(crate) headers: Vec<(String, String)>,
     /// How many redirect hops may be followed. Zero is the default.
     pub(crate) redirects: u32,
@@ -1498,12 +1502,29 @@ fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
     if let Some(key) = &call.idempotency_key {
         field(&mut out, "Idempotency-Key", key, call.member)?;
     }
+    // `rule:http-server/a-cross-origin-redirect-drops-credentials`: a hop to
+    // another origin carries none of the caller's headers, and a hop inside one
+    // carries all of them. The rule names `Authorization`, `Cookie` and
+    // `Proxy-Authorization` and then every header whose value was `secret`, and
+    // that last clause is why the answer here is all of them: `secret` is
+    // checked and erased before codegen (`rule:security/secret-qualifier`), so
+    // which value carried one is not a question this process can ask at run
+    // time. Holding a program's `Accept` back on a hop it asked to follow costs
+    // it a negotiation; forwarding its API key to whatever host a `Location`
+    // names is the exfiltration primitive the rule exists to close, and the
+    // priority ordering is what decides between those two.
+    let carried: &[(String, String)] = if same_origin(call, parts) {
+        &call.headers
+    } else {
+        &[]
+    };
     // `rule:observability/an-outbound-call-propagates-traceparent`. Skipped where the caller wrote its own: two `traceparent`
     // headers are what the W3C format says to treat as no header at all, so
-    // sending both would end the trace here rather than continue it.
+    // sending both would end the trace here rather than continue it. Asked of
+    // what this hop carries and not of what the call holds, so a hop that left
+    // the caller's own behind sends ours and the trace crosses it.
     if let Some(traceparent) = &call.traceparent
-        && !call
-            .headers
+        && !carried
             .iter()
             .any(|(name, _)| name.eq_ignore_ascii_case("traceparent"))
     {
@@ -1524,7 +1545,7 @@ fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
             call.member,
         )?;
     }
-    for (name, value) in &call.headers {
+    for (name, value) in carried {
         field(&mut out, name, value, call.member)?;
     }
     out.push_str("\r\n");
@@ -1679,6 +1700,21 @@ fn resolved(base: &str, location: &str, member: &str) -> Result<String, Fault> {
     hop.resolve_against(&base)
         .map(|absolute| absolute.to_string())
         .map_err(|_| malformed())
+}
+
+/// Whether `hop` is the origin [`Call::url`] was approved at — the scheme, the
+/// host and the port all three equal.
+///
+/// A [`Call::url`] that will not parse answers `false`, which is the safe
+/// direction here and unreachable besides: [`super::pin`] parsed it before this
+/// module was reached, so that arm exists to hold an answer rather than to be
+/// taken.
+fn same_origin(call: &Call<'_>, hop: &Parts) -> bool {
+    parts(&call.url, call.member).is_ok_and(|origin| {
+        origin.tls == hop.tls
+            && origin.port == hop.port
+            && origin.host.eq_ignore_ascii_case(&hop.host)
+    })
 }
 
 /// The `Location` of a reply that is a redirect, or `None` for one that is not.
@@ -3274,6 +3310,153 @@ mod tests {
         assert!(
             super::pool::take(&theirs, Instant::now()).is_some(),
             "the identity's connection was still in the store, so nothing anonymous drew it"
+        );
+    }
+
+    /// `rule:http-server/a-cross-origin-redirect-drops-credentials`: a hop to
+    /// another origin carries none of the caller's headers, so the three the
+    /// rule names go, and with them the one this case wrote a credential into
+    /// under a name no list holds.
+    ///
+    /// All of them and not a list, because `secret` is erased before codegen
+    /// (`rule:security/secret-qualifier`): `X-Api-Key` is a plain `String` by
+    /// the time this module holds it, exactly as a program's `secret string`
+    /// is. This client's own headers are composed for the hop, which is what
+    /// the offer asserts — they are not the caller's to leak.
+    #[test]
+    fn cross_origin_redirect_drops_authorization_cookie_and_every_secret_header() {
+        let (elsewhere, answering) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let (at, served) = origin_raw(vec![
+            format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://{elsewhere}/next\r\nContent-Length: 0\r\n\r\n"
+            )
+            .into_bytes(),
+        ]);
+
+        let mut followed = call(at, "test");
+        followed.redirects = 1;
+        followed.headers = vec![
+            ("Authorization".to_owned(), "Bearer sk-live-42".to_owned()),
+            ("Cookie".to_owned(), "session=abcdef".to_owned()),
+            (
+                "Proxy-Authorization".to_owned(),
+                "Basic ZGVtbw==".to_owned(),
+            ),
+            ("X-Api-Key".to_owned(), "k-93ce".to_owned()),
+        ];
+
+        let reply = send(&followed, &mut |_url| Ok(elsewhere.ip())).expect("the hop's own answer");
+        assert_eq!(reply.status, 200);
+
+        let hop = &answering.join().expect("the second origin thread").asked[0];
+        let lower = hop.to_ascii_lowercase();
+        for name in [
+            "authorization",
+            "cookie",
+            "proxy-authorization",
+            "x-api-key",
+        ] {
+            assert!(
+                !lower.contains(&format!("\r\n{name}:")),
+                "`{name}` crossed to another origin: {hop}"
+            );
+        }
+        for value in [
+            "Bearer sk-live-42",
+            "session=abcdef",
+            "Basic ZGVtbw==",
+            "k-93ce",
+        ] {
+            assert!(!hop.contains(value), "a credential's value crossed: {hop}");
+        }
+        assert!(
+            hop.contains("Accept-Encoding: gzip, br, zstd\r\n"),
+            "the hop still carries this client's own headers: {hop}"
+        );
+        served.join().expect("the first origin thread");
+    }
+
+    /// The rule's other half: a hop inside one origin — the scheme, the host
+    /// and the port all equal — keeps every header the caller wrote, because
+    /// nothing about who is being talked to has changed.
+    #[test]
+    fn same_origin_redirect_keeps_the_callers_headers() {
+        let (at, served) = origin(vec![
+            "HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        ]);
+        let mut followed = call(at, "test");
+        followed.redirects = 1;
+        followed.headers = vec![
+            ("Authorization".to_owned(), "Bearer sk-live-42".to_owned()),
+            ("X-Api-Key".to_owned(), "k-93ce".to_owned()),
+        ];
+
+        let reply = send(&followed, &mut |_url| Ok(at.ip())).expect("the hop's own answer");
+        assert_eq!(reply.status, 200);
+
+        let asked = served.join().expect("the origin thread").asked;
+        assert!(
+            asked[1].starts_with("GET /next HTTP/1.1\r\n"),
+            "the hop is the case's second request: {}",
+            asked[1]
+        );
+        assert!(
+            asked[1].contains("Authorization: Bearer sk-live-42\r\n"),
+            "{}",
+            asked[1]
+        );
+        assert!(asked[1].contains("X-Api-Key: k-93ce\r\n"), "{}", asked[1]);
+    }
+
+    /// The rule's second paragraph: no header value reaches a trace span, a log
+    /// record or an error message.
+    ///
+    /// This module reaches no `Ctx` at all — [`Call::pool`]'s own doc is why —
+    /// so a span and a record are not things it can write, and what is left to
+    /// assert is every message it produces about a header. Both name the header
+    /// and neither carries the value, which is what makes the guard a property
+    /// rather than a habit.
+    #[test]
+    fn no_trace_span_or_error_message_carries_a_header_value() {
+        let credential = "sk-live-must-not-appear";
+        let nowhere = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
+        let parts = {
+            let any = call(nowhere, "test");
+            super::parts(&any.url, any.member).expect("a URL this case wrote")
+        };
+
+        let mut injected = call(nowhere, "Core\\Http\\Client::get");
+        injected.headers = vec![(
+            "X-Api-Key".to_owned(),
+            format!("{credential}\r\nX-Smuggled: 1"),
+        )];
+        let refused = format!(
+            "{:?}",
+            super::compose(&injected, &parts).expect_err("a value that would end the line")
+        );
+        assert!(
+            refused.contains("X-Api-Key"),
+            "the refusal names the header: {refused}"
+        );
+        assert!(
+            !refused.contains(credential),
+            "a header value reached a message: {refused}"
+        );
+
+        let mut offered = call(nowhere, "Core\\Http\\Client::get");
+        offered.headers = vec![("Accept-Encoding".to_owned(), credential.to_owned())];
+        let refused = format!(
+            "{:?}",
+            super::compose(&offered, &parts).expect_err("a program's own offer")
+        );
+        assert!(
+            refused.contains("Accept-Encoding"),
+            "the refusal names the header: {refused}"
+        );
+        assert!(
+            !refused.contains(credential),
+            "a header value reached a message: {refused}"
         );
     }
 }
