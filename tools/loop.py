@@ -3586,7 +3586,7 @@ class Chain:
         r = capture("docker", ["compose", "-f", compose, "up", "-d", "--wait", *services],
                     timeout=1800)
         if r.code != 0:
-            return (f"chain: `docker compose -f {compose} up` failed -- {r.first_err_line}. "
+            return (f"chain: `docker compose -f {compose} up` failed -- {compose_error(r)}. "
                     f"The live goal's checks need those services.")
         # `[docker.copy]`: a file a check needs on disk that only exists inside a container. The CA
         # the compose `certs` service issues is the case it was written for -- `nvs.toml`'s
@@ -3595,9 +3595,27 @@ class Chain:
         for dest, source in (docker.get("copy") or {}).items():
             r = capture("docker", ["compose", "-f", compose, "cp", source, dest], timeout=120)
             if r.code != 0:
-                return (f"chain: `docker compose cp {source} {dest}` failed -- {r.first_err_line}. "
+                return (f"chain: `docker compose cp {source} {dest}` failed -- {compose_error(r)}. "
                         f"The live goal's checks need that file on disk.")
         return ""
+
+
+def compose_error(r):
+    """Why a `docker compose` command failed, quoted from its stderr.
+
+    Not `first_err_line`: compose writes its progress to stderr too, one indented
+    ` Container novis-db-certs-1 Recreate` line per step, so the first stderr line is a step that
+    happened and never the reason the command died. The reason is the first line that is not a
+    step -- compose's own are unindented, `Error response from daemon: ...` and `dependency failed
+    to start: ...` -- plus the tail, because the leg has not opened its console log yet when this
+    runs and the verdict is the only record the failure leaves. When every line is a step, the last
+    one is the step it was on."""
+    lines = [line.rstrip() for line in r.err.splitlines() if line.strip()]
+    if not lines:
+        return r.first_err_line
+    reason = next((line.strip() for line in lines if not line.startswith(" ")), lines[-1].strip())
+    tail = "\n".join(f"       | {line.strip()}" for line in lines[-6:])
+    return f"{reason}\n{tail}"
 
 
 def read_text(path):
@@ -5534,10 +5552,17 @@ def run_leg(opts, sessions):
     A Ctrl-C reaches both processes at the same instant. The leg's handler writes its ledger line
     and `run-end.json` -- with the sessions it served -- and needs more than the quarter second
     `subprocess.run` would give it before killing the child, so this waits for it and only then
-    lets the interrupt go on up to `supervise`, which reads that file."""
+    lets the interrupt go on up to `supervise`, which reads that file.
+
+    That file is cleared HERE, before the leg starts, and not only where `drive` clears it. A leg
+    that exits in `main` -- a preflight, a goal switch, `docker compose` -- never reaches `drive`,
+    and the file it leaves untouched is the previous run's verdict: the run then reported
+    `s was pressed at the console` for a leg that died on a container, with the real reason
+    printed once and kept nowhere."""
     argv = [sys.executable, str(Path(__file__).resolve()), *sys.argv[1:],
             "--leg", "--max-sessions", str(sessions)]
     code = 1
+    RUNEND.unlink(missing_ok=True)
     CONTROL.disable()
     TICKER.stop()
     try:
@@ -5556,7 +5581,9 @@ def run_leg(opts, sessions):
         CONTROL.enable()
     end = read_json(RUNEND, default={}) or {}
     if not end:
-        end = {"kind": "unknown", "reason": f"{rel_to_root(RUNEND)} was not written", "served": 0}
+        end = {"kind": "unknown", "served": 0,
+               "reason": f"the leg exited {code} before its first session, so "
+                         f"{rel_to_root(RUNEND)} was not written -- its last lines above say why"}
     return code, end
 
 
