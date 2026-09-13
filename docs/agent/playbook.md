@@ -6551,13 +6551,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   while the same case written as a `#[Json\Derive]` class is refused, which reads as the rule not
   applying rather than as one roster with two halves. Add the owner to that list in the same edit that
   adds the registry row. [until: gone crates/nvs-types/src/expr/args.rs:owner_name]
-- **A runtime value cannot be asked whether it is `secret`.** The qualifier is checked once and
-  erased before codegen (`rule:security/secret-qualifier`), so a `secret string` and a plain one are
-  the same bytes in a `Value` — no array slot, `StrHeader` bit or ABI argument carries the answer.
-  A stdlib member that must act on secretness acts on all of its inputs or none, which is why
-  `compose` in `crates/nvs-stdlib/src/http/transport.rs` drops every caller header on a cross-origin
-  hop rather than the ones that were credentials.
-  [until: gone docs/rules/security/secret-qualifier.md:erased before codegen]
 
 ## Divergences and refusals already pinned
 

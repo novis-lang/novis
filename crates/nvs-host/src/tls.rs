@@ -74,21 +74,33 @@
 //! inspection proxy — and that is deliberately left to the **operator**, whose
 //! decision it is, in the file that already holds every other one
 //! (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`),
-//! who names a PEM bundle in `nvs.toml` and gets [`NvsTls::over_bundle`]
-//! against exactly it. The bundle **replaces** the compiled-in set for the
-//! endpoint that names it rather than adding to it — [`anchors_from`] argues
-//! that, and it is the reading every other client an operator has configured
-//! already has. What is closed permanently is a *program* choosing anchors, or
-//! turning verification off: neither has a spelling here, and the whole point
-//! of `rule:http-server/allow-url-pins-the-address`'s pinned outbound door is that a script does not get to widen a
-//! decision the deployment made.
+//! who writes it in `nvs.toml`. There are two spellings, and they mean opposite
+//! things on purpose:
+//!
+//! - **One endpoint's bundle**, `[db.<name>] tls_ca_file`, reaches
+//!   [`NvsTls::over_bundle`] and **replaces** the compiled-in set for that
+//!   endpoint rather than adding to it — [`anchors_from`] argues that, and it is
+//!   the reading every other client an operator has configured already has.
+//! - **The whole process's list**, `[http.client.tls] roots`, reaches
+//!   [`configure`] and says what it holds: `["bundled", "corp.pem"]` is both
+//!   sets and a list without [`BUNDLED`] is only its files. Nothing is inferred
+//!   there because the operator wrote the list out ([`store_for`]).
+//!
+//! The same block carries the version floor and the key log, and all three are
+//! the **operator's** alone. What is closed permanently is a *program* choosing
+//! anchors, or turning verification off: neither has a spelling here, and the
+//! whole point of `rule:http-server/allow-url-pins-the-address`'s pinned
+//! outbound door is that a script does not get to widen a decision the
+//! deployment made.
 //!
 //! What that spends, per `rule:programs/memory-priority`:
 //! one parsed root store and one `ClientConfig` for the whole **process**, built
-//! once on first use and shared by every session after it — the whole Mozilla
-//! anchor set, a few hundred kilobytes, O(1) in requests served. Per session
-//! it is `rustls`'s own connection state, which is O(in-flight) and released
-//! with the stream.
+//! at boot by [`configure`] or on first use from the compiled-in set, and shared
+//! by every session after it — the whole Mozilla anchor set, a few hundred
+//! kilobytes, O(1) in requests served. A key log adds one open file descriptor
+//! and one lock acquisition per secret written, on a host that has already said
+//! it is being debugged. Per session it is `rustls`'s own connection state,
+//! which is O(in-flight) and released with the stream.
 //!
 //! # `ring` is the provider, and it is spent under `rule:packaging/a-c-dependency-answers-two-questions`
 //!
@@ -424,6 +436,13 @@ fn upgraded<T: Read + Write>(
     })
 }
 
+/// The process's one outbound client configuration.
+///
+/// Set by [`configure`] at boot and, failing that, built from the compiled-in
+/// anchors on first use — which is what makes a program with no `nvs.toml`, and
+/// every test in the tree, still get a verifying client.
+static DEFAULT: OnceLock<Arc<ClientConfig>> = OnceLock::new();
+
 /// The process-wide client configuration, built on first use.
 ///
 /// One root store for the process and not one per session: parsing the whole
@@ -431,8 +450,201 @@ fn upgraded<T: Read + Write>(
 /// `ClientConfig` is `Send + Sync` and is only ever read after this, so sharing
 /// it across cores costs an `Arc` clone and no lock.
 fn anchors() -> Arc<ClientConfig> {
-    static DEFAULT: OnceLock<Arc<ClientConfig>> = OnceLock::new();
     Arc::clone(DEFAULT.get_or_init(|| Arc::new(config_over(root_store()))))
+}
+
+/// The `roots` entry naming the compiled-in Mozilla set rather than a file.
+///
+/// `nvs_config::http` spells the same word while resolving the list's paths, and
+/// `the_bundled_spelling_is_the_one_the_configuration_resolves` holds the two
+/// equal — this crate is the one that reads the value, and that one is the one
+/// that decides which entries are files, so neither can hold it alone.
+pub const BUNDLED: &str = "bundled";
+
+/// `[http.client.tls]` in this crate's own terms: the outbound TLS policy an
+/// operator wrote, resolved.
+///
+/// Plain strings and a path rather than `nvs_config`'s block, because nothing
+/// in `src/` reads a configuration file — this crate carries `nvs-config` as a
+/// dev dependency alone, and this struct is the seam that keeps it that way.
+/// Whoever boots the process reads the block and fills this in.
+#[derive(Clone, Debug, Default)]
+pub struct ClientPolicy {
+    /// The trust anchors, in the order they were written. [`BUNDLED`] is the
+    /// compiled-in Mozilla set and every other entry is a PEM file that
+    /// `nvs_config` has already resolved and proved is inside the trust
+    /// boundary. Empty is the compiled-in set, which is what an unwritten key
+    /// means.
+    pub roots: Vec<String>,
+    /// The version floor — `"1.2"`, `"1.3"`, or `None` for the shipped one,
+    /// which is `"1.2"`.
+    pub min_version: Option<String>,
+    /// Where each session appends its secrets in the `SSLKEYLOGFILE` format,
+    /// and `None` for nowhere. `nvs_config` has already refused this on a
+    /// `production` host (`E0640`).
+    pub keylog: Option<PathBuf>,
+}
+
+/// Builds the process's one outbound client configuration from `policy` and
+/// installs it, so every [`NvsTls::over`] after this verifies against it.
+///
+/// Called once, at boot, before any request runs. The anchors are parsed here
+/// rather than on the first outbound call for the reason [`anchors`] gives —
+/// the whole set is a constant, and a deployment learns that its bundle does
+/// not parse while an operator is reading boot output rather than inside
+/// somebody's request.
+///
+/// # Errors
+///
+/// `NotFound`/`InvalidData` for a `roots` entry that cannot be opened or holds
+/// no certificate, `InvalidInput` for a `min_version` this build does not
+/// speak, and whatever opening the key log reported. `AlreadyExists` when a
+/// session has already run against the compiled-in default, which is a boot
+/// that reached the network before it read its own configuration.
+pub fn configure(policy: &ClientPolicy) -> io::Result<()> {
+    let built = Arc::new(built_from(policy)?);
+    DEFAULT.set(built).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "the outbound TLS client was already built, so a session has run against anchors this \
+             configuration did not choose",
+        )
+    })
+}
+
+/// [`configure`]'s configuration, built and not installed.
+///
+/// Split out because the installed one is a `OnceLock` and so is answered once
+/// per process: every case below builds its own here and reaches the same
+/// [`upgraded`] a shipped session does.
+fn built_from(policy: &ClientPolicy) -> io::Result<ClientConfig> {
+    let mut config =
+        floored(policy.min_version.as_deref(), store_for(&policy.roots)?).with_no_client_auth();
+    if let Some(path) = policy.keylog.as_deref() {
+        config.key_log = Arc::new(KeyLogTo::at(path)?);
+    }
+    Ok(config)
+}
+
+/// The anchor set a `roots` list names: the compiled-in one wherever
+/// [`BUNDLED`] appears, and each other entry's PEM file added to it.
+///
+/// **Additive, which is the opposite of [`anchors_from`] and deliberately.** A
+/// `[db]` block's `tls_ca_file` is one endpoint's bundle and replaces the set
+/// for that endpoint alone; `roots` is the whole process's list, and the
+/// operator writing it says what it holds — `["bundled", "corp.pem"]` adds a
+/// company CA and a list without [`BUNDLED`] trusts only its files. There is
+/// nothing to infer, so nothing here infers it.
+///
+/// An empty list is the compiled-in set. `nvs_config` refuses `roots = []`
+/// (`E0638`), so the only caller that reaches this arm is one with no block
+/// written at all.
+fn store_for(roots: &[String]) -> io::Result<RootCertStore> {
+    if roots.is_empty() {
+        return Ok(root_store().as_ref().clone());
+    }
+    let mut store = RootCertStore::empty();
+    for entry in roots {
+        if entry == BUNDLED {
+            store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+            continue;
+        }
+        read_anchors(Path::new(entry), &mut store)?;
+    }
+    Ok(store)
+}
+
+/// Every certificate in the PEM file at `path`, added to `store`.
+///
+/// A file that holds no certificate — empty, or a PEM of something else —
+/// would otherwise verify nothing at all, and the handshake would fail with
+/// an unknown issuer: a message that sends an operator looking at the server
+/// rather than at the bundle they wrote. So a parse error and an empty
+/// result are the same refusal, and both name the file.
+fn read_anchors(path: &Path, store: &mut RootCertStore) -> io::Result<()> {
+    // `pem_file_iter` folds "the file is not there" and "the file is not a
+    // bundle" into one error type, and those are the two an operator acts on
+    // differently. Opening it here keeps them apart: past this line every
+    // refusal is `InvalidData` and is about the content.
+    drop(std::fs::File::open(path)?);
+
+    let refused = |why: &dyn std::fmt::Display| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("`{}` names no trust anchor: {why}", path.display()),
+        )
+    };
+    let before = store.len();
+    for cert in CertificateDer::pem_file_iter(path).map_err(|err| refused(&err))? {
+        store
+            .add(cert.map_err(|err| refused(&err))?)
+            .map_err(|err| refused(&err))?;
+    }
+    if store.len() == before {
+        return Err(refused(&"it holds no certificate"));
+    }
+    Ok(())
+}
+
+/// `[http.client.tls] keylog`'s destination: each session's secrets appended in
+/// the `SSLKEYLOGFILE` format, which is the one format Wireshark reads.
+///
+/// One handle for the process behind a mutex rather than an open per secret,
+/// because a handshake emits several and every core shares this. What it spends
+/// is one file descriptor and one lock acquisition per secret logged, on a host
+/// that has already said it is being debugged.
+#[derive(Debug)]
+struct KeyLogTo {
+    file: Mutex<std::fs::File>,
+}
+
+impl KeyLogTo {
+    /// The file opened for appending, created when it is not there.
+    ///
+    /// Appending and never truncating: the capture an operator wants is usually
+    /// several runs of a program, and a restart that emptied the file would
+    /// take the session they were reading with it.
+    fn at(path: &Path) -> io::Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        Ok(Self {
+            file: Mutex::new(file),
+        })
+    }
+}
+
+impl rustls::KeyLog for KeyLogTo {
+    /// One `SSLKEYLOGFILE` line: the label, the client random and the secret,
+    /// each hex, space separated.
+    ///
+    /// A failed write is dropped rather than reported. This is a debugging
+    /// instrument bolted onto a request that was going to succeed, and a full
+    /// disk turning outbound calls into failures would be the instrument
+    /// deciding the deployment's availability.
+    fn log(&self, label: &str, client_random: &[u8], secret: &[u8]) {
+        let mut line =
+            String::with_capacity(label.len() + (client_random.len() + secret.len()) * 2);
+        line.push_str(label);
+        line.push(' ');
+        hex_into(&mut line, client_random);
+        line.push(' ');
+        hex_into(&mut line, secret);
+        line.push('\n');
+        let Ok(mut file) = self.file.lock() else {
+            return;
+        };
+        drop(file.write_all(line.as_bytes()));
+    }
+}
+
+/// `bytes` appended to `out` as lower-case hex.
+fn hex_into(out: &mut String, bytes: &[u8]) {
+    for byte in bytes {
+        out.push(char::from_digit((u32::from(*byte)) >> 4, 16).unwrap_or('0'));
+        out.push(char::from_digit(u32::from(*byte) & 0xf, 16).unwrap_or('0'));
+    }
 }
 
 /// The compiled-in anchor set, parsed once for the process.
@@ -480,32 +692,8 @@ fn anchors_from(path: &Path) -> io::Result<Arc<ClientConfig>> {
         return Ok(Arc::clone(hit));
     }
 
-    // `pem_file_iter` folds "the file is not there" and "the file is not a
-    // bundle" into one error type, and those are the two an operator acts on
-    // differently. Opening it here keeps them apart: past this line every
-    // refusal is `InvalidData` and is about the content.
-    drop(std::fs::File::open(path)?);
-
-    // A file that holds no certificate — empty, or a PEM of something else —
-    // would otherwise verify nothing at all, and the handshake would fail with
-    // an unknown issuer: a message that sends an operator looking at the server
-    // rather than at the bundle they wrote. So a parse error and an empty
-    // result are the same refusal, and both name the file.
-    let refused = |why: &dyn std::fmt::Display| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("`{}` names no trust anchor: {why}", path.display()),
-        )
-    };
     let mut roots = RootCertStore::empty();
-    for cert in CertificateDer::pem_file_iter(path).map_err(|err| refused(&err))? {
-        roots
-            .add(cert.map_err(|err| refused(&err))?)
-            .map_err(|err| refused(&err))?;
-    }
-    if roots.is_empty() {
-        return Err(refused(&"it holds no certificate"));
-    }
+    read_anchors(path, &mut roots)?;
 
     let config = Arc::new(config_over(roots));
     cache
@@ -533,9 +721,34 @@ fn config_over(roots: impl Into<Arc<RootCertStore>>) -> ClientConfig {
 /// about the versions, the cipher suites or the verifier, so a session that
 /// presents one and a session that does not are the same session either way.
 fn verifying(roots: impl Into<Arc<RootCertStore>>) -> ConfigBuilder<ClientConfig, WantsClientCert> {
-    ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-        .with_safe_default_protocol_versions()
-        .expect("the ring provider refused the default protocol versions")
+    floored(None, roots)
+}
+
+/// [`verifying`] with `[http.client.tls] min_version` applied.
+///
+/// `None` and `"1.2"` are the same builder, because 1.2 is already the lowest
+/// version this build speaks — `rustls` implements neither TLS 1.0 nor 1.1, so
+/// there is no floor to lower and the shipped default *is* the floor. `"1.3"`
+/// is the one value that changes anything, and it drops 1.2 rather than
+/// preferring 1.3, which is the whole point of a floor.
+///
+/// A spelling that is neither cannot arrive: `nvs_config::http` refuses one at
+/// boot with the line named (`E0639`), which is a better refusal than anything
+/// reachable from here, so this treats an unknown value as the shipped floor
+/// rather than growing a second, worse diagnostic for a case that is closed
+/// upstream.
+fn floored(
+    min_version: Option<&str>,
+    roots: impl Into<Arc<RootCertStore>>,
+) -> ConfigBuilder<ClientConfig, WantsClientCert> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let versions = match min_version {
+        Some("1.3") => ClientConfig::builder_with_provider(provider)
+            .with_protocol_versions(&[&rustls::version::TLS13]),
+        _ => ClientConfig::builder_with_provider(provider).with_safe_default_protocol_versions(),
+    };
+    versions
+        .expect("the ring provider refused a protocol version it implements")
         .with_root_certificates(roots)
 }
 
@@ -677,6 +890,19 @@ mod tests {
         cert: CertificateDer<'static>,
         key: PrivateKeyDer<'static>,
     ) -> (SocketAddr, std::thread::JoinHandle<()>) {
+        peer_speaking(cert, key, rustls::ALL_VERSIONS)
+    }
+
+    /// [`peer`], restricted to the protocol versions it is given.
+    ///
+    /// The one thing a version-floor case needs that the default peer cannot
+    /// give it: an origin that speaks 1.2 and nothing else, which is what a
+    /// floor is written to refuse.
+    fn peer_speaking(
+        cert: CertificateDer<'static>,
+        key: PrivateKeyDer<'static>,
+        versions: &'static [&'static rustls::SupportedProtocolVersion],
+    ) -> (SocketAddr, std::thread::JoinHandle<()>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
         let addr = listener
             .local_addr()
@@ -685,8 +911,8 @@ mod tests {
             let config = rustls::ServerConfig::builder_with_provider(Arc::new(
                 rustls::crypto::ring::default_provider(),
             ))
-            .with_safe_default_protocol_versions()
-            .expect("the provider refused the default versions")
+            .with_protocol_versions(versions)
+            .expect("the provider refused the versions")
             .with_no_client_auth()
             .with_single_cert(vec![cert], key)
             .expect("the certificate and the key did not pair");
@@ -695,12 +921,18 @@ mod tests {
                 .expect("the server config was rejected");
             // Late on purpose: the client is parked on this flight.
             std::thread::sleep(Duration::from_millis(20));
+            // A client that refuses the certificate, or the version floor, hangs
+            // up mid-handshake — which is the answer two of the cases below are
+            // asserting, so it ends this thread quietly instead of panicking it.
+            // Every claim is made on the client side.
             let mut tls = rustls::Stream::new(&mut conn, &mut sock);
             let mut heard = [0_u8; 5];
-            tls.read_exact(&mut heard).expect("the peer's read failed");
+            if tls.read_exact(&mut heard).is_err() {
+                return;
+            }
             assert_eq!(&heard, b"ping\n");
-            tls.write_all(b"pong\n").expect("the peer's write failed");
-            tls.flush().expect("the peer's flush failed");
+            drop(tls.write_all(b"pong\n"));
+            drop(tls.flush());
         });
         (addr, handle)
     }
@@ -784,6 +1016,206 @@ mod tests {
             refused.to_string().contains("certificate"),
             "the refusal did not say what was wrong: {refused}"
         );
+    }
+
+    /// A self-signed certificate for `localhost` and its key, with the PEM a
+    /// `roots` entry would name written to `path`.
+    ///
+    /// The whole test-only part of the cases below: what they build from that
+    /// path is [`built_from`], which is the function `configure` installs.
+    fn issued_at(path: &std::path::Path) -> (CertificateDer<'static>, PrivateKeyDer<'static>) {
+        let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+            .expect("the certificate could not be generated");
+        std::fs::write(path, issued.cert.pem()).expect("the bundle could not be written");
+        (
+            issued.cert.der().clone(),
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(issued.signing_key.serialize_der())),
+        )
+    }
+
+    /// A policy naming `roots` and nothing else.
+    fn trusting(roots: &[&str]) -> ClientPolicy {
+        ClientPolicy {
+            roots: roots.iter().map(|entry| (*entry).to_string()).collect(),
+            ..ClientPolicy::default()
+        }
+    }
+
+    /// One `ping`/`pong` exchange against `addr` under `config`, and whatever it
+    /// came back with.
+    ///
+    /// Off a core deliberately, as `a_self_signed_certificate_is_refused_…` is:
+    /// what these cases assert is which certificates a configuration accepts,
+    /// and [`NvsTcp`]'s blocking path is the same `Read` and `Write` underneath.
+    fn exchange(addr: SocketAddr, config: Arc<ClientConfig>) -> io::Result<String> {
+        let sock = NvsTcp::connect(addr).expect("the connect failed");
+        let mut tls = upgraded(sock, "localhost", config)?;
+        tls.write_all(b"ping\n")?;
+        tls.flush()?;
+        let mut heard = [0_u8; 5];
+        tls.read_exact(&mut heard)?;
+        Ok(String::from_utf8_lossy(&heard).into_owned())
+    }
+
+    /// `["bundled", <file>]` is both sets and not one: the file's CA verifies
+    /// its own origin, and the compiled-in anchors are still in the store.
+    ///
+    /// The count is the half worth asserting separately — a handshake against
+    /// the file's CA would pass just as well if `bundled` had been dropped on
+    /// the floor, and the list an operator wrote says `["bundled", …]` adds.
+    #[test]
+    fn roots_of_bundled_and_a_file_trust_the_files_ca() {
+        let path = scratch("bundled-and-a-file");
+        let (cert, key) = issued_at(&path);
+        let named = path.to_string_lossy().into_owned();
+
+        let both = store_for(&[BUNDLED.to_string(), named.clone()])
+            .expect("the two-entry list was refused");
+        let alone =
+            store_for(std::slice::from_ref(&named)).expect("the one-entry list was refused");
+        assert_eq!(
+            both.len(),
+            alone.len() + root_store().len(),
+            "`bundled` beside a file did not add the compiled-in anchors to the file's",
+        );
+
+        let config =
+            Arc::new(built_from(&trusting(&[BUNDLED, &named])).expect("the roots were refused"));
+        let (addr, joined) = peer(cert, key);
+        let heard = exchange(addr, config).expect("the handshake failed");
+        joined.join().expect("the peer thread panicked");
+
+        assert_eq!(heard, "pong\n");
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// A list of one file trusts that file and nothing else, which is the
+    /// reading that makes a private-CA deployment worth configuring at all: a
+    /// chain from any other CA is refused.
+    #[test]
+    fn roots_of_one_file_refuse_a_chain_from_another_ca() {
+        let ours = scratch("one-file-ours");
+        drop(issued_at(&ours));
+        let theirs = scratch("one-file-theirs");
+        let (cert, key) = issued_at(&theirs);
+
+        let config = Arc::new(
+            built_from(&trusting(&[&ours.to_string_lossy()])).expect("the roots were refused"),
+        );
+        let (addr, joined) = peer(cert, key);
+        let refused = exchange(addr, config).expect_err("a chain from another CA was accepted");
+        drop(joined.join());
+
+        assert_eq!(
+            refused.kind(),
+            io::ErrorKind::InvalidData,
+            "a certificate no root vouches for came back as {refused}"
+        );
+        std::fs::remove_file(&ours).ok();
+        std::fs::remove_file(&theirs).ok();
+    }
+
+    /// `min_version = "1.3"` drops 1.2 rather than preferring 1.3: an origin
+    /// that speaks only 1.2 is refused, and the same origin is answered under
+    /// the shipped floor.
+    ///
+    /// Both halves, because the refusal alone would pass on a client that could
+    /// not talk to the peer for any reason at all — the second exchange is what
+    /// says the floor is the only thing that changed.
+    #[test]
+    fn min_version_1_3_refuses_an_origin_that_speaks_only_1_2() {
+        const ONLY_1_2: &[&rustls::SupportedProtocolVersion] = &[&rustls::version::TLS12];
+        let path = scratch("min-version");
+        let (cert, key) = issued_at(&path);
+        let named = path.to_string_lossy().into_owned();
+
+        let (addr, joined) = peer_speaking(cert.clone(), key.clone_key(), ONLY_1_2);
+        let under_the_floor = ClientPolicy {
+            min_version: Some("1.3".to_string()),
+            ..trusting(&[&named])
+        };
+        let config = Arc::new(built_from(&under_the_floor).expect("the floor was refused"));
+        let refused =
+            exchange(addr, config).expect_err("a 1.2-only origin was answered under a 1.3 floor");
+        drop(joined.join());
+        assert_eq!(
+            refused.kind(),
+            io::ErrorKind::InvalidData,
+            "the floor reported {refused} rather than refusing the version"
+        );
+
+        let (addr, joined) = peer_speaking(cert, key, ONLY_1_2);
+        let shipped = Arc::new(built_from(&trusting(&[&named])).expect("the roots were refused"));
+        let heard = exchange(addr, shipped).expect("the shipped floor refused a 1.2 origin");
+        joined.join().expect("the peer thread panicked");
+        assert_eq!(heard, "pong\n");
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// The key log is per session and appended to, not per process and
+    /// truncated: two handshakes leave two sessions' secrets in the file, each
+    /// an `SSLKEYLOGFILE` line.
+    ///
+    /// The distinct client randoms are what say it is two sessions rather than
+    /// one written twice, which is the failure a truncating or a caching
+    /// implementation would produce.
+    #[test]
+    fn keylog_appends_each_sessions_secrets() {
+        let bundle = scratch("keylog-bundle");
+        let (cert, key) = issued_at(&bundle);
+        let log = std::env::temp_dir().join("nvs-keylog-appends.log");
+        std::fs::remove_file(&log).ok();
+
+        let policy = ClientPolicy {
+            keylog: Some(log.clone()),
+            ..trusting(&[&bundle.to_string_lossy()])
+        };
+        let config = Arc::new(built_from(&policy).expect("the key log was refused"));
+        for _ in 0..2 {
+            let (addr, joined) = peer(cert.clone(), key.clone_key());
+            let heard = exchange(addr, Arc::clone(&config)).expect("the handshake failed");
+            joined.join().expect("the peer thread panicked");
+            assert_eq!(heard, "pong\n");
+        }
+
+        let written = std::fs::read_to_string(&log).expect("nothing was written to the key log");
+        let randoms: std::collections::BTreeSet<&str> = written
+            .lines()
+            .filter(|line| line.starts_with("CLIENT_HANDSHAKE_TRAFFIC_SECRET "))
+            .filter_map(|line| line.split(' ').nth(1))
+            .collect();
+        assert_eq!(
+            randoms.len(),
+            2,
+            "two sessions left {} client random(s) in the log:\n{written}",
+            randoms.len()
+        );
+        for line in written.lines() {
+            let fields: Vec<&str> = line.split(' ').collect();
+            assert_eq!(fields.len(), 3, "`{line}` is not an `SSLKEYLOGFILE` line");
+            assert!(
+                fields[1..]
+                    .iter()
+                    .all(|field| field.chars().all(|c| c.is_ascii_hexdigit())),
+                "`{line}` carries something that is not hex"
+            );
+        }
+
+        std::fs::remove_file(&bundle).ok();
+        std::fs::remove_file(&log).ok();
+    }
+
+    /// The two crates that each hold half of `roots` agree on the one word that
+    /// is not a path.
+    ///
+    /// `nvs_config::http` decides which entries are files and this crate decides
+    /// what the other one means, so a literal in each would be one typo away
+    /// from a deployment silently trusting a file named `bundled` — or, worse,
+    /// from a boot that trust-checked a path nothing ever opened.
+    #[test]
+    fn the_bundled_spelling_is_the_one_the_configuration_resolves() {
+        assert_eq!(BUNDLED, nvs_config::http::BUNDLED);
     }
 
     /// The stream's deadline bounds the handshake, which is the whole reason
