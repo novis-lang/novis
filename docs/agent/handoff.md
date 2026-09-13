@@ -2,60 +2,58 @@
 
 ## State
 
-**Goal `http-client` — stage 12's door now answers the approved set.** `Core\Http\Target`'s second
-slot is `addresses`, an array of address texts in the resolver's order and at most eight
-(`rule:http-server/an-outbound-call-tries-every-approved-address`); `pin` asks `pin_host_addresses`,
-`named_address` and an IP literal answer the set of one, `repinned` re-pins a hop to a set, and
-`approved` reads the slot back through `addresses_of` (`crates/nvs-stdlib/src/http.rs:2683`). The
-class still has no members. Stages 1–11 are on disk behind it.
+**Goal `http-client` — stage 12's connect now walks the whole approved set.** `NvsTcp::connect_racing`
+(`crates/nvs-host/src/net.rs:367`) starts an attempt per address `ATTEMPT_DELAY` apart without waiting
+for the previous one, keeps the first socket whose handshake is up and drops the rest, all under one
+budget; `ask_connected` (`crates/nvs-host/src/net.rs:954`) is the completion test it asks of each and
+`wait_any_writable` (`crates/nvs-host/src/net.rs:996`) the park over the set, arming every member under
+the task's one token.
 
-**Where the set stops:** `transport::Call` carries `addresses: Vec<IpAddr>` and `sent` walks it to
-`one`, which connects to the first of the set (`crates/nvs-stdlib/src/http/transport.rs:1324`).
-Falling back across the rest is the next group.
+`one` (`crates/nvs-stdlib/src/http/transport.rs:1324`) builds a socket per approved address, connects
+with the race, files the connection under the address it actually reached, and looks the pool up once
+per approved address — a held connection to any member serves the call, which the pooling rule's
+fragment now says. Stages 1–11 are on disk behind it.
 
-**What the next group has to decide first:** `nvs_host::NvsTcp` has only `connect` and
-`connect_timeout` (`crates/nvs-host/src/net.rs:297`, `:318`), both of which park on one address
-until it is up, so RFC 8305's *next attempt started after a fixed delay* has no seam to stand on —
-`connected` (`crates/nvs-host/src/net.rs:775`) is the single-socket park it would generalise.
-That is why the group below opens in `nvs-host` and not in the transport.
+**What stage 12 still owes:** one test, `a_slow_lookup_leaves_the_core_free_for_another_task`. The other
+four of that `-p nvs-stdlib` check are green, and the stage's `-p nvs-runtime` check is on disk
+(`crates/nvs-runtime/src/capability.rs:1309`, `:1351`, `:1389`).
 
-Nothing is blocked. The floor's `examples/queue.nvs` failure the driver reported after session 0008
-was the Docker daemon having restarted without the test servers, not a regression; they are up and
-the example prints its five lines again.
+Nothing is blocked.
 
 ## Next group
 
-**Stage 12: the connect falls back across the set** — one file set: `crates/nvs-host/src/net.rs`,
-`crates/nvs-stdlib/src/http/transport.rs`.
+**Stage 12: the lookup leaves the core, and stage 13 opens behind it** — one file set:
+`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/http/transport.rs`.
 
-- [ ] **A connect that races several addresses and answers the first one up** —
-      `rule:http-server/an-outbound-call-tries-every-approved-address`, [ADR 0180](../decisions/0180.md)
-      § 14 fourth paragraph. `connect_timeout` (`crates/nvs-host/src/net.rs:318`) is the
-      one-address spelling and `connected` (`crates/nvs-host/src/net.rs:775`) the park it wraps; the
-      new one starts an attempt per address a fixed delay apart, keeps the first writable socket and
-      closes the rest, all inside the one budget it is given.
-- [ ] **`one` walks the approved set under the one `connectTimeout`** — same rule. The clamp is at
-      `crates/nvs-stdlib/src/http/transport.rs:1358` and the connect it feeds at `:1361`; the
-      first-of-the-set narrowing at `crates/nvs-stdlib/src/http/transport.rs:1324` goes when the walk
-      lands. Every address failing is one `IOError` naming each. Tests
-      `a_dead_first_address_falls_back_to_the_next_within_connect_timeout` and
-      `every_address_failing_is_one_io_error_naming_each`.
-- [ ] **A retry reuses the set and a pooled connection to any approved address serves the call** —
-      same rule, and `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`
-      for the key. `attempts` (`crates/nvs-stdlib/src/http/transport.rs:1271`) already re-enters
-      `one` with the set rather than re-resolving; `pool_key`
-      (`crates/nvs-stdlib/src/http/transport.rs:1446`) is keyed on one socket, so serving a call from
-      any approved address is a lookup per address. Tests
-      `a_retry_reuses_the_approved_set_and_never_re_resolves` and
-      `a_pooled_connection_to_any_approved_address_serves_the_call`.
+- [ ] **A slow lookup leaves the core free for another task** —
+      `rule:http-server/a-core-is-never-blocked-on-a-syscall`, [ADR 0180](../decisions/0180.md) § 14
+      first paragraph. `pin` (`crates/nvs-stdlib/src/http.rs:388`) asks `pin_host_addresses`, which
+      calls the per-thread seam `install_resolver` files
+      (`crates/nvs-runtime/src/capability.rs:289`); the worker installs `resolve_off_core` into it at
+      `crates/nvs-host/src/lib.rs:212`. The case installs a resolver that sleeps inside
+      `nvs_host::blocking::run`, spawns two tasks on a `Scheduler`, and asserts the second ran while
+      the first was still in the lookup. This is the last of stage 12's `-p nvs-stdlib` check.
+- [ ] **An outbound call files one `http` trace event with its timings** — stage 13,
+      [ADR 0180](../decisions/0180.md) § 15. `sent` (`crates/nvs-stdlib/src/http/transport.rs:1103`)
+      is where a call begins and ends, `record_trace` (`crates/nvs-runtime/src/ctx/trace.rs:119`) the
+      filing, and `crates/nvs-db/src/span.rs` the `query` event this one is shaped after. Tests
+      `an_outbound_call_files_one_http_trace_event_with_its_timings` and
+      `a_retried_call_is_one_http_event_carrying_its_attempt_count`.
+- [ ] **The `http` event carries nothing a trace may not hold, and a table-answered call files none** —
+      same record section, and the reply keeps no timing member.
+      `crates/nvs-runtime/src/ctx/trace.rs:78` is what a `TraceEvent` may hold; the existing case
+      `no_trace_span_or_error_message_carries_a_header_value` in
+      `crates/nvs-stdlib/src/http/transport.rs` is the shape to extend. Tests
+      `the_http_trace_event_carries_no_query_string_header_value_or_body` and
+      `a_call_the_table_answered_files_no_http_event`.
 
 ## Backlog
 
-- `a_slow_lookup_leaves_the_core_free_for_another_task` — stage 12's fifth stdlib test, unwritten;
-  it needs a resolver a test can make slow, which the seam `install_resolver` already is
-  (`docs/agent/loop-goal.toml:9656`).
-- `[context] rules` in `docs/agent/loop-goal.toml` does not name
-  `http-server/an-outbound-call-tries-every-approved-address`, which is the rule stage 12 is
-  written against — the pack printed six others and not it, and this session read it by hand.
-- Stage 13, the `http` trace event (`docs/agent/loop-goal.toml:9668`).
-- The `nvs/rest` package and OAuth stay unscheduled ([carried-gaps.md](carried-gaps.md)).
+- Stage 14 is the rulebook tail: three `tools/rules.py --show … shipped` checks —
+  `docs/agent/loop-goal.toml:9684`.
+- `Core\Mail` still connects to one resolved address (`crates/nvs-stdlib/src/mail.rs:715`), which this
+  goal does not cover — `rule:http-server/an-outbound-call-tries-every-approved-address` is HTTP's.
+- `Core\Http\Target` keeps no members, and nothing in stage 12 changes that —
+  `rule:http-server/allow-url-pins-the-address`.
+- The REST package, OAuth, HTTP/2 and a resolver of Novis's own stay out —
+  `docs/agent/loop-goal.md` § *Standing decisions*.
