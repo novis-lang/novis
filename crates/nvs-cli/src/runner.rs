@@ -80,11 +80,19 @@
 //! and `::map` return with nothing still running — so the only way to fail
 //! this is a `spawn script` the test never awaited.
 //!
-//! # What is owed
+//! # Known gaps
 //!
-//! § 2's parallelism is not built: the isolates are made and joined one at a
-//! time, which is a scheduling question rather than an isolation one. A
-//! constructor that declares parameters is
+//! 1. **§ 2's parallelism is not built: the isolates are made and joined one
+//!    at a time.** `docs/decisions/0079.md:158` makes an isolate per test
+//!    *and* the suite parallel, and that record's milestone table carries
+//!    both to M5 (`docs/decisions/0079.md:872`). Only the second half is
+//!    open, and it is a scheduling question rather than an isolation one:
+//!    every test already runs in an isolate of its own.
+//!    — owner: m5-proofs
+//!
+//! # What a constructor, a fixture and class order do
+//!
+//! A constructor that declares parameters is
 //! reported as that test failing rather than pretended past
 //! (`nvs_runtime::construct_and_call`): § 7 makes the constructor `setUp` and
 //! §§ 8-9 fill the test method's own parameters, which [`build_fixtures`]

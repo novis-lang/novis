@@ -108,6 +108,14 @@
 //!    Decided: No: state it in the embedding contract and assert it when a Ctx is built — One
 //!    assertion; the silent non-match becomes impossible.
 //!    — owner: unowned-closures
+//! 3. **A synthetic request carries no headers and no body.** § 18's worked
+//!    example passes a `{headers: ...}` bag, and its second paragraph says
+//!    the body and parameters arrive `tainted` exactly as a real request's
+//!    would — true of the path's query, which crosses on the carrier, and
+//!    vacuous for the other two, which have no spelling to arrive through.
+//!    The bag wants a `nvs_runtime::RequestBody` over held bytes, which
+//!    nothing in this crate builds.
+//!    — owner: m7-server-surface
 //!
 //! # What these members do with a qualifier
 //!
@@ -135,20 +143,12 @@
 //!   call uses is `Core\Test\Failure::class`, which folds to a constant, so a
 //!   qualified argument does not arise in practice either.
 //!
-//! # § 18's in-process request, and what of it is still owed
+//! # § 18's in-process request
 //!
 //! `request` runs a synthetic request through the program under test with no
 //! socket and no port, and [`RESPONSE`]'s two accessors are what it answers
 //! with. The mechanism is [`nvs_runtime::inproc`]'s and that module's doc is
-//! the one home of it; what is recorded here is the gap.
-//!
-//! **A synthetic request carries no headers and no body yet.** § 18's worked
-//! example passes a `{headers: ...}` bag, and its second paragraph says the
-//! body and parameters arrive `tainted` exactly as a real request's would —
-//! true of the path's query, which crosses on the carrier, and vacuous for the
-//! other two, which have no spelling to arrive through. The bag is the next
-//! slice's; a body needs a `nvs_runtime::RequestBody` over held bytes, which
-//! nothing in this crate builds today.
+//! the one home of it. What the request carries is the block above's gap 3.
 //!
 //! **`#[Test(server: true)]` is a separate mechanism, and this class holds one
 //! word of it.** § 18 justifies the two as answering measurably different
