@@ -791,13 +791,17 @@ pub(crate) fn granting_snapshot() -> nvs_config::Snapshot {
         net: Some(nvs_config::tree::CapNet {
             connect: Some(nvs_config::tree::Setting::List(vec!["127.0.0.1".into()])),
             internal: Some(nvs_config::tree::Setting::List(vec!["127.0.0.1".into()])),
-            // Neither of the other two grants is one `connect` implies, and neither is
-            // asked here (`rule:security/net-listen-is-a-separate-grant-from-net-connect`):
-            // the ephemeral listener is opened by the runner rather than by the program
-            // under test, so nothing in the fixture binds an endpoint, and a TCP listener
-            // has no socket path either way.
+            // None of the other grants is one `connect` implies, and none is asked here
+            // (`rule:security/net-listen-is-a-separate-grant-from-net-connect`): the
+            // ephemeral listener is opened by the runner rather than by the program under
+            // test, so nothing in the fixture binds an endpoint, a TCP listener has no
+            // socket path either way, the fixture reaches an address it wrote itself
+            // rather than one it named with `connectTo`, and it follows no redirect at all
+            // — least of all one down to plaintext.
             listen: None,
             local: None,
+            connect_to: None,
+            downgrade: None,
         }),
         ..nvs_config::tree::Capabilities::default()
     });
