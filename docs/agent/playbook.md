@@ -4659,6 +4659,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   sentence, and changing only the advice half of one is enough to fail it. Grep
   `tests/conformance/` for a distinctive phrase of the message before you reword it rather than
   after the verify run. [until: reviewed 2026-09-13]
+- **An all-`null` argument array in a `Core\Http\Client` test writes a body.** `[Value::null();
+  REQUEST_ARITY]` leaves the `json` slot holding `Tag::Null`, and that key omits as
+  `Const::NeverWritten`, so `judge_verb` refuses the call as a `GET` carrying a body before the case
+  reaches the thing it is about. Write `args[JSON] = Value::unset()` in any request test that is not
+  about the body. [until: gone crates/nvs-stdlib/src/http.rs:Const::NeverWritten]
 
 ## Splitting a file that got too big
 

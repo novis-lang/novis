@@ -247,8 +247,17 @@ rules = [
 ]
 
 [context.stage.10]
-# A relaxation is a grant with a scope, asked of the request's snapshot, over the one client.
-rules = ["security/one-tls-client", "security/capability-question-is-grant-and-scope"]
+# A relaxation is a grant with a scope, asked of the request's snapshot, over the one client. The rule
+# this stage executes is the third one: without it a session reads the option table out of the goal
+# prose instead. §11 is the same table with its argument, and the record's error split is the only home
+# of the class each of these throws.
+rules = [
+  "security/one-tls-client",
+  "security/capability-question-is-grant-and-scope",
+  "security/tls-trust-is-relaxed-only-under-a-host-grant",
+  "security/denial-is-a-runtime-error",
+]
+adrs = ["0180 §11", "0180 §Diagnostics"]
 shapes = ["A `Core` member"]
 
 [context.stage.11]
