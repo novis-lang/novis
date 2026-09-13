@@ -1405,6 +1405,8 @@ const SOCKET_IDLE: usize = 12;
 /// See [`SOCKET_PROTOCOLS`].
 const SOCKET_MAX_DURATION: usize = 13;
 /// See [`SOCKET_PROTOCOLS`].
+const SOCKET_MAX_MESSAGE: usize = 14;
+/// See [`SOCKET_PROTOCOLS`].
 const SOCKET_SEND_TIMEOUT: usize = 15;
 /// See [`SOCKET_PROTOCOLS`].
 const SOCKET_PING: usize = 16;
@@ -1514,6 +1516,12 @@ const DEFAULT_POOL_IDLE: usize = 16;
 /// is normally the side that closes — the side that cannot lose a request to
 /// the race.
 const DEFAULT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+/// See [`DEFAULT_DEADLINE`]. `[http.client.socket] max_message`'s shipped
+/// value, in octets: what `nvs_server::bounds` already applies to the inbound
+/// half of RFC 6455, because one process holding two opinions about the size of
+/// one message is how a program comes to work in one direction and not the
+/// other.
+const DEFAULT_MAX_MESSAGE: u64 = 4 << 20;
 
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, over `rule:security/outbound-url-is-a-sink`'s sink.
 ///
@@ -2855,6 +2863,55 @@ fn bound_of(
         .and_then(|config| config.get(directive))
         .and_then(|text| duration::parse(&text).ok())
         .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()));
+    Ok(configured.unwrap_or(fallback))
+}
+
+/// The octet cap the call wrote at `at`, then the directive, then `fallback` —
+/// [`bound_of`]'s three steps for a count rather than for a wait.
+///
+/// There is nothing to judge on the way through, which is the difference: a
+/// `uint` has no negative value and no infinite one, so what a call writes is
+/// the cap it gets and zero is a cap of zero rather than a spelling for
+/// unbounded — the same word `Core\Codec`'s `maxBytes` is one class over. A
+/// directive that will not read as a size falls through to `fallback` for
+/// [`bound_of`]'s reason: `nvs.toml` is refused where it is loaded, and a
+/// second refusal here would fail a request over a key the operator can no
+/// longer see.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot that is neither a `uint` nor `Tag::Null`,
+/// which the row's own type rules out.
+fn cap_of(
+    ctx: &Ctx,
+    args: &[Value],
+    at: usize,
+    option: &str,
+    directive: &str,
+    fallback: u64,
+) -> Result<u64, Fault> {
+    if let Some(written) = args
+        .get(at)
+        .filter(|held| !matches!(held.tag(), Some(Tag::Null)))
+    {
+        return written.as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "`{option}` expected {:?}, got tag {}",
+                Tag::Int,
+                written.tag_byte()
+            ))
+        });
+    }
+    let configured = ctx
+        .config()
+        .and_then(|config| config.get(directive))
+        .and_then(|text| {
+            let written = nvs_config::Setting::Text(text);
+            match nvs_config::Quantity::parse(directive, nvs_config::Unit::Bytes, &written) {
+                Ok(nvs_config::Quantity::Bytes(octets)) => Some(octets),
+                _ => None,
+            }
+        });
     Ok(configured.unwrap_or(fallback))
 }
 
@@ -4555,8 +4612,8 @@ mod tests {
         OPTIONS, REDIRECT_TO_HTTP, REDIRECT_TO_HTTP_OPTION, REQUEST_ARITY, REQUEST_BAG, RESPONSE,
         RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION, RETRY_BACKOFF, RETRY_KEY, RETRY_KEY_OPTION,
         SOCKET_ARITY, SOCKET_BAG, SOCKET_CONNECT_TIMEOUT, SOCKET_DEADLINE, SOCKET_HEADERS,
-        SOCKET_IDLE, SOCKET_MAX_DURATION, SOCKET_OPTIONS, SOCKET_PING, SOCKET_PROTOCOLS,
-        SOCKET_SEND_TIMEOUT, STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS, TARGET,
+        SOCKET_IDLE, SOCKET_MAX_DURATION, SOCKET_MAX_MESSAGE, SOCKET_OPTIONS, SOCKET_PING,
+        SOCKET_PROTOCOLS, SOCKET_SEND_TIMEOUT, STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS, TARGET,
         TARGET_ADDRESSES_SLOT, TARGET_URL_SLOT, TLS_CA_OPTION, TLS_MIN_VERSION_OPTION,
         TLS_PIN_OPTION, TLS_VERIFY_HOST_OPTION, TLS_VERIFY_OPTION,
     };
@@ -4909,6 +4966,7 @@ mod tests {
             (SOCKET_PROTOCOLS, "protocols"),
             (SOCKET_IDLE, "idle"),
             (SOCKET_MAX_DURATION, "maxDuration"),
+            (SOCKET_MAX_MESSAGE, "maxMessage"),
             (SOCKET_SEND_TIMEOUT, "sendTimeout"),
             (SOCKET_PING, "ping"),
         ] {

@@ -435,16 +435,25 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
         proxy: super::proxy_of(ctx),
     };
 
-    // `tungstenite`'s own bounds until § 7's are applied to it, which is what
-    // the `maxMessage` and the send wait this call already judged are for. Its
-    // defaults are finite in both directions, so nothing here is the unbounded
-    // spelling `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
-    // refuses.
-    let upgraded = transport::upgrade(
-        &call,
-        &offers(args),
-        tungstenite::protocol::WebSocketConfig::default(),
+    // The framing carries § 7's message cap rather than `tungstenite`'s own
+    // 64 MiB: how much of the opening task's memory a peer may make this
+    // process hold is the deployment's decision and then the program's, and a
+    // library default is neither. Every step of it is finite, so nothing here
+    // is the unbounded spelling
+    // `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` refuses.
+    // The send wait this call judged is not here: it bounds a write rather than
+    // the frames, so it belongs to the members that write.
+    let cap = super::cap_of(
+        ctx,
+        args,
+        SOCKET_MAX_MESSAGE,
+        "maxMessage",
+        "http.client.socket.max_message",
+        super::DEFAULT_MAX_MESSAGE,
     )?;
+    let framing = tungstenite::protocol::WebSocketConfig::default()
+        .max_message_size(Some(usize::try_from(cap).unwrap_or(usize::MAX)));
+    let upgraded = transport::upgrade(&call, &offers(args), framing)?;
     super::traced(ctx, &call);
     let protocol = upgraded.protocol.clone();
     Ok((
