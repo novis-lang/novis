@@ -4292,21 +4292,6 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 5 -- nothing a warm hit does changes an answer.
-# ---------------------------------------------------------------------------------------------------
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
-
-# ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: the owned root, the tracked list, the end-of-script sweep. 0131 §§ 2-3.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -4936,13 +4921,6 @@ name = "nvs ast --json emits the node shape"
 argv = ["{nvs}", "ast", "--json", "examples/hello.nvs"]
 want = ['"kind"', '"span"', '"children"']
 
-# A chapter edit that stops regenerating is how `docs/novis.md` goes quietly stale.
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- CATCH-UP. `rule:expressions/pipeline-substitution`'s three numbers were allocated elsewhere after it was written. The
 # registry is the allocator; the ADR's table moves. Goal prose stage 0.
@@ -5014,15 +4992,6 @@ kind = "nvs-suite"
 stage = "1 floor"
 name = "conformance (return in finally, a constructor's value, a readonly default)"
 args = ["test", "tests/conformance/reject/php86"]
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the reference follows, and the one new heading pays for itself. Goal prose stage 4.
-# ---------------------------------------------------------------------------------------------------
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
 
 # Scoped to the one heading this goal adds. The rest of the chapter's roster is the four-proofs
 # program's debt and is deliberately not imported here.
@@ -5150,15 +5119,6 @@ tests = [
   "a_full_reanalysis_of_a_thousand_lines_stays_under_the_bound",
 ]
 
-# ---------------------------------------------------------------------------------------------------
-# Stage 11 -- the reference chapter. Goal prose stage 11.
-# ---------------------------------------------------------------------------------------------------
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
-
 [[check]]
 kind = "command"
 stage = "1 floor"
@@ -5218,15 +5178,6 @@ cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "package"]
 memoize = true
 want = [".vsix"]
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 9 -- the reference chapter's last heading. Goal prose stage 9.
-# ---------------------------------------------------------------------------------------------------
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
 
 [[check]]
 kind = "command"
@@ -5389,14 +5340,6 @@ want = [
   "the declared content type is not consulted",
 ]
 
-# Two new members and a new hand-written page for `Core\Request`, so the one-file reference moves. It is
-# generated from `nvs meta --json` and never edited, which is what makes a stale card fail here.
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: one builder, one home. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
@@ -5495,12 +5438,6 @@ want = [
   "scheme is https",
   "host is example.test",
 ]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the signature, frozen. Goal prose stage 4.
@@ -5637,25 +5574,6 @@ want = [
   "an unnamed field was left behind",
   "two fields did not fit: age, city",
 ]
-
-[[check]]
-kind = "cargo-named"
-stage = "1 floor"
-name = "nvs-stdlib (the spec, the cards and the three-case floor)"
-args = ["test", "-p", "nvs-stdlib"]
-tests = [
-  "every_part_two_spec_member_is_registered",
-  "every_part_two_member_has_a_conformance_case",
-  "every_core_class_has_a_conformance_floor_of_three",
-  "every_registry_row_carries_a_reference_card",
-  "every_registry_rows_names_are_the_specs_signature_column",
-]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: `Parses` on the reserved roster. Goal prose stage 2.
@@ -5794,25 +5712,6 @@ tests = [
   "a_parses_capture_is_a_string_schema",
   "core_uuid_keeps_its_named_format_over_that_schema",
 ]
-
-[[check]]
-kind = "cargo-named"
-stage = "1 floor"
-name = "nvs-stdlib (the spec, the cards and the three-case floor)"
-args = ["test", "-p", "nvs-stdlib"]
-tests = [
-  "every_part_two_spec_member_is_registered",
-  "every_part_two_member_has_a_conformance_case",
-  "every_core_class_has_a_conformance_floor_of_three",
-  "every_registry_row_carries_a_reference_card",
-  "every_registry_rows_names_are_the_specs_signature_column",
-]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: the grant names the store, not a host. Goal prose stage 2.
@@ -5955,21 +5854,6 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 5 -- nothing a fan-out does changes an answer.
-# ---------------------------------------------------------------------------------------------------
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
-
-# ---------------------------------------------------------------------------------------------------
 # Stage 2 -- `Core\Net`, over the reactor and nothing else.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -6054,18 +5938,6 @@ tests = [
   "every_migration_member_row_names_a_registered_member",
 ]
 
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- `Core\Compress`, and the bound that cannot be switched off.
 # ---------------------------------------------------------------------------------------------------
@@ -6140,18 +6012,6 @@ args = ["test", "-p", "nvs-server"]
 tests = [
   "the_server_still_sets_no_content_encoding_of_its_own",
 ]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone. The three properties that must hold together: a cycle is refused where it
@@ -6291,12 +6151,6 @@ kind = "command"
 stage = "1 floor"
 name = "every generated chapter is current with the fragments and their topic entries"
 argv = ["python", "tools/rules.py", "--render", "--check"]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the record and the rulebook still agree on what this decision created"
-argv = ["python", "tools/decisions.py", "--gate"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- the catch-up. Two rules marked `designed` over surface the binary already ships, and one
@@ -6439,18 +6293,6 @@ stage = "1 floor"
 name = "the rulebook validates, and none of this goal's four rules is still designed"
 argv = ["python", "tools/rules.py", "--check"]
 
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "every generated chapter is current with the fragments and their topic entries"
-argv = ["python", "tools/rules.py", "--render", "--check"]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the record and the rulebook still agree on what this decision created"
-argv = ["python", "tools/decisions.py", "--gate"]
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the tree, and it is one node family. `rule:core-classes/html-parsing`.
 # ---------------------------------------------------------------------------------------------------
@@ -6528,18 +6370,6 @@ tests = [
   "every_migration_member_row_names_a_registered_member",
 ]
 
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the tool, derived and never copied.
 # ---------------------------------------------------------------------------------------------------
@@ -6596,21 +6426,6 @@ kind = "command"
 stage = "1 floor"
 name = "the orientation pack names the unowned count"
 argv = ["python", "tools/brief.py", "--where", "unowned"]
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 4 -- nothing a doc-comment pass does changes an answer.
-# ---------------------------------------------------------------------------------------------------
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- an options bag can tell omitted from written `null`. `rule:core-api/omission-is-not-a-written-null` is the rule; `rule:types/shape-type`
@@ -6700,18 +6515,6 @@ kind = "command"
 stage = "1 floor"
 name = "the unowned list holds only the open decision it should"
 argv = ["python", "tools/owners.py", "--unowned", "--check"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: `Core\Signature`, over a payload and never over text. `rule:core-api/signing-is-over-a-payload` section 1.
@@ -6820,18 +6623,6 @@ tests = [
   "every_outstanding_key_names_an_owner",
   "a_key_whose_member_is_now_registered_fails_as_a_stale_line",
 ]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: one node, and the production `as` already has. `rule:types/type-test`.
@@ -6942,18 +6733,6 @@ kind = "command"
 stage = "1 floor"
 name = "the `is` operator has a reference heading and a precedence row"
 argv = ["python", "tools/reference.py", "--check"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- one column, and the converge that carries it.
@@ -7093,18 +6872,6 @@ kind = "command"
 stage = "1 floor"
 name = "the two members have reference entries and the grant has a documented block"
 argv = ["python", "tools/reference.py", "--check"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the immediate transaction, and the claim on top of it. The keystone.
@@ -7352,30 +7119,6 @@ tests = [
   "a_served_process_with_workers_exits_within_its_deadline_once_the_drain_begins",
 ]
 
-[[check]]
-kind = "exact"
-stage = "1 floor"
-file = "examples/queue.nvs"
-want = [
-  "enqueued",
-  "claimed 1",
-  "ran",
-  "retried",
-  "dead-lettered",
-]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the conformance tree"
-args = ["test", "tests/conformance/"]
-
-[[check]]
-kind = "nvs-suite"
-stage = "1 floor"
-name = "the differential tree"
-args = ["test", "tests/differential/"]
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone. The table that turns a machine into an archive name, held to the workflow
 # that builds those archives. Rust rather than TypeScript because reading the workflow means a YAML
@@ -7404,25 +7147,6 @@ name = "vscode (headless, with the install suite)"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:headless"]
 want = ["grammar:", "contributions:", "protocol:", "install:", "0 failing"]
-
-# `install:` covers the tampered archive that must be refused with nothing left on disk, the series
-# selector against a release list spanning several of them, the three-candidate order with a managed
-# copy present, and the two commands being the only path to the network.
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 5 -- the reference chapter's install section. Goal prose stage 5.
-# ---------------------------------------------------------------------------------------------------
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the extension heading owes no proof"
-argv = ["python", "tools/dossier.py", "--only", "tools:editor/the-vs-code-extension", "--gate"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- the live defect a fix exists for. The `\` trigger's own defect is the same shape and is
@@ -7662,15 +7386,6 @@ want = [
   "forwards nothing at all when nvs.template.services is false",
   "0 failing",
 ]
-
-# ---------------------------------------------------------------------------------------------------
-# The reference chapter, which stops naming what this goal answered. Goal prose stages 3-6.
-# ---------------------------------------------------------------------------------------------------
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the one-file reference still regenerates from the binary"
-argv = ["python", "tools/reference.py", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- the three cases that say nothing notices. All red the day they are written; the CPU one
@@ -7962,21 +7677,6 @@ tests = [
   "nvs_init_writes_the_same_file_and_refuses_to_overwrite_one",
 ]
 
-# ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the records and the rulebook. Goal prose stage 4.
-# ---------------------------------------------------------------------------------------------------
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the rulebook validates, including the fragment this goal adds"
-argv = ["python", "tools/rules.py", "--check"]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "every record this goal opened is complete and cited"
-argv = ["python", "tools/decisions.py", "--gate"]
-
 [[check]]
 kind = "command"
 stage = "1 floor"
@@ -8198,18 +7898,6 @@ argv = ["python", "tools/rules.py", "--check"]
 [[check]]
 kind = "command"
 stage = "1 floor"
-name = "every record this goal opened is complete and cited"
-argv = ["python", "tools/decisions.py", "--gate"]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "no document in the tree still cites this goal's subject by ADR number"
-argv = ["python", "tools/check-links.py"]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
 name = "the generated reference carries the new members and classes"
 argv = ["python", "tools/reference.py", "--check"]
 
@@ -8342,18 +8030,6 @@ tests = [
   "every_part_two_spec_member_is_registered",
   "every_registry_rows_names_are_the_specs_signature_column",
 ]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "the rulebook validates, including the fragments this goal edits"
-argv = ["python", "tools/rules.py", "--check"]
-
-[[check]]
-kind = "command"
-stage = "1 floor"
-name = "every record this goal opened is complete and cited"
-argv = ["python", "tools/decisions.py", "--gate"]
 
 [[check]]
 kind = "command"

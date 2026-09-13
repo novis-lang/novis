@@ -17,8 +17,10 @@ stage, and inserts them into the new goal at its marker line:
 
     # <<< goal-switch: floor checks are inserted below this line >>>
 
-The one thing not carried is the previous switch's own marker and banner, which sit in the comment
-run above the live goal's first floor check: carried, they would stack one copy deeper per goal.
+Two things are not carried. The previous switch's own marker and banner sit in the comment run
+above the live goal's first floor check, and carried they would stack one copy deeper per goal. A
+check whose spec, once relabelled, equals one already in the floor is carried once: a goal names
+the conformance tree at every stage that leans on it, and at the floor stage those are one check.
 
 The `files` lists are unioned, since a floor whose fixtures are missing fails before anything is
 built. `[valgrind] skip` is unioned for the same reason. Everything else in the new goal -- its
@@ -35,6 +37,7 @@ against the result is what says whether the floor arrived.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 import tomllib
@@ -130,6 +133,27 @@ def unbannered(lines):
     return [*out, *lines[at:]]
 
 
+def dedupe(floor):
+    """The floor with each check carried once: a later block whose parsed spec equals an earlier
+    one's is dropped, comments and all.
+
+    Relabelling is what makes them equal. A goal names the conformance tree once per stage that
+    leans on it, and the goal before it already carried the same check at the floor stage; once
+    every copy reads `stage = "1 floor"` they are one check, and the driver files them under one
+    memo key. Left in, each switch carries every copy forward and the next goal adds its own, so
+    the count only ever grows. The first copy keeps its comment; a later one said why a goal that is
+    now behind the run leaned on the check, and the check is the same either way.
+    """
+    seen, out = set(), []
+    for block in floor:
+        key = json.dumps(tomllib.loads("\n".join(block))["check"][0], sort_keys=True)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(block)
+    return out
+
+
 def relabel(lines, stage):
     """Rewrite this block's `stage = "..."`, adding one if it had none.
 
@@ -218,7 +242,8 @@ def main():
     if MARKER not in new_text:
         return die(f"{new_path} has no marker line. Add it where the floor belongs:\n    {MARKER}")
 
-    floor = [relabel(unbannered(b), opts.stage) for b in check_blocks(live_text)]
+    every = [relabel(unbannered(b), opts.stage) for b in check_blocks(live_text)]
+    floor = dedupe(every)
     if not floor:
         return die(f"{live_path} holds no [[check]] block -- refusing to write an empty floor")
 
@@ -242,8 +267,10 @@ def main():
     out = new_text.replace(MARKER, MARKER + "\n\n" + body, 1)
 
     already = len(check_blocks(new_text))
+    dropped = len(every) - len(floor)
     print(f"goal-switch: {len(floor)} floor check(s) from {live_path.name} "
-          f"-> {new_path.name} (which already had {already})")
+          f"-> {new_path.name} (which already had {already})"
+          + (f"; {dropped} duplicate(s) carried once" if dropped else ""))
     for b in floor:
         def field(key, default="?"):
             for line in b:
