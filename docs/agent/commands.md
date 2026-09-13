@@ -362,7 +362,9 @@ commit subject that is not `type(scope): subject`, a handoff missing `## Next gr
 without a repo-rooted `crates/.../file.rs:NN` anchor (a bare `file.rs:NN` is refused too — `orient.py`
 expands only the rooted form, and only from the item), a status line that does not start
 `CONTINUE`/`DONE`/`BLOCKED`, a dead link — in a body the wrap is about to write, or anywhere in the tree
-where it resolved at HEAD and no longer does — all refuse the whole file and write nothing. A
+where it resolved at HEAD and no longer does — and a `rule:` citation in a body that names no rule, which
+is how a placeholder id reaches `git log` and turns the goal's rulebook floor red — all refuse the whole
+file and write nothing. A
 half-finished tail is the one failure mode worth designing out.
 
 The link half is `check-links.py`, which is CI's `docs` job and which `verify.py` does not run, so a

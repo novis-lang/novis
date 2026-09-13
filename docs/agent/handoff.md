@@ -9,10 +9,12 @@
 and `python tools/rules.py --render` has rewritten `docs/rules/concurrency.md` and
 `docs/ground-rules.md`.
 
-**The `1 floor` rulebook check was red for a reason that was not the statuses.** A playbook bullet cited
-`rule:topic/slug` as a placeholder and `rules.py --check` resolves every citation under `docs/`; the
-bullet now cites a real rule and the check is clean over 22 topics and 980 rules. The trap is in the
-playbook under *Tooling*.
+**The `1 floor` rulebook check was red for a reason that was not the statuses.** A playbook bullet
+carried a placeholder citation — `rule:` followed by a made-up topic and slug — and `rules.py --check`
+resolves every citation under `docs/`, so the bullet that then described the trap, and the handoff that
+pointed at it, re-introduced the token the moment the wrap wrote them. Both now describe the token in
+words, the check is clean, and `session.py --wrap` refuses a wrap body that carries one, which is the
+last moment the body is still only in the wrap file. The trap is in the playbook under *Tooling*.
 
 **What the goal being met rests on in-session:** `python tools/rules.py --check` clean, `python
 tools/verify.py` 11 of 11 green (1864 conformance, 276 differential, 4381 unit), and `python
