@@ -145,16 +145,19 @@
 //! runs this suite rather than skipping it
 //! ([docs/setup.md](/docs/setup.md)).
 //!
-//! ## What is parsed but not yet honoured
+//! ## Known gaps
 //!
-//! `--INI--` parses — that is what keeps the M11 importer mechanical — but
-//! nothing can act on it: the section is recorded as unsupported (`case`'s
-//! `NOT_YET` roster) and a case that uses it is reported as a **failure**
-//! naming the reason, never run-and-half-ignored. What is missing is not the
-//! configuration, which is read, but anything that turns an INI key into the
-//! configuration a case's program runs under — so the reason `NOT_YET` prints
-//! names a milestone that has since walked, and is the string that changes
-//! with it.
+//! 1. **`--INI--` parses and nothing can act on it.** Parsing it is what keeps
+//!    the M11 importer mechanical; the section is recorded as unsupported
+//!    (`case`'s `NOT_YET` roster) and a case that uses it is reported as a
+//!    **failure** naming the reason, never run-and-half-ignored. What is
+//!    missing is not the configuration, which is read, but anything that turns
+//!    an INI key into the configuration a case's program runs under — and the
+//!    reason `NOT_YET` prints still names M6, a milestone that has since
+//!    walked, so that string changes with it.
+//!    — owner: M11
+//!
+//! ## What the request sections change
 //!
 //! The seven request sections **are** honoured, and they are the one thing in
 //! this format that changes what the program under test *is*: a case writing
