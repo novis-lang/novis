@@ -21579,7 +21579,7 @@ Opens the secret stored under `$key` against every key of `$keys`, or answers `n
 
 **Returns** `?secret string` — The secret, or `null`. A sealed entry that opens under no key of this ring, or whose own expiry has passed, is a miss like any other — never an error, so a rotated ring re-fetches rather than failing. A plain `get` on the same name is a miss too: the sealed door is the only door.
 
-**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length — `putSecret`'s refusal, unchanged.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null`, as it is on `get`.
+**Throws** `LogicError` — `$keys` is empty, or an entry of it is not a key of the construction's length — `putSecret`'s refusal, unchanged. Also a `fill` that asks for the key it is filling, which would be a wait on itself.; `TimeoutError` — Another caller in this process was still running `fill` when this call's `wait` was up, which defaults to `[cache.process] fill_wait`.; `IOError` — On the shared tier only: the store cannot be reached. An entry that is simply not there is `null`, as it is on `get`.
 
 <a id="core-core-cache-secretentry"></a>
 ### `Core\Cache\SecretEntry`

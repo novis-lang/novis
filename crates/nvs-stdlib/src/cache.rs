@@ -163,7 +163,7 @@ use std::collections::{HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::net::SocketAddr;
 use std::rc::Rc;
-use std::sync::{Arc, LazyLock, RwLock};
+use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use nvs_config::capability::{Cap, Scope};
@@ -647,7 +647,13 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "LogicError",
             desc: "`$keys` is empty, or an entry of it is not a key of the construction's length — \
-                   `putSecret`'s refusal, unchanged.",
+                   `putSecret`'s refusal, unchanged. Also a `fill` that asks for the key it is \
+                   filling, which would be a wait on itself.",
+        },
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "Another caller in this process was still running `fill` when this call's \
+                   `wait` was up, which defaults to `[cache.process] fill_wait`.",
         },
         ErrorDoc {
             error: "IOError",
@@ -1198,13 +1204,6 @@ fn process_cap(ctx: &Ctx) -> Option<usize> {
 /// [`crate::time::nanos_of`]'s fatal for a slot holding neither a duration nor
 /// the `null` [`GET_SECRET_OPTIONS`] defaults it to, which the option's own
 /// declared type has already refused at the call site.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the fill table that waits on this bound is the next slice"
-    )
-)]
 fn wait_of(ctx: &Ctx, args: &[Value], at: usize, member: &str) -> Result<Duration, Fault> {
     if let Some(held) = args.get(at)
         && !matches!(held.tag(), Some(Tag::Null))
@@ -1219,6 +1218,162 @@ fn wait_of(ctx: &Ctx, args: &[Value], at: usize, member: &str) -> Result<Duratio
         Some(Quantity::Nanos(nanos)) if nanos > 0 => Duration::from_nanos(nanos),
         _ => DEFAULT_FILL_WAIT,
     })
+}
+
+/// How often a caller waiting on somebody else's `fill` looks at the table
+/// again.
+///
+/// A look on a tick rather than a wake, because the caller it is waiting for is
+/// on another core and a `nvs_runtime::host::Waker` belongs to the one task that
+/// made it — there is nothing a table every core shares could hold that would
+/// reach across. `Core\Sse`'s cross-core tick is the same shape for the same
+/// reason, and both end the day a wake can cross cores.
+///
+/// **What it spends:** one wakeup per waiting caller per tick, for as long as a
+/// fill is in flight, and nothing at all on a hit. The number trades priority 3
+/// against itself — a shorter tick buys the waiters' latency with wakeups —
+/// against a fetch that is an outbound request and so is measured in tens of
+/// milliseconds at best.
+const FILL_TICK: Duration = Duration::from_millis(10);
+
+/// The fills this process is running at this moment: one entry per key being
+/// filled, holding the address of the [`Ctx`] whose call is filling it.
+///
+/// One table for every tier, keyed as [`scoped`] keys the process tier, because
+/// what `rule:concurrency/a-secret-fill-runs-once-per-process` elects is one
+/// caller per **process** per name: a second fetch of the same secret is the
+/// cost the election exists to remove, whichever store the answer is written
+/// to. It is not once per fleet, which is a lease over the shared tier and
+/// nothing this key spells.
+///
+/// The owner is an address rather than a task or a thread identity because it
+/// answers one question: whether the caller now asking is the very call that is
+/// filling, which is a `fill` asking for its own key and so a wait on itself. A
+/// context is alive for as long as the call holding the key is, so an entry
+/// never names a freed one, and two requests sharing a core hold two contexts.
+///
+/// **What it spends:** one key and one machine word per fill in flight, on the
+/// detached balance — O(concurrent fills), and nothing between them.
+static FILLS: LazyLock<Mutex<HashMap<Vec<u8>, usize>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// One caller's hold on a key for as long as it is filling it.
+///
+/// A guard rather than a pair of calls because **every** ending has to release:
+/// a `fill` that throws, a request cancelled while it fetched and the ordinary
+/// answer alike leave the key to the next caller rather than wedging it for the
+/// life of the process.
+struct Filling {
+    /// The table key this hold was taken under, which is this frame's own
+    /// allocation — the table's copy is [`elected`]'s, made and freed on the
+    /// process's balance.
+    key: Vec<u8>,
+}
+
+impl Drop for Filling {
+    fn drop(&mut self) {
+        // The entry the table holds is the process's, so its release lands on
+        // the balance the claim moved —
+        // `rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`'s
+        // symmetry, owed here exactly as [`process_put`] owes it. This frame's
+        // own copy of the key is freed after the bracket, where it was
+        // allocated.
+        let _bracket = budget::Detached::begin();
+        FILLS
+            .lock()
+            .expect("the fill table's lock is never poisoned")
+            .remove(&self.key);
+    }
+}
+
+/// Elects this call as the one caller in the process that fills `key`, or
+/// answers `None` for a key another call is already filling.
+///
+/// # Errors
+///
+/// A `LogicError` when the call already holding `key` is this one, which is a
+/// `fill` asking for the key it is filling. Waiting would be a wait on itself,
+/// so it is said here rather than discovered when the bound runs out.
+fn elected(ctx: &Ctx, key: &[u8], who: &str) -> Result<Option<Filling>, Fault> {
+    let mine = std::ptr::from_ref(ctx).addr();
+    let mut fills = FILLS
+        .lock()
+        .expect("the fill table's lock is never poisoned");
+    match fills.get(key) {
+        Some(&owner) if owner == mine => Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{who}: this call's `fill` asked for the key it is filling, which would be a \
+                 wait on itself"
+            ),
+        )),
+        Some(_) => Ok(None),
+        None => {
+            {
+                let _bracket = budget::Detached::begin();
+                fills.insert(key.to_vec(), mine);
+            }
+            Ok(Some(Filling { key: key.to_vec() }))
+        }
+    }
+}
+
+/// Waits for whichever call holds `key` to be done with it and then answers
+/// what `look` finds, for at most `wait`.
+///
+/// The state this waits on is another core's, so it is looked at on a
+/// [`FILL_TICK`] rather than woken, and the park is where the core goes back to
+/// its neighbours. The clock is what ends the wait: a waiter is released with
+/// whatever the filler left, which is the value on the ordinary path and
+/// nothing at all where the `fill` threw —
+/// `rule:concurrency/a-secret-fill-runs-once-per-process` makes that a miss for
+/// this caller rather than another request's failure crossing into it.
+///
+/// # Errors
+///
+/// A thrown `TimeoutError` for a fill still running when `wait` was up, which
+/// is `rule:http-server/no-spelling-for-an-unbounded-wait`'s ending one class
+/// over: the caller gets its request back rather than the core standing still
+/// for as long as somebody else's fetch takes. Whatever `look` answers with,
+/// and [`Ctx::cancel`]'s status for a request cancelled while it waited, which
+/// no `catch` sees.
+fn waited<T>(
+    ctx: &mut Ctx,
+    key: &[u8],
+    wait: Duration,
+    who: &str,
+    look: impl FnOnce(&mut Ctx) -> Result<T, Fault>,
+) -> Result<T, Fault> {
+    let until = Instant::now() + wait;
+    loop {
+        let filling = FILLS
+            .lock()
+            .expect("the fill table's lock is never poisoned")
+            .contains_key(key);
+        if !filling {
+            return look(ctx);
+        }
+        let now = Instant::now();
+        if now >= until {
+            return Err(Fault::thrown_as(
+                ThrownClass::Timeout,
+                format!(
+                    "{who}: another request in this process is still supplying this key, and \
+                     this call's `wait` of {wait:?} is up"
+                ),
+            ));
+        }
+        let tick = until.min(now + FILL_TICK);
+        match nvs_runtime::host::with_current(|host| host.park(Some(tick))) {
+            Some(nvs_runtime::host::Woken::Cancelled) => return Err(ctx.cancel()),
+            Some(_) => {}
+            // No scheduler on this thread at all, which is a `nvs run` and a
+            // `#[test]`: there is no core here to give back, so the wait is the
+            // sleep `nvs_host::timer::park_until` performs off a core for the
+            // same reason.
+            None => std::thread::sleep(tick.saturating_duration_since(Instant::now())),
+        }
+    }
 }
 
 /// The key an entry is really held under: the `[[app]]` it was written for and
@@ -1335,31 +1490,274 @@ fn bound(app: &[u8], key: &[u8]) -> Vec<u8> {
 /// How wide the expiry written ahead of a sealed value is.
 const EXPIRY_LEN: usize = 8;
 
+/// How wide the lifetime written after it is.
+const LIFETIME_LEN: usize = 8;
+
+/// What fraction of a lifetime the refresh-ahead window is — the last fifth,
+/// fixed in [ADR 0181](/docs/decisions/0181.md).
+///
+/// A fraction rather than a duration because the tier does not know what a
+/// lifetime means to its caller: a fifth of a minute and a fifth of a day are
+/// both "nearly over" to whoever wrote them.
+const REFRESH_WINDOW: i64 = 5;
+
+/// What an opened seal holds: the secret, and whether it is inside the last
+/// fifth of the lifetime it was written for.
+///
+/// One shape for both readings of that pair, where `T` is the secret's bytes
+/// while the plaintext is still borrowed and the `string` value a member hands
+/// back once it is not — so the flag cannot come to mean one thing in
+/// [`sealed_value`] and another in [`opened`].
+struct Held<T> {
+    /// The secret itself.
+    value: T,
+    /// Whether a `fill` written beside this read replaces the entry now, which
+    /// is `rule:concurrency/a-secret-fill-runs-once-per-process`'s refresh
+    /// ahead of an expiry: the entry is still answered to every caller, and
+    /// exactly one of them fetches its replacement.
+    refreshing: bool,
+}
+
 /// The plaintext a sealed entry holds: when the secret stops being readable,
-/// and the secret.
+/// how long it was given, and the secret.
 ///
 /// Milliseconds since the epoch, big-endian, because the reading has to survive
 /// the shared tier — a monotonic instant means nothing in the process that
 /// reads it back, and [`Entry::until`]'s deadline is the writing core's own
 /// clock. The value is the rest of the buffer and carries no length of its own:
-/// the expiry is fixed-width, and the tag covers the whole of it.
-fn sealed_plaintext(expiry: i64, value: &[u8]) -> Vec<u8> {
-    let mut plain = Vec::with_capacity(EXPIRY_LEN + value.len());
+/// both numbers are fixed-width, and the tag covers the whole of it.
+///
+/// **The lifetime is sealed in beside the expiry** because [`REFRESH_WINDOW`]
+/// is a fraction of it and there is nowhere else to read it from: the shared
+/// tier keeps no deadline this process can see, and a tier's own lifetime is
+/// what an operator may have copied the entry forward under.
+fn sealed_plaintext(expiry: i64, lifetime: i64, value: &[u8]) -> Vec<u8> {
+    let mut plain = Vec::with_capacity(EXPIRY_LEN + LIFETIME_LEN + value.len());
     plain.extend_from_slice(&expiry.to_be_bytes());
+    plain.extend_from_slice(&lifetime.to_be_bytes());
     plain.extend_from_slice(value);
     plain
 }
 
-/// The secret inside an opened entry, or `None` for one whose sealed expiry has
-/// passed at `now`.
+/// What an opened entry holds at `now`, or `None` for one whose sealed expiry
+/// has passed.
 ///
 /// **Whatever the store says.** A tier slow to forget an entry, and one an
 /// operator copied forward under a longer store lifetime, both answer a miss
 /// here: the expiry the secret was sealed with is the one that decides, and it
 /// is under the tag rather than beside it.
-fn sealed_value(plain: &[u8], now: i64) -> Option<&[u8]> {
-    let (expiry, value) = plain.split_first_chunk::<EXPIRY_LEN>()?;
-    (now < i64::from_be_bytes(*expiry)).then_some(value)
+///
+/// A buffer too short to carry both numbers is that same miss, which is what
+/// keeps a truncated payload from being read as a secret.
+fn sealed_value(plain: &[u8], now: i64) -> Option<Held<&[u8]>> {
+    let (expiry, rest) = plain.split_first_chunk::<EXPIRY_LEN>()?;
+    let (lifetime, value) = rest.split_first_chunk::<LIFETIME_LEN>()?;
+
+    let expiry = i64::from_be_bytes(*expiry);
+    if now >= expiry {
+        return None;
+    }
+    Some(Held {
+        value,
+        refreshing: expiry.saturating_sub(now) <= i64::from_be_bytes(*lifetime) / REFRESH_WINDOW,
+    })
+}
+
+/// What every step of one sealed operation holds in common: which tier it is
+/// over, the name the entry is under, the ring it seals or opens against, and
+/// the two spellings of the member a refusal names.
+///
+/// One shape rather than the same five arguments threaded through each step, so
+/// that a step cannot be handed one member's ring under another member's name.
+struct Sealing<'a> {
+    /// Which tier this operation is over.
+    tier: Tier,
+    /// The name the program wrote, which [`sealed_key`] turns into the one the
+    /// entry is stored under and [`bound`] seals in.
+    key: &'a [u8],
+    /// The ring, newest first.
+    ring: &'a nvs_runtime::NvsArray,
+    /// The member as the registry names it, for [`on_shared`]'s refusals.
+    member: &'a str,
+    /// The member as a refusal spells it, which is `Class::member`.
+    who: &'a str,
+}
+
+/// Seals `value` under the ring's newest key and writes it to the tier under
+/// the sealed name, for the lifetime `nanos` names.
+///
+/// One writer for both doors — the `putSecret` a program writes and the `fill`
+/// `getSecret` runs — so that what a fill leaves behind is the entry the other
+/// door would have written: the same seal, the same [`bound`] it may not be
+/// moved away from, and the same lifetime written twice for
+/// [`nvs_core_cache_put_secret`]'s reason.
+///
+/// # Errors
+///
+/// [`crate::keyring`]'s `LogicError` for a ring whose newest entry is not a
+/// key, and a thrown `IOError` on the shared tier for a store that cannot be
+/// reached or that refuses the write.
+fn seal_and_store(ctx: &mut Ctx, at: &Sealing<'_>, value: &[u8], nanos: i64) -> Result<(), Fault> {
+    let &Sealing {
+        tier,
+        key,
+        ring,
+        member,
+        who,
+    } = at;
+    let (slot, held) = crate::keyring::newest(ring);
+    let cipher = crate::keyring::cipher_at(&held, slot, who)?;
+
+    // Rounded up rather than down, so that a lifetime shorter than this
+    // clock's resolution is still a lifetime: an entry whose sealed expiry
+    // had passed before the write would be a miss no program could account
+    // for. A zero stays zero, which is the lifetime that is already over.
+    let ttl = nanos.max(0).saturating_add(999_999) / 1_000_000;
+    let expiry = clock_ms(ctx, member)?.saturating_add(ttl);
+    let aad = bound(application(ctx), key);
+    let plain = sealed_plaintext(expiry, ttl, value);
+    let sealed = crate::crypto::seal_under(ctx, &cipher, &aad, &plain, who)?;
+
+    let stored = sealed_key(key);
+    let lifetime = Lifetime::of(nanos);
+    match tier {
+        Tier::Local => store_put(&stored, sealed, lifetime, local_cap(ctx)),
+        Tier::Process => {
+            process_put(&scoped(ctx, &stored), sealed, lifetime, process_cap(ctx));
+        }
+        // [`nvs_core_cache_put`]'s three commands, unchanged: the store keeps
+        // its own clock, so it is told a length of time, and a lifetime already
+        // over leaves it in the state the in-process tiers are left in.
+        Tier::Shared => on_shared(STORE_NAME, member, |open| {
+            if lifetime.elapsed() {
+                return open.del(&stored);
+            }
+            match lifetime {
+                Lifetime::Forever => open.set(&stored, &sealed),
+                Lifetime::For(ttl) => open.set_expiring(&stored, &sealed, ttl),
+            }
+        })?,
+    }
+    Ok(())
+}
+
+/// The secret `tier` holds under `key`, or `None` for every way of not opening
+/// one.
+///
+/// **Every way of not opening is the same miss**, and never an error: a ring
+/// that has rotated past the key this entry was sealed under, an entry moved to
+/// another name or lifted into another application, a tampered payload, and one
+/// past its sealed expiry all answer `None`. A caller that could tell them apart
+/// would learn something about the ring from an entry it cannot read, and a
+/// rotated ring is meant to re-fetch rather than fail. A ring that is wrong in
+/// itself is a different thing and throws.
+///
+/// Every key of the ring is tried rather than the newest alone, which is
+/// `Core\SignedCookie`'s walk and buys the same thing: an entry written before a
+/// rotation stays readable until it expires on its own.
+///
+/// # Errors
+///
+/// [`crate::keyring`]'s `LogicError` for an entry of the ring that is not a key,
+/// and a thrown `IOError` on the shared tier for a store that cannot be reached.
+fn opened(ctx: &Ctx, at: &Sealing<'_>) -> Result<Option<Held<Value>>, Fault> {
+    let &Sealing {
+        tier,
+        key,
+        ring,
+        member,
+        who,
+    } = at;
+    let stored = sealed_key(key);
+    let held = match tier {
+        Tier::Local => store_get(&stored),
+        Tier::Process => process_get(&scoped(ctx, &stored)),
+        Tier::Shared => on_shared(STORE_NAME, member, |open| open.get(&stored))?,
+    };
+    let Some(sealed) = held else {
+        return Ok(None);
+    };
+
+    let aad = bound(application(ctx), key);
+    let now = clock_ms(ctx, member)?;
+    for (slot, entry) in crate::keyring::entries(ring) {
+        let cipher = crate::keyring::cipher_at(&entry, slot, who)?;
+        if let Some(plain) = crate::crypto::open_under(&cipher, &aad, &sealed, who)?
+            && let Some(held) = sealed_value(&plain, now)
+        {
+            return Ok(Some(Held {
+                value: Value::str(NvsStr::new(held.value)),
+                refreshing: held.refreshing,
+            }));
+        }
+    }
+    Ok(None)
+}
+
+/// Runs `fill` as the one caller in this process filling `key`, storing what it
+/// answers and handing the secret back — or `None` for a key another call is
+/// already filling.
+///
+/// The hold is released by its own `Drop` whichever way this ends, and it is
+/// released **after** the entry is written: a waiter let go a step earlier
+/// would look at a store the fill had not reached yet.
+///
+/// # Errors
+///
+/// [`elected`]'s `LogicError` for a `fill` that asked for the key it is
+/// filling, whatever the `fill` itself threw — which reaches the request that
+/// ran it and no other — and [`supplied`]'s.
+fn filled(
+    ctx: &mut Ctx,
+    at: &Sealing<'_>,
+    filling: &[u8],
+    fill: Value,
+) -> Result<Option<Value>, Fault> {
+    let Some(_held) = elected(ctx, filling, at.who)? else {
+        return Ok(None);
+    };
+    let entry = nvs_runtime::call_closure(ctx, fill, &[])?;
+    let answered = supplied(ctx, at, entry);
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` hands back a value this frame owns, and the \
+                  entry is never handed on -- what leaves here is the secret it \
+                  carried"
+    )]
+    unsafe {
+        entry.release();
+    }
+    answered.map(Some)
+}
+
+/// Stores what a `fill` answered and hands its secret back to the caller that
+/// ran it.
+///
+/// The entry is read rather than kept: what a program holds afterwards is the
+/// secret, and the object it arrived in is this frame's to release. The
+/// lifetime is the one the fetch learned, a token endpoint being the authority
+/// on how long its own token stays good.
+///
+/// # Errors
+///
+/// [`seal_and_store`]'s, and a [`Fault::fatal`] for an entry whose value slot is
+/// not text — the row declares the closure answers a
+/// `Core\Cache\SecretEntry`, so that is compiled code's bug rather than
+/// anything a program can write.
+fn supplied(ctx: &mut Ctx, at: &Sealing<'_>, entry: Value) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(entry, &SECRET_ENTRY, at.member)?;
+    let held = crate::instance::slot(receiver, 0);
+    let nanos = crate::instance::slot(receiver, 1).as_int().unwrap_or(0);
+    let Some(value) = held.as_text() else {
+        return Err(Fault::fatal(format!(
+            "{} expected a `string` from its `fill`, got tag {}",
+            at.who,
+            held.tag_byte()
+        )));
+    };
+
+    seal_and_store(ctx, at, value.as_bytes(), nanos)?;
+    Ok(Value::str(NvsStr::new(value.as_bytes())))
 }
 
 /// The wall clock this request reads, in milliseconds since the epoch.
@@ -2027,40 +2425,15 @@ nvs_runtime::nvs_helper! {
 
         let who = format!("{STORE_NAME}::putSecret");
         let ring = crate::keyring::borrow(args, 4, &who)?;
-        let (slot, held) = crate::keyring::newest(&ring);
-        let cipher = crate::keyring::cipher_at(&held, slot, &who)?;
 
-        // Rounded up rather than down, so that a lifetime shorter than this
-        // clock's resolution is still a lifetime: an entry whose sealed expiry
-        // had passed before the write would be a miss no program could account
-        // for. A zero stays zero, which is the lifetime that is already over.
-        let expiry = clock_ms(ctx, "putSecret")?
-            .saturating_add(nanos.max(0).saturating_add(999_999) / 1_000_000);
-        let aad = bound(application(ctx), &key);
-        let plain = sealed_plaintext(expiry, value.as_bytes());
-        let sealed = crate::crypto::seal_under(ctx, &cipher, &aad, &plain, &who)?;
-
-        let stored = sealed_key(&key);
-        let lifetime = Lifetime::of(nanos);
-        match tier {
-            Tier::Local => store_put(&stored, sealed, lifetime, local_cap(ctx)),
-            Tier::Process => {
-                process_put(&scoped(ctx, &stored), sealed, lifetime, process_cap(ctx));
-            }
-            // [`nvs_core_cache_put`]'s three commands, unchanged: the store
-            // keeps its own clock, so it is told a length of time, and a
-            // lifetime already over leaves it in the state the in-process
-            // tiers are left in.
-            Tier::Shared => on_shared(STORE_NAME, "putSecret", |open| {
-                if lifetime.elapsed() {
-                    return open.del(&stored);
-                }
-                match lifetime {
-                    Lifetime::Forever => open.set(&stored, &sealed),
-                    Lifetime::For(ttl) => open.set_expiring(&stored, &sealed, ttl),
-                }
-            })?,
-        }
+        let at = Sealing {
+            tier,
+            key: &key,
+            ring: &ring,
+            member: "putSecret",
+            who: &who,
+        };
+        seal_and_store(ctx, &at, value.as_bytes(), nanos)?;
         Ok(Value::null())
     }
 }
@@ -2070,29 +2443,34 @@ nvs_runtime::nvs_helper! {
     /// {fill?: callable(): Core\Cache\SecretEntry, wait?: Duration}): ?secret
     /// string` — [`nvs_core_cache_put_secret`]'s door in the other direction.
     ///
-    /// The bag's two slots are accepted and not read here. What a `fill` means
-    /// is the per-process table `rule:concurrency/a-secret-fill-runs-once-per-process`
-    /// specifies, which this body does not have, so a miss is a miss for every
-    /// caller alike and a program that writes one is answered as though it had
-    /// not.
+    /// [`opened`] is the read, and it is every caller's first step: a hit
+    /// outside its refresh window is answered without the fill table being
+    /// touched at all.
     ///
-    /// **Every way of not opening is the same miss**, and never an error: a
-    /// ring that has rotated past the key this entry was sealed under, an entry
-    /// moved to another name or lifted into another application, a tampered
-    /// payload, and one past its sealed expiry all answer `null`. A caller that
-    /// could tell them apart would learn something about the ring from an entry
-    /// it cannot read, and a rotated ring is meant to re-fetch rather than fail.
-    /// A ring that is wrong in itself is a different thing and throws.
+    /// **A miss with a `fill` written is supplied exactly once per process.**
+    /// [`elected`] chooses the one caller that runs it, in that caller's own
+    /// request and under its own capabilities; every other caller on every core
+    /// [`waited`]s for it, for at most the bound [`wait_of`] answers. What the
+    /// filler leaves behind is [`seal_and_store`]'s entry, which is the one
+    /// `putSecret` writes — so a waiter's second look is an ordinary read. A
+    /// miss with no `fill` is a miss, unchanged.
     ///
-    /// Every key of the ring is tried rather than the newest alone, which is
-    /// `Core\SignedCookie`'s walk and buys the same thing: an entry written
-    /// before a rotation stays readable until it expires on its own.
+    /// **An entry inside the last fifth of its lifetime is answered to every
+    /// caller** while exactly one of them runs the `fill` that replaces it, so
+    /// the expiry of a hot key costs nobody a wait: a caller that already has
+    /// the entry never waits here, and only the one that was elected pays the
+    /// fetch. [`Held::refreshing`] is that window, and a plain `get` past a
+    /// lifetime is simply absent — refresh-ahead is `getSecret`-with-a-`fill`
+    /// and nothing else.
     ///
     /// # Errors
     ///
     /// [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
-    /// something that is not a key, and a thrown `IOError` on the shared tier
-    /// for a store that cannot be reached.
+    /// something that is not a key, and [`elected`]'s for a `fill` that asked
+    /// for the key it is filling. [`waited`]'s `TimeoutError` for a fill still
+    /// running when this call's `wait` was up, and a thrown `IOError` on the
+    /// shared tier for a store that cannot be reached. What a `fill` itself
+    /// throws reaches the request that ran it and no other.
     fn nvs_core_cache_get_secret(ctx, args: [5]) {
         let tier = tier_of(args, "getSecret")?;
         let key = key_of(args, 1, "getSecret")?.as_bytes().to_vec();
@@ -2100,27 +2478,50 @@ nvs_runtime::nvs_helper! {
         let who = format!("{STORE_NAME}::getSecret");
         let ring = crate::keyring::borrow(args, 2, &who)?;
 
-        let stored = sealed_key(&key);
-        let held = match tier {
-            Tier::Local => store_get(&stored),
-            Tier::Process => process_get(&scoped(ctx, &stored)),
-            Tier::Shared => on_shared(STORE_NAME, "getSecret", |open| open.get(&stored))?,
+        let at = Sealing {
+            tier,
+            key: &key,
+            ring: &ring,
+            member: "getSecret",
+            who: &who,
         };
-        let Some(sealed) = held else {
-            return Ok(Value::null());
-        };
-
-        let aad = bound(application(ctx), &key);
-        let now = clock_ms(ctx, "getSecret")?;
-        for (slot, entry) in crate::keyring::entries(&ring) {
-            let cipher = crate::keyring::cipher_at(&entry, slot, &who)?;
-            if let Some(plain) = crate::crypto::open_under(&cipher, &aad, &sealed, &who)?
-                && let Some(value) = sealed_value(&plain, now)
-            {
-                return Ok(Value::str(NvsStr::new(value)));
-            }
+        let held = opened(ctx, &at)?;
+        let fill = args[3];
+        if matches!(fill.tag(), Some(Tag::Null)) {
+            return Ok(held.map_or_else(Value::null, |held| held.value));
         }
-        Ok(Value::null())
+        let filling = scoped(ctx, &sealed_key(&key));
+
+        let Some(held) = held else {
+            // Read before the election so that what this call waits for does
+            // not depend on which caller won it.
+            let wait = wait_of(ctx, args, 4, "getSecret")?;
+            if let Some(value) = filled(ctx, &at, &filling, fill)? {
+                return Ok(value);
+            }
+            return waited(ctx, &filling, wait, &who, |ctx| {
+                Ok(opened(ctx, &at)?.map_or_else(Value::null, |held| held.value))
+            });
+        };
+        if !held.refreshing {
+            return Ok(held.value);
+        }
+
+        let refreshed = filled(ctx, &at, &filling, fill);
+        if matches!(refreshed, Ok(None)) {
+            // Another caller is already replacing it, and this one is answered
+            // what is there rather than waiting for a value it already holds.
+            return Ok(held.value);
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the entry this frame opened is replaced by what the fill \
+                      answered, so the reference it built is never handed on"
+        )]
+        unsafe {
+            held.value.release();
+        }
+        refreshed.map(Option::unwrap_or_default)
     }
 }
 
@@ -2173,8 +2574,9 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use std::net::TcpListener;
-    use std::sync::{Arc, Mutex, mpsc};
-    use std::time::Duration;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::{Arc, Barrier, Mutex, mpsc};
+    use std::time::{Duration, Instant};
 
     use nvs_runtime::budget;
     use nvs_runtime::{Fault, ThrownClass};
@@ -2184,10 +2586,10 @@ mod tests {
     use super::{
         CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC,
         LOCAL_DOC, Lifetime, MAX_SIZE, PROCESS, PROCESS_DOC, PROCESS_FILL_WAIT, PROCESS_MAX_SIZE,
-        SHARDS, SHARED_DOC, Value, bound, charged, endpoint, local_cap, open_configured,
+        SHARDS, SHARED_DOC, Value, bound, charged, elected, endpoint, local_cap, open_configured,
         process_cap, process_forget, process_get, process_put, scoped, sealed_key,
         sealed_plaintext, sealed_value, shard_cap, shard_of, store_forget, store_get, store_put,
-        wait_of,
+        wait_of, waited,
     };
 
     /// Taken by every case that touches the process tier, first thing.
@@ -2828,6 +3230,248 @@ mod tests {
         );
     }
 
+    /// The member the fill table is reached through, which is what a case here
+    /// stands in for.
+    const FILLER: &str = "Core\\Cache\\Store::getSecret";
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: the election is
+    /// the whole of what makes a fill single-flight, so it is asserted where
+    /// every core reaches it at once rather than through one member's body.
+    ///
+    /// Two claims, because either alone passes a table that is not one. Exactly
+    /// **one** caller of the race holds the key — the barrier after the attempt
+    /// is what makes that a race rather than a queue, since no hold is released
+    /// until every core has asked. And every other caller is released only
+    /// *after* the holder was done with it, which the flag the filler sets
+    /// before it lets go is what a waiter reads.
+    #[test]
+    fn fill_runs_once_while_every_other_core_waits() {
+        const CORES: usize = 8;
+        let key = b"\0fills-once".to_vec();
+        let racing = Barrier::new(CORES);
+        let asked = Barrier::new(CORES);
+        let fills = AtomicUsize::new(0);
+        let waits = AtomicUsize::new(0);
+        let landed = AtomicBool::new(false);
+
+        std::thread::scope(|cores| {
+            for _ in 0..CORES {
+                cores.spawn(|| {
+                    let mut ctx = Ctx::buffered();
+                    racing.wait();
+                    let held = elected(&ctx, &key, FILLER).expect("no call of this one asks twice");
+                    asked.wait();
+                    match held {
+                        Some(held) => {
+                            fills.fetch_add(1, Ordering::SeqCst);
+                            std::thread::sleep(Duration::from_millis(40));
+                            landed.store(true, Ordering::SeqCst);
+                            drop(held);
+                        }
+                        None => {
+                            waited(&mut ctx, &key, Duration::from_secs(5), FILLER, |_| {
+                                assert!(
+                                    landed.load(Ordering::SeqCst),
+                                    "a waiter looks once the filler is done with the key, never \
+                                     before"
+                                );
+                                Ok(())
+                            })
+                            .expect("a waiter is released with what the filler left");
+                            waits.fetch_add(1, Ordering::SeqCst);
+                        }
+                    }
+                });
+            }
+        });
+
+        assert_eq!(
+            fills.load(Ordering::SeqCst),
+            1,
+            "one caller in the process runs the fill"
+        );
+        assert_eq!(
+            waits.load(Ordering::SeqCst),
+            CORES - 1,
+            "and every other one waits for it"
+        );
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: a wait is bounded
+    /// and its end is a throw, which is
+    /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s shape one class
+    /// over — the caller gets its request back rather than the core standing
+    /// still for as long as somebody else's fetch takes.
+    ///
+    /// The bound is waited *out* rather than refused on sight, which is the half
+    /// a class assertion alone would not catch: a reader that took every wait
+    /// for an expired one would throw here just as promptly.
+    #[test]
+    fn a_wait_past_its_bound_throws_timeout() {
+        let key = b"\0waits-past-its-bound".to_vec();
+        let filler = Ctx::buffered();
+        let _held = elected(&filler, &key, FILLER)
+            .expect("an unheld key is nobody's")
+            .expect("and the caller that asks for it holds it");
+
+        let mut ctx = Ctx::buffered();
+        let began = Instant::now();
+        let outcome = waited(
+            &mut ctx,
+            &key,
+            Duration::from_millis(60),
+            FILLER,
+            |_| -> Result<(), Fault> { panic!("a held key is never looked past") },
+        );
+
+        let Err(Fault::Thrown(class, message)) = outcome else {
+            panic!("a wait that ran out is catchable");
+        };
+        assert_eq!(class, ThrownClass::Timeout);
+        assert!(
+            message.contains(FILLER) && message.contains("60ms"),
+            "the refusal names the member and the bound that was up: {message}"
+        );
+        assert!(
+            began.elapsed() >= Duration::from_millis(60),
+            "the bound is waited out rather than refused on sight"
+        );
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: a failure is not
+    /// shared. A `fill` that throws leaves no entry behind, so the waiters it
+    /// releases are released with whatever is there — nothing — rather than
+    /// with an exception that crossed from another request, and the key is free
+    /// for the next caller to fill.
+    #[test]
+    fn a_failed_fill_is_not_shared_and_the_next_caller_fills() {
+        let key = b"\0a-failed-fill".to_vec();
+        let looked = AtomicUsize::new(0);
+
+        let filler = Ctx::buffered();
+        let held = elected(&filler, &key, FILLER)
+            .expect("an unheld key is nobody's")
+            .expect("and the caller that asks for it holds it");
+
+        std::thread::scope(|cores| {
+            let waiting = cores.spawn(|| {
+                let mut ctx = Ctx::buffered();
+                waited(&mut ctx, &key, Duration::from_secs(5), FILLER, |_| {
+                    looked.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+                .expect("a waiter is released rather than handed what failed");
+            });
+            // Long enough that the waiter is waiting rather than racing the
+            // hold it is waiting on.
+            std::thread::sleep(Duration::from_millis(30));
+            // The `fill` throws: the hold goes with the frame that took it,
+            // and nothing was written under the key.
+            drop(held);
+            waiting.join().expect("the waiter ends with its own answer");
+        });
+
+        assert_eq!(
+            looked.load(Ordering::SeqCst),
+            1,
+            "a waiter looks once, at what the filler left"
+        );
+
+        let next = Ctx::buffered();
+        assert!(
+            elected(&next, &key, FILLER)
+                .expect("a released key is nobody's")
+                .is_some(),
+            "a failed fill leaves the key to the next caller rather than the failure"
+        );
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: a request that
+    /// ends while it holds a fill releases the key, so a cancelled fetch never
+    /// wedges one for the life of the process.
+    ///
+    /// Both halves, because the release alone would pass a table that never
+    /// held anything: the key is held for as long as the frame that took it is,
+    /// and free the moment that frame is gone — by the ending a cancelled
+    /// request carries out rather than by any path that ending never took.
+    #[test]
+    fn a_request_ending_during_its_fill_releases_the_key() {
+        let key = b"\0a-request-that-ends".to_vec();
+        let other = Ctx::buffered();
+
+        let mut ending = Ctx::buffered();
+        {
+            let _held = elected(&ending, &key, FILLER)
+                .expect("an unheld key is nobody's")
+                .expect("and the caller that asks for it holds it");
+            let _cancelled = ending.cancel();
+            assert!(
+                elected(&other, &key, FILLER)
+                    .expect("a key another call holds is not this one's")
+                    .is_none(),
+                "the key is held for as long as the frame filling it is"
+            );
+        }
+
+        assert!(
+            elected(&other, &key, FILLER)
+                .expect("a released key is nobody's")
+                .is_some(),
+            "and is free the moment that frame is gone"
+        );
+    }
+
+    /// `rule:concurrency/a-secret-fill-runs-once-per-process`: an entry inside
+    /// the last fifth of its lifetime is still answered to every caller while
+    /// exactly one of them replaces it, so the expiry of a hot key costs
+    /// nobody a wait.
+    ///
+    /// The window is asserted on **both** sides of its edge, because a reader
+    /// that called every entry due for refresh prints plausibly against the
+    /// inside alone — and the edge is the whole of what
+    /// [`super::REFRESH_WINDOW`] fixes. Past the expiry there is no entry to
+    /// refresh at all, which is the third answer a fraction has to keep
+    /// separate from the second.
+    #[test]
+    fn an_entry_near_its_expiry_is_answered_while_one_caller_refreshes_it() {
+        let plain = sealed_plaintext(1_000, 1_000, b"hunter2");
+        let at = |now: i64| sealed_value(&plain, now).map(|held| held.refreshing);
+
+        assert_eq!(
+            at(799),
+            Some(false),
+            "an entry with more than a fifth of its lifetime left is answered and left alone"
+        );
+        assert_eq!(
+            at(800),
+            Some(true),
+            "the last fifth is where one caller replaces it ahead of its expiry"
+        );
+        assert_eq!(at(999), Some(true), "and every moment of that window is");
+        assert_eq!(
+            at(1_000),
+            None,
+            "past the expiry there is nothing to answer and nothing to refresh"
+        );
+
+        // And while one caller is replacing it, a second does not run a fill
+        // of its own: the key is held for the length of that fetch, which is
+        // what leaves every other caller the entry that is still there.
+        let key = b"\0near-its-expiry".to_vec();
+        let refresher = Ctx::buffered();
+        let held = elected(&refresher, &key, FILLER)
+            .expect("an unheld key is nobody's")
+            .expect("and the caller that asks for it holds it");
+        let other = Ctx::buffered();
+        assert!(
+            elected(&other, &key, FILLER)
+                .expect("a key another call holds is not this one's")
+                .is_none(),
+            "one caller refreshes, and it is the one that was elected"
+        );
+        drop(held);
+    }
+
     /// `rule:concurrency/cache-memory-is-charged-to-the-core`: the tier's memory is charged to the **core** that holds it
     /// — never to a request — and bounded by an `nvs.toml` directive.
     ///
@@ -3323,7 +3967,7 @@ mod tests {
         let mut ctx = nvs_runtime::Ctx::buffered();
         ctx.set_random_state(11);
         let cipher = sealing();
-        let plain = sealed_plaintext(i64::MAX, b"hunter2");
+        let plain = sealed_plaintext(i64::MAX, 0, b"hunter2");
         let sealed =
             crate::crypto::seal_under(&mut ctx, &cipher, &bound(b"shop", b"token"), &plain, "test")
                 .expect("a short value seals");
@@ -3366,32 +4010,31 @@ mod tests {
     #[test]
     fn sealed_entry_past_its_sealed_expiry_is_a_miss_whatever_the_store_says() {
         const KEY: &[u8] = b"past-its-seal";
-        let plain = sealed_plaintext(1_000, b"hunter2");
+        let plain = sealed_plaintext(1_000, 1_000, b"hunter2");
 
         store_put(&sealed_key(KEY), plain, Lifetime::Forever, None);
         let held = store_get(&sealed_key(KEY)).expect("the tier was given no lifetime to run out");
 
         assert_eq!(
-            sealed_value(&held, 999),
+            sealed_value(&held, 999).map(|held| held.value),
             Some(b"hunter2".as_ref()),
             "a millisecond before the sealed expiry, the secret is readable"
         );
-        assert_eq!(
-            sealed_value(&held, 1_000),
-            None,
+        assert!(
+            sealed_value(&held, 1_000).is_none(),
             "at the expiry itself it is not, which is where a lifetime of zero lands"
         );
-        assert_eq!(
-            sealed_value(&held, 1_001),
-            None,
+        assert!(
+            sealed_value(&held, 1_001).is_none(),
             "and past it the store still holds the entry and still answers nothing"
         );
 
         store_forget(&sealed_key(KEY));
 
-        // A buffer too short to carry an expiry at all is the same miss, which
-        // is what keeps a truncated payload from being read as a secret.
-        assert_eq!(sealed_value(b"short", 0), None);
+        // A buffer too short to carry the two numbers ahead of the secret is
+        // the same miss, which is what keeps a truncated payload from being
+        // read as a secret.
+        assert!(sealed_value(b"short", 0).is_none());
     }
 
     /// Every nonce a sealed entry carries is drawn through
@@ -3413,7 +4056,7 @@ mod tests {
                 &mut ctx,
                 &sealing(),
                 &aad,
-                &sealed_plaintext(1_000, b"hunter2"),
+                &sealed_plaintext(1_000, 1_000, b"hunter2"),
                 "test",
             )
             .expect("a short value seals")
