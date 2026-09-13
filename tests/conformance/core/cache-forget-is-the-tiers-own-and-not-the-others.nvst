@@ -1,0 +1,31 @@
+--TEST--
+A `forget` belongs to the tier it was named on: the two in-process tiers hold two entries of one name, and forgetting on either leaves the other's where it was — `rule:core-api/two-cache-tiers`
+--FILE--
+<?nvs
+// `rule:core-api/two-cache-tiers` gives a member per tier so that the store a
+// program meant is visible where it wrote it. That has to hold for every
+// operation, not only for the write: a `forget` that reached both stores would
+// make one member's call an effect on the other's entries.
+var $local = Core\Cache::local();
+var $process = Core\Cache::process();
+
+$local->put("shared-name", "the core's own");
+$process->put("shared-name", "the process's own");
+
+$local->forget("shared-name");
+echo "forgotten on the local tier: ", $local->get("shared-name") == null ? "null" : "something", "\n";
+var $kept = ($process->get("shared-name") ?? "") as string;
+echo "the process tier still has: ", $kept, "\n";
+
+// And the other way round, so that neither tier is merely the one that happened
+// to be asked second.
+$local->put("shared-name", "the core's own");
+$process->forget("shared-name");
+var $core = ($local->get("shared-name") ?? "") as string;
+echo "the local tier still has: ", $core, "\n";
+echo "forgotten on the process tier: ", $process->get("shared-name") == null ? "null" : "something", "\n";
+--EXPECT--
+forgotten on the local tier: null
+the process tier still has: the process's own
+the local tier still has: the core's own
+forgotten on the process tier: null

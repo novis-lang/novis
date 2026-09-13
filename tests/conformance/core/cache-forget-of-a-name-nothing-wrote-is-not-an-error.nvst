@@ -1,0 +1,40 @@
+--TEST--
+Forgetting a name nothing was stored under is neither an error nor an answer, so forgetting twice reaches the state forgetting once reaches, and one name goes without its neighbours — `rule:concurrency/cross-request-state-is-explicit`
+--FILE--
+<?nvs
+var $cache = Core\Cache::local();
+
+// § 1: an entry may be absent at any time, for any reason. A name nothing wrote
+// is therefore already forgotten, and there is nothing here for a `try` to
+// catch — `forget` reports no more about what was there than `get` does.
+$cache->forget("nothing-wrote-this");
+echo "a name nothing wrote: ", $cache->get("nothing-wrote-this") == null ? "null" : "something", "\n";
+
+// The second call reaches the state the first reached, which is what lets a
+// caller repeat the operation without first asking what happened.
+$cache->put("twice", "written");
+$cache->forget("twice");
+var $once = $cache->get("twice") == null;
+$cache->forget("twice");
+var $twice = $cache->get("twice") == null;
+echo "forgetting twice: ", $once && $twice ? "the state forgetting once reaches" : "two states", "\n";
+
+// Counted over a whole table rather than read off one line: a store that forgot
+// the name it was handed and the one beside it would still print both rows
+// above.
+array<string> $keys = ["alpha", "beta", "gamma"];
+foreach ($keys as string $key) {
+    $cache->put($key, "<" . $key . ">");
+}
+$cache->forget("beta");
+int $left = 0;
+foreach ($keys as string $key) {
+    if ($cache->get($key) != null) {
+        $left = $left + 1;
+    }
+}
+echo "one name of ", Core\Arr::count($keys), " forgotten: ", $left, " left\n";
+--EXPECT--
+a name nothing wrote: null
+forgetting twice: the state forgetting once reaches
+one name of 3 forgotten: 2 left

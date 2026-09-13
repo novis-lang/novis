@@ -1,0 +1,41 @@
+--TEST--
+`Core\Cache\Store::forget` takes the entry under a name out of the store it was named on, on every tier, and leaves the name ordinary rather than spent — `rule:concurrency/cross-request-state-is-explicit`
+--FILE--
+<?nvs
+var $local = Core\Cache::local();
+var $process = Core\Cache::process();
+
+$local->put("receipt", "written");
+$process->put("receipt", "written");
+var $written = $local->get("receipt") != null && $process->get("receipt") != null;
+echo "written on both tiers: ", $written ? "yes" : "no", "\n";
+
+// The second reason an entry goes, after the cap and the lifetime that are the
+// tier's own: this one is the program saying which entry, by name.
+$local->forget("receipt");
+$process->forget("receipt");
+echo "forgotten, the local tier: ", $local->get("receipt") == null ? "null" : "something", "\n";
+echo "forgotten, the process tier: ", $process->get("receipt") == null ? "null" : "something", "\n";
+
+// The name is not spent — forgetting takes the entry out, not the key — so a
+// later `put` under it reads back like any other.
+$local->put("receipt", "written again");
+$process->put("receipt", "written again");
+var $again = ($local->get("receipt") ?? "") as string;
+var $there = ($process->get("receipt") ?? "") as string;
+echo "and the name is reusable: ", $again, " / ", $there, "\n";
+
+// The third tier forgets over the wire, with the same answer — none — and a
+// deployment that configured no store is told so by name.
+try {
+    Core\Cache::shared();
+    echo "shared handed back a store\n";
+} catch (RuntimeError $error) {
+    echo "the shared tier forgets over the wire, and this deployment has no store\n";
+}
+--EXPECT--
+written on both tiers: yes
+forgotten, the local tier: null
+forgotten, the process tier: null
+and the name is reusable: written again / written again
+the shared tier forgets over the wire, and this deployment has no store
