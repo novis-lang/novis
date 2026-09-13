@@ -130,6 +130,7 @@ use std::time::{Duration, Instant};
 use fluent_uri::UriRef;
 use fluent_uri::component::{Authority, Scheme};
 use nvs_config::capability::{Cap, Scope};
+use nvs_host::tls::CallPolicy;
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 use nvs_syntax::duration;
 use rand::RngExt;
@@ -2018,6 +2019,108 @@ fn tls_version_rank(version: &str) -> Option<u8> {
 /// min_version`'s shipped value, which is this client's lowest.
 const DEFAULT_MIN_VERSION: &str = "1.2";
 
+/// The five relaxing keys as one value, for the session the handshake builds.
+///
+/// Read here rather than in the transport for [`judge_trust`]'s reason, one
+/// step further on: every field of this has just been proved against the grant
+/// that unlocks it, so a policy that reaches a socket is one the deployment
+/// already answered for, and the transport carries a decision rather than a
+/// question it holds no `Ctx` to ask. A call that wrote none of the keys builds
+/// the default, which asks for nothing and handshakes under the process's own
+/// configuration — no second `ClientConfig` and nothing to release
+/// ([`nvs_host::tls::NvsTls::over_policy`]).
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot whose tag is not what its key declares, which
+/// the rows' `string`, `bool` and `string|array<string>` rule out from source.
+fn policy_of(args: &[Value], member: &str) -> Result<CallPolicy, Fault> {
+    Ok(CallPolicy {
+        anchors: relaxing_text(args, TLS_CA, TLS_CA_OPTION, member)?,
+        pins: pins_of(args, member)?,
+        any_name: args[TLS_VERIFY_HOST].as_bool() == Some(false),
+        insecure: args[TLS_VERIFY].as_bool() == Some(false),
+        min_version: relaxing_text(args, TLS_MIN_VERSION, TLS_MIN_VERSION_OPTION, member)?,
+    })
+}
+
+/// One text key of the relaxing group, or `None` where the call left it out.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot that is neither text nor absent.
+fn relaxing_text(
+    args: &[Value],
+    at: usize,
+    option: &str,
+    member: &str,
+) -> Result<Option<String>, Fault> {
+    if matches!(args[at].tag(), Some(Tag::Null | Tag::Unset)) {
+        return Ok(None);
+    }
+    let text = args[at].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{member} expected a `string` for `{option}`, got tag {}",
+            args[at].tag_byte()
+        ))
+    })?;
+    Ok(Some(text.to_owned()))
+}
+
+/// `tlsPin`'s one pin or list of them, flattened to the list a policy holds.
+///
+/// One key of two shapes because a key being rotated is two live pins, and the
+/// single spelling is the list of one: which of the two a call wrote is decided
+/// here, so nothing downstream of this asks the question a second time.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot or an element that is neither text nor an
+/// array of it, which the row's `string|array<string>` rules out from source.
+fn pins_of(args: &[Value], member: &str) -> Result<Vec<String>, Fault> {
+    if matches!(args[TLS_PIN].tag(), Some(Tag::Null | Tag::Unset)) {
+        return Ok(Vec::new());
+    }
+    if let Some(one) = args[TLS_PIN].as_text() {
+        return Ok(vec![one.to_owned()]);
+    }
+    let Some(array) = args[TLS_PIN].array_ptr() else {
+        return Err(Fault::fatal(format!(
+            "{member} expected a `string` or an `array<string>` for `{TLS_PIN_OPTION}`, got tag {}",
+            args[TLS_PIN].tag_byte()
+        )));
+    };
+    let mut pins = Vec::new();
+    let mut from = 0_usize;
+    loop {
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live allocation, \
+                      so it is live for the length of this call, and `from` only \
+                      ever advances past a slot this same cursor reported"
+        )]
+        let (slot, value) = unsafe {
+            let slot = nvs_runtime::nvs_array_next_slot(array, from);
+            let Ok(slot) = usize::try_from(slot) else {
+                break;
+            };
+            let mut value = Value::null();
+            nvs_runtime::nvs_array_value_at(array, slot, &raw mut value);
+            (slot, value)
+        };
+        from = slot + 1;
+
+        let pin = value.as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{member} expected a `string` pin in `{TLS_PIN_OPTION}`, got tag {}",
+                value.tag_byte()
+            ))
+        })?;
+        pins.push(pin.to_owned());
+    }
+    Ok(pins)
+}
+
 /// One of § 5's time bounds as the transport wants it: the option if it was
 /// given, then the `[http.client]` directive, then `fallback`.
 ///
@@ -2628,6 +2731,7 @@ fn exchanged(
         pool: pool_of(ctx),
         compress: crate::compress::Bound::ceiling(ctx),
         identity: identity_option(args, &named)?,
+        policy: policy_of(args, &named)?,
         traceparent: traceparent_of(ctx),
     };
 

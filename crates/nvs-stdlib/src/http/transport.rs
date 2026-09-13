@@ -63,8 +63,12 @@
 //! certificate that does not verify is a statement about the other end that a
 //! second attempt will not change, so it leaves as a `Fault` and never sleeps
 //! first, while a timeout or a reset mid-handshake is transport weather and is
-//! retried. There is no plaintext fallback and no spelling for a session that
-//! verifies nothing; both are priority-1 failures wearing a feature's name.
+//! retried. There is no plaintext fallback, which is a priority-1 failure
+//! wearing a feature's name. What a call may relax it says in a
+//! [`nvs_host::tls::CallPolicy`] on the [`Call`], built where a grant for it
+//! was proved and handed to the one door with the identity
+//! (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`); this module
+//! chooses none of it and carries it into the pool key.
 
 use std::cell::RefCell;
 use std::io::{ErrorKind, Read, Seek, Write};
@@ -75,7 +79,7 @@ use std::time::{Duration, Instant};
 use fluent_uri::component::{Authority, Scheme};
 use fluent_uri::{Uri, UriRef};
 use nvs_host::net::NvsTcp;
-use nvs_host::tls::NvsTls;
+use nvs_host::tls::{CallPolicy, NvsTls};
 use nvs_runtime::{Fault, ThrownClass};
 use rand::RngExt;
 
@@ -192,6 +196,16 @@ pub(crate) struct Call<'a> {
     /// which is O(in-flight): every attempt and every hop of one call presents
     /// the same identity, and no two calls share a built one.
     pub(crate) identity: Option<Identity>,
+    /// The relaxations this call asked for and a `[capabilities.tls]` grant
+    /// already allows for its host, or the default, which asks for nothing.
+    ///
+    /// Judged and built in `super::policy_of` for [`Call::identity`]'s reason —
+    /// the question belongs to the deployment and this module holds no `Ctx` to
+    /// put it to. A relaxing one costs the call one `ClientConfig`, built at the
+    /// handshake and released with the call; a default one hands the process's
+    /// own configuration back untouched
+    /// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`).
+    pub(crate) policy: CallPolicy,
     /// The W3C `traceparent` naming the request this call is made from, or
     /// `None` where `[trace] propagate` is off.
     ///
@@ -1251,6 +1265,7 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<At
         &parts,
         socket,
         identity.map(|held| held.fingerprint.as_str()),
+        &call.policy,
     );
 
     if let Some(mut held) = pool::take(&key, Instant::now()) {
@@ -1288,13 +1303,19 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<At
     stream.set_deadline(Some(call.deadline));
 
     let connection: Box<dyn Connection> = if parts.tls {
-        // One handshake either way: an identity changes what this end presents
-        // when the server asks for a certificate and nothing about whom this end
-        // believes, so the refusal split below is the same split for both.
-        let handshake = match identity {
-            Some(held) => NvsTls::over_identity(stream, &parts.host, &held.session),
-            None => NvsTls::over(stream, &parts.host),
-        };
+        // One door for every call, because the two values it takes answer two
+        // different questions and a call may write both: the policy is whom this
+        // end believes and the identity is what it presents when the server asks
+        // for a certificate. A call that wrote neither hands over a default and a
+        // `None` and gets the process's own configuration
+        // (`rule:security/one-tls-client`), so the refusal split below is the
+        // same split for all of them.
+        let handshake = NvsTls::over_policy(
+            stream,
+            &parts.host,
+            &call.policy,
+            identity.map(|held| &held.session),
+        );
         match handshake {
             Ok(tls) => Box::new(tls),
             // A name or a certificate this build will not accept is settled:
@@ -1346,12 +1367,55 @@ fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<At
 /// another's request. A call that named no identity writes an empty field
 /// rather than leaving the field out, so the two are two keys rather than one
 /// key that is a prefix of the other.
-fn pool_key(parts: &Parts, socket: SocketAddr, identity: Option<&str>) -> String {
+///
+/// **So is what the call relaxed**, and it is the same sentence a third time: a
+/// session that skipped a name or a chain went on believing whatever the peer
+/// said for as long as it stays open, so serving it to a call that verifies
+/// would relax that call at a host no grant of its own was asked about
+/// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`). The strict
+/// default writes an empty field, so every call that asked for nothing shares
+/// one key and each distinct relaxation gets its own.
+fn pool_key(
+    parts: &Parts,
+    socket: SocketAddr,
+    identity: Option<&str>,
+    policy: &CallPolicy,
+) -> String {
     let scheme = if parts.tls { "https" } else { "http" };
     format!(
-        "{scheme}|{host}|{socket}|{identity}",
+        "{scheme}|{host}|{socket}|{identity}|{policy}",
         host = parts.host,
-        identity = identity.unwrap_or_default()
+        identity = identity.unwrap_or_default(),
+        policy = policy_key(policy)
+    )
+}
+
+/// [`pool_key`]'s last field: one line per distinct [`CallPolicy`], and the
+/// empty one for the strict default.
+///
+/// A digest per variable-length field rather than the text itself, for the
+/// reason `super::fingerprint_of` gives about a leaf certificate: a key is
+/// compared on every draw and held for as long as the connection is, and a
+/// whole PEM bundle inside one buys nothing that 64 octets do not. Each pin is
+/// written under its own length so that no two lists flatten to one line —
+/// the pins are a program's text, and a separator it can also write would be a
+/// relaxation shared between two calls that asked for different ones.
+fn policy_key(policy: &CallPolicy) -> String {
+    if policy == &CallPolicy::default() {
+        return String::new();
+    }
+    let pins: String = policy
+        .pins
+        .iter()
+        .map(|pin| format!("{}:{pin}", pin.len()))
+        .collect();
+    format!(
+        "{anchors}~{pins}~{any_name}{insecure}~{min_version}",
+        anchors = super::fingerprint_of(policy.anchors.as_deref().unwrap_or_default().as_bytes()),
+        pins = super::fingerprint_of(pins.as_bytes()),
+        any_name = u8::from(policy.any_name),
+        insecure = u8::from(policy.insecure),
+        min_version = policy.min_version.as_deref().unwrap_or_default()
     )
 }
 
@@ -1940,6 +2004,7 @@ mod tests {
     use crate::compress::{Bound, Codec, compress_to};
     use nvs_host::reactor::{Reactor, install, run_until_idle, with_current};
     use nvs_host::scheduler::Scheduler;
+    use nvs_host::tls::CallPolicy;
     use nvs_runtime::{Ctx, Fault, OutputSink, TaskRoot};
     use rustls::pki_types::CertificateDer;
     use std::cell::RefCell;
@@ -2083,6 +2148,7 @@ mod tests {
                 ratio: 1000,
             },
             identity: None,
+            policy: CallPolicy::default(),
             traceparent: None,
         }
     }
@@ -3193,7 +3259,12 @@ mod tests {
 
         let parts = super::parts(&asking.url, "test").expect("the URL this case wrote");
         super::pool::release(
-            super::pool_key(&parts, SocketAddr::new(at.ip(), parts.port), None),
+            super::pool_key(
+                &parts,
+                SocketAddr::new(at.ip(), parts.port),
+                None,
+                &CallPolicy::default(),
+            ),
             Box::new(Retired),
             asking.pool,
             Instant::now(),
@@ -3252,7 +3323,8 @@ mod tests {
         let parts =
             super::parts("https://api.example/v1", "test").expect("the URL this case wrote");
         let socket = SocketAddr::new(IpAddr::from([203, 0, 113, 7]), parts.port);
-        let under_mine = super::pool_key(&parts, socket, Some(&mine.fingerprint));
+        let strict = CallPolicy::default();
+        let under_mine = super::pool_key(&parts, socket, Some(&mine.fingerprint), &strict);
 
         assert!(
             under_mine.contains(&mine.fingerprint),
@@ -3260,12 +3332,12 @@ mod tests {
         );
         assert_ne!(
             under_mine,
-            super::pool_key(&parts, socket, Some(&theirs.fingerprint)),
+            super::pool_key(&parts, socket, Some(&theirs.fingerprint), &strict),
             "two identities never share a connection"
         );
         assert_ne!(
             under_mine,
-            super::pool_key(&parts, socket, None),
+            super::pool_key(&parts, socket, None, &strict),
             "an identity is not the absence of one"
         );
     }
@@ -3477,6 +3549,7 @@ mod tests {
             &parts,
             SocketAddr::new(at.ip(), parts.port),
             Some(&identity.fingerprint),
+            &CallPolicy::default(),
         );
         super::pool::release(
             theirs.clone(),
@@ -3495,6 +3568,58 @@ mod tests {
         assert!(
             super::pool::take(&theirs, Instant::now()).is_some(),
             "the identity's connection was still in the store, so nothing anonymous drew it"
+        );
+    }
+
+    /// A call that verifies never draws a connection opened under a policy
+    /// that did not.
+    ///
+    /// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s last
+    /// clause about the pool, and the case above's argument with the other
+    /// weakening in it: a session that checked neither the chain nor the name
+    /// stays that session for as long as it is open, so a strict call served
+    /// one would be talking to whoever answered an earlier call — at a host its
+    /// own grants were never asked about, because it asked for nothing.
+    /// Asserted by the connection still being in the store afterwards, which
+    /// says it was never drawn; a fresh one answering says only that one was
+    /// opened.
+    #[test]
+    fn a_relaxed_connection_never_serves_a_strict_call_from_the_pool() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let asking = call(at, "test");
+        assert_eq!(
+            asking.policy,
+            CallPolicy::default(),
+            "this case's call is the one that asked for nothing"
+        );
+
+        let parts = super::parts(&asking.url, "test").expect("the URL this case wrote");
+        let relaxed = super::pool_key(
+            &parts,
+            SocketAddr::new(at.ip(), parts.port),
+            None,
+            &CallPolicy {
+                insecure: true,
+                ..CallPolicy::default()
+            },
+        );
+        super::pool::release(
+            relaxed.clone(),
+            Box::new(Retired),
+            asking.pool,
+            Instant::now(),
+        );
+
+        let reply = send(&asking, &mut never).expect("the strict call's answer");
+        assert_eq!(reply.status, 200);
+        assert_eq!(
+            served.join().expect("the origin thread").connections,
+            1,
+            "the strict call opened one connection of its own"
+        );
+        assert!(
+            super::pool::take(&relaxed, Instant::now()).is_some(),
+            "the relaxed connection was still in the store, so nothing strict drew it"
         );
     }
 
