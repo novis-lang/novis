@@ -2720,6 +2720,11 @@ mod tests {
 
     /// One connection's `CONNECT` and whatever the tunnel behind it carries.
     ///
+    /// A destination it cannot reach itself is answered `502`, which is what a
+    /// proxy does and what makes an approved set's walk visible from this side:
+    /// a status is what sends the client on to the next address, where a closed
+    /// connection would end the attempt.
+    ///
     /// Every failure ends this thread quietly rather than panicking it, for
     /// [`answer_tls`]'s reason: a client that walks away from a refused tunnel
     /// is what two of these cases are written to see, and each claim they make
@@ -2751,6 +2756,8 @@ mod tests {
             return;
         }
         let Ok(origin) = std::net::TcpStream::connect(target.as_str()) else {
+            drop(stream.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n"));
+            drop(stream.flush());
             return;
         };
         if stream
@@ -3074,6 +3081,57 @@ mod tests {
         assert!(
             said.contains("proxy authentication") && said.contains("407"),
             "the refusal says what is missing: {said}"
+        );
+    }
+
+    /// A proxy that will not reach the first address the door approved has said
+    /// nothing about the second, so an approved set is walked one `CONNECT` at a
+    /// time and the call is answered over the tunnel the second one opened
+    /// (`rule:http-server/an-outbound-call-tries-every-approved-address`).
+    ///
+    /// Each address is asked for over a connection of its own, which is what the
+    /// proxy's count says: a refusal leaves a stream whose state is the proxy's
+    /// to decide, and asking again over that one would be reading the next
+    /// answer off it.
+    #[test]
+    fn a_connect_refused_for_one_address_is_asked_again_for_the_next() {
+        let (at, served) = origin(vec!["HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"]);
+        let (proxying, opened, asked) = proxy(2, None);
+
+        let mut asking = call(at, "test");
+        // Loopback rather than a `TEST-NET` literal, because the proxy is what
+        // dials this one: nothing listens on it, so what comes back is the
+        // refusal above and not a connect the case waits out.
+        asking.addresses = vec!["127.0.0.2".parse().expect("a literal address"), at.ip()];
+        asking.proxy = Some(through(proxying));
+
+        let reply = send(&asking, &mut never).expect("the answer over the second tunnel");
+        assert_eq!(reply.status, 200);
+        assert_eq!(reply.body, b"ok");
+
+        let asked = asked.join().expect("the proxy thread");
+        assert_eq!(
+            asked.len(),
+            2,
+            "the approved set is walked one `CONNECT` at a time: {asked:?}"
+        );
+        assert!(
+            asked[0].starts_with(&format!("CONNECT 127.0.0.2:{} HTTP/1.1\r\n", at.port())),
+            "the first `CONNECT` asks for the first approved address: {asked:?}"
+        );
+        assert!(
+            asked[1].starts_with(&format!("CONNECT {at} HTTP/1.1\r\n")),
+            "the one after a refusal asks for the address after it: {asked:?}"
+        );
+        assert_eq!(
+            opened.load(Ordering::Relaxed),
+            2,
+            "each address is asked for over a connection of its own"
+        );
+        let behind = served.join().expect("the origin thread");
+        assert_eq!(
+            behind.connections, 1,
+            "the origin was reached once, over the tunnel that opened"
         );
     }
 
