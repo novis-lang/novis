@@ -129,6 +129,7 @@ use std::time::{Duration, Instant};
 
 use fluent_uri::UriRef;
 use fluent_uri::component::{Authority, Scheme};
+use nvs_config::capability::{Cap, Scope};
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 use nvs_syntax::duration;
 use rand::RngExt;
@@ -722,6 +723,54 @@ macro_rules! request_options {
         ty: CoreTy::Instance(IDENTITY_NAME),
         default: Const::Null,
     },
+    // `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s keys: the
+    // four a `capabilities.tls` grant unlocks for the URL's host, and the fifth
+    // that needs no grant. Separate keys rather than one policy object, because
+    // each asks a different question — whose certificates, which key, which
+    // name, whether to look at all — and a bag nested inside a bag has nothing
+    // to flatten into (`rule:core-api/shape-rules` R2).
+    //
+    // Unqualified, which is what refuses a `tainted` blob here: an options bag's
+    // member carries no mark for `nvs_types::core_lib`'s `qual_of` to read, and
+    // what has no mark refuses a qualified argument. Trust anchors chosen by
+    // whoever is being verified are the whole of what this key must not admit.
+    CoreOption {
+        name: TLS_CA_OPTION,
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    // One pin or a list of them: a key being rotated is two live pins for as
+    // long as the rotation takes, and a program that could name only one would
+    // have to stop pinning to get through it.
+    CoreOption {
+        name: TLS_PIN_OPTION,
+        ty: CoreTy::Union(&[
+            CoreTy::Text(Qual::Neutral),
+            CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        ]),
+        default: Const::Null,
+    },
+    // `true` unless the call writes `false`, rather than an omission standing
+    // for strictness: the default a call inherits is the safe answer, and the
+    // relaxation is a word at the call site rather than the absence of one.
+    CoreOption {
+        name: TLS_VERIFY_HOST_OPTION,
+        ty: CoreTy::Bool,
+        default: Const::Bool(true),
+    },
+    CoreOption {
+        name: TLS_VERIFY_OPTION,
+        ty: CoreTy::Bool,
+        default: Const::Bool(true),
+    },
+    // The key of the group that needs no grant, because it can only tighten: a
+    // floor under `[http.client.tls] min_version` throws rather than lowering
+    // what the deployment set.
+    CoreOption {
+        name: TLS_MIN_VERSION_OPTION,
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
     $($trailing,)*
 ] };
 }
@@ -780,6 +829,21 @@ pub(crate) const CONTENT_TYPE_OPTION: &str = "contentType";
 
 /// The key a call names an [`IDENTITY`] under, spelled once.
 pub(crate) const IDENTITY_OPTION: &str = "identity";
+
+/// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s keys, spelled
+/// once: [`OPTIONS`] declares them, and the check that asks each key's grant of
+/// the request's own snapshot names the same spelling in its refusal, so a
+/// renamed key cannot leave the refusal talking about a key no row declares.
+pub(crate) const TLS_CA_OPTION: &str = "tlsCa";
+/// See [`TLS_CA_OPTION`].
+pub(crate) const TLS_PIN_OPTION: &str = "tlsPin";
+/// See [`TLS_CA_OPTION`].
+pub(crate) const TLS_VERIFY_HOST_OPTION: &str = "tlsVerifyHost";
+/// See [`TLS_CA_OPTION`].
+pub(crate) const TLS_VERIFY_OPTION: &str = "tlsVerify";
+/// The floor a call may raise without a grant, spelled beside the four that
+/// need one — see [`TLS_CA_OPTION`].
+pub(crate) const TLS_MIN_VERSION_OPTION: &str = "tlsMinVersion";
 /// The header the framing writes that key into, lower-cased as a record's names
 /// are — see [`faked`].
 const CONTENT_TYPE_HEADER: &str = "content-type";
@@ -1059,11 +1123,22 @@ const CONTENT_TYPE: usize = 11;
 const MULTIPART: usize = 12;
 /// The client identity's slot, last of the shared keys — see [`DEADLINE`].
 const IDENTITY_AT: usize = 13;
+/// The relaxing keys' own slots, in [`OPTIONS`]' order, and the floor after them
+/// — see [`DEADLINE`].
+const TLS_CA: usize = 14;
+/// See [`TLS_CA`].
+const TLS_PIN: usize = 15;
+/// See [`TLS_CA`].
+const TLS_VERIFY_HOST: usize = 16;
+/// See [`TLS_CA`].
+const TLS_VERIFY: usize = 17;
+/// See [`TLS_CA`].
+const TLS_MIN_VERSION: usize = 18;
 /// [`STREAM_OPTIONS`]' own two slots, after every shared key's, and reachable
 /// only from the one row that declares them — see [`DEADLINE`].
-const IDLE: usize = 14;
+const IDLE: usize = 19;
 /// See [`IDLE`].
-const MAX_DURATION: usize = 15;
+const MAX_DURATION: usize = 20;
 
 /// How many arguments a request member takes: the URL plus one per option, which
 /// is what every `nvs_helper!` row below writes as its arity. Derived rather
@@ -1527,6 +1602,40 @@ macro_rules! request_params {
                names none.",
         shape: &[],
     },
+    ParamDoc {
+        name: "tlsCa",
+        desc: "The PEM certificates to trust for this call, in place of the runtime's own roots. \
+               Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose \
+               host is not in it throws before connecting.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "tlsPin",
+        desc: "One `sha256//<base64>` public-key pin, or several: the peer is accepted when its \
+               SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a \
+               self-signed origin is reached. Needs the host in the `pin` grant.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "tlsVerifyHost",
+        desc: "Written as `false`, the chain is still built and checked and only the name is \
+               skipped. Needs the host in the `any_name` grant.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "tlsVerify",
+        desc: "Written as `false`, neither the chain nor the name is checked — the handshake \
+               signature still is, so the peer holds the key it presented, but nothing says whose \
+               key it is. Needs the host in the `insecure` grant.",
+        shape: &[],
+    },
+    ParamDoc {
+        name: "tlsMinVersion",
+        desc: "The version floor this call speaks over, `\"1.2\"` or `\"1.3\"`. It needs no grant \
+               because it can only tighten, and a value below the runtime's `[http.client.tls] \
+               min_version` throws.",
+        shape: &[],
+    },
     $($trailing,)*
     ] };
 }
@@ -1785,6 +1894,129 @@ fn judge_attempts(args: &[Value], member: &str) -> Result<(), Fault> {
     }
     Ok(())
 }
+
+/// Every relaxing option this call wrote, against the grant that unlocks it,
+/// and the floor it asks for against the one the deployment set.
+///
+/// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s two halves:
+/// the deployment says which hosts may be reached with verification relaxed and
+/// the call says it wants that here, so a grant relaxes nothing on its own and
+/// an option outside its grant never opens a socket. The question goes to the
+/// request's own snapshot through the door every other capability uses
+/// (`rule:security/capability-question-is-grant-and-scope`), and the class is
+/// the one difference: a `LogicError`, because a program asking for its own
+/// guarantee to be weakened at a host nobody named has made a mistake rather
+/// than met a refusal it can degrade around
+/// ([`nvs_runtime::capability::require_as`]).
+///
+/// Asked here beside the other judges rather than in the transport, which holds
+/// no `Ctx` and by then holds a socket: what a relaxed call must not do is
+/// announce this process to the host before the deployment has been asked about
+/// it. The scheme is not consulted — the ask is the ask, and a `tlsCa` written
+/// beside an `http` URL is the same request for trust nobody granted.
+///
+/// # Errors
+///
+/// A thrown `LogicError` naming the grant, for an option whose host the grant
+/// does not list, and [`judge_floor`]'s. [`judged_host`]'s three cannot fire: a
+/// URL that reaches here has already been approved.
+fn judge_trust(ctx: &Ctx, args: &[Value], url: &str, member: &str) -> Result<(), Fault> {
+    let host = judged_host(url, member)?;
+    for (asked, cap, option) in [
+        (
+            !matches!(args[TLS_CA].tag(), Some(Tag::Null)),
+            Cap::TlsAnchors,
+            TLS_CA_OPTION,
+        ),
+        (
+            !matches!(args[TLS_PIN].tag(), Some(Tag::Null)),
+            Cap::TlsPin,
+            TLS_PIN_OPTION,
+        ),
+        (
+            args[TLS_VERIFY_HOST].as_bool() == Some(false),
+            Cap::TlsAnyName,
+            TLS_VERIFY_HOST_OPTION,
+        ),
+        (
+            args[TLS_VERIFY].as_bool() == Some(false),
+            Cap::TlsInsecure,
+            TLS_VERIFY_OPTION,
+        ),
+    ] {
+        if asked {
+            nvs_runtime::capability::require_as(
+                ctx,
+                cap,
+                Scope::Host(&host),
+                ThrownClass::Logic,
+                &format!("{member}'s `{option}`"),
+            )?;
+        }
+    }
+    judge_floor(ctx, args, member)
+}
+
+/// `tlsMinVersion` against `[http.client.tls] min_version`: the one key of the
+/// group that needs no grant, because a call may only raise the floor.
+///
+/// One direction, checked here rather than taken as the larger of the two
+/// silently, so a program that believes it is speaking 1.3 over a deployment
+/// that allows 1.2 learns which of them is wrong. The two spellings are the
+/// versions this client implements, which is what makes anything else a
+/// mistake rather than a version it might grow into.
+///
+/// # Errors
+///
+/// A thrown `LogicError` naming `tlsMinVersion`, for a floor under the
+/// deployment's or outside the two versions. A directive that will not parse is
+/// not an error here, for [`bound_of`]'s reason.
+fn judge_floor(ctx: &Ctx, args: &[Value], member: &str) -> Result<(), Fault> {
+    let Some(asked) = args[TLS_MIN_VERSION].as_text() else {
+        return Ok(());
+    };
+    let Some(rank) = tls_version_rank(asked) else {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{member}: `tlsMinVersion` is `\"1.2\"` or `\"1.3\"` — this client implements \
+                 neither TLS 1.0 nor 1.1 — and this call asked for `\"{asked}\"`"
+            ),
+        ));
+    };
+    let floor = ctx
+        .config()
+        .and_then(|config| config.get("http.client.tls.min_version"));
+    let floor = floor.as_deref().unwrap_or(DEFAULT_MIN_VERSION);
+    if rank < tls_version_rank(floor).unwrap_or(0) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{member}: `tlsMinVersion` can only raise the floor, and `\"{asked}\"` is under \
+                 the `\"{floor}\"` this deployment set in `[http.client.tls] min_version`"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Where a TLS version spelling sits against the others, or `None` for a text
+/// that is not one this client speaks.
+///
+/// An order and not a parse: the only question either caller has is which of
+/// two floors is higher, and a number that is not a version keeps the answer
+/// from being read as one.
+fn tls_version_rank(version: &str) -> Option<u8> {
+    match version.trim() {
+        "1.2" => Some(2),
+        "1.3" => Some(3),
+        _ => None,
+    }
+}
+
+/// The floor a deployment that configured none speaks over — `[http.client.tls]
+/// min_version`'s shipped value, which is this client's lowest.
+const DEFAULT_MIN_VERSION: &str = "1.2";
 
 /// One of § 5's time bounds as the transport wants it: the option if it was
 /// given, then the `[http.client]` directive, then `fallback`.
@@ -2289,8 +2521,8 @@ fn fields_of(
 ///
 /// # Errors
 ///
-/// [`pin`]'s four, [`judge_bound`]'s, [`judge_attempts`]' and [`judge_verb`]',
-/// and then [`transport::send`]'s.
+/// [`pin`]'s four, [`judge_bound`]'s, [`judge_attempts`]', [`judge_verb`]'s and
+/// [`judge_trust`]'s, and then [`transport::send`]'s.
 fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Value, Fault> {
     let (status, body, headers) = exchanged(ctx, args, member, verb, false)?;
     Ok(crate::instance::build(
@@ -2317,7 +2549,8 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str, verb: &str) -> Result<Va
 /// # Errors
 ///
 /// [`approved`]'s refusals, [`judge_bound`]'s, [`judge_attempts`]',
-/// [`judge_verb`]'s, [`body_of`]'s and whatever [`transport::send`] raised — or,
+/// [`judge_verb`]'s, [`judge_trust`]'s, [`body_of`]'s and whatever
+/// [`transport::send`] raised — or,
 /// where a test has armed the answer table, [`faked`]'s.
 fn exchanged(
     ctx: &mut Ctx,
@@ -2337,6 +2570,7 @@ fn exchanged(
     judge_bound(args, RETRY_BACKOFF, "retryBackoff", &named)?;
     judge_attempts(args, &named)?;
     judge_verb(args, verb, &named)?;
+    judge_trust(ctx, args, &url, &named)?;
 
     // Framed before the clock below starts: the encode and the open are this
     // end's work, and a budget spent on them is not a budget the other end was
@@ -3040,10 +3274,12 @@ mod tests {
 
     use super::{
         BODY_OPTION, BODY_OPTIONS, BODY_SLOT, CONNECT_TIMEOUT, CONTENT_TYPE_OPTION, DEADLINE,
-        FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, HEADERS_SLOT, IDLE, JSON_OPTION, MAX_DURATION,
-        MULTIPART_OPTION, OPTIONS, REQUEST_ARITY, RESPONSE, RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION,
-        RETRY_BACKOFF, RETRY_KEY, RETRY_KEY_OPTION, STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS,
-        TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT,
+        FOLLOW_REDIRECTS, FORM_OPTION, HEADERS, HEADERS_SLOT, IDENTITY_AT, IDENTITY_OPTION, IDLE,
+        JSON, JSON_OPTION, MAX_DURATION, MULTIPART_OPTION, OPTIONS, REQUEST_ARITY, RESPONSE,
+        RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION, RETRY_BACKOFF, RETRY_KEY, RETRY_KEY_OPTION,
+        STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT,
+        TLS_CA, TLS_CA_OPTION, TLS_MIN_VERSION, TLS_MIN_VERSION_OPTION, TLS_PIN, TLS_PIN_OPTION,
+        TLS_VERIFY, TLS_VERIFY_HOST, TLS_VERIFY_HOST_OPTION, TLS_VERIFY_OPTION,
     };
 
     /// The grant every case here starts from: the host is reachable and no
@@ -3085,6 +3321,12 @@ mod tests {
             (RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION),
             (RETRY_BACKOFF, "retryBackoff"),
             (RETRY_KEY, RETRY_KEY_OPTION),
+            (IDENTITY_AT, IDENTITY_OPTION),
+            (TLS_CA, TLS_CA_OPTION),
+            (TLS_PIN, TLS_PIN_OPTION),
+            (TLS_VERIFY_HOST, TLS_VERIFY_HOST_OPTION),
+            (TLS_VERIFY, TLS_VERIFY_OPTION),
+            (TLS_MIN_VERSION, TLS_MIN_VERSION_OPTION),
         ] {
             assert_eq!(OPTIONS[slot - 1].name, name, "slot {slot}");
         }
@@ -3267,5 +3509,177 @@ mod tests {
         let unconfigured = Ctx::buffered();
         let other = super::traceparent_of(&unconfigured).expect("nothing configured propagates");
         assert_ne!(other, sent, "two requests are two traces");
+    }
+
+    /// What a deployment that may reach loopback grants, and nothing about
+    /// trust: the address side of every relaxing test below is already settled,
+    /// so what those tests move is the `[capabilities.tls]` half alone.
+    const REACHABLE: &str =
+        "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n";
+
+    /// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s refusal,
+    /// where it has to land: before the socket. A listener is bound on the
+    /// address the URL names, the deployment grants that address and no
+    /// relaxation, and the assertion is that nothing was ever accepted — a
+    /// client that asked the grant after connecting throws the very same error,
+    /// having already announced this process to the host it may not relax for.
+    ///
+    /// A `LogicError` and not the door's `RuntimeError`: the program asked for
+    /// its own guarantee to be weakened somewhere nobody said it could be
+    /// (`nvs_runtime::capability::require_as`).
+    #[test]
+    fn a_tls_option_without_its_host_grant_throws_before_connecting() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
+        listener
+            .set_nonblocking(true)
+            .expect("a listener that answers now rather than waiting");
+        let at = listener.local_addr().expect("its own address");
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(REACHABLE));
+
+        let url = Value::str(NvsStr::new(format!("http://{at}/ok").as_bytes()));
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[0] = url;
+        // A written `null` under `json` is the document `null`, which is a body,
+        // and this call sends none — the bag's own `Const::NeverWritten`.
+        args[JSON] = Value::unset();
+        args[TLS_VERIFY] = Value::bool(false);
+        let refused = super::request(&mut ctx, &args, "get", "GET")
+            .expect_err("`tlsVerify: false` under a deployment that granted no `tls.insecure`");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the reference `NvsStr::new` just \
+                      produced, and a native member never releases an argument \
+                      its caller still owns"
+        )]
+        unsafe {
+            url.release();
+        }
+
+        let Fault::Thrown(class, message) = refused else {
+            panic!("a relaxing option nobody granted is catchable, and names the grant")
+        };
+        assert_eq!(class, ThrownClass::Logic, "{message}");
+        assert!(
+            message.contains("tls.insecure") && message.contains(TLS_VERIFY_OPTION),
+            "the refusal names the grant an operator would write and the option that wanted it: \
+             {message}"
+        );
+
+        match listener.accept() {
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {}
+            Ok(_) => panic!("the grant was missing and a socket was opened to the host anyway"),
+            Err(err) => panic!("the listener failed for a reason that is not the point: {err}"),
+        }
+    }
+
+    /// The scope half of the same rule: a grant is a list of hosts, so one that
+    /// names another host relaxes nothing here. Each option is asked against
+    /// its own grant, both ways round — the grant naming somewhere else
+    /// refuses, and the same grant naming this host lets the call through — so
+    /// a pairing that had drifted would show up as one option unlocked by
+    /// another's grant.
+    #[test]
+    fn a_tls_grant_for_another_host_relaxes_nothing() {
+        const MEMBER: &str = "Core\\Http\\Client::get";
+        const URL: &str = "https://127.0.0.1:8443/ok";
+
+        let anchors = Value::str(NvsStr::new(b"-----BEGIN CERTIFICATE-----"));
+        let pins = Value::str(NvsStr::new(b"sha256//ZDk="));
+        for (slot, value, grant, key) in [
+            (TLS_CA, anchors, "anchors", "tls.anchors"),
+            (TLS_PIN, pins, "pin", "tls.pin"),
+            (
+                TLS_VERIFY_HOST,
+                Value::bool(false),
+                "any_name",
+                "tls.any_name",
+            ),
+            (TLS_VERIFY, Value::bool(false), "insecure", "tls.insecure"),
+        ] {
+            let mut args = [Value::null(); REQUEST_ARITY];
+            args[slot] = value;
+
+            let mut elsewhere = Ctx::buffered();
+            elsewhere.set_config(granting(&format!(
+                "{REACHABLE}[capabilities.tls]\n{grant} = [\"api.example.com\"]\n"
+            )));
+            let refused = super::judge_trust(&elsewhere, &args, URL, MEMBER)
+                .expect_err("the grant names a host this call is not made to");
+            assert!(
+                format!("{refused:?}").contains(key),
+                "the refusal names the grant that would have unlocked it: {refused:?}"
+            );
+
+            let mut named = Ctx::buffered();
+            named.set_config(granting(&format!(
+                "{REACHABLE}[capabilities.tls]\n{grant} = [\"127.0.0.1\"]\n"
+            )));
+            super::judge_trust(&named, &args, URL, MEMBER)
+                .expect("the deployment named this host under this option's own grant");
+        }
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the two references `NvsStr::new` \
+                      produced, and `judge_trust` reads an argument without \
+                      taking one"
+        )]
+        unsafe {
+            anchors.release();
+            pins.release();
+        }
+    }
+
+    /// The key of the group that needs no grant, and the one direction it may
+    /// move: a call may raise the floor and never lower it. The unconfigured
+    /// deployment is `1.2`, so the same `tlsMinVersion` that is fine there is
+    /// refused under an operator who raised it — and a version this client does
+    /// not implement is refused wherever it is written.
+    #[test]
+    fn tls_min_version_below_the_floor_throws() {
+        const MEMBER: &str = "Core\\Http\\Client::get";
+        const URL: &str = "https://127.0.0.1:8443/ok";
+
+        let asked = Value::str(NvsStr::new(b"1.2"));
+        let ancient = Value::str(NvsStr::new(b"1.0"));
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[TLS_MIN_VERSION] = asked;
+
+        let mut shipped = Ctx::buffered();
+        shipped.set_config(granting(REACHABLE));
+        super::judge_trust(&shipped, &args, URL, MEMBER)
+            .expect("`1.2` is the floor a deployment that set none speaks over");
+
+        let mut raised = Ctx::buffered();
+        raised.set_config(granting(&format!(
+            "{REACHABLE}[http.client.tls]\nmin_version = \"1.3\"\n"
+        )));
+        let refused = super::judge_trust(&raised, &args, URL, MEMBER)
+            .expect_err("`1.2` is under the floor this operator set");
+        let Fault::Thrown(class, message) = refused else {
+            panic!("a floor the program asked for and cannot have is catchable")
+        };
+        assert_eq!(class, ThrownClass::Logic, "{message}");
+        assert!(
+            message.contains(TLS_MIN_VERSION_OPTION) && message.contains("1.3"),
+            "the refusal names the key and the floor it is under: {message}"
+        );
+
+        args[TLS_MIN_VERSION] = ancient;
+        assert!(
+            super::judge_trust(&shipped, &args, URL, MEMBER).is_err(),
+            "this client implements neither TLS 1.0 nor 1.1, so `1.0` is not a floor to ask for"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the two references `NvsStr::new` \
+                      produced, and `judge_trust` reads an argument without \
+                      taking one"
+        )]
+        unsafe {
+            asked.release();
+            ancient.release();
+        }
     }
 }
