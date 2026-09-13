@@ -494,10 +494,11 @@ def report_expiry(today: date | None = None) -> tuple[int, int]:
     else:
         print(f"\n  {len(owed)} bullet(s). Read each; still true bumps its date, no longer true deletes it.")
 
-    if rows:
-        print("\n== CARRIED-GAPS ROWS WHOSE OWNER WENT GREEN WITHOUT CLOSING THEM")
-        for r in rows:
-            print(f"  {r['file']}:{r['line']}  {r['lead']}  -- {r['why']}")
+    print("\n== CARRIED-GAPS ROWS WHOSE OWNER WENT GREEN WITHOUT CLOSING THEM")
+    for r in rows:
+        print(f"  {r['file']}:{r['line']}  {r['lead']}  -- {r['why']}")
+    if not rows:
+        print("  none -- every carried-gaps owner is live or struck")
 
     print("\n== BULLETS THAT DECLARE NOTHING, OR DECLARE IT WRONGLY")
     for e in bad:
