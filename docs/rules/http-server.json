@@ -798,7 +798,7 @@
     {
       "id": "http-server/a-session-holds-a-secret-only-sealed",
       "title": "A user's own secret lives in their session, sealed under a key ring through `setSecret` and `getSecret`",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0181"
       ],
@@ -810,7 +810,10 @@
         "security/secret-crosses-no-boundary"
       ],
       "guardedBy": [
-        "crates/nvs-stdlib/src/session.rs"
+        "crates/nvs-stdlib/src/session.rs",
+        "tests/conformance/core/session-a-secret-round-trips-sealed-and-survives-regenerate.nvst",
+        "tests/conformance/core/session-get-answers-null-for-a-sealed-value.nvst",
+        "tests/conformance/reject/session-set-refuses-a-secret-and-names-set-secret.nvst"
       ]
     },
     {

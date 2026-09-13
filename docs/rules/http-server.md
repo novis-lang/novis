@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*9 of 75 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 75 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -759,13 +759,15 @@ is the point of choosing backends that expire.
 
 <a id="http-server-a-session-holds-a-secret-only-sealed"></a>
 
-## A user's own secret lives in their session, sealed under a key ring through `setSecret` and `getSecret`  *(designed — not yet in the compiler)*
+## A user's own secret lives in their session, sealed under a key ring through `setSecret` and `getSecret`
 
 `rule:http-server/a-session-holds-a-secret-only-sealed`
 
 A user's own secret — the access and refresh token a web application holds on their behalf — lives in their
-session, through `$session->setSecret(string $key, secret string $value, array<secret bytes> $keys)` and
-`$session->getSecret(string $key, array<secret bytes> $keys)`, and only **sealed**. The construction is the
+session, through `Core\Session::setSecret(string $key, secret string $value, array<secret bytes> $keys)`
+and `Core\Session::getSecret(string $key, array<secret bytes> $keys)`, and only **sealed**. Static like
+every member of that class ([`core-api/session-roster`](core-api.md#core-api-session-roster)): the session is the request's, not an object
+a program holds. The construction is the
 cache's ([`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed)) under the session door's own domain byte, so a
 value sealed for a cache never opens as a session value and the reverse.
 

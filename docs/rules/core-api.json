@@ -615,7 +615,7 @@
     },
     {
       "id": "core-api/session-roster",
-      "title": "The session roster is `start` and six members, and a member called before `start` throws naming it",
+      "title": "The session roster is `start` and the members that work on the record it loaded, and a member called before `start` throws naming it",
       "status": "shipped",
       "because": ["0139", "0012", "0124"],
       "divergesFromPhp": "`$_SESSION` does not exist and no member silently starts a session — `session_start` has to be written",

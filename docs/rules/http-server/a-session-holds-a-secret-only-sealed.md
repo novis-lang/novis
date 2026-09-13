@@ -1,6 +1,8 @@
 A user's own secret — the access and refresh token a web application holds on their behalf — lives in their
-session, through `$session->setSecret(string $key, secret string $value, array<secret bytes> $keys)` and
-`$session->getSecret(string $key, array<secret bytes> $keys)`, and only **sealed**. The construction is the
+session, through `Core\Session::setSecret(string $key, secret string $value, array<secret bytes> $keys)`
+and `Core\Session::getSecret(string $key, array<secret bytes> $keys)`, and only **sealed**. Static like
+every member of that class (`rule:core-api/session-roster`): the session is the request's, not an object
+a program holds. The construction is the
 cache's (`rule:concurrency/a-secret-is-cached-only-sealed`) under the session door's own domain byte, so a
 value sealed for a cache never opens as a session value and the reverse.
 

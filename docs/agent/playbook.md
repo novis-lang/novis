@@ -1913,6 +1913,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   red with no member having changed. Run `git status --short` before diagnosing it, and run `python
   tools/reference.py` only once the prose it reads is settled, because the tool bakes whatever is on
   disk into a document that is then committed. [until: reviewed 2026-09-13]
+- **A `rule:` target after an option on `peek.py`'s command line is refused as an unrecognized
+  argument.** The option ends the positional run argparse is collecting targets into, so
+  `peek.py a.rs:1-20 --context 5 rule:topic/slug` fails outright while the same call with the
+  `rule:` token written before `--context` reads both. Put every target first and every option
+  last, which is the order the tool's own usage line prints them in.
+  [until: reviewed 2026-09-13]
 
 ## Running things
 
