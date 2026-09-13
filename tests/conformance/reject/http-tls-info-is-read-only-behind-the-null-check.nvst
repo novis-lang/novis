@@ -1,0 +1,34 @@
+--TEST--
+`Core\Http\Response::tls` answers `?Core\Http\TlsInfo`, so every member of it is reachable behind a null check and none of them off the answer itself — `rule:http-server/a-reply-reports-its-tls-session`
+--FILE--
+<?nvs
+// The claim is *a bound asserted on both sides*: the read the language accepts
+// and the read it refuses, named together. A `tls()` that answered
+// `Core\Http\TlsInfo` rather than its nullable form would pass the second half
+// of this and hand every program that never calls over TLS a value describing a
+// session that does not exist.
+Core\Http\Response $r = Core\Http\Client::get("https://api.example.com/thing");
+
+// Accepted: the check is what a reply with no session is told apart by, and
+// past it all seven members are ordinary reads.
+var $info = $r->tls();
+if ($info != null) {
+    echo $info->version(), " ", $info->cipher(), "\n";
+    echo $info->verified() ? "verified" : "relaxed", "\n";
+    echo Core\Arr::count($info->peerChain()), "\n";
+    echo $info->subject(), " ", $info->issuer(), "\n";
+    echo $info->expiry()->toIso(), "\n";
+}
+
+// Refused: a plain `http` reply and one a test's table answered arrived over no
+// session at all, so the answer is `null` often enough that reading straight
+// through it is a program that works until the first call that did not
+// negotiate anything.
+echo $r->tls()->version(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0459]: `null|Core\Http\TlsInfo` may be `null`, so `->` cannot reach a member of it
+   --> case.nvs:24:6
+%A
+error: aborting due to 1 error

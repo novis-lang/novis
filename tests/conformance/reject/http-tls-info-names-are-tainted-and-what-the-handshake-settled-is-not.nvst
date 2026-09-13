@@ -1,0 +1,42 @@
+--TEST--
+`Core\Http\TlsInfo` answers the peer's own text as `tainted` and what the handshake settled as plain values, so a `string` binding takes the version and refuses the subject — `rule:security/tainted-sources`, `rule:http-server/a-reply-reports-its-tls-session`
+--FILE--
+<?nvs
+// The claim is *agreement*: one question asked of all seven members of
+// `Core\Http\TlsInfo`, which is which side of the connection chose the answer. A version and a cipher are
+// values out of a closed set this end offered, a `verified` is this process's
+// own reading of its own policy, and a subject, an issuer and a chain are bytes
+// the other end wrote into a certificate — verifying a chain settles which host
+// answered and says nothing about what is written inside it.
+Core\Http\Response $r = Core\Http\Client::get("https://api.example.com/thing");
+var $info = $r->tls();
+if ($info != null) {
+    // Accepted: what the handshake settled carries no qualifier.
+    string $version = $info->version();
+    string $cipher = $info->cipher();
+    bool $verified = $info->verified();
+    echo $version, " ", $cipher, " ", $verified ? "verified" : "relaxed", "\n";
+
+    // Accepted: the certificate's own text is where it can be held, and an
+    // expiry is a `Core\Time\Instant` rather than text at all — a date is not
+    // something a sink can misread.
+    tainted string $subject = $info->subject();
+    tainted string $issuer = $info->issuer();
+    echo $subject, " ", $issuer, " ", $info->expiry()->toIso(), "\n";
+    foreach ($info->peerChain() as tainted string $pem) {
+        echo Core\Str::length($pem), "\n";
+    }
+
+    // Refused: narrowing through an assignment is the one direction the
+    // qualifier never goes, and a peer's certificate has no launderer to put in
+    // front of it.
+    string $name = $info->subject();
+    echo $name, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:30:20
+%A
+error: aborting due to 1 error
