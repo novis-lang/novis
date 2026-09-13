@@ -2197,12 +2197,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   current, so `wsl.exe -- bash -lc "cd /mnt/<drive>/<repo> && /var/tmp/nvs-linux/debug/nvs test
   <case>.nvst"` runs the case on Linux with no build. Check its date first: it is as old as the last
   valgrind sweep and has none of this session's Rust. [until: reviewed 2026-09-06]
-- **A timing test in `nvs-host` that fails under the full `verify.py` gate and passes alone is a
-  measurement flake, not a regression.** A loaded machine stretches the gap between setting a
-  deadline and an `Instant::now()` taken inside the spawned task, so an on-time timeout reads as an
-  early one. Re-run the one test alone before diagnosing, and measure a timing assertion from the
-  instant the clock was set, never from one taken after a scheduler hop.
-  [until: reviewed 2026-09-06]
+- **A test `verify.py` reports as "failed beside the other test binaries and passed alone" is red,
+  and running the gate again is not the fix.** The tool has already re-run that binary by itself;
+  what is left is a test leaning on something the load beside it takes away — a wall-clock spin read
+  as CPU time, a channel checked after its sender's thread may have exited, a cost margin that holds
+  only on an idle box. Give the test what it depends on (`nvs_host::cpuclock::burn_at_least`, an
+  assertion that tolerates a dropped sender, `#[cfg_attr(debug_assertions, ignore)]` into the
+  driver's release slot) in a commit of its own. [until: gone tools/verify.py:alone]
 - **Write a goal's acceptance fixture red, but never write its `nvs.toml` block red.** A `.nvs`
   fixture naming a missing member fails at `E0405` and costs only itself, but `deny_unknown_fields`
   sits on every struct in `crates/nvs-config/src/tree.rs`, so an unrecognised table fails at boot
