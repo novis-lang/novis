@@ -112,6 +112,15 @@ modules = [
   "docs/agent/carried-refusals.md",
   # The owner column's gate. Stage 3.
   "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+  # `rule:core-classes/schema-plan`'s DDL: a `Schema` value as SQL an operator could paste.
+  "crates/nvs-db/src/ddl.rs",
+  # ADR 0067 § 11's `query` trace event: the facts one statement contributes to a trace, and why a
+  # bound parameter is not one of them.
+  "crates/nvs-db/src/span.rs",
+  # SQL Server: TDS 7.4's packet framing, which is an eight-byte header in front of every message,
+  # the split a message longer than the negotiated packet size takes on the way out, and the
+  # reassembly it takes on the way back.
+  "crates/nvs-db/src/tds/mod.rs",
 ]
 
 rules = [
