@@ -1775,8 +1775,8 @@ mod tests {
         let answer = interner.describe(sig.return_ty);
         assert_eq!(
             answer, r"Core\Http\Target",
-            "the answer pins: it carries the address that was approved, so the connection is made \
-             to that address and no second resolution can answer differently"
+            "the answer pins: it carries every address that was approved, so the connection is made \
+             across that set and no second resolution can answer differently"
         );
         assert!(
             !answer.contains("string"),
@@ -1790,10 +1790,10 @@ mod tests {
             .expect("the launderer's answer is a registered class");
         assert!(
             target.members().next().is_none(),
-            "and it exposes nothing: a member answering the pinned address would let a program \
-             rebuild the request around a different one"
+            "and it exposes nothing: a member answering the pinned set would let a program \
+             rebuild the request around an address nothing approved"
         );
-        assert_eq!(target.slots, &["url", "address"]);
+        assert_eq!(target.slots, &["url", "addresses"]);
     }
 
     /// `rule:http-server/no-spelling-for-an-unbounded-wait`, asked of the lowered signature rather than of the row:

@@ -20179,7 +20179,7 @@ Checks `$url` against the outbound policy and pins it: the scheme, the `net.conn
 |---|---|---|
 | `$url` | `string` (launder) | The URL to approve; `tainted` is accepted here and nowhere else outbound. |
 
-**Returns** `Core\Http\Target` — A `Core\Http\Target` bound to one address, which is what the client connects to — so a second name lookup cannot answer differently.
+**Returns** `Core\Http\Target` — A `Core\Http\Target` bound to every address the host resolved to that the policy approved — at most eight, in the resolver's order — which is the set the client connects across, so a second name lookup cannot answer differently.
 
 **Throws** `RuntimeError` — The text is not a URL, its scheme is neither `http` nor `https`, it names no host, `net.connect` does not grant that host, the host resolves to no address, or it resolves to a loopback, private, link-local or unspecified address that `net.internal` does not name.
 

@@ -145,8 +145,13 @@ pub(crate) struct Call<'a> {
     pub(crate) verb: &'a str,
     /// The URL as approved, and the one a relative `Location` resolves against.
     pub(crate) url: String,
-    /// The address [`super::pin`] approved for [`Call::url`]'s host.
-    pub(crate) address: IpAddr,
+    /// Every address [`super::pin`] approved for [`Call::url`]'s host, in the
+    /// resolver's order and at most eight of them
+    /// (`rule:http-server/an-outbound-call-tries-every-approved-address`).
+    ///
+    /// Never empty: a name that answered nothing is the launderer's refusal,
+    /// not an approval of no addresses.
+    pub(crate) addresses: Vec<IpAddr>,
     /// The whole call's budget — every attempt, every hop, every backoff.
     pub(crate) deadline: Instant,
     /// The handshake's own bound, which is separate from the total.
@@ -1071,6 +1076,17 @@ struct Parts {
     tls: bool,
 }
 
+/// What a redirect hop is re-pinned with: the hop's URL and whether it leaves
+/// TLS behind, answered with the set the door approved.
+///
+/// A name rather than the signature written out three times, which is the same
+/// argument the module doc makes about the closure itself — the decision is
+/// [`super::repinned`]'s and what crosses this boundary is only its answer.
+/// The lifetime is written out because a trait object inside an alias is
+/// `'static` by default, where the same type spelled at the parameter takes the
+/// reference's — and every closure handed here borrows the `Ctx` it decides on.
+type Repin<'a> = dyn FnMut(&str, bool) -> Result<Vec<IpAddr>, Fault> + 'a;
+
 /// Runs `call` to an answer, re-pinning through `repin` at every redirect hop.
 ///
 /// The loop is the ADR's: attempts inside, hops outside, one deadline over both.
@@ -1084,17 +1100,13 @@ struct Parts {
 /// attempt could not reach the address, a `RuntimeError` for a reply that is
 /// not HTTP or a body that is not text, and whatever `repin` refuses a hop
 /// with.
-fn sent(
-    call: &Call<'_>,
-    repin: &mut dyn FnMut(&str, bool) -> Result<IpAddr, Fault>,
-    bounds: Bounds,
-) -> Result<Streamed, Fault> {
+fn sent(call: &Call<'_>, repin: &mut Repin<'_>, bounds: Bounds) -> Result<Streamed, Fault> {
     let mut url = call.url.clone();
-    let mut address = call.address;
+    let mut addresses = call.addresses.clone();
     let mut tls = parts(&url, call.member)?.tls;
     let mut hops = 0_u32;
     loop {
-        let reply = attempts(call, &url, address, bounds)?;
+        let reply = attempts(call, &url, &addresses, bounds)?;
         let Some(location) = redirect_of(&reply) else {
             return Ok(reply);
         };
@@ -1109,7 +1121,7 @@ fn sent(
         // the first URL's approval is standing in for. The second argument is
         // the question this module can answer and must not decide — a hop out
         // of TLS into plaintext, which is the module doc's paragraph above.
-        address = repin(&url, tls && !onward)?;
+        addresses = repin(&url, tls && !onward)?;
         tls = onward;
     }
 }
@@ -1120,10 +1132,7 @@ fn sent(
 ///
 /// [`sent`]'s, a `RuntimeError` for a body past [`REPLY_CEILING`], and
 /// [`coding_of`]'s for a reply under a coding [`OFFERED`] does not name.
-pub(crate) fn send(
-    call: &Call<'_>,
-    repin: &mut dyn FnMut(&str, bool) -> Result<IpAddr, Fault>,
-) -> Result<Reply, Fault> {
+pub(crate) fn send(call: &Call<'_>, repin: &mut Repin<'_>) -> Result<Reply, Fault> {
     let mut answer = sent(call, repin, Bounds::Whole)?;
     let body = answer.body.whole(REPLY_CEILING)?;
     let Some(codec) = coding_of(&answer.headers, call.member)? else {
@@ -1238,10 +1247,7 @@ fn own_offer(member: &str, name: &str) -> Fault {
 /// [`sent`]'s, and [`coding_of`]'s for a reply under a coding [`OFFERED`] does
 /// not name. The body's own refusals arrive later, at the reader
 /// ([`Incoming::pull`]).
-pub(crate) fn send_streamed(
-    call: &Call<'_>,
-    repin: &mut dyn FnMut(&str, bool) -> Result<IpAddr, Fault>,
-) -> Result<Streamed, Fault> {
+pub(crate) fn send_streamed(call: &Call<'_>, repin: &mut Repin<'_>) -> Result<Streamed, Fault> {
     let bounds = Bounds::Streamed {
         idle: call.idle,
         until: Instant::now() + call.max_duration,
@@ -1265,7 +1271,7 @@ pub(crate) fn send_streamed(
 fn attempts(
     call: &Call<'_>,
     url: &str,
-    address: IpAddr,
+    addresses: &[IpAddr],
     bounds: Bounds,
 ) -> Result<Streamed, Fault> {
     let mut attempt = 0_u32;
@@ -1274,7 +1280,7 @@ fn attempts(
             return Err(expired(call.member));
         }
         let last = attempt + 1 >= call.attempts;
-        let wait = match one(call, url, address, bounds)? {
+        let wait = match one(call, url, addresses, bounds)? {
             Attempt::Answered(reply) => {
                 if last || !retryable(reply.status) {
                     return Ok(reply);
@@ -1310,9 +1316,17 @@ fn attempts(
 
 /// One request and one reply, over a connection this core was already holding
 /// where it had one.
-fn one(call: &Call<'_>, url: &str, address: IpAddr, bounds: Bounds) -> Result<Attempt, Fault> {
+fn one(call: &Call<'_>, url: &str, addresses: &[IpAddr], bounds: Bounds) -> Result<Attempt, Fault> {
     let parts = parts(url, call.member)?;
     let request = compose(call, &parts)?;
+    // Unreachable from source: [`Call::addresses`] is what a door approved, and
+    // a door that approved nothing refused instead.
+    let Some(&address) = addresses.first() else {
+        return Err(Fault::fatal(format!(
+            "{}: an approved set with no address in it",
+            call.member
+        )));
+    };
     let socket = SocketAddr::new(address, parts.port);
     let identity = call.identity.as_ref();
     let key = pool_key(
@@ -2190,7 +2204,7 @@ mod tests {
             member,
             verb: "GET",
             url: format!("http://{at}/ok"),
-            address: at.ip(),
+            addresses: vec![at.ip()],
             deadline: Instant::now() + Duration::from_secs(10),
             connect_timeout: Duration::from_secs(5),
             idle: Duration::from_secs(30),
@@ -2229,7 +2243,7 @@ mod tests {
     }
 
     /// What a redirect hop must never be asked for.
-    fn never(_url: &str, _downgrade: bool) -> Result<IpAddr, Fault> {
+    fn never(_url: &str, _downgrade: bool) -> Result<Vec<IpAddr>, Fault> {
         panic!("a call with no redirect hop must not re-pin")
     }
 
@@ -3965,8 +3979,8 @@ mod tests {
             ("X-Api-Key".to_owned(), "k-93ce".to_owned()),
         ];
 
-        let reply =
-            send(&followed, &mut |_url, _downgrade| Ok(elsewhere.ip())).expect("the hop's answer");
+        let reply = send(&followed, &mut |_url, _downgrade| Ok(vec![elsewhere.ip()]))
+            .expect("the hop's answer");
         assert_eq!(reply.status, 200);
 
         let hop = &answering.join().expect("the second origin thread").asked[0];
@@ -4013,8 +4027,8 @@ mod tests {
             ("X-Api-Key".to_owned(), "k-93ce".to_owned()),
         ];
 
-        let reply =
-            send(&followed, &mut |_url, _downgrade| Ok(at.ip())).expect("the hop's own answer");
+        let reply = send(&followed, &mut |_url, _downgrade| Ok(vec![at.ip()]))
+            .expect("the hop's own answer");
         assert_eq!(reply.status, 200);
 
         let asked = served.join().expect("the origin thread").asked;

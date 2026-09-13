@@ -111,9 +111,10 @@
 //! and the member that reads it are one decision, and a `header()` over a map nothing fills would
 //! be a surface with no behaviour under it. It arrives with the transport that writes the map.
 //!
-//! **What it spends:** one `Core\Http\Target` allocation per laundered URL, two slots wide, charged
-//! to the request that laundered it — and one synchronous resolution per call, which
-//! `pin_host`'s own docs own. A request member allocates nothing of its own before the transport:
+//! **What it spends:** one `Core\Http\Target` allocation per laundered URL — the URL and the
+//! approved set, at most eight addresses as text — charged to the request that laundered it, and
+//! one resolution per call, which `pin_host_addresses`' own docs own. A request member allocates
+//! nothing of its own before the transport:
 //! a `Target` argument is borrowed, and a `string` one is pinned without building a target, since
 //! nothing downstream of the check would read it. A call that writes a body spends that body once,
 //! charged to the request and held until the last attempt is done with it — except a
@@ -178,8 +179,9 @@ const ALLOW_URL_DOC: MethodDoc = MethodDoc {
         desc: "The URL to approve; `tainted` is accepted here and nowhere else outbound.",
         shape: &[],
     }],
-    ret: "A `Core\\Http\\Target` bound to one address, which is what the client connects to — so a \
-          second name lookup cannot answer differently.",
+    ret: "A `Core\\Http\\Target` bound to every address the host resolved to that the policy \
+          approved — at most eight, in the resolver's order — which is the set the client connects \
+          across, so a second name lookup cannot answer differently.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The text is not a URL, its scheme is neither `http` nor `https`, it names no host, \
@@ -192,16 +194,21 @@ const ALLOW_URL_DOC: MethodDoc = MethodDoc {
 /// [`TARGET`]'s name, written once — see [`NAME`].
 pub(crate) const TARGET_NAME: &str = r"Core\Http\Target";
 
-/// `rule:http-server/allow-url-pins-the-address`'s pinned target: a URL and the one address it was approved at.
+/// `rule:http-server/allow-url-pins-the-address`'s pinned target: a URL and every address it was approved at.
+///
+/// The set and not one of it, per
+/// `rule:http-server/an-outbound-call-tries-every-approved-address`: a call
+/// falls back across it, and a retry reuses it rather than resolving a second
+/// time.
 ///
 /// No members, for the reason this module's own docs give — a program names it
-/// and hands it on, and reading the address back out is the operation that
-/// would make pinning decorative.
+/// and hands it on, and reading the set back out is the operation that would
+/// make pinning decorative.
 pub(crate) const TARGET: CoreClass = CoreClass {
     name: TARGET_NAME,
     methods: &[],
     instance: &[],
-    slots: &["url", "address"],
+    slots: &["url", "addresses"],
     constants: &[],
 };
 
@@ -355,16 +362,16 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
     })
 }
 
-/// The address `text` resolves to, once the URL and the deployment have both
+/// Every address `text` resolves to, once the URL and the deployment have both
 /// approved it — the whole of `rule:http-server/allow-url-pins-the-address` and `rule:security/net-address-policy` as this module holds it, written
 /// under `member` so a refusal names the row the caller wrote.
 ///
 /// The order of the four questions is deliberate. The text is parsed and its
 /// scheme judged first, because both are statements about the argument and
 /// neither tells a caller anything about the deployment. Then
-/// `nvs_runtime::capability::pin_host` asks the capability about the host and
-/// § 3's table about the address it resolves to — in that order, so an
-/// ungranted program cannot use this member as a resolver for names it was
+/// `nvs_runtime::capability::pin_host_addresses` asks the capability about the
+/// host and § 3's table about every address it resolves to — in that order, so
+/// an ungranted program cannot use this member as a resolver for names it was
 /// never allowed to reach.
 ///
 /// One function rather than one per caller: [`nvs_core_http_allow_url`] and
@@ -376,10 +383,11 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 ///
 /// A thrown `RuntimeError` for any of the four: the text is not a URL, its
 /// scheme is outside the roster, it names no host, or the capability refuses
-/// the host or the address it resolves to.
-fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
+/// the host or one of the addresses it resolves to — one denied address refuses
+/// the host whole.
+fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<Vec<std::net::IpAddr>, Fault> {
     let host = judged_host(text, member)?;
-    nvs_runtime::capability::pin_host(ctx, &host, member)
+    nvs_runtime::capability::pin_host_addresses(ctx, &host, member)
 }
 
 /// [`pin`]'s first two questions — the ones a URL answers by itself — and the
@@ -428,17 +436,26 @@ nvs_runtime::nvs_helper! {
     /// , and the only spelling that removes `tainted` from an outbound URL.
     ///
     /// The four questions it asks, and the order it asks them in, are [`pin`]'s.
-    /// What is here is the answer: a value carrying both the URL and the address
-    /// that was approved, for the reason this module's own docs give.
+    /// What is here is the answer: a value carrying both the URL and every
+    /// address that was approved, for the reason this module's own docs give.
+    ///
+    /// The set is written as one text per address, which is the form the slot
+    /// holds and the form [`addresses_of`] reads back — an address is a value
+    /// with no representation of its own in the language, and a target carrying
+    /// eight of them carries eight strings.
     fn nvs_core_http_allow_url(ctx, args: [1]) {
         let text = text_of(args, "allowUrl")?;
-        let pinned = pin(ctx, text, MEMBER)?;
+        let approved = pin(ctx, text, MEMBER)?;
 
+        let mut addresses = NvsArray::new();
+        for address in approved {
+            addresses.append(Value::str(NvsStr::new(address.to_string().as_bytes())));
+        }
         Ok(crate::instance::build(
             &TARGET,
             [
                 Value::str(NvsStr::new(text.as_bytes())),
-                Value::str(NvsStr::new(pinned.to_string().as_bytes())),
+                Value::array(addresses),
             ],
         ))
     }
@@ -1206,7 +1223,7 @@ const STREAM_ARITY: usize = STREAM_OPTIONS.len() + 1;
 /// [`TARGET`]'s two slots, by index — see [`STATUS_SLOT`].
 const TARGET_URL_SLOT: usize = 0;
 /// See [`TARGET_URL_SLOT`].
-const TARGET_ADDRESS_SLOT: usize = 1;
+const TARGET_ADDRESSES_SLOT: usize = 1;
 
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s `[http.client]` block, as the answers an omitted option
 /// inherits when the deployment configured nothing.
@@ -2508,7 +2525,7 @@ pub(crate) fn headers_of(
 /// against that same name. `net.connect_to` is asked about it too, so a
 /// deployment says which hosts a call may steer itself at rather than granting
 /// the steering everywhere at once. The address then goes through
-/// [`nvs_runtime::capability::pinned_address`], which is the one home of
+/// [`nvs_runtime::capability::pinned_addresses`], which is the one home of
 /// `rule:security/net-address-policy` and of `net.internal`'s exceptions — the
 /// option therefore chooses among addresses the deployment already allows and
 /// widens nothing.
@@ -2516,14 +2533,17 @@ pub(crate) fn headers_of(
 /// **An IP literal, and a name refused rather than resolved.** A lookup here
 /// would be a second resolution reached through the option instead of through
 /// the URL, which is exactly what pinning an address exists to remove
-/// (`rule:http-server/allow-url-pins-the-address`).
+/// (`rule:http-server/allow-url-pins-the-address`). A literal reaches no
+/// resolver, so the answer is the set of one
+/// `rule:http-server/an-outbound-call-tries-every-approved-address` says a
+/// named address is.
 ///
 /// # Errors
 ///
 /// [`judged_host`]'s three, a thrown `RuntimeError` naming whichever grant this
 /// deployment did not write, a thrown `LogicError` for a value that is not an
-/// IP literal, and `pinned_address`'s refusal for an address the policy denies.
-fn named_address(ctx: &Ctx, url: &str, named: &str, member: &str) -> Result<IpAddr, Fault> {
+/// IP literal, and `pinned_addresses`' refusal for an address the policy denies.
+fn named_address(ctx: &Ctx, url: &str, named: &str, member: &str) -> Result<Vec<IpAddr>, Fault> {
     let host = judged_host(url, member)?;
     nvs_runtime::capability::require(ctx, Cap::NetConnect, Scope::Host(&host), member)?;
     nvs_runtime::capability::require(
@@ -2542,7 +2562,7 @@ fn named_address(ctx: &Ctx, url: &str, named: &str, member: &str) -> Result<IpAd
             ),
         ));
     }
-    nvs_runtime::capability::pinned_address(ctx, named, member)
+    nvs_runtime::capability::pinned_addresses(ctx, named, member)
 }
 
 /// One redirect hop's re-pin, in the shape [`transport::send`] asks for it: the
@@ -2564,7 +2584,7 @@ fn repinned(
     hop: &str,
     downgrade: bool,
     member: &str,
-) -> Result<IpAddr, Fault> {
+) -> Result<Vec<IpAddr>, Fault> {
     if downgrade {
         judge_downgrade(ctx, args, hop, member)?;
     }
@@ -2605,7 +2625,7 @@ fn judge_downgrade(ctx: &Ctx, args: &[Value], hop: &str, member: &str) -> Result
     )
 }
 
-/// The URL to send to and the address it was approved at.
+/// The URL to send to and the set of addresses it was approved at.
 ///
 /// A `Target` argument was pinned by the launderer that built it, and asking
 /// again would be the second resolution `rule:http-server/allow-url-pins-the-address` exists to remove — so its
@@ -2621,15 +2641,15 @@ fn judge_downgrade(ctx: &Ctx, args: &[Value], hop: &str, member: &str) -> Result
 /// which already carries the address its laundering approved. A
 /// [`Fault::fatal`] for an argument of another shape or a target whose slots
 /// this crate did not write, both unreachable from source.
-fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, IpAddr), Fault> {
+fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, Vec<IpAddr>), Fault> {
     let url = given_url(args, member)?;
     let named = args[CONNECT_TO].as_text();
     if !matches!(args[0].tag(), Some(Tag::Object)) {
-        let address = match named {
+        let addresses = match named {
             Some(named) => named_address(ctx, &url, named, member)?,
             None => pin(ctx, &url, member)?,
         };
-        return Ok((url, address));
+        return Ok((url, addresses));
     }
 
     if let Some(named) = named {
@@ -2644,16 +2664,35 @@ fn approved(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<(String, IpAd
     }
 
     let target = crate::instance::receiver(args[0], &TARGET, member)?;
-    let address = crate::instance::slot(target, TARGET_ADDRESS_SLOT);
-    let address = address
-        .as_text()
-        .and_then(|text| text.parse::<IpAddr>().ok())
-        .ok_or_else(|| {
-            Fault::fatal(format!(
-                "{member} found a `Core\\Http\\Target` it cannot read"
-            ))
-        })?;
-    Ok((url, address))
+    let addresses = addresses_of(target).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{member} found a `Core\\Http\\Target` it cannot read"
+        ))
+    })?;
+    Ok((url, addresses))
+}
+
+/// The approved set as [`TARGET_ADDRESSES_SLOT`] holds it: one text per
+/// address, in the order the resolver answered them.
+///
+/// `None` rather than a shorter set for anything the slot holds that is not an
+/// address, and for an empty one: this crate is what writes that slot, so a
+/// value another kind would be a mistake in this file, and answering with the
+/// entries that did parse would be a call connecting to a set the door never
+/// approved.
+fn addresses_of(object: *mut nvs_runtime::ObjHeader) -> Option<Vec<IpAddr>> {
+    let held = crate::instance::slot(object, TARGET_ADDRESSES_SLOT).array_ptr()?;
+    let held = crate::arr::borrowed(held);
+    let mut out = Vec::new();
+    let mut from = 0_usize;
+    while let Some(slot) = held.next_slot(from) {
+        from = slot + 1;
+        let address = held
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        out.push(address.as_text()?.parse::<IpAddr>().ok()?);
+    }
+    (!out.is_empty()).then_some(out)
 }
 
 /// The URL this call names, whichever arm of the union carried it.
@@ -3151,7 +3190,7 @@ fn exchanged(
     if ctx.faked_http().is_armed() {
         return faked(ctx, args, &named, verb, streamed);
     }
-    let (url, address) = approved(ctx, args, &named)?;
+    let (url, addresses) = approved(ctx, args, &named)?;
 
     judge_bound(args, DEADLINE, "deadline", &named)?;
     judge_bound(args, CONNECT_TIMEOUT, "connectTimeout", &named)?;
@@ -3169,7 +3208,7 @@ fn exchanged(
         member: &named,
         verb,
         url,
-        address,
+        addresses,
         deadline: Instant::now()
             + bound_of(
                 ctx,
@@ -4006,7 +4045,7 @@ mod tests {
     use std::io::ErrorKind;
     use std::net::{IpAddr, Ipv4Addr, TcpListener};
 
-    use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
+    use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, Value};
 
     use crate::tests::granting;
 
@@ -4016,7 +4055,7 @@ mod tests {
         IDENTITY_AT, IDENTITY_OPTION, IDLE, JSON, JSON_OPTION, MAX_DURATION, MULTIPART_OPTION,
         OPTIONS, REDIRECT_TO_HTTP, REDIRECT_TO_HTTP_OPTION, REQUEST_ARITY, RESPONSE,
         RETRY_ATTEMPTS, RETRY_ATTEMPTS_OPTION, RETRY_BACKOFF, RETRY_KEY, RETRY_KEY_OPTION,
-        STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS, TARGET, TARGET_ADDRESS_SLOT, TARGET_URL_SLOT,
+        STATUS_SLOT, STREAM_ARITY, STREAM_OPTIONS, TARGET, TARGET_ADDRESSES_SLOT, TARGET_URL_SLOT,
         TLS_CA, TLS_CA_OPTION, TLS_MIN_VERSION, TLS_MIN_VERSION_OPTION, TLS_PIN, TLS_PIN_OPTION,
         TLS_VERIFY, TLS_VERIFY_HOST, TLS_VERIFY_HOST_OPTION, TLS_VERIFY_OPTION,
     };
@@ -4032,7 +4071,7 @@ mod tests {
     #[test]
     fn a_targets_slot_constants_are_the_names_it_declares() {
         assert_eq!(TARGET_URL_SLOT, TARGET.slot("url"));
-        assert_eq!(TARGET_ADDRESS_SLOT, TARGET.slot("address"));
+        assert_eq!(TARGET_ADDRESSES_SLOT, TARGET.slot("addresses"));
     }
 
     /// The two halves of the layout agree: the index a body reads by and the
@@ -4105,8 +4144,8 @@ mod tests {
 
     /// `rule:security/the-policy-lives-in-the-capability`, asserted as **agreement** rather than as a value: the
     /// address policy is the capability's, and this module holds no copy of it.
-    /// The launderer and `nvs_runtime::capability::pin_host` are asked about the
-    /// same host on the same two deployments, and what is pinned is that they
+    /// The launderer and `nvs_runtime::capability::pin_host_addresses` are asked
+    /// about the same host on the same two deployments, and what is pinned is that they
     /// answer the *same thing* — a client that had grown a table of its own
     /// would read plausibly on either line alone and disagree only here.
     ///
@@ -4125,7 +4164,7 @@ mod tests {
         denied.set_config(granting(GRANTED));
         let by_client = super::pin(&mut denied, URL, MEMBER)
             .expect_err("loopback is the first range § 3 denies");
-        let by_door = nvs_runtime::capability::pin_host(&denied, HOST, MEMBER)
+        let by_door = nvs_runtime::capability::pin_host_addresses(&denied, HOST, MEMBER)
             .expect_err("and the door is where that refusal is written");
         assert_eq!(
             format!("{by_client:?}"),
@@ -4145,9 +4184,9 @@ mod tests {
         ));
         let pinned =
             super::pin(&mut excepted, URL, MEMBER).expect("an address the deployment bought back");
-        assert_eq!(pinned, IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(pinned, vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]);
         assert_eq!(
-            nvs_runtime::capability::pin_host(&excepted, HOST, MEMBER)
+            nvs_runtime::capability::pin_host_addresses(&excepted, HOST, MEMBER)
                 .expect("the door approves it too, or the two had drifted"),
             pinned
         );
@@ -4453,13 +4492,17 @@ mod tests {
 
         let mut granted = Ctx::buffered();
         granted.set_config(granting(STEERABLE));
-        let (sent, address) = super::approved(&mut granted, &args, MEMBER)
+        let (sent, addresses) = super::approved(&mut granted, &args, MEMBER)
             .expect("the deployment named this host under both grants and excepted the address");
         assert_eq!(
             sent, URL,
             "the URL is unchanged, so the handshake checks the name it wrote"
         );
-        assert_eq!(address, IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(
+            addresses,
+            vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            "an address the call named is the set of one it reaches no resolver to grow"
+        );
 
         let mut elsewhere = Ctx::buffered();
         elsewhere.set_config(granting(
@@ -4547,11 +4590,13 @@ mod tests {
     fn connect_to_beside_a_target_is_a_logic_error() {
         const MEMBER: &str = "Core\\Http\\Client::get";
 
+        let mut addresses = NvsArray::new();
+        addresses.append(Value::str(NvsStr::new(b"127.0.0.1")));
         let target = crate::instance::build(
             &TARGET,
             [
                 Value::str(NvsStr::new(b"http://api.example.invalid:8080/ok")),
-                Value::str(NvsStr::new(b"127.0.0.1")),
+                Value::array(addresses),
             ],
         );
         let named = Value::str(NvsStr::new(b"127.0.0.2"));
@@ -4581,6 +4626,64 @@ mod tests {
         assert!(
             message.contains(CONNECT_TO_OPTION) && message.contains("Target"),
             "the refusal names the option and the value it cannot sit beside: {message}"
+        );
+    }
+
+    /// `rule:http-server/an-outbound-call-tries-every-approved-address`: what
+    /// the launderer approved is a **set**, and what reaches the transport is
+    /// that set whole, in the order the resolver answered it. A target read
+    /// back as its first address alone would leave the fallback nothing to fall
+    /// back across, and the order is the rule's as well — RFC 8305 interleaves
+    /// the families from the resolver's first answer onwards.
+    ///
+    /// Read back rather than resolved, which is the other half: the addresses
+    /// below answer no name, so a call reaching this target through anything
+    /// but its slots would refuse or connect elsewhere.
+    #[test]
+    fn a_target_hands_the_whole_approved_set_to_the_call() {
+        const MEMBER: &str = "Core\\Http\\Client::get";
+        const URL: &str = "http://api.example.invalid/ok";
+
+        let mut addresses = NvsArray::new();
+        for text in [
+            b"198.51.100.7".as_slice(),
+            b"203.0.113.9".as_slice(),
+            b"192.0.2.4".as_slice(),
+        ] {
+            addresses.append(Value::str(NvsStr::new(text)));
+        }
+        let target = crate::instance::build(
+            &TARGET,
+            [
+                Value::str(NvsStr::new(URL.as_bytes())),
+                Value::array(addresses),
+            ],
+        );
+        let mut args = [Value::null(); REQUEST_ARITY];
+        args[0] = target;
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(STEERABLE));
+        let read = super::approved(&mut ctx, &args, MEMBER);
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the target it built, and \
+                      `approved` reads an argument without taking one"
+        )]
+        unsafe {
+            target.release();
+        }
+
+        let (url, approved) = read.expect("a target the launderer built is read back");
+        assert_eq!(url, URL);
+        assert_eq!(
+            approved,
+            vec![
+                IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7)),
+                IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9)),
+                IpAddr::V4(Ipv4Addr::new(192, 0, 2, 4)),
+            ],
+            "every approved address reaches the call, in the resolver's order"
         );
     }
 
