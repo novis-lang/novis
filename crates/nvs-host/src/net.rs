@@ -48,8 +48,18 @@
 //! connect that only waited would hand back a stream that is dead and looks
 //! fine. The two questions that answer that soundly on both platforms — and
 //! why `peer_addr`, which is the obvious one, is not among them — are the
-//! private `finish_connecting`'s doc. What bounds it is the next section, and
+//! private `ask_connected`'s doc. What bounds it is the next section, and
 //! [`NvsTcp::connect_timeout`] is its spelling.
+//!
+//! [`NvsTcp::connect_racing`] asks that question of several addresses at once:
+//! an attempt per address started [`ATTEMPT_DELAY`] apart without waiting for
+//! the previous one to answer, every one of them in flight together, the first
+//! whose handshake is up kept and the rest dropped — which closes them — all
+//! inside one budget. It is how an outbound call falls back across the
+//! addresses a name resolved to
+//! (`rule:http-server/an-outbound-call-tries-every-approved-address`), and the
+//! set's own order is the caller's: interleaving the families is a property of
+//! the set handed in, not of the waiting.
 //!
 //! # Every wait is bounded by a clock, not by a wake
 //!
@@ -187,6 +197,14 @@ pub struct NvsStream<S: Source> {
 /// what [`NvsTcp::connect`] hand back.
 pub type NvsTcp = NvsStream<mio::net::TcpStream>;
 
+/// How far apart [`NvsTcp::connect_racing`] starts its attempts.
+///
+/// RFC 8305's own recommendation, and a constant rather than a directive
+/// because it trades against nothing an operator can see — ADR 0180 § 14.
+/// Shorter spends a second socket on a set whose first address was about to
+/// answer; longer leaves a call sitting on a black hole for most of its budget.
+pub const ATTEMPT_DELAY: Duration = Duration::from_millis(250);
+
 impl<S: Source> NvsStream<S> {
     /// Wraps an already non-blocking socket, which is what an accept loop has.
     #[must_use]
@@ -320,6 +338,95 @@ impl NvsStream<mio::net::TcpStream> {
         // inside `connect` is the caller's budget too.
         let at = Instant::now() + after;
         connected(mio::net::TcpStream::connect(addr)?, Some(at))
+    }
+
+    /// Connects to whichever of `addrs` comes up first, under one `within`
+    /// budget for the whole set.
+    ///
+    /// `rule:http-server/an-outbound-call-tries-every-approved-address`'s
+    /// fallback, at the level that can hold more than one connect in flight.
+    /// Attempts start in the order given, [`ATTEMPT_DELAY`] apart and without
+    /// waiting for the previous one to answer; the first socket whose handshake
+    /// is up is the stream that comes back, and the rest are dropped, which
+    /// closes them. An address that fails brings its successor's start forward
+    /// rather than leaving the set idle until the delay is up, so a set of dead
+    /// addresses is walked as fast as they refuse.
+    ///
+    /// The budget is [`NvsTcp::connect_timeout`]'s and is spent by the set
+    /// rather than by each address, so falling back introduces no new bound; it
+    /// is lifted before the stream is handed back for that method's reason. A
+    /// set of one *is* [`NvsTcp::connect_timeout`], called.
+    ///
+    /// # Errors
+    ///
+    /// One error naming every address and what it answered, because an error
+    /// naming only the last one sends the reader to the wrong host. Its kind is
+    /// `TimedOut` when the budget ran out under an address that never answered,
+    /// and otherwise the first address's own failure. An empty set is
+    /// `InvalidInput`: there is nothing this could have connected to.
+    pub fn connect_racing(addrs: &[SocketAddr], within: Duration) -> io::Result<Self> {
+        if addrs.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "there is no address to connect to",
+            ));
+        }
+        if let [only] = addrs {
+            return Self::connect_timeout(*only, within);
+        }
+        // Before the first syscall, per `connect_timeout`'s paragraph: the
+        // platform's own time inside `connect` is the caller's budget too.
+        let at = Instant::now() + within;
+        let mut inflight: Vec<(usize, Self)> = Vec::new();
+        let mut failures: Vec<(usize, io::Error)> = Vec::new();
+        let mut started = 0;
+        let mut due = Instant::now();
+        while Instant::now() < at {
+            while started < addrs.len() && Instant::now() >= due {
+                due = Instant::now() + ATTEMPT_DELAY;
+                match mio::net::TcpStream::connect(addrs[started]) {
+                    Ok(socket) => inflight.push((started, Self::new(socket))),
+                    // The constructor spent none of the delay it just set, and
+                    // there is nothing in flight to pace against, so the next
+                    // address is due now.
+                    Err(err) => {
+                        failures.push((started, err));
+                        due = Instant::now();
+                    }
+                }
+                started += 1;
+            }
+            let mut lost = false;
+            let mut asking = 0;
+            while asking < inflight.len() {
+                match ask_connected(&mut inflight[asking].1.inner) {
+                    // Everything still in `inflight` is dropped on the way out,
+                    // and a dropped stream closes its socket.
+                    Ok(true) => return Ok(inflight.swap_remove(asking).1),
+                    Ok(false) => asking += 1,
+                    Err(err) => {
+                        failures.push((inflight.swap_remove(asking).0, err));
+                        due = Instant::now();
+                        lost = true;
+                    }
+                }
+            }
+            if lost && started < addrs.len() {
+                continue;
+            }
+            if inflight.is_empty() {
+                break;
+            }
+            // Nothing here will answer sooner than the next attempt is due, and
+            // with the set exhausted nothing bounds the wait but the budget.
+            let until = if started < addrs.len() {
+                due.min(at)
+            } else {
+                at
+            };
+            wait_any_writable(&mut inflight, until)?;
+        }
+        Err(every_attempt_failed(addrs, &failures))
     }
 
     /// The address at the other end.
@@ -810,19 +917,16 @@ impl Connecting for mio::net::UnixStream {
     }
 }
 
-/// Waits out an in-flight connect, turning readiness into the answer.
+/// Asks, without waiting, whether an in-flight connect has finished: `true`
+/// once the handshake is up, `false` while it is still in flight.
 ///
 /// A free function rather than a method, because an inherent `impl` bounded by
 /// a private trait makes a public type carry a bound nothing outside this
 /// module can name — `private_bounds`, and the alternative is publishing a
 /// trait that exists only to be these two questions.
 ///
-/// The same optimistic order as [`Read::read`], and it earns it: a loopback
-/// connect is routinely up before this is first asked, on both platforms
-/// measured, so the common case pays no registration at all.
-///
-/// The two questions it asks on each turn are the ones that are *sound on both
-/// platforms*, which the obvious pair is not:
+/// The two questions it asks are the ones that are *sound on both platforms*,
+/// which the obvious pair is not:
 ///
 /// - **`SO_ERROR`**, because a failed connect reports writable exactly as a
 ///   completed one does, and on Windows this is the only place the refusal
@@ -835,29 +939,163 @@ impl Connecting for mio::net::UnixStream {
 ///   for a socket whose connect has not started succeeding and never will, so a
 ///   connect built on it reports success for a stream that is dead.
 ///
-/// Being sound rather than merely usual matters because [`suspend_current`] can
-/// return for a reason that is not this stream — the reactor's tokens are task
-/// ids, so any other descriptor this task holds wakes it here too (`rule:concurrency/the-parking-contract`
-/// rule 2). A completion test that is only right when the wake was ours would
-/// hand back an unconnected stream on that path.
+/// Being sound rather than merely usual matters because a wake names nothing
+/// for either caller: [`suspend_current`] can return for a reason that is not
+/// this socket — the reactor's tokens are task ids, so any other descriptor the
+/// task holds wakes it too (`rule:concurrency/the-parking-contract` rule 2) —
+/// and [`NvsTcp::connect_racing`] waits on one token for a whole set of
+/// sockets. A completion test that is only right when the wake was this
+/// socket's would hand back an unconnected stream on both paths.
+///
+/// # Errors
+///
+/// The connection's own failure — refused, unreachable, reset while it was
+/// being established — or the platform refusing to answer for the descriptor.
+fn ask_connected<S: Connecting>(inner: &mut S) -> io::Result<bool> {
+    if let Some(err) = inner.take_error()? {
+        return Err(err);
+    }
+    match inner.write(&[]) {
+        Ok(_) => Ok(true),
+        // Not an error, just "not yet" — which is rule 2's shape asked of a
+        // different question.
+        Err(err)
+            if matches!(
+                err.kind(),
+                io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock
+            ) =>
+        {
+            Ok(false)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Waits out one in-flight connect, asking [`ask_connected`] on each turn.
+///
+/// The same optimistic order as [`Read::read`], and it earns it: a loopback
+/// connect is routinely up before this is first asked, on both platforms
+/// measured, so the common case pays no registration at all.
 fn finish_connecting<S: Connecting>(stream: &mut NvsStream<S>) -> io::Result<()> {
     loop {
-        if let Some(err) = stream.inner.take_error()? {
-            return Err(err);
-        }
-        match stream.inner.write(&[]) {
-            Ok(_) => return Ok(()),
-            // Not an error, just "not yet" — which is rule 2's shape asked of a
-            // different question.
-            Err(err)
-                if matches!(
-                    err.kind(),
-                    io::ErrorKind::NotConnected | io::ErrorKind::WouldBlock
-                ) => {}
-            Err(err) => return Err(err),
+        if ask_connected(&mut stream.inner)? {
+            return Ok(());
         }
         stream.wait_until_ready(Interest::WRITABLE)?;
     }
+}
+
+/// Waits until one of `inflight` may have finished connecting, or until `at`.
+///
+/// [`NvsStream::wait_until_ready`] over a set instead of over one stream, and
+/// the same rules hold in the same order: register every socket *then* yield,
+/// with the reactor borrow already dropped; one timer entry, because the wait
+/// belongs to the task and not to any member of the set; and a wake that
+/// decides nothing, since the tokens are task ids and this one names no member
+/// at all. The caller asks each socket again on the way round.
+fn wait_any_writable(inflight: &mut [(usize, NvsTcp)], at: Instant) -> io::Result<()> {
+    let parked = match current_task() {
+        None => false,
+        Some(me) => match reactor::with_current(|reactor| -> io::Result<()> {
+            for (_, stream) in &mut *inflight {
+                stream.arm(reactor, me, Interest::WRITABLE)?;
+            }
+            reactor.timers().arm(me, at);
+            Ok(())
+        }) {
+            None => false,
+            Some(armed) => {
+                armed?;
+                let resumed = suspend_current(Waiting::Parked);
+                reactor::with_current(|reactor| reactor.timers().disarm(me));
+                if resumed.cancelled() {
+                    // `wait_until_ready`'s paragraph: a cancellation is
+                    // delivered once, so the answer has to be terminal.
+                    return Err(io::Error::new(
+                        io::ErrorKind::ConnectionAborted,
+                        "the task was cancelled",
+                    ));
+                }
+                resumed.suspended()
+            }
+        },
+    };
+    if parked {
+        return Ok(());
+    }
+    block_any_writable(inflight, at)
+}
+
+/// Blocks this thread on the whole set, for the case where there is no core to
+/// hand back — [`NvsStream::block_until_ready`] with one token per attempt.
+fn block_any_writable(inflight: &mut [(usize, NvsTcp)], at: Instant) -> io::Result<()> {
+    // A descriptor in two pollers at once is refused on some platforms, so a
+    // socket armed on a core gives that registration up before this one.
+    for (_, stream) in &mut *inflight {
+        stream.unregister();
+    }
+    let mut poll = MioPoll::new()?;
+    let mut events = Events::with_capacity(inflight.len().max(1));
+    let mut registered = 0;
+    let outcome = inflight
+        .iter_mut()
+        .enumerate()
+        .try_for_each(|(slot, (_, stream))| {
+            let filed =
+                poll.registry()
+                    .register(&mut stream.inner, Token(slot), Interest::WRITABLE);
+            if filed.is_ok() {
+                registered += 1;
+            }
+            filed
+        })
+        .and_then(|()| {
+            poll.poll(
+                &mut events,
+                Some(at.saturating_duration_since(Instant::now())),
+            )
+        });
+    // Best-effort, and the drop of `poll` is what actually guarantees no
+    // descriptor is left in it.
+    for (_, stream) in inflight.iter_mut().take(registered) {
+        let _ = poll.registry().deregister(&mut stream.inner);
+    }
+    match outcome {
+        Ok(()) => Ok(()),
+        // A signal reports "nothing yet", exactly as `Reactor::poll` treats it:
+        // the caller asks each socket again.
+        Err(err) if err.kind() == io::ErrorKind::Interrupted => Ok(()),
+        Err(err) => Err(err),
+    }
+}
+
+/// The one error a race that reached nothing reports, naming every address.
+///
+/// One error rather than the last attempt's, because an error naming only the
+/// last address sends the reader to the wrong host
+/// (`rule:http-server/an-outbound-call-tries-every-approved-address`). An
+/// address with no failure of its own is one the budget ran out under, so it
+/// reports the clock — and that is what makes the whole error `TimedOut` rather
+/// than whatever the addresses that did answer said.
+fn every_attempt_failed(addrs: &[SocketAddr], failures: &[(usize, io::Error)]) -> io::Error {
+    let mut kind = None;
+    let mut named = Vec::with_capacity(addrs.len());
+    for (slot, addr) in addrs.iter().enumerate() {
+        match failures.iter().find(|(failed, _)| *failed == slot) {
+            Some((_, err)) => {
+                kind = kind.or_else(|| Some(err.kind()));
+                named.push(format!("{addr}: {err}"));
+            }
+            None => {
+                kind = Some(io::ErrorKind::TimedOut);
+                named.push(format!("{addr}: {}", timed_out()));
+            }
+        }
+    }
+    io::Error::new(
+        kind.unwrap_or(io::ErrorKind::TimedOut),
+        format!("no approved address connected: {}", named.join("; ")),
+    )
 }
 
 impl<S: Source> NvsStream<S> {
@@ -1756,6 +1994,68 @@ mod tests {
                 "the bound fired before it was due"
             );
         }
+    }
+
+    /// The fallback the approved set exists for: a dead address does not end
+    /// the call, and what comes back is the connection to the one that
+    /// answered. The reactor count is the other half of it — every socket the
+    /// race started and did not keep gave its registration back with itself.
+    #[test]
+    fn a_race_past_a_dead_address_answers_on_the_next_one() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let live = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        // Bound after the live one and dropped at once, so the port it names is
+        // closed and is not the one the live listener holds.
+        let dead = {
+            let closing =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+            closing
+                .local_addr()
+                .expect("a bound listener had no address")
+        };
+
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+        let peer = Rc::new(Cell::new(None));
+        let reported = Rc::clone(&peer);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let stream = NvsTcp::connect_racing(&[dead, live], Duration::from_secs(5))
+                .expect("every approved address failed");
+            reported.set(stream.peer_addr().ok());
+        });
+
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(peer.get(), Some(live), "the race kept the wrong socket");
+        assert_eq!(with_current(|reactor| reactor.registrations()), Some(0));
+        drop(listener);
+    }
+
+    /// Every address failing is one error naming each of them, because an error
+    /// naming only the last one sends the reader to the wrong host.
+    #[test]
+    fn a_race_that_reaches_nothing_names_every_address() {
+        let (first, second) = {
+            let one = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+            let two = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+            (
+                one.local_addr().expect("a bound listener had no address"),
+                two.local_addr().expect("a bound listener had no address"),
+            )
+        };
+
+        let err = NvsTcp::connect_racing(&[first, second], Duration::from_secs(2))
+            .expect_err("a race to two closed ports connected to something");
+        let named = err.to_string();
+        assert!(
+            named.contains(&first.to_string()),
+            "the error did not name the first address: {named}"
+        );
+        assert!(
+            named.contains(&second.to_string()),
+            "the error did not name the second address: {named}"
+        );
     }
 
     /// Off a core there is nothing to hand back, so the read waits on its own
