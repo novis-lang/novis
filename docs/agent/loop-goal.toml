@@ -1,13 +1,13 @@
-# Goal 49 -- a value outlives a request in the serving process, and a secret does so only sealed
+# Goal 50 -- an operator routes outbound calls through a forward proxy, and the grant says what the address policy can no longer see
 # The acceptance test, as data.
 #
-# `49-process-cache.md` is the prose. One home each.
+# `50-outbound-proxy.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # No example of its own: what the tier proves is visible across two requests, which `Core\Test`'s
-  # in-process requests show and a single program run cannot.
+  # No example of its own: a proxy is a deployment's, and every proof below is a Rust test against a
+  # loopback proxy and a loopback origin.
   # carried from the previous goal by tools/goal-switch.py
   "examples/webcrypto.nvs",
   "examples/finish.nvs",
@@ -95,52 +95,21 @@ files = [
 [context]
 
 modules = [
-  # The members, the one store class every tier answers, the local tier and its cap. Every stage.
-  "crates/nvs-stdlib/src/cache.rs",
-  # The shared tier's client, which `ttl` and `forget` reach. Stage 4.
-  "crates/nvs-stdlib/src/cache/redis.rs",
-  # `seal_under` and `open_under` (:103-113), the one construction a sealed entry is. Stage 5.
-  "crates/nvs-stdlib/src/crypto.rs",
-  # The ring: newest first, 32 octets, and its three refusals (:1-50). Stage 5.
-  "crates/nvs-stdlib/src/keyring.rs",
-  # The domain byte (:46-54), the precedent for the cache door's own. Stage 5.
-  "crates/nvs-stdlib/src/signature.rs",
-  # The qualifier spellings (:312-377), which gain `secret string`. Stage 5.
-  "crates/nvs-stdlib/src/registry.rs",
-  # `[cache.local]` (:158-162), beside which `[cache.process]` is written. Stages 3 and 6.
+  # The one connect (:252), the TLS server name (:36-54), the pool and the hop. Stages 3 and 4.
+  "crates/nvs-stdlib/src/http/transport.rs",
+  # The pin and its four questions, which `resolve = "proxy"` narrows. Stage 4.
+  "crates/nvs-stdlib/src/http.rs",
+  # Where `[http.client.proxy]` is declared and classed. Stages 3 and 4.
   "crates/nvs-config/src/directive.rs",
-  # The `[cache.local]` struct (:1078-1092), the shape `[cache.process]`'s two keys take. Stages 3 and 6.
-  "crates/nvs-config/src/tree.rs",
-  # The backend enum with no weak-tier variant (:28-40) and `E0626` (:81). Stage 3.
-  "crates/nvs-config/src/session.rs",
-  # Where the per-core workers start, and where the process map is made before them. Stage 3.
-  "crates/nvs-cli/src/serve.rs",
-  # `Core\Session`'s rows (:135-215), which gain `setSecret` and `getSecret`. Stage 7.
-  "crates/nvs-stdlib/src/session.rs",
-  # `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s boot half: what a
-  # configuration already says about the coherent tier before any request asks for it.
-  "crates/nvs-config/src/store.rs",
-  # `rule:config/the-config-is-an-immutable-snapshot`: the immutable snapshot a request clones at
-  # start.
-  "crates/nvs-config/src/snapshot.rs",
-  # `Core\RateLimit` — `rule:core-classes/ratelimit-two-members`'s limiter for what only the
-  # application knows, as both halves of it: `consume` over the shared store, `shed` over this
-  # core's own memory, and the `Core\RateLimit\Decision` each answers with.
-  "crates/nvs-stdlib/src/ratelimit.rs",
-  # A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve to, and
-  # `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
-  "crates/nvs-types/src/expr/calls.rs",
-  # `rule:security/tainted-qualifier`'s `tainted` and `rule:security/secret-qualifier`'s `secret`:
-  # one representation, two independent axes, and the sinks that refuse them.
-  "crates/nvs-types/src/expr/quals.rs",
+  # The TLS client a tunnel hands its stream to. Stage 3.
+  "crates/nvs-host/src/tls.rs",
 ]
 
-# Every stage works inside these three: cross-request state is a named store, a store's bytes are its
-# own balance, and a secret never crosses a boundary in the clear.
+# Every stage works inside these three: the address policy, where it lives, and the pin.
 rules = [
-  "concurrency/cross-request-state-is-explicit",
-  "concurrency/a-cross-request-stores-bytes-are-its-own-balance",
-  "security/secret-crosses-no-boundary",
+  "security/net-address-policy",
+  "security/the-policy-lives-in-the-capability",
+  "http-server/allow-url-pins-the-address",
 ]
 
 adrs = []
@@ -162,15 +131,13 @@ playbook = [
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
-  # Every stage left in this goal registers a `Core` class or a member on one.
-  'Tooling > Registering a',
 ]
 
 plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `49-process-cache.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `50-outbound-proxy.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -183,86 +150,51 @@ plan = ["Open now", "Blocking"]
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The record, the six fragments it modifies, and the record the tiers were first decided in.
-rules = [
-  "core-api/two-cache-tiers",
-  "http-server/the-accept-fan-out-is-one-worker-per-core",
-  "concurrency/put-and-get-are-the-whole-boundary",
-  "concurrency/a-cached-value-is-copied-across-the-boundary",
-  "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
-]
-adrs = ["0059"]
-spec = ["01 §16"]
+# The record answers 0058's open sentence; a mandatory word, and how a config key is classed.
+rules = ["config/scope-has-no-default", "config/three-changeability-classes"]
+adrs = ["0058"]
 shapes = ["A decision record", "A rule fragment", "Citing a document"]
 
 [context.stage.3]
-# The tier's cap, how a reload is scoped, and the local tier's accounting it copies.
+# A tunnelled connection is bounded and re-pinned by the rules every connection is. Goal `http-client`'s
+# pool rule joins this list once that goal has written it; naming it before then fails the rulebook.
 rules = [
-  "concurrency/cache-memory-is-charged-to-the-core",
-  "security/db-pool-reset-is-a-boundary",
-  "security/no-cross-request-state",
+  "http-server/one-deadline-covers-the-whole-call",
+  "http-server/redirects-are-off-and-every-hop-is-re-pinned",
 ]
-shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.4]
-# `put` grows a trailing options shape and the store grows a member, so this stage is written
-# inside the shape rules, the card every row owes, and the one rule about how a lifetime is
-# written -- which this one deliberately reads differently from.
+# The proxy's password is a secret directive, and the environment is not configuration.
 rules = [
-  "core-api/shape-rules",
-  "core-api/reference-card",
-  "core-api/a-lifetime-is-written",
+  "config/a-secret-is-a-file-whose-content-is-the-value",
+  "security/no-cross-request-state",
+  "security/secret-sinks-refuse",
 ]
-shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.5]
-# A sealed entry is keyed by the ring's rules, and a revealed value is still what it was. Two new
-# members, so the shape rules and the reference card come with them as they do at every stage that
-# adds one.
-rules = [
-  "security/secret-qualifier",
-  "security/protocol-roster",
-  "core-api/shape-rules",
-  "core-api/reference-card",
-]
-shapes = ["A `Core` member", "A `.nvst` test case"]
-
-[context.stage.6]
-# The rule this stage writes, the sentence it amends, and the bound its one wait has like every
-# other wait.
-rules = [
-  "concurrency/a-secret-fill-runs-once-per-process",
-  "concurrency/put-and-get-are-the-whole-boundary",
-  "http-server/no-spelling-for-an-unbounded-wait",
-]
-shapes = ["A `Core` member", "A `.nvst` test case"]
-
-[context.stage.7]
-# A session value lives as long as its session, and its record crosses the store as bytes.
-rules = [
-  "http-server/a-session-store-answers-four-operations",
-  "http-server/session-expiry-belongs-to-the-store",
-]
-shapes = ["A `Core` member", "A `.nvst` test case"]
-
-[context.stage.8]
 shapes = ["A rule fragment"]
 
-# The process map owns its bytes under the detached bracket and hands out copies, so no refcounted value
-# is shared between cores. No cycle shape, so nothing is added to the skip list.
+# A tunnel is a host socket like any other connection; no refcounted value crosses it. No cycle shape,
+# so nothing is added to the skip list.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Stage 4's shared-tier half needs Redis, which the floor already starts for goal `finish-response`'s
-# checks; this table being here is what makes the driver preflight it.
+# None of this goal's own checks needs a daemon. The floor is goal `process-cache`'s whole list, whose
+# shared-tier and session checks need Redis, and the daemons are theirs.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 693 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -9695,37 +9627,34 @@ name = "trying every approved address is shipped"
 argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-call-tries-every-approved-address"]
 want = ["shipped"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 8
 # flips the status.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "the process tier is a rule"
 argv = ["python", "tools/rules.py", "--show", "concurrency/the-process-tier-is-one-store-per-process"]
 want = ["concurrency/the-process-tier-is-one-store-per-process"]
 
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "a secret cached only sealed is a rule"
 argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-is-cached-only-sealed"]
 want = ["concurrency/a-secret-is-cached-only-sealed"]
 
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "a secret fill running once per process is a rule"
 argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-fill-runs-once-per-process"]
 want = ["concurrency/a-secret-fill-runs-once-per-process"]
 
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "a session holding a secret only sealed is a rule"
 argv = ["python", "tools/rules.py", "--show", "http-server/a-session-holds-a-secret-only-sealed"]
 want = ["http-server/a-session-holds-a-secret-only-sealed"]
@@ -9733,10 +9662,9 @@ want = ["http-server/a-session-holds-a-secret-only-sealed"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the process tier. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "3 the process tier"
+stage = "1 floor"
 name = "an entry one request writes to the process tier another request reads, under a cap that evicts"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9746,7 +9674,7 @@ cases = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 the process tier"
+stage = "1 floor"
 name = "one map every core reads, scoped per app and generation, on the detached balance"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -9758,10 +9686,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- a lifetime and `forget`. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 lifetime and forget"
+stage = "1 floor"
 name = "an entry is gone after its lifetime and after forget, on every tier"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9772,10 +9699,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- a secret, sealed. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "5 sealed"
+stage = "1 floor"
 name = "a secret round-trips only sealed, opens only under its ring, and put still refuses one"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9787,7 +9713,7 @@ cases = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 sealed"
+stage = "1 floor"
 name = "a sealed entry is bound to its app, its name and its expiry"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -9799,10 +9725,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- `fill`, once per process. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "6 fill"
+stage = "1 floor"
 name = "a miss is filled once and every later caller reads what it stored"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9812,7 +9737,7 @@ cases = [
 
 [[check]]
 kind = "cargo-named"
-stage = "6 fill"
+stage = "1 floor"
 name = "one fill per process, a bounded wait, a failure never shared, and a refresh ahead of expiry"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -9826,10 +9751,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- a user's secret in the session. Goal prose stage 7. Needs Redis, which the floor starts.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "7 the session"
+stage = "1 floor"
 name = "a user's secret round-trips sealed through the session and survives regenerate"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9840,7 +9764,7 @@ cases = [
 
 [[check]]
 kind = "cargo-named"
-stage = "7 the session"
+stage = "1 floor"
 name = "the record holds ciphertext, and a value sealed for the cache does not open in a session"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -9851,31 +9775,113 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- the rulebook. Goal prose stage 8.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "the process tier is shipped"
 argv = ["python", "tools/rules.py", "--show", "concurrency/the-process-tier-is-one-store-per-process"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "a secret cached only sealed is shipped"
 argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-is-cached-only-sealed"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "a secret fill running once per process is shipped"
 argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-fill-runs-once-per-process"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "a session holding a secret only sealed is shipped"
 argv = ["python", "tools/rules.py", "--show", "http-server/a-session-holds-a-secret-only-sealed"]
+want = ["shipped"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 5
+# flips the status.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an operator-configured proxy is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-proxy-is-operator-configured"]
+want = ["http-server/an-outbound-proxy-is-operator-configured"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a proxied call keeping its pin is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"]
+want = ["http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- a tunnel that keeps the pin. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the tunnel"
+name = "a tunnel is opened to the approved address, TLS names the approved host, and the pool knows the proxy"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "connect_tunnel_is_opened_to_the_pinned_address_and_tls_names_the_host",
+  "a_plain_http_url_is_tunnelled_and_never_sent_in_absolute_form",
+  "a_proxy_refusing_connect_is_an_io_error_and_407_names_authentication",
+  "a_refused_connect_is_not_retried_as_an_answer",
+  "a_tunnelled_connection_is_pooled_apart_from_a_direct_one",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the proxy resolves, a bypass list, and authentication. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 resolve, bypass and auth"
+name = "resolve proxy sends the host and warns, a bypass goes direct, and the password reaches CONNECT alone"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "resolve_proxy_sends_the_host_name_and_skips_only_the_address_check",
+  "a_bypassed_host_connects_directly_under_the_full_policy",
+  "proxy_authorization_is_sent_on_connect_and_never_to_the_destination",
+  "no_proxy_environment_variable_is_ever_read",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 resolve, bypass and auth"
+name = "a proxy block is refused without resolve, and resolve proxy warns at every boot"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_proxy_block_without_resolve_refuses_the_boot_naming_both_words",
+  "resolve_proxy_writes_one_warn_at_every_boot",
+  "a_proxy_password_and_its_file_together_are_refused",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the rulebook. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 the rulebook"
+name = "an operator-configured proxy is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-proxy-is-operator-configured"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "5 the rulebook"
+name = "a proxied call keeping its pin is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"]
 want = ["shipped"]
