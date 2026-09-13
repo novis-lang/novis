@@ -210,8 +210,13 @@ rules = [
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.6]
-# The one wait `fill` owns has a bound like every other wait.
-rules = ["http-server/no-spelling-for-an-unbounded-wait"]
+# The rule this stage writes, the sentence it amends, and the bound its one wait has like every
+# other wait.
+rules = [
+  "concurrency/a-secret-fill-runs-once-per-process",
+  "concurrency/put-and-get-are-the-whole-boundary",
+  "http-server/no-spelling-for-an-unbounded-wait",
+]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.7]

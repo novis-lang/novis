@@ -2,58 +2,63 @@
 
 ## State
 
-**Goal `process-cache` — stage 5 is on disk and green.** `Core\Cache\Store::putSecret` and
-`getSecret` are the only door a secret meets a cache through, with the three cargo tests and the four
-`.nvst` cases the acceptance check names. Stages 1–4 are unchanged, as is goal `http-client`'s list.
-Stage 6's `{fill?, wait?}` bag is deliberately absent from `getSecret`'s row.
+**Goal `process-cache` — stage 6's surface is on disk; its behaviour is not.** `getSecret`'s row
+carries `{fill?: callable(): Core\Cache\SecretEntry, wait?: Duration}` as `GET_SECRET_OPTIONS`
+(`crates/nvs-stdlib/src/cache.rs:301`), the card documents both options, and the helper's arity moved
+3 → 5 for the bag's flattening. The body accepts the two slots and reads neither: a miss is a miss
+for every caller alike, and the body doc at `crates/nvs-stdlib/src/cache.rs:2032` says so in one
+paragraph the next slice deletes. Stages 1–5 are unchanged.
 
-**What a sealed entry is**, so the next session does not re-derive it — `crates/nvs-stdlib/src/cache.rs`'s
-`bound`, `sealed_plaintext` and `SEALED_SPACE` own it in full. The AEAD's additional data is a domain
-octet ‖ the application ‖ the entry's name; the plaintext is an eight-octet big-endian expiry in
-milliseconds ‖ the value; the stored key is `SEALED_SPACE` ‖ the program's key, which is what makes a
-plain `get` on the same name an ordinary miss rather than a decode failure.
+**Stage 6's config half is already landed, and is not an open item** — whatever the last handoff's
+third item said. `[cache.process] fill_wait` has its field (`crates/nvs-config/src/tree.rs:1126`),
+its `default.toml` entry shipping `5s`, its `cache.process` directive row (`System`/`Reload`), and
+its boot refusal of `0`, `false` and a non-duration with `E0642` at
+`crates/nvs-config/src/store.rs:133`, with tests. Only the **stdlib-side reader** is missing.
 
-**`crate::crypto::seal_under` and `open_under` now take `bound: &[u8]`** — the AEAD's additional data —
-and every other caller passes `&[]`, which is the empty-associated-data construction and therefore the
-same octets they produced before. The goal's own stage-5 prose settled that question (additional data,
-not a plaintext prefix) where the last handoff had it open.
+**A bounded wait is `nvs_host`'s, not `std`'s.** Neither `nvs-stdlib` nor `nvs-runtime` names a
+`Condvar` anywhere; `nvs_host::timer::park_until` (`crates/nvs-host/src/timer.rs:251`) and
+`group::park` (`crates/nvs-host/src/group.rs:162`) are what a bounded cooperative wait is built
+from. A helper that blocked its core on a `std` primitive would hold a worker for up to `fill_wait`.
 
-**`put` did not refuse a `secret` before this session**, whatever its row comment said: `CoreTy::Mixed`
-refuses `tainted` only. `crates/nvs-types/src/expr/quals.rs`'s `reject_secret_cached_argument` is now the
-graph copy's fourth carrier and the one that names a member taking the secret rather than a reveal; it is
-wired in from the *instance*-call arm of `expr/calls.rs`. The playbook bullet is the trap.
+**The refresh-ahead fraction is the last fifth** of an entry's lifetime, fixed in
+`docs/decisions/0181.md` and stated in `docs/spec/01-core-library.md:1190` — not a number to
+re-derive.
 
-**The `[context]` gap this session paid for**: the pack prints the goal's `## Standing decisions` but not
-the current stage's own prose, and `docs/agent/loop-goal.md:92-117` is what settled the additional-data
-question above. There is no `[context]` field for it; the stage header the driver already prints above
-the failing check is where it would belong.
+**The `[context]` gap the last handoff named is now closed** for the rules half:
+`[context.stage.6]` in `docs/agent/loop-goal.toml` (and the authored copy under
+`docs/agent/goals/`) now names `concurrency/a-secret-fill-runs-once-per-process` and
+`concurrency/put-and-get-are-the-whole-boundary`, so the session that writes the table is handed the
+rule that specifies it. What is still unprinted is the goal's own current-stage prose —
+`docs/agent/loop-goal.md:118-137` is stage 6's, and there is no `[context]` field that reaches it.
 
 ## Next group
 
-**Stage 6: `fill`, once per process** — one file set: `crates/nvs-stdlib/src/cache.rs`,
-`crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/default.toml`.
+**Stage 6: the fill table** — one file set: `crates/nvs-stdlib/src/cache.rs`, reading
+`crates/nvs-host/src/timer.rs` and `crates/nvs-config/src/tree.rs`.
 
-- [ ] **`getSecret`'s trailing `{fill?: callable(): Core\Cache\SecretEntry, wait?: Duration}` bag**, as
-      the row and the card alone — the row at `crates/nvs-stdlib/src/cache.rs:367`, the card at
-      `crates/nvs-stdlib/src/cache.rs:574`, and `PUT_OPTIONS` at `crates/nvs-stdlib/src/cache.rs:279`
-      the shape to copy. `rule:core-api/shape-rules` R2 is the trailing-shape rule, and
-      `crates/nvs-stdlib/src/cache.rs:622`'s `SECRET_ENTRY` slots are what a fill's answer is read out of.
-- [ ] **The fill table: exactly one caller in the process runs `fill`, every other waits for it** —
-      beside `PROCESS` at `crates/nvs-stdlib/src/cache.rs:1050`, with the miss path at
-      `crates/nvs-stdlib/src/cache.rs:1980`. A `fill` that throws releases the waiters with nothing, and
-      a request that ends holding one releases it; `rule:security/no-cross-request-state` is why an
-      exception may not cross.
-- [ ] **`[cache.process] fill_wait`, the directive `wait` inherits** —
-      `crates/nvs-config/src/tree.rs:1098`'s block beside `max_size`, the roster row at
-      `crates/nvs-config/src/directive.rs:180`, and the commentary at
-      `crates/nvs-config/src/default.toml:523`. Past the wait is a `TimeoutError` and never an unbounded
-      one (`rule:http-server/no-spelling-for-an-unbounded-wait`).
+- [ ] **`[cache.process] fill_wait`'s reader**, so an omitted `wait` inherits it rather than removing
+      the bound — `rule:http-server/no-spelling-for-an-unbounded-wait` is the shape one class over,
+      `crates/nvs-stdlib/src/cache.rs:1149`'s `process_cap` is the reader to copy, and the field it
+      reads is `crates/nvs-config/src/tree.rs:1126`. The shipped `5s` is this module's to state, as
+      the cap is.
+- [ ] **The fill table: exactly one caller in the process runs `fill` and every other waits for it**,
+      bounded by its `wait` and throwing `TimeoutError` past it, a throwing `fill` releasing the
+      waiters with nothing, and a `fill` asking for its own key a `LogicError` rather than a wait on
+      itself — `rule:concurrency/a-secret-fill-runs-once-per-process`. The body is
+      `crates/nvs-stdlib/src/cache.rs:2032`, the entry a fill answers is
+      `crates/nvs-stdlib/src/cache.rs:668`'s `SECRET_ENTRY`, and the wait is built from
+      `crates/nvs-host/src/timer.rs:251`.
+- [ ] **Refresh ahead, and a request that ends releases the key** — an entry inside the last fifth of
+      its lifetime is answered to every caller while one of them replaces it
+      (`rule:concurrency/a-secret-fill-runs-once-per-process`), at
+      `crates/nvs-stdlib/src/cache.rs:2032`. This is also where the acceptance check's five
+      `nvs-stdlib` tests and its two `.nvst` cases land.
 
 ## Backlog
 
-- Refresh-ahead: an entry in the last part of its lifetime is still answered while one caller refills —
-  `docs/agent/goals/49-process-cache.md` stage 6 fixes the fraction.
 - Stage 7's `setSecret`/`getSecret` on `Core\Session`, sealed the same way — same goal file.
-- A fleet-wide single fill is a lease over the shared tier and is not this goal — same goal file.
-- `Core\Cache\Store::forget` does not reach a sealed entry; nothing yet says whether it should —
-  `crates/nvs-stdlib/src/cache.rs`'s `SEALED_SPACE`.
+- Stage 8 flips this goal's four rules to `shipped` and re-renders the rulebook.
+- The stage's own prose is unreachable from `[context]`; the stage header the driver already prints
+  above the failing check is where it would belong.
+- `Core\Cache\SecretEntry` answers nothing, so nothing reads one back — `getSecret` stays the only
+  door (`docs/agent/loop-goal.md` § *Standing decisions*).
