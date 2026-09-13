@@ -183,6 +183,9 @@ pub(crate) const NAME: &str = r"Core\Cache";
 /// [`STORE`]'s name — see [`NAME`].
 pub(crate) const STORE_NAME: &str = r"Core\Cache\Store";
 
+/// [`SECRET_ENTRY`]'s name — see [`NAME`].
+pub(crate) const SECRET_ENTRY_NAME: &str = r"Core\Cache\SecretEntry";
+
 /// § 1's two tiers, as the two members that hand one back.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -476,6 +479,72 @@ const FORGET_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// What a `getSecret` fill answers with: a secret, and how long it stays good.
+///
+/// An object rather than a pair, because `rule:core-api/shape-rules` R14 makes
+/// anything with a lifetime one — and a fill that answered the value alone
+/// would leave this store guessing at a lifetime only the fetch knows. A token
+/// endpoint says how long its token lasts, and that answer is what belongs in
+/// the entry beside the token.
+///
+/// It answers nothing. A program builds one for a fill to hand back and never
+/// reads one, so a member that read a secret back out of it would be a second
+/// door onto the value that `getSecret` is the only door onto — which is why
+/// the class is a singular noun with one static and no instance member at all
+/// (R16, R18).
+pub(crate) const SECRET_ENTRY: CoreClass = CoreClass {
+    name: SECRET_ENTRY_NAME,
+    methods: &[CoreMethod {
+        name: "of",
+        names: &["value", "ttl"],
+        // `Qual::Neutral` on a `secret string`: the value is confidential, and
+        // the answer is an object, which carries no qualifier on either axis.
+        // That admits a `tainted` secret, which is the ordinary case rather
+        // than the exception — a token fetched from an endpoint came off the
+        // wire — and the mark says only that this object is not what carries
+        // the mark onward.
+        params: &[
+            CoreTy::SecretText(Qual::Neutral),
+            CoreTy::Instance(crate::time::DURATION_NAME),
+        ],
+        defaults: &[],
+        return_ty: CoreTy::Instance(SECRET_ENTRY_NAME),
+        symbol: "nvs_core_cache_secret_entry_of",
+        doc: Some(&SECRET_ENTRY_OF_DOC),
+    }],
+    instance: &[],
+    // The lifetime is held as the count of nanoseconds the `Duration` carries,
+    // not as the `Duration` itself, because [`Lifetime::of`] is what every
+    // sealing path takes it through and that is the number it reads. A slot
+    // holding the instance would be the same count one dereference further
+    // away, and readable by no program either way.
+    slots: &["value", "nanos"],
+    constants: &[],
+};
+
+/// `Core\Cache\SecretEntry::of`'s reference card — `rule:core-api/reference-card`.
+const SECRET_ENTRY_OF_DOC: MethodDoc = MethodDoc {
+    short: "Builds the entry a `getSecret` fill answers with: the secret the fill fetched, and how \
+            long that secret stays good.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The secret to store. A plain `string` reaches this parameter too, and nothing \
+                   is laundered either way — what makes the value confidential is its own type.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "ttl",
+            desc: "How long the entry stays readable, counted from the write that stores it — \
+                   what the fetch itself said, rather than a lifetime the caller guessed at.",
+            shape: &[],
+        },
+    ],
+    ret: "The entry. It answers nothing about either half: a program builds one for a fill to hand \
+          back, and reads a secret out of `getSecret` instead.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -486,6 +555,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cache_put" => (nvs_core_cache_put as *const ()).cast(),
         "nvs_core_cache_get" => (nvs_core_cache_get as *const ()).cast(),
         "nvs_core_cache_forget" => (nvs_core_cache_forget as *const ()).cast(),
+        "nvs_core_cache_secret_entry_of" => (nvs_core_cache_secret_entry_of as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1548,6 +1618,52 @@ nvs_runtime::nvs_helper! {
             Tier::Shared => on_shared(STORE_NAME, "forget", |open| open.del(&key))?,
         }
         Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cache\SecretEntry::of(secret string $value, Duration $ttl):
+    /// Core\Cache\SecretEntry` — the two halves a fill learned, as the one
+    /// value it hands back.
+    ///
+    /// The lifetime is read here rather than where the entry is stored, so
+    /// that the `Duration` instance is finished with at the call that wrote it
+    /// and what the entry holds is the number every tier turns into its own
+    /// deadline — [`Lifetime`]'s own doc is the home of that split.
+    ///
+    /// **What it spends:** one object allocation per entry, charged to the
+    /// request like every other `Core` instance. The secret's bytes are not
+    /// copied — the slot holds one more reference to the same [`NvsStr`], and
+    /// the copy happens at the seal.
+    fn nvs_core_cache_secret_entry_of(_ctx, args: [2]) {
+        let nanos = crate::time::nanos_of(args, 1, "of")?;
+
+        // Unreachable from source: the row declares a `secret string` there
+        // and `E0401` refuses another type at the call site, so a non-text tag
+        // here is compiled code's bug rather than anything a program can
+        // write.
+        if args[0].as_text().is_none() {
+            return Err(Fault::fatal(format!(
+                "{SECRET_ENTRY_NAME}::of expected a `string` value, got tag {}",
+                args[0].tag_byte()
+            )));
+        }
+
+        // A `CoreCall`'s arguments are borrowed and `instance::build` takes
+        // over each slot's reference, so the reference the entry ends up
+        // holding is taken here rather than handed over by the caller.
+        #[expect(
+            unsafe_code,
+            reason = "the argument slot holds a live reference for the length of \
+                      the call, which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            args[0].retain();
+        }
+        Ok(crate::instance::build(
+            &SECRET_ENTRY,
+            [args[0], Value::int(nanos)],
+        ))
     }
 }
 

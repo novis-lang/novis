@@ -1968,6 +1968,10 @@ pub const CLASSES: &[CoreClass] = &[
     // destination and not a different operation. [`crate::cache`]'s module doc
     // is the home of why an entry is a byte payload rather than a live graph.
     crate::cache::STORE,
+    // What a `getSecret` fill answers with, and the one shape a lifetime a
+    // fetch learned can reach this store in. [`crate::cache`]'s own class doc
+    // is the home of why it answers nothing back.
+    crate::cache::SECRET_ENTRY,
     // `rule:core-classes/ratelimit-two-members`'s limiter for what only the application knows — per account, per
     // tenant — with edge and flood limiting left to the proxy that owns them.
     // Its state is the same shared store `Core\Cache::shared` names, because a
@@ -5242,7 +5246,10 @@ mod tests {
     /// shape over a request body: its slots are read where the body is framed
     /// and nowhere else, and a member answering the octets back would make a
     /// `file` part hold the file it exists in order not to hold
-    /// ([`crate::http`]). Two have left this list,
+    /// ([`crate::http`]). `Core\Cache\SecretEntry` is `Core\Jwe\Key`'s shape
+    /// again: a fill builds one, the sealing path reads its two slots, and a
+    /// member answering the secret back would be a second door onto a value
+    /// `getSecret` is the only door onto ([`crate::cache`]). Two have left this list,
     /// both the same way:
     /// `Core\Db\Connection` when `query` landed on it, and `Core\Db\Rows` when
     /// its readers did.
@@ -5294,6 +5301,7 @@ mod tests {
             crate::request::PART_CONTENT_NAME,
             crate::jwe::KEY_NAME,
             crate::jwt::KEY_SET_NAME,
+            crate::cache::SECRET_ENTRY_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {
