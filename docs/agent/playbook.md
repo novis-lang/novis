@@ -1982,6 +1982,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   reword any line a tool prints, grep `docs/agent/loop-goal.toml` for a fragment of it — a mode whose
   output is a verdict can take the new form while the human-facing roster keeps the frozen sentence.
   [until: reviewed 2026-09-13]
+- **A tool's prose citing a crate file without its `crates/` prefix fails `tools/check-links.py`, and
+  the path it reports is a *suffix* of the one you wrote.** `MENTION_RE` anchors a bare mention at a
+  top-level directory, so `nvs-stdlib/src/tests/vectors.rs` matches from its inner `tests/` and is
+  resolved as `tests/vectors.rs` against the repository root, where nothing is — three of those in one
+  comment held the whole floor red. Cite a crate file from the root, and read a `retired` finding whose
+  path you cannot find in the line it names as the tail of a longer one.
+  [until: gone tools/check-links.py:MENTION_TOPS]
 
 ## Running things
 
