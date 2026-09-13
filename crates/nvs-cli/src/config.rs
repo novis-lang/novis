@@ -341,6 +341,13 @@ pub(crate) fn boot_origins(
 /// is absolute and trust-checked by then (`nvs_config::http::canonicalize`).
 /// What is left for here is the files themselves.
 ///
+/// It also reports what the tree relaxed: [`relaxed_grants`]'s line for every
+/// `[capabilities.tls]` grant and host, every start, because a weakening nobody is
+/// reminded of outlives the incident it was added for
+/// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`). The lines go out
+/// once the client is built, so a boot that refuses to start reports the refusal
+/// alone.
+///
 /// # Errors
 ///
 /// `E0641`, naming the file, when an anchor bundle will not open or holds no
@@ -351,7 +358,34 @@ pub(crate) fn install_tls_client(snapshot: &nvs_config::Snapshot) -> Result<(), 
             nvs_diagnostics::code::E_TLS_CLIENT_UNBUILDABLE,
             format!("`[http.client.tls]` does not build an outbound TLS client: {err}"),
         )
-    })
+    })?;
+    for line in relaxed_grants(snapshot) {
+        eprintln!("{line}");
+    }
+    Ok(())
+}
+
+/// One line per `[capabilities.tls]` grant and host, naming the grant in the
+/// spelling an operator writes it in.
+///
+/// Split from [`install_tls_client`] for [`policy_of`]'s reason: what a tree
+/// relaxed is assertable on its own, where installing settles a `OnceLock` and is
+/// answerable once per process. Which hosts a grant names is
+/// `nvs_config::tree::Capabilities::tls_relaxations`, so the boot's reading of a
+/// grant is the same one the call that asks for it is measured against.
+fn relaxed_grants(snapshot: &nvs_config::Snapshot) -> Vec<String> {
+    let Some(caps) = snapshot.config.capabilities.as_ref() else {
+        return Vec::new();
+    };
+    caps.tls_relaxations()
+        .into_iter()
+        .map(|(cap, host)| {
+            format!(
+                "note: [capabilities.tls] {} relaxes outbound TLS verification for {host}",
+                cap.name()
+            )
+        })
+        .collect()
 }
 
 /// `[http.client.tls]` as `nvs_host` asks for it.
@@ -745,7 +779,7 @@ mod tests {
 
     use nvs_diagnostics::SourceMap;
 
-    use super::{Declined, Init, boot_in, leaves, policy_of, write_default_file};
+    use super::{Declined, Init, boot_in, leaves, policy_of, relaxed_grants, write_default_file};
     use crate::testing::{open_to_the_world, refuse_new_files};
 
     /// A directory of this test's own, under a per-process root.
@@ -818,6 +852,39 @@ mod tests {
         );
         assert_eq!(policy.min_version.as_deref(), Some("1.3"));
         assert_eq!(policy.keylog.as_deref(), Some(keylog.as_path()));
+    }
+
+    /// The reminder the boot writes: one line per `[capabilities.tls]` grant and host, in the
+    /// spelling the operator granted it under.
+    ///
+    /// The `insecure = true` entry is the case worth asserting from here rather than from
+    /// `nvs-config`'s own tests. It is the spelling these grants do not have
+    /// (`nvs_config::Cap::takes_true_spelling`) and it fails closed, so a boot printing a line for
+    /// it would be telling an operator a weakening is in force that no call can actually reach.
+    #[test]
+    fn the_boot_reports_one_line_per_relaxed_tls_grant_and_host() {
+        let dir = scratch("relaxed");
+        let entry = entry(&dir);
+        fs::write(
+            dir.join("nvs.toml"),
+            "[capabilities.tls]\nanchors = [\"corp.internal\"]\n\
+             any_name = [\"a.example\", \"b.example\"]\ninsecure = true\n",
+        )
+        .expect("a scratch directory takes a file");
+
+        let mut sources = SourceMap::new();
+        let (snapshot, _) = boot_in(&dir, &[], &entry, &mut sources, Init::Never)
+            .expect("a tree that is one capability block resolves");
+
+        assert_eq!(
+            relaxed_grants(&snapshot),
+            [
+                "note: [capabilities.tls] tls.anchors relaxes outbound TLS verification for corp.internal",
+                "note: [capabilities.tls] tls.any_name relaxes outbound TLS verification for a.example",
+                "note: [capabilities.tls] tls.any_name relaxes outbound TLS verification for b.example",
+            ],
+            "one line per grant and host, in roster order, and `insecure = true` names no host"
+        );
     }
 
     /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 for a

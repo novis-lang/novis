@@ -2,50 +2,52 @@
 
 ## State
 
-**Goal `http-client` — a program talks to a real API. Stages 1–9 are on disk and stage 10 is complete
-but for the boot's own line: the grants, the options, the verifiers and now the transport are landed, so
-a relaxing call builds its own session and never shares a connection with a strict one.**
-[ADR 0180](../decisions/0180.md) § 11 is the record this stage executes.
+**Goal `http-client` — a program talks to a real API. Stages 1–10 are on disk: the grants, the options,
+the verifiers, the transport and now the boot's own line, so a relaxing call builds its own session,
+never shares a connection with a strict one, and no deployment relaxes trust without being told so at
+every start.** [ADR 0180](../decisions/0180.md) § 11 is the record stage 10 executes, and every bullet of
+it is landed.
 
-`policy_of` (`crates/nvs-stdlib/src/http.rs:2037`) turns the five keys `judge_trust` has already proved
-a grant for into one `nvs_host::tls::CallPolicy`, carried on `Call::policy`
-(`crates/nvs-stdlib/src/http/transport.rs:208`) beside `identity`. The handshake is one door for every
-call — `NvsTls::over_policy(stream, &parts.host, &call.policy, identity)`
-(`crates/nvs-stdlib/src/http/transport.rs:1313`) — so a call that asked for nothing hands over a default
-and still gets the process's own configuration. `pool_key`
-(`crates/nvs-stdlib/src/http/transport.rs:1378`) writes the policy as a last field through `policy_key`
-(`crates/nvs-stdlib/src/http/transport.rs:1403`), which digests the variable-length halves rather than
-putting a PEM bundle in a key that is compared on every draw.
+The boot's reading of a relaxed grant is `nvs_config::tree::Capabilities::tls_relaxations`
+(`crates/nvs-config/src/capability.rs:691`), which finds the grants by `Cap::family` rather than by a
+roster of its own and reads each through `grant_for`, so an operator's `true` — a spelling these grants
+do not have — names no host at the boot either. `relaxed_grants`
+(`crates/nvs-cli/src/config.rs:389`) turns that into one `note:` line per grant and host, and
+`install_tls_client` writes them once the client is built, so a boot that refuses to start reports the
+refusal alone.
 
-Stage 10's three acceptance checks pass. What § 11 still owes is its last bullet, which no check names:
-the boot printing every relaxed grant, one line per grant and host.
-
-Nothing is blocked.
+Stage 11 is untouched: `connectTo`, the `https`→`http` downgrade and the reply's TLS report are what the
+driver's acceptance check is waiting on. Nothing is blocked.
 
 ## Next group
 
-**Stage 10: the boot's own line** — one file set: `crates/nvs-cli/src/config.rs`,
-`crates/nvs-config/src/capability.rs`.
+**Stage 11: the address, the downgrade and the report** — one file set: `crates/nvs-stdlib/src/http.rs`,
+`crates/nvs-stdlib/src/http/transport.rs`.
 
-- [ ] **The boot prints every relaxed grant, one line per grant and host** — ADR 0180 § 11's last
-      bullet, beside the install that already reads `[http.client.tls]`: `install_tls_client`
-      (`crates/nvs-cli/src/config.rs:348`) walks the snapshot's four `Cap::Tls*` grants, each named in
-      its configuration spelling (`crates/nvs-config/src/capability.rs:336`) with the host list behind
-      it (`crates/nvs-config/src/capability.rs:438`), and writes one line per grant and host.
-      `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s last sentence is what it executes,
-      and the run sites are the only callers, which is where the print belongs for the reason that
-      function's doc already gives about `nvs check`.
-- [ ] **A case over what the boot printed** — in that module's own tests
-      (`crates/nvs-cli/src/config.rs:776` is where the `[http.client.tls]` reading is asserted today),
-      one line per grant and host and nothing at all for a deployment that granted none. No `[[check]]`
-      names it, so it is this stage's own guard.
+- [ ] **`connectTo` names the address a call connects to, and it is still judged** — ADR 0180 § 11's
+      stage, `rule:security/outbound-url-is-a-sink`: a new option const beside the five TLS ones
+      (`crates/nvs-stdlib/src/http.rs:847`) and its row in the options bag
+      (`crates/nvs-stdlib/src/http.rs:1621`), the address judged against `Cap::NetConnectTo` before a
+      socket is opened, the URL's host still checked, and `connectTo` beside a `Core\Http\Target` a
+      `LogicError` — the record's *Diagnostics* section names that one.
+- [ ] **An `https`→`http` redirect needs the `net.downgrade` grant and the option** —
+      `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`: `redirect_of`
+      (`crates/nvs-stdlib/src/http/transport.rs:1785`) is where a hop's scheme is known, and
+      `redirects_of` (`crates/nvs-stdlib/src/http.rs:3048`) is where the count is read. Refused without
+      the grant, refused under the grant without the option, followed with both; a refusal is the
+      record's one-sentence `RuntimeError`.
+- [ ] **The reply reports its TLS session, and a table's reply reports none** — the `tls` member on
+      `Core\Http\Response`, whose rows and cards sit at `crates/nvs-stdlib/src/http.rs:1350`, over what
+      the exchange kept (`crates/nvs-stdlib/src/http/transport.rs:317`): version, cipher and the peer
+      chain, `null` for a reply the test table answered. Every string of it is `tainted`
+      (`crates/nvs-stdlib/src/registry.rs:2810` is where a derived-taint pair is written), and the
+      `.nvst` case the check names is
+      `tests/conformance/core/http-response-tls-is-null-for-a-reply-the-table-answered.nvst`.
 
 ## Backlog
 
-- Stage 11 — `connectTo`, the plaintext downgrade grant and `Core\Http\Response::tls()` — is back in
-  `crates/nvs-stdlib/src/http.rs` and its transport (`docs/agent/loop-goal.toml:9597`).
-- An unparseable `tlsCa` or an ill-formed `tlsPin` reaches `over_policy` and comes back as
-  `InvalidData`/`InvalidInput`, which the transport reports as "the TLS handshake with `<host>` was
-  refused" though no handshake ran. ADR 0180 § *Diagnostics* has no line for it.
-- Parsing `Link`, `Retry-After` for a program, and RFC 9457 problem details are the `nvs/rest`
-  package's, not this goal's (goal `http-client` § *Standing decisions*).
+- Parsing `Link`, `Retry-After` for a program and RFC 9457 problem details are the `nvs/rest` package's,
+  not this goal's — `docs/agent/loop-goal.md` § *Standing decisions*.
+- Goal `outbound-proxy` prints its own weakening at boot; `relaxed_grants`
+  (`crates/nvs-cli/src/config.rs:389`) is the shape and `Capabilities::tls_relaxations` the reading it
+  should grow a sibling of rather than a second reading.
