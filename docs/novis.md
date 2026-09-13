@@ -21442,7 +21442,7 @@ Keywords: put, get, forget, putSecret, getSecret
 | [`Core\Cache\Store->get`](#core-core-cache-store-get) | `get(string $key): mixed` |
 | [`Core\Cache\Store->forget`](#core-core-cache-store-forget) | `forget(string $key): void` |
 | [`Core\Cache\Store->putSecret`](#core-core-cache-store-putsecret) | `putSecret(string $key, secret string $value, Core\Time\Duration $ttl, array<secret bytes> $keys): void` |
-| [`Core\Cache\Store->getSecret`](#core-core-cache-store-getsecret) | `getSecret(string $key, array<secret bytes> $keys): ?secret string` |
+| [`Core\Cache\Store->getSecret`](#core-core-cache-store-getsecret) | `getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Core\Cache\SecretEntry, wait?: Core\Time\Duration}): ?secret string` |
 
 <a id="core-core-cache-store-put"></a>
 #### `Core\Cache\Store->put`
@@ -21521,7 +21521,7 @@ Seals `$value` under the newest key of `$keys` and stores the ciphertext under `
 #### `Core\Cache\Store->getSecret`
 
 ```nvs skip
-$store->getSecret(string $key, array<secret bytes> $keys): ?secret string
+$store->getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Core\Cache\SecretEntry, wait?: Core\Time\Duration}): ?secret string
 ```
 
 Opens the secret stored under `$key` against every key of `$keys`, or answers `null` when there is none that opens.
@@ -21530,6 +21530,8 @@ Opens the secret stored under `$key` against every key of `$keys`, or answers `n
 |---|---|---|
 | `$key` | `string` (neutral) | The name to read; the one `putSecret` wrote under, since the name is sealed in. |
 | `$keys` | `array<secret bytes>` | The key ring, newest first. Every key is tried, so an entry sealed under a key still in the ring opens after a rotation. |
+| `{fill: …}` | `callable(): Core\Cache\SecretEntry` (default `null`) | What supplies a miss: a callable answering a `Core\Cache\SecretEntry`, which carries both the secret it fetched and how long that secret stays good. Exactly one caller in this process runs it, in that caller's own request and under its own capabilities, while every other waits; a `fill` that throws releases the waiters with nothing and the next caller runs it again, so no failure crosses from one request into another. |
+| `{wait: …}` | `Core\Time\Duration` (default `null`) | How long this caller waits for another's `fill`, defaulting to `[cache.process] fill_wait`. There is no spelling for waiting forever. |
 
 **Returns** `?secret string` — The secret, or `null`. A sealed entry that opens under no key of this ring, or whose own expiry has passed, is a miss like any other — never an error, so a rotated ring re-fetches rather than failing. A plain `get` on the same name is a miss too: the sealed door is the only door.
 

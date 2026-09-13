@@ -282,6 +282,35 @@ const PUT_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
+/// `{fill?: callable(): Core\Cache\SecretEntry, wait?: Duration}` — [`STORE`]'s
+/// other trailing options shape, and the whole of what a program writes about
+/// supplying a miss.
+///
+/// The fill answers an object rather than the value alone, because the fetch is
+/// the only party that knows how long what it fetched stays good —
+/// [`SECRET_ENTRY`] is where that is argued. Its signature is written out
+/// rather than left a bare `callable`, so a closure of the wrong shape is
+/// refused where the call is written (`rule:types/callable-signature`).
+///
+/// `wait` is a `Core\Time\Duration` for [`PUT_OPTIONS`]' R12 reason, and there
+/// is no spelling here for waiting forever: an omitted one inherits
+/// `[cache.process] fill_wait` rather than removing the bound, which is
+/// `rule:http-server/no-spelling-for-an-unbounded-wait`'s shape one class over.
+/// Both defaults are [`Const::Null`] — the absent callable that variant's own
+/// docs describe, and the absent bound the directive then supplies.
+const GET_SECRET_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "fill",
+        ty: CoreTy::CallableSig(&[], &CoreTy::Instance(SECRET_ENTRY_NAME)),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "wait",
+        ty: CoreTy::Instance(crate::time::DURATION_NAME),
+        default: Const::Null,
+    },
+];
+
 /// § 1's store, as the two operations § 2 defines over it.
 ///
 /// One class for both tiers rather than two, because a tier is a *destination*
@@ -369,6 +398,7 @@ pub(crate) const STORE: CoreClass = CoreClass {
             params: &[
                 CoreTy::Text(Qual::Neutral),
                 CoreTy::Array(&crate::keyring::KEY),
+                CoreTy::Options(GET_SECRET_OPTIONS),
             ],
             defaults: &[],
             // `rule:core-api/shape-rules` R7's `?T` where `get` had no `T` to
@@ -585,6 +615,22 @@ const GET_SECRET_DOC: MethodDoc = MethodDoc {
             name: "keys",
             desc: "The key ring, newest first. Every key is tried, so an entry sealed under a key \
                    still in the ring opens after a rotation.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "fill",
+            desc: "What supplies a miss: a callable answering a \
+                   `Core\\Cache\\SecretEntry`, which carries both the secret it fetched and how \
+                   long that secret stays good. Exactly one caller in this process runs it, in \
+                   that caller's own request and under its own capabilities, while every other \
+                   waits; a `fill` that throws releases the waiters with nothing and the next \
+                   caller runs it again, so no failure crosses from one request into another.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "wait",
+            desc: "How long this caller waits for another's `fill`, defaulting to \
+                   `[cache.process] fill_wait`. There is no spelling for waiting forever.",
             shape: &[],
         },
     ],
@@ -1956,9 +2002,15 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cache\Store::getSecret(string $key, array<secret bytes> $keys):
-    /// ?secret string` — [`nvs_core_cache_put_secret`]'s door in the other
-    /// direction.
+    /// `Core\Cache\Store::getSecret(string $key, array<secret bytes> $keys,
+    /// {fill?: callable(): Core\Cache\SecretEntry, wait?: Duration}): ?secret
+    /// string` — [`nvs_core_cache_put_secret`]'s door in the other direction.
+    ///
+    /// The bag's two slots are accepted and not read here. What a `fill` means
+    /// is the per-process table `rule:concurrency/a-secret-fill-runs-once-per-process`
+    /// specifies, which this body does not have, so a miss is a miss for every
+    /// caller alike and a program that writes one is answered as though it had
+    /// not.
     ///
     /// **Every way of not opening is the same miss**, and never an error: a
     /// ring that has rotated past the key this entry was sealed under, an entry
@@ -1977,7 +2029,7 @@ nvs_runtime::nvs_helper! {
     /// [`crate::keyring`]'s `LogicError` for a ring that is empty or holds
     /// something that is not a key, and a thrown `IOError` on the shared tier
     /// for a store that cannot be reached.
-    fn nvs_core_cache_get_secret(ctx, args: [3]) {
+    fn nvs_core_cache_get_secret(ctx, args: [5]) {
         let tier = tier_of(args, "getSecret")?;
         let key = key_of(args, 1, "getSecret")?.as_bytes().to_vec();
 
