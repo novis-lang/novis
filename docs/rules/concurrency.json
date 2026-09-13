@@ -256,7 +256,8 @@
       "because": [
         "0059",
         "0052",
-        "0004"
+        "0004",
+        "0181"
       ],
       "divergesFromPhp": "APCu, `shmop`, `sysvshm`, `sysvsem` and `sysvmsg` are gone, and there is no ambient place a value can be left for the next request to find",
       "seeAlso": [
@@ -271,11 +272,31 @@
       ]
     },
     {
+      "id": "concurrency/the-process-tier-is-one-store-per-process",
+      "title": "`Core\\Cache::process()` is one store per serving process, coherent across its cores and gone when it ends",
+      "status": "designed",
+      "because": [
+        "0181"
+      ],
+      "divergesFromPhp": "APCu's segment is shared between every worker of an FPM pool and outlives any one of them; this tier is one process's own memory and goes when that process does",
+      "seeAlso": [
+        "core-api/two-cache-tiers",
+        "concurrency/cross-request-state-is-explicit",
+        "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
+        "concurrency/a-cross-request-stores-bytes-are-its-own-balance",
+        "http-server/the-accept-fan-out-is-one-worker-per-core"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/cache.rs"
+      ]
+    },
+    {
       "id": "concurrency/put-and-get-are-the-whole-boundary",
-      "title": "The cache boundary is a copy in and a copy out, so nothing across it is read-modify-write",
+      "title": "The cache boundary is a copy in and a copy out, so nothing a program can reach is read-modify-write",
       "status": "shipped",
       "because": [
-        "0059"
+        "0059",
+        "0181"
       ],
       "divergesFromPhp": "`apcu_add`, `apcu_cas` and `apcu_inc` have no counterpart, so a lock or a counter is not built on the cache at all",
       "seeAlso": [
@@ -293,7 +314,8 @@
       "status": "shipped",
       "because": [
         "0059",
-        "0033"
+        "0033",
+        "0181"
       ],
       "divergesFromPhp": "APCu's serialize-on-store is a wire format with its own type losses; this is the language's own copy, and it refuses what may not cross rather than mangling it",
       "seeAlso": [
@@ -345,12 +367,13 @@
     },
     {
       "id": "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
-      "title": "Anything a program relies on the value of goes to the shared tier, and the local tier is not offered for it",
+      "title": "Anything a program relies on the value of goes to the shared tier, and a weaker tier is not offered for it",
       "status": "shipped",
       "because": [
         "0059",
         "0075",
-        "0073"
+        "0073",
+        "0181"
       ],
       "divergesFromPhp": "an APCu-backed session, lock or rate limit does not port: the local tier is not among the backends, so the miswiring is a configuration error rather than a race",
       "seeAlso": [
@@ -363,6 +386,43 @@
         "tests/conformance/core/a-session-survives-a-request-on-another-core.nvst",
         "tests/conformance/core/session-start-reaches-the-configured-shared-store-and-never-one-of-its-own.nvst",
         "tests/conformance/core/cache-a-local-entry-may-be-absent-at-any-time.nvst"
+      ]
+    },
+    {
+      "id": "concurrency/a-secret-is-cached-only-sealed",
+      "title": "A secret reaches a cache only as ciphertext, through `putSecret` and `getSecret` and a key ring",
+      "status": "designed",
+      "because": [
+        "0181"
+      ],
+      "divergesFromPhp": "there is no counterpart at all: PHP has no confidential type, so a token in APCu or memcached is plaintext by construction",
+      "seeAlso": [
+        "security/secret-crosses-no-boundary",
+        "concurrency/a-cached-value-is-copied-across-the-boundary",
+        "concurrency/a-secret-fill-runs-once-per-process",
+        "http-server/a-session-holds-a-secret-only-sealed",
+        "core-api/signing-is-over-a-payload"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/cache.rs"
+      ]
+    },
+    {
+      "id": "concurrency/a-secret-fill-runs-once-per-process",
+      "title": "On a miss, one caller per process runs `fill` while the others wait, and a failure is never shared",
+      "status": "designed",
+      "because": [
+        "0181"
+      ],
+      "divergesFromPhp": "nothing in PHP coordinates a miss between workers, so a cold key is one fetch per worker and a cached failure is the usual workaround",
+      "seeAlso": [
+        "concurrency/a-secret-is-cached-only-sealed",
+        "concurrency/the-process-tier-is-one-store-per-process",
+        "concurrency/put-and-get-are-the-whole-boundary",
+        "security/no-cross-request-state"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/cache.rs"
       ]
     },
     {

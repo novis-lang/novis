@@ -590,9 +590,9 @@
     },
     {
       "id": "core-api/two-cache-tiers",
-      "title": "Cross-request state is two members with two contracts, never one API with a flag",
+      "title": "Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag",
       "status": "shipped",
-      "because": ["0059", "0024", "0142", "0118"],
+      "because": ["0059", "0024", "0142", "0118", "0181"],
       "divergesFromPhp": "`apcu_*` and its shared-memory relatives are gone; the tier a program wants is the member it calls",
       "seeAlso": ["core-api/one-name-one-signature", "core-api/each-door-takes-a-different-thing", "core-api/one-paradigm-per-operation"],
       "guardedBy": [

@@ -9,7 +9,10 @@ lifetime depend on what a request happened to read, which is exactly the propert
 exists to guarantee.
 
 A cached value is therefore subject to every restriction any crossing value is: a generator does not
-go in, and neither does a `secret`. Both are refused at `put` rather than silently degraded.
+go in, and neither does a `secret`. Both are refused at `put` rather than silently degraded, and for
+a secret the door is elsewhere: `putSecret` seals it and puts the **ciphertext** across this boundary
+as `bytes`, so what the copy sees is never a `secret`
+(`rule:concurrency/a-secret-is-cached-only-sealed`).
 
 The copy is a real per-`get` cost, paid to keep the request model intact. An implementation may
 later share immutable scalars within a core by refcount, since a core is single-threaded — an

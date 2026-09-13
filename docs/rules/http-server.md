@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*8 of 74 rules below are **designed** rather than shipped, and are marked where they appear.*
+*9 of 75 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -184,13 +184,13 @@ covers as it covers a client call.
 
 **`[server] workers` bounds the count, and the default is what the machine answers.** With the key left out the fan-out is [`std::thread::available_parallelism`](https://doc.rust-lang.org/std/thread/fn.available_parallelism.html), so a deployment moved onto a bigger box scales without a directive being edited, and a host that answers nothing at all is one core. A written count is the bound in **both** directions: it is neither raised to the machine's parallelism nor clamped down to it, because a core count a heuristic chose is one the file cannot state, and an operator who sized a container against its CPU quota has already answered the question. `0` is refused under `E0636` — every listener is accepted on by a worker, so a count of zero binds the addresses the tree names and then answers nobody on any of them, which is [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class)'s empty `listen` array reached from the other end. There is no `auto` spelling: leaving the key out is what asks for the machine's own answer.
 
-**What the cores share is compiled program text and nothing else.** Every mounted entry is compiled before the first socket is bound, published once behind an `Arc` that every core reads, so the compile count is one per distinct source rather than one per core — [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)'s "shares immutable compiled code", and the same single publisher an edit revalidates through ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)). Everything else a core holds is its own: its scheduler, its run queue, its accept loop and the backoff that loop applies ([`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off)), which is what [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)'s relaxed in-flight counter and [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline)'s per-worker watchdog are already written against.
+**What the cores share is compiled program text and the process cache tier, and nothing else.** Every mounted entry is compiled before the first socket is bound, published once behind an `Arc` that every core reads, so the compile count is one per distinct source rather than one per core — [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)'s "shares immutable compiled code", and the same single publisher an edit revalidates through ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)). Beside it stands the one mutable thing: the map behind `Core\Cache::process()`, created before the first core accepts, read and written by every one of them, sharded behind locks and bounded by `[cache.process] max_size` ([`concurrency/the-process-tier-is-one-store-per-process`](concurrency.md#concurrency-the-process-tier-is-one-store-per-process)). Everything else a core holds is its own: its scheduler, its run queue, its accept loop and the backoff that loop applies ([`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off)), which is what [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)'s relaxed in-flight counter and [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline)'s per-worker watchdog are already written against.
 
 **A listener the server cannot bind is refused once, before any core starts.** The classification of a `listen` entry belongs to the configuration and not to a core ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), so one deployment mistake is one refusal — a fan-out that bound as it started would report the same wrong entry once per core and would leave a process half-listening while it did.
 
 What it costs, per [`programs/memory-priority`](programs.md#programs-memory-priority): one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). It holds strictly less than a per-core compiled-unit cache would, which is the shape this one replaces.
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0161](../decisions/0161.md).</sub>
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0161](../decisions/0161.md), [0181](../decisions/0181.md).</sub>
 
 <a id="http-server-max-in-flight-refuses-before-allocating"></a>
 
@@ -756,6 +756,36 @@ An expired record is absent, so `load` already answers it and `start` already is
 is the point of choosing backends that expire.
 
 <sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration). Decided in [0139](../decisions/0139.md).</sub>
+
+<a id="http-server-a-session-holds-a-secret-only-sealed"></a>
+
+## A user's own secret lives in their session, sealed under a key ring through `setSecret` and `getSecret`  *(designed — not yet in the compiler)*
+
+`rule:http-server/a-session-holds-a-secret-only-sealed`
+
+A user's own secret — the access and refresh token a web application holds on their behalf — lives in their
+session, through `$session->setSecret(string $key, secret string $value, array<secret bytes> $keys)` and
+`$session->getSecret(string $key, array<secret bytes> $keys)`, and only **sealed**. The construction is the
+cache's ([`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed)) under the session door's own domain byte, so a
+value sealed for a cache never opens as a session value and the reverse.
+
+It is the session and not a cache tier because a cache may evict at any time and a user would be logged out
+by a footprint decision. There is no `ttl`: a session value lives as long as its session
+([`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store)), and the sealed plaintext carries no expiry of its
+own.
+
+**The additional data is the domain byte ‖ the app ‖ the key, and not the session id**, because
+`regenerate` issues a new id over the same record and a value bound to the old id would stop opening at
+exactly the moment a login hardens. Moving a ciphertext between two sessions takes write access to the
+store, which already means owning every session in it.
+
+`get` answers `null` for a sealed value and `set` still refuses a `secret`, so the sealed pair is the only
+door here too; a sealed value that does not open under the ring is absent rather than an error. The record
+crosses the store as the byte carrier it already is
+([`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations)), so no `secret` reaches the store and
+[`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary) is unchanged.
+
+<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary). Decided in [0181](../decisions/0181.md).</sub>
 
 <a id="http-server-an-upload-is-received-only-through-files"></a>
 

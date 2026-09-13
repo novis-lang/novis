@@ -182,7 +182,8 @@
       "title": "Every `[server] listen` entry is bound before any core accepts, each core holds its own handle on every listener, and `[server] workers` bounds the count over the machine's available parallelism",
       "status": "shipped",
       "because": [
-        "0161"
+        "0161",
+        "0181"
       ],
       "divergesFromPhp": "php-fpm sizes a pool of request *processes* with `pm.*`; `workers` counts accept cores, and one core answers many requests at once",
       "seeAlso": [
@@ -789,6 +790,24 @@
         "http-server/a-session-store-answers-four-operations",
         "http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot",
         "concurrency/who-runs-a-job-is-configuration"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/session.rs"
+      ]
+    },
+    {
+      "id": "http-server/a-session-holds-a-secret-only-sealed",
+      "title": "A user's own secret lives in their session, sealed under a key ring through `setSecret` and `getSecret`",
+      "status": "designed",
+      "because": [
+        "0181"
+      ],
+      "divergesFromPhp": "`$_SESSION` holds whatever it is given in the clear, and a token in it is readable by anything that can read the store",
+      "seeAlso": [
+        "concurrency/a-secret-is-cached-only-sealed",
+        "http-server/a-session-store-answers-four-operations",
+        "http-server/session-expiry-belongs-to-the-store",
+        "security/secret-crosses-no-boundary"
       ],
       "guardedBy": [
         "crates/nvs-stdlib/src/session.rs"
