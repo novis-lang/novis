@@ -120,6 +120,9 @@ modules = [
   # ADR 0180 § 15's `http` trace event: the facts one outbound call contributes to a trace, and
   # why a header value is not one of them.
   "crates/nvs-stdlib/src/http/span.rs",
+  # `nvs config` — `rule:config/check-and-dump-audit-the-tree-offline`'s offline audit of the
+  # configuration tree, and the reader every caller in this binary resolves that tree through.
+  "crates/nvs-cli/src/config.rs",
 ]
 
 # Every stage works inside these three: the address policy, where it lives, and the pin. The goal's
