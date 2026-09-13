@@ -31,11 +31,12 @@ losslessness `nvs fmt` needs at M10; recovery becomes explicit (`MemberName::Mis
 it at the cursor". There is **no second parser and no second tree**: `nvs check`/`nvs run` are that same
 parse followed by "refuse if anything was reported", which is what they already do.
 
-**The `trivia` half of that paragraph lands before this milestone, in
-[goal `doc-comments`](../agent/goals/13-doc-comments.md).**
+**The `trivia` half of that paragraph is built**, in
+[goal `doc-comments`](../agent/goals/13-doc-comments.md):
 `rule:tooling/doc-comment-is-three-slashes` needs a doc comment to survive
-lexing, which is the same one edit to `skip_trivia`, so that goal builds the `Trivia` vector, all four
-`TriviaKind` variants and the losslessness property to `rule:ide/one-grammar-one-tree`'s specification. What is still
+lexing, which is the same one edit to `skip_trivia`, so the `Trivia` vector
+(`crates/nvs-syntax/src/token.rs:43`, read back at `crates/nvs-syntax/src/lexer.rs:171`), its
+`TriviaKind` variants and the losslessness property `rule:ide/one-grammar-one-tree` specifies came with it. What is still
 this milestone's, and has no consumer before it: the **`SyntaxIndex`**, and the explicit-recovery half —
 `MemberName::Missing` and `ExprKind::Error`'s span — which completion needs and a doc comment does not.
 
