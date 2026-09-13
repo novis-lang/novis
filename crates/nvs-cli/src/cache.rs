@@ -2575,8 +2575,18 @@ mod tests {
     /// is "codegen dominates place and relocate", not a benchmark's own number; a change that
     /// brought the two within this factor of each other would mean the loader had grown expensive
     /// enough to reopen the decision, which is exactly what § *Revisiting* asks this test to detect.
+    ///
+    /// **Skipped in the debug profile**, for the reason `benches/abi-probe`'s guards are: a cost
+    /// margin holds only on an idle machine, and `tools/verify.py` runs this binary beside every
+    /// other test binary in the workspace. The driver runs it under `--release` once its sweep has
+    /// finished and the box is idle — `tools/loop.py`'s release checks — and both margins hold
+    /// there by a wider factor than here.
     #[test]
     #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg_attr(
+        debug_assertions,
+        ignore = "a cost margin needs an idle machine; the driver's release slot is one"
+    )]
     fn a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names() {
         use std::time::{Duration, Instant};
 

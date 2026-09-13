@@ -1797,7 +1797,17 @@ mod tests {
     /// shortest of several is the least contaminated estimate of each side, and
     /// interleaving keeps a slow patch of the machine from landing on one side of
     /// the ratio alone.
+    ///
+    /// **Skipped in the debug profile**, for the reason `benches/abi-probe`'s
+    /// guards are: a cost margin holds only on an idle machine, and
+    /// `tools/verify.py` runs this binary beside every other test binary in
+    /// the workspace. The driver runs it under `--release` once its sweep has
+    /// finished and the box is idle — `tools/loop.py`'s release checks.
     #[test]
+    #[cfg_attr(
+        debug_assertions,
+        ignore = "a cost margin needs an idle machine; the driver's release slot is one"
+    )]
     fn serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names() {
         const CORES: usize = 4;
         const ROUNDS: usize = 3;

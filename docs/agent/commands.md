@@ -207,6 +207,7 @@ python tools/verify.py --no-cache                              # re-run even on 
 python tools/verify.py --doc                                   # the rustdoc gate alone (the driver's)
 python tools/verify.py --list                                  # the steps in order, running none of them
 cargo test --release -p nvs-abi-probe                          # cost guards (skipped in debug)
+cargo test --release -p nvs-cli --bin nvs by_the_margin         # the CLI's two cost margins (skipped in debug)
 cargo test --release -p nvs-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
 

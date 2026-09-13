@@ -1824,6 +1824,20 @@ tests = [
   "a_grapheme_index_costs_more_than_a_code_point_index",
 ]
 
+# The CLI's own two cost margins, out of the debug run for the reason the guards above are: a margin
+# measured beside every other test binary in the workspace is not the margin. Each carries
+# `#[cfg_attr(debug_assertions, ignore)]`, so the package's debug checks skip exactly these two.
+# `--bin nvs` and the filter, so two tests do not relink the package's other targets under thin LTO.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli (cost margins)"
+args = ["test", "--release", "-p", "nvs-cli", "--bin", "nvs", "by_the_margin_this_test_names"]
+tests = [
+  "a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names",
+  "serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names",
+]
+
 # The architecture invariants `rule:packaging/an-extension-is-a-sandboxed-wasm-component` rests on -- a result and a throw travelling up through many JIT
 # frames, a runtime panic contained and reported, a helper suspending with JIT frames live above it, and
 # native unwinding through those frames still being unavailable. Correctness, not cost, so debug is the
