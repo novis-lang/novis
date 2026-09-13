@@ -99,19 +99,9 @@
 //! rest — one connection per attempt, how `https` reaches `nvs-host`'s TLS client and which host
 //! name its certificate is checked against, and what a reply is allowed to make this process hold.
 //!
-//! # What is not here yet, and why each is deliberate rather than forgotten
+//! # What it spends
 //!
-//! **A verb chosen at run time.** [`CLIENT`] is five rows whose verb is the row's own name, which
-//! is what makes `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s question
-//! answerable while compiling. `patch`, and the `request(Core\Http\Method, …)` row where a verb a
-//! program computes belongs, are not here yet; the same two checks move to the call when they
-//! arrive.
-//!
-//! **The reply's headers.** [`RESPONSE`] answers `status()` and `text()` and nothing else: a slot
-//! and the member that reads it are one decision, and a `header()` over a map nothing fills would
-//! be a surface with no behaviour under it. It arrives with the transport that writes the map.
-//!
-//! **What it spends:** one `Core\Http\Target` allocation per laundered URL — the URL and the
+//! One `Core\Http\Target` allocation per laundered URL — the URL and the
 //! approved set, at most eight addresses as text — charged to the request that laundered it, and
 //! one resolution per call, which `pin_host_addresses`' own docs own. A request member allocates
 //! nothing of its own before the transport:
