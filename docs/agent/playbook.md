@@ -1906,6 +1906,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   copy. Before pinning a `secret` refusal at a `mixed` parameter, run the three-line program and read the
   output: nothing reported means that carrier has not joined the family yet.
   [until: reviewed 2026-09-13]
+- **A red `the one-file reference still regenerates from the binary` check can be about prose rather
+  than about Rust.** `docs/novis.md` is generated from three inputs — `nvs meta --json`, the chapters
+  under `docs/reference/lang/` and `docs/reference/tools/`, and an optional
+  `docs/reference/core/<Class>.md` per class — so an untracked chapter somebody added turns that floor
+  red with no member having changed. Run `git status --short` before diagnosing it, and run `python
+  tools/reference.py` only once the prose it reads is settled, because the tool bakes whatever is on
+  disk into a document that is then committed. [until: reviewed 2026-09-13]
 
 ## Running things
 
