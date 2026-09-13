@@ -51,11 +51,10 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
 | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `gap-zero` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
 | `Core\Response::html` and `sendFile`, the two § 15 members still outstanding | `m7-server-surface` | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
-| `rule:testing/in-process-request` states two response readings rather than `Core\Test`'s signature, and spec § 13's `Core\Test` row is one English cell | `test-request` | `docs/rules/testing/in-process-request.md`, `docs/spec/01-core-library.md:999` |
+| `Core\Test::request` takes a method and a path, so a test sends neither headers nor a body, and spec § 13's cell states the roster in English rather than the signature | `m7-server-surface` | `crates/nvs-stdlib/src/test.rs:436`'s two parameters, `docs/spec/01-core-library.md:1001`; that goal's stage 7 spells both |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
 | `array<T>` is invariant, so an `array<int|string>` parameter takes only that spelling | `unowned-closures` | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
 | The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | `m8-db-queue` | `crates/nvs-db/src/matrix.rs` gap 1 |
-| An integer where a grant expects a bool, a path or a list validates clean and grants nothing: `[capabilities.fs] read = 1` passes `nvs config check` at `0 warnings` and is denied at run time | `config-is-written` | `crates/nvs-config/src/tree.rs:50`'s untagged `Setting`, which every directive shares |
 
 ## Unowned
 
@@ -65,6 +64,23 @@ three ways: an owner that went green without closing its gap and was struck rath
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
 
+- **An integer where a grant expects a bool, a path or a list validates clean and grants nothing.**
+  `[capabilities.fs] read = 1` passes `nvs config check` at `0 warnings` and is denied at run time,
+  because `crates/nvs-config/src/tree.rs:50`'s `Setting` is `#[serde(untagged)]` and every directive
+  shares that one enum. Narrowing it is not the fix — `:39-43` records that `memory = false` and
+  `exporter = false` are load-bearing second spellings — so the arms a directive accepts are
+  per-directive and nothing declares them. What has to be decided is where that table lives, beside
+  each field in the tree or beside the capability roster the checker already walks; `docs/plan/m6.md:52`
+  promises the verb and not the refusal, so no milestone's plan carries it either.
+  `crates/nvs-config/src/tree.rs:50`. [until: reviewed 2026-09-13]
+- **`array<T>` is covariant in the checker and invariant in the rulebook.**
+  `crates/nvs-types/src/expr/assign.rs:172` recurses element to element, so `array<int>` satisfies
+  `array<int|float|decimal>`, and `:161-171` argues that is sound because an array is a copy-on-write
+  value rather than an alias — while `rule:types/arrays` states invariance flatly and prices the
+  widening at an O(n) restamp, and `:228` still speaks of that invariance as live. What has to be
+  decided is which of the two is the bug: the fragment carries five records (0007, 0069, 0114, 0002,
+  0159) and `crates/nvs-types/tests/arrays.rs` is the guard that says whether the covariance was ever
+  intended. `crates/nvs-types/src/expr/assign.rs:172`. [until: reviewed 2026-09-13]
 - **The route table is walked by comparison rather than by a trie**, which answers identically and
   costs one comparison per row of the right verb where a trie costs one step per path segment.
   `rule:routing/path-grammar` names `matchit`'s left-to-right precedence as the model and no
