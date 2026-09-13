@@ -200,7 +200,9 @@
 //!    [`Value::release`] ignores those two tags rather than decrementing
 //!    anything. They exist in [`Tag`] because the plan's § *Value
 //!    representation* names them; nothing constructs one.
-//!    — owner: unowned
+//!    Decided: Delete both tags — Simplest and honest: closures stay objects, handles stay Core
+//!    classes, and the tag roster shrinks.
+//!    — owner: unowned-closures
 //! 2. **Appending is the only string operation with an in-place fast path.**
 //!    [`nvs_str_append`] writes into its target's spare capacity at a
 //!    `refcount == 1`, so `$out .= $piece` is linear; every other producer —
@@ -208,11 +210,16 @@
 //!    allocates its result. That is a widening of [`NvsStr`] wherever a
 //!    producer can prove sole ownership, not a redesign, and [`NvsArray`]'s
 //!    copy-on-write is the shape it would take.
-//!    — owner: unowned
+//!    Decided: Concat and concat_n reuse a solely-owned left operand — Makes `$s = $s . $x` linear like
+//!    `.=`, at the cost of an ownership hand-off in the lowering for those two calls.
+//!    — owner: unowned-closures
 //! 5. **`nvs_safepoint` acts on only some of its flags.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; `COLLECT` and `DEBUG_BREAK` are cleared and
 //!    ignored, since neither the cycle collector nor `nvs dap` exists.
-//!    — owner: unowned
+//!    Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
+//!    path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
+//!    collector.
+//!    — owner: unowned-closures
 //! 6. **An exception *this crate* builds carries a message and nothing
 //!    else.** [`Thrown::new`] — reached from [`nvs_raise_new`] and from a
 //!    helper's bare-message [`Fault`] — fills `message`, empties `backtrace`
@@ -223,7 +230,9 @@
 //!    `previous` cannot be set *at all* yet is a different gap, owned by
 //!    `nvs_types::error_lib`, which explains why the synthesized constructor
 //!    takes only a message.
-//!    — owner: unowned
+//!    Decided: Capture a full backtrace at every raise — Best for debugging, but it allocates on every
+//!    throw, which breaks the rule that a throw costs no more than a return.
+//!    — owner: unowned-closures
 //! 7. **A cycle is reclaimed at teardown, not while the request runs.** Every
 //!    object links into its context's live list, and dropping the context
 //!    sweeps whatever the root drain left there — `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, with
@@ -237,7 +246,10 @@
 //!    closed through a **shared** array, whose other owner this walk cannot
 //!    name, and that errs towards leaving memory alone rather than towards
 //!    freeing what somebody holds.
-//!    — owner: unowned
+//!    Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
+//!    path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
+//!    collector.
+//!    — owner: unowned-closures
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an

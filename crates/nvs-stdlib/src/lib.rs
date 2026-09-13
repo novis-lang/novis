@@ -137,7 +137,10 @@
 //!    position. What each of §§ 13–20 still owes is its own module's known
 //!    gaps; `docs/agent/carried-gaps.md` is where the ones no chain goal owns
 //!    are kept, and widening either gate past § 12 is an entry on it.
-//!    — owner: unowned
+//!    Decided: Widen both gates past § 12, with an outstanding-members ratchet file seeded with every
+//!    unwritten row — Every missing member becomes visible and can only shrink; seeding the file is a
+//!    one-time listing job.
+//!    — owner: unowned-closures
 //! 4. **`array<T>` is invariant, so a `array<int|string>` parameter takes
 //!    only that exact spelling.** `Core\Arr::flip` is the first member whose
 //!    spec signature declares one, and `Core\Arr::flip($stringArray)` is

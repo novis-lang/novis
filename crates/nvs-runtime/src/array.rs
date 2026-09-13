@@ -218,7 +218,9 @@
 //! array from any of those routes yet — every array here is built by compiled
 //! code the checker already proved well-typed — so the word is not carried,
 //! and adding it is a widening of [`ArrayHeader`] rather than a redesign.
-//! — owner: unowned
+//! Decided: Add it with the first reader — No cost until needed, and adding it later only widens
+//! ArrayHeader, which the module already notes.
+//! — owner: unowned-closures
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;

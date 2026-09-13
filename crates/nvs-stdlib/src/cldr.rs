@@ -152,7 +152,10 @@
 //!    then be a compile error rather than the throw [`compile`] returns
 //!    today. Nothing about this module changes when that lands — it gains a
 //!    second caller.
-//!    — owner: unowned
+//!    Decided: Build the checker-to-IR channel and prepare literal patterns at compile time — Zero
+//!    request-path parsing and compile-time errors as the rule says; the channel is new plumbing
+//!    (shared with nvs-types' intrinsic gaps).
+//!    — owner: unowned-closures
 //! 2. **The letters still refused are the ones needing data or a second
 //!    calendar** — `Y` and `e` (week-based year and local weekday number, both
 //!    of which read the per-territory week data this module does not carry),

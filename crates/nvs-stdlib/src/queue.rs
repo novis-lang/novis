@@ -91,13 +91,17 @@
 //!    `dedupe_pending` column every statement here maintains, and the statement is race-free
 //!    against a schema carrying it without changing shape — so what is left of this gap is a
 //!    deployment that never ran `nvs queue migrate`, which is the one case the key is absent in.
-//!    — owner: unowned
+//!    Decided: Refuse to serve a queue whose schema is behind, checked at boot — Never racy and costs
+//!    no request time; a deployment that skipped migrate fails to start.
+//!    — owner: unowned-closures
 //! 3. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
 //!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
 //!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
-//!    — owner: unowned
+//!    Decided: Yes: add the column through the `nvs queue migrate` converge and a fifth stats counter —
+//!    More observability; a schema change and a spec § 6 amendment.
+//!    — owner: unowned-closures
 //! 4. **SQL Server opens a connection this module will not send a statement over**, and the text
 //!    is this module's to write rather than [`crate::db`]'s: `Core\Db` reaches all five. It has no
 //!    dialect here and cannot have one yet, because `rule:core-classes/queue-storage-is-a-table`

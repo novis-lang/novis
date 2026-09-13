@@ -81,7 +81,9 @@
 //!    default alone is not rendered because § 6 asks for neither and a page
 //!    naming one of the two reads as though the other were absent from the
 //!    declaration.
-//!    — owner: unowned
+//!    Decided: The help renderer reaches the handler's signature at render time (row holds a reference,
+//!    not a copy) — One source of truth; the table needs a way to point at the signature.
+//!    — owner: unowned-closures
 
 use nvs_runtime::commands::{ArgConv, CaseValue, Command, CommandArg, CommandTable};
 use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};

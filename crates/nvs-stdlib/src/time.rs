@@ -104,7 +104,10 @@
 //!    pattern is prepared while compiling; [`crate::cldr`]'s own gap 1 owns
 //!    what that changes and what it does not, and `nvs-types`' intrinsic pass
 //!    is where the preparing has to land before either of them can read it.
-//!    — owner: unowned
+//!    Decided: Build the checker-to-IR channel and prepare literal patterns at compile time — Zero
+//!    request-path parsing and compile-time errors as the rule says; the channel is new plumbing
+//!    (shared with nvs-types' intrinsic gaps).
+//!    — owner: unowned-closures
 //!
 //! # What these members do with a qualifier
 //!

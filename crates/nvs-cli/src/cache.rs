@@ -173,14 +173,20 @@
 //!   instruction-cache maintenance that `mprotect` does not imply, and this module has no home for
 //!   it; [`HOST_ARCH`] is [`Architecture::Unknown`] off x86-64, so every artifact is a miss there and
 //!   every run compiles.
-//!   — owner: unowned
+//!   Decided: One shared 'make executable' function in nvs-codegen, used by the JIT and the loader —
+//!   One home for a subtle, platform-specific correctness step; the loader takes a dependency on that
+//!   function.
+//!   — owner: unowned-closures
 //! * **Mach-O's leading underscore is not accounted for**, which is latent rather than live: CI's
 //!   Mach-O host is `aarch64`, where the item above refuses the payload before a symbol is
 //!   read. On an x86-64 Mac every undefined name would arrive here as `_nvs_echo_str`, `resolve`
 //!   would answer [`None`] for it, and the artifact would be a miss on every run — slow, never wrong.
 //!   Stripping the prefix belongs with whatever makes `aarch64` load, since neither is worth a format
 //!   branch on its own.
-//!   — owner: unowned
+//!   Decided: One shared 'make executable' function in nvs-codegen, used by the JIT and the loader —
+//!   One home for a subtle, platform-specific correctness step; the loader takes a dependency on that
+//!   function.
+//!   — owner: unowned-closures
 //!
 
 // Every compile site calls `unit_for` and `from_config`, and nothing outside this module calls

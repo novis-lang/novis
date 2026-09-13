@@ -59,7 +59,9 @@
 //!    argument, which is folded as a computed name would be and throws for a
 //!    reason a reader has to look up. Closing that gap is what would make
 //!    [`no_such_route`] answer only the case § 4 named.
-//!    — owner: unowned
+//!    Decided: The fold grows a named-argument case (the checker already holds the route's typed
+//!    parameters) — Errors at compile time with a precise message; more checker code.
+//!    — owner: unowned-closures
 //! 2. **The mount prefix is the half of the laundering that has nowhere to come
 //!    from.** [`substitute`] percent-encodes every value it puts in a segment,
 //!    which is § 4's launder and is real; what is not is

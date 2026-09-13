@@ -31,7 +31,9 @@
 //! not routed through here, so a bundled program that reaches a name only
 //! through an autoload root does not resolve it. `require` — which is what
 //! `rule:packaging/a-bundled-require-resolves-at-build-time` makes the closed-world rule about — does.
-//! — owner: unowned
+//! Decided: Resolve autoload roots into the bundle at build time — A bundled program behaves like the
+//! source tree, and the root set is frozen into the build.
+//! — owner: unowned-closures
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};

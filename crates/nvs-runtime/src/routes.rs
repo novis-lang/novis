@@ -85,7 +85,9 @@
 //!    right verb: the same answers, and a cost that grows with the table rather
 //!    than with the path. The shape a trie would replace is one function
 //!    ([`Routes::match_request`]) and the rank it already computes.
-//!    — owner: unowned
+//!    Decided: Measure on benches/serve-proxied.json first, build only if it shows — Spends work only
+//!    if routing is actually a cost, and needs a large-table bench arm.
+//!    — owner: unowned-closures
 
 use std::sync::Arc;
 

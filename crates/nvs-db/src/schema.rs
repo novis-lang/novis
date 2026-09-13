@@ -63,7 +63,10 @@
 //!    delimiting it. Closing either is a builder that refuses the construct or
 //!    an emitter that has a spelling for it, and which one is a decision the
 //!    milestone that needs it takes.
-//!    — owner: unowned
+//!    Decided: Emitter always quotes identifiers; builder refuses an index over unbounded text —
+//!    Quoting is standard and cheap; the text-index refusal is honest because there is no portable
+//!    spelling.
+//!    — owner: unowned-closures
 
 use std::fmt;
 

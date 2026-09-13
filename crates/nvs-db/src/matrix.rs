@@ -51,7 +51,9 @@
 //!    the TCP legs' own case list over `AF_UNIX` would say. It needs a
 //!    container's socket directory bind-mounted onto the host by
 //!    `tools/db-matrix.py`.
-//!    — owner: unowned
+//!    Decided: The whole TCP case list again over the socket — Proves the driver behaves identically on
+//!    both transports; roughly doubles those three legs' run time.
+//!    — owner: m8-db-queue
 
 use std::path::PathBuf;
 

@@ -130,7 +130,9 @@
 //!    program comparing qualified names is comparing the document's own
 //!    spelling, which is right for a document it controls and not enough for
 //!    one it does not.
-//!    — owner: unowned
+//!    Decided: A computed member (namespaceUri()) that walks ancestor xmlns declarations on demand — No
+//!    change to the shared node family or per-node cost; a lookup costs a walk up the tree.
+//!    — owner: unowned-closures
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 

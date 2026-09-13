@@ -66,7 +66,9 @@
 //! - A `type` alias's own name is not checked — `rule:core-api/identifier-casing`'s scope table does
 //!   not list "type alias" as one of the categories it covers, so no rule is
 //!   enforced here rather than guessing one.
-//!   — owner: unowned
+//!   Decided: PascalCase, like classes — An alias reads like the type it names, and it is a rule change
+//!   plus a four-line check.
+//!   — owner: unowned-closures
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 

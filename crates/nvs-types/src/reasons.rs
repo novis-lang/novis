@@ -46,7 +46,9 @@
 //!    position it may not have written — [`crate::links`]' gap 1 for the same
 //!    reason. A named argument *is* read, unlike there: the roster carries the
 //!    parameter's own name, so `reason:` is found wherever it was written.
-//!    — owner: unowned
+//!    Decided: Hand these passes the slot mapping check_args_typed already builds — Named arguments are
+//!    checked like positional ones, and three passes take a new input.
+//!    — owner: unowned-closures
 
 use nvs_diagnostics::{Diagnostic, SourceFile, code};
 use nvs_hir::QName;

@@ -49,7 +49,9 @@
 //!   therefore refused in the corner where both a wide mantissa and a wide
 //!   scale difference meet. Closing it wants a 192-bit intermediate, which is
 //!   the same wider intermediate ADR 0054 § *Consequences* already predicts.
-//!   — owner: unowned
+//!   Decided: Retry at 192 bits only when the 128-bit fold overflows — Exact everywhere, and the common
+//!   path keeps today's cost; it adds a second code path.
+//!   — owner: unowned-closures
 //! * **Nothing inlines.** That ADR expects `+`, `-` and comparison at equal
 //!   scale to become i128 instructions in the emitted code; today every
 //!   operator is an out-of-line helper call. That is a latency question

@@ -54,7 +54,9 @@
 //!    `Core\Router::match`'s to decide and is out of this goal's scope. So
 //!    closing this means reading the union's members here, where § 6 owns the
 //!    spelling, rather than widening that function underneath a second caller.
-//!    — owner: unowned
+//!    Decided: Support it: read the union's members in the command table — The type the spec already
+//!    admits works, via a filter over the pairs ArgConv::Enum already has.
+//!    — owner: unowned-closures
 
 /// What an argument's text becomes before the handler is called.
 ///

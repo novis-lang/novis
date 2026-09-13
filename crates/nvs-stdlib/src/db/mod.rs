@@ -234,7 +234,9 @@
 //!    [`settings_driver`] is therefore a literal one arm has already accepted,
 //!    which is why it reads the discriminant before it reads anything else and
 //!    why every slot it then reads is filled.
-//!    — owner: unowned
+//!    Decided: Nowhere: the defaults apply, and a deployment that wants bounds writes a block — No new
+//!    surface; mismatched literals silently get defaults unless a first-use notice is added.
+//!    — owner: unowned-closures
 //! 2. **`Db\DbError` is not in spec § 10's error tree, so it declares no
 //!    `issues`.** A per-column refusal is thrown as a `ParseError` naming the
 //!    columns instead, because that is the class the property is declared on,
@@ -260,7 +262,9 @@
 //!    only code. A failure of the *wire* rather than of the
 //!    statement stays an `IOError`: § 8's class is the server's answer, not the
 //!    socket's.
-//!    — owner: unowned
+//!    Decided: Split stands: a shape mismatch is a ParseError, as for Json::decodeAs — One class for
+//!    'data does not fit the type' across Json and Db, and no spec change.
+//!    — owner: unowned-closures
 //! 3. **`query`, `queryAs`, `execute`, `executeMany`, `stream` and
 //!    `transaction` are what has landed of `Core\Db\Queryable`** (gap 4 is what
 //!    `queryAs` still owes). **`stream` lands on PostgreSQL alone**, and that is

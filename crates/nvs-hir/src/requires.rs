@@ -80,7 +80,9 @@
 //!   as dynamic here even where a human reader could work out the value;
 //!   widening this is a constant-folding problem for a later milestone, not
 //!   a name-resolution one.
-//!   — owner: unowned
+//!   Decided: Fold literal concatenations and consts before the graph walk — More requires are resolved
+//!   and bundled at build time, at the cost of a small constant folder that runs before the checker's.
+//!   — owner: unowned-closures
 //! - The escape sequences a double-quoted literal's cooking recognises are a
 //!   practical subset (`\\`, `\"`, `\$`, `\n`, `\r`, `\t`, `\v`, `\f`, `\e`)
 //!   good enough for a file path — octal/hex/unicode escapes are left

@@ -45,7 +45,9 @@
 //!   [`crate::signatures::ClassSignature::required_properties`] entirely,
 //!   rather than checked against whether the hook actually commits a value —
 //!   this module has no model of a hook's body at all.
-//!   — owner: unowned
+//!   Decided: Keep the exemption; the runtime read-before-write throw covers it — Safe (an unwritten
+//!   read throws) and simple, and the error comes only at run time.
+//!   — owner: unowned-closures
 //! - [`scan_expr`] only descends into a handful of common composite
 //!   expression forms (assignment, calls, binary/unary/cast/ternary,
 //!   `instanceof`, array literals). A `$this->prop = ...` or
@@ -59,7 +61,9 @@
 //!   of its own for such a call to go in; PHP inherits the parent
 //!   constructor unchanged in that case, and this slice does not model that
 //!   inheritance.
-//!   — owner: unowned
+//!   Decided: Model the inherited constructor: refuse own required properties without a default — The
+//!   error comes where the class is written, at the cost of a small extra rule in this pass.
+//!   — owner: unowned-closures
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;

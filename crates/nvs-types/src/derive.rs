@@ -89,7 +89,9 @@
 //!    class. Whether the missing-`#[Json\Derive]` third of the rule should
 //!    move here from `nvs_stdlib::json`'s run-time refusal is a real question
 //!    and is `rule:core-classes/derive-attribute`'s to answer, not this pass's to widen into.
-//!    — owner: unowned
+//!    Decided: Yes: check `T` (and `array<T>`'s element) statically — The two members enforce the attribute
+//!    the same way and the error is earlier, which is a rule amendment.
+//!    — owner: unowned-closures
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;

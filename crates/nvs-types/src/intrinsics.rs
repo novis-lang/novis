@@ -41,12 +41,16 @@
 //!    a column needs a decoder that records positions
 //!    ([`crate::string_lit`] is where that would live). The message quotes the
 //!    offending placeholder instead, which is what a reader searches for.
-//!    — owner: unowned
+//!    Decided: Re-decode with positions only when a diagnostic is emitted — Exact carets and zero cost
+//!    on the success path, at the cost of a second decoder mode.
+//!    — owner: unowned-closures
 //! 2. **Nothing is prepared yet.** § 3's second effect — the compiled pattern
 //!    and the parsed plan stored in `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache — needs a
 //!    channel from here to `nvs-ir`; validation is the half that pays for
 //!    itself without one, and is what `nvs check` reports.
-//!    — owner: unowned
+//!    Decided: Build the checker-to-IR channel; store prepared patterns in the artifact — No per-call
+//!    compile, and one new channel through the lowering.
+//!    — owner: unowned-closures
 //! 3. **A member's own restriction on a well-formed pattern is left to run
 //!    time.** `Core\Time::parse` refuses a *zonal* field in a pattern the
 //!    grammar reads perfectly well (`nvs_stdlib::cldr`'s `civil_fields_only`),
@@ -56,12 +60,16 @@
 //!    refusing it here would need a per-row restriction the table does not
 //!    have a column for. Leaving it leaves § 4 intact: everything this pass
 //!    refuses, the runtime refuses too.
-//!    — owner: unowned
+//!    Decided: Add a restriction column to the roster — The error comes where it was written, and the
+//!    closed table gets one more column.
+//!    — owner: unowned-closures
 //! 4. **A named or spread argument is not read.** `Core\Str::format(template:
 //!    "…")` folds nothing and runs unvalidated, exactly as
 //!    [`crate::links`]' own gap 1 describes: reading one needs the slot
 //!    mapping `check_args_typed` built and this pass is not handed.
-//!    — owner: unowned
+//!    Decided: Hand these passes the slot mapping check_args_typed already builds — Named arguments are
+//!    checked like positional ones, and three passes take a new input.
+//!    — owner: unowned-closures
 //! 5. **`rule:core-classes/db-literal-query-checking`'s unterminated string literal is not refused**, and the
 //!    reason is a disagreement rather than an absence: `nvs_db::sql`'s own
 //!    module doc declines it in the other direction, because an unterminated
@@ -70,7 +78,9 @@
 //!    Refusing it here would be the one thing this pass refuses that the
 //!    rewriter does not, which is § 4 read backwards. It waits on which of the
 //!    two docs is right, not on a scan.
-//!    — owner: unowned
+//!    Decided: Refuse at compile time and amend nvs_db::sql's doc — A certain bug is caught early, and
+//!    the rewriter must agree to refuse it too.
+//!    — owner: unowned-closures
 //! 6. **`rule:core-classes/db-literal-query-checking`'s host check reaches only a caller that hands over a
 //!    configuration**, and `nvs check` is not yet one. [`crate::Env::grants`]
 //!    is the channel and [`crate::check::check_program_granted`] is how a

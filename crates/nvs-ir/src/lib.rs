@@ -424,7 +424,10 @@
 //!     cleared and otherwise ignored — there is no collector and no debugger
 //!     to hand the frame to. Nothing in this crate is what is missing; see
 //!     `nvs_runtime::nvs_safepoint`.
-//!     — owner: unowned
+//!     Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
+//!     path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
+//!     collector.
+//!     — owner: unowned-closures
 //! 15. **`decimal` lowers, but `<=>` over one does not.** `rule:types/decimal`'s scalar
 //!     has a representation — [`ty::Ty::Decimal`], the same register pair
 //!     [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
@@ -496,7 +499,10 @@
 //!     0020's ladder. `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst`
 //!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst`
 //!     pin the rest.
-//!     — owner: unowned
+//!     Decided: Report it through the escalation ladder, without replacing anything — The error is
+//!     logged and visible the way an uncaught one is, the exception already in flight is left alone,
+//!     and it needs a hook from object dismantling into the ladder.
+//!     — owner: unowned-closures
 //! 19. **`rule:expressions/one-equality-operator` is built; what a cross-representation pair still cannot do
 //!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` do
 //!     not lex, `== null` takes

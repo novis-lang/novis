@@ -56,12 +56,16 @@
 //!    `file:line` it failed about, and a structural rule that cannot point is
 //!    a check rather than a report (docs/adr/tooling-parity.md, the Deptrac
 //!    row).
-//!    — owner: unowned
+//!    Decided: Position (line/column/offset) only — Architecture tests can point at file:line, and the
+//!    input stays qualifier-neutral because no text comes back out.
+//!    — owner: unowned-closures
 //! 3. § 3's `Core\Ast::parseFile` is not here. It reads a path, so it is a
 //!    capability-bearing member (`rule:security/capability-declaration-is-one-table`
 //!    's `fs.read`) rather than a second spelling of this one, and the
 //!    `Core\IO` door it goes through is where that check already lives.
-//!    — owner: unowned
+//!    Decided: Strike the spec roster row; compose IO::read + parse — Class stays capability-free and
+//!    the fs.read check stays where it already lives; users write two calls.
+//!    — owner: m8-stdlib-depth
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 

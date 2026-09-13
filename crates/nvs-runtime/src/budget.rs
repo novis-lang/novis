@@ -89,7 +89,9 @@
 //! it: the compare in [`add`] happens after `Backing` has handed back the
 //! block, so a request that asks for its ceiling twice over in a single
 //! operation holds those bytes until its next poll.
-//! — owner: resource-ceilings
+//! Decided: Route input-sized allocations in helpers through `affords` — Closes it where an attacker
+//! controls the size (repeat, fill, decode), at the cost of auditing the helpers.
+//! — owner: unowned-closures
 //!
 //! # Whose bytes they are
 //!

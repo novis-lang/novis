@@ -87,7 +87,9 @@
 //!   (parameter, return type, property, class constant, `foreach` binding) supports a bare shape type
 //!   fine; the workaround for a local is the one that rule's own example uses: `type Point = {x:
 //!   int}; Point $point;`.
-//!   — owner: unowned
+//!   Decided: Keep the alias form and give a targeted error — No parser cost, a clear message pointing
+//!   at `type Point = {...}; Point $p;`, and one slot is narrower than the rest.
+//!   — owner: unowned-closures
 //! - **`use function` and `use const`** are not parsed — `function` and `const` are ordinary name
 //!   segments, so `use function Foo\bar;` reads `function` as the imported name and then fails on
 //!   `Foo` with a generic parse error. What a real corpus needs here is the *refusal* rather than the

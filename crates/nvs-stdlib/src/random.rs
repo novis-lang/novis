@@ -72,7 +72,9 @@
 //!    seeded generator under any name, and ADR 0079 § 12 reaches reproducibility
 //!    from the other side: `#[Test(seed:)]` seeds this class for the isolate a
 //!    test runs in, which is the same argument it makes for the clock.
-//!    — owner: unowned
+//!    Decided: Register Core\Random\Seeded per spec § 11 — Reproducible sequences for simulations and
+//!    fixtures; a predictable generator becomes reachable from production code.
+//!    — owner: unowned-closures
 //!
 //! # The one exception, and no program outside a test can select it
 //!

@@ -42,7 +42,9 @@
 //!   `crate::signatures::own_required_properties`'s own choice to exclude
 //!   `extends`, for the same reason: the property is checked when its own
 //!   declaring class's methods are checked, not re-derived here.
-//!   — owner: unowned
+//!   Decided: Keep own-class only; the runtime throw covers subclasses — Simple and consistent with the
+//!   sibling pass, and `lateinit` is by definition checked at run time anyway.
+//!   — owner: unowned-closures
 //! - [`scan_expr`] only descends into the same handful of common composite
 //!   expression forms `crate::ctor_init::scan_expr` does. A read buried
 //!   inside a closure body, a `match` arm, or another form this module
@@ -53,7 +55,9 @@
 //!   (mirroring `crate::ctor_init`'s identical gap for a hooked required
 //!   property) — see `rule:classes/lateinit`'s own *Revisiting* section, which defers this
 //!   exact question to `docs/spec/`.
-//!   — owner: unowned
+//!   Decided: Keep the exemption; the runtime read-before-write throw covers it — Safe (an unwritten
+//!   read throws) and simple, and the error comes only at run time.
+//!   — owner: unowned-closures
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;

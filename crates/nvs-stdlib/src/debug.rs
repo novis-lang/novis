@@ -65,7 +65,9 @@
 //!    is no declaration for the bit to be carried off. A `secret` property of
 //!    a *nested* object is redacted, that object's own class having declared
 //!    it.
-//!    — owner: unowned
+//!    Decided: Refuse at compile time storing a secret into an array element or shape field — Small and
+//!    closes the leak, but a program cannot keep, say, a list of API keys without a wrapper class.
+//!    — owner: unowned-closures
 //! 2. **An enum case dumps as its backing integer.** `rule:types/conversion` gives an
 //!    enum no tag of its own — it *is* an `int` at run time — so a case
 //!    arriving through `mixed` is indistinguishable from one here.
@@ -73,7 +75,9 @@
 //!    type would build; reaching it from a dump wants the tag roster to
 //!    distinguish an enum, which is a representation change `rule:types/conversion`
 //!    deliberately declined.
-//!    — owner: unowned
+//!    Decided: Keep the decided rule: through mixed an enum is its integer; statically typed dumps
+//!    already render the case — No change; a dump through mixed is less readable.
+//!    — owner: unowned-closures
 //! 3. **The `Throwable` producer is not here.** `rule:errors/record-producers` makes an uncaught
 //!    `Throwable` a record at `Error` with its frames as Sequence-of-Object
 //!    nodes, and that walk belongs to `nvs-runtime`'s fatal path rather than

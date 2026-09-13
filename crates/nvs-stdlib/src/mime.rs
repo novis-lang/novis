@@ -53,7 +53,9 @@
 //!    Telling them apart means reading the `DocType` element, which is a parse
 //!    rather than a prefix, and a table that answered `video/webm` for a `.mkv`
 //!    would be confidently wrong rather than usefully silent.
-//!    — owner: unowned
+//!    Decided: A shared Ebml case (like the existing Zip case) — Honest about what the bytes show and
+//!    stays a prefix table; the caller cannot tell WebM from MKV.
+//!    — owner: unowned-closures
 
 use nvs_runtime::{Fault, NvsStr, Value};
 

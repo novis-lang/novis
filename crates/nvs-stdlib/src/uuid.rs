@@ -108,7 +108,9 @@
 //!    whatever Novis can hold — so what has to be decided is whether spec
 //!    § 11's second table gains the pair at all, since all four members it
 //!    names are here and a fifth widens the surface rather than repairing it.
-//!    — owner: unowned
+//!    Decided: Add the pair (spec § 11 amendment) — Drivers and binary protocols skip text conversion,
+//!    and ramsey/uuid users expect getBytes; one more surface pair.
+//!    — owner: unowned-closures
 
 use rand::Rng;
 use uuid::{Builder, Uuid};

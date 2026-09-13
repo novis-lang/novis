@@ -73,7 +73,9 @@
 //!    a union has nowhere to hold a mark, so those seven refuse by the default
 //!    rather than by a rule a reader can find, and a union that ever wanted
 //!    [`Qual::Launder`] would have no slot for it.
-//!    — owner: unowned
+//!    Decided: Yes: qual_of reads the parameter's declared Qual whatever its type — The refusal becomes
+//!    readable, and a union can hold Launder; one registry-shape change.
+//!    — owner: unowned-closures
 //! 2. **The step budget is a constant, not a directive.** `rule:core-classes/regex-two-tiers` puts
 //!    the default in `nvs.toml` under `rule:config/three-changeability-classes`'s ordinary rules, and no
 //!    key for it parses: `crates/nvs-config/src/tree.rs` is the one home for

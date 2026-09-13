@@ -131,7 +131,9 @@
 //!    answers whatever the launcher wrote with `Ctx::set_command_line`, and
 //!    only `nvs-cli` writes one — so the member is empty rather than wrong
 //!    inside a request, and nothing this module can reach would fill it.
-//!    — owner: unowned
+//!    Decided: Answer empty/neutral values and state it as the contract — Matches PHP (no $argv under a
+//!    web SAPI) and adds no failure mode.
+//!    — owner: unowned-closures
 //! 2. **A `Text` cannot be plain on one stream and styled on another in the
 //!    same run.** It holds bytes, and the styling is rendered into them once —
 //!    so a program writing the same `Text` to a terminal standard output and a

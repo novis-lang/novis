@@ -52,14 +52,18 @@
 //!    re-rendering it loses the doubled separator that makes it UNC. Nothing
 //!    on the path to `examples/collect.nvs` writes one; the fix is a third
 //!    root shape beside [`Parts::drive`], not a change of interface.
-//!    — owner: unowned
+//!    Decided: Yes: add a third root shape beside the drive letter — Round-trips correctly; one more
+//!    root case in the path parser and its tests.
+//!    — owner: unowned-closures
 //! 2. **A drive-*relative* path is not modelled.** `C:log` — Windows' "the
 //!    current directory *on* drive C" — has no separator after the colon, so
 //!    [`split_drive`] declines it and the whole thing is one component named
 //!    `C:log`. That is the shape that round-trips; treating `C:` as a root
 //!    would make `Path::split('a:b')` answer `['a:', 'b']` for an ordinary
 //!    relative path, which is worse.
-//!    — owner: unowned
+//!    Decided: No: keep it one relative component and state it as the grammar — Round-trips and never
+//!    splits a:b wrongly; loses the Windows-specific meaning.
+//!    — owner: unowned-closures
 //!
 //! # What these members do with a qualifier
 //!

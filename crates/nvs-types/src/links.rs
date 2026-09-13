@@ -47,7 +47,9 @@
 //!    legal and records no site, so it throws at run time as a computed name
 //!    would. Reading one needs the slot mapping `check_args_typed` already
 //!    built and this pass is not handed.
-//!    — owner: unowned
+//!    Decided: Hand these passes the slot mapping check_args_typed already builds — Named arguments are
+//!    checked like positional ones, and three passes take a new input.
+//!    — owner: unowned-closures
 //! 2. **An enum-case capture has no closed set to check against**, so [`within_set`]
 //!    passes every value written for one. `crate::routes::closed_set` owns why:
 //!    what segment text arrives at a case is `Core\Router::match`'s decision, and

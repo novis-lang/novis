@@ -41,7 +41,9 @@
 //! `nvs_types::expr::calls` holds a `new` target to it: it depends on
 //! `nvs-diagnostics` and `nvs-syntax` and nothing else, which is the graph
 //! position that makes a class link resolvable before the stdlib exists.
-//! — owner: unowned
+//! Decided: Hand nvs-hir a roster of Core names at construction — Every link error comes from one pass,
+//! at the cost of a slice of names passed in (no new crate dependency).
+//! — owner: unowned-closures
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{Modifier, Name, NamespaceDecl, Stmt, StmtKind};

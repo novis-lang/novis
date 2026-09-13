@@ -70,14 +70,18 @@
 //!    not folded in, so a `datetime2(7)` reads back as `datetime2`. That is
 //!    § 5's normalisation to own rather than this module's, since the write
 //!    direction in [`crate::ddl`] emits one precision for every instant column.
-//!    — owner: unowned
+//!    Decided: One normalisation pass that folds both sides through the dialect's map before the diff —
+//!    One function that owns every lossy case; the diff stays a plain equality.
+//!    — owner: unowned-closures
 //! 2. **[`scalar_type`] is a choice function, and § 5 owes the other half.**
 //!    The map back is not injective — a dialect with no unsigned integer
 //!    spells one as the width above it — so a column
 //!    written as `uint32` reads back as `int64` and the plan is empty only
 //!    once § 5 normalises the *declared* side the same way. Every case is
 //!    named in that function's own doc; nothing here hides one.
-//!    — owner: unowned
+//!    Decided: One normalisation pass that folds both sides through the dialect's map before the diff —
+//!    One function that owns every lossy case; the diff stays a plain equality.
+//!    — owner: unowned-closures
 //! 3. **An unquoted spelling on a text column is read as that text.**
 //!    [`unquote`] falls back to the whole string where a server printed no
 //!    quotes, because MySQL's `information_schema` prints a literal that way —
@@ -88,7 +92,10 @@
 //!    no number of applies converges. Narrowing the fallback to the dialect
 //!    that needs it is a change to that function and the tests over it, not to
 //!    [`assemble`].
-//!    — owner: unowned
+//!    Decided: Add an opaque, read-only ColumnDefault case holding the raw text, compared verbatim and
+//!    never emitted — The plan converges and nothing is lost; costs one vocabulary case that programs
+//!    cannot construct.
+//!    — owner: unowned-closures
 
 use crate::schema::{
     Column, ColumnDefault, FloatWidth, IntWidth, ScalarType, Schema, SchemaError, Table,

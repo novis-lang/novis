@@ -81,7 +81,9 @@
 //!    catalog reports the check as a type. Each is a column an introspector
 //!    reads back as a *different* vocabulary case, and the diff has to know it
 //!    before it converges.
-//!    — owner: unowned
+//!    Decided: One normalisation pass that folds both sides through the dialect's map before the diff —
+//!    One function that owns every lossy case; the diff stays a plain equality.
+//!    — owner: unowned-closures
 //! 2. **A SQL Server default is a separate named constraint, so a change to
 //!    one is not emitted.** `ALTER COLUMN` carries a type and a nullability
 //!    there and nothing else; replacing a default means dropping the
@@ -89,7 +91,9 @@
 //!    [`Change`] nor [`crate::catalog`]'s reads carry that name. A SQL Server
 //!    default change is therefore a step whose SQL brings the type and the
 //!    nullability across and leaves the default alone.
-//!    — owner: unowned
+//!    Decided: Look the name up at apply time (sys.default_constraints) in the emitted batch — Works on
+//!    any existing database with no vocabulary change; the SQL Server step becomes dynamic SQL.
+//!    — owner: unowned-closures
 
 use crate::plan::{Change, Grade, KeyKind, Step};
 use crate::schema::{

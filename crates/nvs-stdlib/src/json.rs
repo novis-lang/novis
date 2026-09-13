@@ -140,7 +140,9 @@
 //!    What has to be decided is what each of those types *is* on the wire
 //!    before either end can carry it, and `crate::db`'s gap 4 is the same knot
 //!    at the other door.
-//!    — owner: unowned
+//!    Decided: decimal as a JSON string ("12.50"); Instant as RFC 3339 text — Lossless for every
+//!    consumer, including JavaScript doubles, but a client sees a string rather than a number.
+//!    — owner: m8-stdlib-depth
 //! 2. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
 //!    two default-bearing rows are unimplemented: an absent key fails whether
 //!    or not the field is optional, and a `#[Json\Field(skip: true)]` property
@@ -156,7 +158,10 @@
 //!    gap and never will be: it declares no constructor, so there is no default
 //!    to be missing, and [`decode_field`] answers an absent optional key with
 //!    the never-written marker instead.
-//!    — owner: unowned
+//!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
+//!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
+//!    and a string compare per field.
+//!    — owner: unowned-closures
 //! 3. **A hand-written `Core\Json\Codec` is not consulted.** `rule:core-classes/derive-generates-what-is-missing` lets
 //!    a class write its own `toJson()` and keep the generated decoder; today
 //!    only the derived field list is read, so a class with a hand-written
@@ -164,7 +169,10 @@
 //!    `ClassDesc::method("toJson")` lookup and a call back into compiled code
 //!    from the native walk, or it is nothing to write at all once that walk is
 //!    the emitted code gap 4 asks about.
-//!    — owner: unowned
+//!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
+//!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
+//!    and a string compare per field.
+//!    — owner: unowned-closures
 //! 4. **Both halves walk a per-class field list rather than straight-line
 //!    code.** `rule:core-classes/derive-generates-what-is-missing` asks for IR emitted per derived class; what is built
 //!    is one compile-time-built descriptor per class, read by native Rust. No
@@ -174,7 +182,10 @@
 //!    the two the machinery stays, and gaps 2 and 3 wait on that one answer:
 //!    a parameter default's constant and a `toJson` lookup are both cheap in
 //!    emitted code and both a widening of the descriptor otherwise.
-//!    — owner: unowned
+//!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
+//!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
+//!    and a string compare per field.
+//!    — owner: unowned-closures
 //! 5. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
 //!    [`Encodable`] recurses through `serde_json`'s serializer, and a document
 //!    nested deeply enough runs the thread's stack out well before the ceiling
@@ -188,7 +199,9 @@
 //!    `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` reserves.
 //!    Goal `resource-ceilings` names the stack ceiling out of its own scope, so
 //!    it is not that goal's.
-//!    — owner: unowned
+//!    Decided: Walk with an explicit heap stack charged to the request — Always a catchable throw at
+//!    the ceiling; the stack is a small allocation billed to the request.
+//!    — owner: unowned-closures
 
 use std::fmt;
 
