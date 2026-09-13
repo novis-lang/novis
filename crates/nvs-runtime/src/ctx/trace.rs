@@ -46,8 +46,9 @@ pub enum FaultSite {
 /// a `call` event's shape exactly as `rule:testing/debug-probes` defines it, and the other
 /// kinds carry facts of their own that this stand-in vector has nowhere to put.
 /// A `query`'s field set is fixed by `rule:observability/a-query-is-a-trace-event`
-/// and lives in `nvs_db::QuerySpan`, which is where the driver already
-/// holds it; a per-kind payload is what § 4's export needs and what lands with
+/// and lives in `nvs_db::QuerySpan`, and an `http`'s by the same rule as this
+/// one in `Core\Http\Client`'s own span — each in the crate that is already
+/// holding the facts; a per-kind payload is what § 4's export needs and what lands with
 /// `rule:testing/debug-probes`'s sink, alongside the `PROFILE` timing the `trace` field's own doc
 /// comment defers for the same reason.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,23 +65,30 @@ pub enum TraceKind {
     /// One statement, filed from inside a driver's own statement routine —
     /// `rule:observability/trace-events-carry-a-kind` and `rule:observability/a-query-is-a-trace-event`.
     Query,
+    /// One outbound call, filed from `Core\Http\Client`'s transport — the fifth
+    /// of `rule:observability/trace-events-carry-a-kind`'s kinds, and **one
+    /// event per call whatever its attempt count**, which is the same rule's
+    /// sentence and what makes this the event an outbound span is derived from
+    /// (`rule:observability/four-kinds-become-a-span`).
+    Http,
 }
 
 /// One `rule:testing/debug-probes` call-site trace record, tagged with
 /// `rule:observability/trace-events-carry-a-kind`
 /// 's kind.
 ///
-/// The remaining two fields are the `call` kind's shape, and a `query` reuses
-/// the first of them rather than adding a field per kind — [`Ctx::record_query`]
-/// owns that reasoning, and [`TraceKind`]'s doc comment owns what a per-kind
-/// payload waits on.
+/// The remaining two fields are the `call` kind's shape, and a `query` and an
+/// `http` reuse the first of them rather than adding a field per kind —
+/// [`Ctx::record_query`] owns that reasoning, and [`TraceKind`]'s doc comment
+/// owns what a per-kind payload waits on.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceEvent {
     /// Which of `rule:observability/trace-events-carry-a-kind`'s kinds this is.
     pub kind: TraceKind,
     /// What the event is *of*: a [`TraceKind::Call`]'s callee as a
-    /// `Class::method` label, and a [`TraceKind::Query`]'s span as the driver
-    /// rendered it — see [`Ctx::record_query`] for why one field carries both.
+    /// `Class::method` label, a [`TraceKind::Query`]'s span as the driver
+    /// rendered it, and a [`TraceKind::Http`]'s as the transport did — see
+    /// [`Ctx::record_query`] for why one field carries all of them.
     pub callee: String,
     /// `None` on entry; on exit, the status the call site is about to branch
     /// on — so a trace records a thrown or `FATAL` exit exactly as it
@@ -147,6 +155,32 @@ impl Ctx {
     pub fn record_query(&mut self, span: &str) {
         self.trace.push(TraceEvent {
             kind: TraceKind::Query,
+            callee: span.to_owned(),
+            status: None,
+        });
+    }
+
+    /// Records one outbound call as
+    /// `rule:observability/trace-events-carry-a-kind`
+    /// 's `http` event — `Core\Http\Client`'s whole effect under
+    /// [`DebugFlags::TRACE`], called once the reply's head is in hand and
+    /// **once**, however many attempts and hops it took to get there.
+    ///
+    /// The span arrives already rendered for [`Ctx::record_query`]'s reason,
+    /// one crate further out: the field set the rule fixes — the method, the
+    /// scheme, host and port, the path without its query, the status, the
+    /// attempt and hop counts, the address connected to and where the time went
+    /// — lives beside the transport that is already holding every one of those,
+    /// in a crate that depends on this one.
+    ///
+    /// **[`TraceEvent::status`] stays `None` here**, and the reply's status is
+    /// inside the span instead: that field is the checked-return status a
+    /// *call site* is about to branch on, and an HTTP status written into it
+    /// would be a second meaning for one field that every reader would then
+    /// have to disambiguate by kind.
+    pub fn record_http(&mut self, span: &str) {
+        self.trace.push(TraceEvent {
+            kind: TraceKind::Http,
             callee: span.to_owned(),
             status: None,
         });
@@ -417,13 +451,14 @@ mod tests {
         );
     }
 
-    /// `rule:observability/trace-events-carry-a-kind`'s kind, over the two kinds anything in the tree records: a
-    /// probe files a `call` and `Core\Db`'s statement routine files a `query`,
-    /// and one vector keeps them apart. Asserted as the whole trace rather than
-    /// on the second event, because the tag only earns its place if the first
-    /// event still reads as a `call` beside it.
+    /// `rule:observability/trace-events-carry-a-kind`'s kind, over the kinds
+    /// anything in the tree records: a probe files a `call`, `Core\Db`'s
+    /// statement routine files a `query` and `Core\Http\Client`'s transport
+    /// files an `http`, and one vector keeps them apart. Asserted as the whole
+    /// trace rather than on the events after the first, because the tag only
+    /// earns its place if the `call` still reads as one beside them.
     #[test]
-    fn a_query_event_is_filed_under_its_own_kind_beside_a_call() {
+    fn each_recorded_kind_is_filed_under_its_own_tag_beside_a_call() {
         let mut ctx = Ctx::buffered();
         ctx.set_debug_flags(DebugFlags::TRACE);
         ctx.record_trace("People::all", Some(crate::OK));
@@ -431,6 +466,9 @@ mod tests {
         // of what a `query` event carries — no bound value among it, per
         // `rule:observability/a-query-is-a-trace-event`.
         ctx.record_query("driver=postgres connection=main rows=2 sql=select 1");
+        // And the transport's own span, which carries no query string, header
+        // value or body for the same rule's reason.
+        ctx.record_http("http method=GET scheme=https host=api.example.com port=443 path=/things");
         assert_eq!(
             ctx.trace(),
             [
@@ -442,6 +480,13 @@ mod tests {
                 TraceEvent {
                     kind: TraceKind::Query,
                     callee: "driver=postgres connection=main rows=2 sql=select 1".to_owned(),
+                    status: None,
+                },
+                TraceEvent {
+                    kind: TraceKind::Http,
+                    callee: "http method=GET scheme=https host=api.example.com port=443 \
+                             path=/things"
+                        .to_owned(),
                     status: None,
                 },
             ]
