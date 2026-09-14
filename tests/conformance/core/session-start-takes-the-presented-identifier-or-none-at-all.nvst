@@ -1,7 +1,13 @@
 --TEST--
 `Core\Session::start`'s identifier is optional and is a string, so every call shape reaches the same store question -- `rule:core-api/session-roster` and `rule:http-server/a-session-store-answers-four-operations`
+--GET--
+under=a-request
 --FILE--
 <?nvs
+// The case answers a request, because every call shape below reaches the store
+// question only through the one `start` asks first
+// (`rule:security/request-state-throws-in-an-isolate`).
+//
 // § 1's signature is `start(?tainted string $presented = null)`, and the two
 // halves of that are separate claims. The parameter is real — a string call
 // site compiles — and the default is real — an omitting one compiles too. A row

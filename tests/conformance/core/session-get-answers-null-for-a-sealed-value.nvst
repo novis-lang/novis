@@ -3,12 +3,18 @@ The sealed door is the only door into a session too: `get` answers `null` for a 
 --SKIPIF--
 <?nvs
 // As the round-trip case beside this one: the record crosses the store
-// `[cache.shared]` names, and a tree without one skips.
+// `[cache.shared]` names, and a tree without one skips. The store is asked
+// directly rather than through `Core\Session::start`, which refuses where no
+// request arrived (`rule:security/request-state-throws-in-an-isolate`) — and
+// this scaffolding answers none whatever the case does, since a `--GET--`
+// section describes the program under `--FILE--` alone.
 try {
-    Core\Session::start();
+    Core\Cache::shared()->get("whether-a-session-case-has-a-store-to-cross");
 } catch (Throwable $nowhere) {
     echo "skip - ", $nowhere->message, "\n";
 }
+--GET--
+under=a-request
 --FILE--
 <?nvs
 // `set` refuses a `secret` at the boundary and `setSecret` is where one goes

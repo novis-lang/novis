@@ -1,7 +1,14 @@
 --TEST--
 `Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-four-operations` and `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`
+--GET--
+under=a-request
 --FILE--
 <?nvs
+// The case answers a request, because `start` asks whether there is one before
+// it asks anything about the store
+// (`rule:security/request-state-throws-in-an-isolate`), so the store question
+// below is out of reach without one.
+//
 // The tree below chooses a store — so the refusal of the neighbouring case, the
 // one that names `[session] backend`, cannot be what arrives here. What arrives
 // instead names `[cache.shared] url`, and that is the assertion: `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`

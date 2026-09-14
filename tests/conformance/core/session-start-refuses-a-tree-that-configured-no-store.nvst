@@ -1,7 +1,13 @@
 --TEST--
 `Core\Session::start` refuses a tree that configured no store, naming the block to write rather than choosing one for it -- `rule:core-api/session-roster` and `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`
+--GET--
+under=a-request
 --FILE--
 <?nvs
+// The case answers a request, because that is the first thing `start` asks about
+// (`rule:security/request-state-throws-in-an-isolate`) and a program answering
+// none never reaches the store question this case is about.
+//
 // `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`: an absent `[session]` block is not a default backend. The safe
 // answer for a store nobody chose is no store — the direction `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` takes
 // for everything it leaves unconfigured — so a bare `start()` here is a refusal

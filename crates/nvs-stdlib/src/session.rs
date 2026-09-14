@@ -281,6 +281,13 @@ const START_DOC: MethodDoc = MethodDoc {
           it, each of them throws.",
     errors: &[
         ErrorDoc {
+            error: "LogicError",
+            desc: "This program is answering no request — a CLI program, a scheduled script, a \
+                   job worker, a test, or a spawned isolate inside a request rather than a \
+                   request of its own. A session belongs to the client the request came from, so \
+                   there is none to open here and none to issue.",
+        },
+        ErrorDoc {
             error: "RuntimeError",
             desc: "No `[session] backend` is configured, so there is no store a record could \
                    live in; the configured store is `db`, whose half of § 2 is not on disk; or \
@@ -725,13 +732,25 @@ nvs_runtime::nvs_helper! {
     /// [`crate::response::Cookie`] `Core\Response::addCookie` renders, so the policy has one home
     /// and the line has one spelling.
     ///
+    /// **A program answering no request has no session to open**, and is told that before it is
+    /// told anything about the store. `rule:security/request-state-throws-in-an-isolate`: a
+    /// session belongs to the client a request arrived from, so a CLI program, a job worker, a
+    /// test and a spawned isolate inside a request have nothing to open and nothing to issue a
+    /// cookie on. The situation is asked about before the configuration because the answer does
+    /// not depend on it: a deployment that *has* a store would otherwise mint a record and a
+    /// cookie for a caller that can never present either, which is the ambient authority
+    /// `rule:security/isolate-shares-nothing` keeps out of a child. The refusal is
+    /// [`crate::request::served`]'s, so the class and the sentence have one home.
+    ///
     /// # Errors
     ///
-    /// As [`START_DOC`] lists them: a thrown `RuntimeError` for a second `start` on one request,
-    /// for a tree that configured no store, for the `db` store this build does not serve, and for
-    /// a shared store that is unconfigured or refused by capability; a thrown `IOError` for one
-    /// that cannot be reached.
+    /// As [`START_DOC`] lists them: a thrown `LogicError` where no request arrived; a thrown
+    /// `RuntimeError` for a second `start` on one request, for a tree that configured no store,
+    /// for the `db` store this build does not serve, and for a shared store that is unconfigured
+    /// or refused by capability; a thrown `IOError` for one that cannot be reached.
     fn nvs_core_session_start(ctx, args: [1]) {
+        crate::request::served(ctx, &format!("{NAME}::start"))?;
+
         if ctx.session().is_some() {
             return Err(Fault::thrown(format!(
                 "{NAME}::start(): this request has already started a session — a second `start()` \
