@@ -250,6 +250,29 @@ pub enum Entry {
     Method,
 }
 
+/// Which core a spawn starts its child on —
+/// `rule:concurrency/on-worker-runs-the-child-on-another-core`'s `on:`.
+///
+/// It reaches the seam because it is a scheduler's question and nothing above
+/// one can answer it: the word is written at the spawn site and checked there
+/// (`nvs_types::expr::isolate`'s `check_placement`), and the core it names is
+/// decided **once**, at the start. A task never migrates
+/// (`rule:concurrency/a-wake-never-moves-a-task`), so nothing downstream of the
+/// start revisits it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Placement {
+    /// The parent's own core, which is where a child that named no placement
+    /// runs.
+    #[default]
+    Here,
+    /// A core other than the parent's. The child is its parent's child in every
+    /// other respect — the same boundary, the same tree's budget, the same
+    /// death with its parent — and what the crossing costs is the move: the
+    /// argument and the answer are copied at every node in both directions,
+    /// because a refcount is non-atomic.
+    Worker,
+}
+
 /// What a child's failure looks like on the parent's side: data, never an
 /// exception object (ADR 0006 § *Failure is a value*).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -539,8 +562,9 @@ pub trait Host: std::fmt::Debug {
     /// length of the call: the isolate's own ownership root is built here
     /// (`rule:security/isolate-teardown-is-a-drain-then-a-sweep`
     /// ) and is nothing the parent can reach. `entry` says which of ADR
-    /// 0006's two forms the spawn named, which is the one fact about the child
-    /// only this side holds — see [`Entry`].
+    /// 0006's two forms the spawn named and `placement` which core the child is
+    /// started on: the facts about a child that only this side can act on — see
+    /// [`Entry`] and [`Placement`].
     ///
     /// # Errors
     ///
@@ -556,6 +580,7 @@ pub trait Host: std::fmt::Debug {
         args: Value,
         output: Output,
         entry: Entry,
+        placement: Placement,
     ) -> Result<Box<dyn Running>, GraphError>;
 }
 
@@ -666,6 +691,7 @@ mod tests {
             args: crate::value::Value,
             _output: super::Output,
             _entry: super::Entry,
+            _placement: super::Placement,
         ) -> Result<Box<dyn super::Running>, crate::graph::GraphError> {
             // No scheduler here, so "started" is "already finished": the route
             // is what this proves, and a boundary needs a task tree that a unit

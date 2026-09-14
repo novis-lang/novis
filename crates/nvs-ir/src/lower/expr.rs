@@ -3115,14 +3115,15 @@ impl<'a> Lowering<'a> {
     /// so nothing but this arm can reach it, which is what keeps `spawn
     /// script` syntax rather than a member with a keyword in front of it.
     ///
-    /// Three arguments in a fixed order — the path, the `args:` value and the
-    /// `output:` spelling — with the two options materialized to `null` and
-    /// `"capture"` where the program omitted them, the same way
+    /// Four arguments in a fixed order — the path, the `args:` value, the
+    /// `output:` spelling and the `on:` placement — with the options the
+    /// program omitted materialized to `null`, `"capture"` and `"here"`, the
+    /// same way
     /// [`Self::lower_options_arg`] materializes an `rule:core-api/shape-rules` R2 bag's defaults.
-    /// `limits:`, `grants:` and `on:` are checked where they are written
-    /// (`nvs_types::expr::isolate`) and are not carried here yet, so a program
-    /// that writes one is compiled as though it had not: the isolate applies
-    /// no sub-cap, narrows no grant and starts every child on this core.
+    /// `limits:` and `grants:` are checked where they are written
+    /// (`nvs_types::expr::isolate`) and are not carried here, so a program that
+    /// writes one is compiled as though it had not: the isolate applies no
+    /// sub-cap and narrows no grant.
     ///
     /// The `args:` value is **transferred**, alone among the three, because it
     /// is the one the isolate keeps: it crosses the boundary into the child's
@@ -3136,7 +3137,7 @@ impl<'a> Lowering<'a> {
     /// there is nothing for a resolver to compile. `nvs_stdlib::script`'s
     /// `SPAWN_METHOD_SYMBOL` owns why the fork is a second symbol rather than a
     /// fourth argument, and [`Self::spawn_method_entry`] is the fork itself.
-    /// The method symbol does take a **fourth** argument the path form has no
+    /// The method symbol does take a **fifth** argument the path form has no
     /// use for — the entry's parameter names, for ADR 0006 § *Decision*'s
     /// `args:` binding — and that one is a value the child needs rather than a
     /// branch this module already took.
@@ -3202,6 +3203,27 @@ impl<'a> Lowering<'a> {
                 v
             }
         };
+        let on_v = match written(SpawnOptionKey::On) {
+            // Always one of two words: `nvs_types`' `check_placement` refuses
+            // every other spelling, and every expression that is not a literal
+            // at all, where it is written (`E0818`). So what crosses is the
+            // word, and the seam on the other side has two of them to tell
+            // apart rather than a core to be told about.
+            Some(opt) => {
+                let (v, ty) = self.lower_expr(&opt.value, Some(Ty::Str), env, cur);
+                let aliasing = self.aliasing_read(&opt.value);
+                self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+                v
+            }
+            // `rule:concurrency/on-worker-runs-the-child-on-another-core`'s
+            // parent's core, spelled here for the `output:` default's reason:
+            // the placement a reader dumps is the placement the child gets.
+            None => {
+                let (v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr("here".to_owned()));
+                self.account_for_arg(v, Ty::Str, ArgOwnership::Borrowed, false, *cur);
+                v
+            }
+        };
 
         // ADR 0006 § *Decision* binds `args:`'s entries to the entry's own
         // parameters **by name**, which is a question only the declaration
@@ -3211,7 +3233,7 @@ impl<'a> Lowering<'a> {
         // no parse of the unit it is about to call into, and
         // `nvs_runtime::MethodRow` cannot answer this at all (it has arity and
         // parameter tags, never names).
-        let mut call_args = vec![path_v, args_v, output_v];
+        let mut call_args = vec![path_v, args_v, output_v, on_v];
         if let Some((_, names)) = &method {
             let (names_v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(names.join(",")));
             self.account_for_arg(names_v, Ty::Str, ArgOwnership::Borrowed, false, *cur);

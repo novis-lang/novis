@@ -3912,11 +3912,11 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
     };
     assert_eq!(
         args.len(),
-        3,
-        "the path, the `args:` value and the `output:` spelling: {}",
+        4,
+        "the path, the `args:` value, the `output:` spelling and the placement: {}",
         print_function(&f, map.file(file))
     );
-    let (path, payload, output) = (args[0], args[1], args[2]);
+    let (path, payload, output, on) = (args[0], args[1], args[2], args[3]);
     let const_str = |v: ValueId| {
         insts().find_map(|i| match &i.kind {
             InstKind::ConstStr(s) if i.result == Some(v) => Some(s.clone()),
@@ -3935,6 +3935,16 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
         const_str(output).as_deref(),
         Some("capture"),
         "the third argument is `rule:security/isolate-shares-nothing`'s captured-by-default sink: {}",
+        print_function(&f, map.file(file))
+    );
+    // The same for the placement the program did not write:
+    // `rule:concurrency/on-worker-runs-the-child-on-another-core`'s default is
+    // the parent's own core, and it is a constant in the dump rather than a
+    // `None` the helper reads a default out of.
+    assert_eq!(
+        const_str(on).as_deref(),
+        Some("here"),
+        "the fourth argument is the placement, and no `on:` is this core: {}",
         print_function(&f, map.file(file))
     );
     let released_in = |b: &crate::ir::BasicBlock, v: ValueId| {

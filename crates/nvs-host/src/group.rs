@@ -85,6 +85,14 @@
 //! and not O(children ever spawned), per
 //! `rule:programs/memory-priority`. Per thread: one
 //! word, the installed pointer [`crate::Scheduler::run`] publishes.
+//!
+//! # Known gaps
+//!
+//! A child spawned `on: "worker"` starts on this core.
+//! [`SchedulerHost::start_isolate`] reads the placement and routes both words
+//! to the same start, because the other core's inbox —
+//! `rule:concurrency/on-worker-runs-the-child-on-another-core`'s mechanism — is
+//! not built. Everything else about such a child is what the rule describes.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -92,7 +100,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use nvs_runtime::graph::GraphError;
-use nvs_runtime::host::{Bounds, Entry, Host, Job, Outcome, Output, Running, Woken};
+use nvs_runtime::host::{Bounds, Entry, Host, Job, Outcome, Output, Placement, Running, Woken};
 use nvs_runtime::script::Program;
 use nvs_runtime::{AssertionOutcome, Ctx, OpenSpawn, SpawnForm, TaskRoot, Thrown, Value};
 
@@ -187,6 +195,7 @@ impl Host for SchedulerHost {
         args: Value,
         output: Output,
         entry: Entry,
+        placement: Placement,
     ) -> Result<Box<dyn Running>, GraphError> {
         // The whole implementation: `crate::isolate` is `rule:security/isolate-shares-nothing`'s boundary and
         // decides everything about it, and what this seam adds is only that a
@@ -195,11 +204,16 @@ impl Host for SchedulerHost {
         // it is the tree's budget rather than a per-call limit (ADR 0006
         // § *Budgets are accounted at the root of the request tree*).
         let isolate = Isolate::new(program, args, output);
-        match entry {
+        let isolate = match entry {
             Entry::Path => isolate,
             Entry::Method => isolate.running_a_method_of_the_parents_unit(),
+        };
+        match placement {
+            // One arm, and the module doc's `# Known gaps` is why: a worker
+            // placement names another core's inbox, and both words reach this
+            // core's own start until that inbox is here.
+            Placement::Here | Placement::Worker => isolate.start(ctx),
         }
-        .start(ctx)
     }
 }
 

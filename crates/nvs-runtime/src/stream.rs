@@ -525,7 +525,9 @@ mod tests {
     use super::{Drain, Drained, SEND_TIMED_OUT, open};
     use crate::ctx::Ctx;
     use crate::graph::GraphError;
-    use crate::host::{Bounds, Entry, Host, Job, Outcome, Output, Running, Woken, install};
+    use crate::host::{
+        Bounds, Entry, Host, Job, Outcome, Output, Placement, Running, Woken, install,
+    };
     use crate::script::Program;
     use crate::value::Value;
 
@@ -595,6 +597,7 @@ mod tests {
             _args: Value,
             _output: Output,
             _entry: Entry,
+            _placement: Placement,
         ) -> Result<Box<dyn Running>, GraphError> {
             unreachable!("a response body cell starts no isolate")
         }

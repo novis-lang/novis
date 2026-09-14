@@ -103,7 +103,7 @@
 //! second crossing, and no copy per call, however often the child asks.
 
 use nvs_config::capability::{Cap, Scope};
-use nvs_runtime::host::{Completion, Entry, Output};
+use nvs_runtime::host::{Completion, Entry, Output, Placement};
 use nvs_runtime::script::ResolveError;
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
@@ -595,13 +595,43 @@ fn output_of(value: &Value) -> Result<Output, Fault> {
     }
 }
 
+/// Decodes the `on:` option, which arrives as the word the program wrote.
+///
+/// Fatal for anything else, where [`output_of`]'s unknown spelling is a throw,
+/// and the difference is who can produce one: that option's set is open to a
+/// program's misspelling and this one is not.
+fn placement_of(value: &Value) -> Result<Placement, Fault> {
+    match value.as_text() {
+        Some("here") => Ok(Placement::Here),
+        Some("worker") => Ok(Placement::Worker),
+        // Unreachable from source: `nvs_types::expr::isolate`'s
+        // `check_placement` refuses every spelling but these two where it is
+        // written (`E_SPAWN_PLACEMENT_UNKNOWN`), and the lowering writes
+        // `'here'` for a spawn that named no placement — so a third word here
+        // is the compiler disagreeing with itself rather than a mistake a
+        // program could make.
+        Some(other) => Err(Fault::fatal(format!(
+            "`spawn script`'s `on:` is `'here'` or `'worker'`, got `'{other}'`"
+        ))),
+        // Unreachable from source for the same reason one step earlier:
+        // `check_placement` refuses a value that is not a string literal at all
+        // (`E_SPAWN_PLACEMENT_UNKNOWN`), so what the lowering carries is always
+        // one of the two words.
+        None => Err(Fault::fatal(format!(
+            "`spawn script`'s `on:` expected a string, got tag {}",
+            value.tag_byte()
+        ))),
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `spawn script <path> with(args: …, output: …)` — starts the isolate and
     /// answers the handle that `await` collects.
     ///
-    /// Three arguments in the order the lowering builds them: the path as
-    /// written, the `args:` value (`null` when the option was not given), and
-    /// the `output:` spelling. The argument is **transferred** to the isolate,
+    /// Four arguments in the order the lowering builds them: the path as
+    /// written, the `args:` value (`null` when the option was not given), the
+    /// `output:` spelling and the `on:` placement, which is `'here'` for a
+    /// spawn that named none. The argument is **transferred** to the isolate,
     /// which is why the lowering hands it over rather than borrowing it as an
     /// ordinary `Core` call would.
     ///
@@ -616,7 +646,7 @@ nvs_runtime::nvs_helper! {
     /// . A spawn the parent was never allowed to attempt therefore never
     /// reaches a child at all, which is what makes it a value on *this* side
     /// while a child that fails on its own is an `ok = false` on the other.
-    fn nvs_core_script_spawn(ctx, args: [3]) {
+    fn nvs_core_script_spawn(ctx, args: [4]) {
         // Unreachable from source: the path expression is checked against
         // `string` by `nvs_types::expr::isolate`'s `check_spawn_script`, so a
         // non-string is `E_TYPE_MISMATCH` where it is written.
@@ -627,6 +657,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let output = output_of(&args[2])?;
+        let placement = placement_of(&args[3])?;
         let program = nvs_runtime::script::resolve(ctx, path).map_err(|error| match error {
             // An embedder that installed none. Not the program's mistake, and
             // not something a `catch` should be able to paper over.
@@ -645,7 +676,7 @@ nvs_runtime::nvs_helper! {
         // and the lowering emitted no release for it.
         let crossing = args[1];
         let started = nvs_runtime::host::with_current(|host| {
-            host.start_isolate(ctx, program, crossing, output, Entry::Path)
+            host.start_isolate(ctx, program, crossing, output, Entry::Path, placement)
         });
         let running = match started {
             // A spawn past `[limits] max_script_depth` is refused by
@@ -758,8 +789,8 @@ nvs_runtime::nvs_helper! {
     /// **method entry**, started as a fresh isolate over the unit this context
     /// is already running.
     ///
-    /// [`nvs_core_script_spawn`]'s three arguments in its order, with its
-    /// ownership rules, plus a fourth this form alone takes; and one
+    /// [`nvs_core_script_spawn`]'s four arguments in its order, with its
+    /// ownership rules, plus a fifth this form alone takes; and one
     /// difference: argument 0 is a **constant label**
     /// the lowering wrote — `Class::method`, resolved by `nvs_types` at the
     /// spawn site — rather than a path the program computed. Nothing is
@@ -775,7 +806,7 @@ nvs_runtime::nvs_helper! {
     /// unit's entry does *after* that: take the argument into the isolate's
     /// ownership root, and call.
     ///
-    /// **Argument 3 is the entry's parameter names**, comma-separated in
+    /// **Argument 4 is the entry's parameter names**, comma-separated in
     /// declaration order and empty for an entry that declares none — another
     /// constant the lowering wrote, off the resolved call `nvs_types` recorded
     /// (`nvs_ir::lower`'s `spawn_method_entry` is the one home of the
@@ -793,7 +824,7 @@ nvs_runtime::nvs_helper! {
     /// judges each against the slot it is about to fill. The map still crosses
     /// whole and `Core\Script::args()` still answers it, which is `rule:security/isolate-shares-nothing`'s
     /// accessor rule for both forms.
-    fn nvs_core_script_spawn_method(ctx, args: [4]) {
+    fn nvs_core_script_spawn_method(ctx, args: [5]) {
         // Unreachable from source: the lowering emits this as a `ConstStr`, so
         // a non-string here is a compiler bug rather than a program's.
         let label = args[0]
@@ -808,12 +839,12 @@ nvs_runtime::nvs_helper! {
         // Unreachable from source for the same reason argument 0 is: the
         // lowering emits this as a `ConstStr` too, so a non-string here is a
         // compiler bug rather than a program's.
-        let names: Vec<String> = args[3]
+        let names: Vec<String> = args[4]
             .as_text()
             .ok_or_else(|| {
                 Fault::fatal(format!(
                     "`spawn script Class::method` expected constant parameter names, got tag {}",
-                    args[3].tag_byte()
+                    args[4].tag_byte()
                 ))
             })?
             .split(',')
@@ -821,6 +852,7 @@ nvs_runtime::nvs_helper! {
             .map(str::to_owned)
             .collect();
         let output = output_of(&args[2])?;
+        let placement = placement_of(&args[3])?;
         // Nothing is released here for the transferred argument 1, and that is
         // the spawn's own ownership rule rather than an omission: a
         // `TemporaryKind::Transferred` value is still on the lowering's
@@ -882,7 +914,7 @@ nvs_runtime::nvs_helper! {
         // emitted no release for it.
         let crossing = args[1];
         let started = nvs_runtime::host::with_current(|host| {
-            host.start_isolate(ctx, program, crossing, output, Entry::Method)
+            host.start_isolate(ctx, program, crossing, output, Entry::Method, placement)
         });
         let running = match started {
             // Every arm is `nvs_core_script_spawn`'s, for its reasons — the
