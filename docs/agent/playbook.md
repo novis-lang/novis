@@ -6784,6 +6784,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   panic out of `cranelift-jit` that only a case reaching the helper sees. Add the registry row
   in the same edit as the variant, and run such a case.
   [until: gone crates/nvs-codegen/src/emit.rs:fn helper_symbol]
+- **`as` performs no shape walk, so "the walk `as` already does" is not available for `is {x: int}`.**
+  `$m as ?{x: int}` is `E0711` where it is written — `rule:types/conversion` tabulates no conversion
+  into an object — which means the shape row of `rule:types/type-test` is a walk to *build*, across
+  the checker, `nvs-ir` and the runtime, and not a second caller of one that exists. Run the spelling
+  through `target/debug/nvs.exe run` before planning a row around a walk a rule names, because a rule
+  naming a conversion is not evidence the conversion lowers.
+  [until: reviewed 2026-11-01]
 
 ## Divergences and refusals already pinned
 
