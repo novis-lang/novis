@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*11 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
+*12 of 66 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -49,6 +49,49 @@ A host with no calling task therefore has no place to put children, which is why
 that runs a program makes a task first even where one buys nothing else.
 
 <sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
+
+<a id="concurrency-on-worker-runs-the-child-on-another-core"></a>
+
+## A child spawned `on: "worker"` is started on another core, copies at every node in both directions, and is still its parent's child  *(designed — not yet in the compiler)*
+
+`rule:concurrency/on-worker-runs-the-child-on-another-core`
+
+A child spawned `on: "worker"` is **started** on a core other than its parent's, and *started* is the
+whole of the placement: a task never migrates ([`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task)), so which
+core runs it is decided once, where it is spawned, and is never revisited while it runs. Everything else
+about it is unchanged — it is an isolate with the boundary
+[`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) describes, and `on: "here"` is the same child on the parent's own
+core.
+
+What crosses is what [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy) allows, with one thing subtracted: the
+**move is not available**. A refcount is non-atomic because a value is reachable from one core only, so
+the argument is copied at every node on the way in and the answer at every node on the way out, and a
+large result is an argument for leaving the child on the parent's core rather than for a cheaper
+crossing.
+
+The mechanism is the blocking pool's, turned around (`crates/nvs-host/src/blocking.rs`). The parent takes
+a `RemoteWake` for itself, puts the compiled unit, the copied argument and that handle into the
+destination core's **inbox**, pokes that core's poller, and parks. The other core's reactor drains the
+inbox and starts the child as a root task on its own scheduler; when the child finishes, its answer is
+copied into the handle's slot and the handle is dropped, which ends the parent's park. What crosses the
+thread boundary is therefore still an id and a poke — the slot is the record, and the wake only ends the
+wait.
+
+A worker-placed child is its parent's child in every other respect. It is cancelled when the parent is
+cancelled, it is charged to the tree's budget rather than to a per-call limit
+([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)), and
+[`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns) holds across the thread: the parent's
+call does not return until the cancellation it sent has been acknowledged from the other core and the
+child's own teardown has run there.
+
+Which core it is depends on what the process is. Under `nvs serve` it is a sibling serving core, chosen
+round-robin, because those cores and their schedulers already exist and a second thread per core would
+oversubscribe the machine. Everywhere else — a `nvs run`, a job, a test, where one scheduler is all there
+is — **worker cores are started lazily and bounded at the core count**, so a program that places no child
+on one has none, exactly as a worker with no blocking work has no pool threads. Either way the cost is
+one scheduler thread per core at most: O(cores), never O(requests served).
+
+<sub>See also [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns). Decided in [0184](../decisions/0184.md).</sub>
 
 <a id="concurrency-all-answers-a-typed-shape"></a>
 
