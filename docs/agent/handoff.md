@@ -2,53 +2,60 @@
 
 ## State
 
-**Goal `m4b-editor`, stages 3 and 4 are landed and green.** `npm run test:host -- --nvs <path>` prints
-`host: 7 passing, 0 failing`: the isolation claim, and stage 4's six tests in the order the acceptance
-check greps for them. The first run on a machine downloads VS Code 1.136.2 (332 MB); later ones reuse
-`editors/vscode/.vscode-test/` and take about a minute.
+**Goal `m4b-editor`, stages 3, 4 and 5 are landed and green.** `npm run test:host -- --nvs <path>`
+prints `host: 12 passing, 0 failing`: the isolation claim, stage 4's six colour tests, and stage 5's
+five surface tests in the order the acceptance check greps for them. The first run on a machine
+downloads VS Code 1.136.2 (332 MB); later ones reuse `editors/vscode/.vscode-test/` and take about a
+minute.
 
-The throwaway profile now starts with **`nvs.lsp.enable` false** (`editors/vscode/scripts/host.mjs:76`),
-because "before the server answers" is a state to withhold a server for rather than race; colour's third
-test turns it on, which respawns. Mocha loads `*.test.js` in sorted order (`test/host/index.ts:28`), so a
-`surfaces.test.ts` runs after `colour.test.ts` with the server already on.
+`activate` now returns a `Surface` — the status item's text and severity, the AST view's provider, and
+the ranges each visible editor was last handed per decoration kind (`editors/vscode/src/surface.ts`).
+Nothing on it acts, because it is `extension.exports` and every other extension in the window can reach
+it; `editors/vscode/README.md` § *Decided here* is that decision's home. `redactions.ts` records what
+`draw` hands out, since a decoration cannot be read back off an editor.
 
-Nothing of stages 5–8 is on disk. Stage 1 is goal `m5-proofs`'s whole list, untouched. CI is not running
-(billing block), so stage 6 is proven by reading `ci.yml`, and what that stage still owes beyond the
-workflow is a test of `tools/loop.py:1706`'s `EDITOR_READS`, which `tools/` has no suite to host.
+Nothing of stages 6–8 is on disk. Stage 1 is goal `m5-proofs`'s whole list, untouched. CI is not
+running (billing block), so stage 6 is proven by two checks that read `ci.yml` and `tools/ci-changes.py`,
+and what that stage still owes beyond the workflow is a test of `tools/loop.py:1706`'s `EDITOR_READS`,
+which `tools/` has no suite to host.
+
+The pack prints this goal's § *Standing decisions* and the failing check, but never the `## Stage N`
+prose that names each stage's exact `it` titles, and `[context]` has no field that would: reading it is
+one `peek.py` target on `docs/agent/loop-goal.md:"## Stage N"`, which is cheap but has to be remembered.
 
 ## Next group
 
-**Stage 5: the surfaces, in the host** — one file set: `editors/vscode/src/` and
-`editors/vscode/test/host/`. The goal's § *Stage 5* names the five `it` titles and their order; the check
-greps them, so they are copied exactly rather than paraphrased.
+**Stage 6: CI builds, tests and packages the extension** — one file set: `tools/ci-changes.py`,
+`.github/workflows/ci.yml`, `editors/vscode/.nvmrc`. The goal's § *Stage 6* names every marker the two
+checks grep for; they are the acceptance list, so copy the spellings rather than paraphrasing them. CI
+is not running, so nothing here can be proven by a run — only by the files
+(`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).
 
-- [ ] **The read-only test surface `activate` returns** (`editors/vscode/src/extension.ts:70`, which
-      returns `Promise<void>` today): the status item's current text and severity, the AST view's
-      provider, and the ranges last handed to `setDecorations` per editor and decoration kind, collected
-      from `editors/vscode/src/redactions.ts:243`, `editors/vscode/src/ast.ts:58` and
-      `editors/vscode/src/tasks.ts:57`. No method that changes, reveals or runs anything — the goal's
-      § *Standing decisions* is why. It is recorded in `editors/vscode/README.md` § *Decided here*.
-- [ ] **The stage-5 fixtures** (new, beside `editors/vscode/test/host/fixture/app.nvs:1`): `broken.nvs`,
-      which must fail to compile with an `error[E0301]` the `problemMatcher` can parse, and
-      `secrets.nvs`, carrying two `secret` literals so a reveal of the first leaves the second concealed.
-      `scripts/host.mjs` copies the whole directory, so neither needs a launcher change.
-- [ ] **`test/host/surfaces.test.ts`, the five tests** (new, beside
-      `editors/vscode/test/host/colour.test.ts:113`, whose `until` and `open` helpers are the shape to
-      copy): the status item's version (`rule:ide/the-extension-refuses-a-binary-it-does-not-understand`),
-      the Task whose failure reaches `languages.getDiagnostics`
-      (`rule:ide/tasks-carry-a-problem-matcher`), the AST panel over a file that does not compile
-      (`rule:ide/the-ast-panel-shells-out-to-the-cli`), the two concealed literals and the one reveal
-      (`rule:ide/redaction-ranges-come-from-the-server`, `rule:ide/reveal-is-explicit-and-window-local`),
-      and no taint decoration at the default setting (`rule:ide/tainted-has-no-default-decoration`).
+- [ ] **The `editor` lane** (`tools/ci-changes.py:34`, the `LANES` table, whose module doc at
+      `tools/ci-changes.py:5` is the policy's only home): `editors/`, `crates/`, `Cargo.toml`,
+      `Cargo.lock` and `.github/workflows/`, because the protocol and host suites drive the real binary
+      (`rule:testing/ci-lanes`). It is emitted as an output of the `changes` job
+      (`.github/workflows/ci.yml:70`).
+- [ ] **`editors/vscode/.nvmrc` (new) and job `extension`** (`.github/workflows/ci.yml:105` is the
+      three-platform matrix to copy; `editors/vscode/package.json:289` is every script it runs):
+      `setup-node` with `node-version-file`, `npm ci`, `npm run lint`,
+      `npm run test:headless` with `NVS_BIN` at the built binary, `npm run package`, and on Linux only
+      an `actions/upload-artifact` of `editors/vscode/nvs.vsix` pinned by SHA
+      (`rule:ide/the-lockfile-is-committed-and-build-output-is-not`). The local Node is v24.14.1 and
+      `website/.nvmrc` is the shape.
+- [ ] **Job `extension-host`** (`.github/workflows/ci.yml:168` is `extension-sandbox`, the neighbour it
+      sits beside): `ubuntu-latest`, the same setup, then `xvfb-run -a npm run test:host -- --nvs <built
+      binary>`, which is the argv `editors/vscode/scripts/host.mjs:44` reads, caching
+      `editors/vscode/.vscode-test/` on the version pinned at `editors/vscode/scripts/host.mjs:31`
+      (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).
 
 ## Backlog
 
-- Stage 6 owes a test of the acceptance cache's `editors` partition; `tools/` has no suite
-  (`docs/agent/loop-goal.md` § *Stage 6*).
-- Widening `MEMO_DIRS` in `tools/loop.py` to cover `editors/` — explicitly not this goal
-  (`docs/agent/loop-goal.md` § *Standing decisions*).
+- `tools/loop.py:1606`'s `MEMO_DIRS` hashes `crates/` and `examples/` alone, so a cached check over
+  `editors/` stays green after an extension change — the goal's § *Standing decisions* holds it open.
+- `tools/loop.py:1706`'s `EDITOR_READS` has no test, and `tools/` has no suite to host one (stage 6).
 - The stale trivia paragraph in `docs/plan/m4b.md` is goal `plan-truth`'s.
 - The `unowned` module-doc gaps in `crates/nvs-lsp/src/index.rs` and `hints.rs` are goal
   `unowned-closures`'s.
-- Marketplace and Open VSX publishing stays open (`rule:ide/one-server-two-thin-clients`
-  § *Revisiting*).
+- Publishing to the Marketplace or Open VSX stays open under `rule:ide/one-server-two-thin-clients`
+  § *Revisiting*.
