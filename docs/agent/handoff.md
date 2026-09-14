@@ -2,59 +2,57 @@
 
 ## State
 
-**Goal `m5-proofs` (M5). Stage 6's second item is on disk: a spawn's `on:` crosses the host seam as
-`nvs_runtime::host::Placement`, and the seam routes on it.**
+**Goal `m5-proofs` (M5). Stage 6's third item is on disk: the worker cores exist, with an inbox, a
+bell and an answer that crosses back in a slot.**
 
-The lowering writes the placement as a fourth argument beside the path, the `args:` value and the
-`output:` spelling, materializing `"here"` where the program named none
-(`crates/nvs-ir/src/lower/expr.rs:3206`). `nvs_core_script_spawn` takes four arguments and the method
-form five, with the entry's parameter names moved to index 4 (`crates/nvs-stdlib/src/script.rs:642`,
-`:820`). `placement_of` is fatal on any other word where `output_of` throws, because only the compiler
-can produce one — `check_placement` refuses the rest at the spawn site
-(`crates/nvs-stdlib/src/script.rs:606`).
+`crates/nvs-host/src/worker.rs` is `rule:concurrency/on-worker-runs-the-child-on-another-core`'s
+mechanism, built as ADR 0184 §§ 3–5 fix it. `worker::place` (`crates/nvs-host/src/worker.rs:516`)
+is the blocking pool's handoff pointing the other way: take a `RemoteWake` for the running task,
+post the work to another core's inbox, ring its bell, park; the far core runs it **as a task**, so
+it may park and spawn children there. `Answering`'s `Drop` is the one path out — a return, a
+contained panic and a forced unwind all answer, so no parent is left parked. Cores are started on
+the first placement and bounded at `cpus().len().max(1)`, one thread per core.
 
-**Routed, not placed.** `SchedulerHost::start_isolate` matches on the placement and both words reach
-this core's own start (`crates/nvs-host/src/group.rs:211`), because the other core's inbox is not
-built; `crates/nvs-host/src/group.rs`'s module doc `# Known gaps` is the one home of that. So a
-program that writes `on: "worker"` today compiles, crosses the seam, and runs on its parent's core.
-`limits:` and `grants:` still stop at the checker and are dropped by the lowering.
+**Built, not routed.** `SchedulerHost::start_isolate` still sends both placement words to this
+core's own start, and the reason is now a shape rather than a missing mechanism: a
+`nvs_runtime::script::Program` is a `Box<dyn FnOnce(&mut Ctx, Value) -> Value>` the *parent's*
+resolver built, so it is not `Send` and means nothing on another core, and a `Value` is reachable
+from one core by construction. `crates/nvs-host/src/group.rs`'s `# Known gaps` is that gap's one
+home and says what the seam has to carry instead. `limits:` and `grants:` still stop at the checker.
 
 ## Next group
 
-**Stage 6: the options, below the checker** — one file set: `crates/nvs-host/src/` (a new `worker.rs`
-beside `blocking.rs`, plus `group.rs`, `isolate.rs`, `reactor.rs`), `crates/nvs-ir/src/lower/expr.rs`,
-`crates/nvs-stdlib/src/script.rs` and `tests/conformance/isolate/`.
+**Stage 6: the options, below the checker** — one file set: `crates/nvs-runtime/src/host.rs`,
+`crates/nvs-host/src/group.rs`, `crates/nvs-host/src/worker.rs`, `crates/nvs-stdlib/src/script.rs`,
+`crates/nvs-ir/src/lower/expr.rs` and `tests/conformance/isolate/`.
 
-- [ ] **The worker cores and their inbox** — a new `crates/nvs-host/src/worker.rs`, built on the
-      blocking pool's shape (`crates/nvs-host/src/blocking.rs:320` is the run-elsewhere-then-wake
-      handoff, `:76` its bound, `:107` the pool): cores started lazily and bounded at the core count,
-      a per-core inbox the reactor drains, and the answer copied into a slot whose
-      `RemoteWake` ends the parent's park (`crates/nvs-host/src/reactor.rs:219`).
-      `rule:concurrency/on-worker-runs-the-child-on-another-core` is the rule and ADR 0184 §§ 2–5 the
-      mechanism; the `Placement::Worker` arm at `crates/nvs-host/src/group.rs:211` is where it plugs
-      in, and group.rs's `# Known gaps` is the sentence it deletes. The three tests
-      `docs/agent/loop-goal.toml:9849` names are this item's.
+- [ ] **The seam names the child's program instead of carrying it** — `start_isolate`
+      (`crates/nvs-runtime/src/host.rs:576`) takes a `Program` today, which a worker placement
+      cannot cross with. Carry what the far core can resolve for itself — the path, or the class
+      and method `Entry::Method` names — and the argument as `nvs_runtime::graph::encode`'s bytes
+      (`crates/nvs-runtime/src/graph.rs:719`, decoded by `:917`), which is ADR 0184 § 2's copy at
+      every node. The two call sites are `crates/nvs-stdlib/src/script.rs:661` and `:917`, which
+      resolve before they reach the seam; `crates/nvs-host/src/group.rs:191` is the one implementor.
+      `rule:security/isolate-values-cross-by-copy` is what may cross.
+- [ ] **`Placement::Worker` routes to a worker core** — the arm at
+      `crates/nvs-host/src/group.rs:211`, over `worker::place` at
+      `crates/nvs-host/src/worker.rs:516`. It deletes `crates/nvs-host/src/group.rs`'s `# Known
+      gaps` paragraph and the second half of `crates/nvs-host/src/worker.rs:86`'s.
+      `rule:concurrency/on-worker-runs-the-child-on-another-core` is the rule.
 - [ ] **`limits:` and `grants:` below the checker** — the lowering drops both today
-      (`crates/nvs-ir/src/lower/expr.rs:3164`), so they cross as two more arguments the way `on:` now
-      does, the helper reads them at `crates/nvs-stdlib/src/script.rs:642`, and the isolate applies
-      the sub-cap and the narrowed overlay at `crates/nvs-host/src/isolate.rs:162`. The key set is
-      `SUB_CAP_SETTINGS`/`SUB_CAP_COUNTS` at `crates/nvs-types/src/expr/isolate.rs:414`;
-      `rule:security/isolate-budget-is-the-trees` is what a sub-cap means and
-      `rule:security/capability-check-at-the-door` where a grant is asked.
-- [ ] **The three `.nvst` cases** `docs/agent/loop-goal.toml:9860` names, under
-      `tests/conformance/isolate/`: a worker child answers as a local one does, a child given grants
-      holds only those, a child given limits is stopped at its own ceiling. They need both items
-      above; `crates/nvs-stdlib/src/script.rs:642` is the member all three go through.
+      (`crates/nvs-ir/src/lower/expr.rs:3206` writes the placement beside the path, the `args:`
+      value and the `output:` spelling and nothing else); `crates/nvs-stdlib/src/script.rs:606`
+      is where `placement_of` reads its word and where the two others join it.
+      `rule:security/isolate-budget-is-the-trees` is the sub-cap rule and
+      `rule:concurrency/an-upgrades-options-are-spawn-scripts` the sibling site's wording.
+- [ ] **The three `.nvst` cases** `docs/agent/loop-goal.toml:9880` names, under
+      `tests/conformance/isolate/` — a worker child answering as a local one does, grants that
+      only narrow, limits that stop a child at its own ceiling. They need the two items above.
 
 ## Backlog
 
-- The two test hosts ignore the placement and have no core to assert on —
-  `crates/nvs-runtime/src/host.rs:673`, `crates/nvs-runtime/src/stream.rs:591`; a seam test for it
-  has somewhere to stand once `worker.rs` exists.
-- `Core\Socket::upgrade` declines the same three options by name
-  (`rule:concurrency/an-upgrades-options-are-spawn-scripts`); once `on:` is carried, whether the
-  upgrade takes it is that rule's question, not this stage's.
-- M5's `Task::map` speedup proof is stage 7's, over worker-placed children (goal § *Standing
-  decisions*).
-- The pack's traps missed the error-path gate over a new `Fault::` site; stage 6's `[context]
-  playbook` now selects the two bullets that own it (`docs/agent/loop-goal.toml:227`).
+- A serving core does not register its inbox, so `nvs serve` places on the lazily started cores —
+  ADR 0184 § 5's pre-authorized fallback; `crates/nvs-host/src/worker.rs`'s `# Known gaps`.
+- The `isDraining`-is-process-state sentence for `rule:security/request-state-throws-in-an-isolate`
+  — the goal's § *Standing decisions* says where it goes if `rules.py` refuses it.
+- Stage 7's bench and stage 8's sanitizer leg are untouched — `docs/agent/loop-goal.md`.

@@ -110,6 +110,13 @@ modules = [
   "crates/nvs-host/src/reactor.rs",
   # The run-elsewhere-then-wake handoff and its lazy bound (:12-36), the shape worker cores copy. Stage 6.
   "crates/nvs-host/src/blocking.rs",
+  # The cores a placement is started on, their inbox and what one spends (:1-95). Stage 6.
+  "crates/nvs-host/src/worker.rs",
+  # `Program` (:116), the boxed closure a resolver builds — the reason a worker placement cannot carry
+  # its child's program across a core boundary and has to name it. Stage 6.
+  "crates/nvs-runtime/src/script.rs",
+  # `encode`/`decode` (:719, :917), the carrier a value crosses to another core as. Stage 6.
+  "crates/nvs-runtime/src/graph.rs",
   # `TraceKind::Spawn` (:62-64) and `record_query`/`record_http` (:155, :181). Stage 4.
   "crates/nvs-runtime/src/ctx/trace.rs",
   # The `Host` seam and `Running::join` (:371-380, :540). Stage 6.
