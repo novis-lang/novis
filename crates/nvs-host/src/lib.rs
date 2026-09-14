@@ -73,6 +73,14 @@
 //! [`RemoteWake`] — and it is the only way a call with no readiness to wait on
 //! reaches a thread here.
 //!
+//! [`mod@worker`] is that handoff pointing the other way: the cores a child
+//! placed `on: "worker"` is started on, bounded at the core count and started
+//! only when work is first placed. [`worker::place`] runs a function as a *task*
+//! on another core — so it may park and spawn children there, which is the whole
+//! difference from a pool thread — and brings its answer back through the same
+//! slot and [`RemoteWake`] the pool uses. That module's doc owns the inbox, the
+//! bell that ends its receptionist's park, and what a placement spends.
+//!
 //! [`mod@channel`] is the first thing built *on* the scheduler rather than beside
 //! it: a bounded queue between two tasks on one core, whose `send` suspends
 //! when it is full instead of growing and whose `recv` suspends when it is
@@ -118,6 +126,7 @@ pub mod stack;
 pub mod timer;
 pub mod tls;
 pub mod watchdog;
+pub mod worker;
 
 pub use affinity::{CpuId, cpus, pin_current_thread};
 pub use block_on::block_on;
