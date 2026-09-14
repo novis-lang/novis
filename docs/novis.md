@@ -17670,7 +17670,7 @@ Opens the session the store issued, taking the identifier from the session cooki
 
 **Returns** `void` — Nothing. Afterwards the other six members of this class operate on the record; before it, each of them throws.
 
-**Throws** `RuntimeError` — No `[session] backend` is configured, so there is no store a record could live in; the configured store is `db`, whose half of § 2 is not on disk; or `[cache.shared] url` is unset, unreachable by capability, or this request has already started a session.; `IOError` — The configured store cannot be reached. It throws rather than answering as though the record were absent, since a store that is down must not read as a forged identifier — the two have opposite responses.
+**Throws** `LogicError` — This program is answering no request — a CLI program, a scheduled script, a job worker, a test, or a spawned isolate inside a request rather than a request of its own. A session belongs to the client the request came from, so there is none to open here and none to issue.; `RuntimeError` — No `[session] backend` is configured, so there is no store a record could live in; the configured store is `db`, whose half of § 2 is not on disk; or `[cache.shared] url` is unset, unreachable by capability, or this request has already started a session.; `IOError` — The configured store cannot be reached. It throws rather than answering as though the record were absent, since a store that is down must not read as a forged identifier — the two have opposite responses.
 
 <a id="core-core-session-get"></a>
 #### `Core\Session::get`
