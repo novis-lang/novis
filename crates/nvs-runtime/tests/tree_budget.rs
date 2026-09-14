@@ -30,6 +30,10 @@ const HELD: usize = 8 << 20;
 /// asserts the count and never the bytes.
 const WRITTEN: &[u8] = b"answered from another core";
 
+/// A ceiling wide enough that [`HELD`] is a visible part of it and not all of
+/// it, so a sub-cap taken against it is still a number a child could run under.
+const ROOT_LIMIT: usize = 4 * HELD;
+
 /// The shape every case here takes: a member of `root`'s tree, started on
 /// another thread, that holds `HELD` bytes and writes `WRITTEN` until it is told
 /// to end.
@@ -168,5 +172,74 @@ fn a_member_does_not_read_the_share_it_published() {
     assert!(
         own < 2 * HELD,
         "a member read {own} bytes for the {HELD} it holds — its own published share counted twice"
+    );
+}
+
+/// `Ctx::placed_isolate` crosses a thread, and the context it builds there is a
+/// member of the tree it came from, under a ceiling of what remained of that
+/// tree's budget at the spawn.
+///
+/// The two halves are one case because neither is worth anything alone. A seed
+/// that crossed without joining would give the child a budget of its own, which
+/// is the fork bomb the rule above exists to bound; a child that joined under the
+/// *root's* whole ceiling would be handed the budget its parent had already
+/// spent.
+#[test]
+fn a_placed_seed_builds_a_member_of_its_tree_under_what_remained_of_its_budget() {
+    let mut root = Ctx::buffered();
+    root.set_memory_limit(ROOT_LIMIT);
+    let spent = vec![3_u8; HELD];
+    let used = root.memory_used();
+
+    let seed = root.placed_isolate();
+    let (published, ready) = mpsc::channel();
+    let (release, released) = mpsc::channel();
+    let thread = std::thread::spawn(move || {
+        let child = seed.build(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        let held = vec![5_u8; HELD];
+        let _ = child.memory_breach();
+        published
+            .send(child.memory_limit())
+            .expect("the case is still waiting");
+        released.recv().expect("the case releases its child");
+        drop(held);
+    });
+
+    let cap = ready.recv().expect("the child publishes before it parks");
+    assert!(
+        cap <= ROOT_LIMIT - used && cap > 0,
+        "a child placed with {used} of {ROOT_LIMIT} bytes spent was capped at {cap}"
+    );
+    let reading = root.memory_used();
+    assert!(
+        reading >= used + HELD,
+        "the root reads {reading} bytes, which does not hold the placed child's {HELD}"
+    );
+
+    release.send(()).expect("the child is waiting");
+    thread.join().expect("the child ends cleanly");
+    drop(spent);
+}
+
+/// A tree with nothing left of its budget places a child under a ceiling it
+/// cannot allocate under, and never under none at all.
+///
+/// Zero is the sentinel for *no ceiling*, so the subtraction that computes a
+/// sub-cap has one answer it may not give: a tree that has spent everything
+/// handing its child an unbounded budget is the one arithmetic mistake that fails
+/// open rather than shut.
+#[test]
+fn a_tree_with_nothing_left_places_a_child_under_a_ceiling_rather_than_under_none() {
+    let mut root = Ctx::buffered();
+    root.set_memory_limit(1);
+    let _spent = vec![9_u8; HELD];
+
+    let cap = root.placed_isolate().build(nvs_runtime::OutputSink::Sink);
+
+    assert_eq!(
+        cap.memory_limit(),
+        1,
+        "a spent tree placed a child under a ceiling of {} bytes",
+        cap.memory_limit()
     );
 }

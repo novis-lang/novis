@@ -496,6 +496,37 @@ impl Ctx {
         handler
     }
 
+    /// [`Self::isolate`]'s copy list, as a value that **crosses a thread** —
+    /// what a child placed `on: "worker"` is built from on the core that runs
+    /// it.
+    ///
+    /// The two halves of one constructor, split where the thread boundary is:
+    /// this one reads the parent, [`PlacedIsolate::build`] writes the child, and
+    /// the parent's `Ctx` is never reachable from the far side
+    /// (`rule:concurrency/a-wake-never-moves-a-task`). The sub-cap the child
+    /// runs under is computed **here**, against what remains of the tree's
+    /// budget at the spawn, which is what
+    /// `rule:security/isolate-budget-is-the-trees` means by tighter than what
+    /// remains and never wider.
+    #[must_use]
+    pub fn placed_isolate(&self) -> PlacedIsolate {
+        PlacedIsolate {
+            debug: self.debug,
+            origin: self.origin.clone(),
+            config: self.config.clone(),
+            script_depth: self.script_depth.saturating_add(1),
+            max_script_depth: self.max_script_depth,
+            runtime_error_class: self.runtime_error_class.clone(),
+            unit_statics: self.unit_statics.clone(),
+            deadline: std::sync::Arc::clone(&self.deadline),
+            tree: self.tree_handle(),
+            memory_limit: remaining(self.memory_limit, self.memory_used()),
+            output_limit: remaining(self.output_limit, self.output_used()),
+            cpu_limit: self.cpu_limit,
+            fatal_reserve: self.fatal_reserve,
+        }
+    }
+
     /// The base of the static-property storage compiled code loads inline —
     /// the word at [`STATICS_OFFSET`], handed out rather than re-derived.
     ///
@@ -566,6 +597,113 @@ impl Ctx {
     pub fn isolate_argument(&self) -> Value {
         self.isolate_argument
     }
+}
+
+/// What a core other than this one is handed to build a placed child's root
+/// context — [`Ctx::placed_isolate`]'s answer and [`Self::build`]'s input.
+///
+/// Every field is a plain value or an [`Arc`](std::sync::Arc) whose contents
+/// every core already reads: the request tree's shared state, the deadline word,
+/// the configuration snapshot and the compiled unit's class table and
+/// static-property recipes. That is the whole of why an isolate's context can be
+/// made on a core the spawn never ran on, and it is also the boundary — nothing
+/// reachable from a [`Value`] is in here, because a refcount is non-atomic and
+/// the argument crosses as bytes instead
+/// (`rule:concurrency/on-worker-runs-the-child-on-another-core`).
+///
+/// **What it spends** (`rule:programs/memory-priority`): one of these per
+/// placement in flight, holding one atomic increment on each of those handles
+/// and a copy of the parent's origin string, released when the child's context
+/// is built.
+#[derive(Debug)]
+pub struct PlacedIsolate {
+    debug: DebugFlags,
+    origin: Option<Box<str>>,
+    config: Option<nvs_config::Request>,
+    script_depth: u32,
+    max_script_depth: u32,
+    runtime_error_class: Option<ErrorClass>,
+    unit_statics: Option<std::sync::Arc<[Option<FieldDefault>]>>,
+    deadline: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    tree: std::sync::Arc<TreeState>,
+    memory_limit: usize,
+    output_limit: usize,
+    cpu_limit: u64,
+    fatal_reserve: usize,
+}
+
+impl PlacedIsolate {
+    /// Builds the child's root context, **on the core that will run it**.
+    ///
+    /// [`Ctx::isolate`]'s body from the other side of the thread boundary, and
+    /// the differences from it are the three things being on another core
+    /// changes. The tree is joined through [`Ctx::join_tree`] rather than shared
+    /// from a parent that is not here, so the child polls the word the root
+    /// polls and publishes its share into the counters the root reads. The
+    /// sub-cap is *armed*, where a same-core child leaves the ceiling to the
+    /// root's own polls: the root cannot see this thread's balance, so what
+    /// bounds the child is the number it was handed where it was placed. And the
+    /// zero points are this thread's, taken by [`Ctx::new`] below, which is what
+    /// makes the share this context publishes its own rather than the far
+    /// thread's whole history.
+    #[must_use]
+    pub fn build(self, output: OutputSink) -> Ctx {
+        let mut child = Ctx::new(output);
+        child.debug = self.debug;
+        child.origin = self.origin;
+        child.config = self.config;
+        child.script_depth = self.script_depth;
+        child.max_script_depth = self.max_script_depth;
+        child.runtime_error_class = self.runtime_error_class;
+        child.deadline = self.deadline;
+        child.cpu_limit = self.cpu_limit;
+        child.fatal_reserve = self.fatal_reserve;
+        child.output_limit = self.output_limit;
+        // Before the ceiling below, and that order is load-bearing:
+        // [`Ctx::arm_memory_ceiling`] arms the allocator with this context's
+        // safepoint address beside the number, and until the tree is joined that
+        // address is this context's own fresh word — which nothing in the tree
+        // would ever poll.
+        child.join_tree(self.tree);
+        child.set_memory_limit(self.memory_limit);
+        child
+    }
+
+    /// [`Self::build`] for `rule:security/isolate-shares-nothing`'s **method
+    /// entry**, which arms its own statics from the parent's unit —
+    /// [`Ctx::method_isolate`] across the same boundary.
+    ///
+    /// The recipes cross because the compiled unit owns them and every core
+    /// reads that unit; what the child gets is a store of its own materialized
+    /// from them here, which is the same freshness a same-core method entry
+    /// gets. A seed carrying none yields [`Self::build`] exactly, for the reason
+    /// [`Ctx::method_isolate`] gives: a unit declaring no static property arms an
+    /// empty list, and the two are indistinguishable to the code either would
+    /// run.
+    #[must_use]
+    pub fn build_method(self, output: OutputSink) -> Ctx {
+        let defaults = self.unit_statics.clone();
+        let mut child = self.build(output);
+        if let Some(defaults) = defaults {
+            child.install_statics(defaults);
+        }
+        child
+    }
+}
+
+/// What is left of `limit` once `used` is taken off it, in the unit the ceiling
+/// is written in — the sub-cap a child placed on another core runs under.
+///
+/// `0` in and `0` out, because that is the sentinel for a tree under no ceiling
+/// at all. Everything else floors at **one** rather than at zero: a tree that
+/// has already spent its whole budget must hand its child a cap it cannot
+/// allocate under, and zero is the one number that would instead read as
+/// permission to allocate without bound.
+fn remaining(limit: usize, used: usize) -> usize {
+    if limit == 0 {
+        return 0;
+    }
+    limit.saturating_sub(used).max(1)
 }
 
 #[cfg(test)]

@@ -174,9 +174,10 @@ mod trace;
 mod wiring;
 
 // A glob re-export takes each item at its own visibility, so what these
-// lines decide is only the ceiling. `limits`, `hooks` and `isolate` have no
-// line at all: everything in them is a method on `Ctx`, found through the
-// type rather than through a module path.
+// lines decide is only the ceiling. `limits` and `hooks` have no line at all:
+// everything in them is a method on `Ctx`, found through the type rather than
+// through a module path. `isolate` is named for its one exception, the seed a
+// context crosses a thread as.
 pub(crate) use self::current::*;
 // The one item of that module a host needs: `nvs_host`'s stack switch is what
 // carries the pair off the thread and back — see [`CurrentStack`].
@@ -185,6 +186,7 @@ pub use self::current::CurrentStack;
 pub use self::error::*;
 pub use self::held::*;
 pub use self::inbound::*;
+pub use self::isolate::PlacedIsolate;
 pub use self::output::*;
 pub use self::safepoint::*;
 pub use self::trace::*;
