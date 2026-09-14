@@ -458,8 +458,12 @@ jobs:
         run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=300
 
   # ---------------------------------------------------------------------------
-  # Miri validates the safe subset; the audited unsafe modules get the ASAN job
-  # below. TSAN is still owed, and arrives with M5's concurrency.
+  # Three jobs share the memory-safety work and none of them covers another's
+  # ground. Miri validates the safe subset, by interpreting it, over the crates
+  # that execute no generated machine code. ASAN below takes the crates Miri
+  # cannot reach — the ones that run the JIT's output — and looks for a
+  # use-after-free. TSAN under it takes the crates that start threads and looks
+  # for a race, which neither of the other two can see at all.
   # ---------------------------------------------------------------------------
   miri:
     name: miri
@@ -572,3 +576,47 @@ jobs:
             --features nvs-runtime/sanitizer \
             --tests \
             -p nvs-codegen
+
+  # ---------------------------------------------------------------------------
+  # The half ASAN cannot see: a race rather than a use-after-free. `nvs-host` and
+  # `nvs-runtime` are the two crates a thread boundary runs through — the worker
+  # cores, the blocking pool, the watchdog and the reactor's cross-thread wake on
+  # one side, and the per-request state a task reaches on the other — and nothing
+  # above them starts a thread of its own.
+  #
+  # The job is one line because `tools/tsan.sh` is the whole of it: the flags —
+  # `-Zsanitizer=thread`, the `-Zbuild-std` that instruments `std` along with it,
+  # `--target`, and the feature that compiles the fiber annotations in — are
+  # subtle enough that a copy here and a copy in the script would drift, and a
+  # contributor who cannot run exactly what CI ran debugs a report twice. That
+  # script's header owns what each of them buys.
+  #
+  # A task is a stackful coroutine, so this leg is clean only because the
+  # scheduler tells the sanitizer that a thread's stack changed underneath it —
+  # `crates/nvs-host/src/tsan.rs`, compiled into no other build.
+  # ---------------------------------------------------------------------------
+  tsan:
+    name: tsan
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    # Generous: instrumenting `std` means this leg builds its own standard
+    # library before it builds anything of Novis's.
+    timeout-minutes: 45
+    env:
+      # Inside the checkout, which is the only place the cache action can see.
+      # The script's own default is a path that survives a WSL reboot, which is
+      # the opposite requirement.
+      CARGO_TARGET_DIR: target
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
+        with:
+          # `-Zbuild-std` compiles the standard library from source, and this is
+          # that source.
+          components: rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: tsan
+      - name: TSAN test (host and runtime)
+        run: bash tools/tsan.sh
