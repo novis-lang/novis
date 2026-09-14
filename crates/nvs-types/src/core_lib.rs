@@ -570,7 +570,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // `?T` is `null|T` and nothing else — the checker has no separate
         // nullable type, so a registry row's `?T` and a source-written `?T`
         // are the *same* interned id, and everything downstream (assignability,
-        // `??`, `nvs_ir::lower_checked_ty`'s `Ty::Tagged`) meets one shape.
+        // `??`, `nvs_ir::erase_checked_ty`'s `Ty::Tagged`) meets one shape.
         CoreTy::Nullable(inner) => {
             let inner = lower(inner, interner);
             let null = interner.null();

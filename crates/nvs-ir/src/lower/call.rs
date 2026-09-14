@@ -195,7 +195,7 @@ impl<'a> Lowering<'a> {
     ) {
         // `rule:core-api/shape-rules` R2's options bag, and `rule:core-api/shape-flattens-at-the-abi`'s shape parameter with
         // it: not one argument but one *per slot of the merged list*, so
-        // neither ever reaches `lower_checked_ty` — a shape has no IR type at
+        // neither ever reaches `erase_checked_ty` — a shape has no IR type at
         // all. See [`Self::lower_options_arg`].
         // The merged list and never the arms: which arm the literal selected is
         // a checking question `nvs-types` has already settled, and § 3's ABI is
@@ -554,7 +554,7 @@ impl<'a> Lowering<'a> {
             // a compiled Novis function's slot is typed, and `Throwable|null`
             // being `Ty::Tagged` is what makes the exception constructor's
             // `{previous}` bag reach it at all.
-            let expected = lower_checked_ty(option.ty, checked_types);
+            let expected = erase_checked_ty(option.ty, checked_types);
             if let Some((_, value)) = fields.iter().find(|(field, _)| field == name) {
                 let (v, ty) = self.lower_expr(value, Some(expected), env, cur);
                 let aliasing = self.aliasing_read(value);
@@ -861,8 +861,7 @@ impl<'a> Lowering<'a> {
                     );
                     for (arg, param) in list.iter().zip(params) {
                         let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
-                        let want =
-                            erase_checked_ty(*param, self.checked_types).unwrap_or(Ty::Tagged);
+                        let want = erase_checked_ty(*param, self.checked_types);
                         let v = self.coerce(*cur, v, ty, want, env);
                         let aliasing = self.aliasing_read(&arg.value);
                         self.account_for_arg(v, want, ArgOwnership::Borrowed, aliasing, *cur);
@@ -900,7 +899,7 @@ impl<'a> Lowering<'a> {
         // `Ty::Void` names no register at all and `Ty::Tagged` is already what
         // the slot holds, so neither of those moves.
         let narrowed = proven
-            .and_then(|(_, ret)| erase_checked_ty(ret, self.checked_types))
+            .map(|(_, ret)| erase_checked_ty(ret, self.checked_types))
             .filter(|repr| !matches!(repr, Ty::Tagged | Ty::Void));
         let called = match narrowed {
             Some(repr) => (self.coerce(*cur, value, ty, repr, env), repr),
@@ -1246,9 +1245,11 @@ impl<'a> Lowering<'a> {
 /// where the callee would have released it, and `$this` is left to the
 /// landing block that already owes it.
 ///
-/// `None` when a parameter or the return type names a representation
-/// [`super::erase_checked_ty`] has no row for, which is the same subtraction
-/// every other lowering makes rather than a decision of its own.
+/// `None` only when the parameter list is longer than an ABI slot index can
+/// count. Every type it declares erases — including a compiler-owned
+/// interface's type variable, which reaches [`super::erase_checked_ty`] here
+/// and nowhere else, since a forward is written against the interface's own
+/// signature rather than against a call site that substituted it.
 pub(crate) fn delegation_forward(
     delegation: &nvs_types::Delegation,
     checked_types: &TypeInterner,
@@ -1282,7 +1283,7 @@ pub(crate) fn delegation_forward(
         defines(this, Ty::Object, InstKind::Param(0)),
     ];
     for (at, param) in delegation.params.iter().enumerate() {
-        let ty = super::erase_checked_ty(*param, checked_types)?;
+        let ty = super::erase_checked_ty(*param, checked_types);
         let value = ids.next_value();
         // `at + 1`: slot zero is the receiver, exactly as an ordinary
         // instance method's is.
@@ -1390,7 +1391,7 @@ pub(crate) fn delegation_forward(
         Ty::ClassDesc,
         InstKind::ClassDescOf { object: inner },
     ));
-    let ret = super::erase_checked_ty(delegation.return_ty, checked_types)?;
+    let ret = super::erase_checked_ty(delegation.return_ty, checked_types);
     // A `void` member has no value to define, so the call defines none and the
     // exit is `return;` — the same split every other `void` call already makes.
     let answer = (ret != Ty::Void).then(|| ids.next_value());

@@ -1995,8 +1995,8 @@ fn shared_repr(atoms: &[TypeId], checked_types: &TypeInterner) -> Ty {
     let mut shared: Option<Ty> = None;
     for atom in atoms {
         match (erase_checked_ty(*atom, checked_types), shared) {
-            (Some(ty), None) => shared = Some(ty),
-            (Some(ty), Some(seen)) if ty == seen => {}
+            (ty, None) => shared = Some(ty),
+            (ty, Some(seen)) if ty == seen => {}
             _ => return Ty::Tagged,
         }
     }

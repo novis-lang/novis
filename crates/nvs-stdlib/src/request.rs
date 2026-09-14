@@ -917,7 +917,7 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 /// § 7 writes `{prefix: string, captures: array<tainted string>}`, and that is
 /// not spellable in return position: [`CoreTy::Shape`] is a parameter-only
 /// variant whose own doc says no runtime representation of a shape appears
-/// anywhere, and `nvs_ir::lower_checked_ty` erases a `Ty::Shape` value to
+/// anywhere, and `nvs_ir::erase_checked_ty` erases a `Ty::Shape` value to
 /// `Ty::Object` — so a program holding one would reach both fields through
 /// `mixed` and the `tainted` § 7 exists to state would be gone with them. The
 /// alternative was a return-position shape, which is a type-system feature

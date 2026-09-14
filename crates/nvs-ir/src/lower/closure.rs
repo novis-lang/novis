@@ -569,7 +569,7 @@ pub(crate) fn lower_callable(
         params,
         span,
     } = pending;
-    let ret = lower_checked_ty(call.return_ty, checked_types);
+    let ret = erase_checked_ty(call.return_ty, checked_types);
     let label = format!("{class}::{FN_INVOKE}");
     let mut low = Lowering::new(&label, Some(&label), src, ret, exprs, checked_types, enums);
     let entry = low.new_block();
@@ -798,7 +798,7 @@ fn closure_param_ty(
                 )
             });
             (
-                lower_checked_ty(id, checked_types),
+                erase_checked_ty(id, checked_types),
                 checked_class(id, checked_types),
                 p.name,
             )

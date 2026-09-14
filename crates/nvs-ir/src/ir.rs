@@ -994,7 +994,7 @@ pub enum InstKind {
         /// [`InstKind::SlotGet`]'s does.
         object: ValueId,
         /// The member name, as a [`Ty::Str`] value: a `property<T>` erases to
-        /// one (`crate::lower::lower_checked_ty`), so the key *is* this string
+        /// one (`crate::lower::erase_checked_ty`), so the key *is* this string
         /// and no conversion stands between them.
         key: ValueId,
     },

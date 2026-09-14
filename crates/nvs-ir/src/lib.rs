@@ -425,7 +425,7 @@
 //! 11. **A `secret` value compared against a `mixed` one is not compared in
 //!     constant time.** The qualifiers themselves are not a gap: every
 //!     atom of `rule:security/tainted-qualifier`/0033 erases to the plain `string`/`bytes` it
-//!     shares an allocation with ([`lower::lower_checked_ty`]), and `rule:security/secret-comparison-is-constant-time`
+//!     shares an allocation with ([`lower::erase_checked_ty`]), and `rule:security/secret-comparison-is-constant-time`
 //!     's constant-time `==` reaches every pair whose two operands are
 //!     both that representation, through [`ir::Helper::SecretEq`] and the
 //!     `nvs_types::expr_table::ExprInfo::SecretEquality` the checker records
@@ -562,7 +562,7 @@
 //! 20. **`rule:types/literal-types`, `rule:types/conversion` and `rule:types/conversion`'s scalar rows all run
 //!     whole, a `mixed` source included, and so do § 2's
 //!     *non-scalar* rows.** A union whose members all erase to one representation
-//!     is that representation ([`lower::lower_checked_ty`]), so `"a"|"b"` is a
+//!     is that representation ([`lower::erase_checked_ty`]), so `"a"|"b"` is a
 //!     `Ty::Str`, `1|2` a `Ty::Int` and `Mode::Read|Mode::Write` the enum's
 //!     own tag rather than a `Ty::Tagged`, and § 4's
 //!     checked row runs the membership test
@@ -671,7 +671,7 @@
 //!     — owner: unowned
 //! 21. **`rule:types/property-key`'s `property<T>` lowers whole, and what it inherits is ADR
 //!     0036 § 4's own gap and not one of its own.** A key is a name, so the type erases to
-//!     [`ty::Ty::Str`] ([`lower::lower_checked_ty`]) and a parameter, a return,
+//!     [`ty::Ty::Str`] ([`lower::erase_checked_ty`]) and a parameter, a return,
 //!     a local and a property hold one for nothing. § 2's conversions all
 //!     run: `property<T> as string` is the free `from == to` row, and the
 //!     rows *into* a key are the same membership chain gap 20 describes, built

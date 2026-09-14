@@ -1110,7 +1110,7 @@ impl<'a> Lowering<'a> {
                         target.span
                     ),
                 };
-                let field_ty = lower_checked_ty(ty, self.checked_types);
+                let field_ty = erase_checked_ty(ty, self.checked_types);
                 let class_label = class.to_string();
                 let field_name = name.clone();
                 let observed_name = name.clone();
@@ -1311,7 +1311,7 @@ impl<'a> Lowering<'a> {
                         target.span
                     );
                 };
-                let elem_ty = lower_checked_ty(*elem_ty, self.checked_types);
+                let elem_ty = erase_checked_ty(*elem_ty, self.checked_types);
                 // `$grid[0][1]` flattens to the root `$grid` and the levels
                 // `$grid[0]` (whose key is `0`) and the target itself (whose
                 // key is `1`, and which is not in `levels`).
@@ -1495,7 +1495,7 @@ impl<'a> Lowering<'a> {
                 level.span
             );
         };
-        let row_ty = lower_checked_ty(*elem_ty, self.checked_types);
+        let row_ty = erase_checked_ty(*elem_ty, self.checked_types);
         assert!(
             row_ty == Ty::Array,
             "nvs-ir: an intermediate level of a nested array-index assignment target at {:?} \
@@ -1770,7 +1770,7 @@ impl<'a> Lowering<'a> {
                  accepts, so this body was not checked with the same table"
             );
         };
-        lower_checked_ty(*elem_ty, self.checked_types)
+        erase_checked_ty(*elem_ty, self.checked_types)
     }
     /// One element read out of a destructuring subject: `subject[key]`, or
     /// `subject[position]` where the element writes no key.

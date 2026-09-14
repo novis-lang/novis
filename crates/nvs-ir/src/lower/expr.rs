@@ -1224,9 +1224,7 @@ impl<'a> Lowering<'a> {
         let Some(ExprInfo::NarrowedRead { to }) = self.exprs.lookup(span) else {
             return (v, ty);
         };
-        let Some(to) = super::erase_checked_ty(*to, self.checked_types) else {
-            return (v, ty);
-        };
+        let to = super::erase_checked_ty(*to, self.checked_types);
         if to == Ty::Tagged {
             return (v, ty);
         }
@@ -1310,8 +1308,8 @@ impl<'a> Lowering<'a> {
                 whole.span
             ),
         };
-        let non_null_repr = lower_checked_ty(non_null, self.checked_types);
-        let result_repr = lower_checked_ty(result, self.checked_types);
+        let non_null_repr = erase_checked_ty(non_null, self.checked_types);
+        let result_repr = erase_checked_ty(result, self.checked_types);
 
         let (lhs_v, lhs_ty) = self.lower_expr(lhs, None, env, cur);
         let lhs_is_alias = self.aliasing_read(lhs);
@@ -2640,7 +2638,7 @@ impl<'a> Lowering<'a> {
             );
         };
         let class = class.clone();
-        let ret = lower_checked_ty(*return_ty, self.checked_types);
+        let ret = erase_checked_ty(*return_ty, self.checked_types);
         let names: Vec<String> = captures.iter().map(|(n, _)| n.clone()).collect();
         let (obj, _) = self.emit_fallible(
             *cur,
@@ -2747,7 +2745,7 @@ impl<'a> Lowering<'a> {
         let params: Vec<Ty> = call
             .param_tys
             .iter()
-            .map(|&id| lower_checked_ty(id, self.checked_types))
+            .map(|&id| erase_checked_ty(id, self.checked_types))
             .collect();
         let (obj, _) = self.emit_fallible(
             *cur,
@@ -3478,7 +3476,7 @@ impl<'a> Lowering<'a> {
         // casing `Core`; see `nvs_stdlib::registry::CoreTy::Instance`.
         if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
             let sig = ArgSig::of_helper(call);
-            let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+            let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
             // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
             // handed what its call site wrote as a type argument — and that
@@ -3530,7 +3528,7 @@ impl<'a> Lowering<'a> {
         }
         let target_label = format!("{}::{}", call.class, call.method);
         let sig = ArgSig::of(call);
-        let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+        let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
         let checked_types = self.checked_types;
         let is_static = call.is_static;
         // The receiver and every argument are transferred, and the callee owns
@@ -3701,7 +3699,7 @@ impl<'a> Lowering<'a> {
                 return self.lower_finish(env, cur);
             }
             let sig = ArgSig::of_helper(call);
-            let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+            let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
             // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
             // handed what its call site wrote as a type argument, as arguments
@@ -3744,7 +3742,7 @@ impl<'a> Lowering<'a> {
         let is_static = call.is_static;
         let has_body = call.has_body;
         let named_class = call.static_class.as_ref().map(ToString::to_string);
-        let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+        let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
         let checked_types = self.checked_types;
         // `static::m()` never has a compile-time target; a resolved
         // declaration with no body has none either, for a different
@@ -3862,7 +3860,7 @@ impl<'a> Lowering<'a> {
         let method = call.method.clone();
         let sig = ArgSig::of(call);
         let has_body = call.has_body;
-        let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+        let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
         let checked_types = self.checked_types;
         // [`Self::lower_static_call`]'s window, for its reason.
         let mark = self.temporaries_mark();
@@ -3940,7 +3938,7 @@ impl<'a> Lowering<'a> {
         (
             class.to_string(),
             name.clone(),
-            lower_checked_ty(*ty, self.checked_types),
+            erase_checked_ty(*ty, self.checked_types),
         )
     }
 
@@ -4113,7 +4111,7 @@ impl<'a> Lowering<'a> {
                 expr.span
             ),
         };
-        let field_ty = lower_checked_ty(ty, self.checked_types);
+        let field_ty = erase_checked_ty(ty, self.checked_types);
         let class_label = class.to_string();
         let field_name = name.clone();
         let observed_name = name.clone();
@@ -4432,7 +4430,7 @@ impl<'a> Lowering<'a> {
         // representation the guarded subscript takes — and that is the `?T`
         // the checker has already given the expression.
         let field_ty = match absent {
-            AbsentKey::Throws => lower_checked_ty(field.ty, self.checked_types),
+            AbsentKey::Throws => erase_checked_ty(field.ty, self.checked_types),
             AbsentKey::Null => Ty::Tagged,
         };
         let mark = self.temporaries_mark();
@@ -4482,7 +4480,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let field_ty = lower_checked_ty(ty, self.checked_types);
+        let field_ty = erase_checked_ty(ty, self.checked_types);
         let mark = self.temporaries_mark();
         let (object_v, receiver_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
@@ -4565,7 +4563,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let field_ty = lower_checked_ty(ty, self.checked_types);
+        let field_ty = erase_checked_ty(ty, self.checked_types);
         let mark = self.temporaries_mark();
         // The receiver is taken as it is found and never untagged, exactly as
         // `Self::lower_shape_property_assign` takes its own: `InstKind::KeySet`
@@ -4625,7 +4623,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let field_ty = lower_checked_ty(field.ty, self.checked_types);
+        let field_ty = erase_checked_ty(field.ty, self.checked_types);
         let mark = self.temporaries_mark();
         // A narrowed `?{...}` receiver arrives tagged, and so does a `mixed`
         // one — and neither is untagged here. [`InstKind::SlotSet`] takes the
@@ -4884,7 +4882,7 @@ impl<'a> Lowering<'a> {
             Ty::Tagged
         } else {
             match absent {
-                AbsentKey::Throws => lower_checked_ty(*elem_ty, self.checked_types),
+                AbsentKey::Throws => erase_checked_ty(*elem_ty, self.checked_types),
                 AbsentKey::Null => Ty::Tagged,
             }
         };

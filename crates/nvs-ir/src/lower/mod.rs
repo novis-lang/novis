@@ -394,15 +394,14 @@ fn static_props(
                     class: label.to_owned(),
                     name: name.clone(),
                     // The same fallback `field_slots` takes, for the same
-                    // reason: a type this crate does not represent is
+                    // reason: a property the checker recorded no type for is
                     // `Ty::Tagged`, which reads and writes the whole 16 bytes
                     // rather than a payload half it cannot name.
                     repr: exprs
                         .property_types(label)
                         .iter()
                         .find(|(property, _)| property == name)
-                        .and_then(|(_, ty)| erase_checked_ty(*ty, checked_types))
-                        .unwrap_or(Ty::Tagged),
+                        .map_or(Ty::Tagged, |(_, ty)| erase_checked_ty(*ty, checked_types)),
                     default_value: default.as_ref().and_then(field_default),
                 })
         })
@@ -497,7 +496,7 @@ fn field_slots(
                 continue;
             }
             image[slot] = Some((
-                erase_checked_ty(*ty, checked_types).unwrap_or(Ty::Tagged),
+                erase_checked_ty(*ty, checked_types),
                 nvs_types::expr::type_is_secret(*ty, checked_types),
             ));
         }
@@ -1411,7 +1410,7 @@ pub(crate) struct Lowering<'a> {
     exprs: &'a ExprTypeTable,
     /// The same `nvs_types::check_program` run's type interner — needed to
     /// translate a [`TypeId`] recorded in `exprs` into this crate's own
-    /// [`Ty`] via [`lower_checked_ty`].
+    /// [`Ty`] via [`erase_checked_ty`].
     checked_types: &'a TypeInterner,
     /// The same run's [`EnumTable`]: every declared enum's backing type and
     /// its cases' constant values.
@@ -1814,16 +1813,16 @@ impl ArgSig {
     ///
     /// # Panics
     ///
-    /// Panics through [`lower_checked_ty`] for a parameter type this crate has
-    /// no lowering for on a *non*-helper callee, and that has to stay: a
-    /// compiled Novis function's parameter slot is typed, so there is nothing
-    /// to fall back to.
+    /// Panics through [`erase_checked_ty`] for a `Core` options bag, which is
+    /// never one argument and never reaches here: [`Lowering::lower_fixed_arg`]
+    /// reads that parameter's checked type and flattens it a slot at a time
+    /// before asking for an expectation at all.
     fn expectation(&self, index: usize, checked_types: &TypeInterner) -> Option<Ty> {
         let pty = self.param_tys[index];
         if self.helper && matches!(checked_types.get(pty), CheckedTy::Union(_)) {
             return None;
         }
-        Some(lower_checked_ty(pty, checked_types))
+        Some(erase_checked_ty(pty, checked_types))
     }
 
     /// Whether the argument at `index` binds by reference. Never true past the
@@ -3057,7 +3056,7 @@ fn binding_ty(
 /// spelled out in full, and this crate erases class identity entirely (see
 /// [`Ty::Object`]'s own doc comment), so "is this atom a class name at all"
 /// is the only question that matters here — which class doesn't need
-/// answering until a call/`new` on it does, via [`lower_checked_ty`] instead.
+/// answering until a call/`new` on it does, via [`erase_checked_ty`] instead.
 /// `array<T>`'s own type argument is discarded the same way — [`Ty::Array`]'s
 /// own doc comment explains why no lowering decision needs it at this level.
 ///
@@ -3072,6 +3071,16 @@ fn binding_ty(
 /// `class<T>` is the one annotation that names that representation directly,
 /// and it answers the *representation* question without answering the identity
 /// one either — see [`Ty::ClassDesc`].
+///
+/// # Panics
+///
+/// Every atom `rule:types/grammar` has is answered by name, so neither panic
+/// here is a shape this crate refuses. `TypeAtom::Member(..)` is the one atom
+/// the AST cannot answer alone and is guaranteed by
+/// [`ExprTypeTable::declared_ty`](nvs_types::expr_table::ExprTypeTable::declared_ty),
+/// whose entry the shortcut above takes first; the trailing arm exists because
+/// `nvs_syntax::ast::TypeKind` and `TypeAtom` are `#[non_exhaustive]`, and a
+/// spelling landing in it is a bug in the change that added it.
 pub(crate) fn lower_decl_type(
     ty: &Type,
     exprs: &ExprTypeTable,
@@ -3085,7 +3094,7 @@ pub(crate) fn lower_decl_type(
     // two apart. The match below stays as the answer for an annotation the
     // checker never visited, where every atom is its own answer anyway.
     if let Some(id) = exprs.declared_ty(ty.span) {
-        return lower_checked_ty(id, checked_types);
+        return erase_checked_ty(id, checked_types);
     }
     match &ty.kind {
         TypeKind::Atom(TypeAtom::SelfTy | TypeAtom::StaticTy | TypeAtom::Parent) => Ty::Object,
@@ -3139,19 +3148,72 @@ pub(crate) fn lower_decl_type(
         // local/parameter/return/call-argument round-trips, nothing else.
         TypeKind::Atom(TypeAtom::Mixed) => Ty::Tagged,
         TypeKind::Paren(inner) => lower_decl_type(inner, exprs, checked_types),
-        // Both admit more than one runtime shape, so both are tagged — see
-        // `Ty::Tagged`. Reached only for an annotation the checker never
+        // `rule:security/tainted-qualifier` and `rule:security/secret-qualifier`:
+        // a qualifier is a bit on the *checker's* type and adds no runtime
+        // representation at all, so each qualified spelling erases to the base
+        // it shares a tag and an allocation with — the same answer
+        // [`erase_checked_ty`]'s own arm gives the checked type, and that arm
+        // owns what the erasure costs and where the one decision that needs a
+        // qualifier back is recorded instead.
+        TypeKind::Atom(
+            TypeAtom::TaintedString | TypeAtom::SecretString | TypeAtom::SecretTaintedString,
+        ) => Ty::Str,
+        TypeKind::Atom(
+            TypeAtom::TaintedBytes | TypeAtom::SecretBytes | TypeAtom::SecretTaintedBytes,
+        ) => Ty::Bytes,
+        // `rule:types/object-literal`'s shape is an ordinary refcounted
+        // instance with no methods and no name, so its representation is the
+        // object pointer a class already is — see [`erase_checked_ty`]'s arm
+        // for what the erasure drops and why no site below this boundary wants
+        // the field list.
+        TypeKind::Atom(TypeAtom::Shape(_)) => Ty::Object,
+        // `null` alone is one value with one representation.
+        TypeKind::Atom(TypeAtom::Null) => Ty::Null,
+        // `never` is return-only (`rule:types/grammar`) and a frame that cannot
+        // come back hands its caller nothing, which is the representation
+        // `void` already is. [`erase_checked_ty`]'s own `Never` arm carries why
+        // the difference between the two is control flow and is not encoded in
+        // a representation.
+        TypeKind::Atom(TypeAtom::Never) => Ty::Void,
+        // `iterable` is PHP's `array|Traversable` (`rule:iteration/two-interfaces`):
+        // two runtime shapes, so the tagged representation every other
+        // multi-shape position uses. Deliberately not `Ty::Object`, for the
+        // reason [`erase_checked_ty`]'s arm gives — an `array<T>` is not an
+        // object pointer.
+        TypeKind::Atom(TypeAtom::Iterable) => Ty::Tagged,
+        // All three admit more than one runtime shape, so all three are tagged
+        // — see `Ty::Tagged`. Reached only for an annotation the checker never
         // visited; everything it did visit takes the `declared_ty` shortcut
-        // above and goes through `lower_checked_ty`, which is the *narrower*
+        // above and goes through `erase_checked_ty`, which is the *narrower*
         // answer since `rule:types/literal-types`'s fold lives there: it folds `"a"|"b"`
         // back to the one representation its members share, which needs the
-        // resolved members and so cannot be answered from the AST alone.
-        TypeKind::Nullable(_) | TypeKind::Union(_) => Ty::Tagged,
-        other => panic!(
-            "nvs-ir only lowers bool/int/uint/float/void/string/bytes/array/`?T`/a union/`object`/\
-             `class<T>`/`property<T>`/a plain class name as a declared type — got {other:?}; see \
-             the crate docs' known gaps"
+        // resolved members and so cannot be answered from the AST alone. An
+        // intersection folds the same way there and is tagged here for a
+        // second reason as well: `nvs_types::expr::assign` has no arm making
+        // anything assignable to one, so the answer is wrong for no value.
+        TypeKind::Nullable(_) | TypeKind::Union(_) | TypeKind::Intersection(_) => Ty::Tagged,
+        // `rule:enums/closed-integer-type`'s `Suit::Hearts` written as a type,
+        // and the one atom this match cannot answer: whether it erases to an
+        // `int`, a `string` or an enum's tag is the resolution the checker
+        // performed, and the AST carries the name alone. Every annotation the
+        // checker visited is answered by the `declared_ty` shortcut above, so
+        // arriving here means the table lost an entry it records — a bug in
+        // whatever built it rather than a representation this crate is
+        // missing.
+        TypeKind::Atom(TypeAtom::Member(..)) => panic!(
+            "nvs-ir: a member-constant type annotation reached lowering with no \
+             `ExprTypeTable::declared_ty` entry, which the checker records for every annotation \
+             it visits — this is a bug"
         ),
+        // `nvs_syntax::ast::TypeKind` and `TypeAtom` are both `#[non_exhaustive]`,
+        // so this arm is where a spelling added to the grammar lands rather
+        // than a row missing above: every atom `rule:types/grammar` has is
+        // answered by name, and `lower_decl_type_answers_every_type_atom_the_grammar_has`
+        // counts them. A new one arriving here is a bug in the change that
+        // added it.
+        other => {
+            panic!("nvs-ir: the type grammar grew {other:?} without an answer — this is a bug")
+        }
     }
 }
 
@@ -3346,45 +3408,29 @@ pub(crate) fn written_class_label(call: &nvs_types::expr_table::ResolvedCall) ->
 /// boundary, which [`Lowering::bind_local`], [`Lowering::lower_call_args`] and
 /// `StmtKind::Return`'s own arm all apply via [`is_aliasing_read`].
 ///
+/// Every row of the checker's type answers here, so nothing this function is
+/// asked has to be asked as a question: a union folds by erasing each member
+/// (`rule:types/literal-types`'s "zero additional runtime representation"),
+/// and a member that once had no row is what made that fold an [`Option`].
+///
 /// # Panics
 ///
-/// Panics naming the unsupported shape for anything outside this slice's
-/// scope. `object` is **not** among them — it erases to [`Ty::Object`] with
-/// [`CheckedTy::Class`], [`CheckedTy::Callable`] and [`CheckedTy::Shape`], and
-/// the panic message says so. Nor is [`CheckedTy::Never`] — it erases to
-/// [`Ty::Void`], the representation of "the caller receives nothing", and that
-/// arm owns why the call site keeps its ordinary fall-through. What is left is
-/// the one the checker substitutes away before this boundary ever sees it
-/// ([`CheckedTy::TypeVar`], rewritten by `nvs_types::generics::substitute`), so
-/// meeting one here is a checker bug rather than a missing representation.
-/// `mixed` erases to
-/// [`Ty::Tagged`] — see that variant's own doc comment for exactly how much
-/// this boundary does and doesn't do with one yet. A **union** never panics:
-/// it is [`Ty::Tagged`] unless every member erases to one and the same
-/// representation, in which case it is that one — `rule:types/literal-types`'s "zero
-/// additional runtime representation", which is why a member outside this
-/// scope is asked through [`erase_checked_ty`] rather than asserted.
-pub(crate) fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
-    erase_checked_ty(id, checked_types).unwrap_or_else(|| {
-        panic!(
-            "nvs-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
-             class/`class<T>`/`property<T>`/object/shape/enum/mixed/null/union parameter or \
-             return type — got {:?}; see the crate docs' known gaps",
-            checked_types.get(id)
-        )
-    })
-}
-
-/// [`lower_checked_ty`], as a question rather than an assertion: `None` where
-/// the checker's type has no representation in this crate yet.
+/// Neither panic is a shape this crate refuses. [`CheckedTy::CoreShape`] is a
+/// `Core` options bag, which is not one value at all — the arm names what
+/// flattens it before any type is erased — and the trailing arm exists because
+/// `nvs_types::ty::Ty` is `#[non_exhaustive]`, so a row added upstream lands
+/// there rather than going unnoticed.
 ///
-/// Split out for the [`CheckedTy::Union`] arm alone. Folding a union to the
-/// one representation its members share means asking each member for its own,
-/// and a member outside this slice's scope must answer that question rather
-/// than panic — a `object|A` union is [`Ty::Tagged`], not a new internal
-/// error.
-pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
-    Some(match checked_types.get(id) {
+/// Everything else erases. `object` is [`Ty::Object`] with
+/// [`CheckedTy::Class`], [`CheckedTy::Callable`] and [`CheckedTy::Shape`];
+/// [`CheckedTy::Never`] is [`Ty::Void`], the representation of "the caller
+/// receives nothing", and that arm owns why the call site keeps its ordinary
+/// fall-through; `mixed` is [`Ty::Tagged`] — see that variant's own doc
+/// comment for exactly how much this boundary does and doesn't do with one
+/// yet. A **union** is [`Ty::Tagged`] unless every member erases to one and the
+/// same representation, in which case it is that one.
+pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
+    match checked_types.get(id) {
         CheckedTy::Bool => Ty::Bool,
         CheckedTy::Int => Ty::Int,
         CheckedTy::Uint => Ty::Uint,
@@ -3551,8 +3597,42 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // refusals the checker owes and neither is a representation question,
         // so both are open there rather than worked around here.
         CheckedTy::Never => Ty::Void,
-        _ => return None,
-    })
+        // A type variable reaches a lowering through exactly one door, and it
+        // is not a call: `rule:classes/delegation-by-field`'s synthesized
+        // forward declares the *interface's* own parameter and return types
+        // (`crate::lower::call::delegation_forward`), and where that interface
+        // is one of `rule:iteration/two-interfaces`' compiler-owned generics
+        // those types are still the variables `nvs_types::signatures::MethodSig`
+        // substitutes at a call site. So the forward's slots are the one
+        // position here whose type is genuinely unconstrained, and `Ty::Tagged`
+        // is what every such position already is — the same answer `mixed`
+        // gets, which is also what an unbound variable substitutes to.
+        CheckedTy::TypeVar(_) => Ty::Tagged,
+        // A `Core` options bag is the one checker type with no representation
+        // here, because it is not one argument: `rule:core-api/shape-flattens-at-the-abi`
+        // makes it one per slot of the merged field list, and
+        // `Lowering::lower_fixed_arg` reads the parameter's *checked* type to
+        // send it to `Lowering::lower_options_arg` before `ArgSig::expectation`
+        // erases anything.
+        // `rule:core-api/shape-parameter` keeps the type spellable in the `Core`
+        // registry alone, so no annotation, no written `callable` signature, no
+        // union member and no interface a class may delegate can name one, and
+        // no value of it ever arrives. Reaching this is a bug in whatever
+        // lowered a `Core` parameter as a value.
+        CheckedTy::CoreShape(_) => panic!(
+            "nvs-ir: a `Core` shape parameter was erased as one value — \
+             `Lowering::lower_options_arg` flattens it into one argument per merged slot before \
+             its type is asked for; this is a bug"
+        ),
+        // `nvs_types::ty::Ty` is `#[non_exhaustive]`, so this arm is where a
+        // row added to the checker's type lands rather than a row missing
+        // above: every one it has today is answered by name, and
+        // `erase_checked_ty_answers_every_checked_type_a_value_can_have` counts
+        // them. A new one arriving here is a bug in the change that added it.
+        other => {
+            panic!("nvs-ir: the checker's type grew {other:?} without an erasure — this is a bug")
+        }
+    }
 }
 
 /// The one runtime shape a member list admits, or [`Ty::Tagged`] where it
@@ -3561,14 +3641,13 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
 /// Shared by the union and intersection arms of [`erase_checked_ty`]: both ask
 /// the same question — how many representations does this position hold — and
 /// `rule:types/literal-types`'s "there is no second representation" is what makes the answer
-/// a fold rather than a case analysis. A member with no erasure at all is one
-/// more shape below, so it tags too.
+/// a fold rather than a case analysis.
 fn shared_erasure(members: &[TypeId], checked_types: &TypeInterner) -> Ty {
     let mut shared: Option<Ty> = None;
     for member in members {
         match (erase_checked_ty(*member, checked_types), shared) {
-            (Some(ty), None) => shared = Some(ty),
-            (Some(ty), Some(seen)) if ty == seen => {}
+            (ty, None) => shared = Some(ty),
+            (ty, Some(seen)) if ty == seen => {}
             // `rule:types/class-reference`'s `?class<T>` — the one pair of *different*
             // erasures that is still one representation, and the reason this
             // fold is not simply "every member erases the same way". A
@@ -3577,7 +3656,7 @@ fn shared_erasure(members: &[TypeId], checked_types: &TypeInterner) -> Ty {
             // `null` is spelled with it. See that variant's own doc comment
             // for the sites that then have to ask a `ClassDesc` whether it is
             // null rather than reading `Ty::Tagged` off the operand.
-            (Some(Ty::Null), Some(Ty::ClassDesc)) | (Some(Ty::ClassDesc), Some(Ty::Null)) => {
+            (Ty::Null, Some(Ty::ClassDesc)) | (Ty::ClassDesc, Some(Ty::Null)) => {
                 shared = Some(Ty::ClassDesc);
             }
             _ => return Ty::Tagged,

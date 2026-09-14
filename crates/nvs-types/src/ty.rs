@@ -133,7 +133,7 @@ pub enum Ty {
     ///
     /// `rule:types/literal-types`: no runtime representation of its own — it erases to
     /// [`Self::String`] at the `nvs-ir` boundary
-    /// (`nvs_ir::lower::lower_checked_ty`), and the singleton-ness is enforced
+    /// (`nvs_ir::lower::erase_checked_ty`), and the singleton-ness is enforced
     /// entirely by the checker wherever the static type is known.
     StringLiteral(String),
     /// `1`, `-1` — `rule:types/literal-types`'s `int` counterpart of
@@ -240,7 +240,7 @@ pub enum Ty {
     /// two distinct `TypeId`s while `Counter` and `Counter` are one — which
     /// is the whole point of carrying the arguments in the type rather than
     /// beside it. They are erased at the `nvs-ir` boundary
-    /// (`nvs_ir::lower::lower_checked_ty` maps every class to one pointer
+    /// (`nvs_ir::lower::erase_checked_ty` maps every class to one pointer
     /// type), exactly as a [`Self::TypeVar`] is erased at a call site: a type
     /// argument constrains what the checker accepts and never what the
     /// runtime stores.
@@ -253,7 +253,7 @@ pub enum Ty {
     /// exactly one underlying integer type, and § 6 makes an enum value that
     /// integer's representation with names attached. Carrying it here is what
     /// lets `nvs-ir` lower an enum-typed binding to a machine integer without
-    /// re-resolving the declaration (`nvs_ir::lower::lower_checked_ty`). It is
+    /// re-resolving the declaration (`nvs_ir::lower::erase_checked_ty`). It is
     /// a function of the `QName`, so it never splits one enum into two
     /// interned types.
     Enum(QName, crate::enums::EnumBacking),
@@ -817,7 +817,7 @@ impl TypeInterner {
     /// The type `rule:types/literal-types`'s first four rows widen `id` to: a literal type's
     /// base type, an enum-case type's enum, and anything else unchanged.
     ///
-    /// The checker-side counterpart of `nvs_ir::lower::lower_checked_ty`'s
+    /// The checker-side counterpart of `nvs_ir::lower::erase_checked_ty`'s
     /// erasure — § 5 gives a literal type no representation of its own, so
     /// every question about what a value of one can *do* is a question about
     /// its base. A union is widened member-wise, which is what makes

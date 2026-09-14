@@ -587,7 +587,7 @@ pub(crate) fn generator_element(
             )
         });
     match checked_types.get(declared) {
-        CheckedTy::Class(_, args) if !args.is_empty() => lower_checked_ty(args[0], checked_types),
+        CheckedTy::Class(_, args) if !args.is_empty() => erase_checked_ty(args[0], checked_types),
         other => panic!(
             "nvs-ir: the generator `{name}` declares {other:?} rather than an `Iterator<T>` — \
              nvs_types reports E0446 for that"

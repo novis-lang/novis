@@ -10,7 +10,7 @@
 //! anchors sit in the same file. Both halves are blind in the same place: a
 //! catch-all arm is one site however many shapes fall into it, and the item
 //! that claims it is whichever one the file anchors — not whichever one the
-//! shapes belong to. `crates/nvs-ir/src/lower/mod.rs`'s `lower_checked_ty` was
+//! shapes belong to. `crates/nvs-ir/src/lower/mod.rs`'s `erase_checked_ty` was
 //! exactly that. It counted as one site, item 25 claimed it because item 25
 //! anchors that file, and item 25 is about `object` — which had a
 //! representation arm already. Three unrelated shapes were reaching it, all
@@ -44,7 +44,7 @@
 //! # What it does not cover yet
 //!
 //! The **local-declaration** position *per atom*, which reaches
-//! `lower_decl_type` rather than `lower_checked_ty` — the other of item 25's
+//! `lower_decl_type` rather than `erase_checked_ty` — the other of item 25's
 //! two sites. Building one needs a *value* of each type as well as the
 //! annotation, which is a fixture per atom rather than a table row; the
 //! expression roster below declares locals of a dozen types and so reaches
