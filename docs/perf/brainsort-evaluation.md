@@ -49,10 +49,10 @@ All of it lands with the seam:
   sequence beside its precomposed form, pinned in code-point order and held to agreement between the
   two sorts on the vocabulary and on random pairs from it at 33 to 2 500 entries. Byte order is
   code-point order by UTF-8's design, and both sorts read the same bytes.
-- **`bytes`** is unchanged, because it has no natural order today: the merge sort throws on two
-  `bytes` values (the ordering's throw text lists numbers, strings, bools and nulls and no other
-  pair, though the module doc above it says otherwise), so the key sort declines the row and the
-  throw is the answer under both binaries; a comparator over `Core\Bytes::compare` sorts it.
+- **`bytes`** is unchanged, because it has no natural order: `rule:types/bytes` gives it none, the
+  ordering throws on two `bytes` values, and `crate::ordering`'s doc says so and names the two-line
+  change that would give it a row. The key sort declines the row, so the throw is the answer under
+  both binaries; a comparator over `Core\Bytes::compare` sorts it.
 - **Against PHP** (`tests/differential/core/arr-sort-at-size-matches-phps-sort-and-rsort.nvst` and
   `arr-sort-orders-utf-8-strings-as-phps-sort-does.nvst`): ints and non-numeric strings at 1 000 and
   5 000, and UTF-8 strings of every encoding length at 3 000, `sort` and `rsort`.

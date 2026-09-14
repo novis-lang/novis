@@ -30,13 +30,20 @@ use nvs_runtime::{Decimal, Fault, Tag, Value};
 ///   makes intransitive and therefore unusable by any sort at all). Its two
 ///   visible consequences are that `-0.0` sorts before `0.0` and that a `NaN`
 ///   sorts below every number rather than throwing.
-/// * `string`/`bytes` — **bytewise**, never numerically. See
+/// * `string` — **bytewise**, never numerically. See
 ///   [`crate::arr::nvs_core_arr_sort`], which owns that divergence from PHP.
 ///
-/// Anything else — an object, an array, or two different rows above — is
-/// `THROWN`, naming both tags and the `member` that asked. An object is the
-/// one worth calling out: `rule:classes/comparable` makes `Comparable` the answer, and reaching
-/// an instance method from a helper is the thing that is not built yet.
+/// Anything else — an object, an array, a `bytes`, or two different rows
+/// above — is `THROWN`, naming both tags and the `member` that asked. Two
+/// are worth calling out. An object: `rule:classes/comparable` makes
+/// `Comparable` the answer, and reaching an instance method from a helper is
+/// the thing that is not built yet. A `bytes`: it shares the `string` heap
+/// shape and would order bytewise the same way, but `rule:types/bytes` gives
+/// it no ordering and [`Value::as_str_bytes`] deliberately answers `None` for
+/// it, so two `bytes` have no natural order here and a sort over them takes
+/// `{comparator: ...}` with `Core\Bytes::compare`. Giving it a row is a
+/// one-line change in this function and one row in [`crate::sort`], once a
+/// rule says so.
 pub(crate) fn compare_values(
     left: &Value,
     right: &Value,
