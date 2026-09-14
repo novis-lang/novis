@@ -1,6 +1,7 @@
-//! Stage 8's end gate: **every refusal this compiler still carries is either a
-//! diagnostic the front end raises, a hole an open goal item owns, or an entry
-//! on a frozen allowlist** — and nothing else.
+//! The end gate on what this compiler refuses: **every refusal it still
+//! carries is either a diagnostic the front end raises, a hole an open goal
+//! item owns, or an entry on a frozen allowlist** — and nothing else. Both of
+//! the last two are empty, so today it is the first alone.
 //!
 //! A refusal site is a `panic!`/`todo!`/`unimplemented!` naming a shape, or a
 //! `CodegenError::Unsupported`: the places where a program that type-checks
@@ -29,10 +30,9 @@
 //!     is a hole with a schedule: the item names the file and the function,
 //!     and closing the item removes the site. `holes.py`'s own attribution
 //!     decides this, so a site in a file no item anchors is *unattributed* and
-//!     fails here. When the last item lands there is nothing left to claim a
-//!     site, which is exactly when this gate starts refusing everything not on
-//!     the allowlist — the end state the check's name, `nvs-ir (no refusal
-//!     left)`, describes.
+//!     fails here. The last such item has landed, so nothing is left to claim
+//!     a site and this gate now refuses everything not on the allowlist — the
+//!     end state the check's name, `nvs-ir (no refusal left)`, describes.
 //! *   **[`ALLOWLIST`] names it**, because it is a refusal the language means
 //!     to keep. **That list may never grow.** Every entry is a bullet in
 //!     `docs/agent/loop-goal.md` § *Standing decisions*, and adding one to
@@ -69,29 +69,24 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 
 /// The number of refusal sites the tree is allowed to hold in total.
 ///
-/// A ratchet, not a target: a session that closes one lowers this in the same
-/// slice, and a session that adds one has to explain itself to a red test
-/// first. `python tools/holes.py` prints the current number.
-///
-/// **This number may only fall**, with one exception this file records rather
-/// than hides: a goal whose *own* design lands an operator in stages leaves a
-/// hole between them, and refusing to write the number down would only make
-/// the count a floor. A count is a ratchet only when it is the truth rather
-/// than a floor on it, which is why `holes.py` reads a site from the construct
-/// that carries it rather than from a set of fixed phrasings: a phrasing match
-/// leaves sites unseen, and a ratchet set from a blind count is not a ratchet.
+/// **Zero, and there is nothing left for it to ratchet down from.** Every
+/// shape the language names either lowers or is refused by a diagnostic the
+/// front end raises where the shape is written, so a new `panic!` claiming a
+/// lowering gap is a red test and not a number to raise — full stop, with no
+/// exception for a design landing an operator in stages. `python
+/// tools/holes.py --sites` names whatever the tree holds.
 ///
 /// A site leaves this count two ways, and `nvs_ir`'s own § *Known gaps*
 /// preamble is where they are contrasted: the shape lowers, or the site becomes
 /// a `lower::guarded_by!` naming the diagnostic that refuses the shape where it
-/// is written, which is a front-end guarantee rather than a hole.
-///
-/// The one site left is open on purpose rather than unowned, and it is a
-/// message rather than a shape: `$x is T`'s backstop, which every checked
-/// program walks past — its own stage answers each type the grammar has. That
-/// item's attribution is what keeps the first half of this gate green while it
-/// stands.
-const CEILING: usize = 1;
+/// is written, which is a front-end guarantee rather than a hole. An engine
+/// invariant no checked program reaches is neither, and was never in this
+/// count: `holes.py` reads a site from the construct that carries it **and**
+/// from the claim its message makes, so a panic that states the guarantee it
+/// rests on stays out without anyone deciding it does — and rewording one that
+/// does claim a gap is the move `every_refusal_is_a_diagnostic_or_decided`
+/// exists to catch.
+const CEILING: usize = 0;
 
 /// The repository root — this crate is `crates/nvs-ir`.
 fn root() -> PathBuf {
@@ -311,17 +306,16 @@ fn every_refusal_is_a_diagnostic_or_decided() {
         standing.join("\n")
     );
 
-    assert!(
-        total <= CEILING,
-        "the tree now holds {total} refusal site(s) against a ceiling of {CEILING}. A new \
-         refusal in a file an item already anchors is claimed by that item's attribution \
-         and would otherwise be invisible here, so the count is the second half of the \
-         gate. `python tools/holes.py` lists them."
-    );
-    assert!(
-        total >= CEILING,
-        "the tree is down to {total} refusal site(s) from a ceiling of {CEILING} — lower \
-         CEILING to {total} in this file, in the slice that closed them, so the ratchet \
-         cannot slip back."
+    // One equality and not a `<=` beside a `>=`: the two directions differ
+    // only in what they tell the reader to do, and at a ceiling of zero a
+    // `usize` comparison against it is one clippy refuses as absurd. The
+    // message carries both halves instead.
+    assert_eq!(
+        total, CEILING,
+        "the tree holds {total} refusal site(s) against a ceiling of {CEILING}. Above it: a \
+         new refusal in a file an item already anchors is claimed by that item's attribution \
+         and would otherwise be invisible here, so the count is the second half of the gate — \
+         `python tools/holes.py --sites` lists them. Below it: lower CEILING to {total} in \
+         this file, in the slice that closed them, so the ratchet cannot slip back."
     );
 }
