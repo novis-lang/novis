@@ -1,0 +1,17 @@
+<?nvs
+// The file that does not compile, which two of this tier's surfaces need one of.
+//
+// `nvs run` over it exits non-zero having printed one diagnostic in the renderer's own format, which is
+// what the `$nvs` problemMatcher parses into a Problems entry — the Task being useful rather than
+// decorative is `rule:ide/tasks-carry-a-problem-matcher`, and only a real failing run shows it. The AST
+// panel opens on the same file for the opposite reason: `nvs ast --json` is resilient by default, so a
+// file with an error in it is the one that proves the panel draws the tree the parser recovered
+// (`rule:ide/the-ast-panel-shells-out-to-the-cli`).
+//
+// The error is a name nothing declares, which the resolver reports as `E0301` after the file has parsed.
+// That is why it is a name error and not a syntax error: the tree stays a whole one, so the two
+// assertions read the same fixture instead of wanting two.
+
+int $count = 2 + 3;
+
+echo $count + $missing, "\n";
