@@ -645,6 +645,40 @@ impl<L: Accepting> NvsAcceptor<L> {
         }
     }
 
+    /// Accepts the next connection, or hands the turn back the first time this
+    /// task is woken without one.
+    ///
+    /// [`Self::accept`] retries inside itself, so a caller parked in it is
+    /// reachable only by readiness on this socket — and a server that has to
+    /// stop accepting for a reason of its own (a drain,
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly`) is woken by
+    /// something that will never make this listener readable. This is the same
+    /// three steps with the retry given to the caller: `None` is *the park
+    /// ended*, which is rule 2's shape — a wake names nothing, so the caller
+    /// re-reads whatever it is waiting on and comes back round.
+    ///
+    /// A readiness wake reaches the caller as `None` too, and costs it one more
+    /// turn of its own loop before the connection it is about to accept: the
+    /// syscall count is unchanged, since the accept that answers `WouldBlock`
+    /// is the one this parked on.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::accept`]'s, on the same terms.
+    pub fn accept_or_woken(&mut self) -> io::Result<Option<Accepted<L>>> {
+        loop {
+            match self.0.inner.accept() {
+                Ok((stream, peer)) => return Ok(Some((NvsStream::new(stream), peer))),
+                Err(err) if lost_in_the_backlog(&err) => {}
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    self.0.wait_until_ready(Interest::READABLE)?;
+                    return Ok(None);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
     /// [`Self::accept`]'s three steps, stopped one short: try the syscall, and
     /// on `WouldBlock` arm the reactor and answer `Pending` rather than suspend.
     ///

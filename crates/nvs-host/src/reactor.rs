@@ -131,6 +131,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use mio::{Events, Poll, Token, Waker};
+use nvs_runtime::{Drain, DrainWake};
 
 use crate::scheduler::{RunReport, Scheduler, TaskId};
 use crate::timer::{DeadlineView, Timers};
@@ -727,6 +728,32 @@ pub fn with_current<T>(f: impl FnOnce(&mut Reactor) -> T) -> Option<T> {
 #[must_use]
 pub fn is_installed() -> bool {
     INSTALLED.with_borrow(Option::is_some)
+}
+
+/// Wakes the task this call is on when `drain` begins, for a wait that is about
+/// to park on something the drain itself will never make ready.
+///
+/// [`nvs_runtime::Drain`] holds the bit and the list of what is owed a wake, and
+/// says that the closure has to come from a host because the hop it makes is
+/// cross-thread: the drain is begun by whichever thread took the signal, and
+/// the waits it owes are parked on every core. This is that closure — the same
+/// [`RemoteWake`] the blocking pool uses, issued against the current task and
+/// fired once.
+///
+/// Held for as long as the wait is, and **a wake is a hint**: the caller reads
+/// [`nvs_runtime::Drain::is_draining`] when it resumes rather than treating the
+/// resume as the answer (this module's docs, rule 2). `None` is either a call
+/// with no task or reactor beneath it, or a drain that has **already** begun —
+/// in which case the wake has fired before this returns and the caller's next
+/// read of the bit is what tells it so.
+///
+/// Dropping the handle deregisters, and the undelivered [`RemoteWake`] in it
+/// pokes this core on its way out: one wake into a task that is already running
+/// is what rule 2 exists to make harmless.
+pub fn wake_at_drain(drain: &Drain) -> Option<DrainWake> {
+    let id = crate::scheduler::current_task()?;
+    let wake = with_current(|reactor| reactor.remote_wake(id))?;
+    drain.wake_at_drain(move || drop(wake.wake()))
 }
 
 /// Runs `sched` under this thread's reactor until neither has anything left to

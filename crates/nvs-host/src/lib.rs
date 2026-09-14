@@ -148,7 +148,7 @@ pub use isolate::{Completion, Failure, Isolate, Output, Program, Running};
 pub use net::{Accepted, Accepting, NvsAcceptor, NvsListener, NvsStream, NvsTcp, NvsUdp};
 #[cfg(unix)]
 pub use net::{NvsUnix, NvsUnixListener};
-pub use reactor::{Installed, Interest, Reactor, RemoteWake, run_until_idle};
+pub use reactor::{Installed, Interest, Reactor, RemoteWake, run_until_idle, wake_at_drain};
 pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task, children_still_running,
     current_task, detach_current, spawn_child, suspend, suspend_current,

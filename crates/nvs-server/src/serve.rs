@@ -455,13 +455,15 @@ impl Reply {
 /// Whether this server has stopped accepting — `rule:http-server/the-server-block-is-boot-class`'s drain, as the one
 /// bit a probe and an application both read.
 ///
-/// **The accept loop sets it and nothing else does.** A drain begins when
-/// [`serve_on_this_core`]'s `keep_serving` seam says to stop, and the loop's own
-/// tail is the drain itself: it stops accepting, marks this, and parks until the
-/// connections already handed over have finished. Marking it at the caller
-/// instead would be the fail-open direction — a caller that forgot leaves the
-/// probe answering `200` for a process whose socket is already closed, which is
-/// exactly the window a proxy uses this endpoint to avoid.
+/// **A drain is begun by whatever is stopping, and the accept loop obeys it.**
+/// What stops a process is outside this crate — a terminating signal, a service
+/// manager, an operator on the control socket — so each of those writes this
+/// bit, and every accept loop in the process reads it and stops accepting.
+/// [`serve_on_this_core`]'s `keep_serving` seam is the other direction, for a
+/// loop that ends on its own terms, and its tail writes the bit as well: a loop
+/// that has stopped accepting is draining however it was asked, and a probe
+/// answering `200` for a socket that is already closed is exactly the window a
+/// proxy uses this endpoint to avoid.
 ///
 /// **The bit is [`nvs_runtime::Drain`] and this is the handle over it.** An
 /// application reads the same drain through `Core\Server::isDraining()`, and
@@ -504,6 +506,17 @@ impl Draining {
     #[must_use]
     pub fn is_draining(&self) -> bool {
         self.0.is_draining()
+    }
+
+    /// The bit itself, for the one caller that needs more of it than this
+    /// handle carries: [`serve_on_this_core`] registers a wake against it so
+    /// that a loop parked in `accept` is told, rather than finding out when the
+    /// next connection arrives.
+    ///
+    /// Crate-private, so the rule above still holds from outside: what a caller
+    /// beyond this crate can do to a drain is begin it and read it.
+    pub(crate) fn bit(&self) -> &Drain {
+        &self.0
     }
 }
 
@@ -1701,7 +1714,7 @@ fn failed() -> Response<Answer> {
 }
 
 /// Accepts on `listener`, giving every connection its own coroutine, until
-/// `keep_serving` breaks or the listener itself fails.
+/// `draining` begins, `keep_serving` breaks, or the listener itself fails.
 ///
 /// Called from a task on a core: the connections are its children, which is
 /// this module's docs § *One connection per coroutine*. `keep_serving` is asked
@@ -1723,11 +1736,16 @@ fn failed() -> Response<Answer> {
 /// `String`: this crate is given a socket and not a logger, and the boot that
 /// chose where a note goes is the one that owns writing it there.
 ///
-/// `draining` is this loop's own state and it writes it: the moment
-/// `keep_serving` says to stop, the drain has begun and § 5's probe answers
-/// `503` through [`Reply::health`] — the tail below is that drain. Handed in
-/// rather than returned because the handler is built before the loop is, and it
-/// is what the probe is answered from.
+/// `draining` is read at the top of every pass and written by the tail. Read,
+/// because what stops a process — a terminating signal, an operator on the
+/// control socket — begins the drain from another thread entirely, and a loop
+/// parked in `accept` would otherwise find out when the next connection
+/// arrived: the wake registered for the loop's whole life is what ends that
+/// park, and [`nvs_host::wake_at_drain`] owns its contract. Written, because a
+/// loop that stopped for `keep_serving` is draining too, and § 5's probe
+/// answers `503` through [`Reply::health`] from that line on — the tail below
+/// is that drain. Handed in rather than returned because the handler is built
+/// before the loop is, and it is what the probe is answered from.
 ///
 /// `waits` is handed to every connection unchanged and is never re-read: ADR
 /// 0097 § 5 makes `[server]` `Boot`-class precisely because `header_timeout`
@@ -1773,10 +1791,26 @@ where
     };
     let outstanding = Rc::new(Cell::new(0_usize));
     let mut backoff = AcceptBackoff::default();
+    // One registration for the whole loop rather than one per park: this task
+    // outlives every connection it accepts, so a wake taken per accept would be
+    // a cross-thread handle issued and dropped once per *connection served* on
+    // the one path a server spends its life in. It is dropped at the tail, by
+    // which point the drain it was waiting for has either fired it or is over.
+    let woken_at_drain = nvs_host::wake_at_drain(draining.bit());
 
     loop {
-        let (stream, peer) = match listener.accept() {
-            Ok(accepted) => {
+        // Read here rather than only through `keep_serving` below, because the
+        // two answers arrive differently: a caller's seam is a decision this
+        // loop asks for after a connection, and a drain is a fact some other
+        // thread published while this one was parked in `accept`.
+        if draining.is_draining() {
+            break;
+        }
+        let (stream, peer) = match listener.accept_or_woken() {
+            // The park ended and named nothing — the drain above is what this
+            // goes back round to read.
+            Ok(None) => continue,
+            Ok(Some(accepted)) => {
                 backoff.accepted();
                 accepted
             }
@@ -1861,6 +1895,9 @@ where
         }
     }
 
+    // Deregistered before the tail, since what it was to wake this task for has
+    // either happened or is no longer something this loop would act on.
+    drop(woken_at_drain);
     // `rule:http-server/the-server-block-is-boot-class`'s drain begins here, and the tail below *is* the drain: this
     // loop has stopped accepting, so from this line the probe answers `503` and
     // a proxy can take the instance out of rotation while the connections
