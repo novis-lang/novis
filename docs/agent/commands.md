@@ -656,9 +656,23 @@ pays 32s of cold build instead of 0.31s. Nothing ages `/var/tmp` out — Ubuntu 
 `q /var/tmp` line commented out.
 
 From the repo root (not `fuzz/` itself — cargo-fuzz expects the parent directory):
-`cargo +nightly fuzz run lex -- -max_total_time=300` (and `parse` likewise). CI's `fuzz-smoke` job runs both
-for 300s nightly and at release, carrying the corpus between runs -- not per push, because 60s against a
-corpus that starts empty every time is the same 60s repeated
+`cargo +nightly fuzz run lex -- -max_total_time=300`, and `parse` likewise.
+
+`prefix` — truncated and mid-edit documents through `nvs-syntax`, which is M4B's *Verify* asking for a
+five-minute run — is on the acceptance list and takes its two corpus directories as arguments:
+
+    mkdir -p fuzz/corpus/prefix
+    cargo +nightly fuzz run prefix fuzz/corpus/prefix fuzz/seeds/prefix -- -max_total_time=300
+
+The `mkdir` is because the accumulated corpus is ignored and so absent on a fresh clone. Naming both
+directories rather than copying the seeds into the corpus is what keeps the tracked half tracked:
+libFuzzer writes new inputs to the first directory alone and reads the rest, so `fuzz/seeds/prefix/` is
+read-only for the run and the tree it is committed in stays as it was. A panic here is a parser bug — fix
+the site, add the minimized input to `fuzz/seeds/prefix/`, and pin it beside the cuts in
+`crates/nvs-syntax/tests/prefixes.rs`.
+
+CI's `fuzz-smoke` job runs every target for 300s nightly and at release, carrying the corpus between runs
+-- not per push, because 60s against a corpus that starts empty every time is the same 60s repeated
 (`rule:testing/the-deep-lane`).
 
 For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example callgrind_spike`, then
