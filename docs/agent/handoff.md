@@ -2,44 +2,40 @@
 
 ## State
 
-**Goal `gap-register` — stages 1–4 and 6 green, stage 5 the only one open.** `python tools/owners.py`
-reports `sections outside Known gaps: 0`, and `--check --untagged-is-an-error --reasons` passes with
-`untagged: 0`, `broken-tag: 0`, `unreasoned: 0` over 173 tagged items.
+**Goal `gap-register` is met — every stage's checks pass.** Stage 5 landed this session: `python
+tools/plan.py --past` prints one line per pre-M9 milestone and ends `4 of 11 past milestone(s)
+complete`, `--sync` writes `done` into a complete one's `Carried by` cell, and `--check` refuses that
+cell anywhere else.
 
-- Stage 5's check fails as `plan.py: error: unrecognized arguments: --past` — the mode is still to be
-  written, not a regression. Stage 6 already passes, so stage 5 is the whole of what is left.
-- Four of the seven headings closed this session named work that had **landed**, not work owed, so
-  they became prose: `sse.rs`'s door-one half, `http.rs`'s two absences, `dispatch.rs` and
-  `script.rs`. The playbook bullet under *Tooling* is that trap.
-- Three became real registers: `cache.rs` gap 1 (`unowned`), `openapi.rs` gaps 1–5 (`unowned`),
-  `regions.rs` gap 1 (`M10`), `lib.rs` gap 1 (`M11`), and `budget.rs`'s bold `**Known gap.**` run is
-  now a numbered item — which moved it to `crates/nvs-runtime/src/budget.rs:89` and re-pointed goal
-  `unowned-closures`'s two anchors.
-- `docs/agent/carried-gaps.md` § *Unowned* carries the two new reason bullets the `unowned` tags need.
+- Completeness has one home, `tools/plan.py:@past_state` — every goal carrying the milestone has
+  walked, and no register still tags an item to it. `--past`, `--sync` and `--check` all read it, so
+  the report, the cell and the gate cannot disagree.
+- `python tools/owners.py --json` now carries each register's owner tally and `first_future_milestone`,
+  so the count is taken across all six registers rather than the module docs alone: M7's four are three
+  `# Known gaps` items and one `carried-gaps.md` § *Owned* row.
+- M4S's cell is `done` — `core-depth` walked and nothing tags M4S. `docs/implementation-plan.md:73` is
+  where the column's vocabulary says so.
+- The floor's `the five-driver matrix`, red at the last acceptance sweep, was a cold-boot wait and not a
+  regression: `python tools/db-matrix.py --all` answers `5/5 drivers ok` on this tree.
 
-Nothing is blocked. `[context] modules` still prints no crate module doc, which is the file kind this
-stage edits.
+Nothing is blocked. Run `cargo test` with nothing else loading the machine — `nvs-cli`'s
+`a_revalidation_that_wins_publishes_and_readers_never_block_on_a_compile` asserts a timing bound and
+failed once here beside four booting database containers, green on its own.
 
 ## Next group
 
-**Stage 5: a past milestone says whether it is complete** — one file set: `tools/plan.py`, reading
-`tools/owners.py --json`. The specification is the goal's own § *Stage 5*
-(`docs/agent/loop-goal.md:90`); the check wants `M0`, `M4S`, `M4B`, `M8` and
-`past milestone(s) complete` in the output.
+**The goal is met, so the next group is the next chain entry's** — goal `unowned-closures`, whose own
+opening handoff is already on disk and replaces this file at the switch. Nothing in `gap-register` is
+open; the one item below is the re-read that switch wants, not a slice of this goal.
 
-- [ ] **`python tools/plan.py --past` prints one line per pre-M9 milestone** — the goals carrying it
-      and whether each has walked, the count any register still tags to it, and a last line
-      `N of 11 past milestone(s) complete` — `tools/plan.py:759`, `tools/owners.py:770`.
-- [ ] **`--sync` writes `done` into a complete milestone's `Carried by` cell** — only for one
-      `--past` calls complete — `tools/plan.py:770`.
-- [ ] **`--check` accepts `done` only for a milestone `--past` calls complete** — `tools/plan.py:767`.
+- [ ] **Take goal `unowned-closures`'s opening group from its own handoff** — the 48 `unowned` items
+      `python tools/owners.py --unowned` lists, each answered from the user's decision sheet:
+      `docs/agent/goals/60-unowned-closures.handoff.md:13`, against `docs/agent/carried-gaps.md:59`.
 
 ## Backlog
 
-- `crates/nvs-test/src/case.rs:351`'s `NOT_YET` reason names M6, a walked milestone; the assertion at
-  `crates/nvs-test/src/case.rs:1232` reads `"M6"`, so both change together (that file's gap 1).
-- `crates/nvs-stdlib/src/cache.rs:2009`'s `rediss://` refusal says which certificates this binary
-  trusts "has no decision yet"; they are compiled in (`crates/nvs-stdlib/src/http/transport.rs:62`).
-- 21 items are still tagged to a milestone the program has passed — stage 5's own subject.
-- `docs/agent/goals/42-event-streams.md:13-17` still cites `serve.rs` and `registry.rs` line numbers
-  from before the goal landed; a goal file describes the tree it was written against.
+- The 21 items tagged to a milestone behind the program — `python tools/owners.py --check
+  --past-is-an-error` names them; each closure goal's acceptance list owns the judgement half.
+- `unowned` retires as an owner kind in goal `gap-zero`, which also deletes `carried-gaps.md`.
+- `docs/agent/carried-gaps.md` § *Unowned* carries a reason per unowned module — goal
+  `unowned-closures` is what empties it.
