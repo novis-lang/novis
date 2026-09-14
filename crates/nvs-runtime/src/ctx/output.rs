@@ -5,10 +5,11 @@
 //! constants and [`is_carrier`] are named here rather than in `nvs-stdlib`
 //! where the classes themselves are declared.
 //!
-//! Three channels share one file because they share one sink switch: the body
-//! ([`Ctx::write_output`]), diagnostics ([`Ctx::write_diagnostic`]) and log
-//! records ([`Ctx::write_log_record`]) all end in [`write_to`], so a variant
-//! added later cannot be handled at one channel and forgotten at another.
+//! The channels share one file because they share one sink switch: the body
+//! ([`Ctx::write_output`]), diagnostics ([`Ctx::write_diagnostic`]), log
+//! records ([`Ctx::write_log_record`]) and the records [`LogWriter`] takes from
+//! a thread holding no request at all end in [`write_to`], so a variant added
+//! later cannot be handled at one channel and forgotten at another.
 //! § 5's captures, and the content type, status and headers a request declares
 //! back, sit beside them because each is a decision about the same response.
 
@@ -103,7 +104,9 @@ pub enum OutputSink {
 ///
 /// [`Ctx::write_log_record`] is the whole of the routing and its doc comment is
 /// the home of why the unconfigured default is a split rather than a single
-/// channel.
+/// channel. A writer that holds no request picks neither value: only one of the
+/// two channels exists with no program underneath it, which is [`LogWriter`]'s
+/// own doc comment.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LogChannel {
     /// The program's own output, through [`Ctx::write_output`] and so through
@@ -128,6 +131,89 @@ pub(super) enum LogTarget {
     Unnamed,
     /// Read: both writers land here.
     Named(OutputSink),
+}
+
+/// [`Ctx::write_log_record`]'s routing, for a writer that holds no request: the
+/// same three directives resolved through the same readers, and a record
+/// rendered and written where they say.
+///
+/// The control thread is what needs this.
+/// `rule:config/one-local-control-socket` has every reload written to
+/// `Core\Log` with its outcome, and the thread that performs one is answering
+/// an operator rather than serving a request, so there is no [`Ctx`] under it
+/// to have read `[log] target`, `level` and `format` already. It resolves them
+/// here rather than reading them for itself, because a directive with a second
+/// reader is a directive two answers can be given for — which is the same
+/// argument [`Ctx::stamp_envelope`] makes about the envelope.
+///
+/// **A configuration that names no target writes to [`OutputSink::Stderr`]**,
+/// which is [`LogChannel::Diagnostic`]'s channel. The other value is not a
+/// choice this writer can make: [`LogChannel::Output`] is the program's own
+/// output through `rule:security/capture-answers-the-carrier`'s capture stack,
+/// and a writer that is no request has no program, no response body and no
+/// capture stack to reach — so the split a context makes between the two
+/// collapses to the engine's own channel, which is where the floor already puts
+/// a record about a program that is not running.
+///
+/// **What it spends** (`rule:programs/memory-priority`): one resolved sink per
+/// writer — a path, a descriptor and two counters where the target is a file —
+/// and one `String` per record written. Nothing is O(records), and a process
+/// that never writes one holds a discriminant.
+#[derive(Debug)]
+pub struct LogWriter {
+    /// What `[log] target` named, or [`OutputSink::Stderr`] where it named
+    /// nothing this build opens. Held for the life of the writer, because a
+    /// rotation bound counted against a handle needs the handle to outlive the
+    /// record.
+    sink: OutputSink,
+    /// The quietest level `[log] level` writes — records below it are dropped
+    /// before they are rendered.
+    minimum: Level,
+    /// Which of `rule:errors/renderings`'s two renderings the sink is handed.
+    format: LogFormat,
+}
+
+impl LogWriter {
+    /// The writer `config` describes, with the directives read once — `None`
+    /// for a caller that has resolved no tree, which answers as a context
+    /// nobody configured does.
+    #[must_use]
+    pub fn resolve(config: Option<&nvs_config::Request>) -> Self {
+        Self {
+            sink: match log_target(config) {
+                LogTarget::Named(sink) => sink,
+                LogTarget::Unread | LogTarget::Unnamed => OutputSink::Stderr,
+            },
+            minimum: log_minimum(config),
+            format: log_format(config),
+        }
+    }
+
+    /// `record` as the line `[log] format` names, or `None` where the record is
+    /// below `[log] level`.
+    ///
+    /// The render without the write, for a caller that has somewhere else to
+    /// put the line — a test reading back what a reload said, and the answer a
+    /// control operation writes into its own response.
+    #[must_use]
+    pub fn render(&self, record: &Record) -> Option<String> {
+        (record.envelope.level >= self.minimum).then(|| rendered(self.format, record))
+    }
+
+    /// Writes `record` where `[log] target` says, or nowhere when it is below
+    /// `[log] level`.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the sink returns. The caller swallows it, which is
+    /// `rule:errors/engine-floor`'s answer at the floor: a log write that fails
+    /// is not a reason to fail the operation it was reporting.
+    pub fn write(&mut self, record: &Record) -> io::Result<()> {
+        let Some(line) = self.render(record) else {
+            return Ok(());
+        };
+        write_to(&mut self.sink, line.as_bytes())
+    }
 }
 
 /// Which of `rule:concurrency/two-doors-one-isolate`'s two hand-overs opened
@@ -254,17 +340,14 @@ impl Ctx {
         unconfigured: LogChannel,
     ) -> io::Result<()> {
         if matches!(self.log, LogTarget::Unread) {
-            self.log = self.resolve_log_target();
-            self.log_minimum = self.resolve_log_minimum();
-            self.log_format = self.resolve_log_format();
+            self.log = log_target(self.config.as_ref());
+            self.log_minimum = log_minimum(self.config.as_ref());
+            self.log_format = log_format(self.config.as_ref());
         }
         if record.envelope.level < self.log_minimum {
             return Ok(());
         }
-        let rendered = match self.log_format {
-            LogFormat::Json => nvs_render::json::line(record),
-            LogFormat::Text => nvs_render::plain::render(record),
-        };
+        let rendered = rendered(self.log_format, record);
         let line = rendered.as_bytes();
         if let LogTarget::Named(sink) = &mut self.log {
             return write_to(sink, line);
@@ -321,80 +404,6 @@ impl Ctx {
             envelope.trace_id = Some(trace.trace_id_hex());
             envelope.span_id = Some(trace.span_id_hex());
         }
-    }
-
-    /// `[log] target` as the sink it names, through `rule:errors/engine-floor`'s grammar and
-    /// not through a second reading of it.
-    ///
-    /// [`nvs_config::log::Target`] is that grammar and it has two readers:
-    /// this one, and the boot check that refuses a tree naming a target § 4
-    /// does not spell. So a value that reached here is one the grammar spells,
-    /// and [`LogTarget::Unnamed`] covers two facts rather than one:
-    ///
-    /// - **`syslog` is spelled and not yet transported.** A syslog sink is a
-    ///   datagram to a platform endpoint carrying `rule:errors/log-level`'s severity in a
-    ///   priority field — a transport, a framing and an argument the
-    ///   byte-oriented sinks here do not take. Routing it to `stderr` instead
-    ///   would be this module claiming a destination it does not reach, so it
-    ///   routes nowhere new and each writer's own channel still carries the
-    ///   record.
-    /// - **A target nobody spelled** never boots, so reaching it here means a
-    ///   context was configured by something other than a resolved tree — a
-    ///   test, in practice. It is not a diagnostic at the one moment the
-    ///   engine has a failure to report; it is the unconfigured routing.
-    fn resolve_log_target(&self) -> LogTarget {
-        let Some(written) = self
-            .config
-            .as_ref()
-            .and_then(|config| config.get("log.target"))
-        else {
-            return LogTarget::Unnamed;
-        };
-        match nvs_config::log::Target::of(&written) {
-            Some(nvs_config::log::Target::Stderr) => LogTarget::Named(OutputSink::Stderr),
-            Some(nvs_config::log::Target::File(path)) => LogTarget::Named(OutputSink::File(
-                crate::logfile::LogFile::new(std::path::PathBuf::from(path)),
-            )),
-            Some(nvs_config::log::Target::Syslog) | None => LogTarget::Unnamed,
-        }
-    }
-
-    /// What `[log] level` names, or [`Level::Debug`] where it names nothing —
-    /// [`Self::write_log_record`]'s floor, resolved with the target above.
-    ///
-    /// `Debug` for an unset directive rather than `rule:config/a-mode-is-five-defaults`'s per-mode
-    /// `Info`: that default belongs to the *tree* — not yet applied at boot,
-    /// which `nvs_config::mode`'s module doc carries as its open gap — so a
-    /// resolved configuration is where it will arrive, and a context configured by
-    /// something other than a resolved tree has said nothing about which
-    /// records it wants. The safe answer to that is all of them. A word the
-    /// grammar does not carry reads the same way and never boots — `E0614`
-    /// refuses it at the file, for the reason `nvs_config::log`'s module doc
-    /// gives about doing this at boot rather than at the first record.
-    fn resolve_log_minimum(&self) -> Level {
-        self.config
-            .as_ref()
-            .and_then(|config| config.get("log.level"))
-            .and_then(|written| Level::of(&written))
-            .unwrap_or(Level::Debug)
-    }
-
-    /// What `[log] format` names, or [`LogFormat::Json`] where it names
-    /// nothing — [`Self::write_log_record`]'s rendering, resolved with the two
-    /// directives above.
-    ///
-    /// One record per line for an unset directive, which is both `rule:config/a-mode-is-five-defaults`'s
-    /// per-mode default and [`LogFormat`]'s own: a pipeline reading a target
-    /// nobody configured can find the record boundaries without being told, and
-    /// the plaintext rendering's are a blank-line-free block. A word the grammar
-    /// does not carry reads the same way and never boots — `E0615` refuses it at
-    /// the file.
-    fn resolve_log_format(&self) -> LogFormat {
-        self.config
-            .as_ref()
-            .and_then(|config| config.get("log.format"))
-            .and_then(|written| LogFormat::of(&written))
-            .unwrap_or(LogFormat::Json)
     }
 
     /// Points this context's diagnostic channel somewhere else — what a test
@@ -751,6 +760,90 @@ impl DeclaredHeader {
     }
 }
 
+/// `[log] target` as the sink it names, through `rule:errors/engine-floor`'s grammar and
+/// not through a second reading of it.
+///
+/// Free of [`Ctx`] because both of its callers are: a request's context resolves
+/// it once at its first record, and [`LogWriter`] resolves it for a thread that
+/// has no context at all. The directive therefore keeps one reader however the
+/// record was produced, which is what [`LogWriter`]'s doc comment means by two
+/// readers being two answers.
+///
+/// [`nvs_config::log::Target`] is that grammar and it has two readers:
+/// this one, and the boot check that refuses a tree naming a target § 4
+/// does not spell. So a value that reached here is one the grammar spells,
+/// and [`LogTarget::Unnamed`] covers two facts rather than one:
+///
+/// - **`syslog` is spelled and not yet transported.** A syslog sink is a
+///   datagram to a platform endpoint carrying `rule:errors/log-level`'s severity in a
+///   priority field — a transport, a framing and an argument the
+///   byte-oriented sinks here do not take. Routing it to `stderr` instead
+///   would be this module claiming a destination it does not reach, so it
+///   routes nowhere new and each writer's own channel still carries the
+///   record.
+/// - **A target nobody spelled** never boots, so reaching it here means a
+///   caller was configured by something other than a resolved tree — a
+///   test, in practice. It is not a diagnostic at the one moment the
+///   engine has a failure to report; it is the unconfigured routing.
+fn log_target(config: Option<&nvs_config::Request>) -> LogTarget {
+    let Some(written) = config.and_then(|config| config.get("log.target")) else {
+        return LogTarget::Unnamed;
+    };
+    match nvs_config::log::Target::of(&written) {
+        Some(nvs_config::log::Target::Stderr) => LogTarget::Named(OutputSink::Stderr),
+        Some(nvs_config::log::Target::File(path)) => LogTarget::Named(OutputSink::File(
+            crate::logfile::LogFile::new(std::path::PathBuf::from(path)),
+        )),
+        Some(nvs_config::log::Target::Syslog) | None => LogTarget::Unnamed,
+    }
+}
+
+/// What `[log] level` names, or [`Level::Debug`] where it names nothing —
+/// [`Ctx::write_log_record`]'s floor, resolved with the target above.
+///
+/// `Debug` for an unset directive rather than `rule:config/a-mode-is-five-defaults`'s per-mode
+/// `Info`: that default belongs to the *tree* — not yet applied at boot,
+/// which `nvs_config::mode`'s module doc carries as its open gap — so a
+/// resolved configuration is where it will arrive, and a caller configured by
+/// something other than a resolved tree has said nothing about which
+/// records it wants. The safe answer to that is all of them. A word the
+/// grammar does not carry reads the same way and never boots — `E0614`
+/// refuses it at the file, for the reason `nvs_config::log`'s module doc
+/// gives about doing this at boot rather than at the first record.
+fn log_minimum(config: Option<&nvs_config::Request>) -> Level {
+    config
+        .and_then(|config| config.get("log.level"))
+        .and_then(|written| Level::of(&written))
+        .unwrap_or(Level::Debug)
+}
+
+/// What `[log] format` names, or [`LogFormat::Json`] where it names
+/// nothing — [`Ctx::write_log_record`]'s rendering, resolved with the two
+/// directives above.
+///
+/// One record per line for an unset directive, which is both `rule:config/a-mode-is-five-defaults`'s
+/// per-mode default and [`LogFormat`]'s own: a pipeline reading a target
+/// nobody configured can find the record boundaries without being told, and
+/// the plaintext rendering's are a blank-line-free block. A word the grammar
+/// does not carry reads the same way and never boots — `E0615` refuses it at
+/// the file.
+fn log_format(config: Option<&nvs_config::Request>) -> LogFormat {
+    config
+        .and_then(|config| config.get("log.format"))
+        .and_then(|written| LogFormat::of(&written))
+        .unwrap_or(LogFormat::Json)
+}
+
+/// One record as `format` renders it — `rule:errors/renderings`'s two
+/// renderings behind one call, so a writer with a context and one without
+/// cannot come to spell the same record two ways.
+fn rendered(format: LogFormat, record: &Record) -> String {
+    match format {
+        LogFormat::Json => nvs_render::json::line(record),
+        LogFormat::Text => nvs_render::plain::render(record),
+    }
+}
+
 /// Writes `bytes` to one sink — the body [`Ctx::write_output`] and
 /// [`Ctx::write_diagnostic`] share, so a sink variant added later cannot be
 /// handled at one channel and forgotten at the other.
@@ -888,5 +981,70 @@ mod tests {
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.write_output(b"gone").unwrap();
         assert!(ctx.take_buffered_output().is_none());
+    }
+
+    /// A configuration from the text an operator would have written rather than
+    /// from the typed tree — the boot path deserializes, so a case that built
+    /// the struct could pin a value no configuration file can express.
+    fn configured(written: &str) -> nvs_config::Request {
+        let table: toml::Table = written.parse().expect("the case writes valid TOML");
+        nvs_config::Request::new(std::sync::Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes a block this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        }))
+    }
+
+    /// [`LogWriter`]'s own decision: with no request underneath it, a record
+    /// the configuration named no target for goes to the engine's channel.
+    /// [`LogChannel::Output`] is not a second answer this writer could give —
+    /// there is no program whose output it would be — so a tree that named
+    /// nothing and one that named a target this build does not transport both
+    /// land on stderr.
+    #[test]
+    fn a_writer_holding_no_request_sends_an_unconfigured_record_to_the_engines_channel() {
+        assert!(
+            matches!(LogWriter::resolve(None).sink, OutputSink::Stderr),
+            "a writer with no configuration under it routed somewhere other than the engine's own \
+             channel"
+        );
+        let syslog = configured("[log]\ntarget = \"syslog\"\n");
+        assert!(
+            matches!(LogWriter::resolve(Some(&syslog)).sink, OutputSink::Stderr),
+            "a target this build does not transport reached a sink instead of the engine's channel"
+        );
+    }
+
+    /// The directives are read once and answer the same way they do for a
+    /// context: the target names the sink, the level is a floor the render is
+    /// dropped below, and the format selects the rendering. The file target is
+    /// opened on its first write, so resolving one here touches no disk.
+    #[test]
+    fn a_writer_reads_the_same_three_directives_a_context_does() {
+        let config =
+            configured("[log]\ntarget = \"file:nvs.log\"\nlevel = \"warn\"\nformat = \"text\"\n");
+        let writer = LogWriter::resolve(Some(&config));
+        assert!(
+            matches!(writer.sink, OutputSink::File(_)),
+            "`file:` named a rotating file and the writer resolved something else"
+        );
+        assert!(
+            writer.render(&Record::at(Level::Info)).is_none(),
+            "a record below `[log] level` was rendered anyway"
+        );
+
+        let record = Record::at(Level::Warn);
+        let text = writer.render(&record).expect("`warn` is at the floor");
+        let json = LogWriter::resolve(None)
+            .render(&record)
+            .expect("nothing configured writes every level");
+        assert!(json.starts_with('{'), "the unset default is JSON Lines");
+        assert_ne!(
+            json, text,
+            "`format = \"text\"` did not reach the rendering"
+        );
     }
 }
