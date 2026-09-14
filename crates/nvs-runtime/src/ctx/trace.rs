@@ -12,6 +12,20 @@
 
 use super::*;
 
+use std::sync::LazyLock;
+use std::time::{Duration, Instant};
+
+/// The moment this process first timed a spawn, so that the events two requests
+/// record sit on one timeline.
+///
+/// An [`Instant`] has no absolute rendering and a per-request epoch would give
+/// every request a timeline of its own, which is exactly the join
+/// `rule:observability/spawn-is-its-own-event`'s export-time nesting has to
+/// make. **What it spends:** one `Instant` per process, initialised by the
+/// first spawn that is timed at all, so a run with both bits off never reads a
+/// clock for it.
+static SPAWN_EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
+
 /// A failure a run can be *asked* to produce, for a mode that by definition
 /// has no user-facing trigger.
 ///
@@ -94,6 +108,78 @@ pub struct TraceEvent {
     /// on — so a trace records a thrown or `FATAL` exit exactly as it
     /// happened rather than as a reconstruction.
     pub status: Option<i32>,
+}
+
+/// Which of `rule:observability/spawn-is-its-own-event`'s three constructs a
+/// [`TraceKind::Spawn`] event is of.
+///
+/// The tag is the rule's own spelling and carries nothing else, because the
+/// three differ in where the child runs and in nothing this event records:
+/// `spawn` is a `Core\Task` child over the parent's heap, `spawn script` an
+/// isolate on this core, and `spawn worker` an isolate started on another.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpawnForm {
+    /// `spawn` — a `Core\Task` child, a task on this core.
+    Task,
+    /// `spawn worker` — an isolate started on another core.
+    Worker,
+    /// `spawn script` — an isolate on this core.
+    Script,
+}
+
+impl SpawnForm {
+    /// The construct as the language spells it, which is what the event
+    /// carries.
+    #[must_use]
+    pub fn spelling(self) -> &'static str {
+        match self {
+            Self::Task => "spawn",
+            Self::Worker => "spawn worker",
+            Self::Script => "spawn script",
+        }
+    }
+}
+
+/// A spawn that has been recorded and not yet joined — [`Ctx::open_spawn`]'s
+/// answer, and what [`Ctx::close_spawn`] closes.
+///
+/// It carries the event's own position, so a spawn is one record written twice
+/// rather than two records a consumer has to pair up: the start is filed where
+/// the child is started, in among the request's other events, and the join
+/// fills in the rest of that same record.
+#[derive(Debug)]
+#[must_use = "a spawn that is opened and never closed leaves an event with no join"]
+pub struct OpenSpawn {
+    /// Which construct started the child.
+    form: SpawnForm,
+    /// Where in this request's trace the event sits.
+    index: usize,
+    /// When the child was started, on [`SPAWN_EPOCH`]'s timeline.
+    started: Duration,
+}
+
+/// [`Ctx::close_spawn`]'s payload, as a function of the numbers alone.
+///
+/// The fields are rendered for [`Ctx::record_query`]'s reason — [`TraceEvent`]
+/// is a stand-in until `rule:testing/debug-probes`'s sink gives every kind a
+/// payload of its own — and both subtractions saturate, because a child that
+/// reports more wall time than its parent observed is a clock this side cannot
+/// correct and a negative overhead would read as one.
+fn render_spawn(
+    form: SpawnForm,
+    started: Duration,
+    joined: Duration,
+    child: Option<Duration>,
+) -> String {
+    let wall = joined.saturating_sub(started);
+    let split = match child {
+        Some(child) => format!(" child={child:?} overhead={:?}", wall.saturating_sub(child)),
+        None => String::new(),
+    };
+    format!(
+        "{} started={started:?} joined={joined:?} wall={wall:?}{split}",
+        form.spelling()
+    )
 }
 
 impl Ctx {
@@ -184,6 +270,54 @@ impl Ctx {
             callee: span.to_owned(),
             status: None,
         });
+    }
+
+    /// Opens `rule:observability/spawn-is-its-own-event`'s event where a child
+    /// is started, and answers what closes it at the join — `None`, having
+    /// recorded nothing and read no clock, while both [`DebugFlags::TRACE`] and
+    /// [`DebugFlags::PROFILE`] are off.
+    ///
+    /// A spawn is not a call and does not flow through
+    /// [`nvs_probe_call_enter`]'s pair, which is the rule's own reason for an
+    /// instrumentation point of its own. The event is filed here rather than at
+    /// the join so that it sits where the spawn happened among the request's
+    /// other events, and so that a child that is never joined — a cancelled one
+    /// — reads as a spawn with no join rather than as nothing at all.
+    pub fn open_spawn(&mut self, form: SpawnForm) -> Option<OpenSpawn> {
+        if !self
+            .debug
+            .intersects(DebugFlags::TRACE | DebugFlags::PROFILE)
+        {
+            return None;
+        }
+        let started = SPAWN_EPOCH.elapsed();
+        self.trace.push(TraceEvent {
+            kind: TraceKind::Spawn,
+            callee: format!("{} started={started:?} unjoined", form.spelling()),
+            status: None,
+        });
+        Some(OpenSpawn {
+            form,
+            index: self.trace.len() - 1,
+            started,
+        })
+    }
+
+    /// Closes the event [`Ctx::open_spawn`] filed, at the point the child is
+    /// joined and with the child's own wall time where it reported one.
+    ///
+    /// The split is what the rule asks for and why both numbers are carried:
+    /// the parent-observed wall less the child's own is what the spawn itself
+    /// cost — scheduling the child and copying its answer back — and one opaque
+    /// total cannot be read as either.
+    pub fn close_spawn(&mut self, open: OpenSpawn, child: Option<Duration>) {
+        let payload = render_spawn(open.form, open.started, SPAWN_EPOCH.elapsed(), child);
+        // Indexed rather than assumed: the trace is only ever appended to, so
+        // the position holds, and a miss loses one event rather than panicking
+        // inside a request that was only being observed.
+        if let Some(event) = self.trace.get_mut(open.index) {
+            event.callee = payload;
+        }
     }
 
     /// The call-site trace gathered so far, in the order the probes fired —
@@ -357,6 +491,87 @@ pub unsafe extern "C" fn nvs_probe_call_exit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The event carries the rule's own spelling of the form, both timestamps
+    /// and the split, and a request with both bits off does not pay for any of
+    /// it.
+    #[test]
+    fn a_spawn_event_carries_its_form_and_both_timestamps_and_splits_the_overhead() {
+        // The rendering against numbers no clock can vary: the parent observed
+        // eight milliseconds, the child reported five of them, and the three
+        // that are left are what the spawn itself cost.
+        assert_eq!(
+            render_spawn(
+                SpawnForm::Worker,
+                Duration::from_millis(1),
+                Duration::from_millis(9),
+                Some(Duration::from_millis(5)),
+            ),
+            "spawn worker started=1ms joined=9ms wall=8ms child=5ms overhead=3ms"
+        );
+        // A child reporting more than its parent observed leaves no overhead
+        // rather than a negative one.
+        assert_eq!(
+            render_spawn(
+                SpawnForm::Task,
+                Duration::ZERO,
+                Duration::from_millis(2),
+                Some(Duration::from_millis(3)),
+            ),
+            "spawn started=0ns joined=2ms wall=2ms child=3ms overhead=0ns"
+        );
+        // A child that reported nothing carries the wall alone, rather than a
+        // split computed against a zero it never claimed.
+        assert_eq!(
+            render_spawn(
+                SpawnForm::Script,
+                Duration::ZERO,
+                Duration::from_millis(2),
+                None,
+            ),
+            "spawn script started=0ns joined=2ms wall=2ms"
+        );
+
+        let mut ctx = Ctx::buffered();
+        assert!(
+            ctx.open_spawn(SpawnForm::Script).is_none(),
+            "both bits are off, so there is nothing to record and no clock to read"
+        );
+        assert!(ctx.trace().is_empty());
+
+        // `PROFILE` alone arms the site: the two bits are independent and this
+        // event is the profile's as much as the trace's.
+        ctx.set_debug_flags(DebugFlags::PROFILE);
+        let open = ctx
+            .open_spawn(SpawnForm::Script)
+            .expect("a bit this site reads is on");
+        assert_eq!(
+            ctx.trace().len(),
+            1,
+            "the event is filed where the child starts"
+        );
+        assert_eq!(ctx.trace()[0].kind, TraceKind::Spawn);
+        assert!(
+            ctx.trace()[0].callee.ends_with("unjoined"),
+            "a spawn that has not been joined must not read as one that has"
+        );
+
+        ctx.close_spawn(open, Some(Duration::ZERO));
+        assert_eq!(
+            ctx.trace().len(),
+            1,
+            "the join closes the event rather than filing a second"
+        );
+        let closed = &ctx.trace()[0].callee;
+        assert!(closed.starts_with("spawn script started="), "{closed}");
+        assert!(closed.contains(" joined="), "{closed}");
+        assert!(closed.contains(" child=0ns overhead="), "{closed}");
+        assert_eq!(
+            ctx.trace()[0].status,
+            None,
+            "the status field is a call site's, and a spawn is not a call"
+        );
+    }
 
     #[test]
     fn a_probe_with_coverage_off_records_nothing() {
