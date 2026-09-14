@@ -1119,7 +1119,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   (`rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, `rule:http-server/head-runs-as-get`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it` and `rule:http-server/the-body-is-read-on-demand-under-two-caps`).
 - `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the body members
   `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,
-  `sendFile(…)`, `stream(string $contentType)` — replacing `header`, `headers_sent`, `setcookie`,
+  `sendFile(string $path)`, `stream(string $contentType)` — replacing `header`, `headers_sent`, `setcookie`,
   `setrawcookie`, `http_response_code`.
   `setHeader` is a header **sink** and overrides a policy-owned header on one response; `addCookie`'s
   options shape defaults every field from `[http.cookies]`, so a cookie written with no options is
@@ -1127,6 +1127,9 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`). **One body member per shape, each setting its
   own `Content-Type`**, replacing a single `write`: `json` serializes the value itself so a tainted one is
   safe, `text` accepts tainted because `nosniff` is on by default, and `bytes`' content type is a sink.
+  `sendFile` takes the path alone and the path is a sink: a download name is `Content-Disposition`
+  through `setHeader`, and what the bytes are called is the static-file policy's media-type table
+  ([0186](../decisions/0186.md) § 4).
   `stream` is the one that writes its body over time: it is told a media type, on `bytes`' terms and for
   `bytes`' reason, and answers a `Core\Response\Stream` whose `write(bytes|string $chunk)` is a union
   carrying no classification and so refuses a tainted argument outright. An event stream is
