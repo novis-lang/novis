@@ -1,5 +1,5 @@
 --TEST--
-The one thing the front end accepts and nothing below it enforces is refused at its own site — a `spawn script` option is `E0777` (`rule:security/isolate-shares-nothing`, goal `governance`) — while `require` is whole in both of `rule:statements/require-is-the-only-inclusion-construct`'s forms and reports nothing at either
+A construct the front end accepts and nothing below it could act on is refused at its own site — a placement no core answers to is `E0818` (`rule:concurrency/on-worker-runs-the-child-on-another-core`) — while `require` is whole in both of `rule:statements/require-is-the-only-inclusion-construct`'s forms and reports nothing at either
 --FILE--
 <?nvs
 // `rule:statements/a-require-expression-is-mixed`'s value form runs now: the site calls the target file's own
@@ -16,11 +16,12 @@ echo $c as string;
 require "cfg.nvs";
 echo Cfg::name();
 
-// `rule:security/isolate-shares-nothing`'s spawn itself lowers now (`E0703` is retired). What is still
-// refused is an option this compiler parses and does not enforce: a `grants:`
-// narrowing accepted and dropped would hand the child the parent's authority,
-// so it is refused where it is written rather than ignored.
-spawn script "cfg.nvs" with(grants: 7);
+// `rule:security/isolate-shares-nothing`'s spawn itself lowers now (`E0703` is retired), and all
+// five of its options are checked. What is refused is a placement that names
+// no core: `on:` takes one of two written words, because which scheduler
+// starts the child is decided here and a spelling nobody declared has no
+// answer at run time but a spawn that fails.
+spawn script "cfg.nvs" with(on: "remote");
 --FILE cfg.nvs--
 <?nvs
 class Cfg {
@@ -30,11 +31,11 @@ class Cfg {
 }
 return "cfg-value";
 --EXPECTF-ERROR--
-error[E0777]: `spawn script`'s `grants:` is not enforced yet
-   --> %s:20:29
+error[E0818]: `remote` is not a placement
+   --> %s:21:33
    |
-20 | spawn script "cfg.nvs" with(grants: 7);
-   |                             ^^^^^^^^^ this option would be accepted and ignored
-   = help: `rule:security/isolate-shares-nothing` specifies all five options and this compiler enforces `args:` and `output:`. Refusing the other three is deliberate: a `grants:` narrowing that were silently dropped would hand the child the parent's authority
+21 | spawn script "cfg.nvs" with(on: "remote");
+   |                                 ^^^^^^^^ no core is named this
+   = help: `on: "worker"` starts the child on another core and `on: "here"` starts it on this one, which is what a spawn without the option does. A placement a program computes is two spawns under an `if`
 
 error: aborting due to 1 error

@@ -72,9 +72,10 @@
 //!    `{…}` was standing in for.
 //!
 //!    **What they wait on is enforcement.** A job runs as a root isolate
-//!    (`rule:concurrency/a-job-runs-as-a-root-isolate`) and the isolate half refuses `limits:` and
-//!    `grants:` by name — `nvs_types::expr::isolate`'s spawn check reports
-//!    `E_SPAWN_OPTION_UNSUPPORTED` for both — so a row recording either would be
+//!    (`rule:concurrency/a-job-runs-as-a-root-isolate`) and the isolate half applies neither: the
+//!    spawn's own `limits:` and `grants:` are checked where they are written
+//!    (`nvs_types::expr::isolate`) and no sub-cap or narrowing reaches a child, so a row recording
+//!    either would be
 //!    `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s accepted-and-dropped narrowing,
 //!    which hands the job the authority its request meant to give up. Undeclared *is* the refusal
 //!    here: a bag reports a key it does not declare
@@ -5705,7 +5706,7 @@ mod tests {
     /// A declared option that `push` recorded in the row and no isolate applied is
     /// `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s accepted-and-dropped narrowing:
     /// the job keeps the authority the enqueuing request meant to give up, which is a priority-1
-    /// failure rather than a missing feature. The isolate half refuses both by name today, so
+    /// failure rather than a missing feature. The isolate half applies neither today, so
     /// undeclared is the matching refusal — a bag reports a key it does not declare
     /// (`rule:core-api/shape-reuses-the-option-diagnostics`), and this reads the rows a call site
     /// resolves that diagnostic off.

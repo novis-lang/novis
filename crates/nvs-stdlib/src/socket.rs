@@ -172,16 +172,16 @@
 //! # Why `limits:`, `grants:` and `on:` are not parameters
 //!
 //! § 2 lists four options and calls them "0006's, spelled as ordinary named
-//! arguments". Three of the four are **refused** at the sibling site:
-//! `nvs_types::expr::isolate` reports `E_SPAWN_OPTION_UNSUPPORTED` for
-//! `spawn script`'s `limits:`, `grants:` and `on:`, because a `grants:`
-//! narrowing that were silently dropped would hand the child the parent's
-//! authority. Declaring them here would be that same drop with a different
-//! spelling — the row would accept them and the body would ignore them — so
-//! they are simply not declared, and a program writing `grants: {}` gets the
-//! unknown-argument refusal rather than a silent widening. They arrive here
-//! when they are enforced there; that refusal is the rule's one home and this
-//! module does not restate it.
+//! arguments". Three of the four narrow the child — the budget it may spend,
+//! the authorities it inherits, the core it starts on — and this member
+//! forwards none of them: an upgrade opens the connection isolate itself, and
+//! nothing in the body carries a sub-cap or a grant to it. A row declaring
+//! them would accept a narrowing and drop it, which is the one reading of
+//! `grants:` that hands the connection the authority its request meant to give
+//! up, so they are simply not declared and a program writing `grants: {}` gets
+//! the unknown-argument refusal rather than a silent widening. They arrive
+//! here when the body forwards them; `rule:concurrency/an-upgrades-options-are-spawn-scripts`
+//! is that rule's one home and this module does not restate it.
 //!
 //! `output:` is the fifth and does not apply: an isolate's `output:` chooses
 //! between its own buffer and the parent's stream

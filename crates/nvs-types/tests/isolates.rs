@@ -37,37 +37,82 @@ $h = $undefined;",
             .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
         "{diags:?}"
     );
-    assert!(
-        !diags
-            .iter()
-            .any(|d| d.code == Some(code::E_SPAWN_OPTION_UNSUPPORTED)),
+    // Both reports are the typo's own: the name is undeclared, and the `mixed`
+    // it recovers as does not satisfy the handle `$h` is bound to. Neither
+    // construct adds one of its own, which is what this half asserts.
+    assert_eq!(
+        diags.iter().filter(|d| d.code.is_some()).count(),
+        2,
         "{diags:?}"
     );
 }
 
-/// The two options this compiler enforces are accepted, and the three it does
-/// not are refused where they are written rather than accepted and ignored —
-/// `E_SPAWN_OPTION_UNSUPPORTED`'s own doc is the home of why that is the safe
-/// reading and not the pedantic one.
+/// All five options are accepted, and each of the three that narrow a child
+/// carries the type its enforcement reads —
+/// `nvs_types::expr::isolate`'s `check_spawn_script` is the home of which type
+/// and why.
+///
+/// The accepted spawn writes all five at once because that is the claim: an
+/// option refused beside the others would fail here while looking right on its
+/// own line. Each refusal below is then the same option written wrong, so what
+/// is asserted is the type and not the key.
 #[test]
-fn the_three_unenforced_spawn_options_are_refused_and_the_two_enforced_ones_are_not() {
-    let accepted =
-        check_in_method("var $h = spawn script \"c.nvs\" with(args: 7, output: \"capture\");");
-    assert!(
-        !accepted
-            .iter()
-            .any(|d| d.code == Some(code::E_SPAWN_OPTION_UNSUPPORTED)),
-        "{accepted:?}"
+fn spawn_script_accepts_limits_grants_and_on_and_checks_their_types() {
+    let accepted = check_in_method(
+        "var $h = spawn script \"c.nvs\" with(args: 7, output: \"capture\", \
+         limits: {memory: \"64M\", max_tasks: 8}, grants: [\"net.connect\"], on: \"worker\");",
     );
-    for option in ["limits: 7", "grants: 7", "on: \"worker\""] {
+    assert!(!accepted.has_errors(), "{accepted:?}");
+
+    // A budget is a shape of sub-caps and a grant list is an array of names,
+    // so a scalar in either position is the ordinary mismatch.
+    for option in ["limits: 7", "grants: 7", "limits: {max_tasks: \"8\"}"] {
+        let diags = check_in_method(&format!("var $h = spawn script \"c.nvs\" with({option});"));
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{option}: {diags:?}"
+        );
+    }
+
+    // The half width subtyping would otherwise accept: a misspelled ceiling is
+    // a narrowing the program asked for and would not have got.
+    let typo = check_in_method("var $h = spawn script \"c.nvs\" with(limits: {memmory: \"64M\"});");
+    assert!(
+        typo.iter().any(|d| d.code == Some(code::E_UNKNOWN_OPTION)),
+        "{typo:?}"
+    );
+}
+
+/// `on:` takes one of two written words, and `rule:concurrency/on-worker-runs-the-child-on-another-core`
+/// is why it is written rather than computed: the placement decides which
+/// scheduler starts the child, once, where the spawn is.
+///
+/// The four spellings are the four ways to get it wrong — a word that is not a
+/// placement, one that differs by case, a value of the wrong type, and a
+/// `string` that would only be readable at run time — and they are asserted
+/// together because a check that told a computed placement from an unknown one
+/// would accept the first `string` variable it was handed.
+#[test]
+fn an_unknown_placement_for_on_is_refused_at_compile_time() {
+    for option in ["on: \"remote\"", "on: \"Worker\"", "on: 7"] {
         let diags = check_in_method(&format!("var $h = spawn script \"c.nvs\" with({option});"));
         assert!(
             diags
                 .iter()
-                .any(|d| d.code == Some(code::E_SPAWN_OPTION_UNSUPPORTED)),
+                .any(|d| d.code == Some(code::E_SPAWN_PLACEMENT_UNKNOWN)),
             "{option}: {diags:?}"
         );
     }
+
+    let computed = check_in_method(
+        "string $where = \"worker\";\nvar $h = spawn script \"c.nvs\" with(on: $where);",
+    );
+    assert!(
+        computed
+            .iter()
+            .any(|d| d.code == Some(code::E_SPAWN_PLACEMENT_UNKNOWN)),
+        "{computed:?}"
+    );
 }
 
 /// A spawn answers with `Core\Script\Handle`, which a program may name in a

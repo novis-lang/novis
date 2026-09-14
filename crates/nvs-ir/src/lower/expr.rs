@@ -3119,9 +3119,10 @@ impl<'a> Lowering<'a> {
     /// `output:` spelling — with the two options materialized to `null` and
     /// `"capture"` where the program omitted them, the same way
     /// [`Self::lower_options_arg`] materializes an `rule:core-api/shape-rules` R2 bag's defaults.
-    /// `limits:`, `grants:` and `on:` never arrive: `nvs_types`' own
-    /// `check_spawn_script` refuses each under `E0777` rather than let one be
-    /// accepted and dropped.
+    /// `limits:`, `grants:` and `on:` are checked where they are written
+    /// (`nvs_types::expr::isolate`) and are not carried here yet, so a program
+    /// that writes one is compiled as though it had not: the isolate applies
+    /// no sub-cap, narrows no grant and starts every child on this core.
     ///
     /// The `args:` value is **transferred**, alone among the three, because it
     /// is the one the isolate keeps: it crosses the boundary into the child's

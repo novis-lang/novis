@@ -460,8 +460,8 @@ const LOWERS_IN_A_BODY: &[&str] = &[
 /// — so these belong in the same table as the rows above, on the far side of
 /// the same claim.
 const REFUSED_IN_A_BODY: &[&str] = &[
-    // `rule:security/isolate-shares-nothing`'s spawn with an option this compiler parses and does not
-    // enforce (`E0777`) — the construct itself lowers, one table up.
+    // `rule:security/isolate-shares-nothing`'s spawn whose `grants:` is a scalar where the option
+    // takes a list of capability names — the construct itself lowers, one table up.
     "spawn script \"cfg.nvs\" with(grants: 7);",
     // The three PHP statement forms the AST still carries a variant for
     // because refusing a shape means parsing it first.

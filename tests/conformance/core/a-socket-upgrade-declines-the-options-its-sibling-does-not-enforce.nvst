@@ -3,12 +3,11 @@
 --FILE--
 <?nvs
 // `rule:concurrency/an-upgrade-is-spawn-shaped` lists four options and calls them 0006's. Three of the four --
-// `limits:`, `grants:` and `on:` -- are refused at the sibling site with
-// `E_SPAWN_OPTION_UNSUPPORTED`, because a `grants:` narrowing that were
-// silently dropped would hand the child the parent's authority. Declaring them
-// on this row would be that same drop with a different spelling, so the row
-// declares `entry` and `args` and nothing else, and the call below has no
-// parameter to bind to.
+// `limits:`, `grants:` and `on:` -- narrow the child, and this member forwards
+// none of them to the connection isolate it opens. Declaring them on this row
+// would accept a narrowing and drop it, which is the reading of `grants:` that
+// hands the child the parent's authority, so the row declares `entry` and
+// `args` and nothing else, and the call below has no parameter to bind to.
 //
 // This is the fail-closed direction stated as a case: what a reader has to be
 // able to tell apart is a narrowing that was applied from one that was
@@ -19,9 +18,9 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0486]: no parameter of this call can be filled by the name `grants`
-   --> case.nvs:13:42
+   --> case.nvs:12:42
    |
-13 | Core\Socket::upgrade("sockets/chat.nvs", grants: {});
+12 | Core\Socket::upgrade("sockets/chat.nvs", grants: {});
    |                                          ^^^^^^ no such parameter
    = help: the parameters are: `entry:`, `args:`
 

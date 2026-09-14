@@ -3020,18 +3020,12 @@ pub mod code {
     pub const E_SECRET_CROSSES_A_BOUNDARY: Code = Code::new("E0775");
     // `E0776` is retired and is never reused: `await` lowers, as `spawn
     // script` does at `E0703`.
-    /// `spawn script … with(limits: …)`, `with(grants: …)` or `with(on: …)` —
-    /// an `rule:security/isolate-shares-nothing` option this compiler parses and does not yet enforce.
-    ///
-    /// Refused rather than ignored, and that is the whole of the decision: a
-    /// `grants:` narrowing that is silently dropped hands the child the
-    /// parent's authority, which is priority 1 traded for a nicer error
-    /// message. `limits:` and `on:` are refused beside it because the same
-    /// reading — "the program asked for something and got something else" —
-    /// applies to a budget and to a core, and because refusing all three is
-    /// one rule for a reader to learn instead of three cases. Enforcement is
-    /// goal `governance`'s, and it is what removes this code.
-    pub const E_SPAWN_OPTION_UNSUPPORTED: Code = Code::new("E0777");
+    // `E0777` is retired and is never reused: `spawn script`'s `limits:`,
+    // `grants:` and `on:` are checked where they are written
+    // (`nvs_types::expr::isolate`), and an option the compiler checks has no
+    // refusal left to carry. A placement that is neither word is
+    // `E_SPAWN_PLACEMENT_UNKNOWN` and a `limits:` key that is no sub-cap is
+    // `E_UNKNOWN_OPTION`, each reported at the option it is about.
 
     /// A user-declared class's non-static method reached through the class
     /// name from a frame that holds no `$this` — `C::f()` at file scope, or
@@ -3557,6 +3551,24 @@ pub mod code {
     /// opinion the request will not send or a `body` the call site forgot to
     /// write.
     pub const E_CONTENT_TYPE_WITHOUT_A_BODY: Code = Code::new("E0817");
+
+    /// `spawn script … with(on: …)` written as anything but the word
+    /// `"worker"` or the word `"here"` —
+    /// `rule:concurrency/on-worker-runs-the-child-on-another-core`.
+    ///
+    /// The placement decides which scheduler starts the child and is decided
+    /// once, where the spawn is written, so `on:` takes a written word rather
+    /// than a `string` value. A computed placement could only be read at run
+    /// time, where a spelling nobody declared has no answer but a spawn that
+    /// fails — and a program that asked for another core and got a failure, or
+    /// silently got this one, is measuring something it did not ask for. Two
+    /// spawns under an `if` say the same thing with the question asked here.
+    ///
+    /// A code of its own rather than the mismatch against a union of the two
+    /// literals that `nvs_types::expr::isolate` could report instead: an
+    /// expected type claims a position accepts values of that type, and this
+    /// one accepts two words.
+    pub const E_SPAWN_PLACEMENT_UNKNOWN: Code = Code::new("E0818");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

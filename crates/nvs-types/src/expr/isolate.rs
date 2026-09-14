@@ -3,10 +3,13 @@
 //!
 //! Both arms compile, and so do both entry forms: `nvs_ir::lower`'s
 //! `lower_spawn_script` and `lower_await` are the two `CoreCall`s they become.
-//! What still refuses here is narrower and is named where it is reported —
-//! three of `rule:security/isolate-shares-nothing`'s five options (`E0777`), and an operand that is neither
-//! a path nor a static method (`E0802`). [`check_entry`] owns the operand rule
-//! itself, and the one thing it does not yet ask.
+//! All five of `rule:security/isolate-shares-nothing`'s options are checked
+//! here, and what refuses is named where it is reported — a placement that is
+//! neither `"worker"` nor `"here"` (`E0818`), a `limits:` key that is not a
+//! sub-cap a program may narrow (`E0454`), and an operand that is neither a
+//! path nor a static method (`E0802`). [`check_entry`] owns the operand rule
+//! itself, and the one thing it does not yet ask; [`check_spawn_script`] owns
+//! what each option is typed as.
 //!
 //! **The operand rule has a second site and no second implementation.** ADR
 //! 0083 § 2 opens a persistent connection with "0006's operand", so a `Core`
@@ -122,6 +125,31 @@ use super::{check_expr, reject_secret_crossing};
 /// type reports the mistakes on the *other* lines too, and the one thing a
 /// program can write with a handle is the one thing that has a type to check
 /// it against.
+///
+/// # What each option is typed as
+///
+/// `args:` is the value that crosses and has no expected type, for the reason
+/// the arm below gives. `output:` is the spelling that chooses a sink. The
+/// three that narrow a child take the shapes their enforcement reads:
+///
+/// - **`limits:` is a shape of [sub-caps](SUB_CAP_SETTINGS)**, each optional,
+///   because a spawn site narrows the ceilings it names and inherits the rest
+///   (`rule:security/isolate-budget-is-the-trees`). A key that is not one of
+///   them is `E0454` rather than an extra field `rule:types/shape-type`'s width
+///   subtyping would accept: a misspelled ceiling that compiles is a narrowing
+///   the program asked for and did not get, which is the failure the whole
+///   option exists to prevent.
+/// - **`grants:` is an `array<string>`** — capability names in the spelling
+///   `nvs.toml` grants them under, which is the one spelling a reader has to
+///   learn and the one the door already asks against
+///   (`rule:security/capability-check-at-the-door`). What the names *mean* is
+///   not a question this crate can answer: a deployment's overlay decides
+///   which authorities exist, so a name is checked where it is asked for and
+///   never here.
+/// - **`on:` is a written placement**, checked by [`check_placement`] against
+///   the two `rule:concurrency/on-worker-runs-the-child-on-another-core` names
+///   rather than by an expected type, because `string` accepts every spelling
+///   that is not one of them.
 pub(crate) fn check_spawn_script(
     path: &Expr,
     options: &[SpawnOption],
@@ -140,41 +168,30 @@ pub(crate) fn check_spawn_script(
             // already settle.
             SpawnOptionKey::Args => None,
             SpawnOptionKey::Output => Some(string),
-            SpawnOptionKey::Limits | SpawnOptionKey::Grants | SpawnOptionKey::On => {
-                env.diags.report(
-                    Diagnostic::error(
-                        code::E_SPAWN_OPTION_UNSUPPORTED,
-                        format!(
-                            "`spawn script`'s `{}:` is not enforced yet",
-                            spelling(opt.key)
-                        ),
-                    )
-                    .with_primary(opt.span, "this option would be accepted and ignored")
-                    .with_help(
-                        "`rule:security/isolate-shares-nothing` specifies all five options and this compiler enforces \
-                         `args:` and `output:`. Refusing the other three is deliberate: a \
-                         `grants:` narrowing that were silently dropped would hand the \
-                         child the parent's authority",
-                    ),
-                );
-                None
-            }
+            SpawnOptionKey::Limits => Some(sub_caps(env)),
+            SpawnOptionKey::Grants => Some(env.interner.array(string)),
+            // Checked below, against the two placements rather than against a
+            // type — see this function's own doc.
+            SpawnOptionKey::On => None,
         };
         let ty = check_expr(&opt.value, expected, live, scope, ctx, env);
-        // `rule:security/secret-sinks-refuse`'s second carrier. The bullet refuses a `secret` value at
-        // the graph copy "for both its callers alike", so this is the same
-        // refusal `Core\Serialize::encode` reports and not a spawn-specific
-        // rule — `super::quals::reject_secret_crossing` owns the sentence, and
-        // only the clause naming where the copy went differs.
-        if opt.key == SpawnOptionKey::Args {
-            reject_secret_crossing(
+        match opt.key {
+            // `rule:security/secret-sinks-refuse`'s second carrier. The bullet refuses a `secret` value at
+            // the graph copy "for both its callers alike", so this is the same
+            // refusal `Core\Serialize::encode` reports and not a spawn-specific
+            // rule — `super::quals::reject_secret_crossing` owns the sentence, and
+            // only the clause naming where the copy went differs.
+            SpawnOptionKey::Args => reject_secret_crossing(
                 &opt.value,
                 ty,
                 "`spawn script`'s `args:` copies it into a child whose arena this request \
                  cannot reach into",
                 None,
                 env,
-            );
+            ),
+            SpawnOptionKey::Limits => reject_unknown_sub_cap(ty, opt.span, env),
+            SpawnOptionKey::On => check_placement(&opt.value, env),
+            SpawnOptionKey::Grants | SpawnOptionKey::Output => {}
         }
     }
     script_handle(env)
@@ -377,15 +394,141 @@ fn refuse_entry(span: Span, path: &Expr, form: &str) -> Diagnostic {
     }
 }
 
-/// One option key as the program spells it.
-fn spelling(key: SpawnOptionKey) -> &'static str {
-    match key {
-        SpawnOptionKey::Args => "args",
-        SpawnOptionKey::Limits => "limits",
-        SpawnOptionKey::Grants => "grants",
-        SpawnOptionKey::Output => "output",
-        SpawnOptionKey::On => "on",
+/// The `[limits]` keys a spawn site may narrow, written as `nvs.toml` writes
+/// them — `memory: "64M"`, `cpu_time: "2s"`.
+///
+/// The `Runtime`-class directives of that block (`nvs_config::directive`) and
+/// no others: those are the ceilings a request may already set for itself, and
+/// `limits:` asks the same question one level down, against what the tree has
+/// left (`rule:security/isolate-budget-is-the-trees`). A `System` key —
+/// `limits.max_script_depth`, the fatal reserves — is the operator's, and a
+/// program narrowing the ceiling that exists to bound it is the direction that
+/// class refuses.
+///
+/// One spelling rather than two: a size and a duration are strings here because
+/// they are strings in the file the same value is configured in, so the
+/// enforcement half reads either through `nvs_config`'s own parser rather than
+/// growing a second one for the numbers a spawn site writes.
+const SUB_CAP_SETTINGS: [&str; 4] = ["cpu_time", "max_output", "memory", "wall_time"];
+
+/// The sub-caps of [`SUB_CAP_SETTINGS`]' block that are a plain count, and so
+/// are written as an `int`.
+const SUB_CAP_COUNTS: [&str; 1] = ["max_tasks"];
+
+/// The two placements `rule:concurrency/on-worker-runs-the-child-on-another-core`
+/// names, in the spelling `on:` takes.
+const PLACEMENTS: [&str; 2] = ["here", "worker"];
+
+/// `limits:`'s expected type: every sub-cap, each optional.
+///
+/// Optional because a spawn narrows the ceilings it names and inherits the
+/// rest — a required field would make `{memory: "64M"}` mean "and no bound on
+/// anything else", which is the opposite of what a sub-cap is.
+fn sub_caps(env: &mut Env<'_>) -> TypeId {
+    let string = env.interner.string();
+    let int = env.interner.int();
+    let mut fields: Vec<ShapeField> = SUB_CAP_SETTINGS
+        .iter()
+        .map(|name| optional_field(name, string))
+        .collect();
+    fields.extend(SUB_CAP_COUNTS.iter().map(|name| optional_field(name, int)));
+    env.interner.shape(fields)
+}
+
+/// One field of [`sub_caps`]' shape.
+fn optional_field(name: &str, ty: TypeId) -> ShapeField {
+    ShapeField {
+        name: name.to_owned(),
+        ty,
+        required: false,
     }
+}
+
+/// The half [`sub_caps`] cannot express: a key that is not a sub-cap at all.
+///
+/// `rule:types/shape-type`'s width subtyping accepts a field the target does
+/// not name, which is right for a shape and wrong for this option — a
+/// `{memmory: "64M"}` that compiles is a ceiling the program asked for and did
+/// not get. So the written shape's own field names are read back and the extras
+/// refused, which is [`code::E_UNKNOWN_OPTION`]'s own reading of a bag: a
+/// misspelled key that is silently ignored is what that code exists for.
+fn reject_unknown_sub_cap(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let Ty::Shape(fields) = env.interner.get(ty) else {
+        return;
+    };
+    let unknown: Vec<String> = fields
+        .iter()
+        .filter(|field| !is_sub_cap(&field.name))
+        .map(|field| field.name.clone())
+        .collect();
+    for name in unknown {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_UNKNOWN_OPTION,
+                format!("`{name}` is not a limit a spawn site can narrow"),
+            )
+            .with_primary(span, "no sub-cap of this name")
+            .with_help(format!("the sub-caps are: {}", sub_cap_list())),
+        );
+    }
+}
+
+/// Whether `name` is one of the two lists above.
+fn is_sub_cap(name: &str) -> bool {
+    SUB_CAP_SETTINGS.contains(&name) || SUB_CAP_COUNTS.contains(&name)
+}
+
+/// Every sub-cap, for the help text — the list a program reads instead of the
+/// directive table, since what is narrowable here is a subset of that table.
+fn sub_cap_list() -> String {
+    SUB_CAP_SETTINGS
+        .iter()
+        .chain(SUB_CAP_COUNTS.iter())
+        .map(|name| format!("`{name}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// `on:`'s rule: the placement is one of two words, **written here**.
+///
+/// A written word rather than a `string` value, because the placement decides
+/// which scheduler starts the child and is decided once, where the spawn is
+/// (`rule:concurrency/on-worker-runs-the-child-on-another-core`). A computed
+/// one would have to be read at run time, where the only answer to a spelling
+/// nobody declared is a spawn that fails for a reason the program could have
+/// been told about here; two spawns under an `if` say the same thing with the
+/// question asked at compile time.
+///
+/// The refusal is this code and not a mismatch against a union of the two
+/// literals, for [`entry_operand`]'s reason in a smaller key: naming an
+/// expected type claims the position accepts values of it, and this one accepts
+/// two words.
+fn check_placement(value: &Expr, env: &mut Env<'_>) {
+    let diag = if let ExprKind::Str(span) = value.kind {
+        let written = crate::string_lit::cook_string_literal(env.src, span);
+        if PLACEMENTS.contains(&written.as_str()) {
+            return;
+        }
+        Diagnostic::error(
+            code::E_SPAWN_PLACEMENT_UNKNOWN,
+            format!("`{written}` is not a placement"),
+        )
+        .with_primary(value.span, "no core is named this")
+    } else {
+        Diagnostic::error(
+            code::E_SPAWN_PLACEMENT_UNKNOWN,
+            "a placement is written at the spawn site",
+        )
+        .with_primary(
+            value.span,
+            "this is a value rather than one of the two words",
+        )
+    };
+    env.diags.report(diag.with_help(
+        "`on: \"worker\"` starts the child on another core and `on: \"here\"` starts it on \
+         this one, which is what a spawn without the option does. A placement a program \
+         computes is two spawns under an `if`",
+    ));
 }
 
 /// `await <operand>` — the prefix half of the same surface, checked in the
