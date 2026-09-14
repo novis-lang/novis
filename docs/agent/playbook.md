@@ -2025,6 +2025,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   for both or writes them as a numbered list. Run `python tools/owners.py --check
   --untagged-is-an-error` after editing any `# Known gaps` block — it names the file and line, and
   it is a floor check, so a stray trailer holds the whole run. [until: reviewed 2026-10-14]
+- **A `re:` peek target's `:N` suffix caps the hits, and `:0` means *uncapped*, not *default*.**
+  `python tools/peek.py 'docs/agent/loop-goal.toml:re:^stage = :0'` printed all 712 matching lines
+  and about 8k of context, where the same target without the suffix would have stopped at the
+  default. Leave the suffix off unless you want more than the default, and never write `:0` over a
+  file whose matches you have not counted first. [until: reviewed 2026-09-14]
 
 ## Running things
 
