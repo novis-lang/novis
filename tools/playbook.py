@@ -175,9 +175,15 @@ PATH_TRIM = re.compile(r"(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'\"]+)$")
 #: Add an entry only after reading the bullet and recording the finding in `.loop/optimization/`.
 #: An entry naming a bullet that no longer exists is reported rather than ignored.
 DELIBERATE_STALE: dict[tuple[str, str], str] = {
-    # Empty since the 2026-09-06 condensation: the two bullets that quoted a gone path on purpose
-    # now state their trap without spelling the path. Add a pair here only when a bullet's whole
-    # subject IS a path that is gone, so `--check`'s stale-path signal can still reach `none`.
+    # The bullet's subject is that `check-links.py` resolves a crate path written without its
+    # `crates/` prefix as a suffix against the repository root, so it has to spell the suffix that
+    # nothing answers beside the real file it came from. Rewording it to drop the suffix would
+    # delete the trap. Add a pair here only when a bullet's whole subject IS a path that is gone,
+    # so `--check`'s stale-path signal can still reach `none`.
+    ("Tooling > a tool's prose", "tests/vectors.rs"):
+        "the suffix `check-links.py` wrongly resolves to; the file is "
+        "crates/nvs-stdlib/src/tests/vectors.rs, and the bullet names both because the "
+        "relation between them is the trap",
 }
 
 #: The default `--dupes` floor, and the only threshold at which `DELIBERATE_DISTINCT` is audited.
