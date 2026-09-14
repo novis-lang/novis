@@ -386,11 +386,10 @@
 # and Windows listens on TCP loopback.
 #root = "/srv/app"
 #listen = ["127.0.0.1:8080"]
-# NOT IMPLEMENTED — nothing in this workspace binds a Unix socket yet, so there is no socket for a
-# mode to apply to. What the mode decides is which accounts may connect and so forge a forwarded
-# header, which is `rule:config/ownership-is-the-trust-boundary`'s question asked of a socket rather
-# than of a file. `rule:http-server/a-unix-socket-listener` is what closes it.
-# Unix-socket entries only.
+# Unix-socket entries only, and the whole of who may connect to one: a connection over a Unix
+# socket names its own client address, so this is `rule:config/ownership-is-the-trust-boundary`'s
+# question asked of a socket rather than of a file. `0660` with the key left out — the owner's
+# account and the socket's group, and adding a tenant to that group grants them that address.
 #socket_mode = "0660"
 
 # How a request finds its entry file: `entry` or `path`. The development default is `path`

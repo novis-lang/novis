@@ -2,7 +2,8 @@
 //! drain period as durations — refusing the magnitudes that would leave a connection unbounded —
 //! and `listen` as the sockets to bind.
 //!
-//! Those, along with `max_in_flight`, `workers` and `health_path`, are the only parts of `[server]`
+//! Those, along with `max_in_flight`, `workers`, `socket_mode` and `health_path`, are the only
+//! parts of `[server]`
 //! that resolve to something other than what was written *here*, so this module is small on purpose:
 //! everything else in the block is a path or a word read directly off [`crate::tree::Server`]. The
 //! mount table resolves as well, and it is [`mod@crate::mount`]'s because it needs a disk to
@@ -43,6 +44,15 @@
 //! server's start depend on a nameserver. Which of the classified entries a given process actually
 //! binds is the caller's — [`Listen`] says what each entry *is* and nothing about how many cores
 //! there are.
+//!
+//! **`socket_mode` is those entries' trust boundary and not a convenience.** A connection over a
+//! Unix socket is implicitly trusted for the forwarded headers
+//! (`rule:http-server/a-unix-socket-listener`) precisely because this mode decided who could
+//! connect, so [`socket_mode_for`] refuses every spelling that is not a permission set rather than
+//! reading one as far as it parses: each guess it could make is a different answer to that
+//! question. `0660` where the key is absent, which is the one place in this module where the
+//! default is narrower than the platform's own — the umask's `022` would create the socket
+//! world-connectable.
 //!
 //! **`workers` is the one key here whose default this machine answers**, and it is a bound rather
 //! than a request for one: with nothing written the count is
@@ -344,6 +354,70 @@ fn classify(entry: &str, origins: &BTreeMap<String, Origin>) -> Result<Listen, D
     })
 }
 
+/// § 5's own `socket_mode`: the owner's account and the socket's group, and nobody else.
+///
+/// Not the umask's answer, for `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
+/// reason — an ordinary `022` would create the socket world-connectable, and on this transport
+/// that is world-trusted.
+const DEFAULT_SOCKET_MODE: u32 = 0o660;
+
+/// The mode every Unix-domain entry of `listen` is created with, and [`DEFAULT_SOCKET_MODE`]
+/// where the block writes none.
+///
+/// **This is a trust boundary and not a convenience.** A connection over a Unix socket is
+/// implicitly trusted for the forwarded headers (`rule:http-server/a-unix-socket-listener`),
+/// because what decided who may connect is this mode — so `0660` means *the owner and that group
+/// may name their own client address*, and adding a tenant to the socket's group on a
+/// multi-tenant host grants them exactly that.
+///
+/// A `String` in the tree and a number here, because a file mode is octal and TOML has no octal
+/// integer: an unquoted `0660` would be read as six hundred and sixty. Read once at boot with the
+/// rest of a `Boot`-class block, so a reload never moves the mode under a socket already bound.
+///
+/// # Errors
+///
+/// `E0648` for a value that is not a permission set — a digit outside `0-7`, anything longer than
+/// four digits, and a fourth digit above `0`, which is where `setuid`, `setgid` and the sticky bit
+/// would be. Each is refused rather than masked down to what parses, because every reading this
+/// function could invent for a malformed mode is a different answer to who may connect.
+pub fn socket_mode_for(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<u32, Diagnostic> {
+    let Some(written) = config
+        .server
+        .as_ref()
+        .and_then(|server| server.socket_mode.as_ref())
+    else {
+        return Ok(DEFAULT_SOCKET_MODE);
+    };
+    let refuse = |why: &str| {
+        Err(Diagnostic::error(
+            code::E_BAD_SOCKET_MODE,
+            format!("`server.socket_mode` is `{written}`, which {why}"),
+        )
+        .with_note(format!(
+            "the mode on a Unix-domain socket is the whole of who may connect to it, and a \
+             connection that arrives over one is trusted to name its own client address{}",
+            origin_note(origins.get("server.socket_mode"))
+        ))
+        .with_help(
+            "write the permissions as octal in quotes, as `\"0660\"` — the proxy's account and its \
+             group, which is `rule:http-server/a-unix-socket-listener`'s own default",
+        ))
+    };
+    if written.is_empty() || written.len() > 4 {
+        return refuse("is not a file mode written as three or four octal digits");
+    }
+    let Ok(mode) = u32::from_str_radix(written, 8) else {
+        return refuse("is not octal");
+    };
+    if mode > 0o777 {
+        return refuse("sets a bit that is not a permission — `setuid`, `setgid` or sticky");
+    }
+    Ok(mode)
+}
+
 /// The cores this server accepts on, as the tree's `[server] workers` bounds them.
 ///
 /// With the key left out the count is what this machine answers
@@ -642,6 +716,47 @@ mod tests {
 
     fn tree(text: &str) -> Config {
         toml::from_str(text).expect("the fixture did not deserialize")
+    }
+
+    /// § 5's `socket_mode`, from the three answers it has: the default, a written mode, and every
+    /// spelling that is not a mode at all.
+    ///
+    /// The default is asserted as `0660` rather than as "whatever the constant says", because the
+    /// number is the reachable-by-default set on a transport whose connections are trusted — a
+    /// reading that fell back to the umask would pass a test that only checked the key was read.
+    /// The refusals are each a value that *nearly* parses: a `0999` that is decimal, a `1777` whose
+    /// fourth digit is the sticky bit, and a `06600` that is a mode with a digit too many. Each is
+    /// one an operator could plausibly type, and each would otherwise become a different answer to
+    /// who may connect.
+    #[test]
+    fn socket_mode_is_owner_and_group_by_default_and_every_non_mode_is_refused() {
+        let origins = BTreeMap::new();
+        for written in ["", "[server]\nlisten = [\"/run/nvs.sock\"]\n"] {
+            assert_eq!(
+                socket_mode_for(&tree(written), &origins).expect("an unwritten mode was refused"),
+                0o660,
+                "for {written:?}"
+            );
+        }
+        for (written, mode) in [("\"0660\"", 0o660), ("\"600\"", 0o600), ("\"0666\"", 0o666)] {
+            assert_eq!(
+                socket_mode_for(
+                    &tree(&format!("[server]\nsocket_mode = {written}\n")),
+                    &origins
+                )
+                .expect("a written mode was refused"),
+                mode,
+                "for {written}"
+            );
+        }
+        for written in ["\"\"", "\"0999\"", "\"1777\"", "\"06600\"", "\"rw-rw----\""] {
+            let refused = socket_mode_for(
+                &tree(&format!("[server]\nsocket_mode = {written}\n")),
+                &origins,
+            )
+            .expect_err("a value that is not a file mode was accepted");
+            assert_eq!(refused.code, Some(code::E_BAD_SOCKET_MODE), "for {written}");
+        }
     }
 
     /// A tree that writes no `[server]` block is bounded anyway: § 5's own numbers are what the

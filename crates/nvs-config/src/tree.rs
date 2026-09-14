@@ -1081,9 +1081,9 @@ pub struct Server {
     /// One flat array: `host:port`, or an absolute path meaning a Unix socket. Unix sockets are
     /// Unix-only; Windows listens on TCP loopback.
     pub listen: Option<Vec<String>>,
-    /// Unix-socket entries only.
-    ///
-    /// [unread: nothing in the workspace binds a Unix socket, so there is no socket to set a mode on; what the mode decides is which accounts may connect and so forge a forwarded header, which is `rule:config/ownership-is-the-trust-boundary`'s question asked of a socket rather than of a file. owner: rule:http-server/a-unix-socket-listener]
+    /// Unix-socket entries only. What the mode decides is which accounts may connect and so name
+    /// their own client address, which is `rule:config/ownership-is-the-trust-boundary`'s question
+    /// asked of a socket rather than of a file; [`crate::server::socket_mode_for`] reads it.
     pub socket_mode: Option<String>,
     /// `entry` or `path`; the development default is `path` (`rule:config/a-startup-default-is-never-flipped`).
     pub dispatch: Option<String>,

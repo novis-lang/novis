@@ -1961,6 +1961,18 @@ pub mod code {
     /// conversation. The refusal names the key and the two shipped values.
     pub const E_SOCKET_BOUND_REMOVED: Code = Code::new("E0647");
 
+    /// A `[server] socket_mode` that is not a file mode — not octal, wider
+    /// than `0777`, or carrying a bit that is not a permission.
+    ///
+    /// Refused rather than read as far as it parses, because the mode on a
+    /// Unix-domain socket is the whole of who may connect to it and a
+    /// connection that arrives is implicitly trusted for the forwarded
+    /// headers (`rule:http-server/a-unix-socket-listener`). A value this
+    /// reader had to guess the intent of would be a trust boundary chosen
+    /// out of a typo, and the guess an operator would least expect is the
+    /// one that widens it.
+    pub const E_BAD_SOCKET_MODE: Code = Code::new("E0648");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
