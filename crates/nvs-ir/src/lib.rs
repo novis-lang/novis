@@ -231,8 +231,8 @@
 //!    `lower::Lowering`'s own field doc states the one hole shaped differently
 //!    (an argument being *transferred* when a later one throws).
 //!    — owner: unowned
-//! 3. **A tagged value can be built, carried and narrowed, but not yet
-//!    dispatched on.** [`ty::Ty::Tagged`] is the one representation `mixed`,
+//! 3. **A tagged value is built, carried, narrowed and dispatched on, on
+//!    every path this entry names.** [`ty::Ty::Tagged`] is the one representation `mixed`,
 //!    `?T` and every other union erase to, and its own doc comment owns the
 //!    decision and what it spends. What lowers today: a `?T` local, parameter,
 //!    property, return value and call argument; the literal `null`;
@@ -266,10 +266,12 @@
 //!    not here either: `nvs_types` refuses it where it is written
 //!    (`E0482`), an `array<T>` binding being what has an element type to check
 //!    a read against.
-//!    What does not: **arithmetic** on a `mixed`, which is the one reading of
-//!    a tagged value without a checker-proven narrowing that still panics
-//!    naming itself. Closing it adds [`ir::Helper`] variants dispatching on
-//!    the tag, not a second representation.
+//!    **Arithmetic** reads a tag the same way and by the same argument:
+//!    `rule:types/arithmetic`'s rows over a tagged operand are the
+//!    [`ir::Helper::ValueAdd`] family, whose own doc comment is that
+//!    decision's home — one helper per operator dispatching on the pair of
+//!    tags, each carrying the error edge a closed table needs, and no second
+//!    representation anywhere.
 //!    — owner: unowned
 //! 4. **One conversion row is missing.**
 //!    `rule:types/conversion`'s free, total and checked scalar rows all lower, in both
@@ -364,10 +366,7 @@
 //!    [`ir::InstKind::ArrayGet`] throws on an absent key (`rule:php-migration/every-divergence-is-deliberate-and-listed` row
 //!    11), which is the *read* side's answer to the same question this
 //!    vivifying descent asks; [`ir::InstKind::ArraySet`] models no absent key
-//!    at all, because a write is what makes one present. A **static** property
-//!    is narrower still: it reads, but
-//!    [`lower::Lowering`]'s assignment arm has no target for one, so
-//!    `C::$p = v` panics.
+//!    at all, because a write is what makes one present.
 //!    — owner: unowned
 //! 7. **Virtual dispatch resolves by name, not by slot.** An instance call
 //!    lowers to [`ir::InstKind::Call`] — bound to the statically resolved

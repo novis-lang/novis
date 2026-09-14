@@ -1427,13 +1427,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   not a suggestion. `python tools/loop.py --list` prints every check with its stage in one call; run
   it before designing anything the goal's prose only describes.
   [until: reviewed 2026-09-10]
-- **A `carried-refusals.md` entry covers fewer panics than the crate it names holds, and its owner
-  sentence can name a retired goal.** `python tools/holes.py --item 901` prints the fifteen sites its
-  recognizer counts, all in `nvs-ir`'s `lower/*.rs`, while that crate's own gaps 5, 15 and 16 name
-  panics in none of them — and the entry named goal `typed-callable`, retired with every site open.
-  Run `holes.py --item <n>` before tagging a module-doc gap `unowned` against an entry, and read its
-  owner sentence as a claim to check.
-  [until: exists crates/nvs-ir/tests/refusals.rs:const CEILING: usize = 0;]
 - **`owners.py --check --reasons` matches an `unowned` tag to a *path*, not to an item, so the gate
   goes green the moment either reason file names that crate file anywhere.** `unowned_paths` reads
   `carried-gaps.md` § *Unowned* and the whole of `carried-refusals.md` for `crates/….rs` spellings
@@ -2017,6 +2010,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `.loop/log.md` for whether the line repeats, then re-run the fixture a dozen times serially and
   concurrently — a bounded wait whose answer is discarded is what turns a timing miss into a false
   accusation further down. [until: reviewed 2026-10-14]
+- **`holes.py` reporting zero sites does not mean nothing is refused: `REFUSAL` matches the panic's
+  *claim*, and a house-style claim it has no phrasing for is invisible to the count.**
+  `crates/nvs-ir/src/lower/control.rs:460` refuses a `for` header whose condition clause is a comma
+  list, saying it "lowers a `for` header with at most one condition expression" — which matches
+  neither `only lowers` nor `has no arm for`, so no run ever counted it. Before reading a zero as
+  totality, run the shape: one scratch `.agent-tmp/*.nvs` per form the rule's own table names.
+  [until: gone crates/nvs-ir/src/lower/control.rs:at most one condition expression]
 
 ## Running things
 
