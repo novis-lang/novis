@@ -5219,16 +5219,16 @@ want = ["grammar:", "contributions:", "protocol:", "0 failing"]
 # loudly, which is why they are asserted over `package.json` rather than reviewed.
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 8 -- the artifact. The extension-host suite is NOT here and must not be added. A `command` check
-# is not a PROGRAM_KIND, so it runs once on the NATIVE leg (`loop.py` orders legs native-first), which on
-# this machine is Windows: no `xvfb`, and a desktop with the developer's own VS Code open on this
-# repository. An unisolated second instance attaches to that one and exits without running anything, so
-# the suite would report no results and the iteration would go red over a window manager. Nor can it be
-# skipped: there is no platform key on a `command` check, and `memoize` only short-circuits a check that
-# has already PASSED. Leaving it out is the only way to keep it off that desktop. CI owns it, on Linux
-# under `xvfb-run`, which is where `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` puts the milestone gate. Goal prose stage 8.
+# The artifact, carried in as floor. `vsce` is headless, so this check runs once on the NATIVE leg like
+# any other `command` (`loop.py` orders legs native-first), and a `.vsix` that does not build is a broken
+# artifact whatever else passes.
 #
-# Packaging stays: `vsce` is headless, and a `.vsix` that does not build is a broken artifact.
+# The extension-host suite is NOT here. It is this goal's own, at stages 3-5 below, and what lets it run
+# on that same Windows desktop is isolation: a downloaded pinned build rather than the editor the
+# developer installed, a throwaway `--user-data-dir` and `--extensions-dir`, and a fixture copy for a
+# workspace. An unisolated second instance is the thing that attaches to the editor already open and
+# exits with no results. `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` is the rule
+# and docs/decisions/0185.md is the argument.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "command"
@@ -9914,9 +9914,10 @@ want = ["ide/headless-gates-the-loop-the-host-run-gates-the-milestone", "test:ho
 # Stages 3-5 -- the extension-host suite. Goal prose stages 3, 4 and 5. It runs on this machine's
 # native leg in a downloaded, pinned VS Code build with a throwaway profile, and in CI under
 # `xvfb-run`. The three checks share one argv, so the driver runs the suite once and each check
-# judges its own `want`. NOT memoized: `loop.py`'s memo hashes `crates/` and `examples/` alone, so a
-# memo would stay green over an `editors/` change. `{nvs}` is the CLI the leg built, and it reaches
-# `nvs.path` in the throwaway profile only.
+# judges its own `want`. They carry `memoize = false`, because the run reads a downloaded editor build
+# and an installed package tree that `loop.py`'s walk prunes and never hashes: a remembered verdict
+# here would report a green editor run on a machine where no editor started (docs/decisions/0185.md
+# section 3). `{nvs}` is the CLI the leg built, and it reaches `nvs.path` in the throwaway profile only.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -9925,6 +9926,7 @@ stage = "3 the host harness"
 name = "vscode (host) runs isolated from the developer's editor"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:host", "--", "--nvs", "{nvs}"]
+memoize = false
 want = ["runs in a throwaway profile and never the developer's", "host:", "0 failing"]
 
 [[check]]
@@ -9933,6 +9935,7 @@ stage = "4 colour and activation"
 name = "vscode (host) activates on .nvs, colours before and after the server, and matches its legend"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:host", "--", "--nvs", "{nvs}"]
+memoize = false
 want = [
   "activates on a .nvs file and not on a .php file",
   "colours a file from the grammar before the server answers",
@@ -9949,6 +9952,7 @@ stage = "5 the surfaces"
 name = "vscode (host) draws the status, the Problems, the AST panel and the concealment"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:host", "--", "--nvs", "{nvs}"]
+memoize = false
 want = [
   "shows the server's health and version in the status item",
   "runs nvs run as a task whose failure reaches the Problems panel",

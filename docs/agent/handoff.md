@@ -2,45 +2,53 @@
 
 ## State
 
-**Goal `m4b-editor` (the extension is tested in a real editor host and built by CI) has just started;
-nothing of it has landed yet.** Its Stage 1 floor is goal `m5-proofs`'s whole list.
+**Goal `m4b-editor`, stage 2 (the record) is landed.** [0185](../decisions/0185.md) argues the host
+tier, `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` is rewritten whole and no
+longer says "CI only", and `memoize = false` is now read by the driver
+(`tools/loop.py:2443`) and carried by the three host checks.
 
-The design is settled in the goal's § *Standing decisions*. What a session must not re-decide:
+Nothing of stages 3–8 is on disk: `editors/vscode/scripts/host.mjs` and `editors/vscode/test/host/`
+do not exist, so the three `test:host` checks fail on a missing script until stage 3 lands. Stage 1 is
+goal `m5-proofs`'s whole list, untouched. CI is not running (billing block), so stage 6 is proven by
+reading `ci.yml`.
 
-- The host tier runs locally as well as in CI, isolated, and not memoized.
-- The `.vsix` is an ignored build artefact (`.gitignore:98`).
-- Colour is asserted through the editor's commands, never as pixels.
-- The test surface `activate` returns is read-only.
-- There is one new record, which modifies one rule and creates none.
-
-CI is not running (a billing block), so the CI stage is proven by reading `ci.yml`.
+Stage 6's "the acceptance cache sees an extension change" is already true on disk: `tools/loop.py:1682`
+has an `editors` partition and `tools/loop.py:1706`'s `EDITOR_READS` gives an npm check under
+`editors/` the `crates` + `editors` hash. What that stage still owes is only a test of it, and `tools/`
+has no test suite to host one.
 
 ## Next group
 
-**Stage 2: the record**. One file set: `docs/decisions/` and `docs/rules/ide*`, plus the floor
-comment in `docs/agent/goals/56-m4b-editor.toml`.
+**Stage 3: the host harness** — one file set: `editors/vscode/`. The record settles what it must do;
+the goal's § *Stage 3* settles the shape.
 
-- [ ] **The record**: the next free number in `docs/decisions/`, with `changes.modifies`
-      `ide/headless-gates-the-loop-the-host-run-gates-the-milestone`. Its body is the goal's standing
-      decisions on the host tier, argued. It covers why isolation answers the attach-and-exit and
-      `settings.json` reasons the rule gave for "CI only", and why the host check is not memoized
-      (`tools/loop.py:1606`).
-- [ ] **The rule rewritten whole**, in `docs/rules/ide/headless-gates-the-loop-the-host-run-gates-the-milestone.md:1-16`.
-      Its title goes in `docs/rules/ide.json`, and `because` gains the record. Its body names
-      `npm run test:host`, then run `python tools/rules.py --render`
-      (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).
-- [ ] **The floor comment**: in `docs/agent/goals/56-m4b-editor.toml`, the comment over the
-      `vsix packages` floor check is rewritten to point at the amended rule.
+- [ ] **`scripts/host.mjs`** (new, beside `editors/vscode/scripts/headless.mjs:23`): `runTests` against
+      a pinned build cached in `.vscode-test/`, passing `--user-data-dir`, `--extensions-dir`,
+      `--disable-extensions`, a copy of `test/host/fixture/` as the workspace, and `nvs.path` from
+      `--nvs` into that profile's `settings.json` alone. Isolation is
+      `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`, argued in
+      [0185](../decisions/0185.md) § 2; the `--nvs` fallback copies
+      `editors/vscode/test/protocol/session.ts:72`.
+- [ ] **`test/host/index.ts`** (new): Mocha with the `spec` reporter, report to
+      `.vscode-test/host-report.txt` ending `host: N passing, M failing`, which `host.mjs` prints and
+      exits non-zero on. First case `runs in a throwaway profile and never the developer's` — the
+      `want` of the stage 3 check in `docs/agent/loop-goal.toml:9930`.
+- [ ] **The manifest and the headless runner**: `@vscode/test-electron` and a `test:host` script in
+      `editors/vscode/package.json:289` and `:299`, its allowlist entry beside
+      `editors/vscode/test/contributions/contributions.test.ts:108`
+      (`rule:ide/dependencies-are-allowlisted` — runtime `dependencies` stay `vscode-languageclient`
+      alone), and `editors/vscode/scripts/headless.mjs:21` skipping `out/test/host/`.
+- [ ] **The two README paragraphs stage 0 names**: `editors/vscode/README.md:20-23` says the host suite
+      is CI's, and `:29-33` reasons *No pixel tier* from "anything needing a display sits outside the
+      tier the loop gates on". The decision stands; rewrite its reason whole.
 
 ## Backlog
 
-- Stage 3 is the host harness, in `editors/vscode/package.json`, `scripts/host.mjs`,
-  `scripts/headless.mjs`, `test/host/`, the contributions allowlist and `README.md`. It is the keystone.
-- Stages 4 and 5 are the host suites, in `editors/vscode/test/host/`. Stage 5 also touches
-  `src/extension.ts`, `redactions.ts`, `ast.ts` and `tasks.ts`. They share the harness with stage 3.
-- Stage 6 is CI, in `.github/workflows/ci.yml`, `tools/ci-changes.py` and `editors/vscode/.nvmrc`. It
-  gets its own session.
-- Stage 7 is the fuzz run, in `docs/agent/commands.md:592-617` and `fuzz/seeds/prefix/`. Whether WSL has
-  nightly and `cargo-fuzz` is not checked.
-- Stage 8 is the three flips, in `docs/rules/ide*` only.
-- When this goal's last check goes green the driver takes goal `gap-zero`.
+- `tools/` has no test suite, so stage 6's memo test has no host — decide at stage 6 (goal § *Stage 6*).
+- The goal's § *Standing decisions* "Not this goal" list still names widening `MEMO_DIRS`; that work is
+  on disk and the name is gone (`tools/loop.py:1682`).
+- Publishing to the Marketplace or Open VSX stays open
+  (`rule:ide/one-server-two-thin-clients` § *Revisiting*).
+- The stale trivia paragraph in `docs/plan/m4b.md` is goal `plan-truth`'s.
+- The `unowned` module-doc gaps in `crates/nvs-lsp/src/index.rs` and `hints.rs` are goal
+  `unowned-closures`'s.
