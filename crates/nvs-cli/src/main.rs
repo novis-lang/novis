@@ -132,6 +132,7 @@ mod bundle;
 mod cache;
 mod check;
 mod config;
+mod control;
 mod ctl;
 mod doc;
 mod fmt;

@@ -297,10 +297,15 @@ pub(crate) struct Compiler {
     /// hit rather than a recompile.
     units: RwLock<HashMap<UnitKey, CompileState>>,
     /// The environment half of every key here — `rule:config/the-extension-set-is-in-every-unit-key`'s digest, taken
-    /// once from the configuration this process booted, because it is constant
-    /// for the life of a snapshot.
+    /// from the configuration this process is serving.
     ///
-    env: EnvHash,
+    /// Behind a lock because `[[extension]]` is a reloadable directive and the
+    /// digest is the configuration's whole contribution to that rule's key, so
+    /// a reload that changes the set has to be able to move it ([`Self::rekey`]).
+    /// The read is one uncontended [`RwLock`] read on a path that already takes
+    /// two of them, and the write happens once per reload that changes the set.
+    ///
+    env: RwLock<EnvHash>,
     /// `[opcache] validate` and `revalidate_freq`, read once for the same
     /// reason: both are `System`-class, so no request can move them.
     revalidation: Revalidation,
@@ -364,11 +369,53 @@ impl Compiler {
         Self {
             paths: RwLock::new(HashMap::new()),
             units: RwLock::new(HashMap::new()),
-            env: env_hash(config),
+            env: RwLock::new(env_hash(config)),
             revalidation: Revalidation::from_config(config),
             cache: crate::cache::from_config(config),
             compiles: AtomicU64::new(0),
         }
+    }
+
+    /// The environment every key this cache holds was built under.
+    fn env(&self) -> EnvHash {
+        *shared(&self.env)
+    }
+
+    /// How many compiled units this cache holds right now.
+    ///
+    /// The number `rule:config/a-reload-names-what-it-could-not-apply`'s report
+    /// carries as its recompile wave, which is why it counts the unit table and
+    /// not the path map: two paths holding one content are one unit, and one
+    /// path whose content changed is one entry and two.
+    pub(crate) fn held(&self) -> usize {
+        shared(&self.units).len()
+    }
+
+    /// Moves this cache onto the environment `env` names, dropping every unit
+    /// keyed under the one it leaves — and answering how many that was.
+    ///
+    /// `0` for a digest that has not moved, which is every reload that did not
+    /// touch `[[extension]]`: the units stay, and the cheapest reload stays the
+    /// common one.
+    ///
+    /// The units are **dropped** rather than left to age out, because a key is
+    /// half environment (`rule:config/the-extension-set-is-in-every-unit-key`)
+    /// and a unit under the old digest can never be hit again — keeping it would
+    /// hold a compiled program for the life of the process in exchange for
+    /// nothing. The path map goes with them: its entries point at content
+    /// hashes whose units are gone, so a resolve that hit one would take step 1
+    /// down to a compile anyway.
+    pub(crate) fn rekey(&self, env: EnvHash) -> usize {
+        let mut keyed = exclusive(&self.env);
+        if *keyed == env {
+            return 0;
+        }
+        *keyed = env;
+        let mut units = exclusive(&self.units);
+        let dropped = units.len();
+        units.clear();
+        exclusive(&self.paths).clear();
+        dropped
     }
 
     /// The program over `path`'s unit **and** that unit's route table, which is
@@ -441,7 +488,7 @@ impl Compiler {
         //    content's key is the one that runs it; a caller that arrives while
         //    it runs waits behind the same flight, so a cold path stormed by
         //    every core at once costs one front end rather than one per core.
-        let key = UnitKey::new(&written, observed.content_hash, self.env);
+        let key = UnitKey::new(&written, observed.content_hash, self.env());
         let flight = Arc::new(Flight::default());
         let claimed = match self.claim(&key, &flight) {
             Claim::Mine => true,
@@ -496,7 +543,7 @@ impl Compiler {
         path: &Path,
         content: Digest,
     ) -> Option<Result<(Program, Arc<nvs_runtime::routes::Routes>), String>> {
-        match shared(&self.units).get(&UnitKey::new(path, content, self.env))? {
+        match shared(&self.units).get(&UnitKey::new(path, content, self.env()))? {
             // A compile in flight is not an answer, and saying so here is what
             // sends a step-1 hit on this content down to step 3 to wait for it
             // rather than reporting that the cache holds nothing.

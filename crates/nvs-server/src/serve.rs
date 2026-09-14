@@ -531,18 +531,29 @@ pub struct Serving {
     /// handler is. Closed is the default — [`crate::cors`] owns what that means
     /// and why the refusal is taken here rather than in an application.
     cors: Arc<Cors>,
-    /// The tree this instance booted on — `rule:config/the-config-is-an-immutable-snapshot`'s
-    /// immutable snapshot, which every request reads through a clone taken at
+    /// The tree this instance is serving — `rule:config/the-config-is-an-immutable-snapshot`'s
+    /// published snapshot, which every request reads through a clone taken at
     /// its own start ([`serve_connection`]). It rides here for the reason the
     /// policies above it do: one tree for the whole instance, shared by every
     /// core rather than resolved per connection, and never re-read under a
     /// request that has begun.
-    snapshot: Arc<nvs_config::Snapshot>,
+    ///
+    /// The holder rather than the snapshot, so that a reload published on the
+    /// control endpoint reaches the next request rather than the next start
+    /// (`rule:config/one-local-control-socket`). A request that has begun is
+    /// unaffected either way: it holds the [`Arc`] it took, and the clone here
+    /// is taken once at its start.
+    current: Arc<nvs_config::Current>,
 }
 
 impl Serving {
     /// What a boot resolves, as the one argument every connection is served
-    /// under.
+    /// under, over a tree nothing publishes to.
+    ///
+    /// For a server whose configuration cannot move under it — every embedder
+    /// and every test that is about something else. A process with a control
+    /// endpoint takes [`live`](Self::live) instead, since the holder is the
+    /// thing the endpoint publishes into.
     #[must_use]
     pub fn new(
         admission: Arc<Admission>,
@@ -551,12 +562,30 @@ impl Serving {
         cors: Arc<Cors>,
         snapshot: Arc<nvs_config::Snapshot>,
     ) -> Self {
+        Self::live(
+            admission,
+            secure,
+            trusted,
+            cors,
+            Arc::new(nvs_config::Current::new(snapshot)),
+        )
+    }
+
+    /// [`new`](Self::new) over a holder somebody else publishes into.
+    #[must_use]
+    pub fn live(
+        admission: Arc<Admission>,
+        secure: Arc<Secure>,
+        trusted: Arc<Trusted>,
+        cors: Arc<Cors>,
+        current: Arc<nvs_config::Current>,
+    ) -> Self {
         Self {
             admission,
             secure,
             trusted,
             cors,
-            snapshot,
+            current,
         }
     }
 }
@@ -1098,7 +1127,7 @@ where
                 // `[limits]` and every capability an entry asks for is this
                 // line: a context nobody configured states no ceiling and
                 // grants nothing.
-                ctx.borrow_mut().set_config(Arc::clone(&serving.snapshot));
+                ctx.borrow_mut().set_config(serving.current.load());
                 // A statement of its own, because the borrow a `match`
                 // scrutinee takes lives to the end of the whole `match` — and
                 // the arm below borrows the same context again to collect.
