@@ -671,3 +671,14 @@ reports on every TLS connection a fixture opens and which are not leaks of any k
 that assembly rather than on anything Novis wrote as soon as it runs long enough for its queue worker to
 reach the database, so the sweep is unreadable without the file — and, because the two entries are anchored
 on a `ring` or `rustls` frame, still red on an uninitialised value Novis's own unsafe code produced.
+
+**A new thread boundary is where a race hides, so run the sanitizer over it.** `wsl.exe -- bash -lc "bash
+tools/tsan.sh"` is the `tsan:` CI job's own command — ThreadSanitizer over `nvs-host` and `nvs-runtime`,
+the two crates a thread boundary runs through — and it prints `tsan: clean` and nothing else when it is.
+Its header owns what each flag buys; what is worth knowing before you read a report is that a task is a
+stackful coroutine, so the leg is only meaningful because
+[`crates/nvs-host/src/tsan.rs`](../../crates/nvs-host/src/tsan.rs) tells the sanitizer that a resume moved
+the thread onto another stack. That module's doc is the one home of the rule an annotation has to keep,
+and a report that names `__tsan_func_entry` is a broken annotation rather than a race in the code under
+it. Its target directory is under `/var/tmp` and its own, because `RUSTFLAGS` is part of a fingerprint
+and sharing one with the leak sweep would rebuild the tree on every alternation.

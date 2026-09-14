@@ -24,10 +24,10 @@
 > tools/plan.py --stale` is what finds a plan sentence still deferring work to a goal the chain has
 > walked. Each milestone file under [docs/plan/](plan/) states its own acceptance.
 >
-> **On disk:** the workspace and its CI (three platforms, with miri, asan and fuzz legs), and the
-> nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-runtime`,
-> `nvs-stdlib`, `nvs-codegen`, `nvs-cli` — plus `nvs-test`, `nvs-lsp`, `fuzz/`, `tools/`,
-> `benches/abi-probe`, `editors/vscode`, and the two case trees `tests/conformance` and
+> **On disk:** the workspace and its CI (three platforms, with miri, asan, tsan and fuzz legs), and
+> the nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`,
+> `nvs-runtime`, `nvs-stdlib`, `nvs-codegen`, `nvs-cli` — plus `nvs-test`, `nvs-lsp`, `fuzz/`,
+> `tools/`, `benches/abi-probe`, `editors/vscode`, and the two case trees `tests/conformance` and
 > `tests/differential`. **Each crate's own module doc is the authority on what it holds and what it
 > still owes**; `python tools/brief.py` prints one map line each, and `python tools/disk.py` the
 > live counts.

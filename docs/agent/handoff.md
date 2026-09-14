@@ -2,55 +2,40 @@
 
 ## State
 
-**Goal `m5-proofs` (M5). Stage 7 `the speedup` is complete: both of its acceptance checks are
-green**, and M5's near-linear claim is now measured rather than asserted.
+**Goal `m5-proofs` (M5). Stage 8 `tsan` is complete: all four of its acceptance checks are green.**
+`wsl.exe -- bash -lc "bash tools/tsan.sh"` ends on `tsan: clean` over `nvs-host` and `nvs-runtime`,
+and `.github/workflows/ci.yml:598` is the `tsan:` job that runs that same script.
 
-`benches/abi-probe/shared/isolate.rs` carries the fan-out beside `spawn_to_result_batch` —
-`worker_fan_out_batch` places `WIDTH` (four) CPU-bound children through `nvs_host::worker::post`
-and joins them, `one_core_batch` runs the same four where they stand, and one driver builds the
-scheduler, the reactor and the task outside the clock for both. The claim is the ratio between
-them, so both halves are one measurement and the bench has both rows. A refused placement panics
-rather than quietly running the children here, which is the one way this measurement could report
-a speedup it did not have.
+`crates/nvs-host/src/tsan.rs` is the annotation half — one fiber per task, switched inside
+`Fiber::around`, which `Task::resume` and `Task::force_unwind`
+(`crates/nvs-host/src/scheduler.rs:614`) wrap the stack switch in. That module's doc owns why an
+annotation may not straddle a switch; the playbook carries the failure it produces.
 
-Measured release, x86_64-pc-windows-msvc: 0.9 ms placed against 3.4 ms on one core, **3.92x** of an
-ideal 4x. The guard's floor is 2.0x — `benches/abi-probe/tests/perf_guards.rs` says why the margin
-is half the ideal rather than near it.
+**The gate is this crate's `tsan` cargo feature, not the `--cfg nvs_tsan` the goal's stage 8 names.**
+`cfg(sanitize = "thread")` — the predicate that would read as what it means — is unstable and is an
+`E0658` on the pinned stable compiler whether or not the branch is taken, and a bare `--cfg` trips
+`unexpected_cfgs` in every ordinary build because the only place `check-cfg` could declare it is the
+`[lints]` table `tools/lints.py` generates. Recorded in the module doc's § *What is compiled*.
 
-**Stage 8 `tsan` is next and none of it is written**: there is no `tools/tsan.sh`,
-`.github/workflows/ci.yml:460` still says TSAN is owed, and no stack switch carries a fiber
-annotation. All four of its checks are the first kind of failure — an artefact that does not exist
-yet.
+**Stage 9 `the rulebook` is the last stage and none of it is done.**
 
 ## Next group
 
-**Stage 8: tsan** — one file set: `tools/tsan.sh`, `.github/workflows/ci.yml`,
-`crates/nvs-host/src/scheduler.rs`.
+**Stage 9: the rulebook** — one file set: `docs/rules/concurrency.json`,
+`docs/rules/observability.json` and the two chapters `python tools/rules.py --render` writes from them.
 
-- [ ] **`corosensei`'s stack switches carry TSAN's fiber annotations** —
-      `crates/nvs-host/src/scheduler.rs:894` is the resume, and the yield is the `Yielder` beside
-      it; the sanitizer sees one thread's stack become another and reports every task boundary
-      without them. `#[cfg(sanitize = "thread")]` so it is compiled out of every build but the
-      leg's, which is the goal's § *Standing decisions* naming this as the only new `unsafe` here.
-- [ ] **`tools/tsan.sh` is the job's own command and ends on `tsan: clean`** — the contract is
-      `docs/agent/loop-goal.toml:9942`, which runs it under WSL because the driver is on Windows
-      (`docs/agent/commands.md` § *WSL*). Nightly, `-Zsanitizer=thread` over `nvs-host` and
-      `nvs-runtime`, and the fallback if an annotated switch still reports is in the same standing
-      decision: narrow to the tests that cross threads without switching stacks, and say in the
-      script what it skips.
-- [ ] **The workflow gains a `tsan:` job and drops the note that owes it** — the three checks that
-      read it are `docs/agent/loop-goal.toml:9918`, and what they read is
-      `.github/workflows/ci.yml` line 460, the comment saying TSAN is owed, with the `miri:` job
-      under it as the shape to follow. CI is not running, so the job is proven by reading the file;
-      the sanitizer itself is proven by the check above.
+- [ ] **`concurrency/on-worker-runs-the-child-on-another-core` flips to `shipped`, with `guardedBy`
+      filled from this goal's cases and tests** — `docs/rules/concurrency.json:45` is the `status`
+      field, `:43` the rule's `id`. The rule is `rule:concurrency/on-worker-runs-the-child-on-another-core`
+      itself, and stage 5's record `docs/decisions/0184.md` is its `because`.
+- [ ] **`observability/spawn-is-its-own-event` flips to `shipped` the same way** —
+      `docs/rules/observability.json:322` is its `id`, and `rule:observability/spawn-is-its-own-event`
+      is what it has to be true of.
+- [ ] **`python tools/rules.py --render` rewrites the chapters** — `docs/rules/concurrency.md:53` and
+      `docs/rules/observability.md` are what it overwrites, and `--check` is what gates them.
 
 ## Backlog
 
-- `nvs serve` places a child on a lazily started worker core rather than a sibling serving core —
-  `crates/nvs-host/src/worker.rs`'s `# Known gaps`, the fallback ADR 0184 § 5 pre-authorizes.
-- A `spawn script` *path* entry still runs on the parent's core; only a method crosses —
-  `crates/nvs-host/src/placed.rs`'s `# Known gaps`.
-- No end-to-end `nvs serve` runaway test for the CPU and memory ceilings —
-  [carried-gaps.md](carried-gaps.md).
-- `docs/plan/m5.md`'s Verify sentence still puts the speedup on `Core\Task::map`; goal
-  `plan-truth` owns that wording.
+- `docs/agent/loop-goal.md:200` still says `--cfg nvs_tsan`; the goal file is the user's, so the
+  deviation is recorded in `crates/nvs-host/src/tsan.rs`'s module doc instead.
+- No `nvs serve` end-to-end runaway test for the CPU/memory ceilings — `docs/agent/carried-gaps.md`.

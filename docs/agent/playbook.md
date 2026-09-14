@@ -6877,6 +6877,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   at compile time. Walk it with `NvsObj::from_raw` plus `ClassDesc::field_name(slot)` and
   `NvsObj::field(slot)`, which is also what spares the reader a second copy of the field list.
   [until: gone crates/nvs-stdlib/src/script.rs:fn limits_of]
+- **A ThreadSanitizer fiber switch written as two calls corrupts the sanitizer's heap.** Its
+  instrumentation pushes at a function's entry and pops at its exit from *the current fiber's*
+  shadow stack, so a `switch_to()` helper entered on one fiber and returned from on another pops one
+  that is still empty, and the process dies in `__tsan_func_entry` far from the cause. Keep each
+  switch inside one call that leaves and comes back — `Fiber::around` in
+  `crates/nvs-host/src/tsan.rs` — and read a SEGV in `__tsan_func_entry` as a broken annotation
+  rather than a race. [until: gone crates/nvs-host/src/tsan.rs:__tsan_switch_to_fiber]
 
 ## Divergences and refusals already pinned
 

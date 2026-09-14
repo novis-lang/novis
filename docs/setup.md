@@ -74,9 +74,12 @@ One-time setup inside the distro, which reaches the repo over its `/mnt/<drive>/
 sudo apt-get update && sudo apt-get install -y build-essential clang valgrind
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 source "$HOME/.cargo/env"
-rustup toolchain install nightly
+rustup toolchain install nightly --component rust-src
 cargo install cargo-fuzz --locked
 ```
+
+`rust-src` is not optional here: `tools/tsan.sh` builds the standard library from source under the thread
+sanitizer, and without that component the leg stops before it compiles anything of Novis's.
 
 ### PHP goes in the distro too, at the same version
 
@@ -102,8 +105,9 @@ Whatever the source, treat a version mismatch as a machine that is not set up.
 
 The native leg already *is* the second target, so there is no WSL leg — `tools/loop.py` detects that and
 runs the valgrind sweep directly. Install a C toolchain, PHP 8.5, and (on Linux) `valgrind` the same way;
-`cargo-fuzz` still needs a nightly toolchain. macOS has no valgrind, so the leak sweep is a Linux or WSL
-machine's job.
+`cargo-fuzz` still needs a nightly toolchain, with `rust-src` on it for the same reason the WSL one needs
+it. macOS has no valgrind, so the leak sweep is a Linux or WSL machine's job, and so is `tools/tsan.sh`:
+`-Zsanitizer=thread` targets `x86_64-unknown-linux-gnu`.
 
 **One sysctl, Linux only — and the WSL distro is a Linux machine for this.** A task's stack is a
 reservation that leaves more than one mapping behind
