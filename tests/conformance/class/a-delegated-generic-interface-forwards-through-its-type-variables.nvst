@@ -1,0 +1,73 @@
+--TEST--
+`implements Iterator<int> by $field;` synthesizes the same forward a plain interface gets, and the forwarded class drives a `foreach` — `rule:classes/delegation-by-field`, `rule:iteration/concrete-generic-implements`
+--FILE--
+<?nvs
+// The forward is written against the *interface's* signature, and a
+// compiler-owned generic's signature still names its type variables — nothing
+// substitutes them, because there is no call site here to substitute them
+// against. So `current(): T` is a parameter slot whose type is unconstrained,
+// and the forward declares it at the representation every unconstrained
+// position already has (`nvs_ir::lower::erase_checked_ty`).
+class Walker implements Iterator<int> {
+    public int $i;
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+        $this->i = -1;
+    }
+
+    public function advance(): bool {
+        $this->i = $this->i + 1;
+        return $this->i < Core\Arr::count($this->items) as int;
+    }
+
+    public function current(): int {
+        return $this->items[$this->i];
+    }
+}
+
+final class Wrapped implements Iterator<int> by $inner {
+    private Iterator<int> $inner;
+
+    public function constructor(Iterator<int> $inner) {
+        $this->inner = $inner;
+    }
+}
+
+array<int> $xs = [7, 8, 9];
+
+// Driven by hand, the way `rule:iteration/two-interfaces`' protocol is written.
+Wrapped $w = new Wrapped(new Walker($xs));
+while ($w->advance()) {
+    echo $w->current(), "\n";
+}
+
+// And through the interface-typed read, which is the half a call-site rewrite
+// could not answer: the forward has to be a row in `Wrapped`'s own method
+// table for this to dispatch at all.
+Iterator<int> $it = new Wrapped(new Walker($xs));
+int $sum = 0;
+foreach ($it as int $each) {
+    $sum = $sum + $each;
+}
+echo "sum=", $sum, "\n";
+
+// The agreement the shape asks for rather than a fourth line read off the
+// output: the delegate and the forward must answer the same sequence, so a
+// forward that erased a variable to something the delegate does not return
+// fails this while still printing plausible numbers above.
+Walker $bare = new Walker($xs);
+Wrapped $forwarded = new Wrapped(new Walker($xs));
+int $agreed = 0;
+while ($bare->advance()) {
+    $forwarded->advance();
+    if ($bare->current() == $forwarded->current()) { $agreed = $agreed + 1; }
+}
+echo "agreed=", $agreed, "/3\n";
+--EXPECT--
+7
+8
+9
+sum=24
+agreed=3/3

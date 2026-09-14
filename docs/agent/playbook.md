@@ -5280,7 +5280,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   beside it. [until: reviewed 2026-09-06]
 - **A "return-only" type has two enforcement sites, and a tree can have neither while looking like
   it has one.** `rule:types/grammar`'s `void`/`never` were return-only in prose alone: `never $p`
-  panicked `nvs-ir`'s `lower_checked_ty`, while `void $p` type-checked, lowered, and died in codegen
+  panicked `nvs-ir`'s `erase_checked_ty`, while `void $p` type-checked, lowered, and died in codegen
   with `internal error: reading a value of representation 'void'` — a third outcome
   `crates/nvs-ir/tests/type_atoms.rs` cannot see, because it stops at `lower_program`. Two minutes
   of `nvs run` on a two-line scratch file tells a shape that panics, one that is refused, and one
@@ -6804,6 +6804,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   through `target/debug/nvs.exe run` before planning a row around a walk a rule names, because a rule
   naming a conversion is not evidence the conversion lowers.
   [until: reviewed 2026-11-01]
+- **An item reading "this match has no catch-all" cannot be met literally: `nvs_syntax::ast::TypeKind`,
+  `TypeAtom` and `nvs_types::ty::Ty` are `#[non_exhaustive]`, so another crate must carry a trailing
+  arm and is never told which variant it forgot.** Spell every variant the enum has, make the trailing
+  arm say `this is a bug` (`tools/holes.py`'s `ENGINE` skips that, and `REFUSAL` never matched it),
+  and add a probe asserting the row count — that count is the guard the compiler will not be.
+  [until: gone crates/nvs-types/src/ty.rs:non_exhaustive]
 
 ## Divergences and refusals already pinned
 

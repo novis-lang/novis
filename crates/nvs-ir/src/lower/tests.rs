@@ -1694,7 +1694,7 @@ fn a_spread_of_a_call_result_releases_the_subject_after_the_copy() {
 
 /// Passing an `array` local as a call argument retains it first —
 /// `Lowering::lower_call_args`'s aliasing check, exactly mirroring the
-/// `string`/`bytes` analogs above. `lower_checked_ty`'s
+/// `string`/`bytes` analogs above. `erase_checked_ty`'s
 /// `CheckedTy::Array(_) => Ty::Array` arm is what makes this boundary
 /// work with no insertion point of its own.
 #[test]
@@ -4145,4 +4145,239 @@ fn a_backtrace_frame_renders_from_the_source_a_record_would_carry() {
             format!("{label}() at {}:{}", source.file, source.line)
         );
     }
+}
+
+/// `rule:types/grammar`'s atom set is closed, and [`lower_decl_type`] answers
+/// all of it: one row below per `nvs_syntax::ast::TypeAtom` variant and per
+/// `TypeKind` variant, with the row count as the assertion. That count is the
+/// guard rather than a formality — both enums are `#[non_exhaustive]`, so the
+/// compiler never asks for the arm, and a spelling added to the grammar
+/// without one would otherwise reach a panic in a release nobody ran this
+/// against.
+///
+/// The tables are lowered against an **empty** [`ExprTypeTable`], which is what
+/// the match itself answers for: an annotation the checker visited takes the
+/// `declared_ty` shortcut instead and never reaches it.
+///
+/// `TypeAtom::Member` is the single row with no answer off the AST — whether
+/// `Rank::Silver` is an `int`, a `string` or an enum's tag is what resolution
+/// decided — so its row is `None` and the assertion at the end is the shortcut
+/// that owns it: a checked program's enum-case parameter comes out
+/// [`Ty::Enum`], which no arm of that match can produce.
+#[test]
+fn lower_decl_type_answers_every_type_atom_the_grammar_has() {
+    let mut map = SourceMap::new();
+    let file = map.add("t.nvs", "");
+    let at = nvs_diagnostics::Span::new(file, 0, 1);
+    let node = |kind| nvs_syntax::ast::Type { kind, span: at };
+    let name = nvs_syntax::ast::Name { span: at };
+    let int = || node(TypeKind::Atom(TypeAtom::Int));
+    let named = || node(TypeKind::Atom(TypeAtom::Name(name, Vec::new())));
+    let exprs = ExprTypeTable::new();
+    let checked_types = TypeInterner::new();
+
+    let atoms: Vec<(TypeAtom, Option<Ty>)> = vec![
+        (TypeAtom::Null, Some(Ty::Null)),
+        (TypeAtom::Bool, Some(Ty::Bool)),
+        (TypeAtom::Int, Some(Ty::Int)),
+        (TypeAtom::Uint, Some(Ty::Uint)),
+        (TypeAtom::Float, Some(Ty::Float)),
+        (TypeAtom::Decimal, Some(Ty::Decimal)),
+        (TypeAtom::String, Some(Ty::Str)),
+        (TypeAtom::Bytes, Some(Ty::Bytes)),
+        (TypeAtom::TaintedString, Some(Ty::Str)),
+        (TypeAtom::TaintedBytes, Some(Ty::Bytes)),
+        (TypeAtom::SecretString, Some(Ty::Str)),
+        (TypeAtom::SecretBytes, Some(Ty::Bytes)),
+        (TypeAtom::SecretTaintedString, Some(Ty::Str)),
+        (TypeAtom::SecretTaintedBytes, Some(Ty::Bytes)),
+        (TypeAtom::Array(Some(Box::new(int()))), Some(Ty::Array)),
+        (TypeAtom::ClassRef(Box::new(named())), Some(Ty::ClassDesc)),
+        (TypeAtom::PropertyKey(Box::new(named())), Some(Ty::Str)),
+        (TypeAtom::Object, Some(Ty::Object)),
+        (
+            TypeAtom::Shape(vec![nvs_syntax::ast::ShapeField {
+                name: at,
+                ty: int(),
+                required: true,
+                span: at,
+            }]),
+            Some(Ty::Object),
+        ),
+        (TypeAtom::Mixed, Some(Ty::Tagged)),
+        (TypeAtom::Void, Some(Ty::Void)),
+        (TypeAtom::Never, Some(Ty::Void)),
+        (TypeAtom::True, Some(Ty::Bool)),
+        (TypeAtom::False, Some(Ty::Bool)),
+        (TypeAtom::StringLiteral(at), Some(Ty::Str)),
+        (TypeAtom::IntLiteral(at), Some(Ty::Int)),
+        (TypeAtom::Member(name, at), None),
+        (TypeAtom::Iterable, Some(Ty::Tagged)),
+        (TypeAtom::Callable, Some(Ty::Object)),
+        (
+            TypeAtom::CallableSig {
+                params: vec![int()],
+                ret: Box::new(node(TypeKind::Atom(TypeAtom::String))),
+            },
+            Some(Ty::Object),
+        ),
+        (TypeAtom::SelfTy, Some(Ty::Object)),
+        (TypeAtom::StaticTy, Some(Ty::Object)),
+        (TypeAtom::Parent, Some(Ty::Object)),
+        (TypeAtom::Name(name, Vec::new()), Some(Ty::Object)),
+    ];
+    assert_eq!(
+        atoms.len(),
+        34,
+        "one row per `nvs_syntax::ast::TypeAtom` variant — write the row in the slice that \
+         writes the arm"
+    );
+    for (atom, want) in atoms {
+        let Some(want) = want else {
+            continue;
+        };
+        let got = lower_decl_type(&node(TypeKind::Atom(atom.clone())), &exprs, &checked_types);
+        assert_eq!(got, want, "`{atom:?}` lowered as `{got:?}`");
+    }
+
+    let kinds: Vec<(TypeKind, Ty)> = vec![
+        (TypeKind::Paren(Box::new(int())), Ty::Int),
+        (TypeKind::Nullable(Box::new(int())), Ty::Tagged),
+        (
+            TypeKind::Union(vec![int(), node(TypeKind::Atom(TypeAtom::String))]),
+            Ty::Tagged,
+        ),
+        (TypeKind::Intersection(vec![named(), named()]), Ty::Tagged),
+    ];
+    assert_eq!(
+        kinds.len(),
+        4,
+        "one row per `nvs_syntax::ast::TypeKind` variant other than `Atom`, which the table \
+         above covers"
+    );
+    for (kind, want) in kinds {
+        let got = lower_decl_type(&node(kind.clone()), &exprs, &checked_types);
+        assert_eq!(got, want, "`{kind:?}` lowered as `{got:?}`");
+    }
+
+    // The shortcut the `Member` row stands on, end to end. `rule:enums/closed-integer-type`
+    // makes the case an integer with the enum's own tag, and nothing in the
+    // AST says so.
+    let (function, ..) = lower_first_method(
+        "<?nvs\nenum Rank { Bronze, Silver, Gold }\n\n\
+         class T {\n    public function m(Rank::Silver $r): void {}\n}\n",
+    );
+    assert_eq!(
+        function.params.get(1),
+        Some(&Ty::Enum(EnumRepr::Int)),
+        "an enum-case parameter is answered by `ExprTypeTable::declared_ty`, not by the AST"
+    );
+}
+
+/// [`erase_checked_ty`] answers every checked type a value can have, which is
+/// why nothing below this boundary asks whether a representation exists — the
+/// fold in [`shared_erasure`] is the one site that used to.
+///
+/// One row per `nvs_types::ty::Ty` variant, the length is the assertion for the
+/// same `#[non_exhaustive]` reason the atom probe above gives, and
+/// `CheckedTy::CoreShape` is the row that is not a value at all: a `Core`
+/// options bag is one argument per merged slot, so what its row asserts is that
+/// the arm is *spelled*, rather than a shape quietly reaching the trailing one.
+#[test]
+fn erase_checked_ty_answers_every_checked_type_a_value_can_have() {
+    let mut types = TypeInterner::new();
+    let int = types.intern(CheckedTy::Int);
+    let string = types.intern(CheckedTy::String);
+    let one = nvs_hir::QName::from_segments(vec!["A".to_owned()]);
+    let two = nvs_hir::QName::from_segments(vec!["B".to_owned()]);
+    let class = types.intern(CheckedTy::Class(one.clone(), Vec::new()));
+    let other = types.intern(CheckedTy::Class(two, Vec::new()));
+
+    let rows: Vec<(CheckedTy, Ty)> = vec![
+        (CheckedTy::Null, Ty::Null),
+        (CheckedTy::Bool, Ty::Bool),
+        (CheckedTy::Int, Ty::Int),
+        (CheckedTy::Uint, Ty::Uint),
+        (CheckedTy::Float, Ty::Float),
+        (CheckedTy::Decimal, Ty::Decimal),
+        (CheckedTy::Void, Ty::Void),
+        (CheckedTy::String, Ty::Str),
+        (CheckedTy::Bytes, Ty::Bytes),
+        (CheckedTy::TaintedString, Ty::Str),
+        (CheckedTy::TaintedBytes, Ty::Bytes),
+        (CheckedTy::SecretString, Ty::Str),
+        (CheckedTy::SecretBytes, Ty::Bytes),
+        (CheckedTy::SecretTaintedString, Ty::Str),
+        (CheckedTy::SecretTaintedBytes, Ty::Bytes),
+        (CheckedTy::Array(int), Ty::Array),
+        (CheckedTy::ClassRef(class), Ty::ClassDesc),
+        (CheckedTy::PropertyKey(class), Ty::Str),
+        (CheckedTy::Object, Ty::Object),
+        (CheckedTy::Mixed, Ty::Tagged),
+        (CheckedTy::Never, Ty::Void),
+        (CheckedTy::True, Ty::Bool),
+        (CheckedTy::False, Ty::Bool),
+        (CheckedTy::StringLiteral("a".to_owned()), Ty::Str),
+        (CheckedTy::IntLiteral(1), Ty::Int),
+        (
+            CheckedTy::EnumCase(
+                one.clone(),
+                nvs_types::EnumBacking::Uint,
+                "Silver".to_owned(),
+            ),
+            Ty::Enum(EnumRepr::Uint),
+        ),
+        (CheckedTy::Iterable, Ty::Tagged),
+        (CheckedTy::Callable, Ty::Object),
+        (
+            CheckedTy::CallableSig {
+                params: vec![int],
+                ret: string,
+            },
+            Ty::Object,
+        ),
+        (CheckedTy::ShapeOfCallables("S".to_owned()), Ty::Object),
+        (CheckedTy::Class(one.clone(), Vec::new()), Ty::Object),
+        (
+            CheckedTy::Enum(one, nvs_types::EnumBacking::Int),
+            Ty::Enum(EnumRepr::Int),
+        ),
+        (
+            CheckedTy::Shape(vec![nvs_types::ty::ShapeField {
+                name: "a".to_owned(),
+                ty: int,
+                required: true,
+            }]),
+            Ty::Object,
+        ),
+        (CheckedTy::Union(vec![int, string]), Ty::Tagged),
+        (CheckedTy::Intersection(vec![class, other]), Ty::Object),
+        (CheckedTy::TypeVar("T".to_owned()), Ty::Tagged),
+    ];
+    assert_eq!(
+        rows.len(),
+        36,
+        "one row per `nvs_types::ty::Ty` variant a value can have — every variant but \
+         `CoreShape`, which the assertion below owns"
+    );
+    for (ty, want) in rows {
+        let id = types.intern(ty.clone());
+        assert_eq!(erase_checked_ty(id, &types), want, "`{ty:?}` erased wrong");
+    }
+
+    let bag = types.intern(CheckedTy::CoreShape(nvs_types::ty::CoreShape {
+        fields: Vec::new(),
+        arms: vec![Vec::new()],
+    }));
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let erased = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        erase_checked_ty(bag, &types)
+    }));
+    std::panic::set_hook(previous);
+    assert!(
+        erased.is_err(),
+        "a `Core` options bag is not one value, so its arm asserts rather than erasing — \
+         `Lowering::lower_fixed_arg` flattens it a slot at a time before this is reached"
+    );
 }

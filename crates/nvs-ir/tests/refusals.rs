@@ -86,12 +86,12 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 /// a `lower::guarded_by!` naming the diagnostic that refuses the shape where it
 /// is written, which is a front-end guarantee rather than a hole.
 ///
-/// One site here is open on purpose rather than unowned: `$x is T`, whose stage
-/// lowers a scalar, `null`, `object`, a bare `array`, a class and an `array<T>`
-/// and leaves a literal, an enum case, a shape, a union, `iterable` and
-/// `callable` for the stage after it. That item's own attribution is what keeps
-/// the first half of this gate green while it stands.
-const CEILING: usize = 3;
+/// The one site left is open on purpose rather than unowned, and it is a
+/// message rather than a shape: `$x is T`'s backstop, which every checked
+/// program walks past — its own stage answers each type the grammar has. That
+/// item's attribution is what keeps the first half of this gate green while it
+/// stands.
+const CEILING: usize = 1;
 
 /// The repository root — this crate is `crates/nvs-ir`.
 fn root() -> PathBuf {
