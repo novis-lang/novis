@@ -1,0 +1,115 @@
+--TEST--
+An `is` test against an array of a class walks every element, and composes with the rows a tag word cannot say — `rule:types/type-test`, `rule:types/arrays`
+--FILE--
+<?nvs
+// `rule:types/type-test`'s element row. `array<T>` with a named element type is
+// an O(n) walk, and where `T` is a class no tag decides it, so the walk carries
+// the element's own row instead of a tag word. The rows are counted rather than
+// read off their own lines: a walk that answered `true` for everything prints
+// plausibly row by row and still fails the count.
+
+class Point {
+    public function constructor(public int $x) {}
+}
+
+class Pixel extends Point {
+}
+
+class Other {
+    public function constructor(public int $y) {}
+}
+
+interface Shaped {
+}
+
+class Blob implements Shaped {
+}
+
+class Row {
+    // 1 where the row answered `true` for the subject the type admits and
+    // `false` for the one it does not. The row is named on stdout when it did
+    // not, so a failure says which one moved rather than only that the count
+    // fell.
+    public static function both(string $row, bool $holds, bool $other): int {
+        if ($holds && !$other) {
+            return 1;
+        }
+        echo "WRONG ", $row, ": ", Row::yn($holds), Row::yn($other), "\n";
+        return 0;
+    }
+
+    // `bool as string` renders `false` as the empty string, which would let a
+    // row whose two halves both went missing read as agreement.
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+mixed $points = [new Point(1), new Point(2), new Point(3)];
+mixed $tail = [new Point(1), new Point(2), new Other(3)];
+mixed $head = [new Other(1), new Point(2), new Point(3)];
+mixed $empty = [];
+mixed $pixels = [new Pixel(1), new Pixel(2)];
+mixed $blobs = [new Blob(), new Blob()];
+mixed $nested = [[new Point(1)], [new Point(2)]];
+mixed $ints = [1, 2, 3];
+mixed $both = [1, "two"];
+mixed $holes = [new Point(1), null, new Point(3)];
+mixed $scalar = 7;
+mixed $text = "points";
+
+int $rows = 0;
+
+// Every element, not the first one: a subject whose last element is not a
+// `Point` answers `false` as surely as one whose first is not.
+$rows = $rows + Row::both("every element", $points is array<Point>, $tail is array<Point>);
+$rows = $rows + Row::both("from the front", $points is array<Point>, $head is array<Point>);
+
+// An array with no elements has none that decline, so it satisfies every
+// element type — the same answer `as array<T>` gives one. A subject holding no
+// array at all declines before a slot is read.
+$rows = $rows + Row::both("an empty array", $empty is array<Point>, $scalar is array<Point>);
+$rows = $rows + Row::both("not an array", $points is array<Point>, $text is array<Point>);
+
+// The element's row is the whole row and not a tag comparison, so it is the
+// descriptor walk `instanceof` already emits: a subclass and an implementor
+// each answer their own supertype.
+$rows = $rows + Row::both("a subclass element", $pixels is array<Point>, $points is array<Pixel>);
+$rows = $rows + Row::both("an interface element", $blobs is array<Shaped>, $points is array<Shaped>);
+
+// Every row composes with this one, because the element is tested by the same
+// walk the subject was: an array of arrays, a union, and a nullable element
+// each reach their own row one level down.
+$rows = $rows + Row::both("nested arrays", $nested is array<array<Point>>, $points is array<array<Point>>);
+$rows = $rows + Row::both("a union element", $both is array<int|string>, $points is array<int|string>);
+$rows = $rows + Row::both("a nullable element", $holes is array<?Point>, $both is array<?Point>);
+
+// Agreement: an element type one tag *does* decide goes through the walk
+// `as array<T>` already pays for, and answers this question the same way. Two
+// walks that disagreed here would be two answers to one question.
+$rows = $rows + Row::both("a tag-decided element", $ints is array<int>, $both is array<int>);
+$rows = $rows + Row::both("both walks on one subject", $points is array<Point>, $points is array<int>);
+
+echo "rows=", $rows as string, "/11\n";
+
+// Where the element that declines sits does not change the answer, and neither
+// does an array long enough for the walk to be a loop rather than a peek.
+array<Point> $long = [];
+int $i = 0;
+while ($i < 64) {
+    $long[$i as string] = new Point($i);
+    $i = $i + 1;
+}
+mixed $wide = $long;
+echo "long=", Row::yn($wide is array<Point>), Row::yn($wide is array<Other>), "\n";
+
+// A union's members are each their own row, and an array of a class is a member
+// like any other one.
+echo "union=", Row::yn($points is array<Point>|int), Row::yn($scalar is array<Point>|int), Row::yn($text is array<Point>|int), "\n";
+--EXPECT--
+rows=11/11
+long=yn
+union=yyn
