@@ -122,6 +122,12 @@ modules = [
   "crates/nvs-types/src/expr/isolate.rs",
   # `lower_spawn_script` (:3163-3256), which reads `args:` and `output:` alone. Stage 6.
   "crates/nvs-ir/src/lower/expr.rs",
+  # `rule:testing/in-process-request`'s in-process request: the seam `Core\Test::request` reaches
+  # the unit under test through.
+  "crates/nvs-runtime/src/inproc.rs",
+  # The accept loop: one listening socket, one coroutine per connection, and one `hyper`
+  # connection future driven on that coroutine's own stack.
+  "crates/nvs-server/src/serve.rs",
 ]
 
 # Every stage works inside these three: a call returns with nothing still running, an isolate
