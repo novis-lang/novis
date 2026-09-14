@@ -214,19 +214,17 @@ impl Host for SchedulerHost {
         // one of them — the refusal it produces is `Isolate::start`'s, written
         // once, and a child that may not start does not need a core first.
         //
-        // A narrowing is one more of those reasons, and the strictest: the seed
-        // a far core builds its child from carries no sub-cap and no grant list
-        // of its own, so a spawn that wrote either **stays here on purpose**
-        // rather than crossing without it. `crate::placed`'s `# Known gaps` owns
-        // that reading — a narrowing dropped on the way to another core is the
-        // one thing `rule:security/isolate-budget-is-the-trees` cannot trade,
-        // and the core the placement asked for is the cheaper thing to lose.
+        // The narrowing crosses with the child rather than deciding whether it
+        // may: `nvs_runtime::PlacedIsolate` carries it, and the far core applies
+        // it to the context it builds against ceilings this core resolved. That
+        // is the only shape `rule:security/isolate-budget-is-the-trees` allows a
+        // placement to take, because a narrowing silently not applied is the one
+        // thing it cannot trade for a core.
         if placement == Placement::Worker
-            && narrowing == Narrowing::default()
             && ctx.script_depth_breach().is_none()
             && let Some(destination) = crate::placed::destination_for(ctx, &entry)
         {
-            return crate::placed::start(destination, ctx, entry, args, output)
+            return crate::placed::start(destination, ctx, entry, args, output, narrowing)
                 .map_err(StartError::Argument);
         }
         let method = entry.is_method();
