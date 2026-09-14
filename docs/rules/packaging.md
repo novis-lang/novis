@@ -1784,7 +1784,14 @@ SystemCallFilter=@system-service
 privileged port, so the ordinary case grants nothing at all. `MemoryMax` is derived from the config's
 `[limits]` rather than invented. `Type=notify` means `READY=1` after the listener binds — so
 `systemctl start` does not return before the port accepts — plus `RELOADING=1`/`STOPPING=1` at the
-transitions and a watchdog ping from the accept loop. The `sd_notify` protocol is a datagram to
+transitions and a `WATCHDOG=1` ping for as long as
+[`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline)'s detector says a core is still turning.
+**That ping is gated on the detector rather than written by an accept loop**, because a beat from a
+thread that lives whether or not a core turns proves only that the process exists, which is not what
+`WatchdogSec=` is asking. It is withheld when no core is turning at all, and never for one wedged core
+of several — that one is shed ([`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed)), and stopping the
+whole process over it would end every healthy core's in-flight requests to answer one core's fault.
+The `sd_notify` protocol is a datagram to
 `$NOTIFY_SOCKET` and needs no `libsystemd`, so this adds no C dependency and
 [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions) does not arise.
 
