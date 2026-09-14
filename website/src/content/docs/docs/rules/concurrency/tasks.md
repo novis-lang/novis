@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Every task is a child of the one that started it. Control never leaves a group with a child still running.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">9</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">8</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">7</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">10</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">9</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">8</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#one-scheduler">Concurrency is the <code>Core\Task</code> roster over the runtime's own single scheduler</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-child-belongs-to-the-calling-task">Every task is a child of the task that started it, shares that request's accounting, and dies with it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#all-answers-a-typed-shape"><code>Core\Task::all</code> answers a shape with the argument's own field names, each field keeping its own type</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#an-all-field-answers-what-its-callable-declares">An <code>all</code> field answers its own callable's declared return type, and a callable declaring none answers <code>mixed</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#map-preserves-keys-and-order"><code>Core\Task::map</code> answers an array of the callback's own return type, in the input's keys and order</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#limit-and-deadline-are-the-only-bounds"><code>{limit, deadline}</code> is the whole of what bounds a group, and there is no <code>timeout</code> member and no <code>race</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#nothing-is-still-running-when-a-call-returns">Control never leaves <code>all</code> or <code>map</code> with a child still running</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#cancellation-runs-no-user-code">A cancelled task runs no <code>catch</code>, no cleanup and no handler, and cancellation is not a <code>Throwable</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-deadline-bounds-the-cancel-not-the-return">A deadline bounds when cancellation is asked for, not when the call returns</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#one-scheduler">Concurrency is the <code>Core\Task</code> roster over the runtime's own single scheduler</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-child-belongs-to-the-calling-task">Every task is a child of the task that started it, shares that request's accounting, and dies with it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#on-worker-runs-the-child-on-another-core">A child spawned <code>on: &quot;worker&quot;</code> is started on another core, copies at every node in both directions, and is still its parent's child</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#all-answers-a-typed-shape"><code>Core\Task::all</code> answers a shape with the argument's own field names, each field keeping its own type</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#an-all-field-answers-what-its-callable-declares">An <code>all</code> field answers its own callable's declared return type, and a callable declaring none answers <code>mixed</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#map-preserves-keys-and-order"><code>Core\Task::map</code> answers an array of the callback's own return type, in the input's keys and order</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#limit-and-deadline-are-the-only-bounds"><code>{limit, deadline}</code> is the whole of what bounds a group, and there is no <code>timeout</code> member and no <code>race</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#nothing-is-still-running-when-a-call-returns">Control never leaves <code>all</code> or <code>map</code> with a child still running</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#cancellation-runs-no-user-code">A cancelled task runs no <code>catch</code>, no cleanup and no handler, and cancellation is not a <code>Throwable</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-deadline-bounds-the-cancel-not-the-return">A deadline bounds when cancellation is asked for, not when the call returns</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
 
 <div class="nv-rule" id="one-scheduler">
 
@@ -83,6 +83,69 @@ that runs a program makes a task first even where one buys nothing else.
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/isolates/#isolate-shares-nothing" title="Running another script is an in-process isolate that shares nothing with its parent but compiled code"><code>security/isolate-shares-nothing</code></a> <a href="/docs/rules/security/isolates/#isolate-budget-is-the-trees" title="A request and everything it spawns share one budget, accounted at the tree's root"><code>security/isolate-budget-is-the-trees</code></a> <a href="/docs/rules/programs/claims-and-priorities/#memory-priority" title="Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"><code>programs/memory-priority</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0072.md">record 0072</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0006.md">record 0006</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/task/a-task-tree-dies-with-its-parent.nvst"><code>tests/conformance/task/a-task-tree-dies-with-its-parent.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/task/a-spawned-task-runs-and-its-value-is-awaited.nvst"><code>tests/conformance/task/a-spawned-task-runs-and-its-value-is-awaited.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="on-worker-runs-the-child-on-another-core">
+
+## A child spawned `on: "worker"` is started on another core, copies at every node in both directions, and is still its parent's child
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#on-worker-runs-the-child-on-another-core"><code>concurrency/on-worker-runs-the-child-on-another-core</code></a>
+</div>
+
+A child spawned `on: "worker"` is **started** on a core other than its parent's, and *started* is the
+whole of the placement: a task never migrates ([`concurrency/a-wake-never-moves-a-task`](/docs/rules/concurrency/the-scheduler/#a-wake-never-moves-a-task "A wake from another core queues an id on the task's own core and never migrates it")), so which
+core runs it is decided once, where it is spawned, and is never revisited while it runs. Everything else
+about it is unchanged — it is an isolate with the boundary
+[`security/isolate-shares-nothing`](/docs/rules/security/isolates/#isolate-shares-nothing "Running another script is an in-process isolate that shares nothing with its parent but compiled code") describes, and `on: "here"` is the same child on the parent's own
+core.
+
+What crosses is what [`security/isolate-values-cross-by-copy`](/docs/rules/security/isolates/#isolate-values-cross-by-copy "A value crosses an isolate boundary as one graph copy, and a closure, an alias or a host handle does not cross at all") allows, with one thing subtracted: the
+**move is not available**. A refcount is non-atomic because a value is reachable from one core only, so
+the argument is copied at every node on the way in and the answer at every node on the way out, and a
+large result is an argument for leaving the child on the parent's core rather than for a cheaper
+crossing.
+
+The mechanism is the blocking pool's, turned around (`crates/nvs-host/src/blocking.rs`). The parent takes
+a `RemoteWake` for itself, puts the compiled unit, the copied argument and that handle into the
+destination core's **inbox**, pokes that core's poller, and parks. The other core's reactor drains the
+inbox and starts the child as a root task on its own scheduler; when the child finishes, its answer is
+copied into the handle's slot and the handle is dropped, which ends the parent's park. What crosses the
+thread boundary is therefore still an id and a poke — the slot is the record, and the wake only ends the
+wait.
+
+A worker-placed child is its parent's child in every other respect. It is cancelled when the parent is
+cancelled, it is charged to the tree's budget rather than to a per-call limit
+([`security/isolate-budget-is-the-trees`](/docs/rules/security/isolates/#isolate-budget-is-the-trees "A request and everything it spawns share one budget, accounted at the tree's root")), and
+[`concurrency/nothing-is-still-running-when-a-call-returns`](/docs/rules/concurrency/tasks/#nothing-is-still-running-when-a-call-returns "Control never leaves all or map with a child still running") holds across the thread: the parent's
+call does not return until the cancellation it sent has been acknowledged from the other core and the
+child's own teardown has run there.
+
+**Which entry crosses is a fact about the spawn's form.** A `Class::method(...)` entry is a label the
+compiled unit's class table carries, and every core reads that unit, so the far core can prepare the
+child for itself. A path entry is compiled by a resolver only the thread the process booted on holds, so
+a child written as a path runs on its parent's core and the placement buys it nothing;
+`crates/nvs-host/src/placed.rs`'s `# Known gaps` is the one home of what closing that takes.
+
+Which core it is, is decided by the set that offers one, and **worker cores are started lazily and
+bounded at the core count**: a core's scheduler thread starts the first time a program places a child on
+one, so a program that places none has no thread, exactly as a worker with no blocking work has no pool
+threads. `nvs serve` is no exception today — a serving core does not offer itself as a destination, so a
+placement there starts one of these cores rather than reaching the sibling serving core ADR 0184 § 5
+argues for, which is the destination set that record's *Revisiting* names. Either way the cost is one
+scheduler thread per core at most: O(cores), never O(requests served), and which core ran a child is not
+readable from the child, so the destination set is the only thing that changes when a serving core
+registers one.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>PHP places nothing — a request is one core's worth of work, and its nearest equivalent is another process, which shares not even the compiled code</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/concurrency/the-scheduler/#a-wake-never-moves-a-task" title="A wake from another core queues an id on the task's own core and never migrates it"><code>concurrency/a-wake-never-moves-a-task</code></a> <a href="/docs/rules/security/isolates/#isolate-shares-nothing" title="Running another script is an in-process isolate that shares nothing with its parent but compiled code"><code>security/isolate-shares-nothing</code></a> <a href="/docs/rules/security/isolates/#isolate-values-cross-by-copy" title="A value crosses an isolate boundary as one graph copy, and a closure, an alias or a host handle does not cross at all"><code>security/isolate-values-cross-by-copy</code></a> <a href="/docs/rules/security/isolates/#isolate-budget-is-the-trees" title="A request and everything it spawns share one budget, accounted at the tree's root"><code>security/isolate-budget-is-the-trees</code></a> <a href="/docs/rules/concurrency/tasks/#nothing-is-still-running-when-a-call-returns" title="Control never leaves all or map with a child still running"><code>concurrency/nothing-is-still-running-when-a-call-returns</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0184.md">record 0184</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/isolate/a-child-on-a-worker-core-answers-as-one-on-this-core-does.nvst"><code>tests/conformance/isolate/a-child-on-a-worker-core-answers-as-one-on-this-core-does.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/isolate/a-worker-placed-child-is-held-to-the-limits-it-was-given.nvst"><code>tests/conformance/isolate/a-worker-placed-child-is-held-to-the-limits-it-was-given.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-host/src/worker.rs"><code>crates/nvs-host/src/worker.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-host/src/placed.rs"><code>crates/nvs-host/src/placed.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/tests/tree_budget.rs"><code>crates/nvs-runtime/tests/tree_budget.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/isolates.rs"><code>crates/nvs-types/tests/isolates.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/benches/abi-probe/tests/perf_guards.rs"><code>benches/abi-probe/tests/perf_guards.rs</code></a></dd></div></dl>
 
 </div>
 
