@@ -106,6 +106,12 @@ fluent-uri.workspace = true
 flate2.workspace = true
 brotli.workspace = true
 ruzstd.workspace = true
+# `crate::sort`: the natural-order rows of `Core\Arr::sort` and `sortByKey` are
+# a key sort, and this is the sort. The root manifest's row is where the
+# dependency is argued; what belongs here is that its only caller is that one
+# module, behind one row check, and that the merge sort beside it stays the
+# path for everything that can throw.
+brainsort.workspace = true
 
 # `tests/conformance_coverage.rs` reads the `.nvst` suite's `--FILE--`
 # sections, and the format's parser already exists. `nvs-test` depends on

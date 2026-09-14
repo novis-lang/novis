@@ -369,6 +369,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c"
 
 [[package]]
+name = "brainsort"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "706bc94c7071c20393a470befdf96cb86d0b3fcd372fc6894da204b6b85db277"
+
+[[package]]
 name = "brotli"
 version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2388,6 +2394,7 @@ dependencies = [
  "base64 0.22.1",
  "bcrypt",
  "blake3",
+ "brainsort",
  "brotli",
  "caseless",
  "chacha20poly1305",

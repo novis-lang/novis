@@ -310,6 +310,23 @@ rustc-hash = "2"
 # `default-features = false` is what turns the assembly off.
 blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 
+# --- sorting by key (`Core\Arr::sort`'s natural-order rows) ---
+# A stable sort for keys that map to an ordered integer or a byte string, radix
+# where the key allows it, AVX2/BMI2 chosen at run time.
+# `crates/nvs-stdlib/src/sort.rs` owns why the member has two sorts and which
+# subjects reach this one; docs/perf/brainsort-evaluation.md is the measurement.
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is
+# "yes" — every value a program sorts reaches it — and the crate is pure Rust
+# with no dependencies and no C, so the record the rule asks of C is written here
+# by analogy for its `unsafe`: the vector kernels and the record buffers are
+# about two hundred and sixty `unsafe` sites, and the crate's own CI runs clippy
+# with warnings denied, Miri under strict provenance over the library and its
+# suites, AddressSanitizer over the vector build, a 32-bit leg, a `no_std` leg
+# and a libFuzzer job with a persisted corpus. Its `build.rs` declares one `cfg`
+# and reads nothing. The process-wide block cache it keeps by default is turned
+# off at the seam, for the reason that module states.
+brainsort = "0.5"
+
 # --- Memory-mapped files (ADR 0042 § 3's read path) ---
 # The cache verifies an artifact by hashing it where the page cache already put
 # it, rather than by reading it into a buffer first — that ADR's *Investigation*
