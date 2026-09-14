@@ -1,0 +1,62 @@
+<?nvs
+// Attack: write an `int`, `float` and `bool` *variable* — never a literal — into every kind of `mixed` slot the language has, at size, and read every one of them back.
+// hostile: timeout-ms 30000
+// covers: lang:expressions/assignment
+
+class Box
+{
+    public mixed $held;
+    public array<mixed> $rows;
+
+    public function constructor()
+    {
+        $this->held = 0;
+        $this->rows = [];
+    }
+
+    public static function into(inout mixed $slot, int $v): void
+    {
+        $slot = $v;
+    }
+
+    public static function push(inout array<mixed> $a, float $v): void
+    {
+        $a[] = $v;
+    }
+}
+
+int $n = 5000;
+int $i = 0;
+int $iv = 0;
+float $fv = 0.0;
+bool $bv = false;
+array<mixed> $flat = [];
+array<mixed> $keyed = [];
+array<array<mixed>> $grid = [[]];
+var $box = new Box();
+mixed $slot = null;
+int $sum = 0;
+while ($i < $n) {
+    $iv = $i * 3;
+    $fv = ($i as float) / 2.0;
+    $bv = $i % 2 == 0;
+    // Element writes: append, keyed, nested, appended-row-then-keyed.
+    $flat[] = $iv;
+    $flat[] = $fv;
+    $flat[] = $bv;
+    $keyed[$iv as string] = $fv;
+    $grid[0][] = $iv;
+    $grid[][0] = $bv;
+    // Property and inout slots, the latter both a scalar and an array holder.
+    $box->held = $fv;
+    $box->rows[] = $iv;
+    Box::into(inout $slot, $iv);
+    Box::push(inout $flat, $fv);
+    Box::push(inout $box->rows, $fv);
+    // And the same values read back, so a wrong tag or a wrong count shows.
+    if ($slot == $iv && $box->held == $fv) {
+        $sum = $sum + 1;
+    }
+    $i = $i + 1;
+}
+echo Core\Arr::count($flat) as string, ' ', Core\Arr::count($keyed) as string, ' ', Core\Arr::count($grid) as string, ' ', Core\Arr::count($box->rows) as string, ' ', $sum as string, "\n";

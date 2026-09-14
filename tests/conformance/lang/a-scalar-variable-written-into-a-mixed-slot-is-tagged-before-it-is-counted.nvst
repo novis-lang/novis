@@ -1,0 +1,93 @@
+--TEST--
+`rule:types/unions-and-mixed`: an `int`, `float` or `bool` held in a variable is written into a `mixed` array element, property or `inout` slot exactly as a literal is — tagged on the way in, and read back as itself
+--FILE--
+<?nvs
+// covers: lang:expressions/assignment
+// A literal written into a `mixed` slot has one owner and takes no retain;
+// a *variable* written there aliases storage another binding owns, and the
+// retain that covers it has to land on the tagged value, not on the bare
+// scalar — a refcount on a plain integer is an internal error in codegen.
+// Every slot kind is written from a variable of each scalar type here, and
+// the readback is what proves the tag arrived with the value.
+class Box {
+    public mixed $held;
+    public array<mixed> $rows;
+    public static ?int $slot = null;
+    public static array<int> $list = [];
+
+    public function constructor() {
+        $this->held = 0;
+        $this->rows = [];
+    }
+
+    public static function into(inout mixed $slot, int $v): void {
+        $slot = $v;
+    }
+
+    public static function push(inout array<mixed> $a, float $v): void {
+        $a[] = $v;
+    }
+}
+
+// `rule:types/conversion`: `mixed as string` reads the runtime tag, so a
+// value that arrived with the wrong tag prints wrong — or throws — here.
+class Show {
+    public static function of(mixed $v): string {
+        return $v as string;
+    }
+}
+
+int $iv = 7;
+float $fv = 2.5;
+bool $bv = true;
+
+// Element writes: append, keyed, nested, and an appended row written into.
+array<mixed> $flat = [];
+$flat[] = $iv;
+$flat[] = $fv;
+$flat[] = $bv;
+array<mixed> $keyed = [];
+$keyed["i"] = $iv;
+$keyed["f"] = $fv;
+$keyed["b"] = $bv;
+array<array<mixed>> $grid = [[]];
+$grid[0][] = $iv;
+$grid[0]["f"] = $fv;
+$grid[][0] = $bv;
+echo Core\Str::join(Core\Arr::map($flat, fn(mixed $v): string => Show::of($v)), " "), "\n";
+echo Show::of($keyed["i"]), " ", Show::of($keyed["f"]), " ", Show::of($keyed["b"]), "\n";
+echo Show::of($grid[0][0]), " ", Show::of($grid[0]["f"]), " ", Show::of($grid[1][0]), "\n";
+
+// Property and `inout` slots.
+var $box = new Box();
+$box->held = $iv;
+string $a = Show::of($box->held);
+$box->held = $fv;
+string $b = Show::of($box->held);
+$box->held = $bv;
+echo $a, " ", $b, " ", Show::of($box->held), "\n";
+mixed $slot = null;
+Box::into(inout $slot, $iv);
+echo Show::of($slot), "\n";
+$box->rows[] = $iv;
+Box::push(inout $box->rows, $fv);
+echo Core\Str::join(Core\Arr::map($box->rows, fn(mixed $v): string => Show::of($v)), " "), "\n";
+
+// A static slot is one tagged position too when it is nullable, and its
+// array is a holder an element write goes back through.
+Box::$slot = $iv;
+Box::$list[] = $iv;
+Box::$list["k"] = $iv;
+echo (Box::$slot ?? -1) as string, " ", Core\Arr::count(Box::$list) as string, "\n";
+
+// The variables themselves are untouched by having been written elsewhere.
+echo $iv as string, " ", $fv as string, " ", ($bv ? "true" : "false"), "\n";
+--EXPECT--
+7 2.5 1
+7 2.5 1
+7 2.5 1
+7 2.5 1
+7
+7 2.5
+7 2
+7 2.5 true
