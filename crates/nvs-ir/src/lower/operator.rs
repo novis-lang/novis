@@ -608,6 +608,163 @@ impl<'a> Lowering<'a> {
         (answer, Ty::Object)
     }
 
+    /// `rule:expressions/one-equality-operator`'s comparison over two values
+    /// already in hand — **the** equality lowering, which a written `==`/`!=`
+    /// ([`Self::lower_binary`]), a `switch` label
+    /// ([`Self::lower_switch`]) and a `match` arm ([`Self::lower_match`]) all
+    /// reach. `rule:expressions/switch-match-equality` is why there is one of
+    /// these rather than three: a label is that same comparison written
+    /// without the operator, and a second table beside this one is the copy
+    /// that eventually disagrees with it.
+    ///
+    /// `op` is `==` or `!=`, and every row answers both — `!=` being exactly
+    /// `!( … == … )`, which is all § 2 leaves it to be.
+    ///
+    /// The rows, each settled here rather than handed to `nvs-codegen`, whose
+    /// `BinOp` carries one representation:
+    ///
+    /// * a `decimal` on either side is [`Self::lower_decimal_binary`]'s
+    ///   [`Helper::DecimalEq`], `rule:types/arithmetic` giving that type a set
+    ///   of helpers rather than a machine instruction;
+    /// * a [`Ty::Tagged`] on either side is `rule:expressions/mixed-equality`'s
+    ///   runtime row: where one side is a tag there is no machine comparison
+    ///   to emit, so [`Helper::Identical`] lets the tags decide it;
+    /// * `rule:types/class-reference`'s `?class<T>` against `null` compares the
+    ///   descriptor *words* — the descriptor through
+    ///   [`InstKind::Reinterpret`], `null` as the zero a missed
+    ///   [`InstKind::ClassDescIn`] answers with — neither side being tagged and
+    ///   neither having a `BinOp` row of its own. A non-nullable `class<T>`
+    ///   takes it too: a descriptor is never at address zero, so `$c == null`
+    ///   folds to `false` rather than needing a rule;
+    /// * an enum pair is answered one representation down, on the integer
+    ///   `rule:enums/no-class-machinery` makes its cases, through the free
+    ///   [`InstKind::Reinterpret`] of `rule:types/conversion` row 1 — an enum
+    ///   is its own equality domain, so a pair reaching here is one enum
+    ///   compared with itself;
+    /// * a mixed `int`/`uint`/`float` pair — one numeric domain under
+    ///   `rule:expressions/disjoint-comparison-refused`, two representations —
+    ///   is [`Helper::NumericEq`], which is exact across the whole domain where
+    ///   a widening into `float` would round;
+    /// * and a matched pair is the [`BinOp`] `nvs-codegen` turns into that
+    ///   row's own comparison.
+    ///
+    /// **Ownership stays with the caller**, which is the only side that knows
+    /// whether an operand aliases a slot: nothing here retains or releases.
+    /// A caller holding a *fresh* refcounted operand stages it on
+    /// [`Lowering::owned_temporaries`] first, because the `decimal`, tagged and
+    /// mixed-numeric rows carry `rule:errors/propagation`'s error edge and a
+    /// value abandoned on it is a leak.
+    ///
+    /// # Panics
+    ///
+    /// Guarded by `E0466`: a pair no single value inhabits never arrives,
+    /// `nvs_types::expr::operators::reject_disjoint_equality` refusing it where
+    /// it is written — at a written comparison, at a `switch` label and at a
+    /// `match` arm alike.
+    pub(crate) fn emit_equality(
+        &mut self,
+        op: BinaryOp,
+        lhs: (ValueId, Ty),
+        rhs: (ValueId, Ty),
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        let (lv, lty) = lhs;
+        let (rv, rty) = rhs;
+        if lty == Ty::Decimal || rty == Ty::Decimal {
+            let (answer, _) = self.lower_decimal_binary(op, lv, rv, env, cur);
+            return answer;
+        }
+        if lty == Ty::Tagged || rty == Ty::Tagged {
+            let (equal, _) = self.emit_fallible(
+                *cur,
+                Ty::Bool,
+                InstKind::HelperCall {
+                    helper: Helper::Identical,
+                    args: vec![lv, rv],
+                },
+                env,
+            );
+            return self.negate_unless_eq(op, equal, *cur);
+        }
+        let (lv, lty, rv, rty) = if (lty == Ty::ClassDesc || rty == Ty::ClassDesc)
+            && matches!(lty, Ty::ClassDesc | Ty::Null)
+            && matches!(rty, Ty::ClassDesc | Ty::Null)
+        {
+            let lv = self.class_desc_word(lv, lty, *cur);
+            let rv = self.class_desc_word(rv, rty, *cur);
+            (lv, Ty::Int, rv, Ty::Int)
+        } else {
+            (lv, lty, rv, rty)
+        };
+        // Both sides or neither: an enum against its own underlying integer is
+        // `rule:expressions/disjoint-comparison-refused`'s compile error, so a
+        // one-sided pairing is a shape the guard below owns rather than a row.
+        let (lv, lty, rv, rty) = if matches!(lty, Ty::Enum(_)) && matches!(rty, Ty::Enum(_)) {
+            let (lv, lty) = self.reinterpret_enum_to_backing(lv, lty, cur);
+            let (rv, rty) = self.reinterpret_enum_to_backing(rv, rty, cur);
+            (lv, lty, rv, rty)
+        } else {
+            (lv, lty, rv, rty)
+        };
+        if lty != rty
+            && matches!(lty, Ty::Int | Ty::Uint | Ty::Float)
+            && matches!(rty, Ty::Int | Ty::Uint | Ty::Float)
+        {
+            let (equal, _) = self.emit_fallible(
+                *cur,
+                Ty::Bool,
+                InstKind::HelperCall {
+                    helper: Helper::NumericEq,
+                    args: vec![lv, rv],
+                },
+                env,
+            );
+            return self.negate_unless_eq(op, equal, *cur);
+        }
+        if lty == rty {
+            let (answer, _) = self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::BinOp {
+                    op: if op == BinaryOp::Eq {
+                        BinOp::Eq
+                    } else {
+                        BinOp::NotEq
+                    },
+                    lhs: lv,
+                    rhs: rv,
+                },
+            );
+            return answer;
+        }
+        guarded_by!(
+            code::E_DISJOINT_EQUALITY,
+            "nvs-ir reached an equality over a {lty:?} and a {rty:?}, which no single value \
+             inhabits. `nvs_types::expr::operators::reject_disjoint_equality` refuses that pair \
+             where it is written, at a comparison, a `switch` label and a `match` arm alike"
+        )
+    }
+
+    /// `!=` as `!( … == … )`, which `rule:expressions/one-equality-operator`
+    /// makes exactly what it means. Only the helper rows need it: each answers
+    /// equality alone and has no negated twin, while the `BinOp` row carries
+    /// its own [`BinOp::NotEq`] and never comes through here.
+    fn negate_unless_eq(&mut self, op: BinaryOp, equal: ValueId, cur: BlockId) -> ValueId {
+        if op == BinaryOp::Eq {
+            return equal;
+        }
+        let (negated, _) = self.emit(
+            cur,
+            Ty::Bool,
+            InstKind::UnOp {
+                op: UnOp::Not,
+                operand: equal,
+            },
+        );
+        negated
+    }
+
     pub(crate) fn lower_binary(
         &mut self,
         whole: &Expr,
@@ -666,45 +823,8 @@ impl<'a> Lowering<'a> {
         {
             return self.lower_carrier_concat(symbol, [(&**lhs, lv), (&**rhs, rv)], env, cur);
         }
-        // `rule:expressions/mixed-equality`: a `mixed` or union operand is the one pairing whose
-        // § 3 row is a runtime tag, so it dispatches through
-        // `nvs_runtime::value_identical` rather than through a `BinOp` over a
-        // representation neither side has. Every other row is statically
-        // known and stays in the table below, where `nvs-codegen` turns it
-        // into that row's own comparison.
-        if matches!(op, BinaryOp::Eq | BinaryOp::NotEq) && (lty == Ty::Tagged || rty == Ty::Tagged)
-        {
-            let (equal, _) = self.emit_fallible(
-                *cur,
-                Ty::Bool,
-                InstKind::HelperCall {
-                    helper: Helper::Identical,
-                    args: vec![lv, rv],
-                },
-                env,
-            );
-            // Released per operand rather than per pair: the two sides may
-            // hold different representations here, which is the whole reason
-            // this arm exists.
-            for (operand, value, ty) in [(lhs, lv, lty), (rhs, rv, rty)] {
-                if ty.is_refcounted() && !self.aliasing_read(operand) {
-                    self.emit_release(*cur, value);
-                }
-            }
-            if op == BinaryOp::Eq {
-                return (equal, Ty::Bool);
-            }
-            return self.emit(
-                *cur,
-                Ty::Bool,
-                InstKind::UnOp {
-                    op: UnOp::Not,
-                    operand: equal,
-                },
-            );
-        }
-        // `rule:types/arithmetic`'s ordering rows for the same operand shape the arm
-        // above answers for equality: a `mixed` or a union names no row, so
+        // `rule:types/arithmetic`'s ordering rows for the operand shape
+        // `Self::emit_equality` answers for equality: a `mixed` or a union names no row, so
         // the tag names it at run time. `>`/`>=` are the `<` helpers with
         // their operands swapped, the arrangement `lower_decimal_binary` and
         // the `NumericLt` pair above both use, which is what gives a `NaN`
@@ -741,8 +861,9 @@ impl<'a> Lowering<'a> {
             return (answer, ty);
         }
         // `rule:types/arithmetic`'s *arithmetic* and bitwise rows for the operand shape
-        // the two arms above answer for equality and ordering, and the last of
-        // the three: a `mixed`, a union or the `int|float` a division returns
+        // `Self::emit_equality` and the ordering arm above answer for their own
+        // operators, and the last of the three: a `mixed`, a union or the
+        // `int|float` a division returns
         // names no row where it is written, so the tags name it when they
         // arrive. See `Helper::ValueAdd`, which is this family's home.
         //
@@ -802,88 +923,6 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             return (answer, Ty::Tagged);
         }
-        // `rule:expressions/disjoint-comparison-refused`'s enum row: an enum is its own equality domain — a
-        // case against its underlying integer is a compile error and two
-        // different enums are disjoint, so a pair that reaches here is one
-        // enum compared with itself. It is answered one representation down,
-        // on the integer its cases *are* (`rule:enums/no-class-machinery`): `Ty::Enum` is a
-        // zero-byte tag over that integer, so the free `Reinterpret` row 1 of
-        // `rule:types/conversion` already uses for `$m as int` turns the comparison into
-        // the machine compare `nvs-codegen` has — its `BinOp` table is
-        // `Ty::Int`/`Ty::Uint`/`Ty::Bool` and has no `Ty::Enum` row at all.
-        //
-        // Only `==`/`!=` are relabelled. `<` over two cases has no row in any
-        // ADR, and `rule:expressions/disjoint-comparison-refused` keeps the two domains apart on purpose, so
-        // ordering an enum stays something `$e as int` says out loud.
-        // `rule:types/class-reference`'s `?class<T>` against `null`, and the reason it is a row
-        // here rather than the `Ty::Tagged` arm above: that erasure is a
-        // `Ty::ClassDesc` ([`Ty::ClassDesc`]'s own doc comment says why), so
-        // neither operand is tagged and neither has a `BinOp` row of its own.
-        // Both sides relabel to the word they already are — the descriptor
-        // through `InstKind::Reinterpret`, `null` as the zero a missed
-        // `InstKind::ClassDescIn` answers with — and the `Ty::Int` row below
-        // is the machine compare. Written for a `class<T>` operand as well as
-        // a `?class<T>` one: a non-nullable descriptor is never zero, so
-        // `$c == null` on one folds to `false` rather than needing a rule.
-        let (lv, lty, rv, rty) = if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
-            && (lty == Ty::ClassDesc || rty == Ty::ClassDesc)
-            && matches!(lty, Ty::ClassDesc | Ty::Null)
-            && matches!(rty, Ty::ClassDesc | Ty::Null)
-        {
-            let lv = self.class_desc_word(lv, lty, *cur);
-            let rv = self.class_desc_word(rv, rty, *cur);
-            (lv, Ty::Int, rv, Ty::Int)
-        } else {
-            (lv, lty, rv, rty)
-        };
-        let (lv, lty, rv, rty) = if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
-            && matches!(lty, Ty::Enum(_))
-            && matches!(rty, Ty::Enum(_))
-        {
-            let (lv, lty) = self.reinterpret_enum_to_backing(lv, lty, cur);
-            let (rv, rty) = self.reinterpret_enum_to_backing(rv, rty, cur);
-            (lv, lty, rv, rty)
-        } else {
-            (lv, lty, rv, rty)
-        };
-        // `rule:expressions/disjoint-comparison-refused`'s numeric row: `int`, `uint` and `float` are one
-        // domain, so the checker accepts `$n == $f` where the two operands
-        // have two *representations*. That pairing is settled here, exactly
-        // as the `decimal` and `Tagged` arms above settle theirs, rather than
-        // in `nvs-codegen` — which keeps its "a `BinOp` has one
-        // representation" invariant intact and its `ty != rty` refusal a
-        // genuine internal error. See `Helper::NumericEq` for why the
-        // settlement is a call and not a widening conversion: none of the
-        // three widenings is exact, so emitting one would answer § 3's
-        // "mathematically equal across the whole domain" with a rounding.
-        if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
-            && lty != rty
-            && matches!(lty, Ty::Int | Ty::Uint | Ty::Float)
-            && matches!(rty, Ty::Int | Ty::Uint | Ty::Float)
-        {
-            let (equal, _) = self.emit_fallible(
-                *cur,
-                Ty::Bool,
-                InstKind::HelperCall {
-                    helper: Helper::NumericEq,
-                    args: vec![lv, rv],
-                },
-                env,
-            );
-            // Nothing is released: every representation in this arm is a
-            // scalar, so neither operand is `Ty::is_refcounted`.
-            if op == BinaryOp::Eq {
-                return (equal, Ty::Bool);
-            }
-            return self.emit(
-                *cur,
-                Ty::Bool,
-                InstKind::UnOp {
-                    op: UnOp::Not,
-                    operand: equal,
-                },
-            );
-        }
         // `rule:security/secret-comparison-is-constant-time`: `==` over a pair at least one side of which is
         // `secret` is a constant-time comparison, so that a program comparing
         // its own session token or signature with the language's one equality
@@ -936,6 +975,29 @@ impl<'a> Lowering<'a> {
                     operand: equal,
                 },
             );
+        }
+        // `rule:expressions/switch-match-equality`: one equality lowering, and
+        // this is where a written `==`/`!=` reaches it — the same call a
+        // `switch` label and a `match` arm make. Every row left is
+        // `Self::emit_equality`'s: the tagged one, `?class<T>` against `null`,
+        // an enum pair on its backing integer, a mixed numeric pair, and the
+        // matched pair `nvs-codegen` compares directly.
+        //
+        // Ownership stays on this side, which is the only one that knows
+        // whether an operand aliases a slot. A comparison only *reads* its
+        // operands, so a refcounted one no durable slot owns — the string
+        // literal in `$key == "bad"` is the shape this exists for — is
+        // released right after the comparison reads it, per operand rather
+        // than per pair: the two sides may hold two representations, which is
+        // what the rows above the `BinOp` are for.
+        if matches!(op, BinaryOp::Eq | BinaryOp::NotEq) {
+            let answer = self.emit_equality(op, (lv, lty), (rv, rty), env, cur);
+            for (operand, value, ty) in [(lhs, lv, lty), (rhs, rv, rty)] {
+                if ty.is_refcounted() && !self.aliasing_read(operand) {
+                    self.emit_release(*cur, value);
+                }
+            }
+            return (answer, Ty::Bool);
         }
         // `rule:types/arithmetic`'s ordering rows, which are *not* its arithmetic ones:
         // the table's own closing paragraph says a comparison "has an exact
@@ -1036,8 +1098,6 @@ impl<'a> Lowering<'a> {
             BinaryOp::BitXor => (BinOp::BitXor, lty),
             BinaryOp::Shl => (BinOp::Shl, lty),
             BinaryOp::Shr => (BinOp::Shr, lty),
-            BinaryOp::Eq => (BinOp::Eq, Ty::Bool),
-            BinaryOp::NotEq => (BinOp::NotEq, Ty::Bool),
             BinaryOp::Lt => (BinOp::Lt, Ty::Bool),
             BinaryOp::LtEq => (BinOp::LtEq, Ty::Bool),
             BinaryOp::Gt => (BinOp::Gt, Ty::Bool),
@@ -1051,7 +1111,9 @@ impl<'a> Lowering<'a> {
             BinaryOp::Cmp => (BinOp::Cmp, Ty::Int),
             // Every `BinaryOp` is accounted for and this arm has no reachable
             // target left. Most of them are the rows above (`Div` twice,
-            // guarded by its operands' representation). The rest never arrive
+            // guarded by its operands' representation); `==` and `!=` are
+            // `Self::emit_equality`'s, which the arm above returns through for
+            // every pair it admits. The rest never arrive
             // here at all, because `Self::lower_expr` takes each of them
             // *before* the general `Binary` arm that is this function's only
             // caller: `.` goes to `Self::lower_concat`, which flattens the
@@ -1069,10 +1131,10 @@ impl<'a> Lowering<'a> {
             ),
         };
         // A comparison only *reads* its operands, so a refcounted one
-        // that no durable slot owns — a string literal in
-        // `$key === "bad"` is the shape this exists for — is released
+        // that no durable slot owns — the string literal in
+        // `$key < "bad"` is the shape this exists for — is released
         // right after the instruction reads it, exactly the rule the
-        // `Concat` arm above applies to its own fresh operands.
+        // equality arm above applies to its own pair.
         //
         // Every *integer* arithmetic operator here can fail, and `rule:types/arithmetic`
         // is why: `+`, `-`, `*` and `**` throw `ArithmeticError` on overflow

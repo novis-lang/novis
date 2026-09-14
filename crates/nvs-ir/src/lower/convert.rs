@@ -497,10 +497,15 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics naming the case for anything outside this table, which today is
-    /// `Ty::Void` alone — `rule:types/declaration` already keeps `void`/`never` out of value
-    /// position, so no program reaches it. [`Ty::Null`] *is* in the table and
-    /// is reachable only from the literal `null`: a `?T` is one
+    /// The table has a row for every representation, so what is left is the
+    /// two shapes no program puts in a condition. `Ty::Void` is guarded by
+    /// `E0719`: `rule:types/declaration` makes every return type written and
+    /// keeps `void`/`never` out of value position, so a call returning nothing
+    /// is refused at the condition that wrote it. [`Ty::Ref`] is an engine
+    /// invariant rather than a refusal — a cell is only ever read through
+    /// [`InstKind::RefLoad`], which yields the referent's own representation,
+    /// so no cell is ever the value being converted. [`Ty::Null`] *is* in the
+    /// table and is reachable only from the literal `null`: a `?T` is one
     /// [`Ty::Tagged`] slot and takes that row instead.
     pub(crate) fn truthy_convert(
         &mut self,
@@ -605,10 +610,25 @@ impl<'a> Lowering<'a> {
                 )
                 .0
             }
-            other => panic!(
-                "nvs-ir's truthy-condition slice only converts a `bool`, a scalar, `null`, \
-                 `Ty::Array`, `Ty::Object` or a tagged value — got {other:?}; see the crate \
-                 docs' known gaps"
+            // `rule:types/declaration` keeps `void` out of value position, and
+            // a condition is the position an author most often tries it in —
+            // `if (log())` over a method declared `: void`. That is `E0719`,
+            // raised where it is written, so the row here is the guarantee
+            // rather than a conversion.
+            Ty::Void => guarded_by!(
+                code::E_VOID_IS_NOT_A_CONDITION,
+                "nvs-ir reached the truthy conversion over a `void`. A call returning nothing \
+                 is refused in every condition where one is written, which is the only way a \
+                 value of this representation could arrive"
+            ),
+            // An engine invariant, not a refusal: a `Ty::Ref` is the *cell* an
+            // `inout` binding ties two names to, and nothing converts one
+            // because nothing reads one. `InstKind::RefLoad` is the single
+            // read of a cell in this IR and it yields the referent's own
+            // representation, which is what reaches this table instead.
+            Ty::Ref => panic!(
+                "nvs-ir: unreachable — a `Ty::Ref` cell reached the truthy conversion; \
+                 `InstKind::RefLoad` is the one read of a cell and it yields the referent"
             ),
         }
     }

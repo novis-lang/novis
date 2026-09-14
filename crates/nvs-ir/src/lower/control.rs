@@ -675,13 +675,17 @@ impl<'a> Lowering<'a> {
     /// exactly once. It costs one refcount pair per `switch` over a
     /// refcounted subject, and nothing at all over an `int`/`bool` one.
     ///
+    /// Every label is compared through [`Self::emit_equality`], the one
+    /// equality lowering a written `==` over the same pair takes
+    /// (`rule:expressions/switch-match-equality`) — so a label at a
+    /// representation the subject does not share is that function's row for
+    /// the pair rather than anything this chain decides for itself.
+    ///
     /// # Panics
     ///
-    /// Panics naming the case if a label's representation differs from the
-    /// subject's — the checker does not yet reconcile the two (`nvs_types`'
-    /// own `Switch` arm checks each label with no expected type), and
-    /// comparing two different representations would be a miscompile rather
-    /// than a conversion.
+    /// Through [`Self::emit_equality`], guarded by `E0466`: a label no value
+    /// of the subject's type could equal is refused where it is written, by
+    /// `nvs_types::locals`' own `Switch` arm.
     pub(crate) fn lower_switch(
         &mut self,
         subject: &Expr,
@@ -731,32 +735,42 @@ impl<'a> Lowering<'a> {
             let Some(cond) = &case.cond else {
                 continue;
             };
+            // The label is in flight for its own comparison, which is the one
+            // thing between building it and releasing it that can throw: the
+            // rows `Self::emit_equality` answers a cross-representation pair
+            // with carry `rule:errors/propagation`'s error edge. The subject
+            // needs no such staging — it is parked in the `Env` under the
+            // reserved name above, which a landing block sweeps.
+            let label_mark = self.temporaries_mark();
             let (cond_v, cond_ty) =
                 self.lower_expr(cond, Some(subj_ty), &mut entry_env, &mut test_cur);
+            let label_owed = cond_ty.is_refcounted() && !self.aliasing_read(cond);
+            if label_owed {
+                self.own_temporary(cond_v);
+            }
             // The label takes the subject's own relabelling, for the
             // subject's own reason; `cond_v` is still what the release below
             // reads.
             let (cmp_cond_v, cmp_cond_ty) =
                 self.reinterpret_enum_to_backing(cond_v, cond_ty, &mut test_cur);
-            assert_eq!(
-                cmp_cond_ty, cmp_subj_ty,
-                "nvs-ir lowers a `switch` label only at the subject's own representation — got \
-                 {cmp_cond_ty:?} against a {cmp_subj_ty:?} subject; see the crate docs' known gaps"
+            // A label is the one comparison the language has, written without
+            // the operator (`rule:expressions/switch-match-equality`), so it is
+            // the lowering a written `==` over the pair takes — a label at a
+            // representation the subject does not share included.
+            let eq_v = self.emit_equality(
+                BinaryOp::Eq,
+                (cmp_subj_v, cmp_subj_ty),
+                (cmp_cond_v, cmp_cond_ty),
+                &mut entry_env,
+                &mut test_cur,
             );
-            let (eq_v, _) = self.emit(
-                test_cur,
-                Ty::Bool,
-                InstKind::BinOp {
-                    op: BinOp::Eq,
-                    lhs: cmp_subj_v,
-                    rhs: cmp_cond_v,
-                },
-            );
-            // A comparison only reads its operands, so a label that no
+            // Past the comparison, so the label is back to being accounted for
+            // by hand. A comparison only reads its operands, so a label that no
             // durable slot owns — `case "A":`, the common shape — is released
             // right after the instruction reads it, exactly the rule
             // `Self::lower_expr`'s own `Binary` arm applies.
-            if cond_ty.is_refcounted() && !self.aliasing_read(cond) {
+            self.forget_temporaries_since(label_mark);
+            if label_owed {
                 self.emit_release(test_cur, cond_v);
             }
             let next = self.new_block();

@@ -1799,13 +1799,14 @@ impl<'a> Lowering<'a> {
     /// [`Ty::Tagged`], [`Self::lower_ternary`]'s rule applied to N branches
     /// rather than two — [`Self::join_representations`] owns it.
     ///
-    /// A subject whose static type names no representation of its own — a
-    /// `mixed`, a union — compares against each label through
-    /// [`Helper::Identical`] rather than through [`BinOp::Eq`], which is
-    /// [`Self::lower_binary`]'s own rule for a written `==` over the same
-    /// pair: where one side is a tag there is no machine comparison to emit,
-    /// so the tags decide it at run time. The label itself is unchanged by
-    /// it, being written at its own representation either way.
+    /// Every comparison in the chain is [`Self::emit_equality`], the one
+    /// equality lowering a written `==` over the same pair takes
+    /// (`rule:expressions/switch-match-equality`). So a subject whose static
+    /// type names no representation of its own — a `mixed`, a union — compares
+    /// through [`Helper::Identical`], where the tags decide it at run time,
+    /// and a label at a representation the subject does not share takes that
+    /// pair's own row. The label is unchanged by either, being written at its
+    /// own representation whatever the subject's is.
     ///
     /// An **enum** subject goes the other way and is compared one
     /// representation *down*, on the integer `rule:enums/no-class-machinery` makes its cases:
@@ -1822,10 +1823,11 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics — as engine invariants, not refusals — for a label whose
-    /// representation differs from a subject that is not a tag, and for a
-    /// `match` with no arms at all, which `nvs_types` refuses as `E0476`
-    /// before this crate ever sees it.
+    /// Panics — as an engine invariant, not a refusal — for a `match` with no
+    /// arms at all, which `nvs_types` refuses as `E0476` before this crate
+    /// ever sees it. A pair no single value inhabits is
+    /// [`Self::emit_equality`]'s `E0466` guard instead, the checker having
+    /// refused it at the arm that wrote it.
     pub(crate) fn lower_match(
         &mut self,
         subject: &Expr,
@@ -1899,47 +1901,25 @@ impl<'a> Lowering<'a> {
                 // only the comparison sees the relabelled pair.
                 let (cmp_cond_v, cmp_cond_ty) =
                     self.reinterpret_enum_to_backing(cond_v, cond_ty, &mut test_cur);
-                // `rule:expressions/mixed-equality`'s `mixed`-or-union row, which is the same row
-                // `Self::lower_binary` takes for a written `==`: where either
-                // side's representation is a runtime tag there is no machine
-                // comparison to emit, so the tags decide it in
-                // `nvs_runtime::value_identical`. A label is written at its
-                // own representation whatever the subject's is — a digit run
-                // beside a `mixed` is still a `ConstInt` — and needs no
-                // widening to get there, `nvs-codegen`'s helper convention
-                // storing every argument as a 16-byte tagged `Value` already.
-                let (eq_v, _) = if cmp_subj_ty == Ty::Tagged || cmp_cond_ty == Ty::Tagged {
-                    self.emit_fallible(
-                        test_cur,
-                        Ty::Bool,
-                        InstKind::HelperCall {
-                            helper: Helper::Identical,
-                            args: vec![cmp_subj_v, cmp_cond_v],
-                        },
-                        env,
-                    )
-                } else {
-                    // Not a refusal: `nvs_types` has already made every label
-                    // comparable with the subject (`E0466`, `rule:expressions/switch-match-equality`), and the arm above
-                    // takes the one pairing whose types name no static row. So
-                    // an arrival here is a `nvs-ir` site that lowered a label
-                    // against an expectation it then did not honour.
-                    assert_eq!(
-                        cmp_cond_ty, cmp_subj_ty,
-                        "nvs-ir lowers a `match` label only at the subject's own representation, \
-                         or through `Helper::Identical` where one of the two is a tag — got \
-                         {cmp_cond_ty:?} against a {cmp_subj_ty:?} subject"
-                    );
-                    self.emit(
-                        test_cur,
-                        Ty::Bool,
-                        InstKind::BinOp {
-                            op: BinOp::Eq,
-                            lhs: cmp_subj_v,
-                            rhs: cmp_cond_v,
-                        },
-                    )
-                };
+                // An arm is the one comparison the language has, written
+                // without the operator
+                // (`rule:expressions/switch-match-equality`), so it is the
+                // lowering a written `==` over the pair takes:
+                // `rule:expressions/mixed-equality`'s runtime row where either
+                // side's representation is a tag, and the pair's own row where
+                // the arm is written at a representation the subject does not
+                // share. An arm is written at its own representation whatever
+                // the subject's is — a digit run beside a `mixed` is still a
+                // `ConstInt` — and needs no widening to get there,
+                // `nvs-codegen`'s helper convention storing every argument as a
+                // 16-byte tagged `Value` already.
+                let eq_v = self.emit_equality(
+                    BinaryOp::Eq,
+                    (cmp_subj_v, cmp_subj_ty),
+                    (cmp_cond_v, cmp_cond_ty),
+                    env,
+                    &mut test_cur,
+                );
                 self.forget_temporaries_since(label_mark);
                 if cond_ty.is_refcounted() && !self.aliasing_read(cond) {
                     self.emit_release(test_cur, cond_v);

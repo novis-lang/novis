@@ -211,10 +211,11 @@
 //!    [`lower::Lowering::lower_while`] and
 //!    [`lower::Lowering::lower_do_while`]. What is left is a `for`
 //!    ([`lower::Lowering::lower_for`]) whose condition
-//!    clause holds more than one comma-separated expression, and a `switch`
-//!    ([`lower::Lowering::lower_switch`]) or `match`
-//!    ([`lower::Lowering::lower_match`]) label
-//!    whose representation differs from the subject's. Both of the latter
+//!    clause holds more than one comma-separated expression. A `switch`
+//!    ([`lower::Lowering::lower_switch`]) and a `match`
+//!    ([`lower::Lowering::lower_match`]) — whose labels are
+//!    [`lower::Lowering::emit_equality`] at every representation, the one
+//!    equality lowering a written `==` reaches — both
 //!    lower to an equality chain of [`ir::Terminator::Branch`]es rather than
 //!    to [`ir::Terminator::Switch`] — that terminator selects on an integer,
 //!    while a label is any expression of the subject's type; `lower_switch`'s
