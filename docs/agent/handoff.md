@@ -2,52 +2,50 @@
 
 ## State
 
-**Goal `m5-proofs` (M5), stage 3 is complete.** The request and session refusals landed last
-session; the three isolate proofs the Verify paragraph names are now on disk, and the stage's
-`cargo-named` check has all three of its tests.
+**Goal `m5-proofs` (M5). Stage 2 is closed, and stage 4 is half landed.**
 
-A child's memory breach and its CPU breach each cross as `ok = false` with the parent running
-(`crates/nvs-host/tests/limits.rs`), reading the limit out of `rule:errors/on-limit`'s report as the
-depth case beside them does. The CPU case also asserts the flag is still up on the parent, because
-`Ctx::isolate` shares the safepoint word: the parent keeps running in the sense
-`rule:security/isolate-failure-is-a-value` means, while the tree's ceiling still stands.
+Stage 2 needed no new assertions. Both deadlock tests and the `.nvst` case were already on disk
+from an earlier session under names the check does not spell; the two `cargo-named` tests now carry
+the check's own spelling in `crates/nvs-host/src/group.rs` and their assertions are untouched, and
+`tests/conformance/task/a-deliberate-deadlock-is-ended-by-the-deadline-and-leaves-no-child-running.nvst`
+passes as it stood.
 
-The cyclic-argument proof went into `crates/nvs-host/src/isolate.rs`'s own test module rather than
-into `limits.rs` as the last handoff proposed — it is a crossing and not a limit, and that module
-already holds the `parent`, `run` and class-resolution fixtures it needs. Same `-p nvs-host`, which
-is all the check names.
+Stage 4's runtime half is built: `Ctx::open_spawn` and `Ctx::close_spawn`
+(`crates/nvs-runtime/src/ctx/trace.rs`) file one `TraceKind::Spawn` event per spawn under `TRACE` or
+`PROFILE`, carrying the form's spelling, both timestamps on a process-wide monotonic epoch, the
+parent-observed wall and the split against the child's own. `run_as_children` emits one per
+`Core\Task` child and closes them all where the call returns. Two of that stage's three `-p
+nvs-host` tests are green; the third is the isolate's, and `Completion` has nowhere yet to carry a
+child's own wall time, which is what the next group builds.
 
-**Stage 2 is the earliest red stage and nothing of it is written.** Nothing is blocked.
-
-The pack's `[context] rules` is missing `errors/on-limit` and `security/isolate-budget-is-the-trees`;
-both are cited by the tests this stage just landed.
+Nothing is blocked.
 
 ## Next group
 
-**Stage 2: the deadlock** — one file set: `crates/nvs-host/src/channel.rs` and
-`crates/nvs-host/src/group.rs`, both in their own `#[cfg(test)]` modules, plus one `.nvst` case.
+**Stage 4: the `spawn` trace event, the isolate half** — one file set:
+`crates/nvs-host/src/isolate.rs` and `crates/nvs-runtime/src/host.rs`.
 
-- [ ] **Two tasks waiting on each other's channel are ended by the group's deadline** — the test name
-      `two_tasks_waiting_on_each_others_channel_are_ended_by_the_groups_deadline` verbatim, in
-      `crates/nvs-host/src/channel.rs:540`'s test module over the `recv` that suspends at
-      `crates/nvs-host/src/channel.rs:352` and the group's own expiry at
-      `crates/nvs-host/src/group.rs:350`.
-      `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
-- [ ] **A deadlocked pair is ended by cancelling the task that awaits them** —
-      `a_deadlocked_pair_is_ended_by_cancelling_the_task_that_awaits_them`, the other half of the
-      same check, in `crates/nvs-host/src/group.rs:573`'s test module.
-      `rule:concurrency/cancellation-runs-no-user-code`.
-- [ ] **The same deadlock as a program** —
-      `tests/conformance/task/a-deliberate-deadlock-is-ended-by-the-deadline-and-leaves-no-child-running.nvst`,
-      the stage's second check, written beside
-      `tests/conformance/task/a-task-tree-dies-with-its-parent.nvst:1`.
-      `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
+- [ ] **A child isolate reports its own wall time** — `Completion` at
+      `crates/nvs-runtime/src/host.rs:268` gains the field the split is computed against, filled
+      where the child's body ends, at `crates/nvs-host/src/isolate.rs:630`'s join and the placed
+      form's at `crates/nvs-host/src/isolate.rs:674`. Timed only where the parent opened an event,
+      as `crates/nvs-host/src/group.rs`'s `Child::timed` does it.
+      `rule:observability/spawn-is-its-own-event`.
+- [ ] **A `spawn script` opens its event where the child starts and closes it at the join** — the
+      test name `a_traced_spawn_script_records_one_spawn_event_closed_at_its_join` verbatim, in
+      `crates/nvs-host/src/isolate.rs`'s own test module, over `Isolate::start` at
+      `crates/nvs-host/src/isolate.rs:423` and the joins at `crates/nvs-host/src/isolate.rs:630`.
+      `rule:observability/spawn-is-its-own-event`.
+- [ ] **The untraced gate covers an isolate as well as a task child** — the same isolate test
+      asserts that with both bits off `crates/nvs-host/src/isolate.rs:423` records nothing and reads
+      no clock; `crates/nvs-host/src/group.rs:1020` is that assertion for a `Core\Task` child.
+      `rule:testing/debug-probes`.
 
 ## Backlog
 
-- Stage 2's scale check names `a_hundred_thousand_tasks_in_flight_at_once_all_finish_on_one_core`;
-  `crates/nvs-host/src/scheduler.rs:1987` holds the near miss `a_hundred_thousand_tasks_are_in_flight_on_one_core`
-  — read what it asserts before writing a second one (`docs/agent/loop-goal.toml:9727`).
-- Stage 4, the `spawn` trace event — `crates/nvs-runtime/src/ctx/trace.rs`, `docs/agent/loop-goal.md:107`.
-- Stage 5, the one record this goal may open — `docs/agent/loop-goal.md:128`.
-- Stages 6 to 9 are unstarted: the three dropped options, the speedup, TSAN, the rulebook.
+- Stage 5: the record, and the concurrency rule its check names by id — the ruling it writes down is
+  already settled in `docs/agent/loop-goal.md` § *Standing decisions*.
+- Stage 6: `on:`, `limits:` and `grants:` — two `-p nvs-types` tests, three `-p nvs-host` tests and
+  three `.nvst` cases, listed in `docs/agent/loop-goal.toml`'s `stage = "6 the options"`.
+- A group with no task beneath it (`run_here`) records no spawn event, because nothing is started
+  there — `crates/nvs-host/src/group.rs`'s module doc if it ever needs saying.
