@@ -179,8 +179,10 @@ DELIBERATE_STALE: dict[tuple[str, str], str] = {
     # `crates/` prefix as a suffix against the repository root, so it has to spell the suffix that
     # nothing answers beside the real file it came from. Rewording it to drop the suffix would
     # delete the trap. Add a pair here only when a bullet's whole subject IS a path that is gone,
-    # so `--check`'s stale-path signal can still reach `none`.
-    ("Tooling > a tool's prose", "tests/vectors.rs"):
+    # so `--check`'s stale-path signal can still reach `none`. Every key here is absent by
+    # construction, which is `check-links.py`'s `MENTION_SUBJECT` in one sentence, so a new one
+    # carries that marker on its own line or it turns the floor's link gate red.
+    ("Tooling > a tool's prose", "tests/vectors.rs"):  # check-links:subject
         "the suffix `check-links.py` wrongly resolves to; the file is "
         "crates/nvs-stdlib/src/tests/vectors.rs, and the bullet names both because the "
         "relation between them is the trap",

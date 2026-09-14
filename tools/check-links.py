@@ -54,12 +54,14 @@ Five kinds of finding:
 
 *absolute* a markdown file wrote `/docs/…`, which resolves to the site root on GitHub and 404s.
 
-*retired*  a `.py` file's prose names a repository path that is not on disk. Two markers pass a
-           line over, and each says something different about *why* the path is absent:
-           `check-links:retired` for a file the repository deliberately no longer has, and
+*retired*  a `.py` file's prose names a repository path that is not on disk. A marker passes the
+           line over, and each one says something different about *why* the path is absent:
+           `check-links:retired` for a file the repository deliberately no longer has,
            `check-links:written` for one a tool creates on demand — a `--record` artifact is
-           absent from every clean checkout and is not a stale citation. Either marker goes on
-           the line the path is on, since the check reads one line at a time.
+           absent from every clean checkout and is not a stale citation — and
+           `check-links:subject` for a spelling the line is *about* rather than citing, which was
+           never a file here at all. A marker goes on the line the path is on, since the check
+           reads one line at a time.
 
 Two link shapes in a source file are not paths and are skipped: a rustdoc intra-doc link naming an
 item (`[the store](Cache::store)`, `[CLASS]`) has no `/` in it, and a link to a rustdoc page
@@ -125,8 +127,14 @@ MENTION_RETIRED = "check-links:retired"
 #: `MENTION_RETIRED` because the two say opposite things about the file: that one is gone, this one
 #: is not there yet, and a marker whose name is false is worse than no marker.
 MENTION_WRITTEN = "check-links:written"
-#: Both markers do the same thing to the line, so the scan asks about them together.
-MENTION_SKIPS = (MENTION_RETIRED, MENTION_WRITTEN)
+#: The reason that is neither of those, and the only one under which nothing was ever on disk under
+#: the spelling: the line's *subject* is the spelling itself. `tools/playbook.py`'s
+#: `DELIBERATE_STALE` is keyed by the paths a bullet exists to discuss (check-links:subject), so
+#: every key it will ever hold is absent by construction, and both markers above would be false of
+#: it -- one says the file was here, the other says it is coming.
+MENTION_SUBJECT = "check-links:subject"
+#: Every marker does the same thing to the line, so the scan asks about them together.
+MENTION_SKIPS = (MENTION_RETIRED, MENTION_WRITTEN, MENTION_SUBJECT)
 
 
 def tracked_files(paths):
@@ -226,10 +234,11 @@ def dead_mentions(text):
     **emitted** -- `../decisions/0067.md`, written into a generated page -- so it resolves from the
     page rather than from `tools/`, and checking it there would be wrong in both directions. A bare
     mention has no such ambiguity: it is prose, it is anchored at a top-level directory, and either
-    the file is there or the sentence is stale. Two lines in the tree legitimately name a file that
-    is gone, both in the past tense, and both carry `MENTION_RETIRED`; a usage block naming an
-    artifact the tool writes carries `MENTION_WRITTEN` instead, because that path is not stale but
-    unborn.
+    the file is there or the sentence is stale. A line that legitimately names a file that is gone
+    says so in the past tense and carries `MENTION_RETIRED`; a usage block naming an artifact the
+    tool writes carries `MENTION_WRITTEN` instead, because that path is not stale but unborn; and a
+    line quoting a spelling rather than citing a file carries `MENTION_SUBJECT`, because nothing was
+    ever there to go stale.
     """
     for lineno, line in enumerate(text.split("\n"), start=1):
         if any(marker in line for marker in MENTION_SKIPS):
