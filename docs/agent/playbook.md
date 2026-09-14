@@ -6763,6 +6763,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   compile in `nvs-ir` cannot be written there. Spell the named shapes as their own arms and leave the
   wildcard as an engine invariant, or take the attribute off — the second is a decision about
   `nvs-syntax`'s surface. [until: reviewed 2026-09-14]
+- **`nvs_runtime`'s `tag_name` spells Novis's type names, not PHP's, so a message that has to match
+  PHP's word for word cannot reuse it.** `crates/nvs-runtime/src/helpers.rs:571` answers `array<T>`
+  and `uint` where PHP says `array` and `int`, because every caller it has today is a Novis-worded
+  refusal (`no ordering for a ...`) rather than a transcription. A site that owes PHP's exact wording
+  — `clone`'s `must be of type object, <type> given` is the one in front of us — needs its own
+  rendering with PHP's spellings, and the two must not be folded into one table without deciding
+  which set of names each caller wants. [until: reviewed 2026-12-14]
 
 ## Divergences and refusals already pinned
 
