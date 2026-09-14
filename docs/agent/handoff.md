@@ -2,55 +2,63 @@
 
 ## State
 
-**Goal `m4-refusals` — Stage 7's shape row is landed.** `$x is {a: int}` lowers and walks the
-subject's own fields; the `iterable`, `callable`, union and intersection rows were already there.
-`python tools/holes.py` reports **3** refusal sites, `UNATTRIBUTED: 0`, **15** guarded, and
-`crates/nvs-ir/tests/refusals.rs`'s `CEILING` is **3** to match — unchanged, because the one panic
-that carried the shape gap still stands for the two rows left under it.
+**Goal `m4-refusals` — Stage 7's element row is landed.** `$x is array<Foo>` lowers and walks every
+element, and every other row composes inside it: a subclass, an interface, a shape, a union, a
+nullable element, and an array nested one level down. `python tools/holes.py` reports **3** refusal
+sites, `UNATTRIBUTED: 0`, **15** guarded, and `crates/nvs-ir/tests/refusals.rs`'s `CEILING` is **3**
+to match — unchanged, because the one panic that carried this gap still stands for the row left
+under it.
 
-- **The probe is an `InstKind` of its own, not a third `AbsentKey` arm.** That enum says what an
-  absent *read* answers and every arm of it answers the field's value; this answers a `bool` and is
-  infallible, so it carries no error edge — `crates/nvs-ir/src/ir.rs:909` is the variant and
-  `crates/nvs-runtime/src/object.rs:3378` the helper. `Tag::Unset` could not be handed back as
-  absence instead: `crates/nvs-runtime/src/value.rs:221` makes it a storage state that never becomes
-  an expression's value.
-- **The read and the probe cannot disagree**, both answering off `slot_state`
-  (`crates/nvs-runtime/src/object.rs:3743`), which is the `present`/`absent`/`unwritten` split the
-  three throws were already making by hand. The agreement is asserted over every state rather than
-  case by case.
-- **A shape is `TestShape::All` over one `TestShape::Field` per field, behind a `Tag(Ty::Object)`**,
-  so a subject holding no object declines before a field is read. Each field's value is read at
-  `Ty::Tagged`, the subject's own class not being the shape it was tested against, and the read's
-  error edge on the probe-proven side is unreachable.
-- **Stage 7 is not finished.** Its check also names
-  `tests/conformance/lang/an-is-test-against-an-array-of-a-class-walks-every-element.nvst`, which is
-  the `array<Foo>` gap and is not on disk. That row and a written `callable` signature are the two
-  `test_shape` still answers `None` for.
+- **The walk is lowered IR, not a runtime helper.** `TestShape::Every`
+  (`crates/nvs-ir/src/lower/expr.rs:5797`) is a loop over the cursor `foreach` steps
+  (`InstKind::ArrayNextSlot`/`ArrayValueAt`), the element read at `Ty::Tagged` and handed to its own
+  row. A tag word has no room for a class label and no helper can be handed a `TestShape` across
+  the ABI, so widening `array_element_tags` was not an option; there is no `as array<Foo>` to
+  share, that spelling being refused where it is written (`E0711`).
+- **`TestShape::ArrayOf`'s tag word stays for the element types it can say.** The helper walks the
+  whole array inside the runtime while the lowered loop pays two calls and a branch per element, so
+  the split is a latency one (priority 3) and not two answers to one question — the conformance
+  case asserts the two agree.
+- **Nothing is retained by the walk.** `ArrayValueAt` borrows, the element's row only reads, and the
+  `Untag` of a `Ty::Tagged` subject is the same reference one representation down on the edge the
+  tag compare proved. `wsl.exe -- bash /mnt/d/mwl/tools/leak-check.sh` over a fixture exercising it
+  reported 0 failures.
+- **The floor's link gate was red on a regression, not on unwritten work.**
+  `tools/playbook.py`'s `DELIBERATE_STALE` is keyed by paths that are absent by construction, and
+  `check-links.py` read its one key as a dead citation. Both existing markers would have been false
+  of it, so there is now a third, `check-links:subject`.
+- **Stage 7 is not finished.** A written `callable` signature is the one type `test_shape` still
+  answers `None` for; `$f is callable(int): string` reaches
+  `crates/nvs-ir/src/lower/expr.rs:4986`'s panic today.
 - Nothing is blocked.
 
 ## Next group
 
-**Stage 7: the element row — `is array<Foo>`** — one file set: `crates/nvs-ir/src/lower/expr.rs`,
-`crates/nvs-ir/src/lower/mod.rs` and `crates/nvs-runtime/src/helpers.rs`. `docs/agent/loop-goal.md`
-§ *Stage 7* is the spec and `rule:types/type-test` is the rule.
+**Stage 7: the written `callable` signature row** — one file set:
+`crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/closure.rs` and
+`tests/conformance/lang/an-is-test-against-iterable-or-callable-answers-by-what-the-value-holds.nvst`.
+`rule:types/type-test` is the rule — its table puts a callable signature on the right and refuses
+nothing else — and `rule:types/callable-signature` owns the type.
 
-- [ ] **Decide what the element walk takes instead of a tag word** — `array_element_tags`
-      (`crates/nvs-ir/src/lower/mod.rs:3849`) answers `None` for an element type no tag decides, and
-      the `u64` it packs has no room for a class label, a shape or a union. The walk behind it is
-      `to_array_of` (`crates/nvs-runtime/src/helpers.rs:2115`), which `as ?array<T>` shares, so
-      widening it moves both spellings at once — and `rule:types/type-test` keeps `as array<Foo>`
-      refused where it is written while `is array<Foo>` has to answer.
-- [ ] **The `array<Foo>` row over that decision** — `crates/nvs-ir/src/lower/expr.rs:5829` builds
-      `TestShape::ArrayOf` from the tag word and `crates/nvs-ir/src/lower/expr.rs:5125` emits it;
-      both take the `u64` today, and the shape row beside them is the model for a member test that
-      is not one comparison.
-- [ ] **The stage's case** — `an-is-test-against-an-array-of-a-class-walks-every-element.nvst`, new
-      beside the shape one, in the counted-rows shape
-      `tests/conformance/lang/an-is-test-against-a-shape-walks-its-fields.nvst:58` uses.
+- [ ] **Decide what a closure carries at run time that names its signature** — `nvs_types::Ty`'s
+      `CallableSig` (`crates/nvs-types/src/ty.rs:192`) says a written signature is checked where the
+      call is written and pays nothing at run time, so
+      `crates/nvs-ir/src/lower/expr.rs:5940`'s `CheckedTy::Callable` arm has nothing narrower than
+      `CLOSURE_MARKER` (`crates/nvs-ir/src/lower/mod.rs:3617`) to test against. Each `fn` literal
+      already gets a synthesized class of its own
+      (`crates/nvs-ir/src/lower/closure.rs:296` is where it conforms to the marker), so class
+      identity does decide the signature — the question is whether the row is the set of those
+      class labels whose signature matches, or a signature the descriptor carries.
+- [ ] **The `callable(...)` row over that decision** — `crates/nvs-ir/src/lower/expr.rs:5940` is the
+      arm that answers bare `callable` today and where `CallableSig` joins it; the refusal at
+      `crates/nvs-ir/src/lower/expr.rs:4986` loses its last shape when it lands.
+- [ ] **The stage's case, extended** — the stage's check already names
+      `tests/conformance/lang/an-is-test-against-iterable-or-callable-answers-by-what-the-value-holds.nvst:81`,
+      where the disjointness sweep ends, and the signature rows belong after it rather than in a
+      second file: what they pin is that bare `callable` and a written signature do not collapse
+      (`crates/nvs-types/src/ty.rs:182`).
 
 ## Backlog
 
-- A written `callable` signature has no `is` row — `crates/nvs-ir/src/lower/expr.rs:5691`'s
-  `# Known gaps` states it, `rule:types/callable-signature` is what it owes.
-- The shape walk's `SlotGet` carries an error edge the probe above it makes unreachable; erasing one
-  needs a proof the IR does not hold — `crates/nvs-ir/src/ir.rs:909`.
+- Stage 8's declared-type rows, whichever of its two the probe proves unreachable — `docs/agent/loop-goal.md` § *Stage 8*.
+- `docs/plan/m4.md`'s stale 1000-case figure and `done*` — goal `plan-truth` owns it.
