@@ -4984,11 +4984,10 @@ impl<'a> Lowering<'a> {
                 let Some(shape) = test_shape(tested, self.checked_types, self.enums) else {
                     panic!(
                         "nvs-ir only lowers `is` against a scalar, `null`, `object`, a bare \
-                         `array`, a class, a literal, an enum case, `iterable`, `callable`, or \
-                         a union or intersection of those — got {:?}; a shape, an element type \
-                         no tag decides and a written callable signature each still need a row \
-                         of their own, and `test_shape`'s own known gap is which of those is a \
-                         decision rather than a slice",
+                         `array`, a class, a shape, a literal, an enum case, `iterable`, \
+                         `callable`, or a union or intersection of those — got {:?}; an \
+                         element type no tag decides and a written callable signature each \
+                         still need a row of their own",
                         self.checked_types.get(tested)
                     );
                 };
@@ -5149,6 +5148,77 @@ impl<'a> Lowering<'a> {
             // constant — see the class row above, which reaches its own for the
             // same reason.
             TestShape::ArrayOf(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+            // `rule:types/shape-type`'s walk, one field at a time: the probe
+            // asks whether the subject carries the key, and only the proven
+            // edge reads it — which is what makes that read's error edge
+            // unreachable (`InstKind::SlotProbe`). An absent key is the
+            // *field's* own answer rather than the shape's, since `{a?: int}`
+            // accepts a subject without one, so the two edges merge on a phi
+            // instead of the chain's early branch deciding for them.
+            //
+            // The read is at [`Ty::Tagged`] and not at what the shape declares:
+            // the question is what the subject's own class put in the slot. It
+            // borrows, so nothing here releases it and the caller's single
+            // release still covers the subject.
+            TestShape::Field {
+                name,
+                slot,
+                required,
+                value: field,
+            } if matches!(subject, Ty::Object | Ty::Tagged) => {
+                let probed = *cur;
+                let (present, _) = self.emit(
+                    probed,
+                    Ty::Bool,
+                    InstKind::SlotProbe {
+                        object: value,
+                        field: name.clone(),
+                        slot,
+                    },
+                );
+                let (missing, _) = self.emit(probed, Ty::Bool, InstKind::ConstBool(!required));
+                let read = self.new_block();
+                let merge = self.new_block();
+                let read_edge = self.ids.next_edge(span);
+                let missing_edge = self.ids.next_edge(span);
+                self.seal(
+                    probed,
+                    Terminator::Branch {
+                        cond: present,
+                        then_block: read,
+                        then_edge: read_edge,
+                        else_block: merge,
+                        else_edge: missing_edge,
+                    },
+                );
+                let (held, _) = self.emit_fallible(
+                    read,
+                    Ty::Tagged,
+                    InstKind::SlotGet {
+                        object: value,
+                        field: name,
+                        slot,
+                        absent: AbsentKey::Throws,
+                    },
+                    env,
+                );
+                let mut tested = read;
+                let (answer, _) =
+                    self.emit_test_shape(*field, held, Ty::Tagged, span, env, &mut tested);
+                self.seal(tested, Terminator::Jump(merge));
+                let phi = self.emit(
+                    merge,
+                    Ty::Bool,
+                    InstKind::Phi {
+                        incoming: vec![(probed, missing), (tested, answer)],
+                    },
+                );
+                *cur = merge;
+                phi
+            }
+            // Nothing else holds an object, so no field of it could be there —
+            // the class row's constant, reached for the same reason.
+            TestShape::Field { .. } => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
             TestShape::Any(members) => self.emit_test_chain(
                 members,
                 true,
@@ -5531,6 +5601,36 @@ enum TestShape {
     /// Never a second walk of its own either: the spelling that *answers*
     /// instead of throwing is `as ?array<T>`'s, over the same helper.
     ArrayOf(u64),
+    /// One field of `rule:types/shape-type`'s shape row: the name is looked up
+    /// on the subject's *concrete* class, and where it is there, what it holds
+    /// is tested against the field's own row.
+    ///
+    /// A shape is [`Self::All`] over one of these per field, behind a
+    /// [`Self::Tag`] of [`Ty::Object`] — the chain that gives
+    /// `rule:types/type-test` its stated O(n): one lookup per field, nothing
+    /// allocated, and a subject holding no object declining before any field is
+    /// read. That the type is structural and width-subtyped is why the walk is
+    /// only over the fields the *shape* names: a subject carrying more than
+    /// they ask for still answers `true`.
+    Field {
+        /// The key, as the shape writes it.
+        name: String,
+        /// Its position in the *tested* shape's sorted field list — the hint
+        /// `InstKind::SlotProbe` and `InstKind::SlotGet` both take, and right
+        /// exactly where the subject's own class lays its slots out the same
+        /// way.
+        slot: u32,
+        /// Whether the subject has to carry the key at all —
+        /// `nvs_types::ShapeField::required`, in its polarity. A `{a?: int}`
+        /// the subject does not carry answers `true` here with nothing read; a
+        /// `{a: int}` it does not carry answers `false`.
+        required: bool,
+        /// What the value has to be where the key is there. Tested at
+        /// [`Ty::Tagged`]: the class the subject actually is need not be the
+        /// shape it was tested against, so nothing static says what its slot
+        /// holds.
+        value: Box<TestShape>,
+    },
     /// A union: each member's own row in turn, stopping at the first that
     /// answers `true`. Never a cost of its own — `$x is int|string` is the two
     /// tag comparisons its members are, and a member expensive on its own is
@@ -5580,31 +5680,9 @@ enum TestShape {
 ///
 /// # Known gaps
 ///
-/// Three rows answer `None`, and each reaches the caller's panic rather than a
-/// diagnostic.
-///
-/// A **shape** has no row here, and what it waits on is a walk rather than a
-/// decision about `rule:types/type-test`'s table. Neither walk this compiler
-/// already has is the one: `as` performs none at all, `convert.rs`'s
-/// `lower_checked_downcast` having no shape arm, and `Core\Arr::shapeAs`'s
-/// reads an `NvsArray` and builds an object out of it, so it answers a
-/// different question from a different source — its
-/// `nvs_stdlib::json::Reading::Wire` half is the strict per-field read `is`
-/// wants, over a document's keys rather than a receiver's fields.
-/// `rule:types/shape-type` makes a shape compile-time-only and structural with
-/// width subtyping, so the run-time question is whether *this object* carries
-/// the named fields at the named types: an O(n) walk over
-/// [`InstKind::SlotGet`]'s name-keyed fetch, one [`TestShape`] per field,
-/// chained by [`TestShape::All`] behind the object tag so that a subject
-/// holding no object declines before any field is read.
-///
-/// That walk needs one thing the IR does not carry — a **presence probe that
-/// does not throw**. `AbsentKey::Null` answers an absent field with `null`,
-/// which a `{a: ?int}` field cannot tell from an `a` holding one, and both it
-/// and `AbsentKey::Throws` throw on a slot that was never written. `is` is
-/// total, so a subject missing a field answers `false` and raises nothing.
-///
-/// The other two are slices. An `array<T>` whose element type no tag decides —
+/// Two rows answer `None`, and each reaches the caller's panic rather than a
+/// diagnostic. Both are slices. An `array<T>` whose element type no tag decides
+/// —
 /// `array<Foo>`, an array of shapes, an array of unions — has no tag word for
 /// the walk to take. `rule:types/callable-signature`'s written signature asks
 /// what a closure's parameters are and not merely whether the value is one, so
@@ -5667,6 +5745,29 @@ fn test_shape(
         // no field read, no tag of its own and no second table.
         CheckedTy::Callable => {
             return Some(TestShape::Class(super::CLOSURE_MARKER.to_owned()));
+        }
+        // `rule:types/shape-type` makes a shape compile-time-only and
+        // structural with width subtyping, so what is left to ask at run time
+        // is whether *this object* carries the named fields at the named
+        // types: one [`TestShape::Field`] each, chained by [`TestShape::All`]
+        // behind the object tag so a subject holding no object declines before
+        // any field is read. A field whose own type has no row makes the whole
+        // shape `None`, which keeps `is {a: array<Foo>}` a single known gap
+        // rather than a walk half of which lowers.
+        CheckedTy::Shape(fields) => {
+            let mut rows = Vec::with_capacity(fields.len() + 1);
+            rows.push(TestShape::Tag(Ty::Object));
+            for (slot, field) in fields.iter().enumerate() {
+                rows.push(TestShape::Field {
+                    name: field.name.clone(),
+                    // A hint, so a shape wider than a `u32` counts loses only
+                    // the first comparison of the runtime's scan.
+                    slot: u32::try_from(slot).unwrap_or(0),
+                    required: field.required,
+                    value: Box::new(test_shape(field.ty, checked_types, enums)?),
+                });
+            }
+            return Some(TestShape::All(rows));
         }
         _ => {}
     }
