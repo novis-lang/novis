@@ -1,0 +1,68 @@
+--TEST--
+Core\Arr::sort over UTF-8 strings of every encoding length, both orders and at size, answers what PHP's sort and rsort answer
+--FILE--
+<?nvs
+// PHP compares two non-numeric strings by bytes, and so does Novis, so the
+// two agree on UTF-8 exactly where the encoding makes byte order code point
+// order. The vocabulary spans one- to four-byte encodings and a combining
+// sequence; the sized list draws pairs from it.
+array<string> $vocabulary = [
+    "a", "z", "Z", "\u{a0}", "\u{e9}", "\u{7ff}", "\u{800}", "\u{20ac}", "\u{ffff}",
+    "\u{10000}", "\u{1f600}", "\u{10ffff}", "e\u{301}", "\u{e9}e", "ae", "\u{e4}", "\u{df}", "\u{100}",
+];
+echo Core\Str::join(Core\Arr::sort($vocabulary), "|"), "\n";
+echo Core\Str::join(Core\Arr::sort($vocabulary, {order: Core\Order::Desc}), "|"), "\n";
+
+int $words = Core\Arr::count($vocabulary) as int;
+int $seed = 5;
+array<string> $a = [];
+int $i = 0;
+while ($i < 3000) {
+    $seed = ($seed * 1103515245 + 12345) % 2147483648;
+    string $head = $vocabulary[$seed % $words];
+    $seed = ($seed * 1103515245 + 12345) % 2147483648;
+    $a[] = $head . $vocabulary[$seed % $words];
+    $i = $i + 1;
+}
+array<string> $asc = Core\Arr::sort($a);
+array<string> $desc = Core\Arr::sort($a, {order: Core\Order::Desc});
+int $sum = 0;
+int $k = 1;
+foreach ($asc as string $s) {
+    $sum = ($sum + $k * (Core\Bytes::length($s as bytes) as int)) % 1000000007;
+    $k = $k + 1;
+}
+echo $sum as string, " ", Core\Str::join(Core\Arr::slice($asc, 0, 12), "|"), " ", Core\Str::join(Core\Arr::slice($desc, 0, 12), "|"), "\n";
+--ORACLE--
+<?php
+$vocabulary = [
+    "a", "z", "Z", "\u{a0}", "\u{e9}", "\u{7ff}", "\u{800}", "\u{20ac}", "\u{ffff}",
+    "\u{10000}", "\u{1f600}", "\u{10ffff}", "e\u{301}", "\u{e9}e", "ae", "\u{e4}", "\u{df}", "\u{100}",
+];
+$asc = $vocabulary;
+sort($asc);
+echo implode("|", $asc), "\n";
+$desc = $vocabulary;
+rsort($desc);
+echo implode("|", $desc), "\n";
+
+$words = count($vocabulary);
+$seed = 5;
+$a = [];
+for ($i = 0; $i < 3000; $i++) {
+    $seed = ($seed * 1103515245 + 12345) % 2147483648;
+    $head = $vocabulary[$seed % $words];
+    $seed = ($seed * 1103515245 + 12345) % 2147483648;
+    $a[] = $head . $vocabulary[$seed % $words];
+}
+$asc = $a;
+sort($asc);
+$desc = $a;
+rsort($desc);
+$sum = 0;
+$k = 1;
+foreach ($asc as $s) {
+    $sum = ($sum + $k * strlen($s)) % 1000000007;
+    $k++;
+}
+echo $sum, " ", implode("|", array_slice($asc, 0, 12)), " ", implode("|", array_slice($desc, 0, 12)), "\n";

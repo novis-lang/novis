@@ -1,0 +1,76 @@
+--TEST--
+Spec § 2: `Core\Arr::sort` orders UTF-8 strings by code point — which is their byte order — identically on its key sort and under a comparator, across every encoding length, at the sizes that reach the key sort's radix route
+--FILE--
+<?nvs
+// A `string` is UTF-8 by its tag, and UTF-8 was designed so that ordering the
+// bytes orders the code points. Both of the member's sorts read the bytes;
+// this case holds them to the same answer on strings whose encodings are one,
+// two, three and four bytes long, on a combining sequence beside its
+// precomposed form, and on the boundaries between the encoding lengths.
+array<string> $vocabulary = [
+    "", "a", "z", "Z", "\u{7f}",
+    "\u{80}", "\u{e9}", "\u{7ff}",
+    "\u{800}", "\u{20ac}", "\u{ffff}",
+    "\u{10000}", "\u{1f600}", "\u{10ffff}",
+    "e\u{301}", "\u{e9}e", "ae", "\u{e4}", "\u{f6}", "\u{fc}", "\u{df}", "\u{ff}", "\u{100}",
+    "a\u{1f600}", "a\u{ffff}", "aa", "a\u{7f}",
+];
+
+// The encodings really are of every length: byte length against code points.
+int $bytesTotal = 0;
+int $pointsTotal = 0;
+foreach ($vocabulary as string $s) {
+    $bytesTotal = $bytesTotal + (Core\Bytes::length($s as bytes) as int);
+    $pointsTotal = $pointsTotal + (Core\Str::length($s) as int);
+}
+echo $bytesTotal as string, " bytes, ", $pointsTotal as string, " points\n";
+
+// The order itself, pinned: code point order, shorter prefix first.
+array<string> $sorted = Core\Arr::sort($vocabulary);
+var $hex = fn(string $s): string => Core\Str::join(Core\Arr::map(Core\Str::codePoints($s), fn(uint $p): string => Core\Math::toBase($p as int, 16)), "+");
+echo Core\Str::join(Core\Arr::map($sorted, $hex), " "), "\n";
+
+// The two sorts agree on that vocabulary, both orders, and with the
+// comparator spelled through `Core\Str::compare` — whose default is the
+// same byte order.
+var $cmp = fn(string $x, string $y): int => Core\Str::compare($x, $y);
+int $agreed = 0;
+if ($sorted == Core\Arr::sort($vocabulary, {comparator: $cmp})) { $agreed = $agreed + 1; }
+if (Core\Arr::sort($vocabulary, {order: Core\Order::Desc}) == Core\Arr::sort($vocabulary, {order: Core\Order::Desc, comparator: $cmp})) { $agreed = $agreed + 1; }
+echo "vocabulary ", $agreed as string, "/2\n";
+
+// And at size: random draws from the vocabulary with a random suffix from
+// it, so equal strings and shared multi-byte prefixes both occur, at the
+// sizes that send the key sort through its records.
+class Gen {
+    public static function next(int $seed): int {
+        return ($seed * 1103515245 + 12345) % 2147483648;
+    }
+}
+array<int> $sizes = [33, 100, 1000, 2500];
+int $words = Core\Arr::count($vocabulary) as int;
+int $calls = 0;
+int $agreedAtSize = 0;
+int $seed = 3;
+foreach ($sizes as int $n) {
+    array<string> $a = [];
+    int $i = 0;
+    while ($i < $n) {
+        $seed = Gen::next($seed);
+        string $head = $vocabulary[$seed % $words];
+        $seed = Gen::next($seed);
+        string $tail = $vocabulary[$seed % $words];
+        $a[] = $head . $tail;
+        $i = $i + 1;
+    }
+    $calls = $calls + 3;
+    if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $agreedAtSize = $agreedAtSize + 1; }
+    if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $agreedAtSize = $agreedAtSize + 1; }
+    if (Core\Str::join(Core\Arr::keys(Core\Arr::sort($a, {preserveKeys: true})), ",") == Core\Str::join(Core\Arr::keys(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp})), ",")) { $agreedAtSize = $agreedAtSize + 1; }
+}
+echo "at size ", $agreedAtSize as string, "/", $calls as string, "\n";
+--EXPECT--
+64 bytes, 32 points
+ 5a 61 61+61 61+65 61+7f 61+ffff 61+1f600 65+301 7a 7f 80 df e4 e9 e9+65 f6 fc ff 100 7ff 800 20ac ffff 10000 1f600 10ffff
+vocabulary 2/2
+at size 12/12

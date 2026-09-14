@@ -1,0 +1,187 @@
+--TEST--
+Spec § 2: `Core\Arr::sort` without a comparator answers the same array as with one on every natural-order row, input shape and size that reaches the key sort, under both orders and with keys preserved — and `sortByKey` does too
+--FILE--
+<?nvs
+// `Core\Arr::sort` runs two sorts: a key sort when no comparator was given and
+// every value sits in one row of the natural ordering, and a merge sort under
+// a comparator. The `arr-sort-*` cases beside this one pin the tables on a
+// handful of entries, which never leaves the key sort's small path. This one
+// asserts *agreement* between the two sorts — an equal-key group's order
+// included, which is what `preserveKeys` exposes — across the sizes and shapes
+// that send the key sort down each of its routes, by counting.
+class Gen {
+    // The seeded generator the userland benches use, so every shape is the
+    // same list on every run.
+    public static function next(int $seed): int {
+        return ($seed * 1103515245 + 12345) % 2147483648;
+    }
+
+    public static function ints(int $n, string $shape, int $seed): array<int> {
+        array<int> $out = [];
+        int $i = 0;
+        while ($i < $n) {
+            $seed = Gen::next($seed);
+            if ($shape == "random") {
+                $out[] = $seed % 1000000 - 500000;
+            } else if ($shape == "sorted") {
+                $out[] = $i * 3;
+            } else if ($shape == "reversed") {
+                $out[] = ($n - $i) * 3;
+            } else if ($shape == "few") {
+                $out[] = $seed % 4;
+            } else {
+                $out[] = $i;
+            }
+            $i = $i + 1;
+        }
+        // "nearly": sorted, then one swap in sixteen — the shape the key sort
+        // fixes in place by pulling out the displaced entries.
+        if ($shape == "nearly" && $n > 1) {
+            int $swaps = 0;
+            while ($swaps * 16 < $n) {
+                $seed = Gen::next($seed);
+                int $a = $seed % $n;
+                $seed = Gen::next($seed);
+                int $b = $seed % $n;
+                int $held = $out[$a];
+                $out[$a] = $out[$b];
+                $out[$b] = $held;
+                $swaps = $swaps + 1;
+            }
+        }
+        return $out;
+    }
+}
+
+class Keys {
+    public static function of(array<int> $a): string {
+        return Core\Str::join(Core\Arr::keys($a), ",");
+    }
+    public static function ofFloats(array<float> $a): string {
+        return Core\Str::join(Core\Arr::keys($a), ",");
+    }
+    public static function ofStrings(array<string> $a): string {
+        return Core\Str::join(Core\Arr::keys($a), ",");
+    }
+    public static function ofBools(array<bool> $a): string {
+        return Core\Str::join(Core\Arr::keys($a), ",");
+    }
+}
+
+// One row each: the three answers the key sort gives — ascending, descending,
+// and ascending with keys preserved — against the merge sort's under a
+// comparator that spells the same order. Three agreements per call.
+class Agree {
+    public static function ints(array<int> $a): int {
+        var $cmp = fn(int $x, int $y): int => ($x < $y) ? -1 : (($x > $y) ? 1 : 0);
+        int $n = 0;
+        if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $n = $n + 1; }
+        if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $n = $n + 1; }
+        if (Keys::of(Core\Arr::sort($a, {preserveKeys: true})) == Keys::of(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp}))) { $n = $n + 1; }
+        return $n;
+    }
+    public static function floats(array<float> $a): int {
+        var $cmp = fn(float $x, float $y): int => ($x < $y) ? -1 : (($x > $y) ? 1 : 0);
+        int $n = 0;
+        if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $n = $n + 1; }
+        if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $n = $n + 1; }
+        if (Keys::ofFloats(Core\Arr::sort($a, {preserveKeys: true})) == Keys::ofFloats(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp}))) { $n = $n + 1; }
+        return $n;
+    }
+    public static function strings(array<string> $a): int {
+        var $cmp = fn(string $x, string $y): int => Core\Str::compare($x, $y);
+        int $n = 0;
+        if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $n = $n + 1; }
+        if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $n = $n + 1; }
+        if (Keys::ofStrings(Core\Arr::sort($a, {preserveKeys: true})) == Keys::ofStrings(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp}))) { $n = $n + 1; }
+        return $n;
+    }
+    public static function bools(array<bool> $a): int {
+        var $cmp = fn(bool $x, bool $y): int => ($x == $y) ? 0 : ($x ? 1 : -1);
+        int $n = 0;
+        if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $n = $n + 1; }
+        if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $n = $n + 1; }
+        if (Keys::ofBools(Core\Arr::sort($a, {preserveKeys: true})) == Keys::ofBools(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp}))) { $n = $n + 1; }
+        return $n;
+    }
+}
+
+// Sizes straddling the key sort's own thresholds — 32 is the last entry count
+// it insertion-sorts in place, and the radix split starts near a thousand.
+array<int> $sizes = [0, 1, 2, 31, 32, 33, 64, 100, 999, 1000, 1001, 2500];
+array<string> $shapes = ["random", "sorted", "reversed", "nearly", "few"];
+int $calls = 0;
+int $ints = 0;
+int $floats = 0;
+int $strings = 0;
+int $bools = 0;
+int $seed = 7;
+foreach ($sizes as int $n) {
+    foreach ($shapes as string $shape) {
+        $seed = $seed + 1;
+        array<int> $a = Gen::ints($n, $shape, $seed);
+        $calls = $calls + 1;
+        $ints = $ints + Agree::ints($a);
+        // Every other row is this list read as that row: the float has
+        // duplicates by design (`few` and `nearly` alone would not), the
+        // string is a prefix family, the bool is two values.
+        $floats = $floats + Agree::floats(Core\Arr::map($a, fn(int $v): float => ($v as float) / 7.0));
+        $strings = $strings + Agree::strings(Core\Arr::map($a, fn(int $v): string => "k" . (($v % 977) as string)));
+        $bools = $bools + Agree::bools(Core\Arr::map($a, fn(int $v): bool => $v % 2 == 0));
+    }
+}
+int $expected = $calls * 3;
+echo "int ", $ints as string, "/", $expected as string, "\n";
+echo "float ", $floats as string, "/", $expected as string, "\n";
+echo "string ", $strings as string, "/", $expected as string, "\n";
+echo "bool ", $bools as string, "/", $expected as string, "\n";
+
+// The sweep above never hands the key sort a subject it declines. Two that it
+// does: an `int` beside a `float` is not one row, so the merge sort sorts it —
+// through the numeric widening the ordering allows — and an `int` beside a
+// `string` is the merge sort's throw. Neither answer is the key sort's to
+// change.
+array<mixed> $numbers = Core\Arr::sort([3, 1.5, 2]);
+echo (Core\Arr::first($numbers) == 1.5 && Core\Arr::last($numbers) == 3) ? "mixed numbers sort" : "wrong", "\n";
+array<mixed> $orderless = [1, "a"];
+try {
+    Core\Arr::sort($orderless);
+    echo "sorted\n";
+} catch (Throwable $refused) {
+    echo "no natural order\n";
+}
+
+// `sortByKey`'s two sorts, on keys with a shared prefix family and a numeral
+// family the byte order interleaves, at the same sizes.
+int $keyCalls = 0;
+int $keyAgreed = 0;
+foreach ($sizes as int $n) {
+    array<int> $m = [];
+    array<int> $source = Gen::ints($n, "random", $n + 100);
+    int $i = 0;
+    foreach ($source as int $v) {
+        $m["k" . (($v % 5000) as string)] = $i;
+        $m[($v % 300) as string] = $i;
+        $i = $i + 1;
+    }
+    var $cmp = fn(string $x, string $y): int => Core\Str::compare($x, $y);
+    $keyCalls = $keyCalls + 2;
+    if (Core\Arr::sortByKey($m) == Core\Arr::sortByKey($m, {comparator: $cmp})) { $keyAgreed = $keyAgreed + 1; }
+    if (Core\Arr::sortByKey($m, {order: Core\Order::Desc}) == Core\Arr::sortByKey($m, {order: Core\Order::Desc, comparator: $cmp})) { $keyAgreed = $keyAgreed + 1; }
+}
+echo "byKey ", $keyAgreed as string, "/", $keyCalls as string, "\n";
+
+// Not vacuous: the largest random list does move, and to the order the row
+// names — the first and last entries after the sort are its extremes.
+array<int> $big = Gen::ints(2500, "random", 99);
+array<int> $sorted = Core\Arr::sort($big);
+echo (Core\Arr::first($sorted) ?? 0) as string, "|", (Core\Arr::last($sorted) ?? 0) as string, "|", (Core\Arr::min($big) ?? 0) as string, "|", (Core\Arr::max($big) ?? 0) as string, "\n";
+--EXPECT--
+int 180/180
+float 180/180
+string 180/180
+bool 180/180
+mixed numbers sort
+no natural order
+byKey 24/24
+-499917|499988|-499917|499988
