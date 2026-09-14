@@ -20,6 +20,12 @@
 //!   figure [M5's acceptance](/docs/plan/m5.md) asks for, and the gap
 //!   between it and `task/create_and_finish` is what the boundary itself costs
 //!   over the coroutine underneath it.
+//! * `isolate/worker_fan_out` and `isolate/fan_out_on_one_core` — the other
+//!   figure that acceptance asks for, which is a ratio rather than a cost: the
+//!   same CPU-bound children placed `on: "worker"` and run one after another
+//!   where they stand. Near-linear means the first is close to the second
+//!   divided by the number of children, and the shared module's own doc owns why
+//!   both halves are measured here rather than one of them being quoted.
 //!
 //! The child here is a closure rather than a compiled unit, deliberately: a
 //! compiled one would measure `nvs-cli`'s unit cache instead, and the cache is
@@ -67,6 +73,17 @@ fn isolation_boundary(c: &mut Criterion) {
     // what the batch cost.
     group.bench_function("isolate/spawn_to_result", |b| {
         b.iter_custom(isolate::spawn_to_result_batch);
+    });
+
+    // `iter_custom` again, and for a second reason on top of that one: a
+    // placement is refused off a core, so a fan-out timed by criterion's own
+    // loop would run every child on this thread and report a speedup of one.
+    // The two rows are one measurement — the claim is the ratio between them.
+    group.bench_function("isolate/worker_fan_out", |b| {
+        b.iter_custom(isolate::worker_fan_out_batch);
+    });
+    group.bench_function("isolate/fan_out_on_one_core", |b| {
+        b.iter_custom(isolate::one_core_batch);
     });
 
     group.finish();
