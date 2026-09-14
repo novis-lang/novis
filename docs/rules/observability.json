@@ -320,8 +320,8 @@
     },
     {
       "id": "observability/spawn-is-its-own-event",
-      "title": "An isolate spawn and its join are one `spawn` event with an overhead split, and the child's stream is stitched in at export time",
-      "status": "designed",
+      "title": "An isolate spawn and its join are one `spawn` event naming which of the three forms it was, with an overhead split, and a child's own stream never crosses live",
+      "status": "shipped",
       "because": [
         "0041",
         "0018"
@@ -329,9 +329,15 @@
       "seeAlso": [
         "observability/trace-events-carry-a-kind",
         "security/isolate-shares-nothing",
-        "security/isolate-failure-is-a-value"
+        "security/isolate-failure-is-a-value",
+        "concurrency/on-worker-runs-the-child-on-another-core"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-runtime/src/ctx/trace.rs",
+        "crates/nvs-host/src/group.rs",
+        "crates/nvs-host/src/isolate.rs",
+        "crates/nvs-host/src/placed.rs"
+      ]
     },
     {
       "id": "observability/an-inbound-traceparent-is-continued",

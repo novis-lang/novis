@@ -42,7 +42,7 @@
     {
       "id": "concurrency/on-worker-runs-the-child-on-another-core",
       "title": "A child spawned `on: \"worker\"` is started on another core, copies at every node in both directions, and is still its parent's child",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0184"
       ],
@@ -54,7 +54,15 @@
         "security/isolate-budget-is-the-trees",
         "concurrency/nothing-is-still-running-when-a-call-returns"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/isolate/a-child-on-a-worker-core-answers-as-one-on-this-core-does.nvst",
+        "tests/conformance/isolate/a-worker-placed-child-is-held-to-the-limits-it-was-given.nvst",
+        "crates/nvs-host/src/worker.rs",
+        "crates/nvs-host/src/placed.rs",
+        "crates/nvs-runtime/tests/tree_budget.rs",
+        "crates/nvs-types/tests/isolates.rs",
+        "benches/abi-probe/tests/perf_guards.rs"
+      ]
     },
     {
       "id": "concurrency/all-answers-a-typed-shape",

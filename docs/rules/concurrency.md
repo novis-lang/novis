@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*12 of 66 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 66 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -52,7 +52,7 @@ that runs a program makes a task first even where one buys nothing else.
 
 <a id="concurrency-on-worker-runs-the-child-on-another-core"></a>
 
-## A child spawned `on: "worker"` is started on another core, copies at every node in both directions, and is still its parent's child  *(designed — not yet in the compiler)*
+## A child spawned `on: "worker"` is started on another core, copies at every node in both directions, and is still its parent's child
 
 `rule:concurrency/on-worker-runs-the-child-on-another-core`
 
@@ -84,12 +84,21 @@ cancelled, it is charged to the tree's budget rather than to a per-call limit
 call does not return until the cancellation it sent has been acknowledged from the other core and the
 child's own teardown has run there.
 
-Which core it is depends on what the process is. Under `nvs serve` it is a sibling serving core, chosen
-round-robin, because those cores and their schedulers already exist and a second thread per core would
-oversubscribe the machine. Everywhere else — a `nvs run`, a job, a test, where one scheduler is all there
-is — **worker cores are started lazily and bounded at the core count**, so a program that places no child
-on one has none, exactly as a worker with no blocking work has no pool threads. Either way the cost is
-one scheduler thread per core at most: O(cores), never O(requests served).
+**Which entry crosses is a fact about the spawn's form.** A `Class::method(...)` entry is a label the
+compiled unit's class table carries, and every core reads that unit, so the far core can prepare the
+child for itself. A path entry is compiled by a resolver only the thread the process booted on holds, so
+a child written as a path runs on its parent's core and the placement buys it nothing;
+`crates/nvs-host/src/placed.rs`'s `# Known gaps` is the one home of what closing that takes.
+
+Which core it is, is decided by the set that offers one, and **worker cores are started lazily and
+bounded at the core count**: a core's scheduler thread starts the first time a program places a child on
+one, so a program that places none has no thread, exactly as a worker with no blocking work has no pool
+threads. `nvs serve` is no exception today — a serving core does not offer itself as a destination, so a
+placement there starts one of these cores rather than reaching the sibling serving core ADR 0184 § 5
+argues for, which is the destination set that record's *Revisiting* names. Either way the cost is one
+scheduler thread per core at most: O(cores), never O(requests served), and which core ran a child is not
+readable from the child, so the destination set is the only thing that changes when a serving core
+registers one.
 
 <sub>See also [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns). Decided in [0184](../decisions/0184.md).</sub>
 
