@@ -2,53 +2,50 @@
 
 ## State
 
-**Goal `m4b-editor`, stage 2 (the record) is landed.** [0185](../decisions/0185.md) argues the host
-tier, `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` is rewritten whole and no
-longer says "CI only", and `memoize = false` is now read by the driver
-(`tools/loop.py:2443`) and carried by the three host checks.
+**Goal `m4b-editor`, stage 3 (the host harness) is landed and green.** `npm run test:host -- --nvs
+<path>` downloads pinned VS Code 1.136.2 into `editors/vscode/.vscode-test/`, opens a copy of
+`test/host/fixture/` in a throwaway profile with every other extension disabled, and prints
+`host: 1 passing, 0 failing` with exit 0 — the stage-3 acceptance check's three `want` strings.
+The first run on a machine downloads 332 MB; later ones reuse the cache and take about a minute.
 
-Nothing of stages 3–8 is on disk: `editors/vscode/scripts/host.mjs` and `editors/vscode/test/host/`
-do not exist, so the three `test:host` checks fail on a missing script until stage 3 lands. Stage 1 is
-goal `m5-proofs`'s whole list, untouched. CI is not running (billing block), so stage 6 is proven by
-reading `ci.yml`.
-
-Stage 6's "the acceptance cache sees an extension change" is already true on disk: `tools/loop.py:1682`
-has an `editors` partition and `tools/loop.py:1706`'s `EDITOR_READS` gives an npm check under
-`editors/` the `crates` + `editors` hash. What that stage still owes is only a test of it, and `tools/`
-has no test suite to host one.
+Stage 2's record and rule are landed. Nothing of stages 4–8 is on disk; every later stage's test is
+written into `editors/vscode/test/host/`, which now exists. Stage 1 is goal `m5-proofs`'s whole list,
+untouched. CI is not running (billing block), so stage 6 is proven by reading `ci.yml`, and what that
+stage still owes beyond the workflow is a test of `tools/loop.py:1706`'s `EDITOR_READS`, which `tools/`
+has no suite to host.
 
 ## Next group
 
-**Stage 3: the host harness** — one file set: `editors/vscode/`. The record settles what it must do;
-the goal's § *Stage 3* settles the shape.
+**Stage 4: colour and activation, in the host** — one file set: `editors/vscode/test/host/`. The
+goal's § *Stage 4* names the six `it` titles and their order; the check greps them, so they are copied
+exactly rather than paraphrased.
 
-- [ ] **`scripts/host.mjs`** (new, beside `editors/vscode/scripts/headless.mjs:23`): `runTests` against
-      a pinned build cached in `.vscode-test/`, passing `--user-data-dir`, `--extensions-dir`,
-      `--disable-extensions`, a copy of `test/host/fixture/` as the workspace, and `nvs.path` from
-      `--nvs` into that profile's `settings.json` alone. Isolation is
-      `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`, argued in
-      [0185](../decisions/0185.md) § 2; the `--nvs` fallback copies
-      `editors/vscode/test/protocol/session.ts:72`.
-- [ ] **`test/host/index.ts`** (new): Mocha with the `spec` reporter, report to
-      `.vscode-test/host-report.txt` ending `host: N passing, M failing`, which `host.mjs` prints and
-      exits non-zero on. First case `runs in a throwaway profile and never the developer's` — the
-      `want` of the stage 3 check in `docs/agent/loop-goal.toml:9930`.
-- [ ] **The manifest and the headless runner**: `@vscode/test-electron` and a `test:host` script in
-      `editors/vscode/package.json:289` and `:299`, its allowlist entry beside
-      `editors/vscode/test/contributions/contributions.test.ts:108`
-      (`rule:ide/dependencies-are-allowlisted` — runtime `dependencies` stay `vscode-languageclient`
-      alone), and `editors/vscode/scripts/headless.mjs:21` skipping `out/test/host/`.
-- [ ] **The two README paragraphs stage 0 names**: `editors/vscode/README.md:20-23` says the host suite
-      is CI's, and `:29-33` reasons *No pixel tier* from "anything needing a display sits outside the
-      tier the loop gates on". The decision stands; rewrite its reason whole.
+- [ ] **The colour fixtures** (new, beside `editors/vscode/test/host/fixture/hello.nvs:1`): `app.nvs`
+      carrying a `secret` binding and a `$total`, `other.php`, and `case.nvst` with a `--FILE--`
+      section. `scripts/host.mjs` copies the whole directory, so a file added here is in the workspace
+      with no launcher change (`editors/vscode/scripts/host.mjs:70`).
+- [ ] **`test/host/colour.test.ts`, the first three tests** (new, beside
+      `editors/vscode/test/host/isolation.test.ts:31`): activation on `.nvs` and not `.php`
+      (`rule:ide/the-extension-claims-nvs-only`), then `_workbench.captureSyntaxTokens` with
+      `nvs.lsp.enable` off and `vscode.provideDocumentSemanticTokens` returning nothing
+      (`rule:ide/highlighting-is-two-layers`), then both on with the `secret` modifier present
+      (`rule:ide/semantic-tokens-carry-the-qualifiers`). The setting starts from the profile
+      `editors/vscode/scripts/host.mjs:78` writes; turning it on mid-suite is
+      `getConfiguration().update` at `ConfigurationTarget.Global`, which writes that same file.
+- [ ] **The last three tests**: the legend equal to what `initialize` returns, read through
+      `editors/vscode/test/protocol/session.ts:77` (the protocol suite compiles to `out/test/protocol/`
+      and is importable from the host suite), the `.nvst` case's delimiter and embedded scopes
+      (`rule:ide/case-files-have-their-own-grammar`), and `getWordRangeAtPosition` covering the `$` of
+      `$total`.
 
 ## Backlog
 
-- `tools/` has no test suite, so stage 6's memo test has no host — decide at stage 6 (goal § *Stage 6*).
-- The goal's § *Standing decisions* "Not this goal" list still names widening `MEMO_DIRS`; that work is
-  on disk and the name is gone (`tools/loop.py:1682`).
-- Publishing to the Marketplace or Open VSX stays open
-  (`rule:ide/one-server-two-thin-clients` § *Revisiting*).
+- Stage 6 owes a test of the acceptance cache's `editors` partition; `tools/` has no suite
+  (`docs/agent/loop-goal.md` § *Stage 6*).
+- Widening `MEMO_DIRS` in `tools/loop.py` to cover `editors/` — explicitly not this goal
+  (`docs/agent/loop-goal.md` § *Standing decisions*).
 - The stale trivia paragraph in `docs/plan/m4b.md` is goal `plan-truth`'s.
 - The `unowned` module-doc gaps in `crates/nvs-lsp/src/index.rs` and `hints.rs` are goal
   `unowned-closures`'s.
+- Marketplace and Open VSX publishing stays open (`rule:ide/one-server-two-thin-clients`
+  § *Revisiting*).

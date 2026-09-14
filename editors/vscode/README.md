@@ -14,23 +14,29 @@ npm ci                      the lockfile is committed; npm ci needs it
 npm run compile             tsc into out/
 npm run lint
 npm run test:headless       every suite under out/test/, no editor and no display
+npm run test:host           the same suites' other tier, in a real VS Code
 npm run package             the .vsix
 ```
 
 `python tools/verify.py` from the repository root runs `test:headless` as its last step, after the Rust
-gates. The extension-host suite — the tier that needs a running VS Code — is CI's, on Linux under
-`xvfb-run`; `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` is where that split is
-decided.
+gates. `test:host` is the other tier and runs on every acceptance sweep, here and in CI:
+`scripts/host.mjs` downloads a pinned VS Code into `.vscode-test/`, opens a copy of `test/host/fixture/`
+in a throwaway profile with every other extension disabled, and prints the report the in-host runner
+wrote. It opens a window on the desktop for about a minute, and under `xvfb-run` on Linux it does not.
+`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` is where the split between the two
+tiers, and the isolation that makes this one safe to run on a machine someone is working on, are decided.
 
 ## Decided here
 
 These are small enough to belong to the extension rather than to a numbered decision record.
 
 **No pixel tier.** Driving the real editor with Playwright to assert that a decoration was *drawn* is
-rejected, and not on cost grounds. Anything needing a display sits outside the tier the unattended loop
-gates on, so it buys no check where checks are read. What is left once the server's range test, the
-position conversion's unit test and the reveal state machine's logic test have run is a CSS constant that
-never varies — the test that never fires.
+rejected, and not on cost grounds — the host tier already runs a real editor on every sweep. It is
+rejected because the editor answers every question a pixel would, as data: `test:host` reads the scopes,
+the semantic tokens, the published diagnostics and the ranges a decoration was registered over through
+VS Code's own API, and asserts them exactly rather than by appearance. What a screenshot adds on top of
+that, once the server's range test, the position conversion's unit test and the reveal state machine's
+logic test have run too, is a CSS constant that never varies — the test that never fires.
 
 **The `tainted` marker is a themed text glyph, not a codicon.** [ADR 0101](../../docs/decisions/0101.md)
 § 4 asks for a themed codicon after each `tainted` declaration, and the API it would be drawn with does
