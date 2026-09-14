@@ -2188,6 +2188,7 @@ dependencies = [
  "clap",
  "hyper",
  "jiff",
+ "libc",
  "memmap2",
  "nvs-codegen",
  "nvs-config",
@@ -2208,6 +2209,7 @@ dependencies = [
  "rand",
  "serde_json",
  "toml",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
