@@ -49,14 +49,20 @@ fn compile(src: &str) -> Program {
 /// The reserved field names of every synthesized closure class in `program`,
 /// keyed by the class's own label.
 ///
-/// A closure class is unspellable — its label carries the `$` no declaration
-/// can start with — so selecting on that is what tells the synthesized classes
-/// from the program's own `Chat`.
+/// Selected on the reserved first field every environment class carries, which
+/// is what tells the synthesized classes from the program's own `Chat`. The `$`
+/// in a label says only that no declaration wrote it, and that is true of
+/// `nvs_ir::lower::CLOSURE_MARKER`'s field-less descriptor as well.
 fn closure_classes(program: &Program) -> Vec<(String, Vec<String>)> {
     program
         .classes
         .iter()
-        .filter(|class| class.label.contains('$'))
+        .filter(|class| {
+            class
+                .fields
+                .first()
+                .is_some_and(|first| first == "fn#arity")
+        })
         .map(|class| (class.label.clone(), class.fields.clone()))
         .collect()
 }

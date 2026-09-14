@@ -3033,14 +3033,15 @@ fn an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals()
     );
 }
 
-/// A file declaring no class still lowers, and still carries both rosters
-/// no source declares — `nvs_hir::errors`' exception tree, with the
+/// A file declaring no class still lowers, and still carries every roster no
+/// source declares — `nvs_hir::errors`' exception tree, with the
 /// synthesized constructor of every class in it that declares state of its
-/// own, and `nvs_hir::interfaces`' global interfaces — the `hello.nvs`
+/// own, `nvs_hir::interfaces`' global interfaces, and
+/// `rule:types/callable-is-a-closure`'s closure marker — the `hello.nvs`
 /// shape. Nothing in the file references any of them and they are emitted
-/// anyway: a descriptor has to exist before `$x instanceof Stringable` has
-/// anything to test against, and a class implementing one only keeps the
-/// edge if the label it names is in this list
+/// anyway: a descriptor has to exist before `$x instanceof Stringable` or
+/// `$x is callable` has anything to test against, and a class implementing
+/// one only keeps the edge if the label it names is in this list
 /// (`nvs_types::layout::build_class_layouts`).
 #[test]
 fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
@@ -3053,6 +3054,10 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
     assert_eq!(
         labels,
         [
+            // The closure marker, ahead of every declared label because `$`
+            // cannot start one, and here in a file with no closure for the
+            // reason `crate::lower::CLOSURE_MARKER` gives.
+            "$closure",
             "ArithmeticError",
             "Comparable",
             // `rule:tooling/a-prompt-is-a-core-member`'s refusal to block, `rule:core-classes/db-error`'s driver failure

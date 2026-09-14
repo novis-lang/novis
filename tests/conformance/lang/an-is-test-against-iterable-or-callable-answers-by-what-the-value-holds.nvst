@@ -1,0 +1,96 @@
+--TEST--
+An `is iterable` test answers for an array and for a class reaching either iteration interface, and `is callable` for a closure and for nothing else — rule:types/type-test, rule:iteration/two-interfaces, rule:types/callable-is-a-closure
+--FILE--
+<?nvs
+// `rule:types/type-test`: neither row asks anything about the declared type.
+// `iterable` holds what `rule:iteration/foreach-subjects` accepts — an array,
+// an `Iterable` and an `Iterator` — and `callable` holds
+// `rule:types/callable-is-a-closure`'s one shape of value, so every subject
+// below reaches the test as a `mixed`.
+class Steps implements Iterator<int> {
+    private uint $at = 0;
+    public function advance(): bool {
+        $this->at = $this->at + 1;
+        return $this->at < 3;
+    }
+    public function current(): int {
+        return 7;
+    }
+}
+class Bag implements Iterable<int> {
+    public function iterate(): Iterator<int> {
+        return new Steps();
+    }
+}
+class Plain {
+    public function value(): int {
+        return 1;
+    }
+    public static function twice(int $n): int {
+        return $n * 2;
+    }
+}
+class Counter {
+    public static uint $calls = 0;
+    public static function subject(): mixed {
+        self::$calls = self::$calls + 1;
+        return [1, 2];
+    }
+}
+
+array<mixed> $values = [
+    "array" => [1, 2],
+    "empty array" => [],
+    "iterator" => new Steps(),
+    "iterable" => new Bag(),
+    "plain object" => new Plain(),
+    "fn literal" => fn(): int => 1,
+    "first-class callable" => Plain::twice(...),
+    "int" => 7,
+    "string" => "x",
+    "null" => null,
+];
+
+foreach ($values as string $key => mixed $v) {
+    echo $key, ": iterable ", $v is iterable ? "yes" : "no", ", callable ", $v is callable ? "yes" : "no", "\n";
+}
+
+// Agreement over the whole sweep, counted: `iterable` is its three members and
+// nothing more, so a row that grew a test of its own would still print a
+// plausible answer on any single line. Each interface is written with the
+// argument `rule:iteration/concrete-generic-implements` requires, and the walk
+// compares the label either way.
+uint $agrees = 0;
+foreach ($values as string $key => mixed $w) {
+    if (($w is iterable) == ($w is array || $w is Iterable<int> || $w is Iterator<int>)) {
+        $agrees = $agrees + 1;
+    }
+}
+echo "iterable agrees ", $agrees, "/", Core\Arr::count($values), "\n";
+
+// The two operators are disjoint over every value in the language: nothing is
+// both, and the object rows are where a shared "is an object" test would show.
+uint $both = 0;
+foreach ($values as string $key => mixed $x) {
+    if ($x is iterable && $x is callable) {
+        $both = $both + 1;
+    }
+}
+echo "both at once ", $both, "\n";
+
+// A chain reads its subject once however many members it walks.
+echo "subject: ", Counter::subject() is iterable ? "yes" : "no", ", calls ", Counter::$calls, "\n";
+--EXPECT--
+array: iterable yes, callable no
+empty array: iterable yes, callable no
+iterator: iterable yes, callable no
+iterable: iterable yes, callable no
+plain object: iterable no, callable no
+fn literal: iterable no, callable yes
+first-class callable: iterable no, callable yes
+int: iterable no, callable no
+string: iterable no, callable no
+null: iterable no, callable no
+iterable agrees 10/10
+both at once 0
+subject: yes, calls 1

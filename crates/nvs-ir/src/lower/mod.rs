@@ -796,6 +796,25 @@ pub fn lower_program(
     // class and its methods, so it is the one thing here that adds to the
     // table rather than copying it.
     classes.extend(synthesized);
+    // The label every closure's environment class conforms to, emitted
+    // unconditionally for `synthesized_exception_constructors`' reason: a unit
+    // that left it out would be one where `$x is callable` names a descriptor
+    // the unit does not declare instead of answering `false`. It declares no
+    // field and no method, the whole of what it carries being its own identity.
+    // See `CLOSURE_MARKER`.
+    classes.push(crate::ir::Class {
+        label: CLOSURE_MARKER.to_owned(),
+        fields: Vec::new(),
+        field_reprs: Vec::new(),
+        secret_fields: Vec::new(),
+        public_fields: Vec::new(),
+        conforms: Vec::new(),
+        methods: Vec::new(),
+        codec: Vec::new(),
+        db_codec: Vec::new(),
+        ctor_arity: 0,
+        defaults: Vec::new(),
+    });
     // The table behind `iter()` is a hash map, so its order varies run to run.
     // Sorting here is what makes a lowered `Program` — and therefore the
     // `--dump-ir` listing and every snapshot taken of it — reproducible for an
@@ -3560,6 +3579,24 @@ pub(crate) fn is_aliasing_read(kind: &ExprKind) -> bool {
 /// The one method an `rule:types/closure-literal`
 /// closure's environment class answers, as the method table spells it.
 pub(crate) const FN_INVOKE: &str = "invoke";
+
+/// The label every closure's environment class conforms to, and that no class a
+/// program declares does: `rule:types/callable-is-a-closure` makes `callable` a
+/// question about one shape of value, and a `conforms` edge is the one thing a
+/// descriptor already carries that answers it — so `$x is callable` is the
+/// descriptor walk `instanceof` emits rather than a mechanism of its own.
+///
+/// A label and not a name, on [`shape_class_label`]'s terms: `$` cannot start an
+/// Novis identifier, so no declaration can collide with it and no source can
+/// name this class to implement it by hand.
+///
+/// The descriptor is emitted into every program whether or not the file writes a
+/// closure ([`lower_program`]), for the exception tree's reason: a walk needs
+/// something to compare against before it can answer `false`.
+///
+/// **Cost:** one field-less, method-less descriptor per compiled unit — once per
+/// unit, never per request or per task.
+pub(crate) const CLOSURE_MARKER: &str = "$closure";
 
 /// The reserved **first** field of every closure's environment class: how many
 /// parameters [`FN_INVOKE`] declares, not counting the receiver.

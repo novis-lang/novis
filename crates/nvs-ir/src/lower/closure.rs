@@ -290,7 +290,10 @@ pub(crate) fn lower_closure(
             // slot reading as unreadable is the direction `field_is_public`
             // wants.
             public_fields: Vec::new(),
-            conforms: Vec::new(),
+            // One edge, and the only supertype a closure has: the marker
+            // `rule:types/callable-is-a-closure`'s `$x is callable` walks for.
+            // See `super::CLOSURE_MARKER`.
+            conforms: vec![super::CLOSURE_MARKER.to_owned()],
             // Public: a closure's environment class is unspellable, so nothing
             // can name this member at all except the runtime's own call path.
             methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
@@ -740,7 +743,9 @@ pub(crate) fn lower_callable(
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
             public_fields: Vec::new(),
-            conforms: Vec::new(),
+            // A first-class callable is a closure, so it carries the same one
+            // edge an `fn` literal's class does — see `super::CLOSURE_MARKER`.
+            conforms: vec![super::CLOSURE_MARKER.to_owned()],
             methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
             codec: Vec::new(),
             db_codec: Vec::new(),

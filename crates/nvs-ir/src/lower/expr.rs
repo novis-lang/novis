@@ -4984,11 +4984,11 @@ impl<'a> Lowering<'a> {
                 let Some(shape) = test_shape(tested, self.checked_types, self.enums) else {
                     panic!(
                         "nvs-ir only lowers `is` against a scalar, `null`, `object`, a bare \
-                         `array`, a class, a literal, an enum case, or a union or intersection \
-                         of those — got {:?}; an element type no tag decides, a shape, \
-                         `iterable` and `callable` each still need a walk of their own, and \
-                         `test_shape`'s own known gap is which of those is a decision rather \
-                         than a slice",
+                         `array`, a class, a literal, an enum case, `iterable`, `callable`, or \
+                         a union or intersection of those — got {:?}; a shape, an element type \
+                         no tag decides and a written callable signature each still need a row \
+                         of their own, and `test_shape`'s own known gap is which of those is a \
+                         decision rather than a slice",
                         self.checked_types.get(tested)
                     );
                 };
@@ -5569,23 +5569,26 @@ enum TestShape {
 /// The tag rows are the ones that cost one comparison: a scalar, `null`, plain
 /// `object` and a bare `array`. The class row is the descriptor walk, the
 /// element row is the array walk, and the literal row — an enum case included
-/// — is one tag comparison with a payload compare behind it. A union and an
-/// intersection are their members' rows chained, so neither is a cost of its
-/// own. `None` is a shape, `iterable` and `callable` — each of which *also*
-/// begins with a tag, so a `None` is a row for `crate::lower` to grow a walk
-/// or a payload compare for and never a row to skip.
+/// — is one tag comparison with a payload compare behind it. A union, an
+/// intersection and `iterable` are their members' rows chained, so none of the
+/// three is a cost of its own, and `callable` is the class row against the one
+/// label every closure's environment class conforms to
+/// ([`CLOSURE_MARKER`](super::CLOSURE_MARKER)).
 ///
 /// `mixed` is not here and cannot arrive: it holds every value, so the checker
 /// folded that test to `true`.
 ///
 /// # Known gaps
 ///
-/// An `array<T>` whose element type no tag decides — `array<Foo>`, a shape, a
-/// union — answers `None` here, because the walk takes a tag word and there is
-/// none to build. `as array<Foo>` is refused where it is written (`E0711`) and
-/// `is array<Foo>` is not, so that spelling reaches the caller's panic rather
-/// than a diagnostic. Closing it is a decision about
-/// `rule:types/type-test`'s table, not about this function.
+/// Three rows answer `None`, and each reaches the caller's panic rather than a
+/// diagnostic. An `array<T>` whose element type no tag decides — `array<Foo>`,
+/// an array of shapes, an array of unions — has no tag word for the walk to
+/// take. A shape has no row here at all. So does
+/// `rule:types/callable-signature`'s written signature, which asks what a
+/// closure's parameters are and not merely whether the value is one, so the
+/// marker `callable` walks does not answer it. `as array<Foo>` is refused where
+/// it is written (`E0711`) and `is array<Foo>` is not, so closing these is a
+/// decision about `rule:types/type-test`'s table, not about this function.
 fn test_shape(
     tested: TypeId,
     checked_types: &TypeInterner,
@@ -5618,6 +5621,31 @@ fn test_shape(
                 .map(|member| test_shape(*member, checked_types, enums))
                 .collect::<Option<Vec<_>>>()
                 .map(TestShape::All);
+        }
+        // `iterable` holds exactly what `rule:iteration/foreach-subjects`
+        // accepts, and each of those is a row that already exists — so this is
+        // a chain too, and adds no test of its own. The array tag goes first
+        // because it is the one member that reaches no descriptor, then
+        // `rule:iteration/two-interfaces`' two interfaces through the walk
+        // `instanceof` already emits. Both labels are spelled rather than named
+        // for `super::closure::declared_class`'s reason, and a descriptor for
+        // each is in every program's class table whether or not the file
+        // implements one (`super::lower_program`).
+        CheckedTy::Iterable => {
+            return Some(TestShape::Any(vec![
+                TestShape::Tag(Ty::Array),
+                TestShape::Class("Iterable".to_owned()),
+                TestShape::Class("Iterator".to_owned()),
+            ]));
+        }
+        // `rule:types/callable-is-a-closure`: a closure satisfies `callable`
+        // and no other value does, so the question is whether the subject is an
+        // object of one of the environment classes `super::closure`
+        // synthesizes — which is what the marker edge on each of them says.
+        // That makes this the descriptor walk `instanceof` already emits, with
+        // no field read, no tag of its own and no second table.
+        CheckedTy::Callable => {
+            return Some(TestShape::Class(super::CLOSURE_MARKER.to_owned()));
         }
         _ => {}
     }
