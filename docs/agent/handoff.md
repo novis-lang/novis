@@ -2,49 +2,45 @@
 
 ## State
 
-**Goal `m5-proofs` (M5) is met, and stage 2 `the scale` — the one check the last acceptance sweep
-reported red — is confirmed green by running it.** `cargo test --release -p nvs-host --lib
-a_hundred_thousand_tasks_in_flight_at_once_all_finish_on_one_core` reports `1 passed; 0 failed; 0
-ignored`, so the test runs rather than being filtered or skipped: `[profile.release]` sets no
-`debug-assertions`, and the `#[cfg_attr(debug_assertions, ignore)]` at
-`crates/nvs-host/src/scheduler.rs:2027` therefore only holds it out of the debug sweep as its doc
-comment says.
+**Goal `m4b-editor` (the extension is tested in a real editor host and built by CI) has just started;
+nothing of it has landed yet.** Its Stage 1 floor is goal `m5-proofs`'s whole list.
 
-**The pack's failing line was stale, not a regression.** It was written by the sweep that ended
-`17:06`; `61f28cbe0` renamed the test from `a_hundred_thousand_tasks_are_in_flight_on_one_core` to
-the name the check filters on at `18:50:52`, after that sweep and before this run began. No code
-changed this session — the tree already held the repair, and `52b8c8852` added the
-`session.py --wrap` gate that refuses a DONE whose `cargo-named` checks name tests the tree does not
-hold, so this claim is checked twice.
+The design is settled in the goal's § *Standing decisions*. What a session must not re-decide:
 
-The four gaps this goal owned are `owner: unowned`, each with its reason under
-[carried-gaps.md](carried-gaps.md) § *Unowned*. Nothing schedules them: each is a decision the user
-takes.
+- The host tier runs locally as well as in CI, isolated, and not memoized.
+- The `.vsix` is an ignored build artefact (`.gitignore:98`).
+- Colour is asserted through the editor's commands, never as pixels.
+- The test surface `activate` returns is read-only.
+- There is one new record, which modifies one rule and creates none.
+
+CI is not running (a billing block), so the CI stage is proven by reading `ci.yml`.
 
 ## Next group
 
-**Goal met — the next group is the next goal's**, and `python tools/brief.py` prints which.
-If the driver reopens `m5-proofs`, this is what is left, one file set — and every item is a
-decision first, which is why all three are unowned rather than queued:
+**Stage 2: the record**. One file set: `docs/decisions/` and `docs/rules/ide*`, plus the floor
+comment in `docs/agent/goals/56-m4b-editor.toml`.
 
-- [ ] **A path entry crosses, or a placement that cannot cross refuses instead of falling through
-      silently** — `crates/nvs-host/src/placed.rs:34` is the gap and
-      `docs/agent/carried-gaps.md:719` the reason.
-      `rule:concurrency/on-worker-runs-the-child-on-another-core` states the limit as it stands, and
-      `docs/decisions/0184.md` § *Diagnostics* is what rejects the silence.
-- [ ] **A serving core registers an inbox, so `nvs serve` places on a sibling rather than starting a
-      thread** — `crates/nvs-host/src/worker.rs:99`, reason at `docs/agent/carried-gaps.md:728`,
-      and `docs/decisions/0184.md` § *Revisiting* is the fallback that was taken.
-- [ ] **The test suite runs its isolates in parallel** — `crates/nvs-cli/src/runner.rs:85`, reason at
-      `docs/agent/carried-gaps.md:736`; `docs/decisions/0079.md:158` promises both halves and only
-      the isolation half is built.
+- [ ] **The record**: the next free number in `docs/decisions/`, with `changes.modifies`
+      `ide/headless-gates-the-loop-the-host-run-gates-the-milestone`. Its body is the goal's standing
+      decisions on the host tier, argued. It covers why isolation answers the attach-and-exit and
+      `settings.json` reasons the rule gave for "CI only", and why the host check is not memoized
+      (`tools/loop.py:1606`).
+- [ ] **The rule rewritten whole**, in `docs/rules/ide/headless-gates-the-loop-the-host-run-gates-the-milestone.md:1-16`.
+      Its title goes in `docs/rules/ide.json`, and `because` gains the record. Its body names
+      `npm run test:host`, then run `python tools/rules.py --render`
+      (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).
+- [ ] **The floor comment**: in `docs/agent/goals/56-m4b-editor.toml`, the comment over the
+      `vsix packages` floor check is rewritten to point at the amended rule.
 
 ## Backlog
 
-- `crates/nvs-runtime/src/identity.rs:598`'s `use std::hash::Hasher as _` is unused on nightly and
-  needed on stable, so the tsan leg prints one warning nothing can remove from both legs at once.
-- `crates/nvs-runtime/src/budget.rs:391`'s `fetch_update` is deprecated on nightly only, which is
-  the tsan leg alone; clippy over the stable tree is clean, so the call stays as it is.
-- `[context] modules` in `docs/agent/loop-goal.toml` is 21 entries; the driver reports that naming
-  `crates/nvs-cli/src/runner.rs`, `crates/nvs-host/src/placed.rs` and
-  `crates/nvs-runtime/src/ctx/isolate.rs` would pass 18 — left for a person to narrow.
+- Stage 3 is the host harness, in `editors/vscode/package.json`, `scripts/host.mjs`,
+  `scripts/headless.mjs`, `test/host/`, the contributions allowlist and `README.md`. It is the keystone.
+- Stages 4 and 5 are the host suites, in `editors/vscode/test/host/`. Stage 5 also touches
+  `src/extension.ts`, `redactions.ts`, `ast.ts` and `tasks.ts`. They share the harness with stage 3.
+- Stage 6 is CI, in `.github/workflows/ci.yml`, `tools/ci-changes.py` and `editors/vscode/.nvmrc`. It
+  gets its own session.
+- Stage 7 is the fuzz run, in `docs/agent/commands.md:592-617` and `fuzz/seeds/prefix/`. Whether WSL has
+  nightly and `cargo-fuzz` is not checked.
+- Stage 8 is the three flips, in `docs/rules/ide*` only.
+- When this goal's last check goes green the driver takes goal `gap-zero`.
