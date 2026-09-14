@@ -3969,7 +3969,8 @@ def git(*args):
 #:   wall            MAX_WALLS sessions in a row refused by the usage limit
 #:   wall-timeout    a usage window that does not reopen inside --max-limit-wait
 #:   cli-failed      --max-retries consecutive non-zero exits from the CLI
-#:   done-claim      a session claimed DONE that the acceptance test does not agree with
+#:   done-claim      a session claimed DONE that the acceptance test does not agree with, and
+#:                   the retry session `DONE_RETRIES` grants did too, or the goal is out of retries
 #:   blocked         a session wrote BLOCKED
 #:   stalled         --max-stalls sessions in a row produced no commit
 #:   interrupted     Ctrl-C
@@ -5271,6 +5272,23 @@ def doc_gate(index):
     return why
 
 
+#: How many failed DONE claims on one goal get a fresh session before a hand is asked.
+#:
+#: A DONE claim the sweep refuses used to hold the run at once, and the person's hand then did
+#: what a session does: read the `goal check:` line, fix the check, claim DONE again. Measured
+#: over the 2026-09-14 ledger, four holds in a day, each with a different cause -- a test named
+#: by a near miss, a stale plan cell, a flake under the sanitizer, a host-tier timeout -- and
+#: three of the four were one session's work. The sweep's failing line is already in the next
+#: pack (`orient.py` reads it from the ledger), so a retry costs one session and no one's hand.
+#:
+#: Bounded twice, and both bounds are needed. A retry whose own DONE fails holds the run: the
+#: same question asked twice is the coordinator's rule for a hand, and a session that could not
+#: fix it with the line in front of it is not going to on a third read. And a goal gets this many
+#: in total, because a DONE claimed early and refused, then CONTINUEd, then claimed and refused
+#: again is a session pair per cycle with no bound but this one.
+DONE_RETRIES = 3
+
+
 def drive(opts, goal, chain):
     """The session loop itself. Split out so `main` can hold the `.loop/running` marker across it,
     and drop it on any exit -- a normal stop, a Ctrl-C, or an exception."""
@@ -5279,6 +5297,9 @@ def drive(opts, goal, chain):
 
     stalls = 0
     fails = 0
+    # The DONE-claim retries this goal has spent, and whether the session that just ended was one.
+    done_retries = 0
+    retrying = False
     reason = f"hit --max-sessions ({opts.max_sessions})"
     kind = "budget"
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}"
@@ -5599,8 +5620,10 @@ def drive(opts, goal, chain):
                    f"({chain.current.num} of {len(chain.goals)})")
             # A new goal is a new worklist, so a stall streak from the old one says nothing about
             # it -- and the first session of any goal is the one most likely to spend itself
-            # reading rather than committing.
+            # reading rather than committing. Its DONE-claim retries start over for the same reason.
             stalls = 0
+            done_retries = 0
+            retrying = False
             try:
                 goal = load_goal()
             except (tomllib.TOMLDecodeError, GoalError) as e:
@@ -5615,10 +5638,24 @@ def drive(opts, goal, chain):
 
         # A `DONE` held only by the rustdoc gate is not a wrong claim, just an unfinished one: the
         # next session gets the finding in its pack and fixes it, with no one to wake.
+        #
+        # A `DONE` the sweep refuses gets the same treatment once: the failing check is in the
+        # next pack, so one fresh session is given it before a hand is asked. The hand is asked
+        # when that session's own DONE fails too, or when the goal has spent `DONE_RETRIES`.
+        was_retry = retrying
+        retrying = False
         if line.startswith("DONE") and fail:
-            reason = f"session reported DONE but the acceptance test does not pass yet: {line}"
-            kind = "done-claim"
-            break
+            if was_retry or done_retries >= DONE_RETRIES:
+                reason = f"session reported DONE but the acceptance test does not pass yet: {line}"
+                kind = "done-claim"
+                break
+            done_retries += 1
+            retrying = True
+            retried = (f"done-claim retried: the DONE above failed its sweep, and one session "
+                       f"gets the failing check before a hand is asked "
+                       f"({done_retries} of {DONE_RETRIES} on this goal)")
+            step(retried, C.YELLOW)
+            ledger(f"       {retried}")
         if line.startswith("BLOCKED"):
             reason = f"blocked on a user decision: {line}"
             kind = "blocked"

@@ -206,6 +206,12 @@ rather than being left to catch the next one. `--no-hold` restores ending, for a
 reason means the question was not answered, and holding again would spend another session asking it. This
 is the one place the driver decides a person has had their turn.
 
+**A refused DONE claim gets one session before it gets a hand.** The sweep's `goal check:` line is in
+the next pack whatever happens, so a fresh session is given it first; `done-claim` holds the run when that
+session's own DONE fails too, or once a goal has spent `DONE_RETRIES` of them (`tools/loop.py` holds the
+number and why it is bounded twice). Measured on the day it was added, three of four such holds were one
+session's work.
+
 Three more things it does, none of which is obvious:
 
 - **A stop always wins.** `s` or `.loop/stop` during a hold ends the run rather than waiting for somebody
