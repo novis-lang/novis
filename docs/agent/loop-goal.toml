@@ -122,6 +122,9 @@ modules = [
   "crates/nvs-types/src/expr/iteration.rs",
   # Every code a `guarded_by!` takes.
   "crates/nvs-diagnostics/src/lib.rs",
+  # `rule:types/arithmetic`'s operator table — the scalar rows, `decimal`'s own set, the
+  # short-circuiting operators, and the widening that places a mixed pair.
+  "crates/nvs-ir/src/lower/operator.rs",
 ]
 
 # Every stage works inside these two: a shape that lowers answers as PHP does, and nothing it adds is
