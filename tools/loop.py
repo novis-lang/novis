@@ -1856,8 +1856,9 @@ CHECK_KEYS = {
     "nvs-suite":   (("name", "args"),             ("cases", "memoize", "min_passing")),
     "cargo-named": (("name", "args", "tests"),    ("memoize",)),
 }
-# `memoize` is accepted and read by nothing: every check is remembered against what it reads now
-# (`reads_of`), and the goal files that carry the key still have to load.
+# `memoize` is read in one direction: `false` means `remembered` never answers this check from the
+# file, for a check whose inputs are not all in the tree. `true` and absent are the same thing --
+# every check is remembered against what it reads now (`reads_of`).
 # Allowed on every kind. `stage` is read by this driver for the run order and by `holes.py` for the
 # worklist it prints, which is why an unstaged check is still legal but a misspelled one is not.
 COMMON_KEYS = ("kind", "stage")
@@ -2432,10 +2433,14 @@ class Goal:
     def remembered(self, c, leg=""):
         """Was this check green over inputs bit-identical to the ones on disk right now?
 
-        Never with `full` set, and never when the tree could not be hashed. Pure: `plan_size` asks
-        this before the sweep to count what it will pay for, and `skip` is what records an answer
-        the sweep actually took."""
-        if self.full:
+        Never with `full` set, never when the tree could not be hashed, and never for a check that
+        says `memoize = false`. That key is for a check whose inputs are not all in the tree: the
+        extension-host run reads a downloaded editor build under `.vscode-test/` and an installed
+        package tree, both of which `NOT_INPUTS` prunes, so a remembered verdict there would report
+        a green editor run on a machine where no editor started (docs/decisions/0185.md section 3).
+        Pure: `plan_size` asks this before the sweep to count what it will pay for, and `skip` is
+        what records an answer the sweep actually took."""
+        if self.full or c.get("memoize") is False:
             return False
         want = self.inputs_for(c)
         return want is not None and self._green.get(self.memo_key(c, leg)) == want
