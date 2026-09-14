@@ -205,6 +205,11 @@ windows-sys = { version = "0.61", features = [
     # a security descriptor of its own so that "mode 0600" holds where there is no mode.
     # `crates/nvs-config/src/control.rs` is the one caller.
     "Win32_System_Pipes",
+    # `ConnectNamedPipe`, `ReadFile` and `WriteFile`: the same endpoint's accept and its duplex
+    # stream. Every one of the three names `OVERLAPPED` in its signature and is gated on this
+    # feature because of it, even though the control pipe is synchronous and passes a null pointer
+    # for it. `crates/nvs-config/src/control.rs` is the one caller.
+    "Win32_System_IO",
 ] }
 
 # --- TLS over the parking stream (ADR 0051 § 3's "TLS via `rustls`") ---

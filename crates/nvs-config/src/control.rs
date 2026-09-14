@@ -10,6 +10,21 @@
 //! the directive named, whether the directory holding it passes § 6, and what a connected client is
 //! allowed to ask for.
 //!
+//! **One connection at a time, which is where `rule:config/one-local-control-socket`'s
+//! "operations serialize" is actually enforced.** [`Endpoint::accept`] blocks until a client is on
+//! the endpoint and hands back the duplex stream to answer it on; the next accept happens only
+//! once that stream is dropped. On Unix a second client waits in the listen backlog, and on Windows
+//! [`connect`] waits on the busy instance for the same bounded moment, so the two platforms make a
+//! waiting client wait rather than one of them refusing it.
+//!
+//! **The accept blocks and the stream it hands back does not**, which is not an inconsistency: the
+//! server has nothing to do until a client arrives, and once one has, the connection above is
+//! `hyper`'s, which asks to read the next request before it writes the answer to the one it holds.
+//! A read that waited there would wait for a client that is waiting for that answer. So a read with
+//! nothing behind it answers [`io::ErrorKind::WouldBlock`] — a socket flag on Unix, a
+//! `PeekNamedPipe` on Windows — and the loop driving the connection is what decides how long to
+//! wait, which is `nvs_server::control::answer_connection`.
+//!
 //! **The two platforms are two objects, not one abstraction.** Unix is a `AF_UNIX` socket at the
 //! path, mode `0600`; Windows is a named pipe under `\\.\pipe\`, whose kernel namespace has no
 //! directory and no mode, so the same guarantee is written as a DACL naming this account,
@@ -26,7 +41,10 @@
 //! `libc` and an `unsafe` block for a window bounded by a check that already ran.
 //!
 //! Cost, as `rule:programs/memory-priority` requires: one kernel object per running server, created at boot and closed
-//! when the process ends. Nothing per request and nothing per reload.
+//! when the process ends, and the pipe's own in and out buffers on Windows. A connected client adds
+//! an accepted socket on Unix and nothing at all on Windows, where the stream is a borrow of the one
+//! instance; either way it is one at a time for the whole process. Nothing per request and nothing
+//! per reload.
 //!
 
 use std::collections::BTreeMap;
@@ -160,11 +178,41 @@ impl Endpoint {
         &self.name
     }
 
-    /// The platform object, for the accept loop that will drive it.
+    /// Blocks until a client is connected, handing back the duplex stream to answer it on.
+    ///
+    /// The stream borrows the endpoint, which is what makes "one operation at a time" a fact about
+    /// the types rather than a discipline the accept loop has to keep: there is no second stream to
+    /// be had while one is alive, and on Windows the borrow is literal — the stream *is* the one
+    /// pipe instance, handed back to the next accept when it is dropped.
+    ///
+    /// # Errors
+    ///
+    /// The OS's own error, for an endpoint that can no longer be accepted on.
+    pub fn accept(&self) -> io::Result<platform::Stream<'_>> {
+        self.bound.accept()
+    }
+
+    /// The platform object underneath [`accept`](Self::accept), for a caller that has to ask the OS
+    /// something about the endpoint itself.
     #[must_use]
     pub fn bound(&self) -> &platform::Bound {
         &self.bound
     }
+}
+
+/// Opens the endpoint `name` addresses as a client — the half `nvs ctl` speaks HTTP over.
+///
+/// It lives here rather than in the client because the platform split is the same one this module
+/// already owns in the other direction, and a client that spelled it a second time would be a
+/// second place to get `\\.\pipe\` wrong.
+///
+/// # Errors
+///
+/// The OS's own error, for an endpoint that is not there — which is what a host with no running
+/// server looks like — or that this account may not open, which is § 3's DACL and mode doing their
+/// job.
+pub fn connect(name: &Path) -> io::Result<platform::Client> {
+    platform::connect(name)
 }
 
 /// Why a control endpoint was not created.
@@ -331,13 +379,75 @@ pub mod platform {
     //! The Unix endpoint: an `AF_UNIX` socket at the path, mode `0600`.
 
     use std::fs::Permissions;
-    use std::io;
+    use std::io::{self, Read, Write};
+    use std::marker::PhantomData;
     use std::os::unix::fs::PermissionsExt;
-    use std::os::unix::net::UnixListener;
+    use std::os::unix::net::{UnixListener, UnixStream};
     use std::path::Path;
 
     /// What a created endpoint holds here: the listening socket itself.
-    pub type Bound = UnixListener;
+    #[derive(Debug)]
+    pub struct Bound(UnixListener);
+
+    impl Bound {
+        /// The next client, waited for on this thread.
+        ///
+        /// # Errors
+        ///
+        /// The OS's own error, for a listener that can no longer accept.
+        pub fn accept(&self) -> io::Result<Stream<'_>> {
+            let (stream, _peer) = self.0.accept()?;
+            // The peer address of an `AF_UNIX` client is unnamed and says nothing about who it is;
+            // who may connect at all is the socket's mode, decided before this call ever runs.
+            //
+            // Non-blocking because the connection above this is `hyper`'s, and `hyper` asks to read
+            // again before it writes the answer it already has: a read that waited there would be
+            // waiting for a client that is waiting for the answer. [`Stream`]'s doc is the whole of
+            // that contract, and the Windows half spells it with a peek.
+            stream.set_nonblocking(true)?;
+            Ok(Stream {
+                stream,
+                endpoint: PhantomData,
+            })
+        }
+    }
+
+    /// One connected control client: a duplex byte stream, closed when it is dropped.
+    ///
+    /// **A read that would wait answers [`io::ErrorKind::WouldBlock`] instead**, because the
+    /// connection driven over this is `hyper`'s and `hyper` polls for the next request before it
+    /// writes the answer to the one it has: a stream that waited there would deadlock against a
+    /// client waiting for that answer. The drive loop is what turns that into a wait —
+    /// `nvs_server::io::Nonblocking` and `nvs_server::control::answer_connection`.
+    ///
+    /// The accepted socket outlives the listener perfectly well here, so the borrow is not what
+    /// keeps it valid — it is what makes this the same signature Windows has, where the stream
+    /// really is the endpoint's one instance. One accept loop over both is worth a lifetime that
+    /// one of the two platforms could do without.
+    #[derive(Debug)]
+    pub struct Stream<'a> {
+        stream: UnixStream,
+        endpoint: PhantomData<&'a Bound>,
+    }
+
+    impl Read for Stream<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.stream.read(buf)
+        }
+    }
+
+    impl Write for Stream<'_> {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.stream.write(buf)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.stream.flush()
+        }
+    }
+
+    /// A client's end of the endpoint: the connected socket itself.
+    pub type Client = UnixStream;
 
     /// § 3's socket, and the `chmod` whose window this module's doc bounds.
     pub(super) fn create(name: &Path) -> io::Result<Bound> {
@@ -347,7 +457,13 @@ pub mod platform {
         drop(std::fs::remove_file(name));
         let listener = UnixListener::bind(name)?;
         std::fs::set_permissions(name, Permissions::from_mode(0o600))?;
-        Ok(listener)
+        Ok(Bound(listener))
+    }
+
+    /// The client's connect, which on Unix is the whole of it: a client arriving while another is
+    /// being answered waits in the listen backlog.
+    pub(super) fn connect(name: &Path) -> io::Result<Client> {
+        UnixStream::connect(name)
     }
 }
 
@@ -356,22 +472,26 @@ pub mod platform {
     //! The Windows endpoint: a named pipe whose DACL names this account, `SYSTEM` and
     //! `Administrators`, and is protected so that nothing is inherited into it.
 
-    use std::io;
+    use std::io::{self, Read, Write};
+    use std::marker::PhantomData;
     use std::os::windows::ffi::OsStrExt;
     use std::path::Path;
+    use std::time::{Duration, Instant};
 
     use windows_sys::Win32::Foundation::{
-        CloseHandle, HANDLE, HLOCAL, INVALID_HANDLE_VALUE, LocalFree,
+        CloseHandle, ERROR_BROKEN_PIPE, ERROR_PIPE_BUSY, ERROR_PIPE_CONNECTED, HANDLE, HLOCAL,
+        INVALID_HANDLE_VALUE, LocalFree,
     };
     use windows_sys::Win32::Security::Authorization::{
         ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
     };
     use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
+        FILE_FLAG_FIRST_PIPE_INSTANCE, FlushFileBuffers, PIPE_ACCESS_DUPLEX, ReadFile, WriteFile,
     };
     use windows_sys::Win32::System::Pipes::{
-        CreateNamedPipeW, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES,
+        ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_TYPE_BYTE,
+        PIPE_UNLIMITED_INSTANCES, PeekNamedPipe, WaitNamedPipeW,
     };
 
     /// The in and out buffer a pipe instance is created with. A control message is a short HTTP
@@ -379,8 +499,193 @@ pub mod platform {
     /// documentation uses, and the buffer is an advisory hint rather than a limit on either.
     const BUFFER: u32 = 64 * 1024;
 
+    /// How long a client waits in total for an instance another client is being answered on, before
+    /// the busy error is what it gets. The operation holding it is a configuration re-read and not
+    /// a request, so this is longer than one takes and short enough that a wedged server reports as
+    /// one rather than as a client that never returns.
+    const BUSY_WAIT: Duration = Duration::from_secs(5);
+
     /// What a created endpoint holds here: the first instance's handle, closed on drop.
     pub struct Bound(HANDLE);
+
+    /// A pipe handle is a process-wide kernel object that any thread may use, and this type is the
+    /// only owner of this one — so the endpoint moves to the thread that accepts on it, which is
+    /// what `rule:concurrency/one-scheduler`'s control thread needs of it. The raw pointer inside
+    /// `HANDLE` is what withholds this by default; nothing about the object does.
+    #[expect(
+        unsafe_code,
+        reason = "the handle is owned solely by this type and is valid on any thread of this process"
+    )]
+    unsafe impl Send for Bound {}
+
+    impl Bound {
+        /// The next client, waited for on this thread.
+        ///
+        /// # Errors
+        ///
+        /// The OS's own error, for an instance that can no longer be connected on.
+        #[expect(
+            unsafe_code,
+            reason = "one `kernel32` call over the handle this type owns; the overlapped pointer is \
+                      null because the instance is synchronous, so the call returns when a client \
+                      is on it and not before"
+        )]
+        pub fn accept(&self) -> io::Result<Stream<'_>> {
+            let connected = unsafe { ConnectNamedPipe(self.0, std::ptr::null_mut()) };
+            if connected == 0 {
+                let failed = io::Error::last_os_error();
+                // A client that opened the instance between its creation and this call is already
+                // on it, which is this call having succeeded early rather than having failed.
+                if os_error(&failed) != Some(ERROR_PIPE_CONNECTED) {
+                    return Err(failed);
+                }
+            }
+            Ok(Stream {
+                handle: self.0,
+                endpoint: PhantomData,
+            })
+        }
+    }
+
+    /// One connected control client: the endpoint's own instance, given back to the next accept
+    /// when it is dropped.
+    ///
+    /// There is no second handle and nothing is duplicated, so the borrow is what keeps this sound:
+    /// the instance is the endpoint's, and this type may only read and write it while the endpoint
+    /// is alive and no other stream exists.
+    pub struct Stream<'a> {
+        handle: HANDLE,
+        endpoint: PhantomData<&'a Bound>,
+    }
+
+    impl std::fmt::Debug for Stream<'_> {
+        /// The handle value is the endpoint's own and says nothing more here than it does there.
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("Stream(a connected named pipe instance)")
+        }
+    }
+
+    impl Drop for Stream<'_> {
+        #[expect(
+            unsafe_code,
+            reason = "two `kernel32` calls over the borrowed instance; the flush is what lets the \
+                      client read the last of an answer before the instance is taken back, and \
+                      neither call closes a handle this type does not own"
+        )]
+        fn drop(&mut self) {
+            // Disconnecting discards whatever the client has not read yet, which is why the flush
+            // is not optional: `rule:concurrency/a-drain-closes-a-connection-cleanly`'s clean close
+            // is a client that got the whole answer, not one that got a truncated one.
+            unsafe {
+                FlushFileBuffers(self.handle);
+                DisconnectNamedPipe(self.handle);
+            }
+        }
+    }
+
+    impl Read for Stream<'_> {
+        /// The peek that makes this stream non-blocking, and then the read it licenses.
+        ///
+        /// A synchronous pipe handle has no read timeout and no non-blocking mode worth having —
+        /// `PIPE_NOWAIT` is documented as existing for 16-bit compatibility and not to be used —
+        /// so "is there anything to read" is asked with [`PeekNamedPipe`] and answered before any
+        /// byte is committed to. That is this platform's spelling of the `WouldBlock` the Unix
+        /// half gets from the socket, and [`Stream`]'s own doc is why either is needed.
+        #[expect(
+            unsafe_code,
+            reason = "two `kernel32` calls over the borrowed instance; the peek writes one `u32` \
+                      this frame owns, and the read fills a slice it holds mutably for at most its \
+                      own length"
+        )]
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let mut waiting: u32 = 0;
+            let peeked = unsafe {
+                PeekNamedPipe(
+                    self.handle,
+                    std::ptr::null_mut(),
+                    0,
+                    std::ptr::null_mut(),
+                    &mut waiting,
+                    std::ptr::null_mut(),
+                )
+            };
+            if peeked == 0 {
+                return closed(io::Error::last_os_error());
+            }
+            if waiting == 0 {
+                return Err(io::ErrorKind::WouldBlock.into());
+            }
+            let mut read: u32 = 0;
+            let want = u32::try_from(buf.len()).unwrap_or(u32::MAX).min(waiting);
+            let ok = unsafe {
+                ReadFile(
+                    self.handle,
+                    buf.as_mut_ptr(),
+                    want,
+                    &mut read,
+                    std::ptr::null_mut(),
+                )
+            };
+            if ok == 0 {
+                return closed(io::Error::last_os_error());
+            }
+            Ok(usize::try_from(read).expect("a read of at most this buffer's own length"))
+        }
+    }
+
+    /// `failed` as the end of input where that is what it is.
+    ///
+    /// A client that has closed its end arrives as a broken pipe on whichever call reaches for it
+    /// next. The framing above this reads an end of input as a read of zero, the way every other
+    /// transport spells it, so that is what a closed pipe is handed back as.
+    fn closed(failed: io::Error) -> io::Result<usize> {
+        match os_error(&failed) {
+            Some(ERROR_BROKEN_PIPE) => Ok(0),
+            _ => Err(failed),
+        }
+    }
+
+    impl Write for Stream<'_> {
+        #[expect(
+            unsafe_code,
+            reason = "one `kernel32` call reading a slice this frame holds, for at most its own \
+                      length"
+        )]
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            let mut wrote: u32 = 0;
+            let want = u32::try_from(buf.len()).unwrap_or(u32::MAX);
+            let ok = unsafe {
+                WriteFile(
+                    self.handle,
+                    buf.as_ptr(),
+                    want,
+                    &mut wrote,
+                    std::ptr::null_mut(),
+                )
+            };
+            if ok == 0 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(usize::try_from(wrote).expect("a write of at most this buffer's own length"))
+        }
+
+        /// Nothing is held back: a write has reached the pipe by the time it returns. The flush
+        /// that waits for the *client* to have read it is [`Stream`]'s drop, because that is where
+        /// waiting for a peer belongs rather than in the middle of a response being written.
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// A client's end of the endpoint: the pipe instance opened for reading and writing.
+    pub type Client = std::fs::File;
+
+    /// Whichever `WIN32_ERROR` `failed` carries, in the type the constants naming one are.
+    fn os_error(failed: &io::Error) -> Option<u32> {
+        failed
+            .raw_os_error()
+            .and_then(|raw| u32::try_from(raw).ok())
+    }
 
     impl std::fmt::Debug for Bound {
         /// The handle value is a process-local number that says nothing to a reader of a log line,
@@ -474,5 +779,41 @@ pub mod platform {
             return Err(io::Error::last_os_error());
         }
         Ok(Bound(handle))
+    }
+
+    /// The client's connect: open the instance, and wait for it if another client is being answered
+    /// on it.
+    ///
+    /// The wait is what makes this the Unix half's listen backlog rather than a refusal a client
+    /// would have to retry for itself — the endpoint holds one instance on purpose, so "busy" is
+    /// the ordinary state of a second operation arriving and not an error about the server. It is a
+    /// loop because the wait answers that an instance is *free* and not that this client has it:
+    /// the server disconnecting and this client opening are two calls, and anything may arrive
+    /// between them. [`BUSY_WAIT`] bounds the whole loop rather than one turn of it.
+    #[expect(
+        unsafe_code,
+        reason = "one `kernel32` call over a NUL-terminated name this frame owns, which returns \
+                  before the buffer does"
+    )]
+    pub(super) fn connect(name: &Path) -> io::Result<Client> {
+        let wide: Vec<u16> = name.as_os_str().encode_wide().chain(Some(0)).collect();
+        let until = Instant::now() + BUSY_WAIT;
+        loop {
+            match std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(name)
+            {
+                Err(busy) if os_error(&busy) == Some(ERROR_PIPE_BUSY) => {
+                    let left =
+                        u32::try_from(until.saturating_duration_since(Instant::now()).as_millis())
+                            .unwrap_or(u32::MAX);
+                    if left == 0 || unsafe { WaitNamedPipeW(wide.as_ptr(), left) } == 0 {
+                        return Err(busy);
+                    }
+                }
+                other => return other,
+            }
+        }
     }
 }
