@@ -94,7 +94,7 @@ use std::time::{Duration, Instant};
 use nvs_runtime::graph::GraphError;
 use nvs_runtime::host::{Bounds, Entry, Host, Job, Outcome, Output, Running, Woken};
 use nvs_runtime::script::Program;
-use nvs_runtime::{AssertionOutcome, Ctx, TaskRoot, Thrown, Value};
+use nvs_runtime::{AssertionOutcome, Ctx, OpenSpawn, SpawnForm, TaskRoot, Thrown, Value};
 
 use crate::isolate::Isolate;
 
@@ -227,6 +227,11 @@ struct Slot {
     answer: Option<Value>,
     output: Vec<u8>,
     assertions: Vec<AssertionOutcome>,
+    /// How long the child's own body ran, which is what
+    /// `rule:observability/spawn-is-its-own-event`'s split is computed against.
+    /// `None` for a child nobody was observing, which is the same `None` that
+    /// says no clock was read for it.
+    wall: Option<Duration>,
 }
 
 /// What the parent and its children share for the length of the group.
@@ -251,12 +256,20 @@ struct Child {
     group: Rc<RefCell<Group>>,
     wake: Rc<Wake>,
     index: usize,
+    /// Whether the parent opened a spawn event for this child, and therefore
+    /// whether its body is timed at all.
+    timed: bool,
 }
 
 impl Child {
     /// Runs this child's job and files what it produced.
     fn run(&self, job: Job, ctx: &mut Ctx) {
+        // The child's half of the event's split, and the reason it is a flag
+        // rather than a flags read here: a request nobody is observing must not
+        // read a clock, and the parent already asked that question once.
+        let began = self.timed.then(Instant::now);
         let answer = job(ctx);
+        let wall = began.map(|at| at.elapsed());
         // A cancelled child did not fail. It ran until a member told it it was
         // cancelled and then stopped by `rule:errors/propagation`'s return status, so its
         // context carries a pending message the way every stopped request does
@@ -275,6 +288,7 @@ impl Child {
         let slot = &mut group.slots[self.index];
         slot.output = output;
         slot.assertions = assertions;
+        slot.wall = wall;
         if cancelled {
             // What it echoed before it was stopped, it did echo, so the two
             // fields above are still filed. The value is not an answer.
@@ -344,6 +358,7 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
     }));
     let mut queue: VecDeque<(usize, Job)> = jobs.into_iter().enumerate().collect();
     let mut running: Vec<TaskId> = Vec::new();
+    let mut spawns: Vec<Option<OpenSpawn>> = (0..count).map(|_| None).collect();
     let limit = bounds
         .limit
         .map_or(usize::MAX, |limit| (limit as usize).max(1));
@@ -367,11 +382,18 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
                           this function's own structure; see the module docs"
             )]
             let child_ctx = unsafe { ctx.child() };
+            // A `Core\Task` child is `rule:observability/spawn-is-its-own-event`'s
+            // `spawn`, and this is where one is started. The event, the clock
+            // read behind it and the child's own timing all wait on the same
+            // answer: `None` while both debug bits are off.
+            let open = ctx.open_spawn(SpawnForm::Task);
             let child = Child {
                 group: Rc::clone(&group),
                 wake: Rc::clone(&wake),
                 index,
+                timed: open.is_some(),
             };
+            spawns[index] = open;
             group.borrow_mut().outstanding += 1;
             let spawned = spawn_child(child_ctx, TaskRoot::Request, move |child_ctx| {
                 child.run(job, child_ctx);
@@ -430,6 +452,17 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
         }
     }
 
+    // Every child's join is this one point, and
+    // `rule:concurrency/nothing-is-still-running-when-a-call-returns` is what
+    // makes it one: the loop above does not reach here while any child of this
+    // group is still running.
+    for (index, open) in spawns.into_iter().enumerate() {
+        let Some(open) = open else {
+            continue;
+        };
+        let wall = group.borrow().slots[index].wall;
+        ctx.close_spawn(open, wall);
+    }
     collect(ctx, &group, ending)
 }
 
@@ -576,7 +609,7 @@ mod tests {
     use crate::reactor::{Reactor, run_until_idle};
     use crate::scheduler::Scheduler;
     use nvs_runtime::host::{Bounds, with_current};
-    use nvs_runtime::{OutputSink, Value};
+    use nvs_runtime::{DebugFlags, OutputSink, TraceKind, Value};
     use std::time::Duration;
 
     fn ctx() -> Ctx {
@@ -844,7 +877,7 @@ mod tests {
     /// show: `crate::channel`'s § *A cancelled waiter takes itself out of the
     /// queue* is the claim, and a parked count of zero here is it.
     #[test]
-    fn a_deliberate_deadlock_is_ended_by_the_deadline() {
+    fn two_tasks_waiting_on_each_others_channel_are_ended_by_the_groups_deadline() {
         let _reactor = reactor::install(Reactor::new().expect("the OS refused a poll"));
         let mut sched = Scheduler::new();
         let reached = Rc::new(std::cell::Cell::new(0_u32));
@@ -890,7 +923,7 @@ mod tests {
     /// children die with that wait rather than outliving it, and the call
     /// answers [`Outcome::Cancelled`] rather than unwinding through itself.
     #[test]
-    fn a_deliberate_deadlock_is_ended_by_cancelling_its_awaiter() {
+    fn a_deadlocked_pair_is_ended_by_cancelling_the_task_that_awaits_them() {
         let mut sched = Scheduler::new();
         let reached = Rc::new(std::cell::Cell::new(0_u32));
         let past = Rc::new(std::cell::Cell::new(0_u32));
@@ -943,6 +976,65 @@ mod tests {
             "a child outlived the wait that owned it"
         );
         assert_eq!(sched.tracked_tasks(), 0);
+    }
+
+    /// One event per child, each closed with the child's own wall time — the
+    /// split `rule:observability/spawn-is-its-own-event` asks a group for, and
+    /// the form is the rule's `spawn` rather than either isolate spelling.
+    #[test]
+    fn a_traced_task_group_records_a_spawn_event_per_child() {
+        let mut sched = Scheduler::new();
+        let mut parent = ctx();
+        parent.set_debug_flags(DebugFlags::TRACE);
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let seen = Rc::clone(&events);
+
+        sched.spawn(parent, TaskRoot::Request, move |ctx| {
+            let jobs: Vec<Job> = (0..3)
+                .map(|index| Box::new(move |_: &mut Ctx| Value::int(index)) as Job)
+                .collect();
+            assert_eq!(answers(&group(ctx, jobs, Bounds::default())), vec![0, 1, 2]);
+            *seen.borrow_mut() = ctx
+                .trace()
+                .iter()
+                .filter(|event| event.kind == TraceKind::Spawn)
+                .map(|event| event.callee.clone())
+                .collect();
+        });
+        sched.run();
+
+        let events = events.borrow();
+        assert_eq!(events.len(), 3, "one event per child, not one per group");
+        for event in events.iter() {
+            assert!(event.starts_with("spawn started="), "{event}");
+            assert!(
+                event.contains(" joined=") && event.contains(" child="),
+                "a joined child carries both timestamps and the split: {event}"
+            );
+        }
+    }
+
+    /// The gate every probe in the tree shares: both bits off is no event, and
+    /// the clock that would have made one is never read.
+    #[test]
+    fn an_untraced_spawn_records_no_spawn_event() {
+        let mut sched = Scheduler::new();
+        let untraced = Rc::new(std::cell::Cell::new(false));
+        let seen = Rc::clone(&untraced);
+
+        sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+            let jobs: Vec<Job> = (0..2)
+                .map(|index| Box::new(move |_: &mut Ctx| Value::int(index)) as Job)
+                .collect();
+            assert_eq!(answers(&group(ctx, jobs, Bounds::default())), vec![0, 1]);
+            seen.set(ctx.trace().is_empty());
+        });
+        sched.run();
+
+        assert!(
+            untraced.get(),
+            "a request nobody is observing recorded an event"
+        );
     }
 
     /// The children share the request's statics, which is the whole of what
