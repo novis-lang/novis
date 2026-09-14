@@ -899,12 +899,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   target line M") can name a line far away, because a leading run of spaces matches elsewhere before
   the words do. Subtract two from the column `peek.py` shows, or measure it: `awk 'NR>=A && NR<=B {
   match($0, /[^ ]/); print NR": indent="RSTART-1 }' <file>`. [until: reviewed 2026-09-06]
-- **A loop-goal.toml `command` check reports its *first line of stderr* as the failure, and a tool
-  that opens with a `warning:` buries the real one there.** `tools/loop.py`'s `cargo_check` prints
-  `r.first_err_line`, so a `bench.py` run whose stderr opens with `warning: nvs.exe is N h older
-  than the newest file under crates/` is reported as that warning while the `error[E0601]` three
-  lines below is the failure. Run the check's own `argv` by hand and read all of its stderr before
-  believing the one line the ledger shows. [until: gone tools/loop.py:first_err_line]
+- **The acceptance failure the orientation pack quotes is a line the ledger wrote at the time, so one
+  written before `first_err_line` learned to skip warnings still names a warning rather than the
+  failure.** That property now picks the failed test, then the panic, then the first `error` line,
+  but nothing rewrites a line already in `.loop/log.md` — a `warning: use of deprecated method
+  fetch_update` reached a session as the whole verdict on a leg whose real failure was a flaky test
+  eleven lines above it. Grep `.loop/logs/<run>-console.log` for the check's name and read its whole
+  block before believing the one line, because that log holds both streams and the ledger holds one
+  sentence. [until: reviewed 2026-09-14]
 - **`peek.py --locate` takes symbols only, and answers `NOT FOUND` for a `path:re:pattern` target
   instead of refusing it.** That is the same line it prints for a name that is nowhere in the tree,
   and a path in that list is likewise read as one more symbol to search the whole repository for,
