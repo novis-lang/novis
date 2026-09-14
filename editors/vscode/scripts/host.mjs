@@ -71,10 +71,14 @@ function prepare(nvs) {
   const user = join(PROFILE, "User");
   mkdirSync(user, { recursive: true });
   mkdirSync(EXTENSIONS, { recursive: true });
-  // `nvs.path` reaches this file and no other. The rest are what stop a fresh profile from opening a
-  // welcome page, trusting nothing, or reaching the network on its own account.
+  // `nvs.path` reaches this file and no other. The server starts off because "before the server
+  // answers" is a state `colour.test.ts` asserts in, and withholding it is the only way to observe that
+  // state rather than race it; the test that needs a server turns the setting on, which respawns. The
+  // rest are what stop a fresh profile from opening a welcome page, trusting nothing, or reaching the
+  // network on its own account.
   const settings = {
     "nvs.path": nvs,
+    "nvs.lsp.enable": false,
     "security.workspace.trust.enabled": false,
     "telemetry.telemetryLevel": "off",
     "update.mode": "none",
