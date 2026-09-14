@@ -188,7 +188,7 @@ fn real(value: i128) -> f64 {
 /// instead, for every `NaN` and on every platform, and it is the low end: a
 /// `NaN` that reached a fold is answered back by `min` and dropped by `max`,
 /// which is the pair that keeps it visible where it entered.
-fn ordered(value: f64) -> f64 {
+pub(crate) fn ordered(value: f64) -> f64 {
     if value.is_nan() {
         BELOW_EVERY_NUMBER
     } else {

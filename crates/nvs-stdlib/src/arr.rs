@@ -4265,18 +4265,23 @@ nvs_runtime::nvs_helper! {
     /// refused, which is one fewer rule than a caller would otherwise have to
     /// remember and costs nothing to allow.
     ///
-    /// # The sort is stable, and hand-written
+    /// # The sort is stable, and there are two of them
     ///
-    /// Stable, like every PHP 8 sort. A bottom-up merge sort over an index
-    /// permutation rather than `slice::sort_by`, for one reason: a comparison
-    /// here can **fail** — the callback can throw, and two values of
-    /// incomparable types are a throw of this member's own. Rust's sorts take
-    /// an infallible comparator, so the alternatives were swallowing the fault
-    /// until the sort finished (leaving a comparator that is no longer a total
-    /// order, which those sorts are documented to be allowed to panic on) or
-    /// this. It costs one `Vec<usize>` of scratch space, which
-    /// `rule:programs/memory-priority`'s ordering
-    /// buys without discussion.
+    /// Stable, like every PHP 8 sort. Without a `comparator`, a subject whose
+    /// compared values all sit in one row of [`compare_values`]'s table — all
+    /// `int`/`uint`, all `float`, all `string`, all `bool` or all `null` — can
+    /// never throw, and [`crate::sort`] hands it to `brainsort` as a key sort;
+    /// that module owns the key mapping, the proof that the permutation is
+    /// the same one, and what the call spends. Everything else runs the
+    /// hand-written bottom-up [`merge_sort`] over an index permutation rather
+    /// than `slice::sort_by`, for one reason: a comparison there can **fail**
+    /// — the callback can throw, and two values of incomparable types are a
+    /// throw of this member's own. Rust's sorts take an infallible comparator,
+    /// so the alternatives were swallowing the fault until the sort finished
+    /// (leaving a comparator that is no longer a total order, which those
+    /// sorts are documented to be allowed to panic on) or this. It costs one
+    /// `Vec<usize>` of scratch space, which
+    /// `rule:programs/memory-priority`'s ordering buys without discussion.
     ///
     /// # Natural ordering, and where it diverges from PHP
     ///
@@ -4412,7 +4417,13 @@ nvs_runtime::nvs_helper! {
             };
             Ok(if descending { ordering.reverse() } else { ordering })
         };
-        merge_sort(&mut permutation, &mut compare)?;
+        // The key sort where it applies, the merge sort otherwise — and a
+        // comparator is always the merge sort, because it can throw.
+        let sorted = comparator.is_none()
+            && crate::sort::natural(&mut permutation, compared, descending);
+        if !sorted {
+            merge_sort(&mut permutation, &mut compare)?;
+        }
 
         let mut out = NvsArray::new();
         for index in permutation {
@@ -4441,9 +4452,11 @@ nvs_runtime::nvs_helper! {
     /// and `uksort`.
     ///
     /// A second entry point into [`nvs_core_arr_sort`]'s machinery rather than
-    /// a second sort: the same stable [`merge_sort`] over an index
-    /// permutation, with the *keys* compared instead of a `by` closure's
-    /// answers. What differs is only what the comparison reads.
+    /// a second sort: the same two stable sorts over an index permutation —
+    /// [`crate::sort`]'s key sort over the keys' bytes when no comparator was
+    /// given, the [`merge_sort`] under one — with the *keys* compared instead
+    /// of a `by` closure's answers. What differs is only what the comparison
+    /// reads.
     ///
     /// # Why the bag is two options and not four
     ///
@@ -4546,7 +4559,11 @@ nvs_runtime::nvs_helper! {
             };
             Ok(if descending { ordering.reverse() } else { ordering })
         };
-        merge_sort(&mut permutation, &mut compare)?;
+        if comparator.is_some() {
+            merge_sort(&mut permutation, &mut compare)?;
+        } else {
+            crate::sort::by_bytes(&mut permutation, &keys, descending);
+        }
 
         let mut out = NvsArray::new();
         for index in permutation {
@@ -4595,7 +4612,7 @@ fn comparator_sign(verdict: Value, member: &str) -> Result<std::cmp::Ordering, F
 /// and over an index permutation rather than the values so nothing is moved
 /// twice. [`nvs_core_arr_sort`] owns why this exists at all instead of
 /// `slice::sort_by`.
-fn merge_sort<F>(permutation: &mut [usize], compare: &mut F) -> Result<(), Fault>
+pub(crate) fn merge_sort<F>(permutation: &mut [usize], compare: &mut F) -> Result<(), Fault>
 where
     F: FnMut(usize, usize) -> Result<std::cmp::Ordering, Fault>,
 {

@@ -246,6 +246,7 @@ mod signal;
 mod signature;
 mod signed_cookie;
 mod socket;
+mod sort;
 mod sse;
 mod storage;
 pub mod str;
