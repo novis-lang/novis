@@ -1,0 +1,74 @@
+--TEST--
+A child placed `on: "worker"` answers exactly what the same child placed `on: "here"` answers: the placement decides which core runs it and nothing else about it — `rule:concurrency/on-worker-runs-the-child-on-another-core`, ADR 0184 § 4
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no
+# configuration cannot spawn at all. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+--FILE--
+<?nvs
+// The agreement shape: one question asked of both placements, asserting that
+// they **agree** rather than what each answered, so a worker core that grew its
+// own answer fails here while still looking right on its own line.
+// `rule:concurrency/on-worker-runs-the-child-on-another-core`: `on: "here"` is
+// the same child on the parent's own core, and *started* is the whole of what
+// the placement decides.
+
+final class Report
+{
+    public static int $runs = 0;
+
+    // The entry. It reads a class static, writes one, echoes, and returns a
+    // value built out of its named arguments, so every part of the answer a
+    // join carries — `ok`, `value`, `output`, `error` — is produced by the
+    // child rather than defaulted.
+    public static function span(string $from, int $months): string {
+        Report::$runs = Report::$runs + 1;
+        echo "child ran for ", $from, "\n";
+        return $from . "+" . ($months as string) . "#" . (Report::$runs as string);
+    }
+}
+
+// Set in the parent before either spawn. Neither child reads it:
+// `rule:security/isolate-shares-nothing` gives an isolate its own statics, and
+// crossing a core subtracts nothing from that — both children answer `#1`, and
+// the parent still reads 40 at the end.
+Report::$runs = 40;
+
+// The method form is the one that crosses: its label is looked up in the
+// compiled unit's class table, which every core already holds, where a path
+// would need a resolver the far core was never installed with
+// (`crates/nvs-host/src/placed.rs`'s `# Known gaps`).
+var $elsewhere = spawn script Report::span(...)
+    with(args: ["from" => "may", "months" => 3], output: "capture", on: "worker");
+var $answered = await $elsewhere;
+
+var $athome = spawn script Report::span(...)
+    with(args: ["from" => "may", "months" => 3], output: "capture", on: "here");
+var $local = await $athome;
+
+// Each line below is a row of the joined answer, asked of both placements at
+// once. The argument crossed by copy at every node on the way in and the answer
+// on the way out (ADR 0184 § 2), so agreement here is agreement about values
+// rather than about a shared object.
+echo "ok agrees: ", ($answered->ok == $local->ok) ? "yes" : "no", "\n";
+echo "and both are ", $answered->ok ? "true" : "false", "\n";
+echo "value agrees: ", (($answered->value as string) == ($local->value as string)) ? "yes" : "no", "\n";
+echo "value is ", $local->value as string, "\n";
+echo "output agrees: ", ($answered->output == $local->output) ? "yes" : "no", "\n";
+echo "output is ", $local->output;
+echo "error agrees: ", (($answered->error == null) == ($local->error == null)) ? "yes" : "no", "\n";
+
+// The last row of the same table: a worker-placed child is still an isolate, so
+// neither of them reached this store.
+echo "parent still reads ", Report::$runs, "\n";
+--EXPECT--
+ok agrees: yes
+and both are true
+value agrees: yes
+value is may+3#1
+output agrees: yes
+output is child ran for may
+error agrees: yes
+parent still reads 40
