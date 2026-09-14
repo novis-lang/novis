@@ -40,8 +40,15 @@ async function open(name: string): Promise<vscode.TextDocument> {
 
 // A start, a task and a draw are all the editor's to schedule, so each is waited for rather than
 // assumed to have finished by the time the call that triggers it returns. A deadline is what turns "it
-// never happened" into a failure naming what was waited for instead of a suite that hangs.
-async function until<T>(what: string, attempt: () => Thenable<T | undefined>): Promise<T> {
+// never happened" into a failure naming what was waited for instead of a suite that hangs. `seen`
+// is what the failure says was there instead: a wait that ends on the bare deadline tells the
+// reader of a ledger nothing about which of the states it did not reach the editor was in, and the
+// driver's sweep is the one place this suite runs where nobody can open the editor to look.
+async function until<T>(
+  what: string,
+  attempt: () => Thenable<T | undefined>,
+  seen?: () => string,
+): Promise<T> {
   const giveUp = Date.now() + DEADLINE;
   for (;;) {
     const answer = await attempt();
@@ -49,10 +56,16 @@ async function until<T>(what: string, attempt: () => Thenable<T | undefined>): P
       return answer;
     }
     if (Date.now() > giveUp) {
-      throw new Error(`${what} did not happen within ${DEADLINE}ms`);
+      const instead = seen === undefined ? "" : ` -- instead: ${seen()}`;
+      throw new Error(`${what} did not happen within ${DEADLINE}ms${instead}`);
     }
     await new Promise((wake) => setTimeout(wake, 100));
   }
+}
+
+/** Where each range sits, as `line:from-to` -- the positions and never the bytes under them. */
+function placed(ranges: readonly vscode.Range[]): string {
+  return ranges.map((range) => `${range.start.line}:${range.start.character}-${range.end.character}`).join(" ");
 }
 
 /** The extension itself, for the version it was built with. */
@@ -183,8 +196,17 @@ describe("the surfaces", () => {
   });
 
   it("conceals both secrets on open and reveals exactly one", async () => {
-    const document = await open("secrets.nvs");
+    // The server is answering before the file is opened, on purpose: the test above restarts it,
+    // and a file opened while the client is still starting is asked about once the client has
+    // synced every open document, which is the easy order. A file opened against a running client
+    // is the order a user gets, and the one where the ask can reach the server before the client's
+    // own `didOpen` does -- the server answers `[]` for a document it has nothing open for, and
+    // that answer is held. Waiting here makes that the order every run takes rather than the one a
+    // loaded machine happens to take.
     const reading = await surface();
+    await until("the status item naming a running server", async () =>
+      reading.status?.text.includes("lsp") === true ? true : undefined);
+    const document = await open("secrets.nvs");
 
     // Two literals, because one proves nothing: a reveal that uncovered the document would pass a
     // single-secret file (`rule:ide/reveal-is-explicit-and-window-local`). The ranges are the
@@ -193,6 +215,13 @@ describe("the surfaces", () => {
     const both = await until("both secret literals concealed", async () => {
       const editor = drawn(reading, document);
       return editor !== undefined && editor.concealed.length === 2 ? editor : undefined;
+    }, () => {
+      const editor = drawn(reading, document);
+      const status = reading.status?.text ?? "no status item";
+      return editor === undefined
+        ? `nothing drawn on the editor showing secrets.nvs, and the status item says "${status}"`
+        : `${editor.concealed.length} range(s) concealed at ${placed(editor.concealed) || "none"}, `
+          + `${editor.marked.length} marked, and the status item says "${status}"`;
     });
     const texts = covered(document, both.concealed);
     assert.ok(texts.some((held) => held.includes(FIRST)), `the concealed ranges are ${texts.join(" | ")}`);

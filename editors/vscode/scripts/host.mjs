@@ -88,6 +88,13 @@ function prepare(nvs) {
   writeFileSync(join(user, "settings.json"), `${JSON.stringify(settings, null, 2)}\n`);
 }
 
+// A shell that itself runs inside an editor's extension host -- an agent session in VS Code is one
+// -- carries `ELECTRON_RUN_AS_NODE`, and the pinned editor inherits it: Electron then runs as plain
+// Node, takes the workspace path as a script to execute, and fails on `Cannot find module` before
+// any test starts. The variable means nothing to this launcher, so it is dropped rather than worked
+// around by every caller.
+delete process.env.ELECTRON_RUN_AS_NODE;
+
 const nvs = binary();
 prepare(nvs);
 
