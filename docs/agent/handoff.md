@@ -2,49 +2,63 @@
 
 ## State
 
-**Goal `m7-server-surface` — everything M7 promised a deployment is there to run — has just started; nothing of it has landed yet.** Goal `m4b-editor`'s whole list is this goal's Stage 1 floor.
+**Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is goal
+`m4b-editor`'s list carried in as the floor. **Stage 2 is done:** [0186](../decisions/0186.md) is on
+disk, it creates `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name` and
+`rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client` (both `designed`),
+amends `rule:routing/a-capture-narrows-to-a-closed-set` and
+`rule:observability/the-exporters-are-crates`, and `docs/spec/01-core-library.md` § 15 now spells
+`sendFile(string $path)`.
 
-**Every design call the stages reach is already decided, in the goal's § *Standing decisions*.** The
-one record that states the calls no current rule holds is not written yet; Stage 2 writes it. Do not
-re-decide these:
-- an enum case is spelled by its backing value, or else by its case name;
-- an exporter brings no second scheduler and no second client;
-- `Core\Request::bytes()` exists, and `body()` refuses an ill-formed payload rather than repairing it;
-- the control endpoint runs on one thread of its own;
-- `nvs service` is tested through a recording `Manager` and never against a real one.
+**Nothing of stages 3-13 has landed.** The goal's § *Standing decisions* is still the pre-authorized
+list; 0186 is the only ADR number this goal opens, and it is now spent.
+
+**What 0186 settled, so it is not re-derived:** an enum capture matches a **written** backing value
+and a **case name** where the value was counted; neither `metrics-exporter-prometheus` 0.18.3 nor
+`opentelemetry-otlp` 0.32.0 is takeable, so both wire formats are written here and a crate may only
+be an encoder; the drain's bound is a new `[server] drain_timeout`, `"30s"` with nothing configured,
+and the drain **wakes** parked waits rather than letting them expire.
 
 ## Next group
 
-**Stage 2: the record** — one file set: `docs/decisions/`, `docs/rules/routing/`,
-`docs/rules/observability/`, `docs/spec/01-core-library.md`.
+**Stage 3: the control socket, `nvs ctl`, and the drain** — one file set:
+`crates/nvs-config/src/control.rs`, `crates/nvs-config/src/server.rs`,
+`crates/nvs-config/src/default.toml`, `crates/nvs-server/src/control.rs`,
+`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/main.rs`, and a new `crates/nvs-cli/src/ctl.rs`.
 
-- [ ] **The record** — the next free number in `docs/decisions/`, `changes.creates` the two rules the
-      goal's stage 2 table names, `changes.modifies` `routing/a-capture-narrows-to-a-closed-set`
-      (`docs/rules/routing/a-capture-narrows-to-a-closed-set.md:17-19`) and
-      `observability/the-exporters-are-crates` (`docs/rules/observability/the-exporters-are-crates.md:1-4`).
-      Before writing the exporter rule, read `Cargo.lock` and each candidate crate's own manifest for
-      what `metrics-exporter-prometheus` and `opentelemetry-otlp` pull in — *not checked* while the
-      goal was written. The body also names the drain's bound (Stage 3) and `sendFile`'s signature.
-- [ ] **The two rule fragments and their JSON entries**, both `designed`; the two amendments; and spec
-      § 15's `sendFile(…)` at `docs/spec/01-core-library.md:1122` spelled `sendFile(string $path)`.
-      Then `python tools/rules.py --render`.
+- [ ] **`[server] drain_timeout`, and the drain that wakes a parked wait** — the directive in
+      `crates/nvs-config/src/server.rs` and its comment beside the four waits at
+      `crates/nvs-config/src/default.toml:411-416`; `"30s"` with nothing configured, `Boot`-class
+      with the block (`rule:http-server/the-server-block-is-boot-class`), never unbounded
+      (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`). The period is read where
+      `crates/nvs-runtime/src/drain.rs:52` holds the bit, and the close stays the connection's own
+      (`rule:concurrency/a-drain-closes-a-connection-cleanly`, [0186](../decisions/0186.md) § 3).
+- [ ] **The control endpoint's three operations** — `Operation`
+      (`crates/nvs-server/src/control.rs:26`) gains `GET /config` and `GET /status` beside
+      `POST /reload`, which publishes through `crates/nvs-config/src/control.rs:276` with the unit
+      cache's count as `held`; `nvs serve` binds `[control] socket` at
+      `crates/nvs-config/src/control.rs:241` before any listener accepts, and refuses the boot on a
+      refusal (`rule:config/one-local-control-socket`,
+      `rule:config/ctl-config-reports-the-live-snapshot`,
+      `rule:config/a-reload-names-what-it-could-not-apply`). Every answer carries the version header.
+- [ ] **`nvs ctl`, the signal handler and `sd_notify`** — a new `crates/nvs-cli/src/ctl.rs` wired from
+      `crates/nvs-cli/src/main.rs`, refusing an answer from another version and naming both;
+      `crates/nvs-cli/src/serve.rs:79` installs the terminating-signal handler whose whole effect is
+      `Drain::process().begin()` (`crates/nvs-stdlib/src/signal.rs:42-44`), and sends `READY=1`,
+      `RELOADING=1` and `STOPPING=1` by hand over the `NOTIFY_SOCKET` datagram, no crate
+      (`rule:config/no-network-control-surface` bounds what the endpoint may be).
 
 ## Backlog
 
-- Stage 3 — the control socket, `nvs ctl` and the drain. Files: `crates/nvs-server/src/control.rs:26`,
-  `crates/nvs-config/src/control.rs:241`, `crates/nvs-cli/src/serve.rs:824`, `crates/nvs-cli/src/main.rs:745`.
-  This is the keystone: stages 5 and 12 need it.
-- Stage 4, the Unix listener (`crates/nvs-host/src/net.rs`), gets its own session. So does stage 5,
-  `nvs service` (`crates/nvs-cli/src/service.rs:140`). After stage 5, install for real by hand on each
-  platform and write the result down; no check does that.
-- Stages 6 and 7 are the response body and `echo` (`crates/nvs-stdlib/src/response.rs:261`,
-  `crates/nvs-runtime/src/ctx/output.rs:455`) and the request input with `Test::request`
-  (`crates/nvs-stdlib/src/request.rs:2582`, `crates/nvs-stdlib/src/test.rs:412`). The two share
-  `nvs-stdlib`'s registry.
-- Stages 8 and 9 are the routes (`crates/nvs-types/src/routes.rs:1787`, `crates/nvs-stdlib/src/router.rs:825`)
-  and the schedule (`crates/nvs-server/src/schedule.rs:301`, `crates/nvs-stdlib/src/cache/redis.rs:162`).
-  Stage 9 needs the compose file's `redis` running.
-- Stages 10 and 11 are the metrics export and the spans. Files: `crates/nvs-server/src/metrics.rs:388`,
-  `crates/nvs-server/src/route.rs:41`, `crates/nvs-runtime/src/trace_context.rs:22`.
-- Stage 12 (the served path end to end, `crates/nvs-cli/src/serve.rs:1570`), then stage 13's flips.
-- When this goal's last check goes green the driver takes goal `m8-db-queue`.
+- `[metrics] endpoint` and `[trace] endpoint` are commented as `:4317`, OTLP's gRPC port, at
+  `crates/nvs-config/src/default.toml:727-740`; the push is OTLP/HTTP on `4318` — stage 11's.
+- `E0819` is claimed by [0186](../decisions/0186.md) § *Diagnostics* and not yet defined in
+  `crates/nvs-diagnostics/src/lib.rs` — stage 8 defines it with the enum-capture match.
+- Whether the OTLP encoder is `prost` or hand-written is stage 11's call under
+  `rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`; `prost` is in
+  neither `Cargo.lock` nor the registry cache today.
+- `§15 Response::sendFile` and `§15 Response::html` still sit in
+  `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:30-31` — stage 6 strikes both.
+- The `unowned` gaps at `crates/nvs-server/src/route.rs:30`, `crates/nvs-server/src/bounds.rs:62`,
+  `crates/nvs-types/src/response.rs:29` and `crates/nvs-stdlib/src/cli.rs:130` belong to goal
+  `unowned-closures`, not here.

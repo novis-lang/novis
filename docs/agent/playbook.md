@@ -2052,6 +2052,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   check against the partitions `reads_of` names, under which the host checks were memoized, the
   opposite of what the comment claimed. Read the mechanism at the anchor before arguing from it, and
   rewrite the sentence in the same session rather than working around it. [until: reviewed 2026-09-14]
+- **A goal that tells you to read a candidate crate's own manifest may be naming a crate that is in
+  neither `Cargo.lock` nor `~/.cargo/registry`, so there is nothing on disk to read.** A crate reaches
+  the registry cache only once something in the workspace resolves it, and a dependency still being
+  considered never has. Read the feature map and the dependency kinds from
+  `https://crates.io/api/v1/crates/<name>/<version>` and its `/dependencies`, and name the version you
+  read in the record, because the answer is a property of that release. [until: reviewed 2026-09-14]
 
 ## Running things
 
