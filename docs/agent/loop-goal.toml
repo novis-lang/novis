@@ -9766,7 +9766,7 @@ stage = "3 the isolate proofs"
 name = "a child asking for request or session state is refused, and so is a session with no request"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/isolate/a-child-reading-request-or-session-state-throws-a-logic-error.nvst",
+  "tests/conformance/isolate/a-child-refuses-request-state-and-still-reads-the-process.nvst",
   "tests/conformance/core/session-start-where-no-request-arrived-is-a-logic-error.nvst",
 ]
 
