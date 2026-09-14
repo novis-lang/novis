@@ -3,58 +3,57 @@
 ## State
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
-carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens).
-**Stage 3 is complete**: a `Type=notify` unit gets `READY=1`, `RELOADING=1`/`READY=1`, `STOPPING=1`
-and `WATCHDOG=1` as `crate::service::Heartbeat` owns, and a reload now writes its outcome to
-`Core\Log`.
+carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
+stage 3 is complete. **Stage 4 is complete**: a `[server] listen` entry beginning with a separator is
+bound as a Unix-domain socket where `rule:http-server/a-unix-socket-listener` admits one, with
+`[server] socket_mode` on it, and on Windows the whole set is still refused once in
+`addresses` before any socket exists.
 
-`nvs_runtime::LogWriter` (`crates/nvs-runtime/src/ctx/output.rs`) is the `Ctx`-free door: `[log]
-target`, `level` and `format` each keep **one** reader — the free `log_target`/`log_minimum`/
-`log_format` that `Ctx::write_log_record` and `LogWriter::resolve` both call. A writer with no
-request under it and a tree naming no target writes to stderr; `LogChannel::Output` is unreachable
-there, because it is the program's output through the capture stack and there is no program. That
-decision's home is `LogWriter`'s doc comment.
+The family stops being a question at the accept. `nvs_host::NvsConnection`
+(`crates/nvs-host/src/net.rs:909`) is an enum over `NvsTcp` and `NvsUnix` carrying `set_deadline`,
+`poll_read`/`poll_write` and `Read`/`Write`; `nvs_server::Listening`
+(`crates/nvs-server/src/serve.rs:1716`) is the one method that differs — it answers the connection
+and the `Arrival` — and `serve_on_this_core` is generic over it and `?Sized`, so `nvs serve` hands
+each core a `Box<dyn Listening>`. `ConnectionIo` and `socket::Prefixed` hold an `NvsConnection`; the
+enum-rather-than-generic decision's home is `NvsConnection`'s own doc.
 
-`Process::logged` (`crates/nvs-cli/src/control.rs:145`) writes one record after `READY=1`, resolved
-from the tree now in force: `Info` with `applied`/`ignored`/`invalidated`, or `Error` with the
-rendered refusal in a `refusal` field. The write's own failure is swallowed
-(`rule:errors/engine-floor`). Nothing is blocked.
-
-Stage 4 is next and is the acceptance check that is red. The goal prose says it shares no files with
-stage 3, and `NvsUnixListener` already exists — what is missing is the binding and the mode.
+`nvs_config::server::socket_mode_for` resolves the mode (`0660` unwritten) and refuses every
+spelling that is not a permission set under `E0648`. `bind_one`
+(`crates/nvs-cli/src/serve.rs:1489`) narrows the umask around the bind rather than only
+`set_permissions`-ing afterwards, so the socket never exists wider than the mode asked for; its
+comment owns why. Nothing is blocked.
 
 ## Next group
 
-**Stage 4: the Unix listener, phase-gated** — one file set: `crates/nvs-cli/src/serve.rs`,
-`crates/nvs-host/src/net.rs`, and one new case under `crates/nvs-cli/tests/`.
+**Stage 5: `nvs service`, phase-gated** — one file set: `crates/nvs-cli/src/service.rs`,
+`crates/nvs-cli/src/main.rs`, and the root `Cargo.toml`.
 
-- [ ] **A Unix-domain `listen` entry is still refused where the rule admits it** —
-      `crates/nvs-cli/src/serve.rs:1261` pushes every `Listen::Unix(path)` onto `unsupported` and
-      refuses the whole set once. `rule:http-server/a-unix-socket-listener` admits it on Unix and
-      refuses it on Windows, so the refusal narrows to `cfg(windows)` rather than disappearing, and
-      it stays taken once over the whole set before any socket exists. The bind itself exists:
-      `crates/nvs-host/src/net.rs:566` is `NvsUnixListener::bind`, and `:484` is the alias, both
-      `#[cfg(unix)]`.
-- [ ] **Nothing applies `[server] socket_mode`** — the directive is spelled at
-      `crates/nvs-config/src/default.toml:394` and applies to Unix entries only. Decide where the
-      chmod goes: `NvsUnixListener::bind` at `crates/nvs-host/src/net.rs:566` takes no mode today,
-      and a mode applied after the bind leaves a window at the umask's mode.
-      `rule:http-server/a-unix-socket-listener`'s last paragraph is why the value is load-bearing —
-      `0660` trusts by group membership, and such a listener is implicitly trusted for the forwarded
-      headers.
-- [ ] **The acceptance check's one case, both platforms** —
-      `a_unix_socket_listen_entry_binds_with_its_mode_on_unix_and_is_refused_once_elsewhere`, under
-      `-p nvs-cli`, so a new file beside `crates/nvs-cli/tests/request.rs`. It binds and asserts the
-      mode where the rule admits one and asserts the single refusal elsewhere, so it runs on every
-      leg. The refusal half already has cases at `crates/nvs-cli/src/serve.rs:1673-1692` to read
-      first.
+- [ ] **`nvs service` names every verb the rule lists, `unit` included** —
+      `crates/nvs-cli/src/main.rs:961` is `ServiceCommand`, and
+      `rule:packaging/a-service-is-one-stored-argv` is the closed list: `install`, `uninstall`,
+      `start`, `stop`, `status`, `run` and `unit`, with `nvs install-service` as the hidden alias.
+      The check is a `--help` whose `want` names all seven.
+- [ ] **`windows-sys` gains the two feature groups the SCM half needs** —
+      `crates/nvs-cli/Cargo.toml:105` is where this crate takes the workspace dependency, and the
+      feature array to add `Win32_System_Services` and `Win32_System_EventLog` to is the root
+      `Cargo.toml`'s `windows-sys` entry. Taken first: the install verb cannot compile without them.
+- [ ] **Every verb is a `Plan` of `Manager` actions and every refusal runs before the manager is
+      touched** — `crates/nvs-cli/src/service.rs:936` is the recording `Manager` the tests drive,
+      `:402` is `image_path` and `:525` is `unit`. `rule:packaging/the-installer-is-a-sink` is why
+      `plan` runs before any `Manager` call; the goal's § *Standing decisions* names the seam as the
+      design and forbids a test touching the real SCM or `systemctl`.
 
 ## Backlog
 
-- The acceptance check's stage-5 half (`nvs service` registration) is untouched —
+- `nvs service run`'s `PARAMCHANGE`/`STOP` mapping and the event-log records — stage 5's second half,
   `docs/agent/loop-goal.md` § *Stage 5*.
-- `crates/nvs-cli/src/serve.rs:57-62`'s module doc states the refusal as unconditional; stage 4
-  rewrites it, not goal `plan-truth`.
-- `nvs ctl config --origin` against the live snapshot —
-  `rule:config/ctl-config-reports-the-live-snapshot`, stage 3's sibling, already landed in
-  `nvs-server`; nothing here owes it.
+- `docs/agent/goals/23-per-core.md:87-89` still says `serve.rs` refuses `Listen::Unix` because
+  `NvsListener` accepts on TCP alone; it is a retired goal's prose, so goal `plan-truth` owns it.
+- `rule:http-server/a-unix-socket-listener` is still `designed` — stage 13 flips it with
+  `guardedBy` filled from this stage's two cases.
+- `cargo clippy --all-targets -- -D warnings` on the Linux leg fails on `crates/nvs-db/src/mysql.rs:325`
+  and `pg.rs:375` (`large_enum_variant`, the `NvsTls<NvsTcp>` arm against the `cfg(unix)` one). It
+  predates this stage and nothing gates it, because `verify.py` has no WSL leg.
+- The unowned gaps at `crates/nvs-server/src/route.rs:30`, `bounds.rs:62`,
+  `crates/nvs-types/src/response.rs:29` and `crates/nvs-stdlib/src/cli.rs:130` — goal
+  `unowned-closures`.

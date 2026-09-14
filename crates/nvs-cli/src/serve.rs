@@ -54,12 +54,13 @@
 //! spellings of one address is a question guessing an answer to would be worse
 //! than refusing.
 //!
-//! A Unix-domain entry classifies (`nvs_config::server::Listen::Unix`) and is
-//! then refused **once**, over the whole set and before a socket exists,
-//! because [`nvs_host::NvsListener`] accepts on TCP alone today. A refusal
-//! taken where a listener is bound would report one deployment mistake once per
-//! core and leave the process half-listening while it did. That refusal moves
-//! the day there is a listener for one; the classification does not.
+//! A Unix-domain entry is bound where `rule:http-server/a-unix-socket-listener`
+//! admits one, with `[server] socket_mode` on it, and on Windows — which has no
+//! listener for one — the whole set is refused **once**, in [`addresses`],
+//! before a socket exists. A refusal taken where a listener is bound would
+//! report one deployment mistake once per core and leave the process
+//! half-listening while it did. Past the bind the family is inside the value
+//! ([`Socket`], `nvs_host::NvsConnection`) and no accept loop asks about it.
 //!
 //! **What it spends**, per `rule:programs/memory-priority`:
 //! one compiled unit per mounted entry, held for the life of the process and
@@ -282,6 +283,16 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     };
+    // Read beside the set it applies to and before anything is bound, because
+    // it is the whole of who may connect to a socket path
+    // (`nvs_config::server::socket_mode_for`) and a value this boot could not
+    // read is one it must not guess at. Resolved even where the set holds no
+    // Unix entry, so a tree carrying the key is refused for a bad one on every
+    // platform rather than on the ones that would have used it.
+    let socket_mode = match nvs_config::server::socket_mode_for(&snapshot.config, &origins) {
+        Ok(mode) => mode,
+        Err(diagnostic) => return report(diagnostic, &sources),
+    };
     // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s boot `Warn`: `production`, nothing bound but the loopback,
     // and nobody trusted. That is the shape of a proxied deployment that forgot
     // the directive — nothing off this machine can reach it except through a
@@ -298,6 +309,13 @@ pub(crate) fn run(
     // configuration at all is § 1's *development* server and matches all three
     // facts on the way to matching nothing, and a line every such run prints is
     // a line every operator learns to skip.
+    //
+    // A set holding a Unix-domain entry does not match, and that is the rule
+    // rather than an accident of the predicate: a connection over one *is*
+    // trusted for the forwarded headers
+    // (`rule:http-server/a-unix-socket-listener`), so such a deployment has
+    // not forgotten the directive — it is using the transport the directive
+    // exists to make unnecessary.
     let started_in = snapshot
         .config
         .mode
@@ -307,17 +325,15 @@ pub(crate) fn run(
     if nobody_trusted
         && snapshot.config.server.is_some()
         && started_in == nvs_config::mode::PRODUCTION
-        && wanted.iter().all(|addr| addr.ip().is_loopback())
+        && wanted
+            .iter()
+            .all(|entry| matches!(entry, Listen::Tcp(addr) if addr.ip().is_loopback()))
     {
         eprintln!(
             "warning: [server] trusted_proxies is empty and every address this server binds ({}) \
              is loopback, so no forwarded header is read and the proxy's own address is what \
              `Core\\Request::clientIp()` will answer; write the proxy's address or network there",
-            wanted
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(", ")
+            wanted.iter().map(written_as).collect::<Vec<_>>().join(", ")
         );
     }
 
@@ -392,14 +408,18 @@ pub(crate) fn run(
     // core that reached the entry would report one wrong address once per core,
     // and would leave the process listening on whichever entries it got to
     // first.
-    let (controlling, bound) =
-        match bind_sockets(&controlled, &wanted, nvs_server::control::boundary) {
-            Ok(both) => both,
-            Err(refusal) => {
-                eprintln!("error: {refusal}");
-                return ExitCode::FAILURE;
-            }
-        };
+    let (controlling, bound) = match bind_sockets(
+        &controlled,
+        &wanted,
+        socket_mode,
+        nvs_server::control::boundary,
+    ) {
+        Ok(both) => both,
+        Err(refusal) => {
+            eprintln!("error: {refusal}");
+            return ExitCode::FAILURE;
+        }
+    };
     // What stops this process, armed before anything is serving: from here a
     // `SIGTERM`, a Ctrl-C or a console closing is
     // `rule:concurrency/a-drain-closes-a-connection-cleanly`'s drain rather
@@ -445,7 +465,7 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     }
-    listening(&bound, &wanted, path, &told);
+    listening(&bound, path, &told);
 
     // The fan-out itself: one worker per core, each taking its own handle on
     // every socket bound above, so a connection is accepted by whichever core
@@ -578,7 +598,7 @@ pub(crate) fn run(
 struct Core {
     /// This core's own handle on every socket the boot bound, one per
     /// `[server] listen` entry.
-    listeners: Vec<std::net::TcpListener>,
+    listeners: Vec<Socket>,
     /// The fleet's one compiled-unit cache, so a source compiles once for the
     /// process rather than once per core.
     compiler: Arc<Compiler>,
@@ -918,8 +938,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // set of loops on their own handles on these same descriptors, and the
     // kernel's accept queue is what decides which of them takes a connection.
     for handle in listeners {
-        let addr = handle.local_addr().ok();
-        let mut listener = match NvsListener::from_std(handle) {
+        let named = handle.named();
+        let mut listener = match handle.accepting() {
             Ok(listener) => listener,
             Err(error) => {
                 eprintln!("error: this core could not take its handle on a socket: {error}");
@@ -941,7 +961,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 // when it lands. The seam stays a seam for the caller that
                 // ends a loop on its own terms, which this one is not.
                 let served = nvs_server::serve_on_this_core(
-                    &mut listener,
+                    &mut *listener,
                     &handler,
                     waits,
                     &serving,
@@ -952,12 +972,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                     || ControlFlow::Continue(()),
                 );
                 if let Err(error) = served {
-                    match addr {
-                        Some(addr) => {
-                            eprintln!("error: the accept loop on {addr} stopped: {error}");
-                        }
-                        None => eprintln!("error: an accept loop stopped: {error}"),
-                    }
+                    eprintln!("error: the accept loop on {named} stopped: {error}");
                     stopped.set(true);
                 }
             }
@@ -1212,8 +1227,25 @@ fn one_mount(path: &Path) -> Result<Mounted, String> {
     })
 }
 
-/// Every address this server binds: the file's entries in the order written,
+/// One resolved `listen` entry, as the operator wrote it.
+///
+/// A function rather than a `Display` on [`Listen`]: what an address and a
+/// socket path have in common is that they are both what somebody typed, and
+/// that is a fact about this command's messages rather than about the type.
+fn written_as(entry: &Listen) -> String {
+    match entry {
+        Listen::Tcp(addr) => addr.to_string(),
+        Listen::Unix(path) => path.display().to_string(),
+    }
+}
+
+/// Every socket this server binds: the file's entries in the order written,
 /// then whichever flag had the last word.
+///
+/// A [`Listen`] out as well as in, one step resolved: the flags have had their
+/// say, the duplicates are gone, and a platform with no Unix-domain listener
+/// has refused the entries it cannot bind — so what comes back is a set
+/// [`bind_all`] can take one at a time with nothing left to decide.
 ///
 /// `--listen` names one address and replaces the whole set, because that is
 /// what overriding an array with a single spelling means. `--port` is the last
@@ -1221,9 +1253,9 @@ fn one_mount(path: &Path) -> Result<Mounted, String> {
 ///
 /// # Errors
 ///
-/// A `--listen` that is not a literal address, and a Unix-domain entry there is
-/// no listener for yet — the module doc owns both. **One refusal names every
-/// entry it applies to**, because the set is read here, once, before any
+/// A `--listen` that is not a literal address, and — on a platform with no
+/// Unix-domain listener — every Unix entry the set holds. **One refusal names
+/// every entry it applies to**, because the set is read here, once, before any
 /// listener is bound. The refusal is a sentence rather than a
 /// [`nvs_diagnostics::Diagnostic`] when it came from a flag, because a command
 /// line has no file and no span to point into.
@@ -1231,11 +1263,11 @@ fn addresses(
     configured: &[Listen],
     listen: Option<&str>,
     port: Option<u16>,
-) -> Result<Vec<SocketAddr>, String> {
+) -> Result<Vec<Listen>, String> {
     if let Some(written) = listen {
         return written
             .parse::<SocketAddr>()
-            .map(|addr| vec![addr])
+            .map(|addr| vec![Listen::Tcp(addr)])
             .map_err(|_| {
                 format!(
                     "`--listen {written}` is not an address and a port; write `127.0.0.1:8000` or \
@@ -1243,38 +1275,44 @@ fn addresses(
                 )
             });
     }
-    let mut bound = Vec::with_capacity(configured.len());
+    let mut bound: Vec<Listen> = Vec::with_capacity(configured.len());
+    #[cfg(windows)]
     let mut unsupported = Vec::new();
     for entry in configured {
-        let addr = match (entry, port) {
-            (Listen::Tcp(addr), None) => *addr,
+        let resolved = match (entry, port) {
+            (Listen::Tcp(addr), None) => Listen::Tcp(*addr),
             // The flag is the last word for its own key alone: a port written
             // here keeps the host the file chose, so `--port` over a `0.0.0.0:80`
             // does not quietly narrow the deployment to loopback.
-            (Listen::Tcp(addr), Some(port)) => SocketAddr::new(addr.ip(), port),
+            (Listen::Tcp(addr), Some(port)) => Listen::Tcp(SocketAddr::new(addr.ip(), port)),
             // And over a Unix entry it names a whole address, since there is no
             // host in one to keep. `127.0.0.1` because that is § 5's own default
             // and the one a development machine means.
             (Listen::Unix(_), Some(port)) => {
-                SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, port))
+                Listen::Tcp(SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, port)))
             }
+            #[cfg(unix)]
+            (Listen::Unix(path), None) => Listen::Unix(path.clone()),
+            #[cfg(windows)]
             (Listen::Unix(path), None) => {
                 unsupported.push(format!("`{}`", path.display()));
                 continue;
             }
         };
-        // Two entries that resolve to one address are one socket: the platform
+        // Two entries that resolve to one socket are one socket: the platform
         // has no second one to give, and `--port` over a mixed set is how two
         // entries collapse into one. Port `0` is never a duplicate — it asks
         // for another free port, and the platform answers a different one.
-        if addr.port() == 0 || !bound.contains(&addr) {
-            bound.push(addr);
+        let ephemeral = matches!(resolved, Listen::Tcp(addr) if addr.port() == 0);
+        if ephemeral || !bound.contains(&resolved) {
+            bound.push(resolved);
         }
     }
+    #[cfg(windows)]
     if !unsupported.is_empty() {
         return Err(format!(
-            "`[server] listen` asks for the Unix-domain socket{} {}, and this server accepts on \
-             TCP alone today; write `--listen 127.0.0.1:8000` or a `host:port` entry",
+            "`[server] listen` asks for the Unix-domain socket{} {}, and this platform has no \
+             listener for one; write `--listen 127.0.0.1:8000` or a `host:port` entry",
             if unsupported.len() == 1 { "" } else { "s" },
             unsupported.join(", ")
         ));
@@ -1292,19 +1330,17 @@ fn addresses(
 ///
 /// The path is printed as it was written rather than the canonical one the
 /// table holds, because an operator reads these against the command they typed.
-/// The address is the listener's own, so an entry written with port `0` prints
-/// the port the platform chose; the address asked for is the fallback for a
-/// platform that will not answer.
+/// Each socket names *itself* ([`Socket::named`]) rather than what was asked
+/// for, so an entry written with port `0` prints the port the platform chose.
 ///
 /// **`READY=1` belongs here and last**, because what that state claims is
 /// exactly what the lines above report: every socket in the set is bound, and
 /// every mounted entry was compiled before any of them was. A `Type=notify`
 /// unit whose process says it any earlier is one `systemctl start` returns from
 /// while the port still refuses (`crate::service`).
-fn listening(bound: &[std::net::TcpListener], wanted: &[SocketAddr], path: &Path, told: &Notify) {
-    for (listener, requested) in bound.iter().zip(wanted) {
-        let addr = listener.local_addr().unwrap_or(*requested);
-        println!("listening on http://{addr} — {}", path.display());
+fn listening(bound: &[Socket], path: &Path, told: &Notify) {
+    for listener in bound {
+        println!("listening on {} — {}", listener.named(), path.display());
     }
     told.state(State::Ready);
 }
@@ -1332,9 +1368,10 @@ fn listening(bound: &[std::net::TcpListener], wanted: &[SocketAddr], path: &Path
 /// the first address the platform would not give.
 fn bind_sockets(
     controlled: &Address,
-    wanted: &[SocketAddr],
+    wanted: &[Listen],
+    mode: u32,
     guard: impl FnOnce(&Path) -> Result<(), nvs_config::trust::Untrusted>,
-) -> Result<(Option<Endpoint>, Vec<std::net::TcpListener>), String> {
+) -> Result<(Option<Endpoint>, Vec<Socket>), String> {
     let controlling = match controlled {
         Address::Disabled => None,
         Address::Local(name) => {
@@ -1347,7 +1384,103 @@ fn bind_sockets(
             })?)
         }
     };
-    Ok((controlling, bind_all(wanted)?))
+    Ok((controlling, bind_all(wanted, mode)?))
+}
+
+/// One socket the boot bound, before any core has taken a handle on it.
+///
+/// A `std` listener and not one of `nvs_host`'s: [`bind_sockets`]' order is the
+/// point of it existing, and that order runs before any core does, so each core
+/// takes its own handle on the descriptor afterwards ([`Self::try_clone`]) and
+/// turns it into a parking listener there ([`Self::accepting`]).
+///
+/// [`Listen`]'s two arms one step further on, and the last place the family is
+/// a question this file asks: past [`Self::accepting`] a core holds a
+/// `dyn nvs_server::Listening` and every connection is an
+/// `nvs_host::NvsConnection`.
+#[derive(Debug)]
+enum Socket {
+    /// A bound port.
+    Tcp(std::net::TcpListener),
+    /// A bound Unix-domain path, created with `[server] socket_mode` and not
+    /// removed by this process's exit — `nvs_host::NvsUnixListener::bind` owns
+    /// why unlinking a socket path is not something the process that bound it
+    /// can do safely.
+    #[cfg(unix)]
+    Unix(std::os::unix::net::UnixListener),
+}
+
+impl Socket {
+    /// What this socket is, for a line an operator reads.
+    ///
+    /// Asked of the socket rather than of the entry that named it, so a `:0`
+    /// prints the port the platform actually chose. A socket that will not
+    /// answer says so instead of this function inventing an address.
+    fn named(&self) -> String {
+        match self {
+            Self::Tcp(socket) => socket.local_addr().map_or_else(
+                |_| "an address this process no longer holds".to_owned(),
+                |addr| format!("http://{addr}"),
+            ),
+            #[cfg(unix)]
+            Self::Unix(socket) => socket
+                .local_addr()
+                .ok()
+                .and_then(|addr| addr.as_pathname().map(std::path::Path::to_path_buf))
+                .map_or_else(
+                    || "an unnamed Unix-domain socket".to_owned(),
+                    |path| format!("unix:{}", path.display()),
+                ),
+        }
+    }
+
+    /// Another handle on this same socket.
+    ///
+    /// # Errors
+    ///
+    /// The platform's, for a descriptor it will not duplicate.
+    fn try_clone(&self) -> std::io::Result<Self> {
+        match self {
+            Self::Tcp(socket) => socket.try_clone().map(Self::Tcp),
+            #[cfg(unix)]
+            Self::Unix(socket) => socket.try_clone().map(Self::Unix),
+        }
+    }
+
+    /// The address a bound port is on.
+    ///
+    /// # Panics
+    ///
+    /// For a Unix-domain socket, which has no such thing: the cases that ask
+    /// this are the ones that then connect to a port.
+    #[cfg(test)]
+    fn address(&self) -> SocketAddr {
+        match self {
+            Self::Tcp(socket) => socket
+                .local_addr()
+                .expect("a bound socket knows its own address"),
+            #[cfg(unix)]
+            Self::Unix(_) => panic!("a Unix-domain socket has no address and a port"),
+        }
+    }
+
+    /// This core's parking listener over the descriptor, ready to accept.
+    ///
+    /// Boxed because one `[server] listen` set may hold both families and a
+    /// core accepts on every entry of it: what varies is behind one pointer
+    /// rather than in the type of the loop, which is
+    /// [`nvs_server::Listening`]'s own reason for being object-safe.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused the mode change to non-blocking.
+    fn accepting(self) -> std::io::Result<Box<dyn nvs_server::Listening>> {
+        match self {
+            Self::Tcp(socket) => Ok(Box::new(NvsListener::from_std(socket)?)),
+            #[cfg(unix)]
+            Self::Unix(socket) => Ok(Box::new(nvs_host::NvsUnixListener::from_std(socket)?)),
+        }
+    }
 }
 
 /// Every address bound, in the order [`addresses`] gave them.
@@ -1361,23 +1494,106 @@ fn bind_sockets(
 ///
 /// # Errors
 ///
-/// The platform's, for the first address it refuses — already in use, or not
-/// one of this host's — with that address named, because a refusal an operator
-/// has to guess the subject of is one they read the configuration twice for.
-fn bind_all(wanted: &[SocketAddr]) -> Result<Vec<std::net::TcpListener>, String> {
-    wanted
-        .iter()
-        .map(|addr| {
-            std::net::TcpListener::bind(addr)
-                .map_err(|error| format!("could not listen on {addr}: {error}"))
-        })
-        .collect()
+/// The platform's, for the first entry it refuses — an address already in use
+/// or not one of this host's, a socket path that already exists — with that
+/// entry named, because a refusal an operator has to guess the subject of is
+/// one they read the configuration twice for.
+fn bind_all(wanted: &[Listen], mode: u32) -> Result<Vec<Socket>, String> {
+    wanted.iter().map(|entry| bind_one(entry, mode)).collect()
+}
+
+/// One entry bound, with `mode` on it if it is a socket path.
+///
+/// # Errors
+///
+/// [`bind_all`]'s, for this one entry.
+#[cfg(unix)]
+fn bind_one(entry: &Listen, mode: u32) -> Result<Socket, String> {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let path = match entry {
+        Listen::Tcp(addr) => {
+            return std::net::TcpListener::bind(addr)
+                .map(Socket::Tcp)
+                .map_err(|error| format!("could not listen on {addr}: {error}"));
+        }
+        Listen::Unix(path) => path,
+    };
+    // **The mask first, and a `set_permissions` only after that.** A socket
+    // created under an ordinary `022` is world-connectable, and on this
+    // transport `rule:http-server/a-unix-socket-listener` makes that
+    // world-*trusted* — so a mode put on afterwards alone would leave a window
+    // in which any local account can connect, and the connection would sit in
+    // the backlog until the accept loops this boot has not started yet reach
+    // it. Narrowing the mask first means the socket never exists wider than
+    // `mode`; the call below only ever adds back what the mask denied.
+    //
+    // The mask is the whole process's, and this does not rest on the boot
+    // being single-threaded: it is *narrower* for the length of the bind, so
+    // anything else creating a file inside that window gets one more private
+    // than it asked for and never a wider one.
+    let mask = libc::mode_t::try_from(0o777 & !mode).unwrap_or(0o077);
+    let previous = masked_to(mask);
+    let bound = std::os::unix::net::UnixListener::bind(path);
+    masked_to(previous);
+    let listener = bound.map_err(|error| {
+        format!(
+            "could not listen on `{}`: {error}; a path that already exists is not reused, so \
+             remove a socket no server holds before starting this one",
+            path.display()
+        )
+    })?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|error| {
+        format!(
+            "`{}` was bound and `[server] socket_mode` could not be put on it: {error}",
+            path.display()
+        )
+    })?;
+    Ok(Socket::Unix(listener))
+}
+
+/// Puts `mask` on this process's file-creation mask, answering the one it
+/// replaced.
+///
+/// The one call in this file that is not safe Rust, and the only one that can
+/// bound the mode a `bind` *creates* rather than correcting it afterwards —
+/// which is the window [`bind_one`] explains. It touches nothing but this
+/// process's own mask and cannot fail.
+#[cfg(unix)]
+#[allow(
+    unsafe_code,
+    reason = "`umask` is the only call that bounds the mode a socket is created with, and it \
+              reads and writes one word of this process's own state"
+)]
+fn masked_to(mask: libc::mode_t) -> libc::mode_t {
+    unsafe { libc::umask(mask) }
+}
+
+/// One entry bound. `mode` names a Unix-domain socket's permissions, and this
+/// platform has no such socket to put them on — [`addresses`] has already
+/// refused the whole set over any entry that asked for one, so the only entry
+/// that reaches here is an address.
+///
+/// # Errors
+///
+/// [`bind_all`]'s, for this one entry.
+#[cfg(windows)]
+fn bind_one(entry: &Listen, _mode: u32) -> Result<Socket, String> {
+    match entry {
+        Listen::Tcp(addr) => std::net::TcpListener::bind(addr)
+            .map(Socket::Tcp)
+            .map_err(|error| format!("could not listen on {addr}: {error}")),
+        Listen::Unix(path) => Err(format!(
+            "`{}` is a Unix-domain socket, and this platform has no listener for one",
+            path.display()
+        )),
+    }
 }
 
 /// One row of handles per worker: every socket the boot bound, duplicated once
 /// for each core that will accept on it.
 ///
-/// A duplicate is the same socket — [`std::net::TcpListener::try_clone`] — so
+/// A duplicate is the same socket — [`Socket::try_clone`] — so
 /// the cores share one accept queue per listener and a connection goes to
 /// whichever of them reaches it first, which is
 /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s first
@@ -1388,15 +1604,12 @@ fn bind_all(wanted: &[SocketAddr]) -> Result<Vec<std::net::TcpListener>, String>
 /// # Errors
 ///
 /// The platform's, for the first handle it will not duplicate.
-fn handles_for(
-    bound: &[std::net::TcpListener],
-    workers: usize,
-) -> std::io::Result<Vec<Vec<std::net::TcpListener>>> {
+fn handles_for(bound: &[Socket], workers: usize) -> std::io::Result<Vec<Vec<Socket>>> {
     (0..workers)
         .map(|_| {
             bound
                 .iter()
-                .map(std::net::TcpListener::try_clone)
+                .map(Socket::try_clone)
                 .collect::<std::io::Result<Vec<_>>>()
         })
         .collect()
@@ -1413,8 +1626,8 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 #[cfg(test)]
 mod tests {
     use super::{
-        Address, Compiler, Ctx, Isolate, Listen, Notify, Output, OutputSink, SocketAddr, TaskRoot,
-        Value, addresses, bind_all, bind_sockets, handles_for, listening, sweep_orphans,
+        Address, Compiler, Ctx, Isolate, Listen, Notify, Output, OutputSink, Socket, SocketAddr,
+        TaskRoot, Value, addresses, bind_all, bind_sockets, handles_for, listening, sweep_orphans,
         workers_for,
     };
     use std::cell::Cell;
@@ -1525,22 +1738,16 @@ mod tests {
         let configured = vec![tcp("0.0.0.0:80"), tcp("127.0.0.1:8000")];
         assert_eq!(
             addresses(&configured, Some("127.0.0.1:9001"), None).expect("a literal address"),
-            vec!["127.0.0.1:9001".parse::<SocketAddr>().expect("parses")]
+            vec![tcp("127.0.0.1:9001")]
         );
         assert!(addresses(&configured, Some("localhost:9001"), None).is_err());
         assert_eq!(
             addresses(&configured, None, Some(9001)).expect("an address per entry"),
-            vec![
-                "0.0.0.0:9001".parse::<SocketAddr>().expect("parses"),
-                "127.0.0.1:9001".parse::<SocketAddr>().expect("parses"),
-            ]
+            vec![tcp("0.0.0.0:9001"), tcp("127.0.0.1:9001")]
         );
         assert_eq!(
             addresses(&configured, None, None).expect("the file's own set"),
-            vec![
-                "0.0.0.0:80".parse::<SocketAddr>().expect("parses"),
-                "127.0.0.1:8000".parse::<SocketAddr>().expect("parses"),
-            ]
+            vec![tcp("0.0.0.0:80"), tcp("127.0.0.1:8000")]
         );
 
         assert!(
@@ -1581,22 +1788,16 @@ mod tests {
         let configured = vec![tcp("0.0.0.0:80"), tcp("127.0.0.1:8000"), tcp("[::1]:8100")];
         assert_eq!(
             addresses(&configured, None, None).expect("a literal set"),
-            vec![
-                "0.0.0.0:80".parse::<SocketAddr>().expect("parses"),
-                "127.0.0.1:8000".parse::<SocketAddr>().expect("parses"),
-                "[::1]:8100".parse::<SocketAddr>().expect("parses"),
-            ]
+            vec![tcp("0.0.0.0:80"), tcp("127.0.0.1:8000"), tcp("[::1]:8100"),]
         );
 
         let ephemeral = vec![tcp("127.0.0.1:0"), tcp("127.0.0.1:0"), tcp("127.0.0.1:0")];
         let wanted = addresses(&ephemeral, None, None).expect("three loopback entries");
         assert_eq!(wanted.len(), 3);
-        let listeners = bind_all(&wanted).expect("three free ports on the loopback");
+        let listeners = bind_all(&wanted, 0o660).expect("three free ports on the loopback");
         let mut answered = Vec::new();
         for listener in &listeners {
-            let addr = listener
-                .local_addr()
-                .expect("a bound socket knows its own address");
+            let addr = listener.address();
             std::net::TcpStream::connect(addr)
                 .unwrap_or_else(|error| panic!("nothing is listening on {addr}: {error}"));
             answered.push(addr);
@@ -1620,12 +1821,12 @@ mod tests {
     #[test]
     fn one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle() {
         let configured = vec![tcp("127.0.0.1:0"), tcp("127.0.0.1:0")];
-        let bound = bind_all(&addresses(&configured, None, None).expect("two loopback entries"))
-            .expect("two free ports on the loopback");
-        let listening: Vec<SocketAddr> = bound
-            .iter()
-            .map(|listener| listener.local_addr().expect("a bound socket"))
-            .collect();
+        let bound = bind_all(
+            &addresses(&configured, None, None).expect("two loopback entries"),
+            0o660,
+        )
+        .expect("two free ports on the loopback");
+        let listening: Vec<SocketAddr> = bound.iter().map(Socket::address).collect();
 
         let workers = workers_for(&config_of("[server]\nworkers = 3\n"), &BTreeMap::new())
             .expect("a written count was refused");
@@ -1643,9 +1844,7 @@ mod tests {
             let cpu = cpus[index % cpus.len()];
             running.push(
                 nvs_host::Worker::spawn(cpu, move |_sched| {
-                    row.iter()
-                        .map(|listener| listener.local_addr().expect("this core's own handle"))
-                        .collect::<Vec<_>>()
+                    row.iter().map(Socket::address).collect::<Vec<_>>()
                 })
                 .expect("the platform started a worker"),
             );
@@ -1663,28 +1862,79 @@ mod tests {
         }
     }
 
-    /// The Unix-domain refusal, taken over the whole set before any listener
-    /// exists rather than by the core that reached the entry: two entries are
-    /// one message naming both, and the flag still gets past it in the
-    /// meantime, because a configuration a proxy should prefer must not simply
-    /// fail to start with nothing to try.
+    /// `rule:http-server/a-unix-socket-listener` from both of the ends it
+    /// has, which is one per platform: the entry is bound with `[server]
+    /// socket_mode` on it where the rule admits a Unix socket, and the whole
+    /// set is refused once where it does not.
+    ///
+    /// One case and not two, because the rule is one sentence with a platform
+    /// in it and a case per leg would let the other leg's half rot unnoticed.
+    /// The refusal half asserts *once* over two entries rather than a message
+    /// per entry, since taking it in [`addresses`] is what makes a deployment
+    /// mistake one report before any socket exists. The bind half asserts the
+    /// mode on the socket the platform actually created and then connects to
+    /// it, which is what a mode silently left at the umask's answer and a path
+    /// that was created but never listened on would each fail. The flag is
+    /// asserted on both legs, because a configuration a proxy should prefer
+    /// must not fail to start with nothing to try.
     #[test]
-    fn a_unix_domain_entry_is_refused_once_rather_than_once_per_core() {
-        let configured = vec![
-            tcp("127.0.0.1:8000"),
-            Listen::Unix(PathBuf::from("/run/nvs.sock")),
-            Listen::Unix(PathBuf::from("/run/nvs-admin.sock")),
-        ];
-        let refusal = addresses(&configured, None, None).expect_err("a socket was bound");
-        assert!(
-            refusal.contains("/run/nvs.sock") && refusal.contains("/run/nvs-admin.sock"),
-            "one refusal names every entry it applies to: {refusal}"
-        );
-        assert_eq!(
-            refusal.matches("accepts on TCP alone").count(),
-            1,
-            "one deployment mistake is one refusal: {refusal}"
-        );
+    fn a_unix_socket_listen_entry_binds_with_its_mode_on_unix_and_is_refused_once_elsewhere() {
+        #[cfg(windows)]
+        {
+            let configured = vec![
+                tcp("127.0.0.1:8000"),
+                Listen::Unix(PathBuf::from("/run/nvs.sock")),
+                Listen::Unix(PathBuf::from("/run/nvs-admin.sock")),
+            ];
+            let refusal = addresses(&configured, None, None).expect_err("a socket was bound");
+            assert!(
+                refusal.contains("/run/nvs.sock") && refusal.contains("/run/nvs-admin.sock"),
+                "one refusal names every entry it applies to: {refusal}"
+            );
+            assert_eq!(
+                refusal.matches("no listener for one").count(),
+                1,
+                "one deployment mistake is one refusal: {refusal}"
+            );
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+
+            let dir = scratch_directory("unix-listener");
+            let configured = vec![
+                Listen::Unix(dir.join("nvs.sock")),
+                Listen::Unix(dir.join("nvs-admin.sock")),
+            ];
+            let wanted = addresses(&configured, None, None).expect("two socket paths");
+            assert_eq!(
+                wanted, configured,
+                "a socket path is admitted rather than refused on this platform"
+            );
+            // Not `0660`, which is the default: a mode the case wrote is the
+            // only one that can tell the directive being read apart from the
+            // directive's absence happening to agree with it.
+            let bound = bind_all(&wanted, 0o640).expect("two paths this account may create");
+            for (socket, entry) in bound.iter().zip(&configured) {
+                let Listen::Unix(path) = entry else {
+                    unreachable!("the resolved set is socket paths alone")
+                };
+                assert_eq!(
+                    std::fs::metadata(path)
+                        .expect("a bound socket is a name on disk")
+                        .permissions()
+                        .mode()
+                        & 0o777,
+                    0o640,
+                    "`{}` carries `[server] socket_mode` and not the umask's answer",
+                    path.display()
+                );
+                assert_eq!(socket.named(), format!("unix:{}", path.display()));
+                std::os::unix::net::UnixStream::connect(path).unwrap_or_else(|error| {
+                    panic!("nothing is listening on `{}`: {error}", path.display())
+                });
+            }
+        }
         assert_eq!(
             addresses(
                 &[Listen::Unix(PathBuf::from("/run/nvs.sock"))],
@@ -1692,7 +1942,7 @@ mod tests {
                 Some(8080)
             )
             .expect("the flag is the last word"),
-            vec!["127.0.0.1:8080".parse::<SocketAddr>().expect("parses")]
+            vec![tcp("127.0.0.1:8080")]
         );
     }
 
@@ -2038,34 +2288,41 @@ mod tests {
     }
 
     /// The endpoint one case names, in the platform's own namespace: a socket
-    /// under a scratch directory of this case's own on Unix, a pipe name on
-    /// Windows.
-    ///
-    /// Not `std::env::temp_dir()`, for the reason `nvs_config::control`'s own
-    /// cases give: `rule:config/ownership-is-the-trust-boundary` runs on the
-    /// parent too, and a world-writable `/tmp` above a tight directory of ours
-    /// fails it. `target/` is owned by this account and writable by neither its
-    /// group nor the world, which is the bar an operator's `/run/nvs` clears.
+    /// under [`scratch_directory`] on Unix, a pipe name on Windows.
     fn control_endpoint(case: &str) -> PathBuf {
-        let beside = std::env::current_exe().expect("the test binary knows its own path");
-        let dir = beside
-            .parent()
-            .expect("a test binary sits in a directory")
-            .join(format!("nvs-serve-control-{}-{case}", std::process::id()));
-        drop(std::fs::remove_dir_all(&dir));
-        std::fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
         #[cfg(unix)]
         {
-            dir.join("control.sock")
+            scratch_directory(&format!("control-{case}")).join("control.sock")
         }
         #[cfg(windows)]
         {
-            drop(dir);
             PathBuf::from(format!(
                 r"\\.\pipe\nvs-serve-control-{}-{case}",
                 std::process::id()
             ))
         }
+    }
+
+    /// An empty directory of this case's own, beside the test binary.
+    ///
+    /// Beside the binary and not under `std::env::temp_dir()`, for the reason
+    /// `nvs_config::control`'s own cases give:
+    /// `rule:config/ownership-is-the-trust-boundary` runs on the parent too,
+    /// and a world-writable `/tmp` above a tight directory of ours fails it.
+    /// `target/` is owned by this account and writable by neither its group
+    /// nor the world, which is the bar an operator's `/run/nvs` clears — and
+    /// the bar a socket whose own mode decides who may connect is asserted
+    /// against.
+    #[cfg(unix)]
+    fn scratch_directory(case: &str) -> PathBuf {
+        let beside = std::env::current_exe().expect("the test binary knows its own path");
+        let dir = beside
+            .parent()
+            .expect("a test binary sits in a directory")
+            .join(format!("nvs-serve-{}-{case}", std::process::id()));
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
+        dir
     }
 
     /// `rule:config/one-local-control-socket`'s address, as the tree a boot
@@ -2105,13 +2362,18 @@ mod tests {
         let wanted = a_free_address();
         let free = Arc::new(AtomicBool::new(false));
         let seen = Arc::clone(&free);
-        let (controlling, bound) = bind_sockets(&a_tree_naming(&name), &[wanted], move |_| {
-            seen.store(
-                std::net::TcpListener::bind(wanted).is_ok(),
-                Ordering::Relaxed,
-            );
-            Ok(())
-        })
+        let (controlling, bound) = bind_sockets(
+            &a_tree_naming(&name),
+            &[Listen::Tcp(wanted)],
+            0o660,
+            move |_| {
+                seen.store(
+                    std::net::TcpListener::bind(wanted).is_ok(),
+                    Ordering::Relaxed,
+                );
+                Ok(())
+            },
+        )
         .expect("a control endpoint and every listener the set named");
 
         assert!(
@@ -2123,7 +2385,7 @@ mod tests {
         assert_eq!(endpoint.name(), name);
         assert_eq!(bound.len(), 1);
         assert_eq!(
-            bound[0].local_addr().expect("a bound listener"),
+            bound[0].address(),
             wanted,
             "the listener the set named is bound as well as the endpoint"
         );
@@ -2142,16 +2404,21 @@ mod tests {
         let name = control_endpoint("untrusted");
         let wanted = a_free_address();
         let asked = name.clone();
-        let refusal = bind_sockets(&a_tree_naming(&name), &[wanted], move |at| {
-            assert_eq!(
-                at, asked,
-                "the guard is asked about the endpoint the tree named"
-            );
-            Err(nvs_config::trust::Untrusted::Unreadable(format!(
-                "`{}` is writable by another account",
-                at.display()
-            )))
-        })
+        let refusal = bind_sockets(
+            &a_tree_naming(&name),
+            &[Listen::Tcp(wanted)],
+            0o660,
+            move |at| {
+                assert_eq!(
+                    at, asked,
+                    "the guard is asked about the endpoint the tree named"
+                );
+                Err(nvs_config::trust::Untrusted::Unreadable(format!(
+                    "`{}` is writable by another account",
+                    at.display()
+                )))
+            },
+        )
         .expect_err("a directory another account can write refuses the start");
 
         assert!(
@@ -2407,10 +2674,7 @@ mod tests {
 
         let listener =
             std::net::TcpListener::bind(a_free_address()).expect("the loopback refused a listener");
-        let addr = listener
-            .local_addr()
-            .expect("a bound listener knows its own address");
-        listening(&[listener], &[addr], Path::new("app.nvs"), &told);
+        listening(&[Socket::Tcp(listener)], Path::new("app.nvs"), &told);
 
         let process = a_server_over("sd-notify", &told);
         nvs_server::control::Controlled::reload(&process)
