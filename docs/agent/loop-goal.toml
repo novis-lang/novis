@@ -210,7 +210,12 @@ rules = [
   "concurrency/one-scheduler",
 ]
 adrs = ["0006"]
-shapes = ["A decision record", "A rule fragment", "Citing a document"]
+shapes = [
+  "A decision record",
+  "A rule fragment",
+  "Where a rule sits in the order",
+  "Citing a document",
+]
 
 [context.stage.6]
 # The options: a wake carries an id, the budget is the tree's, and a core is never blocked.
