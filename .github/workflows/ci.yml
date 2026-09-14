@@ -71,6 +71,7 @@ jobs:
       code: ${{ steps.lanes.outputs.code }}
       native: ${{ steps.lanes.outputs.native }}
       probe: ${{ steps.lanes.outputs.probe }}
+      editor: ${{ steps.lanes.outputs.editor }}
       deps: ${{ steps.lanes.outputs.deps }}
       refdoc: ${{ steps.lanes.outputs.refdoc }}
       deep: ${{ steps.lanes.outputs.deep }}
@@ -184,6 +185,142 @@ jobs:
         run: |
           cargo clippy --workspace --all-targets \
             --features nvs-abi-probe/wasm-probe -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # The VS Code client, built the way a user installs it and then tested without
+  # an editor. "Extension" here is the editor one; `extension-sandbox` above is
+  # Novis's own wasm extension boundary, and the two share nothing but the word.
+  #
+  # Three platforms, because a `.vsix` is cross-platform and a path bug is not:
+  # the protocol suite spawns the real `nvs lsp` binary, so how a process is
+  # started and how a path is spelled is exactly what differs per host. These
+  # are the headless tiers alone — the extension host runs in the job below, on
+  # Linux, for what only a running editor can answer
+  # (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).
+  #
+  # The `.vsix` is a build artifact and is published nowhere: no Marketplace, no
+  # release asset (`rule:ide/the-extension-runs-where-the-binary-is`). One leg
+  # uploads it, since the package is the same bytes on all three.
+  # ---------------------------------------------------------------------------
+  extension:
+    name: extension / ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.editor == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+          - name: windows-x86_64
+            os: windows-latest
+          - name: macos-aarch64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      # Its own cache key rather than `test`'s: this leg builds one package, and
+      # resolving features over `nvs-cli` alone into the workspace build's target
+      # directory would leave a second copy of every crate beside the first.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: extension-${{ matrix.name }}
+
+      # The binary the suites drive is the one this run built, never one already
+      # on the runner: the protocol suite asserts against this tree's `nvs lsp`.
+      - name: Build nvs
+        run: cargo build -p nvs-cli
+
+      # `editors/vscode/.nvmrc` is the one home for the Node version, read the
+      # way `website/.nvmrc` is. `npm ci` installs exactly `package-lock.json`,
+      # which is what the cache keys on.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: editors/vscode/.nvmrc
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Install
+        working-directory: editors/vscode
+        run: npm ci
+
+      - name: Lint
+        working-directory: editors/vscode
+        run: npm run lint
+
+      # The grammar snapshots, the contributions and dependency-allowlist test,
+      # and the protocol round-trip against the binary above.
+      - name: Headless suites
+        working-directory: editors/vscode
+        env:
+          NVS_BIN: ${{ github.workspace }}/target/debug/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: npm run test:headless
+
+      - name: Package
+        working-directory: editors/vscode
+        run: npm run package
+
+      - name: The installable extension
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: nvs-vsix
+          path: editors/vscode/nvs.vsix
+
+  # ---------------------------------------------------------------------------
+  # The tier that needs a running editor: activation on `.nvs`, the Tasks, the
+  # status item, the AST panel, the token legend and the concealment of a
+  # `secret`. Linux only — this observes the client's own behaviour inside the
+  # extension host, which is the same host on every platform, and the per-host
+  # differences are the process and path ones the matrix above already covers.
+  #
+  # `xvfb-run` because the host is a real Electron window. Isolation is the
+  # launcher's, not this file's: `scripts/host.mjs` downloads the pinned build,
+  # points a throwaway profile and extensions directory at it, disables every
+  # other extension and opens a copy of the fixture rather than this repository.
+  # ---------------------------------------------------------------------------
+  extension-host:
+    name: extension host
+    needs: changes
+    if: needs.changes.outputs.editor == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: extension-host
+      - name: Build nvs
+        run: cargo build -p nvs-cli
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: editors/vscode/.nvmrc
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Install
+        working-directory: editors/vscode
+        run: npm ci
+
+      # The editor build is a few hundred megabytes and the pin lives in
+      # `scripts/host.mjs`, so the key is that file's hash rather than a version
+      # restated here: bumping the pin misses and downloads once, and an
+      # unrelated edit to the launcher costs one download rather than a second
+      # home for the number. Only the downloaded build is cached — the profile
+      # and the workspace under `.vscode-test/` are rebuilt every run on purpose.
+      - name: The pinned editor build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: editors/vscode/.vscode-test/vscode-*
+          key: vscode-${{ hashFiles('editors/vscode/scripts/host.mjs') }}
+
+      - name: Host suite
+        working-directory: editors/vscode
+        run: xvfb-run -a npm run test:host -- --nvs ${{ github.workspace }}/target/debug/nvs
 
   # There is deliberately no doc-size job. Length guidance for a status field, a
   # milestone heading or an ADR decision cell is in AGENTS.md, addressed to the
