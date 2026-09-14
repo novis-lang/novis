@@ -34,6 +34,13 @@ class Poll
     // for `examples/queue.nvs`'s reason: bounded rather than open-ended, since
     // a fixture that hangs when the feature regresses is worse than one that
     // prints the wrong line.
+    //
+    // The bound is reached only when something is wrong, so every caller reads
+    // the answer and says which wait ran out. Carrying on past one prints a
+    // wrong line and then fails again further down, naming whichever member the
+    // next call happened to be — a run that missed the claim window below
+    // reported `Core\Queue::status` on a row its own `delete` had just removed,
+    // which reads as a queue bug and is a timing miss.
     public static function until(callable $test): bool
     {
         var $turns = 0;
@@ -104,7 +111,9 @@ echo 'purged-pending=', Queue::purge($batch, { state: State::Pending }), "\n";
 // row exhausts its attempts and moves to the table
 // `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` keeps.
 Queue::push('examples/queue/flaky.nvs', { queue: $doomed, maxAttempts: 1 });
-Poll::until(fn (): bool => { return Queue::stats($doomed)->deadLettered() > 0; });
+if (!Poll::until(fn (): bool => { return Queue::stats($doomed)->deadLettered() > 0; })) {
+    throw new RuntimeError('the flaky job never reached the dead-letter table');
+}
 
 // A purge naming no state at all: the default set is what has finished, so
 // this one reaches neither the dead letter above nor anything pending. It is
@@ -122,13 +131,17 @@ echo 'purged-dead=', Queue::purge($doomed, { state: State::Dead }), "\n";
 // state a claim reads and the row a delete removes are one moment, so the
 // database decides and the `bool` is what it decided.
 var $running = Queue::push('examples/queue/held.nvs', { queue: $held });
-Poll::until(fn (): bool => { return Queue::status($running) == State::Claimed; });
+if (!Poll::until(fn (): bool => { return Queue::status($running) == State::Claimed; })) {
+    throw new RuntimeError('the held job was never observed claimed');
+}
 echo 'claimed-delete=', Said::word(Queue::delete($running)), "\n";
 
 // The same receipt one state later, with nothing else about the call changed.
 // `delete` is `cancel`'s twin and its `bool` means what `cancel`'s does: this
 // call is what removed it.
-Poll::until(fn (): bool => { return Queue::status($running) == State::Succeeded; });
+if (!Poll::until(fn (): bool => { return Queue::status($running) == State::Succeeded; })) {
+    throw new RuntimeError('the held job never reached a terminal state');
+}
 echo 'terminal-delete=', Said::word(Queue::delete($running)), "\n";
 
 // The bound. `limit` is finite with nothing written
