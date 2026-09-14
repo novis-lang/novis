@@ -32,6 +32,12 @@
 //! as [`WorkerCores::pick`] had to give it. [`place`] is the two halves back to
 //! back, for a caller that wants the answer and nothing in between.
 //!
+//! **[`destination`] splits the first half again**, for a caller that has to
+//! spend something to build the work. Securing a core is one question and
+//! queueing the work is another, and a spawn has to ask them in that order
+//! because encoding its argument consumes it — [`Destination`]'s own doc is that
+//! reason's home.
+//!
 //! **Off a core, [`post`] hands the function back** rather than answering a
 //! placement nothing would ever collect: there is no core to give up and no task
 //! to park, so [`place`] calls the function where it stands. That is the answer
@@ -96,15 +102,19 @@
 //! by the goal's standing decisions, and closing it is a serving core calling
 //! into this module as it starts rather than anything about the crossing.
 //!
-//! Nothing above `nvs-host` reaches this yet, and what is left is the route
-//! rather than the shape. [`nvs_runtime::host::Entry`] arrives at
-//! [`crate::group`]'s seam as the child's program **named** — a path, or a
-//! static method of the parent's unit — which is `Send` and becomes code on
-//! whichever core is about to run it. What a worker placement still owes is its
-//! argument as [`nvs_runtime::graph::encode`]'s bytes rather than as a `Value`,
-//! and an arm that posts the two across. Until then both placement words start
-//! the child on the parent's core; [`crate::group`]'s module doc is that gap's
-//! one home.
+//! Nothing above `nvs-host` reaches this yet, and what stops it is the budget
+//! rather than the transport. `nvs_runtime::budget`'s two counters are
+//! **thread-local** — a request is charged the difference between its thread's
+//! balance now and the balance when its `Ctx` was made — so a child allocating
+//! on another core is measured from a base taken there and is bounded by that
+//! core's reading rather than by its tree's. That is the opposite of what
+//! `rule:security/isolate-budget-is-the-trees` promises and what ADR 0184 § 4
+//! asserts, and it is a security question rather than a cost one: a placement
+//! that opens a budget root of its own is a way for one request to hold the
+//! whole cap once per core. Both placement words therefore still start the child
+//! on the parent's core, and [`crate::group`]'s module doc is that gap's one
+//! home.
+//! — owner: m5-proofs
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -677,6 +687,78 @@ where
     }
 }
 
+/// A core that has agreed to take one placement, held before the work exists.
+///
+/// [`post`] is the whole of this for a caller whose work is a closure it already
+/// owns: it answers a [`Posted`] or hands the closure back untouched. A caller
+/// that has to **consume** something to build the closure needs the two steps
+/// apart, and `spawn script … on: "worker"` is one —
+/// [`nvs_runtime::graph::encode`] takes the argument's reference, so a spawn
+/// that encoded first and was then refused a core would hold neither a placement
+/// nor a value to start where it stands.
+///
+/// So the destination is secured first and [`Destination::post`] cannot fail.
+/// What it holds is exactly the two things [`post`] refuses for: a core to write
+/// to, and this task's own [`RemoteWake`] to be woken by. Dropping one without
+/// posting is free — the core was never told anything.
+pub struct Destination {
+    inbox: Arc<Inbox>,
+    wake: RemoteWake,
+}
+
+impl std::fmt::Debug for Destination {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Hand-written because a `RemoteWake` has no `Debug`, and what a reader
+        // asks of one of these is which core is waiting for the work.
+        f.debug_struct("Destination")
+            .field("inbox", &self.inbox)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Destination {
+    /// Starts `f` on the core this holds, and answers the handle that collects
+    /// it.
+    ///
+    /// [`post`]'s body with the three refusals already behind it, so there is
+    /// no failure left to report: the work is queued and the core is rung.
+    ///
+    /// # Panics
+    ///
+    /// Not here — [`place`]'s own note owns why a panic on the far core crosses
+    /// as [`Answer::Panicked`].
+    pub fn post<T, F>(self, f: F) -> Posted<T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        let Self { inbox, wake } = self;
+        post_to(&inbox, wake, f)
+    }
+}
+
+/// The core a placement written now would go to, or `None` where there is none —
+/// off a core, with a reactor that cannot issue a wake, or with a set that could
+/// start no core at all.
+///
+/// The three states [`post`] hands the function back for, asked before the work
+/// is built. [`Destination`]'s own doc owns why a caller would want them asked
+/// that early.
+#[must_use]
+pub fn destination() -> Option<Destination> {
+    destination_on(cores())
+}
+
+/// [`destination`], against a named set of cores — [`post_on`]'s seam.
+fn destination_on(cores: &Mutex<WorkerCores>) -> Option<Destination> {
+    let me = current_task()?;
+    let inbox = lock(cores).pick()?;
+    // Rule 1's ordering, and the reason the core is picked first: the handle
+    // exists before anything can be written to the inbox that would fire it.
+    let wake = reactor::with_current(|reactor| reactor.remote_wake(me))?;
+    Some(Destination { inbox, wake })
+}
+
 /// [`post`], against a named set of cores — [`place_on`]'s seam, for the half
 /// of it that does not park.
 fn post_on<T, F>(cores: &Mutex<WorkerCores>, f: F) -> Result<Posted<T>, F>
@@ -684,18 +766,23 @@ where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
-    let Some(me) = current_task() else {
-        return Err(f);
-    };
-    let Some(inbox) = lock(cores).pick() else {
-        return Err(f);
-    };
-    // Rule 1's ordering, and the reason the core is picked first: the handle
-    // exists before anything can be written to the inbox that would fire it.
-    let Some(wake) = reactor::with_current(|reactor| reactor.remote_wake(me)) else {
-        return Err(f);
-    };
+    match destination_on(cores) {
+        Some(destination) => Ok(destination.post(f)),
+        None => Err(f),
+    }
+}
 
+/// Queues the work on a core already picked and rings its bell.
+///
+/// The half of a placement that cannot refuse, shared by [`post_on`] and
+/// [`Destination::post`] so that a caller which secured its core early and one
+/// which did not build the same [`Start`].
+fn post_to<T, F>(inbox: &Arc<Inbox>, wake: RemoteWake, f: F) -> Posted<T>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let inbox = Arc::clone(inbox);
     let slot: Arc<Mutex<Option<Answer<T>>>> = Arc::new(Mutex::new(None));
     let placed = Arc::new(Placed::default());
     inbox.live.fetch_add(1, Ordering::Relaxed);
@@ -722,10 +809,10 @@ where
     // rather than waiting for a core that has stopped receiving.
     drop(inbox.post(start));
 
-    Ok(Posted {
+    Posted {
         slot,
         awaited: Awaited { placed, inbox },
-    })
+    }
 }
 
 /// The answer for a caller with no core to hand back.
@@ -775,8 +862,9 @@ fn receive(inbox: &Arc<Inbox>) {
             // A child of the receptionist rather than a bare root, which is what
             // makes this core's teardown its children's: the receptionist
             // returning cancels everything still placed here, and nothing else
-            // on this core can end it. It is a root in every sense the tree
-            // cares about — its budget is its parent's, on the other core.
+            // on this core can end it. Its resources are counted against this
+            // core, which is the module doc's known gap and the reason nothing
+            // above this crate places an isolate yet.
             let started = spawn_child(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_| {
                 job()
             });
@@ -866,6 +954,38 @@ mod tests {
             "`rule:concurrency/on-worker-runs-the-child-on-another-core`'s number"
         );
         assert!(bound() >= 1, "a set that can start no core drains nothing");
+    }
+
+    #[test]
+    fn a_destination_is_secured_before_the_work_is_built() {
+        // The question a spawn has to ask in this order: encoding its argument
+        // consumes it, so "is there a core" must be answerable while the value
+        // is still a value.
+        assert!(
+            destination().is_none(),
+            "a thread with no task on it secured a core"
+        );
+
+        let (mut sched, _installed) = core();
+        let parent = std::thread::current().id();
+
+        let answer: Collected<ThreadId> = Rc::new(Cell::new(None));
+        let collected = Rc::clone(&answer);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_| {
+            let destination = destination().expect("a task on a core secured none");
+            collected.set(Some(
+                destination.post(|| std::thread::current().id()).collect(),
+            ));
+        });
+        run_until_idle(&mut sched).expect("the loop failed");
+
+        let Some(Answer::Value(ran_on)) = answer.take() else {
+            panic!("the placement never answered");
+        };
+        assert_ne!(
+            ran_on, parent,
+            "a secured destination ran the work on the core that posted it"
+        );
     }
 
     #[test]
