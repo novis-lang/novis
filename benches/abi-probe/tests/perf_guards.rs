@@ -519,6 +519,67 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     );
 }
 
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names() {
+    // The second figure M5's acceptance asks for, and the one that is a ratio:
+    // CPU-bound children placed `on: "worker"` against the same children run one
+    // after another on the core that asked for them. The construct is the
+    // placement rather than `Core\Task::map`, which is concurrency on one core —
+    // `rule:concurrency/on-worker-runs-the-child-on-another-core` is where that
+    // is decided, and the shared module owns what the two batches include.
+    //
+    // The floor is the margin this test's name promises, and it is well under
+    // the ideal 4x deliberately. A ratio is bounded by whatever else the machine
+    // is running, and the failure worth a red build is a fan-out that stopped
+    // fanning out — a refused placement, a picker handing every child to one
+    // core, a join that serialises the children — all of which land at or under
+    // 1x. Halving the ideal leaves room for a busy machine and still cannot be
+    // reached without three of the four children running somewhere else.
+    const MIN_SPEEDUP: f64 = 2.0;
+    const ITERS: u64 = 5;
+    const ROUNDS: usize = 5;
+
+    let cpus = nvs_host::cpus().len();
+    if cpus < isolate::WIDTH {
+        println!(
+            "fan-out across worker cores: skipped, {cpus} CPU(s) is fewer than the \
+             {} a fan-out places",
+            isolate::WIDTH
+        );
+        return;
+    }
+
+    // Interleaved, so that a machine warming up or throttling mid-test moves
+    // both halves rather than one; the minimum of each, for the reason
+    // `ns_per_op` above gives.
+    let mut placed = f64::MAX;
+    let mut one_core = f64::MAX;
+    for _ in 0..ROUNDS {
+        placed = placed.min(isolate::worker_fan_out_batch(ITERS).as_secs_f64());
+        one_core = one_core.min(isolate::one_core_batch(ITERS).as_secs_f64());
+    }
+    let speedup = one_core / placed;
+
+    println!(
+        "fan-out across worker cores: {} children in {:.1} ms placed vs {:.1} ms on one core, \
+         {speedup:.2}x{}",
+        isolate::WIDTH,
+        placed * 1e3 / ITERS as f64,
+        one_core * 1e3 / ITERS as f64,
+        over(speedup, MIN_SPEEDUP)
+    );
+
+    assert!(
+        speedup > MIN_SPEEDUP,
+        "{} CPU-bound children placed on worker cores now run only {speedup:.2}x faster than the \
+         same children one after another, under the {MIN_SPEEDUP}x guard. M5's acceptance claims \
+         near-linear speedup across cores for exactly this shape of work; at this ratio the \
+         children are sharing a core rather than spreading over them.",
+        isolate::WIDTH
+    );
+}
+
 // ---------------------------------------------------------------------------
 // ADR 0007's claim, tested rather than asserted
 // ---------------------------------------------------------------------------
