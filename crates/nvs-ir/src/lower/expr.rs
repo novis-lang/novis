@@ -2696,6 +2696,7 @@ impl<'a> Lowering<'a> {
             fn_expr: fn_expr.clone(),
             captures: captured,
             ret,
+            span: expr.span,
         });
         (obj, Ty::Object)
     }
@@ -4981,13 +4982,13 @@ impl<'a> Lowering<'a> {
         let result = match plan {
             TypeTestPlan::Settled(answer) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(answer)),
             TypeTestPlan::AtRunTime(tested) => {
-                let Some(shape) = test_shape(tested, self.checked_types, self.enums) else {
+                let Some(shape) = test_shape(tested, self.exprs, self.checked_types, self.enums)
+                else {
                     panic!(
                         "nvs-ir only lowers `is` against a scalar, `null`, `object`, an \
                          `array` of any element type, a class, a shape, a literal, an enum \
-                         case, `iterable`, `callable`, or a union or intersection of those \
-                         — got {:?}; a written callable signature still needs a row of its \
-                         own",
+                         case, `iterable`, `callable`, a written callable signature, or a \
+                         union or intersection of those — got {:?}",
                         self.checked_types.get(tested)
                     );
                 };
@@ -5858,32 +5859,36 @@ enum TestShape {
     },
 }
 
-/// Which shape `$x is T` takes, or `None` for a row that has neither yet.
+/// Which shape `$x is T` takes, or `None` for a row that has none.
 ///
 /// The tag rows are the ones that cost one comparison: a scalar, `null`, plain
 /// `object` and a bare `array`. The class row is the descriptor walk, the
 /// element row is the array walk, and the literal row — an enum case included
 /// — is one tag comparison with a payload compare behind it. A union, an
 /// intersection and `iterable` are their members' rows chained, so none of the
-/// three is a cost of its own, and `callable` is the class row against the one
+/// three is a cost of its own. `callable` is the class row against the one
 /// label every closure's environment class conforms to
-/// ([`CLOSURE_MARKER`](super::CLOSURE_MARKER)).
+/// ([`CLOSURE_MARKER`](super::CLOSURE_MARKER)), and
+/// `rule:types/callable-signature`'s written signature is that same row one
+/// step more specific, against the marker class `nvs_types::callables`
+/// resolved for that signature — which is what `exprs` is read for here.
 ///
 /// `mixed` is not here and cannot arrive: it holds every value, so the checker
 /// folded that test to `true`.
 ///
 /// # Known gaps
 ///
-/// Two rows answer `None`, and each reaches the caller's panic rather than a
-/// diagnostic. Both are slices. An `array<T>` whose element type no tag decides
-/// —
-/// `array<Foo>`, an array of shapes, an array of unions — has no tag word for
-/// the walk to take. `rule:types/callable-signature`'s written signature asks
-/// what a closure's parameters are and not merely whether the value is one, so
-/// the marker `callable` walks does not answer it. `as array<Foo>` is refused
-/// where it is written (`E0711`) and `is array<Foo>` is not.
+/// One row answers `None` and reaches the caller's panic rather than a
+/// diagnostic: a written signature the checker recorded no marker for. No
+/// checked program produces one — `nvs_types::check` resolves that table for
+/// every unit, and its `collect_signatures` takes every tested signature from
+/// the same places this function recurses into: a union member, an
+/// intersection member, an array element, a shape field. The `None` keeps it
+/// that way rather than a fallback to [`CLOSURE_MARKER`](super::CLOSURE_MARKER),
+/// which would answer `true` for a closure of any signature at all.
 fn test_shape(
     tested: TypeId,
+    exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
     enums: &EnumTable,
 ) -> Option<TestShape> {
@@ -5904,14 +5909,14 @@ fn test_shape(
         CheckedTy::Union(members) => {
             return members
                 .iter()
-                .map(|member| test_shape(*member, checked_types, enums))
+                .map(|member| test_shape(*member, exprs, checked_types, enums))
                 .collect::<Option<Vec<_>>>()
                 .map(TestShape::Any);
         }
         CheckedTy::Intersection(members) => {
             return members
                 .iter()
-                .map(|member| test_shape(*member, checked_types, enums))
+                .map(|member| test_shape(*member, exprs, checked_types, enums))
                 .collect::<Option<Vec<_>>>()
                 .map(TestShape::All);
         }
@@ -5940,6 +5945,20 @@ fn test_shape(
         CheckedTy::Callable => {
             return Some(TestShape::Class(super::CLOSURE_MARKER.to_owned()));
         }
+        // A written signature asks what a closure's parameters and return type
+        // are, and a closure carries neither at run time — the object holds a
+        // parameter count and one tag nibble each, for the dynamic call path.
+        // What names a signature exactly is the class synthesized per literal,
+        // so the answer is the row above one step more specific: a marker
+        // supertype per tested signature, conformed to by every literal whose
+        // own signature is assignable to it. `nvs_types::callables` owns that
+        // relation and why it cannot be computed here; `super::lower_program`
+        // emits the descriptor and `super::closure` the edges.
+        CheckedTy::CallableSig { .. } => {
+            return exprs
+                .callable_sig_marker(tested)
+                .map(|marker| TestShape::Class(marker.to_owned()));
+        }
         // `rule:types/shape-type` makes a shape compile-time-only and
         // structural with width subtyping, so what is left to ask at run time
         // is whether *this object* carries the named fields at the named
@@ -5958,7 +5977,7 @@ fn test_shape(
                     // the first comparison of the runtime's scan.
                     slot: u32::try_from(slot).unwrap_or(0),
                     required: field.required,
-                    value: Box::new(test_shape(field.ty, checked_types, enums)?),
+                    value: Box::new(test_shape(field.ty, exprs, checked_types, enums)?),
                 });
             }
             return Some(TestShape::All(rows));
@@ -6026,6 +6045,7 @@ fn test_shape(
             }
             return Some(TestShape::Every(Box::new(test_shape(
                 *element,
+                exprs,
                 checked_types,
                 enums,
             )?)));

@@ -39,6 +39,11 @@ pub(crate) struct PendingClosure {
     pub(crate) captures: Vec<(String, Ty)>,
     /// What the body produces.
     pub(crate) ret: Ty,
+    /// Where the literal was written. The key `nvs_types::ExprTypeTable`
+    /// recorded this closure's `callable(...)` conformance under, and the only
+    /// one both sides hold: the class label above is this crate's own name for
+    /// the site and never reaches the checker.
+    pub(crate) span: Span,
 }
 
 /// The [`FN_PARAM_TAGS`] word for `fn_expr` — one nibble per declared
@@ -174,6 +179,7 @@ pub(crate) fn lower_closure(
         fn_expr,
         captures,
         ret,
+        span,
     } = pending;
     let label = format!("{class}::{FN_INVOKE}");
     let mut low = Lowering::new(&label, Some(&label), src, *ret, exprs, checked_types, enums);
@@ -290,10 +296,14 @@ pub(crate) fn lower_closure(
             // slot reading as unreadable is the direction `field_is_public`
             // wants.
             public_fields: Vec::new(),
-            // One edge, and the only supertype a closure has: the marker
-            // `rule:types/callable-is-a-closure`'s `$x is callable` walks for.
-            // See `super::CLOSURE_MARKER`.
-            conforms: vec![super::CLOSURE_MARKER.to_owned()],
+            // The marker `rule:types/callable-is-a-closure`'s `$x is callable`
+            // walks for — see `super::CLOSURE_MARKER` — and one more per
+            // written signature this literal satisfies, which is the same walk
+            // one step more specific. The checker decided the second set,
+            // keyed by this literal's span; `nvs_types::callables` is why.
+            conforms: std::iter::once(super::CLOSURE_MARKER.to_owned())
+                .chain(exprs.callable_markers_at(*span).iter().cloned())
+                .collect(),
             // Public: a closure's environment class is unspellable, so nothing
             // can name this member at all except the runtime's own call path.
             methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
@@ -743,9 +753,13 @@ pub(crate) fn lower_callable(
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
             public_fields: Vec::new(),
-            // A first-class callable is a closure, so it carries the same one
-            // edge an `fn` literal's class does — see `super::CLOSURE_MARKER`.
-            conforms: vec![super::CLOSURE_MARKER.to_owned()],
+            // A first-class callable is a closure, so it carries the same
+            // edges an `fn` literal's class does — the one every closure has
+            // and one per written signature it satisfies, read back at the
+            // span the `(...)` was written at.
+            conforms: std::iter::once(super::CLOSURE_MARKER.to_owned())
+                .chain(exprs.callable_markers_at(*span).iter().cloned())
+                .collect(),
             methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
             codec: Vec::new(),
             db_codec: Vec::new(),

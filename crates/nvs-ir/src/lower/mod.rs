@@ -815,6 +815,28 @@ pub fn lower_program(
         ctor_arity: 0,
         defaults: Vec::new(),
     });
+    // One marker supertype per written `callable(...)` signature some `is` in
+    // this program tested, each carrying no field and no method for
+    // `CLOSURE_MARKER`'s reason: the whole of what one holds is its own
+    // identity, which is what the descriptor walk behind
+    // `$x is callable(int): string` compares. Which closures conform is in
+    // `nvs_types::callables`, because the relation is `is_assignable` itself
+    // and needs a `ClassGraph`, a `SignatureTable` and a mutable interner —
+    // none of which lowering holds; this reads the answer back off the table
+    // and the edges go on each literal's class in `super::closure`.
+    classes.extend(exprs.callable_sig_markers().map(|marker| crate::ir::Class {
+        label: marker.to_owned(),
+        fields: Vec::new(),
+        field_reprs: Vec::new(),
+        secret_fields: Vec::new(),
+        public_fields: Vec::new(),
+        conforms: Vec::new(),
+        methods: Vec::new(),
+        codec: Vec::new(),
+        db_codec: Vec::new(),
+        ctor_arity: 0,
+        defaults: Vec::new(),
+    }));
     // The table behind `iter()` is a hash map, so its order varies run to run.
     // Sorting here is what makes a lowered `Program` — and therefore the
     // `--dump-ir` listing and every snapshot taken of it — reproducible for an
