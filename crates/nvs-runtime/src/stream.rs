@@ -524,11 +524,9 @@ mod tests {
 
     use super::{Drain, Drained, SEND_TIMED_OUT, open};
     use crate::ctx::Ctx;
-    use crate::graph::GraphError;
     use crate::host::{
-        Bounds, Entry, Host, Job, Outcome, Output, Placement, Running, Woken, install,
+        Bounds, Entry, Host, Job, Outcome, Output, Placement, Running, StartError, Woken, install,
     };
-    use crate::script::Program;
     use crate::value::Value;
 
     /// A host whose park *is* the connection running: it takes whatever chunk
@@ -593,12 +591,11 @@ mod tests {
         fn start_isolate(
             &self,
             _ctx: &mut Ctx,
-            _program: Program,
+            _entry: Entry,
             _args: Value,
             _output: Output,
-            _entry: Entry,
             _placement: Placement,
-        ) -> Result<Box<dyn Running>, GraphError> {
+        ) -> Result<Box<dyn Running>, StartError> {
             unreachable!("a response body cell starts no isolate")
         }
     }

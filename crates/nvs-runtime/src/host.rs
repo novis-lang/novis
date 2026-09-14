@@ -99,7 +99,7 @@ use std::time::{Duration, Instant};
 
 use crate::ctx::{Ctx, DeclaredHeader};
 use crate::graph::GraphError;
-use crate::script::Program;
+use crate::script::{Program, ResolveError};
 use crate::throwable::Thrown;
 use crate::value::Value;
 
@@ -228,26 +228,101 @@ pub enum Output {
     Inherit,
 }
 
-/// Which of [ADR 0006](/docs/decisions/0006.md)
-/// § *Decision*'s two entry forms a spawn named.
+/// What a spawn **named**, in whichever of [ADR
+/// 0006](/docs/decisions/0006.md) § *Decision*'s two entry
+/// forms it wrote — a path, or a class and a method.
 ///
-/// It reaches the seam because it decides one thing on the *other* side of it
-/// that nothing else can decide: which constructor builds the child's context.
-/// A path entry has a unit of its own, whose `install_in` arms the child's
-/// statics from inside the program; a method entry has none — its code is the
-/// parent's unit's — so its context has to be armed at construction, which is
-/// [`Ctx::method_isolate`]. Everything else about the two is identical, which
-/// is why this is a parameter of the start rather than a second operation.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// The name and not the code, and that is the whole of why this type is here.
+/// A [`Program`] is a boxed closure over whatever the *parent's* resolver
+/// built, so it is neither `Send` nor meaningful anywhere but the core that
+/// made it, while a path and a label are strings. Carrying the name lets the
+/// core that is going to **run** the child be the one that prepares it, which
+/// is what `rule:concurrency/on-worker-runs-the-child-on-another-core` needs
+/// and what `on: "here"` gets for free — [`Entry::program`] is that step, and
+/// it happens on the far side of the seam.
+///
+/// It also decides which constructor builds the child's context, which is a
+/// difference nothing above the seam can act on. A path entry has a unit of its
+/// own, whose `install_in` arms the child's statics from inside the program; a
+/// method entry has none — its code is the parent's unit's — so its context has
+/// to be armed at construction, which is [`Ctx::method_isolate`]. Everything
+/// else about the two is identical, which is why this is a parameter of the
+/// start rather than a second operation.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Entry {
-    /// A `.nvs` file the resolver compiled — [`crate::script::resolve`]'s
-    /// answer, and the form `rule:security/isolate-shares-nothing` is written around.
-    #[default]
-    Path,
-    /// A `static` method of the unit the parent is already running, reached
-    /// through [`crate::call_static`]. `crate::script`'s module doc is the one
-    /// home of why that needs no resolver and no second unit.
-    Method,
+    /// The path a `.nvs` file was named by, for [`crate::script::resolve`] to
+    /// turn into code — the form `rule:security/isolate-shares-nothing` is
+    /// written around, and the one a resolver answers.
+    Path(String),
+    /// A `static` method of the unit the parent is already running, named by
+    /// the label `nvs-codegen` emitted it under and the parameter names its
+    /// `args:` map binds by. `crate::script`'s module doc is the one home of
+    /// why that needs no resolver and no second unit, and
+    /// [`crate::script::method_program`] is the code it becomes.
+    Method {
+        /// `"{class}::{method}"`, which [`crate::call_static_bound`] looks up.
+        label: String,
+        /// The entry's parameters in declaration order, empty for an entry that
+        /// declares none.
+        names: Vec<String>,
+    },
+}
+
+impl Entry {
+    /// Whether this names a `static` method of the parent's unit rather than a
+    /// file of its own.
+    #[must_use]
+    pub fn is_method(&self) -> bool {
+        matches!(self, Self::Method { .. })
+    }
+
+    /// Turns the name into the code to run, **on the thread that will run it**.
+    ///
+    /// Called by the implementor of [`Host::start_isolate`] rather than by the
+    /// member that reached it, so that a child placed on another core is
+    /// resolved there. `ctx` is the context the spawn is charged to, and it is
+    /// read for one thing only: `rule:security/capability-check-at-the-door`'s
+    /// `script.spawn` grant, which [`crate::script::resolve`] asks with the
+    /// path as its scope.
+    ///
+    /// # Errors
+    ///
+    /// [`ResolveError`], for the path form alone. A method entry is code the
+    /// parent's unit already holds, so there is nothing left to refuse.
+    pub fn program(self, ctx: &Ctx) -> Result<Program, ResolveError> {
+        match self {
+            Self::Path(path) => crate::script::resolve(ctx, &path),
+            Self::Method { label, names } => Ok(crate::script::method_program(label, names)),
+        }
+    }
+}
+
+/// Why no isolate was started — the two questions [`Host::start_isolate`] asks
+/// before there is a child, and the only two it can answer with.
+///
+/// Separate variants because they are different mistakes. The argument is the
+/// parent's: it built a value with no meaning on the other side, and
+/// `rule:security/isolate-values-cross-by-copy` names what may cross. The entry
+/// is the spawn site's, or the configuration's, and every one of its shapes is
+/// a [`ResolveError`]. What a caller words each as is the caller's, because the
+/// construct it is reporting for — `spawn script`, an upgrade — is the spelling
+/// a program recognises.
+#[derive(Debug)]
+pub enum StartError {
+    /// The argument had no meaning on the other side, and nothing was started.
+    Argument(GraphError),
+    /// The entry did not become a [`Program`]: no resolver, a path the grant
+    /// does not cover, or one that did not compile.
+    Entry(ResolveError),
+}
+
+impl std::fmt::Display for StartError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Argument(error) => error.fmt(f),
+            Self::Entry(error) => error.fmt(f),
+        }
+    }
 }
 
 /// Which core a spawn starts its child on —
@@ -545,8 +620,8 @@ pub trait Host: std::fmt::Debug {
     /// one thing to call.
     fn park(&self, deadline: Option<Instant>) -> Woken;
 
-    /// Starts `program` as an isolate under the calling task and answers with
-    /// the handle that collects it later.
+    /// Starts what `entry` names as an isolate under the calling task and
+    /// answers with the handle that collects it later.
     ///
     /// This is the half of [ADR
     /// 0006](/docs/decisions/0006.md)'s spawn that
@@ -556,32 +631,41 @@ pub trait Host: std::fmt::Debug {
     /// make `spawn`/`await` a pair of names for one blocking call and would buy
     /// the language nothing for the second construct it charges a reader for.
     ///
-    /// `args` is **transferred**, and one reference to it is consumed however
-    /// this ends — the graph copy takes it on the success path, and the `Err`
-    /// path releases it. `ctx` is the parent's, and is borrowed only for the
+    /// `entry` is the child's program **named and not carried** — the path, or
+    /// the class and method — and [`Entry::program`] is what this side turns it
+    /// into, because the core that runs a child is the core that prepares it.
+    /// `placement` says which core that is. Those are the facts about a child
+    /// only this side can act on; see [`Entry`] and [`Placement`].
+    ///
+    /// `args` is **transferred on the success path**, where the graph copy
+    /// takes the one reference the caller handed over. An `Err` leaves that
+    /// reference with the caller, whose own fault edge releases it:
+    /// `nvs_ir::lower`'s `lower_spawn_script` is the one `CoreCall` site that
+    /// keeps its transferred temporary on the stack across the call rather than
+    /// forgetting it first, and it does that for exactly this. `ctx` is the
+    /// parent's, and is borrowed only for the
     /// length of the call: the isolate's own ownership root is built here
     /// (`rule:security/isolate-teardown-is-a-drain-then-a-sweep`
-    /// ) and is nothing the parent can reach. `entry` says which of ADR
-    /// 0006's two forms the spawn named and `placement` which core the child is
-    /// started on: the facts about a child that only this side can act on — see
-    /// [`Entry`] and [`Placement`].
+    /// ) and is nothing the parent can reach.
     ///
     /// # Errors
     ///
-    /// [`GraphError`] when the **argument** has no meaning on the other side.
-    /// No child is started in that case, which is what makes it the parent's
-    /// fault to raise rather than `rule:security/isolate-shares-nothing`'s failure-is-a-value; the refusal on
+    /// [`StartError::Entry`] when the name did not become code, which is asked
+    /// **first**: a path outside the `script.spawn` grant is refused whether or
+    /// not the argument could have crossed. [`StartError::Argument`] when the
+    /// argument has no meaning on the other side. No child is started either
+    /// way, which is what makes both the parent's fault to raise rather than
+    /// `rule:security/isolate-shares-nothing`'s failure-is-a-value; the refusal on
     /// the way *back* is an `ok = false` instead, and `nvs-host`'s `isolate`
     /// module owns that asymmetry.
     fn start_isolate(
         &self,
         ctx: &mut Ctx,
-        program: Program,
+        entry: Entry,
         args: Value,
         output: Output,
-        entry: Entry,
         placement: Placement,
-    ) -> Result<Box<dyn Running>, GraphError>;
+    ) -> Result<Box<dyn Running>, StartError>;
 }
 
 thread_local! {
@@ -687,16 +771,17 @@ mod tests {
         fn start_isolate(
             &self,
             ctx: &mut Ctx,
-            program: super::Program,
+            entry: super::Entry,
             args: crate::value::Value,
             _output: super::Output,
-            _entry: super::Entry,
             _placement: super::Placement,
-        ) -> Result<Box<dyn super::Running>, crate::graph::GraphError> {
+        ) -> Result<Box<dyn super::Running>, super::StartError> {
             // No scheduler here, so "started" is "already finished": the route
             // is what this proves, and a boundary needs a task tree that a unit
-            // test of the seam does not have.
+            // test of the seam does not have. The name becomes code on this
+            // side, exactly as it does on a scheduler's.
             self.0.set(self.0.get() + 1);
+            let program = entry.program(ctx).map_err(super::StartError::Entry)?;
             let value = program(ctx, args);
             Ok(Box::new(Started(std::cell::Cell::new(Some(value)))))
         }

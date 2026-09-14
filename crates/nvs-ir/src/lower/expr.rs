@@ -3240,6 +3240,16 @@ impl<'a> Lowering<'a> {
             call_args.push(names_v);
         }
 
+        // No `Lowering::forget_transferred_since` here, and the omission is the
+        // decision: `args:` is transferred to a *child that may never start*,
+        // so this site's fault edge is built with the temporary still on the
+        // stack and the landing block releases it. Every refusal on the way in
+        // — a path no resolver answers, one the `script.spawn` grant does not
+        // cover, an argument that may not cross — comes back as an `Err` from
+        // the helper with nothing having taken the reference, which is the
+        // opposite of an ordinary call, whose callee owns its arguments on its
+        // throwing edge as much as on its normal one. `nvs_runtime::host`'s
+        // `Host::start_isolate` is written to that rule and says so.
         let result = self.emit_fallible(
             *cur,
             Ty::Object,

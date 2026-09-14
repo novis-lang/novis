@@ -99,7 +99,8 @@
 //! entry's parameters **by name**, and the sibling construct has those names as
 //! a constant its lowering wrote into the call (`nvs_ir::lower`'s
 //! `spawn_method_entry`, read by `crate::script`'s `entry_names_agree` and
-//! `bound_arguments`). A `Core` call has no such constant, because its entry is
+//! `nvs_runtime::script`'s `bound_arguments`). A `Core` call has no such
+//! constant, because its entry is
 //! one ordinary argument — so the names ride on the value instead, in a third
 //! reserved field beside the arity and the parameter tags:
 //! `nvs_ir::lower`'s `FN_PARAM_NAMES` writes it and
@@ -739,7 +740,7 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
         // makes every value that binding reads live for the length of the call:
         // the root owns the map, and the map owns them.
         child.set_isolate_argument(argument);
-        let bound = crate::script::bound_arguments(&names, child.isolate_argument());
+        let bound = nvs_runtime::script::bound_arguments(&names, child.isolate_argument());
         match nvs_runtime::call_closure(child, held.0, &bound) {
             Ok(value) => value,
             // The judgement `call_closure` makes on this frame's behalf — an

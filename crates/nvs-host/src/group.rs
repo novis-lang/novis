@@ -90,28 +90,32 @@
 //!
 //! A child spawned `on: "worker"` starts on this core.
 //! [`SchedulerHost::start_isolate`] reads the placement and routes both words to
-//! the same start, and what stops the worker word going anywhere else is the
-//! shape of its own argument: a [`Program`] is a `Box<dyn FnOnce(&mut Ctx,
-//! Value) -> Value>` built by the *parent's* resolver, so it is neither `Send`
-//! nor meaningful on another core, and a [`Value`] is reachable from one core by
-//! construction. The cores and the inbox behind that word are built —
-//! [`crate::worker`] is
+//! the same start. The seam no longer stands in the way of the other route: an
+//! [`Entry`] is the child's program **named** — a path, or a class and a method
+//! — so it is `Send` and the far core resolves it for itself with
+//! [`Entry::program`], and the cores and the inbox to carry it to are built
+//! ([`crate::worker`] is
 //! `rule:concurrency/on-worker-runs-the-child-on-another-core`'s mechanism and
-//! owns what a placement costs. Routing to them takes a seam that carries the
-//! child's program **named** rather than resolved — a path the far core's own
-//! resolver resolves, or a static method of a unit it resolves the same way —
-//! and its argument as `nvs_runtime::graph::encode`'s bytes, which is the copy
-//! at every node ADR 0184 § 2 prices. Everything else about such a child is
-//! what the rule describes.
+//! owns what a placement costs).
+//!
+//! What is left is the route and the two things that travel it. The argument
+//! crosses as `nvs_runtime::graph::encode`'s bytes rather than as a [`Value`],
+//! which is ADR 0184 § 2's copy at every node — and it is encoded on the worker
+//! arm rather than at the seam, because a here-placement's crossing is one walk
+//! into the child's arena and a byte round trip would be two plus a buffer on
+//! every spawn. The far core must also have a resolver installed on it for the
+//! path form, and for the method form it must be able to find the parent's
+//! class table, which is `Rc`-shared and does not cross today. Everything else
+//! about such a child is what the rule describes.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use nvs_runtime::graph::GraphError;
-use nvs_runtime::host::{Bounds, Entry, Host, Job, Outcome, Output, Placement, Running, Woken};
-use nvs_runtime::script::Program;
+use nvs_runtime::host::{
+    Bounds, Entry, Host, Job, Outcome, Output, Placement, Running, StartError, Woken,
+};
 use nvs_runtime::{AssertionOutcome, Ctx, OpenSpawn, SpawnForm, TaskRoot, Thrown, Value};
 
 use crate::isolate::Isolate;
@@ -201,30 +205,44 @@ impl Host for SchedulerHost {
     fn start_isolate(
         &self,
         ctx: &mut Ctx,
-        program: Program,
+        entry: Entry,
         args: Value,
         output: Output,
-        entry: Entry,
         placement: Placement,
-    ) -> Result<Box<dyn Running>, GraphError> {
+    ) -> Result<Box<dyn Running>, StartError> {
         // The whole implementation: `crate::isolate` is `rule:security/isolate-shares-nothing`'s boundary and
         // decides everything about it, and what this seam adds is only that a
         // `Core` member can reach it without naming this crate. There is no
         // group here and no `Bounds` — an isolate is one child, and what bounds
         // it is the tree's budget rather than a per-call limit (ADR 0006
         // § *Budgets are accounted at the root of the request tree*).
+        let method = entry.is_method();
+        // The name becomes code **here**, on the core that is about to run the
+        // child, which is the whole of what the seam carrying a name rather
+        // than a `Program` buys: a worker placement's `Entry` crosses to
+        // another core and this line happens there instead. It stands ahead of
+        // everything else for `Entry::program`'s own reason — the
+        // `script.spawn` grant is asked inside it, and a spawn the grant does
+        // not cover may not build so much as a context.
+        // Nothing is released for `args` on the way out of here, and that is the
+        // spawn's ownership rule rather than an omission: `nvs_ir::lower`'s
+        // `lower_spawn_script` leaves the transferred temporary on its stack
+        // across this call — the one `CoreCall` site that does not forget it
+        // first — so the fault edge `emit_fallible` built releases it on every
+        // `Err` this answers with. It is the same reading `copy_graph` is
+        // written under below.
+        let program = entry.program(ctx).map_err(StartError::Entry)?;
         let isolate = Isolate::new(program, args, output);
-        let isolate = match entry {
-            Entry::Path => isolate,
-            Entry::Method => isolate.running_a_method_of_the_parents_unit(),
+        let isolate = if method {
+            isolate.running_a_method_of_the_parents_unit()
+        } else {
+            isolate
         };
         match placement {
-            // One arm, and the module doc's `# Known gaps` is why: the cores a
-            // worker placement names are here, but a `Program` is a closure the
-            // parent's resolver built and cannot cross to one, so both words
-            // reach this core's own start until the seam names the program
-            // instead of carrying it.
-            Placement::Here | Placement::Worker => isolate.start(ctx),
+            // One arm, and the module doc's `# Known gaps` is why: what is left
+            // between a worker placement and the cores `crate::worker` already
+            // starts is the route, not the shape.
+            Placement::Here | Placement::Worker => isolate.start(ctx).map_err(StartError::Argument),
         }
     }
 }

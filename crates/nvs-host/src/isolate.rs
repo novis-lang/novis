@@ -99,7 +99,7 @@ pub use nvs_runtime::script::Program;
 // and a name written out in two crates is a name that can drift. They
 // are re-exported here because this module is where they *mean* something: the
 // seam fixes the shape, and everything below decides the behaviour.
-pub use nvs_runtime::host::{Completion, Entry, Failure, Output, Running};
+pub use nvs_runtime::host::{Completion, Failure, Output, Running};
 
 /// One isolate: a program, the argument crossing into it, and where its output
 /// goes.
@@ -108,7 +108,7 @@ pub struct Isolate {
     args: Value,
     output: Output,
     charge: Charge,
-    entry: Entry,
+    entry: Form,
     /// Boxed, and not for the size of this struct alone: [`Ctx::set_inbound`]
     /// boxes a carrier anyway, so allocating it here hands the same allocation
     /// on rather than moving a wide struct twice. What it also buys is
@@ -126,6 +126,26 @@ pub struct Isolate {
     /// CPU ceiling — [`Isolate::watched_by`], and `None` for every isolate
     /// nobody handed a registration to.
     watch: Option<Rc<Registration>>,
+}
+
+/// Which of [ADR 0006](/docs/decisions/0006.md)
+/// § *Decision*'s two entry forms built the program this isolate holds.
+///
+/// It changes exactly one thing, which is why it is a tag here rather than the
+/// name the seam carried: which constructor builds the child's context. A path
+/// entry has a unit of its own, whose `install_in` arms the child's statics
+/// from inside the program; a method entry has none — its code is the parent's
+/// unit's — so its context is armed at construction, which is
+/// [`Ctx::method_isolate`]. The name itself is
+/// [`nvs_runtime::host::Entry`]'s, and it has already become a [`Program`] by
+/// the time an isolate exists.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Form {
+    /// A `.nvs` file of its own, which is every isolate but the one below.
+    Path,
+    /// A `static` method of the parent's unit —
+    /// [`Isolate::running_a_method_of_the_parents_unit`].
+    Method,
 }
 
 /// Whose budget an isolate spends: `rule:security/isolate-shares-nothing`'s answer, and `rule:errors/handler-script`'s one
@@ -165,7 +185,7 @@ impl Isolate {
             args,
             output,
             charge: Charge::Tree,
-            entry: Entry::Path,
+            entry: Form::Path,
             inbound: None,
             peer: None,
             event_stream: None,
@@ -202,7 +222,7 @@ impl Isolate {
     }
 
     /// Says the program is a `static` method of the *parent's* unit rather than
-    /// a file of its own — [`Entry`], and ADR 0006 § *Decision*'s second form.
+    /// a file of its own — [`Form`], and ADR 0006 § *Decision*'s second form.
     ///
     /// A builder rather than a parameter of [`Isolate::new`] for [`Charge`]'s
     /// reason inverted: every other caller of this type is a path, so the one
@@ -212,7 +232,7 @@ impl Isolate {
     /// that difference is.
     #[must_use]
     pub fn running_a_method_of_the_parents_unit(mut self) -> Self {
-        self.entry = Entry::Method;
+        self.entry = Form::Method;
         self
     }
 
@@ -524,8 +544,8 @@ impl Isolate {
         // question about the budget rather than about the entry, and § 3's
         // handler is a path by construction (`crate::ladder` compiles one).
         let mut isolate_ctx = match (charge, entry) {
-            (Charge::Tree, Entry::Path) => ctx.isolate(sink),
-            (Charge::Tree, Entry::Method) => ctx.method_isolate(sink),
+            (Charge::Tree, Form::Path) => ctx.isolate(sink),
+            (Charge::Tree, Form::Method) => ctx.method_isolate(sink),
             (Charge::EngineReserve, _) => ctx.handler_isolate(sink),
         };
         // The request this child answers, on the context that will run it and

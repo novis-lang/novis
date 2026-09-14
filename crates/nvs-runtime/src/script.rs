@@ -33,7 +33,7 @@
 //! seam fixes is only the shape both ends agree on, and the argument's
 //! ownership, which [`Program`]'s own doc states in full.
 //!
-//! # Why `rule:security/isolate-shares-nothing`'s *other* entry form never reaches this seam
+//! # Why `rule:security/isolate-shares-nothing`'s *other* entry form asks no resolver
 //!
 //! [ADR 0006](/docs/decisions/0006.md) § *Decision* gives
 //! `spawn script` two operands: a path, and a `Class::method(...)` reference.
@@ -61,7 +61,14 @@
 //!   call, and its doc owns why the slots are re-materialized rather than
 //!   aliased.
 //!
-//! So a `Resolver` keyed by path stays keyed by path, and gains no notion of a
+//! So the method form's program is built right here by [`method_program`],
+//! out of the class-and-method label and the parameter names the spawn site
+//! wrote, and it asks nothing of a `Resolver`. Both forms are prepared in this
+//! module because both are prepared by whichever core is about to *run* the
+//! child — `rule:concurrency/on-worker-runs-the-child-on-another-core` is why
+//! that is the core rather than the parent's.
+//!
+//! A `Resolver` keyed by path stays keyed by path, and gains no notion of a
 //! *running* unit — which it could not hold anyway, being per program where a
 //! unit is per spawn. The alternative considered was widening this trait with a
 //! second operation answering "the unit this thread is running"; it was refused
@@ -94,6 +101,7 @@ use nvs_config::capability::{Cap, Scope};
 
 use crate::ctx::Ctx;
 use crate::value::Value;
+use crate::{Fault, NvsArray, call_static_bound};
 
 /// An isolate's code, prepared by whoever could compile it.
 ///
@@ -290,6 +298,107 @@ pub fn resolve(ctx: &Ctx, path: &str) -> Result<Program, ResolveError> {
     resolver.resolve(path).map_err(ResolveError::Refused)
 }
 
+/// The program a `Class::method` entry runs, built from what the spawn site
+/// wrote and nothing else.
+///
+/// The counterpart to [`resolve`] for [ADR 0006](/docs/decisions/0006.md)'s
+/// second form, and it asks no resolver for the reason the module doc gives:
+/// the method is code the parent's unit already holds, reached through
+/// [`crate::call_static_bound`] on the child's own context. What that context
+/// carries — the class table and the static-property recipes — is
+/// [`Ctx::method_isolate`]'s, arranged before this ever runs.
+///
+/// `label` is `"{class}::{method}"`, the label `nvs-codegen` emitted the method
+/// under. `names` is the entry's parameter names in declaration order, which is
+/// what [`bound_arguments`] reads the `args:` map by; the spawn site has
+/// already judged that the map names exactly those parameters.
+///
+/// It is built **here** rather than at the spawn site so that the seam carries
+/// the two names rather than a closure: a [`Program`] is the parent's to run
+/// and means nothing on another core, and
+/// `rule:concurrency/on-worker-runs-the-child-on-another-core` needs the core
+/// that starts a child to be the one that prepares it.
+#[must_use]
+pub fn method_program(label: String, names: Vec<String>) -> Program {
+    Box::new(move |child, argument| {
+        // Ownership discharged into the isolate's own root, exactly as a path
+        // entry's program does it — [`Program`]'s own doc owns why this and not
+        // a release. It happens **before** the binding below, which is what
+        // makes every value that binding reads live for the length of the call:
+        // the root owns the map, and the map owns them.
+        child.set_isolate_argument(argument);
+        let mut bound = bound_arguments(&names, child.isolate_argument());
+        match call_static_bound(child, &label, &mut bound) {
+            Ok(Some(value)) => value,
+            // The class table crossed with the context, so a miss here is the
+            // child's unit disagreeing with what `nvs_types` resolved. A
+            // failure value rather than a panic, because a child may not end
+            // its parent.
+            Ok(None) => {
+                child.set_pending(format!(
+                    "`spawn script {label}`: this program declares no such static method"
+                ));
+                Value::null()
+            }
+            // The judgement `call_static_bound` makes on this frame's behalf —
+            // an argument whose tag the parameter does not admit,
+            // `rule:security/isolate-shares-nothing`'s "typed at the boundary".
+            // There is no frame above it inside the child, so it is recorded as
+            // the isolate's pending throw and reaches the parent as ADR 0006
+            // § *Failure is a value*'s `ok = false` rather than as a status
+            // nothing wrote.
+            Err(Fault::Thrown(class, message)) => {
+                child.set_pending_as(class, message);
+                Value::null()
+            }
+            // `call_static_bound`'s remaining `Err` is `Fault::Pending`, whose
+            // status is the whole of what the frame said: a throw is already on
+            // this context, where `nvs_host::Isolate`'s `finish` reads it from,
+            // and an `EXITED` leaves nothing there. Both are recorded the same
+            // way, because a `Program` answers a `Value` and no status —
+            // [`Ctx::set_ending`].
+            Err(Fault::Pending(status)) => {
+                child.set_ending(status);
+                Value::null()
+            }
+            Err(_) => Value::null(),
+        }
+    })
+}
+
+/// The `args:` map's entries in the entry's own parameter order — ADR 0006
+/// § *Decision*'s binding, which is a positional list by the time a compiled
+/// callee sees it.
+///
+/// Every value is **borrowed** out of the map, which the isolate's ownership
+/// root holds for the length of the call; [`crate::call_static_bound`] retains
+/// each argument on the way in exactly as every compiled call site does, so
+/// nothing here owns anything.
+///
+/// A name with no entry cannot arrive — the spawn site refuses a map that does
+/// not name the entry's parameters — and reads as `null`, which the parameter's
+/// own tag then refuses rather than a slot nobody filled.
+#[must_use]
+pub fn bound_arguments(names: &[String], map: Value) -> Vec<Value> {
+    let Some(ptr) = map.array_ptr() else {
+        return Vec::new();
+    };
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Array value owns a reference to a live allocation, so \
+                  it is live for the length of this call, and the handle is \
+                  never dropped"
+    )]
+    // SAFETY: `array_ptr` answered, so the value is an array and its header is
+    // live; `ManuallyDrop` rather than retaining keeps the borrow free of
+    // refcount traffic, and nothing here drops the handle.
+    let map = std::mem::ManuallyDrop::new(unsafe { NvsArray::from_raw(ptr) });
+    names
+        .iter()
+        .map(|name| map.get(name.as_bytes()).unwrap_or_else(Value::null))
+        .collect()
+}
+
 /// Whether this thread has a resolver, without calling it.
 #[must_use]
 pub fn is_installed() -> bool {
@@ -302,6 +411,7 @@ mod tests {
         Installed, Program, ResolveError, Resolver, install, is_installed, resolve, scoped,
     };
     use crate::ctx::{Ctx, OutputSink};
+    use crate::host::Entry;
     use crate::value::Value;
 
     /// A resolver that hands back a program answering with the length of the
@@ -401,6 +511,48 @@ mod tests {
         assert_eq!(answer.as_int(), Some(7));
         drop(installed);
         assert!(!is_installed());
+    }
+
+    #[test]
+    fn a_named_entry_is_send_and_becomes_a_program_where_the_child_will_run() {
+        // The property the seam exists for: what a spawn names crosses to
+        // another core, and what it becomes does not. `Entry` is two strings
+        // and a list of them, so this compiles; the day one of its arms carries
+        // a `Program` again it stops compiling, which is the point.
+        const fn crosses_a_thread<T: Send>() {}
+        crosses_a_thread::<Entry>();
+
+        let installed = install_fixed();
+        let mut ctx = granting();
+        let entry = Entry::Path("abc.nvs".to_owned());
+        assert!(!entry.is_method());
+        let program = entry
+            .program(&ctx)
+            .expect("the path form asks this thread's resolver");
+        assert_eq!(program(&mut ctx, Value::null()).as_int(), Some(7));
+        drop(installed);
+    }
+
+    #[test]
+    fn a_method_entry_becomes_a_program_with_no_resolver_installed() {
+        // `rule:security/isolate-shares-nothing`'s second form is code the
+        // parent's unit already holds, so the core that starts such a child
+        // needs no compiler on it — which is why the entry carries the label
+        // and the parameter names rather than a closure over either.
+        assert!(!is_installed());
+        let entry = Entry::Method {
+            label: "Chat::run".to_owned(),
+            names: vec!["room".to_owned()],
+        };
+        assert!(entry.is_method());
+        // The program is not *run* here: calling it would want a class table
+        // and a unit, which is `nvs_host::Isolate`'s to arrange and not this
+        // seam's. What is asserted is that nothing refused it.
+        assert!(
+            entry
+                .program(&Ctx::new(OutputSink::Buffer(Vec::new())))
+                .is_ok()
+        );
     }
 
     #[test]

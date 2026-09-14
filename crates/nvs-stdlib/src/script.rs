@@ -103,7 +103,7 @@
 //! second crossing, and no copy per call, however often the child asks.
 
 use nvs_config::capability::{Cap, Scope};
-use nvs_runtime::host::{Completion, Entry, Output, Placement};
+use nvs_runtime::host::{Completion, Entry, Output, Placement, StartError};
 use nvs_runtime::script::ResolveError;
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
@@ -658,25 +658,21 @@ nvs_runtime::nvs_helper! {
         })?;
         let output = output_of(&args[2])?;
         let placement = placement_of(&args[3])?;
-        let program = nvs_runtime::script::resolve(ctx, path).map_err(|error| match error {
-            // An embedder that installed none. Not the program's mistake, and
-            // not something a `catch` should be able to paper over.
-            ResolveError::NoResolver => Fault::fatal(format!(
-                "`spawn script '{path}'` needs a script resolver on this thread and there is none"
-            )),
-            ResolveError::Refused(message) => {
-                Fault::thrown_as(ThrownClass::Runtime, format!("`spawn script '{path}'`: {message}"))
-            }
-            // Already a whole sentence naming the capability and the path —
-            // `rule:security/denial-is-a-runtime-error` — so it is thrown as written rather than wrapped in
-            // this member's own framing, which would say `spawn script` twice.
-            ResolveError::Denied(message) => Fault::thrown_as(ThrownClass::Runtime, message),
-        })?;
         // The argument is handed over here: one reference goes to the isolate
         // and the lowering emitted no release for it.
         let crossing = args[1];
+        // The **path**, not a program: `nvs_runtime::host::Entry`'s doc owns why
+        // the name crosses the seam and the closure cannot, and the resolve —
+        // with `rule:security/capability-check-at-the-door`'s `script.spawn`
+        // door inside it — happens on the core that is going to run the child.
         let started = nvs_runtime::host::with_current(|host| {
-            host.start_isolate(ctx, program, crossing, output, Entry::Path, placement)
+            host.start_isolate(
+                ctx,
+                Entry::Path(path.to_owned()),
+                crossing,
+                output,
+                placement,
+            )
         });
         let running = match started {
             // A spawn past `[limits] max_script_depth` is refused by
@@ -691,7 +687,26 @@ nvs_runtime::nvs_helper! {
                 return Err(Fault::Pending(nvs_runtime::FATAL));
             }
             Some(Ok(running)) => running,
-            Some(Err(error)) => {
+            // An embedder that installed no resolver. Not the program's
+            // mistake, and not something a `catch` should be able to paper over.
+            Some(Err(StartError::Entry(ResolveError::NoResolver))) => {
+                return Err(Fault::fatal(format!(
+                    "`spawn script '{path}'` needs a script resolver on this thread and there is none"
+                )));
+            }
+            Some(Err(StartError::Entry(ResolveError::Refused(message)))) => {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Runtime,
+                    format!("`spawn script '{path}'`: {message}"),
+                ));
+            }
+            // Already a whole sentence naming the capability and the path —
+            // `rule:security/denial-is-a-runtime-error` — so it is thrown as written rather than wrapped in
+            // this member's own framing, which would say `spawn script` twice.
+            Some(Err(StartError::Entry(ResolveError::Denied(message)))) => {
+                return Err(Fault::thrown_as(ThrownClass::Runtime, message));
+            }
+            Some(Err(StartError::Argument(error))) => {
                 return Err(Fault::thrown_as(
                     ThrownClass::Logic,
                     format!("`spawn script '{path}'`: {error}"),
@@ -761,29 +776,6 @@ pub(crate) fn entry_names_agree(site: &str, names: &[String], map: Value) -> Res
     Ok(())
 }
 
-/// The `args:` map's entries in the entry's own parameter order — ADR 0006
-/// § *Decision*'s binding, which is a positional list by the time a compiled
-/// callee sees it.
-///
-/// Every value is **borrowed** out of the map, which the isolate's ownership
-/// root holds for the length of the call;
-/// [`nvs_runtime::call_static_bound`] retains each argument on the way in
-/// exactly as every compiled call site does, so nothing here owns anything.
-///
-/// A name with no entry cannot arrive — [`entry_names_agree`] refused the spawn
-/// at the parent — and reads as `null`, which the parameter's own tag then
-/// refuses rather than a slot nobody filled.
-pub(crate) fn bound_arguments(names: &[String], map: Value) -> Vec<Value> {
-    let Some(ptr) = map.array_ptr() else {
-        return Vec::new();
-    };
-    let map = crate::arr::borrowed(ptr);
-    names
-        .iter()
-        .map(|name| map.get(name.as_bytes()).unwrap_or_else(Value::null))
-        .collect()
-}
-
 nvs_runtime::nvs_helper! {
     /// `spawn script Class::method with(output: …)` — ADR 0006 § *Decision*'s
     /// **method entry**, started as a fresh isolate over the unit this context
@@ -802,9 +794,11 @@ nvs_runtime::nvs_helper! {
     ///
     /// The child's statics are armed by `Ctx::method_isolate` at construction
     /// rather than by the program's own prologue — there is no second unit to
-    /// run an `install_in` from — so the closure below does what a compiled
-    /// unit's entry does *after* that: take the argument into the isolate's
-    /// ownership root, and call.
+    /// run an `install_in` from — so what runs is only what a compiled unit's
+    /// entry does *after* that: take the argument into the isolate's ownership
+    /// root, and call. That is `nvs_runtime::script::method_program`, built out
+    /// of the two names this frame hands the seam rather than here, because the
+    /// core that runs a child is the core that prepares it.
     ///
     /// **Argument 4 is the entry's parameter names**, comma-separated in
     /// declaration order and empty for an entry that declares none — another
@@ -857,8 +851,9 @@ nvs_runtime::nvs_helper! {
         // the spawn's own ownership rule rather than an omission: a
         // `TemporaryKind::Transferred` value is still on the lowering's
         // temporaries stack when `emit_fallible` builds this call's fault edge
-        // (`nvs_ir::lower`'s `forget_transferred_since`), so the frame releases
-        // it on every edge this helper returns `Err` through.
+        // (`nvs_ir::lower`'s `lower_spawn_script` is the one `CoreCall` site
+        // that does not forget it first), so the frame releases it on every edge
+        // this helper returns `Err` through.
         if let Err(message) = entry_names_agree(&format!("spawn script {label}"), &names, args[1]) {
             return Err(Fault::thrown_as(ThrownClass::Logic, message));
         }
@@ -866,55 +861,20 @@ nvs_runtime::nvs_helper! {
         // `resolve`, which is the effect there; here the effect is the call
         // below and there is no intermediate to hang it on.
         nvs_runtime::capability::require(ctx, Cap::ScriptSpawn, Scope::Unscoped, "`spawn script`")?;
-        let target = label.clone();
-        let program: nvs_runtime::script::Program = Box::new(move |child, argument| {
-            // Ownership discharged into the isolate's own root, exactly as a
-            // path entry's program does it — the seam's type doc owns why this
-            // and not a release. It happens **before** the binding below, which
-            // is what makes every value that binding reads live for the length
-            // of the call: the root owns the map, and the map owns them.
-            child.set_isolate_argument(argument);
-            let mut bound = bound_arguments(&names, child.isolate_argument());
-            match nvs_runtime::call_static_bound(child, &target, &mut bound) {
-                Ok(Some(value)) => value,
-                // The class table crossed with the context, so a miss here is
-                // the child's unit disagreeing with what `nvs_types` resolved.
-                // A failure value rather than a panic, because a child may not
-                // end its parent.
-                Ok(None) => {
-                    child.set_pending(format!(
-                        "`spawn script {target}`: this program declares no such static method"
-                    ));
-                    Value::null()
-                }
-                // The judgement `call_static_bound` makes on this frame's
-                // behalf — an argument whose tag the parameter does not admit,
-                // `rule:security/isolate-shares-nothing`'s "typed at the boundary". There is no frame above
-                // it inside the child, so it is recorded as the isolate's
-                // pending throw and reaches the parent as § *Failure is a
-                // value*'s `ok = false` rather than as a status nothing wrote.
-                Err(Fault::Thrown(class, message)) => {
-                    child.set_pending_as(class, message);
-                    Value::null()
-                }
-                // `call_static_bound`'s remaining `Err` is `Fault::Pending`,
-                // whose status is the whole of what the frame said: a throw is
-                // already on this context, where `nvs_host::Isolate`'s `finish`
-                // reads it from, and an `EXITED` leaves nothing there. Both are
-                // recorded the same way, because a `Program` answers a `Value`
-                // and no status — `Ctx::set_ending`.
-                Err(Fault::Pending(status)) => {
-                    child.set_ending(status);
-                    Value::null()
-                }
-                Err(_) => Value::null(),
-            }
-        });
+        // The two **names** and not a program: the label
+        // `nvs_runtime::call_static_bound` looks the method up by, and the
+        // parameters its `args:` map binds by. `nvs_runtime::script`'s
+        // `method_program` is the code they become, built on the core that runs
+        // the child — the seam's `Entry` owns why that is where it happens.
+        let entry = Entry::Method {
+            label: label.clone(),
+            names,
+        };
         // Handed over here: one reference goes to the isolate and the lowering
         // emitted no release for it.
         let crossing = args[1];
         let started = nvs_runtime::host::with_current(|host| {
-            host.start_isolate(ctx, program, crossing, output, Entry::Method, placement)
+            host.start_isolate(ctx, entry, crossing, output, placement)
         });
         let running = match started {
             // Every arm is `nvs_core_script_spawn`'s, for its reasons — the
@@ -925,7 +885,13 @@ nvs_runtime::nvs_helper! {
                 return Err(Fault::Pending(nvs_runtime::FATAL));
             }
             Some(Ok(running)) => running,
-            Some(Err(error)) => {
+            // Unreachable from source: a method entry names code the parent's
+            // own unit already holds, so `Entry::program` asks no resolver and
+            // has nothing to refuse — `nvs_runtime::script`'s module doc.
+            Some(Err(StartError::Entry(error))) => {
+                return Err(Fault::fatal(format!("`spawn script {label}`: {error}")));
+            }
+            Some(Err(StartError::Argument(error))) => {
                 return Err(Fault::thrown_as(
                     ThrownClass::Logic,
                     format!("`spawn script {label}`: {error}"),
