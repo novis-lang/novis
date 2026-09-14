@@ -2,40 +2,44 @@
 
 ## State
 
-**Goal `gap-register` is met — every stage's checks pass.** Stage 5 landed this session: `python
-tools/plan.py --past` prints one line per pre-M9 milestone and ends `4 of 11 past milestone(s)
-complete`, `--sync` writes `done` into a complete one's `Carried by` cell, and `--check` refuses that
-cell anywhere else.
+**Goal `m4-refusals` — every shape the checker admits lowers, or a diagnostic naming its rule refuses it — has just started; nothing of it has landed yet.** Goal `gap-register`'s whole list is this goal's Stage 1 floor.
 
-- Completeness has one home, `tools/plan.py:@past_state` — every goal carrying the milestone has
-  walked, and no register still tags an item to it. `--past`, `--sync` and `--check` all read it, so
-  the report, the cell and the gate cannot disagree.
-- `python tools/owners.py --json` now carries each register's owner tally and `first_future_milestone`,
-  so the count is taken across all six registers rather than the module docs alone: M7's four are three
-  `# Known gaps` items and one `carried-gaps.md` § *Owned* row.
-- M4S's cell is `done` — `core-depth` walked and nothing tags M4S. `docs/implementation-plan.md:73` is
-  where the column's vocabulary says so.
-- The floor's `the five-driver matrix`, red at the last acceptance sweep, was a cold-boot wait and not a
-  regression: `python tools/db-matrix.py --all` answers `5/5 drivers ok` on this tree.
-
-Nothing is blocked. Run `cargo test` with nothing else loading the machine — `nvs-cli`'s
-`a_revalidation_that_wins_publishes_and_readers_never_block_on_a_compile` asserts a timing bound and
-failed once here beside four booting database containers, green on its own.
+**Settled before the first session; do not re-decide these.**
+- `python tools/holes.py --item 901` lists sixteen sites and `CEILING` is `16`.
+- A site closes in one of two ways. It lowers. Or it becomes `guarded_by!(code, …)`, naming a diagnostic
+  that a conformance case expects.
+- Rewording a panic past `REFUSAL` is not a close.
+- `ALLOWLIST` stays empty.
+- No new decision record: every design is already a rule (§ *Standing decisions*).
+- M4's ADR fixtures and its valgrind item are met, so no stage is owed for them.
 
 ## Next group
 
-**The goal is met, so the next group is the next chain entry's** — goal `unowned-closures`, whose own
-opening handoff is already on disk and replaces this file at the switch. Nothing in `gap-register` is
-open; the one item below is the re-read that switch wants, not a slice of this goal.
+**Stage 2: the keystone** — one file set: `crates/nvs-ir/src/lower/mod.rs`, `tools/holes.py`,
+`crates/nvs-ir/tests/refusals.rs`, `crates/nvs-ir/src/lib.rs`.
 
-- [ ] **Take goal `unowned-closures`'s opening group from its own handoff** — the 48 `unowned` items
-      `python tools/owners.py --unowned` lists, each answered from the user's decision sheet:
-      `docs/agent/goals/60-unowned-closures.handoff.md:13`, against `docs/agent/carried-gaps.md:59`.
+- [ ] **`guarded_by!`** — `crates/nvs-ir/src/lower/mod.rs`. It takes an `nvs_diagnostics::code`
+      constant and a message, and panics with the code at the head of the message. Rewrite
+      `crates/nvs-ir/src/lib.rs:187`'s preamble whole, so it says which of the two spellings means what.
+- [ ] **`holes.py --guarded`** — `tools/holes.py:166` (`sites`) is the shape to follow. It lists by
+      file, then line, and each line carries the site's code and the first
+      `tests/conformance/**/*.nvst` expecting `error[<code>]`, or `NO CASE`. `CONSTRUCT`'s comment
+      (`:66-77`) says the source now declares its kind.
+- [ ] **`every_guarded_site_names_a_code_a_conformance_case_expects`** — `crates/nvs-ir/tests/refusals.rs`,
+      following `every_refusal_is_a_diagnostic_or_decided` (`:156`). It fails on any `NO CASE` line
+      and names the site.
 
 ## Backlog
 
-- The 21 items tagged to a milestone behind the program — `python tools/owners.py --check
-  --past-is-an-error` names them; each closure goal's acceptance list owns the judgement half.
-- `unowned` retires as an owner kind in goal `gap-zero`, which also deletes `carried-gaps.md`.
-- `docs/agent/carried-gaps.md` § *Unowned* carries a reason per unowned module — goal
-  `unowned-closures` is what empties it.
+- Stage 3 — the seven guarded sites, `call.rs:1170`, `control.rs:974`/`:985`, `expr.rs:5229`,
+  `mod.rs:2615`, `stmt.rs:263`/`:1483`. Each is a one-site edit, cheap once stage 2 is loaded. Probe
+  the `foreach` subject first.
+- Stage 4 — `$f(...)`, `call.rs:789`. A session of its own, or with stage 3's `call.rs` site.
+- Stage 5 — tagged `throw` and `clone`, `exception.rs:28`, `expr.rs:5289`, and the runtime's throw path
+  for a non-object receiver.
+- Stage 6 — the labels and the condition, `control.rs:741`, `expr.rs:1927`, `convert.rs:608`.
+- Stage 7 — `is` for every row, `expr.rs:5004` and `test_shape`. The largest stage.
+- Stage 8 — declared types, `mod.rs:3069`, `:3288`, `:3473`.
+- Stage 9 — `CEILING` to `0`, gaps 1 and 6 of `lib.rs`, and the retirement of entry 901. `CEILING`
+  falls in every slice before this, so this stage is its doc comment and the retirement.
+- When this goal's last check goes green the driver takes goal `m5-proofs`.
