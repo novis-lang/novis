@@ -716,6 +716,31 @@ where taking it is the work and the code that follows it is not.
   expansion on in the Novis half of the file too — is the trade, or whether the client grows a
   second, real document the service can own. `editors/vscode/src/regions.ts` § *What forwarding does
   not reach*. [until: reviewed 2026-09-11]
+- **A child written as a path runs on its parent's core however it is placed**, so `spawn script
+  "child.nvs" with(on: "worker")` buys nothing and says nothing, which is the silent fall-through
+  `docs/decisions/0184.md` § *Diagnostics* rejects for the one failure it did foresee. The method
+  form crosses because a label is looked up in a class table every core reads, while a path becomes
+  code through a resolver only the booting thread was installed with. What has to be decided is who
+  owns the unit cache across cores — a resolver a worker core can reach is the fix, and refusing the
+  spawn instead would take a whole form away from `on: "worker"` to buy honesty.
+  `crates/nvs-host/src/placed.rs` § *Known gaps*, and `crates/nvs-host/src/group.rs`'s the same gap
+  seen from the seam above it. [until: reviewed 2026-09-14]
+- **A serving core offers itself as no destination**, so a worker placement under `nvs serve` starts
+  one of the lazily started worker cores rather than reaching the sibling serving core
+  `docs/decisions/0184.md` § 5 decides on — which is that record's *Revisiting* fallback, taken
+  without the measurement its trigger describes. `rule:concurrency/on-worker-runs-the-child-on-another-core` is written as what runs, so nothing
+  observable is wrong; what it costs is a thread per placed-to core on a process that already has one
+  per core. What has to be decided is whether a serving core registers an inbox as it starts, which
+  is a question about `nvs serve`'s boot order and not about the crossing.
+  `crates/nvs-host/src/worker.rs` § *Known gaps*. [until: reviewed 2026-09-14]
+- **The test suite makes and joins its isolates one at a time**, so a suite's wall time is the sum of
+  its cases where `docs/decisions/0079.md:158` promises an isolate per test *and* a parallel suite,
+  and that record's milestone table carries both to a milestone the program has passed
+  (`docs/decisions/0079.md:872`). Only the parallelism is open — every case already runs in an
+  isolate of its own — so what has to be decided is what bounds it: a runner that spawns the suite as
+  a task group buys `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s two bounds and owes a
+  decision about a case that reads the terminal. `crates/nvs-cli/src/runner.rs` gap 1.
+  [until: reviewed 2026-09-14]
 
 ## What is *not* on either list
 

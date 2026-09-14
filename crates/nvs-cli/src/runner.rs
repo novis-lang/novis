@@ -88,7 +88,7 @@
 //!    both to M5 (`docs/decisions/0079.md:872`). Only the second half is
 //!    open, and it is a scheduling question rather than an isolation one:
 //!    every test already runs in an isolate of its own.
-//!    — owner: m5-proofs
+//!    — owner: unowned
 //!
 //! # What a constructor, a fixture and class order do
 //!

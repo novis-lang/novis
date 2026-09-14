@@ -96,7 +96,7 @@
 //! else about the two placements is the same, so [`SchedulerHost::start_isolate`]
 //! asks [`crate::placed::destination_for`] and falls through to the body below on
 //! any answer but a core.
-//! — owner: m5-proofs
+//! — owner: unowned
 
 use std::cell::RefCell;
 use std::collections::VecDeque;

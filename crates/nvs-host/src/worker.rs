@@ -97,16 +97,19 @@
 //! # Known gaps
 //!
 //! A serving core does not register its own inbox here, so a placement under
-//! `nvs serve` reaches one of the lazily started cores below rather than a
-//! sibling serving core. That is the fallback ADR 0184 § 5 names, pre-authorized
-//! by the goal's standing decisions, and closing it is a serving core calling
-//! into this module as it starts rather than anything about the crossing.
+//! `nvs serve` reaches one of the lazily started cores below rather than the
+//! sibling serving core ADR 0184 § 5 decides on. That is the destination set the
+//! same record's *Revisiting* names as the fallback, taken here without the
+//! measurement that trigger describes and pre-authorized by the goal's standing
+//! decisions; `rule:concurrency/on-worker-runs-the-child-on-another-core` is
+//! written as what runs. Closing it is a serving core calling into this module
+//! as it starts rather than anything about the crossing.
 //!
 //! What reaches this from above is [`crate::placed`], and it reaches it for one
 //! of `spawn script`'s two entry forms: a method crosses, a path starts on the
 //! parent's core. That module's own `# Known gaps` is that gap's one home, and
 //! nothing about it is a question for the transport here.
-//! — owner: m5-proofs
+//! — owner: unowned
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
