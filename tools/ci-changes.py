@@ -49,6 +49,14 @@ LANES = {
     ),
     # Where `wasmtime` enters the tree, and so the only thing `extension-sandbox` can observe.
     "probe": ("benches/abi-probe/", ".github/workflows/"),
+    # The VS Code client, and every crate with it: the protocol suite spawns the real `nvs lsp` and
+    # the host suite points a throwaway profile at the binary the same run built
+    # (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`), so a change anywhere in
+    # the workspace can change what either of them answers. Gates `extension` and `extension-host`.
+    "editor": (
+        "editors/", "crates/", "Cargo.toml", "Cargo.lock",
+        ".github/workflows/",
+    ),
     # What `cargo deny` and the attribution diff read. Their answer cannot differ in a run that
     # changed none of these (ADR 0068 § Verification).
     "deps": (
