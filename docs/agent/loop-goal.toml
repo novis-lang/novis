@@ -128,6 +128,8 @@ modules = [
   # `rule:types/closure-literal`'s closure literals, lowered to an object of a synthesized class
   # with one field per capture.
   "crates/nvs-ir/src/lower/closure.rs",
+  # The natural ordering of two `Value`s — what "smaller" means when no comparator was given.
+  "crates/nvs-stdlib/src/ordering.rs",
 ]
 
 # Every stage works inside these two: a shape that lowers answers as PHP does, and nothing it adds is
