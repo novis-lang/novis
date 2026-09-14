@@ -20,7 +20,9 @@
 
 use std::sync::mpsc;
 
+use nvs_config::capability::Cap;
 use nvs_runtime::Ctx;
+use nvs_runtime::host::Narrowing;
 
 /// Big enough that no allocation the test harness happens to make on either
 /// thread can be mistaken for it, and small enough to hold twice over.
@@ -219,6 +221,80 @@ fn a_placed_seed_builds_a_member_of_its_tree_under_what_remained_of_its_budget()
     release.send(()).expect("the child is waiting");
     thread.join().expect("the child ends cleanly");
     drop(spent);
+}
+
+/// A context reading `written`, for the cases that need a `[limits]` ceiling to
+/// be a resolved number rather than a field somebody set.
+///
+/// Both halves of the snapshot, as `tests/configured_limits.rs` builds it: the
+/// typed tree and the table a directive is read out of are two readers over one
+/// file, and half of it is a shape the boot path cannot produce.
+fn ctx_reading(written: &str) -> Ctx {
+    let table: toml::Table = written.parse().expect("the case writes valid TOML");
+    let mut ctx = Ctx::buffered();
+    ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+        config: table
+            .clone()
+            .try_into()
+            .expect("the case writes a block this tree has"),
+        table,
+        ..nvs_config::Snapshot::default()
+    }));
+    ctx
+}
+
+/// A seed narrowed where the spawn is holds the child it builds on another
+/// thread to that narrowing — `rule:security/isolate-budget-is-the-trees`'s
+/// sub-cap and `rule:security/isolate-shares-nothing`'s grant list, on a core
+/// the parent is not reachable from.
+///
+/// One case for both because they are one word at the spawn site and two
+/// mechanisms underneath (`Ctx::narrow_under`): a crossing that carried the
+/// ceiling and dropped the grant list would look right from either half alone.
+/// The sub-cap is asserted against what the **unnarrowed** seed builds rather
+/// than against a byte count, because what a ceiling resolves to is the
+/// configuration's arithmetic and what this case is about is that the narrowing
+/// arrived at all.
+#[test]
+fn a_narrowed_seed_holds_its_child_to_the_sub_cap_and_the_grants_it_crossed_with() {
+    let root = ctx_reading("[limits]\nmemory = \"64M\"\n");
+    let held = Cap::parse("process.exec").expect("`nvs.toml` grants a capability under this name");
+    let dropped =
+        Cap::parse("net.connect").expect("`nvs.toml` grants a capability under this name");
+
+    let narrowed = root.placed_isolate().narrowed_by(Narrowing {
+        limits: vec![("memory".to_owned(), "1M".to_owned())],
+        grants: Some(vec!["process.exec".to_owned()]),
+    });
+    let wide = root.placed_isolate();
+
+    let (published, ready) = mpsc::channel();
+    std::thread::spawn(move || {
+        let child = narrowed.build(nvs_runtime::OutputSink::Sink);
+        published
+            .send((
+                child.memory_limit(),
+                child.grants_allow(held),
+                child.grants_allow(dropped),
+            ))
+            .expect("the case is still waiting");
+    })
+    .join()
+    .expect("the child's core ends cleanly");
+
+    let (cap, kept, gone) = ready
+        .recv()
+        .expect("the far thread published before it ended");
+    let uncapped = wide.build(nvs_runtime::OutputSink::Sink).memory_limit();
+    assert!(
+        cap <= 1 << 20 && cap < uncapped,
+        "a child narrowed to a megabyte was built under {cap} bytes, where one that crossed with no narrowing gets {uncapped}"
+    );
+    assert!(kept, "the child was refused the one name it crossed with");
+    assert!(
+        !gone,
+        "the child kept a grant the spawn site did not give it"
+    );
 }
 
 /// A tree with nothing left of its budget places a child under a ceiling it

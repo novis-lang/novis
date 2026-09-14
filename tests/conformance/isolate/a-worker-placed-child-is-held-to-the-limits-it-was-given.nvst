@@ -1,0 +1,52 @@
+--TEST--
+A child placed `on: "worker"` and given `limits:` is held to that sub-cap on the core it was placed on: the narrowing crosses with the child rather than keeping it home — `rule:security/isolate-budget-is-the-trees`, `rule:concurrency/on-worker-runs-the-child-on-another-core`
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a
+# door that asks for `script.spawn` first, and a case with no configuration
+# cannot spawn at all.
+[capabilities.script]
+spawn = true
+
+# The tree's own ceiling, wide enough that what stops the child below is the
+# sub-cap alone and not this number — `rule:security/isolate-budget-is-the-trees`.
+[limits]
+memory = "256M"
+--FILE--
+<?nvs
+// The method form is the one that crosses a core: its label is looked up in the
+// compiled unit's class table, which every core already holds, where a path
+// would need a resolver the far core was never installed with
+// (`crates/nvs-host/src/placed.rs`'s `# Known gaps`).
+final class Greedy
+{
+    // `uint` because that is what `Core\Arr::count` answers, and a declared
+    // `int` would be a narrowing conversion this language does not make silently.
+    public static function fill(int $rows): uint {
+        array<int> $held = [];
+        for (var $i = 0; $i < $rows; $i = $i + 1) {
+            $held[] = $i;
+        }
+        return Core\Arr::count($held);
+    }
+}
+
+// Well past the `limits:` this child was placed under and well inside the tree's
+// own. A limit breach is `rule:errors/on-limit`'s `FATAL`, which no `catch` in
+// the child would see — it arrives here as `ok = false` instead.
+var $capped = spawn script Greedy::fill(...)
+    with(args: ["rows" => 400000], limits: {memory: "1M"}, output: "capture", on: "worker");
+var $stopped = await $capped;
+echo "capped ok=", $stopped->ok ? "true" : "false", "\n";
+
+// The same entry and the same placement with nothing written beside it: the
+// negative control, without which the line above would read the same on a worker
+// core that could not run this at all.
+var $wide = spawn script Greedy::fill(...)
+    with(args: ["rows" => 400000], output: "capture", on: "worker");
+var $done = await $wide;
+echo "uncapped ok=", $done->ok ? "true" : "false", "\n";
+echo "uncapped held ", $done->value as string, "\n";
+--EXPECT--
+capped ok=false
+uncapped ok=true
+uncapped held 400000
