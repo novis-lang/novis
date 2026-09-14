@@ -88,40 +88,14 @@
 //!
 //! # Known gaps
 //!
-//! A child spawned `on: "worker"` starts on this core.
-//! [`SchedulerHost::start_isolate`] reads the placement and routes both words to
-//! the same start. The seam no longer stands in the way of the other route: an
-//! [`Entry`] is the child's program **named** — a path, or a class and a method
-//! — so it is `Send` and the far core resolves it for itself with
-//! [`Entry::program`], and the cores and the inbox to carry it to are built
-//! ([`crate::worker`] is
-//! `rule:concurrency/on-worker-runs-the-child-on-another-core`'s mechanism and
-//! owns what a placement costs).
-//!
-//! **The budget no longer stands in the way, and what it asks of the arm is
-//! named.** `rule:security/isolate-budget-is-the-trees` charges a child's memory
-//! and output to the root of its tree, and `nvs_runtime::budget` counts per
-//! **thread**: exact for every isolate that runs where its parent runs, and
-//! silent about one that does not. The tree's counters now cross beside the word
-//! every context in it is stopped through — `nvs_runtime::TreeState`, holding
-//! `nvs_runtime::budget::OffCore` — so a child started on another core joins its
-//! tree there through `Ctx::join_tree`, publishes its share at its own polls, and
-//! lands on the reading the root's ceiling is enforced against. What the arm owes
-//! is the rest of that sentence: the far core's `Ctx` is made with that handle
-//! and with a sub-cap taken from what remained of the tree's budget here, which
-//! is the bound that holds between one poll and the next.
-//!
-//! Behind that sit the argument and the entry, and neither is a question any
-//! more. The argument crosses as `nvs_runtime::graph::encode`'s bytes rather
-//! than as a [`Value`], which is ADR 0184 § 2's copy at every node, encoded on
-//! the worker arm rather than at the seam — a here-placement's crossing is one
-//! walk into the child's arena, and a byte round trip would be two plus a buffer
-//! on every spawn. Encoding *consumes* the value, so the arm secures its core
-//! first ([`crate::worker::destination`]) and encodes second, or it would hold
-//! neither a placement nor a value to start here instead. The far core still
-//! needs a resolver of its own for the path form — one is `!Sync`, because it
-//! holds the unit cache — and for the method form it needs the parent's class
-//! table, which is `Rc`-shared and does not cross.
+//! A child spawned `on: "worker"` reaches another core only when its entry is
+//! the **method** form; one naming a path starts here. [`crate::placed`] is that
+//! gap's one home and holds the reason — a path becomes code through a resolver
+//! only the thread `nvs-cli` booted on was installed with, while a method is code
+//! the compiled unit already holds and every core reads that unit. Everything
+//! else about the two placements is the same, so [`SchedulerHost::start_isolate`]
+//! asks [`crate::placed::destination_for`] and falls through to the body below on
+//! any answer but a core.
 //! — owner: m5-proofs
 
 use std::cell::RefCell;
@@ -232,6 +206,19 @@ impl Host for SchedulerHost {
         // group here and no `Bounds` — an isolate is one child, and what bounds
         // it is the tree's budget rather than a per-call limit (ADR 0006
         // § *Budgets are accounted at the root of the request tree*).
+        // The placement, asked before anything is built and before the argument
+        // is consumed: `crate::placed::destination_for` answers `None` for every
+        // reason a child cannot go to another core, and each of them is a
+        // fall-through to the body below rather than a failure. A depth breach is
+        // one of them — the refusal it produces is `Isolate::start`'s, written
+        // once, and a child that may not start does not need a core first.
+        if placement == Placement::Worker
+            && ctx.script_depth_breach().is_none()
+            && let Some(destination) = crate::placed::destination_for(ctx, &entry)
+        {
+            return crate::placed::start(destination, ctx, entry, args, output)
+                .map_err(StartError::Argument);
+        }
         let method = entry.is_method();
         // The name becomes code **here**, on the core that is about to run the
         // child, which is the whole of what the seam carrying a name rather
@@ -254,16 +241,13 @@ impl Host for SchedulerHost {
         } else {
             isolate
         };
-        match placement {
-            // One arm, and the module doc's `# Known gaps` is why: the cores,
-            // the inbox and the tree's counters are all built, and the arm that
-            // secures a core, encodes the argument and posts is what is not
-            // written yet. Starting a worker placement here keeps every promise
-            // the placement makes but one — the child is its parent's child,
-            // charged to its tree, dying with it — and loses only the core it
-            // asked for.
-            Placement::Here | Placement::Worker => isolate.start(ctx).map_err(StartError::Argument),
-        }
+        // `Placement::Here`, and every worker placement the arm above handed
+        // back: a child the far core could not have prepared is still a child,
+        // and running it here keeps every promise the placement makes but one —
+        // it is its parent's child, charged to its tree, dying with it — and
+        // loses only the core it asked for. `crate::placed`'s `# Known gaps` is
+        // which placements those are.
+        isolate.start(ctx).map_err(StartError::Argument)
     }
 }
 

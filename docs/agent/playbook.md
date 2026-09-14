@@ -2642,6 +2642,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   child.nvs` rather than the answer the probe was asking for. Write the extra files into `.agent-tmp/`
   with the Write tool and name them from the repository root inside the program (`.agent-tmp/child.nvs`),
   which is the directory `try.py` runs it from. [until: reviewed 2026-09-13]
+- **A red `nvs-suite` check reports the *suite's* aggregate, so a one-case failure reads as the case
+  the check names.** `[2 the deadlock]` came back `exit 1 -- 1897 passed, 1 failed` over
+  `tests/conformance/`, which says nothing about which of the 1898 failed, while the named case
+  passed 8 runs and the whole suite passed 3, one under a concurrent `cargo build --tests`. Re-run
+  `target/debug/nvs.exe test tests/conformance/` and read the failing case's own name before
+  believing the check's. [until: reviewed 2026-10-14]
 
 ## Writing a test case
 

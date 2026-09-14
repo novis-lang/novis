@@ -2,61 +2,68 @@
 
 ## State
 
-**Goal `m5-proofs` (M5). Stage 6: the tree's budget now crosses a core; the worker arm is what is
-left.**
+**Goal `m5-proofs` (M5). Stage 6: a worker placement crosses — for the method entry form.**
 
-`nvs_runtime::TreeState` (`crates/nvs-runtime/src/ctx/safepoint.rs:@TreeState`) is the allocation a
-request tree already made for its safepoint word, and it now carries `nvs_runtime::budget::OffCore`
-(`crates/nvs-runtime/src/budget.rs:@OffCore`) beside it: what the tree holds and has written on cores
-other than its root's. `Ctx::memory_used` (`crates/nvs-runtime/src/ctx/limits.rs:27`) and
-`Ctx::output_used` add that pair when the context asking is on the root's core and add nothing when it
-is not — a context off that core reads its own thread, which already holds every context beneath it
-there.
+`Placement::Worker` is a real arm now (`crates/nvs-host/src/group.rs:236`). It asks
+`nvs_host::placed::destination_for` and, on a core, encodes the argument, builds the seed and posts;
+on any other answer it falls through to the same-core body, which keeps every promise the placement
+makes but the core. `crates/nvs-host/src/placed.rs` is the crossing's one home: what crosses is the
+`Entry`'s two names, `nvs_runtime::graph::encode`'s bytes, `nvs_runtime::PlacedIsolate` and the
+answer slot, and `Crossed` is the `Send` completion the far core answers with, decoded into the
+parent's arena at the join against the parent's own class table.
 
-A far-core member is made by `Ctx::join_tree` (`crates/nvs-runtime/src/ctx/safepoint.rs:82`), which
-joins the word and the counters in one call, and publishes its own share at its polls —
-`Ctx::publish_off_core` (`crates/nvs-runtime/src/ctx/limits.rs:62`), called from `Ctx::memory_breach`,
-the question `run_helper` asks ahead of every `Core` member. Its memory comes off the tree whole when
-its context drops; its writing stays. **The cadence is the poll, not the allocation**: nothing
-enforced rests on that freshness, because what bounds such a child is the sub-cap it is handed where
-it is placed.
+`nvs_runtime::PlacedIsolate` (`crates/nvs-runtime/src/ctx/isolate.rs:@PlacedIsolate`) is
+`Ctx::isolate`'s copy list with the thread boundary in the middle: `Ctx::placed_isolate` reads the
+parent and computes the sub-cap from what remained of the tree's budget there, `PlacedIsolate::build`
+writes the child, joins the tree and arms that cap — in that order, because arming reads the
+safepoint address. A spent tree hands a cap of `1` and never `0`, `0` being the sentinel for no
+ceiling at all. Four cases in `crates/nvs-runtime/tests/tree_budget.rs`, three in `placed.rs`.
 
-**The shape the last handoff proposed was not takeable.** A lazily-created pair held by whichever
-`Ctx` placed the child is invisible to that context's own ancestors, and the ceiling that stops a tree
-is the root's — a root has no registry of live descendants to correct afterwards, which is the same
-argument that put the safepoint word in one allocation per tree. So the pair is the tree's, and a tree
-that places nothing pays two words nothing writes plus one relaxed load per reading.
-`crates/nvs-runtime/src/budget.rs` § *the part a thread cannot hold* is that argument's one home.
+**Only the method form is placed.** A path becomes code through
+`nvs_runtime::script::resolve`, which reads a resolver a *thread* was installed with, and only the
+thread `nvs-cli` booted on has one (`crates/nvs-cli/src/main.rs:2157`) — so a path that crossed would
+answer `NoResolver`, a failure value where the program asked for a core. `placed.rs`'s `# Known gaps`
+is that gap's one home; `group.rs` and `worker.rs` point at it. The method form needs no resolver:
+its label is looked up in the `Arc<ClassTable>` the seed carries, which is `Send + Sync` because a
+compiled unit is read by every core.
 
-Both placement words still start the child here (`crates/nvs-host/src/group.rs:265`). That gap's
-reason is now the unwritten arm rather than the budget, in both module docs.
+The driver's red check `[2 the deadlock]` did not reproduce — see the new playbook bullet.
 
 ## Next group
 
-**Stage 6: the worker arm, now that the budget crosses** — one file set: `crates/nvs-host/src/group.rs`,
-`crates/nvs-host/src/worker.rs`, `crates/nvs-host/src/isolate.rs`.
+**Stage 6: the `.nvst` cases, now that a method entry crosses** — one file set:
+`tests/conformance/isolate/`, `crates/nvs-host/src/placed.rs`.
 
-- [ ] **The `Placement::Worker` arm secures a core, encodes the argument and posts** — the one arm is
-      `crates/nvs-host/src/group.rs:265`; `crates/nvs-host/src/worker.rs:747`'s `destination()`
-      secures a core before the work exists and `crates/nvs-host/src/worker.rs:277`'s `post` cannot
-      fail. The far core's `Ctx` takes `Ctx::join_tree` with the handle `Ctx::tree_handle` hands over,
-      plus a sub-cap set from what remains of the tree's budget here.
-      `rule:concurrency/on-worker-runs-the-child-on-another-core` and ADR 0184 § 3 are what it has to
-      satisfy.
-- [ ] **The far core answers a `Send` completion, decoded into the parent's arena at the join** — the
-      answer is copied at every node (ADR 0184 § 2), so it crosses as `nvs_runtime::graph::encode`'s
-      bytes (`crates/nvs-runtime/src/graph.rs:719`) and is decoded where the parent parked; the slot
-      and wake are `crates/nvs-host/src/blocking.rs:14`'s shape, turned around.
-- [ ] **The stage's three `.nvst` cases** — `tests/conformance/isolate/` , named by the check at
-      `docs/agent/loop-goal.toml:9881`: a worker child answers as a local one does, a child given
-      grants holds only those, a child given limits stops at its own ceiling. The last one is what
-      reads the counters above end to end, through `crates/nvs-host/src/group.rs:265`.
+- [ ] **A child on a worker core answers as one on this core does** —
+      `tests/conformance/isolate/a-child-on-a-worker-core-answers-as-one-on-this-core-does.nvst`,
+      the case the stage's `nvs-suite` check names. Spawn the **method** form with `on: "worker"`
+      and the same one with `on: "here"`, and assert the two answers agree, which is the agreement
+      shape `conventions.md` § *A `.nvst` test case* names. The arm it exercises is
+      `crates/nvs-host/src/group.rs:236` and `crates/nvs-host/src/placed.rs:113`.
+      `rule:concurrency/on-worker-runs-the-child-on-another-core` is what it pins.
+- [ ] **A child given limits is stopped at its own ceiling** —
+      `tests/conformance/isolate/a-child-given-limits-is-stopped-at-its-own-ceiling.nvst`. The
+      sub-cap the placement hands the child is `crates/nvs-runtime/src/ctx/isolate.rs:702`, armed at
+      `crates/nvs-runtime/src/ctx/isolate.rs:619`'s `build`, and
+      `rule:security/isolate-budget-is-the-trees` is the rule: tighter than what remains, never
+      wider.
+- [ ] **A child given grants holds only those and cannot widen them** —
+      `tests/conformance/isolate/a-child-given-grants-holds-only-those-and-cannot-widen-them.nvst`.
+      The overlay crosses inside the seed (`crates/nvs-runtime/src/ctx/isolate.rs:622`), so the far
+      core asks the same grant question the parent would have, through
+      `crates/nvs-host/src/placed.rs:84`.
+      `rule:concurrency/an-upgrades-options-are-spawn-scripts` names the four options.
 
 ## Backlog
 
-- `Ctx::memory_peak` is the reading core's mark alone; a tree's peak across cores is not recorded —
-  `crates/nvs-runtime/src/ctx/limits.rs:41`.
-- A serving core registers no inbox of its own, so a placement under `nvs serve` reaches a lazily
-  started core rather than a sibling — `crates/nvs-host/src/worker.rs:99`, ADR 0184 § 5's fallback.
-- `Core\Server::isDraining`'s sentence for `rule:security/request-state-throws-in-an-isolate` — the
-  goal's standing decisions, not yet written.
+- A **path** entry on a worker core needs a resolver that thread can reach; the unit cache behind
+  `nvs-cli`'s `Compiler` is `RwLock`-based and looks `Sync`, but `script::scoped` hands out a
+  stack borrow as `&'static`, so a worker thread outliving the scope is the soundness question —
+  `crates/nvs-host/src/placed.rs` § *Known gaps*.
+- `nvs serve` registers no inbox of its own, so a placement there reaches a lazily started worker
+  core rather than a sibling serving one — `crates/nvs-host/src/worker.rs` § *Known gaps*, ADR 0184
+  § 5's pre-authorized fallback.
+- A placed child's answer is copied twice (the arena copy `finish` makes, then the encode);
+  `crates/nvs-host/src/placed.rs` § *What it spends* states it.
+- `[context] modules` names neither `crates/nvs-host/src/placed.rs` nor
+  `crates/nvs-runtime/src/ctx/isolate.rs`, and this session needed both.

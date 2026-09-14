@@ -764,7 +764,7 @@ impl Running for Started {
 /// A child that is abandoned rather than joined reaches none of this and leaves
 /// its event open, which is the reading
 /// `rule:observability/spawn-is-its-own-event` asks for.
-fn close_spawn(open: Option<OpenSpawn>, completion: &Completion, ctx: &mut Ctx) {
+pub(crate) fn close_spawn(open: Option<OpenSpawn>, completion: &Completion, ctx: &mut Ctx) {
     if let Some(open) = open {
         ctx.close_spawn(open, completion.wall);
     }
@@ -772,7 +772,7 @@ fn close_spawn(open: Option<OpenSpawn>, completion: &Completion, ctx: &mut Ctx) 
 
 /// Gives an [`Output::Inherit`] child's bytes to the parent's own stream, at the
 /// await and nowhere else.
-fn hand_over(mut completion: Completion, output: Output, ctx: &mut Ctx) -> Completion {
+pub(crate) fn hand_over(mut completion: Completion, output: Output, ctx: &mut Ctx) -> Completion {
     if output == Output::Inherit {
         let bytes = std::mem::take(&mut completion.output);
         let _ = ctx.write_output(&bytes);
@@ -955,7 +955,7 @@ fn start_as_task(
 }
 
 /// The child on the caller's own stack, for a host with no scheduler under it.
-fn run_here(
+pub(crate) fn run_here(
     mut isolate_ctx: Ctx,
     program: Program,
     args: Value,
@@ -1171,7 +1171,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
 /// asks: this failure is not a throw, and `rule:errors/escalation-ladder`'s rule that a `FATAL` never
 /// reaches a `catch` is the reason there is no class here that a program could
 /// name.
-fn refused_completion(message: &str) -> Completion {
+pub(crate) fn refused_completion(message: &str) -> Completion {
     Completion {
         ok: false,
         value: Value::null(),
@@ -1190,7 +1190,7 @@ fn refused_completion(message: &str) -> Completion {
 
 /// The answer for an isolate that never reported: cancelled, or torn down before
 /// its body finished.
-fn cancelled_completion() -> Completion {
+pub(crate) fn cancelled_completion() -> Completion {
     Completion {
         ok: false,
         value: Value::null(),

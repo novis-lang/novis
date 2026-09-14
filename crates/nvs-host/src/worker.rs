@@ -102,17 +102,10 @@
 //! by the goal's standing decisions, and closing it is a serving core calling
 //! into this module as it starts rather than anything about the crossing.
 //!
-//! Nothing above `nvs-host` reaches this yet, and what is missing is the arm
-//! that secures a core, encodes the argument and posts. The budget is no longer
-//! what holds it: `nvs_runtime::budget`'s two counters are thread-local — a
-//! request is charged the difference between its thread's balance now and the
-//! balance when its `Ctx` was made — and the tree's own pair now crosses beside
-//! its safepoint word, so a child started here joins its tree through
-//! `Ctx::join_tree`, publishes its share at its own polls, and is read and capped
-//! at the tree's root as `rule:security/isolate-budget-is-the-trees` and ADR 0184
-//! § 4 both say it is. Both placement words still start the child on the parent's
-//! core until the arm is written, and [`crate::group`]'s module doc is that gap's
-//! one home.
+//! What reaches this from above is [`crate::placed`], and it reaches it for one
+//! of `spawn script`'s two entry forms: a method crosses, a path starts on the
+//! parent's core. That module's own `# Known gaps` is that gap's one home, and
+//! nothing about it is a question for the transport here.
 //! — owner: m5-proofs
 
 use std::collections::VecDeque;

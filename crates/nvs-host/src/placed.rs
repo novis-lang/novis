@@ -1,0 +1,425 @@
+//! A child placed `on: "worker"`: what crosses to the core that runs it, and
+//! what comes back.
+//!
+//! `rule:concurrency/on-worker-runs-the-child-on-another-core` is the
+//! specification and [`crate::worker`] is the transport; this module is the one
+//! thing neither of those can be, which is an isolate rebuilt from parts on a
+//! core that never held its parent. ADR 0184 §§ 2–4 is the reasoning.
+//!
+//! # What crosses, and why it is parts rather than an isolate
+//!
+//! [`crate::isolate::Isolate`] holds a [`Program`](nvs_runtime::script::Program)
+//! and a [`Value`], and neither may leave the core that built it: the program is
+//! a boxed closure over the *parent's* resolver, and a refcount is non-atomic
+//! precisely because a value is reachable from one core. So a placement crosses
+//! four things, each of which is either plain data or a handle every core
+//! already reads — the [`Entry`]'s two names, the argument as
+//! [`nvs_runtime::graph`]'s bytes, [`nvs_runtime::PlacedIsolate`] (the request
+//! tree, the deadline word, the configuration snapshot and the compiled unit's
+//! class table and static recipes), and the answer slot [`crate::worker`] owns.
+//! The far core builds the program and decodes the argument for itself, which is
+//! what [`Entry`]'s own doc means by the core that runs the child being the one
+//! that prepares it.
+//!
+//! The answer comes back the same way, as [`Crossed`]: every field of a
+//! [`Completion`] except the one that is a graph, plus that graph's bytes. The
+//! parent decodes it into its own arena at the join, against its own class
+//! table, so what a placed child answers with is a copy at every node — the cost
+//! ADR 0184 § 2 says belongs to the placement and the reason `on: "here"`
+//! exists.
+//!
+//! # Known gaps
+//!
+//! **Only a method entry is placed; a path entry runs on the parent's core.**
+//! [`nvs_runtime::script::resolve`] reads a resolver a thread was *installed*
+//! with, and only the thread `nvs-cli` booted on has one, so a path that crossed
+//! would answer [`nvs_runtime::script::ResolveError::NoResolver`] — a failure
+//! value where the program asked for a core. Running it here instead keeps every
+//! promise the placement makes but one, which is the same trade
+//! [`destination_for`] refuses a placement under. Closing it is a resolver a
+//! worker core can reach, which is a question about that seam's ownership of the
+//! unit cache rather than about this crossing.
+//! — owner: m5-proofs
+//!
+//! # What it spends
+//!
+//! `rule:programs/memory-priority` asks for this out loud. Per placement in
+//! flight, charged to the tree that asked for it: the argument's bytes and the
+//! answer's bytes, each held once while it crosses, on top of the two copies of
+//! the graph itself that the encode and the decode make. That is strictly more
+//! than a same-core child, which copies once and holds no bytes, and it is what
+//! buys the core.
+
+use std::time::Duration;
+
+use nvs_runtime::graph::GraphError;
+use nvs_runtime::host::{Completion, Entry, Failure, Output, Running};
+use nvs_runtime::{
+    ClassDesc, Ctx, DeclaredHeader, ErrorClass, OpenSpawn, OutputSink, PlacedIsolate, SpawnForm,
+    Value,
+};
+
+use crate::isolate::{cancelled_completion, close_spawn, hand_over, refused_completion, run_here};
+use crate::worker::{Answer, Destination, Posted};
+
+/// The core a child of `entry` would be placed on, or `None` where this spawn
+/// stays here.
+///
+/// Asked **before** anything is built and before the argument is consumed, which
+/// is [`crate::worker::Destination`]'s whole reason for existing: a spawn that
+/// encoded first and was then refused a core would hold neither a placement nor
+/// a value to start where it stands.
+///
+/// Three questions, and a `None` to any of them is a fall-through to the
+/// parent's own core rather than a failure — the placement asked for a core and
+/// loses only that:
+///
+/// * A core to write to, and this task's own way of being woken by it
+///   ([`crate::worker::destination`]).
+/// * An entry the far core can prepare, which today is the method form alone —
+///   the module doc's known gap owns why.
+/// * A class table to prepare it *against*: a method entry is a label looked up
+///   in the compiled unit's table, and a context holding none could resolve
+///   nothing there.
+pub(crate) fn destination_for(ctx: &Ctx, entry: &Entry) -> Option<Destination> {
+    if !crosses(ctx, entry) {
+        return None;
+    }
+    crate::worker::destination()
+}
+
+/// Whether the far core could prepare this child at all — the two questions
+/// [`destination_for`] asks before it secures anything.
+///
+/// Separate from the securing so that what it decides is a fact about the spawn
+/// rather than about whether a core happened to be free, which is also the only
+/// way to ask it of a context that is on no scheduler.
+fn crosses(ctx: &Ctx, entry: &Entry) -> bool {
+    entry.is_method() && ctx.class_table().is_some()
+}
+
+/// Starts the child on the core `destination` holds, and answers the handle that
+/// collects it.
+///
+/// **Consumes one reference to `args`**, exactly as
+/// [`crate::isolate::Isolate::start`] does and at the same point in the body:
+/// the crossing is where the parent's value stops being the child's business.
+///
+/// # Errors
+///
+/// [`GraphError`] when the *argument* has no meaning on the other side. No child
+/// is started in that case and the core is given back unused, which is what
+/// dropping a [`Destination`] without posting means.
+pub(crate) fn start(
+    destination: Destination,
+    ctx: &mut Ctx,
+    entry: Entry,
+    args: Value,
+    output: Output,
+) -> Result<Box<dyn Running>, GraphError> {
+    // Out, at the spawn, and before the seed below for the reason the refusal
+    // stands where it does in a same-core start: a refusal costs one walk and
+    // leaves nothing half-made, here not even a core told to expect work.
+    let argument = nvs_runtime::graph::encode(args)?;
+    // `rule:observability/spawn-is-its-own-event`'s event, opened where the child
+    // starts exactly as a same-core one is, so a placement reads as a spawn in
+    // the same trace beside them. It is also the gate on the child reading a
+    // clock at all, asked once here and carried rather than asked again over
+    // there.
+    let open = ctx.open_spawn(SpawnForm::Script);
+    let crossing = Crossing {
+        entry,
+        argument,
+        seed: ctx.placed_isolate(),
+        timed: open.is_some(),
+    };
+    Ok(Box::new(Placed {
+        posted: destination.post(move || cross(crossing)),
+        output,
+        open,
+    }))
+}
+
+/// One placement's parts, on their way to the core that will assemble them.
+struct Crossing {
+    entry: Entry,
+    argument: Vec<u8>,
+    seed: PlacedIsolate,
+    /// Whether the parent opened a spawn event, so the child reads a clock only
+    /// where somebody is observing — `rule:testing/debug-probes`'s gate, asked
+    /// once on the parent and carried rather than asked again here.
+    timed: bool,
+}
+
+/// A [`Completion`] with the one field that is a graph turned into bytes —
+/// what a placed child answers its parent with.
+///
+/// Every other field is already plain data, which is why this is the whole of
+/// the difference: `rule:security/isolate-values-cross-by-copy` has the answer
+/// crossing by copy in any case, and across a thread that copy is the encode and
+/// the decode rather than one graph walk.
+struct Crossed {
+    ok: bool,
+    value: Vec<u8>,
+    output: Vec<u8>,
+    content_type: Option<Box<str>>,
+    status: Option<u16>,
+    headers: Vec<DeclaredHeader>,
+    error: Option<Failure>,
+    wall: Option<Duration>,
+}
+
+/// The far core's whole half: build the context, prepare the program, decode the
+/// argument, run it, and encode what it answered.
+///
+/// It runs as a task on that core — the receptionist in [`crate::worker`] starts
+/// it as one — so the child may park, spawn children of its own and reach a
+/// reactor, which is the difference between a placement and a pool job.
+fn cross(crossing: Crossing) -> Crossed {
+    let Crossing {
+        entry,
+        argument,
+        seed,
+        timed,
+    } = crossing;
+    // The method form's constructor, `destination_for` having refused every
+    // other one: the child's statics are materialized here from the recipes the
+    // compiled unit owns, because its code is the parent's unit's and there is no
+    // second unit whose prologue would arm them.
+    let child = seed.build_method(OutputSink::Buffer(Vec::new()));
+    // The receiving table for both crossings on this side, taken before the
+    // context is moved into the run below. It is the table that crossed, so a
+    // class in the answer is the same descriptor the parent will compare against
+    // — the identity `rule:classes/graph-copy` is written in terms of.
+    let receiving = child.class_table();
+    let program = match entry.program(&child) {
+        Ok(program) => program,
+        Err(refusal) => return crossed(refused_completion(&refusal.to_string())),
+    };
+    let value = match nvs_runtime::graph::decode(&argument, &resolver(receiving.as_ref())) {
+        Ok(value) => value,
+        // The argument was accepted by the walk on the parent's core and refused
+        // by the reader on this one, which is this program disagreeing with its
+        // parent about a class rather than the parent having built something
+        // that cannot cross. It reaches the parent as `ok = false` for the
+        // module doc's reason: no line of the child ran, but the child is what
+        // could not receive it.
+        Err(refusal) => return crossed(refused_completion(&refusal.to_string())),
+    };
+    crossed(run_here(child, program, value, receiving, timed))
+}
+
+/// Turns what the child answered into what crosses back, spending the
+/// completion's one reference on the encode.
+///
+/// An answer that cannot cross is **the child's failure and not a refusal** —
+/// [`crate::isolate`]'s module doc § *A refused argument is the parent's fault*
+/// owns that split, and it holds identically across a thread.
+fn crossed(mut completion: Completion) -> Crossed {
+    let value = std::mem::take(&mut completion.value);
+    match nvs_runtime::graph::encode(value) {
+        Ok(value) => Crossed {
+            ok: completion.ok,
+            value,
+            output: completion.output,
+            content_type: completion.content_type,
+            status: completion.status,
+            headers: completion.headers,
+            error: completion.error,
+            wall: completion.wall,
+        },
+        Err(refusal) => {
+            let mut refused = crossed_failure(&refusal.to_string());
+            refused.output = completion.output;
+            refused.wall = completion.wall;
+            refused
+        }
+    }
+}
+
+/// What crosses for a child that produced no answer worth carrying: a failure
+/// value, and the empty encoding of `null` beside it.
+fn crossed_failure(message: &str) -> Crossed {
+    Crossed {
+        ok: false,
+        value: Vec::new(),
+        output: Vec::new(),
+        content_type: None,
+        status: None,
+        headers: Vec::new(),
+        error: Some(Failure {
+            class: "Error".to_owned(),
+            message: message.to_owned(),
+        }),
+        wall: None,
+    }
+}
+
+/// Reads `crossed` back into the arena of whichever core is asking, against that
+/// core's own class table.
+///
+/// An empty payload is `null` rather than a short read: [`crossed_failure`]
+/// writes one for every ending that has no answer, and a failure's `value` is
+/// `null` by [`Completion::value`]'s own contract.
+fn received(crossed: Crossed, receiving: Option<&ErrorClass>) -> Completion {
+    let value = if crossed.value.is_empty() {
+        Value::null()
+    } else {
+        nvs_runtime::graph::decode(&crossed.value, &resolver(receiving)).unwrap_or_else(|_| {
+            // Unreachable from a child that encoded successfully against a table
+            // this one shares, and answered as a failure rather than asserted:
+            // a child may not end its parent, and the message the walk wrote is
+            // already on the completion below when this arm is the one that
+            // fires.
+            Value::null()
+        })
+    };
+    Completion {
+        ok: crossed.ok,
+        value,
+        output: crossed.output,
+        content_type: crossed.content_type,
+        status: crossed.status,
+        headers: crossed.headers,
+        error: crossed.error,
+        wall: crossed.wall,
+    }
+}
+
+/// [`nvs_runtime::graph::decode`]'s class resolver over a table handle.
+///
+/// The handle keeps the table alive for as long as the closure can be called,
+/// which is what makes the descriptor addresses it hands out valid without any
+/// lifetime on the pointer — [`ErrorClass`]'s own doc owns that.
+fn resolver(table: Option<&ErrorClass>) -> impl Fn(&str) -> Option<*const ClassDesc> {
+    move |name| {
+        table
+            .and_then(|table| table.sibling(name))
+            .map(|of| of.desc())
+    }
+}
+
+/// A child running on another core, and the whole of what its parent holds.
+///
+/// [`crate::isolate`]'s `Started` for a child on a stack this core cannot see:
+/// the task id, the slot and the wake are all [`crate::worker`]'s, so what is
+/// left here is the two things a join needs that a placement does not know about
+/// — whose stream the bytes go to, and the event the spawn filed.
+#[derive(Debug)]
+struct Placed {
+    posted: Posted<Crossed>,
+    output: Output,
+    open: Option<OpenSpawn>,
+}
+
+impl Running for Placed {
+    fn join(mut self: Box<Self>, ctx: &mut Ctx) -> Completion {
+        // The parent's table, read here rather than carried from the spawn: this
+        // is the one call where the parent's context is in hand, and the answer
+        // is decoded on this stack rather than on the child's.
+        let receiving = ctx.class_table();
+        let completion = match self.posted.collect() {
+            Answer::Value(crossed) => received(crossed, receiving.as_ref()),
+            // Contained at the far core's own task root and crossed as a value,
+            // which is `rule:security/isolate-shares-nothing`'s failure-is-a-value
+            // applied to a boundary that is also a thread: resuming the panic
+            // here would let a child end its parent.
+            Answer::Panicked(panic) => refused_completion(&format!(
+                "the isolate panicked on the core it was placed on: {panic}"
+            )),
+            // The cancellation this parent sent, or a core that closed while it
+            // held the work. Both are a child that stopped without answering,
+            // which is the same ending a torn-down same-core child has.
+            Answer::Stopped => cancelled_completion(),
+        };
+        close_spawn(self.open.take(), &completion, ctx);
+        hand_over(completion, self.output, ctx)
+    }
+
+    fn finished(&self) -> bool {
+        self.posted.finished()
+    }
+
+    fn abandon(self: Box<Self>) {
+        // The wait is [`Posted::abandon`]'s, teardown carve-out included: the
+        // trait's contract is that the child has already died when this returns,
+        // and across a thread that is an acknowledgement rather than a scheduler
+        // fact.
+        self.posted.abandon();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nvs_runtime::{ClassTable, FieldDefault};
+
+    /// A context carrying a compiled unit's class table, which is what a method
+    /// entry is looked up in.
+    fn with_a_class_table() -> Ctx {
+        const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut table = ClassTable::new();
+        let root = table.define("Throwable", &SLOTS, &[]);
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(table), root));
+        ctx.install_statics(std::sync::Arc::from(vec![Some(FieldDefault::Int(7))]));
+        ctx
+    }
+
+    /// A method entry crosses and a path entry does not — the module doc's known
+    /// gap, asserted rather than described.
+    ///
+    /// The two forms differ in exactly one thing that matters here: a method is
+    /// code the compiled unit already holds and every core reads that unit, while
+    /// a path has to be compiled by a resolver only one thread was installed
+    /// with. A placement that crossed a path anyway would answer
+    /// `ResolveError::NoResolver` — a failure value where the program asked for a
+    /// core.
+    #[test]
+    fn a_method_entry_crosses_to_another_core_and_a_path_entry_stays_here() {
+        let ctx = with_a_class_table();
+        let method = Entry::Method {
+            label: "Work::run".to_owned(),
+            names: Vec::new(),
+        };
+        assert!(crosses(&ctx, &method), "a method entry may not cross");
+        assert!(
+            !crosses(&ctx, &Entry::Path("child.nvs".to_owned())),
+            "a path entry crossed to a core that could not resolve it"
+        );
+    }
+
+    /// A context holding no class table places nothing, whatever the entry form.
+    ///
+    /// A method entry is a label, and the far core resolves it against the table
+    /// that crossed with the seed. Placing one with no table to carry would post
+    /// work that could only answer "this program declares no such static method".
+    #[test]
+    fn an_entry_with_no_class_table_to_resolve_it_against_stays_here() {
+        let ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        let method = Entry::Method {
+            label: "Work::run".to_owned(),
+            names: Vec::new(),
+        };
+        assert!(
+            !crosses(&ctx, &method),
+            "a method entry crossed with no table to look it up in"
+        );
+    }
+
+    /// Everything a placement crosses with is `Send`, asserted where a change
+    /// that broke it would otherwise fail deep inside `worker::post`'s bounds.
+    ///
+    /// It is the whole boundary this module is built around: a `Program` and a
+    /// `Value` may not leave the core that made them, so what crosses is the
+    /// entry's names, the argument's bytes, the seed's shared handles and the
+    /// answer's bytes — and nothing that is added to those types later may be a
+    /// `Value` again.
+    #[test]
+    fn what_crosses_is_send() {
+        const fn assert_send<T: Send>() {}
+        assert_send::<Crossing>();
+        assert_send::<Crossed>();
+        assert_send::<PlacedIsolate>();
+    }
+}

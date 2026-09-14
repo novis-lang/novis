@@ -120,6 +120,7 @@ pub mod group;
 pub mod isolate;
 pub mod ladder;
 pub mod net;
+mod placed;
 pub mod reactor;
 pub mod scheduler;
 pub mod stack;
