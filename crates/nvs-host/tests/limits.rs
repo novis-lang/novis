@@ -203,6 +203,78 @@ unsafe extern "C" fn records_the_spawn_report(
     nvs_runtime::OK
 }
 
+/// [`SEEN_LIMIT`]'s twin for the child isolate stopped by its memory ceiling,
+/// and that slot's doc owns why every case here has one of its own.
+static SEEN_CHILD_MEMORY_LIMIT: Mutex<Option<String>> = Mutex::new(None);
+
+/// [`records_the_report`] writing into [`SEEN_CHILD_MEMORY_LIMIT`] instead, a
+/// copy for [`records_the_spawn_report`]'s reason: the ABI captures nothing.
+#[expect(
+    unsafe_code,
+    reason = "the same callee contract as `records_the_report`, over the same \
+              two live values"
+)]
+unsafe extern "C" fn records_the_child_memory_report(
+    _ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
+    unsafe {
+        let report = *args.add(1);
+        let array = report
+            .array_ptr()
+            .expect("§ 1's report reaches the handler as one array");
+        let key = NvsStr::new(b"limit").into_raw();
+        let mut named = Value::null();
+        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        *SEEN_CHILD_MEMORY_LIMIT
+            .lock()
+            .expect("no test panics holding this") = named.as_text().map(str::to_owned);
+        drop(NvsStr::from_raw(key));
+
+        (*args).release();
+        report.release();
+        *out = Value::null();
+    }
+    nvs_runtime::OK
+}
+
+/// The same slot again for the child isolate the CPU-time flag stops, separate
+/// from the one above for the reason [`SEEN_LIMIT`] gives.
+static SEEN_CHILD_CPU_LIMIT: Mutex<Option<String>> = Mutex::new(None);
+
+/// [`records_the_report`] writing into [`SEEN_CHILD_CPU_LIMIT`] instead, and a
+/// copy for the reason the copy above is one.
+#[expect(
+    unsafe_code,
+    reason = "the same callee contract as `records_the_report`, over the same \
+              two live values"
+)]
+unsafe extern "C" fn records_the_child_cpu_report(
+    _ctx: *mut Ctx,
+    args: *const Value,
+    out: *mut Value,
+) -> i32 {
+    unsafe {
+        let report = *args.add(1);
+        let array = report
+            .array_ptr()
+            .expect("§ 1's report reaches the handler as one array");
+        let key = NvsStr::new(b"limit").into_raw();
+        let mut named = Value::null();
+        nvs_runtime::nvs_array_get(array, key, &raw mut named);
+        *SEEN_CHILD_CPU_LIMIT
+            .lock()
+            .expect("no test panics holding this") = named.as_text().map(str::to_owned);
+        drop(NvsStr::from_raw(key));
+
+        (*args).release();
+        report.release();
+        *out = Value::null();
+    }
+    nvs_runtime::OK
+}
+
 /// A zero-parameter closure calling `invoke`, owned by the caller.
 fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
     closure_taking(invoke, 0)
@@ -253,6 +325,25 @@ fn closure_taking(invoke: nvs_runtime::NvsFn, arity: i64) -> Value {
     }
     object.set_field(nvs_runtime::CLOSURE_PARAM_TAGS_SLOT, Value::int(tags));
     Value::object(object)
+}
+
+/// A parent as a request looks to a child that fails: a context carrying an
+/// error class, so what stopped the child crosses as a rendered class and
+/// message rather than as an empty one.
+///
+/// The class is the *parent's* and `Ctx::isolate` copies it down, which is what
+/// makes it the renderer on the child's side too — a fixture with none is how a
+/// `Failure` comes back saying `Error` and nothing else.
+fn parent_of_isolates() -> Ctx {
+    const SLOTS: [&str; 4] = ["message", "previous", "backtrace", "location"];
+    let mut table = nvs_runtime::ClassTable::new();
+    let root = table.define("Throwable", &SLOTS, &[]);
+    let mut ctx = Ctx::new(OutputSink::Sink);
+    ctx.set_runtime_error_class(nvs_runtime::ErrorClass::new(
+        std::sync::Arc::new(table),
+        root,
+    ));
+    ctx
 }
 
 /// A context with a ceiling this thread has already allocated past, and the
@@ -805,6 +896,160 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
     assert!(
         failure.message.contains("ceiling of 2"),
         "the failure names the ceiling the operator wrote: {failure:?}",
+    );
+}
+
+/// `rule:security/isolate-failure-is-a-value`: a child stopped by its memory ceiling reaches its
+/// parent as **data** — `ok = false` carrying the breach — and the parent runs the statement after
+/// the await rather than being unwound into.
+///
+/// The child is handed a ceiling of its own because `Ctx::isolate` deliberately carries none across
+/// (`crates/nvs-host/src/isolate.rs:487`): the budget is the root's, so a child that is over on its
+/// own reading is the one arrangement in which the breach being pinned is the child's.
+///
+/// Which limit stopped it is read out of `rule:errors/on-limit`'s report rather than out of the
+/// message, for the case above's reason: a program branches on `memory`, never on a sentence. Both
+/// halves are asserted, because a parent left standing beside a completion naming nothing is a
+/// boundary that dropped the failure on the floor, and a named failure beside a parent the breach
+/// took down with it is the unwind the rule exists to forbid.
+#[test]
+fn a_childs_memory_breach_arrives_as_ok_false_and_the_parent_keeps_running() {
+    let mut parent = parent_of_isolates();
+
+    let completion = nvs_host::Isolate::new(
+        Box::new(|child: &mut Ctx, _args: Value| {
+            child.set_memory_limit(4096);
+            child.set_limit_handler(closure_taking_the_report(records_the_child_memory_report));
+            // Held across the poll, as `breached` holds its own and for its reason: the reading is
+            // what this thread holds now against what it held when the child's context was made.
+            let hog = vec![0_u8; 1 << 20];
+
+            #[expect(
+                unsafe_code,
+                reason = "the safepoint's ABI takes a context pointer, and this is the child's \
+                          own, live for the length of the program running on it"
+            )]
+            let status = unsafe { nvs_safepoint(&raw mut *child) };
+            assert_eq!(
+                status,
+                nvs_runtime::FATAL,
+                "the child is stopped at its own poll, which is where a program allocating \
+                 without calling anything can be stopped at all",
+            );
+
+            drop(hog);
+            Value::null()
+        }),
+        Value::null(),
+        nvs_host::Output::Capture,
+    )
+    .run(&mut parent)
+    .expect("a null argument has a meaning on the other side");
+
+    assert!(
+        !completion.ok,
+        "the breach is how this child ended, and it ends as a value",
+    );
+    let failure = completion.error.expect("a failed completion names why");
+    assert!(
+        failure.message.contains("memory limit"),
+        "carrying the breach the child was stopped on: {failure:?}",
+    );
+    assert_eq!(
+        SEEN_CHILD_MEMORY_LIMIT
+            .lock()
+            .expect("no test panics holding this")
+            .take()
+            .as_deref(),
+        Some("memory"),
+        "and the handler inside the child was handed the same limit by name",
+    );
+    assert!(
+        parent.pending().is_none(),
+        "nothing unwound into the parent: the completion is the whole of what it was told",
+    );
+
+    #[expect(unsafe_code, reason = "the same ABI over the parent's own live local")]
+    let after = unsafe { nvs_safepoint(&raw mut parent) };
+    assert_eq!(
+        after,
+        nvs_runtime::OK,
+        "which is what keeps running means here: the ceiling was the child's, so the parent's own \
+         poll carries on from where the child's ended it",
+    );
+}
+
+/// `rule:security/isolate-failure-is-a-value` on the other half of the pair the depth case above
+/// separates itself from: a child stopped by the CPU-time flag also crosses as `ok = false`, and
+/// also leaves the parent running the statement after the await.
+///
+/// What differs from the memory half is the *word*, not the boundary. `Ctx::isolate` shares the
+/// safepoint word with the child (`crates/nvs-runtime/src/ctx/safepoint.rs:56`) while carrying no
+/// ceiling across, so raising the flag from inside the child is the store the watchdog makes while
+/// the child runs, on the tree's own word.
+///
+/// That sharing is why the last assertion is here rather than left to a reader: the parent keeps
+/// running in the sense this rule means — nothing unwound into it and the failure arrived as data —
+/// while the flag it shared all along is still up, so its own next poll ends it too. That second
+/// fact is `rule:security/isolate-budget-is-the-trees` and not this boundary, and a case asserting
+/// only the first would read as a child buying the tree more wall time than it had.
+#[test]
+fn a_childs_cpu_breach_arrives_as_ok_false_and_the_parent_keeps_running() {
+    let mut parent = parent_of_isolates();
+    parent.set_cpu_limit(2_000_000_000);
+
+    let completion = nvs_host::Isolate::new(
+        Box::new(|child: &mut Ctx, _args: Value| {
+            child.set_limit_handler(closure_taking_the_report(records_the_child_cpu_report));
+            child.request_safepoint(nvs_runtime::SafepointFlags::CPU_LIMIT);
+
+            #[expect(
+                unsafe_code,
+                reason = "the same ABI over the child's own context, live for the length of the \
+                          program running on it"
+            )]
+            let status = unsafe { nvs_safepoint(&raw mut *child) };
+            assert_eq!(
+                status,
+                nvs_runtime::FATAL,
+                "the CPU branch of the poll stops the child as a `FATAL`, whichever limit it is",
+            );
+
+            Value::null()
+        }),
+        Value::null(),
+        nvs_host::Output::Capture,
+    )
+    .run(&mut parent)
+    .expect("a null argument has a meaning on the other side");
+
+    assert!(
+        !completion.ok,
+        "the stop is this child's ending, as a value"
+    );
+    let failure = completion.error.expect("a failed completion names why");
+    assert!(
+        failure.message.contains("CPU-time limit"),
+        "carrying the limit the child was stopped on: {failure:?}",
+    );
+    assert_eq!(
+        SEEN_CHILD_CPU_LIMIT
+            .lock()
+            .expect("no test panics holding this")
+            .take()
+            .as_deref(),
+        Some("cpu_time"),
+        "and not `memory`, which is the branch above the one that stopped it",
+    );
+    assert!(
+        parent.pending().is_none(),
+        "nothing unwound into the parent: the completion is the whole of what it was told",
+    );
+    assert!(
+        parent
+            .safepoint_flags()
+            .contains(nvs_runtime::SafepointFlags::CPU_LIMIT),
+        "on a word the parent shares, so the tree is still the thing that ran out of time",
     );
 }
 
