@@ -561,7 +561,9 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
         render_diagnostics(&mut diags, &sources);
     }
 
-    let set = listing(&resolved).len();
+    let set = nvs_config::audit::Audit::of_files(&resolved)
+        .listing()
+        .len();
     println!(
         "ok: {} file{}, {} directive{} set, {} override{}, {} warning{}",
         resolved.files.len(),
@@ -584,30 +586,13 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
 /// every override is recoverable, and `--origin` is where it is recovered in
 /// full rather than summarized.
 ///
-/// Some of what is printed is a decision rather than formatting:
-///
-/// - **The dump is the merged table, not the typed configuration.** It is
-///   therefore complete — a key no reader has a field for is still in force and
-///   still printed — which is what an audit needs, and it is the same table
-///   `rule:config/every-matching-app-block-applies-least-specific-first` layers `[[app]]` blocks over.
-/// - **A secret is a row of its own, rendered `<secret>` and naming its file.**
-///   `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s value is read at boot and carried beside the table rather
-///   than in it, so `db.main.password` is not a leaf of the merged table at all
-///   — and § 9's listing would be missing a key that is in force if the dump
-///   printed only what it walks. It is added back here, with the secret file in
-///   the origin column, because that path is what an operator acts on: the
-///   redaction is what the row says, and the file is what makes the row useful.
-///   `--toml` prints the table and therefore carries no content, which is a
-///   property of where the value is kept rather than of a redaction this dump
-///   remembers to apply.
-/// - **`--origin` names the file and not the line.** An [`Origin`] carries the
-///   path and the `SourceId`, because that is what a refusal needs; a line would
-///   need a span per leaf, and `toml::Value` carries none once the document is
-///   parsed. The file is what an operator acts on — it is the one they edit —
-///   so the column is useful without it, and the line is a later slice rather
-///   than a hole in this one.
-///
-/// [`Origin`]: nvs_config::resolve::Origin
+/// What a row looks like and what each column means is
+/// [`nvs_config::audit`]'s, because `nvs ctl config` renders the same listing
+/// off the live snapshot and `rule:config/ctl-config-reports-the-live-snapshot`
+/// has an operator diff the two. What is decided *here* is only the stream:
+/// `--toml` is one canonical file for diffing two environments, so it carries
+/// the table and nothing else, while the listing carries the origin column an
+/// audit is read for.
 pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml: bool) -> ExitCode {
     let files = LocalFiles;
     let mut sources = SourceMap::new();
@@ -643,136 +628,11 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
         };
     }
 
-    let leaves = listing(&resolved);
-    let width = leaves.iter().map(|(key, _)| key.len()).max().unwrap_or(0);
-    // The origin is a column rather than a suffix, so a tree assembled from
-    // five files reads down that column instead of along each line.
-    let value_width = leaves
-        .iter()
-        .map(|(_, value)| value.len())
-        .max()
-        .unwrap_or(0);
-    let overridden: std::collections::BTreeMap<&str, &nvs_config::resolve::Override> = resolved
-        .overrides
-        .iter()
-        .map(|record| (record.key.as_str(), record))
-        .collect();
-
-    for (key, value) in &leaves {
-        let mut line = if origin {
-            format!("{key:width$} = {value:value_width$}")
-        } else {
-            format!("{key:width$} = {value}")
-        };
-        if origin {
-            // A secret's origin is the file its *value* came from, not the file
-            // that named it — the `password_file` row directly below it is where
-            // the naming file is already reported, so printing that one twice
-            // would leave the path § 7 makes the value nowhere in the listing.
-            if let Some(secret) = resolved.secrets.get(key) {
-                line.push_str(&format!("    {}", secret.file.display()));
-            } else if let Some(written_in) = resolved.origins.get(key) {
-                line.push_str(&format!("    {}", written_in.path.display()));
-            }
-            if let Some(record) = overridden.get(key.as_str()) {
-                line.push_str(&format!(" (overrides {})", record.replaced.path.display()));
-            }
-        }
-        // The offline half of
-        // `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`:
-        // the one word that hands the address question to the proxy reads as an
-        // ordinary directive set to an ordinary string, so the rule it narrows
-        // is rendered beside it. An audit of a tree with no server running is
-        // exactly where the boot's own `Warn` record is not there to say so.
-        if key == RESOLVE_DIRECTIVE
-            && value.trim_matches('"') == nvs_config::http::RESOLVE_AT_THE_PROXY
-        {
-            line.push_str(&format!("    {NARROWED_POLICY}"));
-        }
-        println!("{line}");
-    }
-    ExitCode::SUCCESS
-}
-
-/// What `rule:config/check-and-dump-audit-the-tree-offline` renders a secret's value as. Never the content, and never
-/// a fixed-width mask that would say how long it is.
-const REDACTED: &str = "<secret>";
-
-/// The directive that says who resolves an outbound destination, as [`leaves`]
-/// spells a dotted key. The value that gives the address question away is
-/// `nvs_config`'s own word, so the tree and this listing cannot disagree about
-/// which one it is.
-const RESOLVE_DIRECTIVE: &str = "http.client.proxy.resolve";
-
-/// What the directive above is rendered beside when it carries that word: the
-/// rule whose table the proxy is then enforcing, by id and not summarized. A
-/// dump is read by an operator who looks the id up, and a sentence here would
-/// be a second wording of a rule that has one home.
-const NARROWED_POLICY: &str = "rule:security/net-address-policy";
-
-/// § 9's listing: every leaf of the merged table, plus one row per secret, in
-/// dotted-key order.
-///
-/// [`check`] counts it and [`dump`] prints it, so the summary line and the
-/// listing cannot disagree about how many directives are set. A secret is
-/// counted because it *is* set — `db.main.password` is a key with a value in
-/// force, and the `password_file` beside it is a second key rather than the same
-/// one spelled differently.
-fn listing(resolved: &nvs_config::resolve::Resolved) -> Vec<(String, String)> {
-    let mut out = leaves(&resolved.table);
-    out.extend(
-        resolved
-            .secrets
-            .keys()
-            .map(|key| (key.clone(), REDACTED.to_owned())),
+    print!(
+        "{}",
+        nvs_config::audit::Audit::of_files(&resolved).render(origin)
     );
-    out.sort_by(|(left, _), (right, _)| left.cmp(right));
-    out
-}
-
-/// Every key in force in `table`, as a dotted key and the TOML spelling of its
-/// value, in dotted-key order.
-///
-/// [`listing`] is what both readers go through, and this is the half of it that
-/// walks the table — counted rather than `Resolved::origins`, whose keys include
-/// the containers a leaf hangs off.
-fn leaves(table: &toml::Table) -> Vec<(String, String)> {
-    let mut out = Vec::new();
-    flatten(&mut out, String::new(), &toml::Value::Table(table.clone()));
-    out
-}
-
-/// Every leaf of `value` as a dotted key and its TOML spelling, appended to
-/// `out` in the order the table holds them — which is sorted, `toml::Table`
-/// being a `BTreeMap` unless a feature says otherwise.
-///
-/// An array of tables descends by index, so the second `[[app]]` block's `root`
-/// is `app.1.root`: the same spelling `Resolved::origins` uses, which is what
-/// lets the origin column be a lookup rather than a second walk. An array of
-/// scalars is a leaf, because `rule:config/a-value-array-replaces-and-a-table-appends` makes a value array *replace* —
-/// there is no per-element origin to report.
-///
-fn flatten(out: &mut Vec<(String, String)>, prefix: String, value: &toml::Value) {
-    let joined = |key: &str| {
-        if prefix.is_empty() {
-            key.to_string()
-        } else {
-            format!("{prefix}.{key}")
-        }
-    };
-    match value {
-        toml::Value::Table(table) => {
-            for (key, child) in table {
-                flatten(out, joined(key), child);
-            }
-        }
-        toml::Value::Array(items) if items.iter().any(toml::Value::is_table) => {
-            for (index, child) in items.iter().enumerate() {
-                flatten(out, joined(&index.to_string()), child);
-            }
-        }
-        leaf => out.push((prefix, leaf.to_string())),
-    }
+    ExitCode::SUCCESS
 }
 
 /// The root list an audit reads: every `--config` in the order given, then
@@ -802,7 +662,7 @@ mod tests {
 
     use nvs_diagnostics::SourceMap;
 
-    use super::{Declined, Init, boot_in, leaves, policy_of, relaxed_grants, write_default_file};
+    use super::{Declined, Init, boot_in, policy_of, relaxed_grants, write_default_file};
     use crate::testing::{open_to_the_world, refuse_new_files};
 
     /// A directory of this test's own, under a per-process root.
@@ -1143,39 +1003,6 @@ mod tests {
             init_gate(false, false, None),
             Init::Never,
             "and a command that is not a project command never writes"
-        );
-    }
-
-    /// The two array shapes `rule:config/a-value-array-replaces-and-a-table-appends` distinguishes, flattened the way
-    /// `Resolved::origins` spells them: an array of tables descends by index so
-    /// its leaves can be looked up there, and an array of scalars is one leaf
-    /// because a value array replaces whole and has no per-element origin.
-    #[test]
-    fn an_array_of_tables_descends_by_index_and_a_value_array_is_one_leaf() {
-        let table: toml::Table = toml::from_str(
-            r#"
-            [[app]]
-            root = "/srv/one"
-            [[app]]
-            root = "/srv/two"
-            [capabilities.fs]
-            read = ["/srv", "/tmp"]
-            "#,
-        )
-        .expect("the fixture is valid TOML");
-
-        let leaves = leaves(&table);
-        let rendered: Vec<(&str, &str)> = leaves
-            .iter()
-            .map(|(key, value)| (key.as_str(), value.as_str()))
-            .collect();
-        assert_eq!(
-            rendered,
-            vec![
-                ("app.0.root", "\"/srv/one\""),
-                ("app.1.root", "\"/srv/two\""),
-                ("capabilities.fs.read", "[\"/srv\", \"/tmp\"]"),
-            ]
         );
     }
 }
