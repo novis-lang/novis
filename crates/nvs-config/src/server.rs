@@ -1,6 +1,6 @@
-//! `rule:http-server/the-server-block-is-boot-class`'s `[server]` block, read into what a server starts on: the idle waits as
-//! durations — refusing the magnitudes that would leave a connection unbounded — and `listen` as
-//! the sockets to bind.
+//! `rule:http-server/the-server-block-is-boot-class`'s `[server]` block, read into what a server starts on: the idle waits and the
+//! drain period as durations — refusing the magnitudes that would leave a connection unbounded —
+//! and `listen` as the sockets to bind.
 //!
 //! Those, along with `max_in_flight`, `workers` and `health_path`, are the only parts of `[server]`
 //! that resolve to something other than what was written *here*, so this module is small on purpose:
@@ -15,11 +15,19 @@
 //! admission decision and the counter that enforces it lives beside it. This module is the half
 //! that reads a file and asks the operating system one question; it decides nothing.
 //!
-//! **Each of them is an *idle* wait and none is a total.** A slow 2 GB upload completes while a
-//! stalled socket does not, which is § 5's own sentence and the reason the server refreshes a
+//! **Each of the waits is an *idle* wait and none is a total.** A slow 2 GB upload completes while
+//! a stalled socket does not, which is § 5's own sentence and the reason the server refreshes a
 //! deadline on every byte that moves rather than arming one when a connection is accepted.
 //! `nvs_server::io`'s phase machine is the home of *which* wait is in force at a given moment;
 //! this module only says how long each one is.
+//!
+//! **`drain_timeout` is the one period here that bounds a connection which is working.** It starts
+//! when a connection sees the drain rather than when the drain began
+//! (`rule:concurrency/a-drain-closes-a-connection-cleanly`), so it resolves like a wait and is
+//! refused like one, and it is a directive of its own because an operator who lengthened keep-alive
+//! to suit a proxy would otherwise have lengthened every restart. What makes a parked connection
+//! see the drain at all is `nvs_runtime::Drain`'s wake, and what the connection does when it does
+//! is `nvs_server::io`'s; this module is only the number.
 //!
 //! **`false` and `0` are both refused**, under `E0619`. Everywhere else in this tree `false`
 //! removes a ceiling (`rule:config/three-changeability-classes`), and that spelling is exactly what
@@ -86,16 +94,30 @@ pub struct Waits {
     /// byte. § 5: this must exceed the proxy's own upstream keep-alive, or the proxy writes into a
     /// socket the origin has already closed and the client gets an intermittent `502`.
     pub keepalive: Duration,
+    /// How long a connection keeps being served once it has **seen** the drain, after which it
+    /// closes itself with a defined code (`rule:concurrency/a-drain-closes-a-connection-cleanly`).
+    ///
+    /// The one field here that is not an idle wait: it bounds a connection that is working, which
+    /// is why it is a directive of its own rather than a reuse of
+    /// [`keepalive`](Self::keepalive) — an operator who lengthened keep-alive would otherwise have
+    /// lengthened every restart ([ADR 0186](/docs/decisions/0186.md) § 3). A stopping
+    /// process is bounded by this plus the write of whatever response was in flight, which
+    /// [`write_idle`](Self::write_idle) already bounds.
+    pub drain: Duration,
 }
 
 impl Default for Waits {
-    /// § 5's own example, transcribed rather than chosen — the ADR writes every number out.
+    /// § 5's own example, transcribed rather than chosen — the ADR writes every number out. The
+    /// drain period is [ADR 0186](/docs/decisions/0186.md) § 3's, written out the same
+    /// way, and sized so that a stop finishing in `drain` plus one response's write stays inside
+    /// systemd's own default with room for a distribution that lowered it.
     fn default() -> Self {
         Self {
             header: Duration::from_secs(10),
             body_idle: Duration::from_secs(30),
             write_idle: Duration::from_secs(30),
             keepalive: Duration::from_secs(75),
+            drain: Duration::from_secs(30),
         }
     }
 }
@@ -167,6 +189,14 @@ pub fn waits_for(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<
             defaults.keepalive,
             "an idle kept-alive connection costs one coroutine and one socket, and nothing else \
              ever closes it — the peer is by definition not speaking",
+            origins,
+        )?,
+        drain: wait(
+            "server.drain_timeout",
+            server.drain_timeout.as_ref(),
+            defaults.drain,
+            "a stop is only as bounded as this period is, and a connection that may be served \
+             forever after the drain begins is a process that never exits",
             origins,
         )?,
     })
@@ -617,10 +647,25 @@ mod tests {
     /// A tree that writes no `[server]` block is bounded anyway: § 5's own numbers are what the
     /// server runs on, and an operator configuring nothing is the deployment they describe.
     #[test]
-    fn a_tree_with_no_server_block_still_has_all_four_waits() {
+    fn a_tree_with_no_server_block_still_has_every_wait() {
         let waits = waits_for(&tree(""), &BTreeMap::new()).expect("an empty tree was refused");
         assert_eq!(waits, Waits::default());
         assert_eq!(waits.keepalive, Duration::from_secs(75));
+        assert_eq!(waits.drain, Duration::from_secs(30));
+    }
+
+    /// The drain period is a directive of its own and not keep-alive under another name, asserted
+    /// as the property an operator relies on: lengthening the wait a proxy needs leaves the
+    /// restart where it was.
+    #[test]
+    fn the_drain_period_is_written_and_read_apart_from_the_keepalive_wait() {
+        let waits = waits_for(
+            &tree("[server]\nkeepalive_timeout = \"300s\"\ndrain_timeout = 5\n"),
+            &BTreeMap::new(),
+        )
+        .expect("a written drain period was refused");
+        assert_eq!(waits.drain, Duration::from_secs(5));
+        assert_eq!(waits.keepalive, Duration::from_secs(300));
     }
 
     /// The two spellings `mod@crate::value` makes equal, asserted together rather than one at a
@@ -649,6 +694,8 @@ mod tests {
             "[server]\nkeepalive_timeout = false\n",
             "[server]\nkeepalive_timeout = 0\n",
             "[server]\nbody_idle_timeout = \"0s\"\n",
+            "[server]\ndrain_timeout = false\n",
+            "[server]\ndrain_timeout = 0\n",
         ] {
             let refused = waits_for(&tree(written), &BTreeMap::new())
                 .expect_err("a wait that never ends was accepted");

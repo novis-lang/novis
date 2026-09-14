@@ -358,7 +358,7 @@ pub use dispatch::{
     CrossedFixtures, Fixtures, RowValues, call_erased_method, call_method, call_render,
     call_static, call_static_bound, construct_and_call, method_address,
 };
-pub use drain::Drain;
+pub use drain::{Drain, DrainWake};
 pub use fmt::php_float_to_string;
 pub use graph::{GraphError, copy_graph, copy_graph_into, decode, encode};
 pub use helpers::{stringify, symbols, to_float, to_int, to_uint, value_to_string, value_truthy};

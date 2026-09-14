@@ -660,7 +660,8 @@
       "status": "shipped",
       "because": [
         "0083",
-        "0078"
+        "0078",
+        "0186"
       ],
       "seeAlso": [
         "concurrency/connection-bounds-are-finite",

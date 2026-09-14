@@ -408,12 +408,16 @@
 # (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
 #max_in_flight = 1024
 #workers = 4
-# The four connection waits, each idle rather than total, and each finite with nothing configured.
+# The connection waits, each idle rather than total, and each finite with nothing configured.
 # A bare number is seconds, so `"10s"` and `10` are the same wait.
 #header_timeout = "10s"             # the header read wait
 #body_idle_timeout = "30s"          # the body idle wait
 #write_idle_timeout = "30s"         # the write idle wait
-#keepalive_timeout = "60s"          # the keep-alive idle wait
+#keepalive_timeout = "75s"          # the keep-alive idle wait
+# How long a connection keeps being served once it has seen the drain — the period that bounds a
+# stop, spelled the same way and finite for the same reason. It is not an idle wait and not
+# keep-alive under another name, so lengthening the wait a proxy needs leaves the restart alone.
+#drain_timeout = "30s"              # the drain period
 
 #[[server.mount]]
 # One mount — `rule:http-server/a-request-resolves-in-five-steps`. A mount matches on `prefix`, on

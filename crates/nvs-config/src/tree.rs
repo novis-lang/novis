@@ -1111,6 +1111,10 @@ pub struct Server {
     pub write_idle_timeout: Option<Setting>,
     /// The keep-alive idle wait.
     pub keepalive_timeout: Option<Setting>,
+    /// How long a connection keeps being served after this server has begun
+    /// draining, spelled like the waits above and bounding a stop rather than an idle socket
+    /// ([ADR 0186](/docs/decisions/0186.md) § 3).
+    pub drain_timeout: Option<Setting>,
     /// `[[server.mount]]` — one rule per mount (§ 4).
     pub mount: Vec<Mount>,
 }

@@ -37,7 +37,8 @@
         "0091",
         "0005",
         "0106",
-        "0161"
+        "0161",
+        "0186"
       ],
       "divergesFromPhp": "`listen` is the origin's own address rather than a php-fpm pool's, and `workers` counts accept cores rather than sizing a `pm.*` process pool",
       "seeAlso": [

@@ -363,6 +363,9 @@ mod tests {
             body_idle: Duration::from_secs(2),
             write_idle: Duration::from_secs(3),
             keepalive: Duration::from_secs(4),
+            // Not a phase's wait, and a fifth distinct number so that a phase
+            // reaching for it would be read here as a wrong answer.
+            drain: Duration::from_secs(5),
         };
         let bounds: Vec<Duration> = EVERY_PHASE
             .iter()

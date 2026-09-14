@@ -2058,6 +2058,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   considered never has. Read the feature map and the dependency kinds from
   `https://crates.io/api/v1/crates/<name>/<version>` and its `/dependencies`, and name the version you
   read in the record, because the answer is a property of that release. [until: reviewed 2026-09-14]
+- **A new directive has homes outside Rust.** The key is a field on `tree.rs`'s block struct,
+  resolves in that block's module and is transcribed into `default.toml` — but the rule fragment
+  printing the block's keys **is** the rule, and the record deciding it goes in `because` in
+  `docs/rules/<topic>.json`, the only home for that metadata. Edit the fragment and the json, then
+  `python tools/rules.py --render`, or `verify.py` fails on the stale generated chapter — a sentence
+  about a file nobody edits rather than about the key you added. [until: reviewed 2026-09-14]
 
 ## Running things
 
