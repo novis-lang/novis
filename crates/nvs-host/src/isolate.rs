@@ -81,11 +81,12 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::time::Instant;
 
 use nvs_runtime::graph::{GraphError, copy_graph, copy_graph_into};
 use nvs_runtime::{
-    Ctx, ErrorClass, EventStreamDoor, Fault, Inbound, Limit, OutputSink, PeerSocket, SseSlot,
-    TaskRoot, UpgradeSlot, Value,
+    Ctx, ErrorClass, EventStreamDoor, Fault, Inbound, Limit, OpenSpawn, OutputSink, PeerSocket,
+    SpawnForm, SseSlot, TaskRoot, UpgradeSlot, Value,
 };
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
@@ -468,6 +469,10 @@ impl Isolate {
             return Ok(Box::new(Collected {
                 completion: Some(refused_completion(&message)),
                 output,
+                // No child was started, so there is no spawn to record: the
+                // event `rule:observability/spawn-is-its-own-event` asks for is
+                // filed where a body begins, and none did.
+                open: None,
             }));
         }
         // In, at the spawn — before anything is built, so a refusal costs
@@ -549,6 +554,13 @@ impl Isolate {
             isolate_ctx.set_body_stream(events);
             isolate_ctx.mark_event_stream(EventStreamDoor::Connection);
         }
+        // `rule:observability/spawn-is-its-own-event`'s event, opened where the
+        // child starts rather than where it is awaited, so a child that is
+        // never joined reads as a spawn with no join instead of as nothing at
+        // all. The `Option` is the gate and the timing question at once: with
+        // both debug bits off nothing is recorded here and nothing on the
+        // child's side reads a clock for a split nobody asked for.
+        let open = ctx.open_spawn(SpawnForm::Script);
         Ok(match Wake::current() {
             Some(wake) => start_as_task(
                 isolate_ctx,
@@ -558,6 +570,7 @@ impl Isolate {
                 output,
                 receiving,
                 watch,
+                open,
             ),
             // No task beneath the call, which takes a host installed by
             // something other than a running scheduler — `run_group`'s own
@@ -569,8 +582,15 @@ impl Isolate {
             None => {
                 let _unpublished = watch.map(Unpublished);
                 Box::new(Collected {
-                    completion: Some(run_here(isolate_ctx, program, crossed, receiving)),
+                    completion: Some(run_here(
+                        isolate_ctx,
+                        program,
+                        crossed,
+                        receiving,
+                        open.is_some(),
+                    )),
                     output,
+                    open,
                 })
             }
         })
@@ -607,6 +627,9 @@ struct Started {
     done: Rc<Cell<bool>>,
     /// Whose stream the child's bytes go to at the join.
     output: Output,
+    /// The event the spawn filed, which the join closes and an abandoned child
+    /// leaves open — `None` for a spawn nobody was observing.
+    open: Option<OpenSpawn>,
 }
 
 impl std::fmt::Debug for Started {
@@ -624,11 +647,15 @@ impl std::fmt::Debug for Started {
 struct Collected {
     completion: Option<Completion>,
     output: Output,
+    /// The event the spawn filed, closed here at the join for [`Started`]'s
+    /// reason and by the same call.
+    open: Option<OpenSpawn>,
 }
 
 impl Running for Collected {
     fn join(mut self: Box<Self>, ctx: &mut Ctx) -> Completion {
         let completion = self.completion.take().unwrap_or_else(cancelled_completion);
+        close_spawn(self.open.take(), &completion, ctx);
         hand_over(completion, self.output, ctx)
     }
 
@@ -671,15 +698,13 @@ impl Started {
 }
 
 impl Running for Started {
-    fn join(self: Box<Self>, ctx: &mut Ctx) -> Completion {
+    fn join(mut self: Box<Self>, ctx: &mut Ctx) -> Completion {
         self.park_until_done(false);
 
         let completion = self.slot.borrow_mut().take();
-        hand_over(
-            completion.unwrap_or_else(cancelled_completion),
-            self.output,
-            ctx,
-        )
+        let completion = completion.unwrap_or_else(cancelled_completion);
+        close_spawn(self.open.take(), &completion, ctx);
+        hand_over(completion, self.output, ctx)
     }
 
     fn finished(&self) -> bool {
@@ -707,6 +732,21 @@ impl Running for Started {
         // The completion, if the child filed one before it was told, is dropped
         // with `self.slot`: nobody is left to read an answer, and `rule:security/isolate-values-cross-by-copy`
         // makes discarding the copy the whole of freeing it.
+    }
+}
+
+/// Closes the event the spawn filed, carrying the child's own wall time as the
+/// half the overhead split is computed against.
+///
+/// One helper for both handles, because they differ in how the child ran and
+/// not in what the event says about it, and it takes the completion whole so
+/// that the numbers a join reports always come off the answer it is reporting.
+/// A child that is abandoned rather than joined reaches none of this and leaves
+/// its event open, which is the reading
+/// `rule:observability/spawn-is-its-own-event` asks for.
+fn close_spawn(open: Option<OpenSpawn>, completion: &Completion, ctx: &mut Ctx) {
+    if let Some(open) = open {
+        ctx.close_spawn(open, completion.wall);
     }
 }
 
@@ -746,6 +786,11 @@ impl Drop for Ended {
 /// park is **not** here: waiting is [`Started::join`]'s, and the guarantee that
 /// control does not leave with the child still running is the awaiting call's
 /// rather than this one's.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one isolate's parts, each decided at a different line of `Isolate::start`; a struct \
+              to carry them the width of one call would be `Isolate` again"
+)]
 fn start_as_task(
     isolate_ctx: Ctx,
     program: Program,
@@ -754,6 +799,7 @@ fn start_as_task(
     output: Output,
     receiving: Option<ErrorClass>,
     watch: Option<Rc<Registration>>,
+    open: Option<OpenSpawn>,
 ) -> Box<dyn Running> {
     let slot: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
     let done = Rc::new(Cell::new(false));
@@ -764,6 +810,11 @@ fn start_as_task(
         wake,
     };
     let unpublished = watch.map(Unpublished);
+    // The child's half of the event's split, as a flag rather than a flags read
+    // on the other side: a request nobody is observing must not read a clock,
+    // and the parent asked that question once at the spawn. `group::Child` says
+    // the same thing about a `Core\Task` child.
+    let timed = open.is_some();
     let spawned = spawn_child(isolate_ctx, TaskRoot::Request, move |child| {
         // Moved in so the guard is dropped with the body — including when the
         // body is torn down half-way through by a forced unwind.
@@ -773,8 +824,14 @@ fn start_as_task(
         // work runs on this stack afterwards and is this request's CPU as much
         // as its body was.
         let _unpublished = unpublished;
+        let began = timed.then(Instant::now);
         let answer = program(child, args);
-        let completion = finish(child, answer, receiving.as_ref());
+        // Stopped where the body stops and before the crossing below, so the
+        // copy-out lands on the parent's side of the split rather than inside
+        // the child's own compute.
+        let wall = began.map(|at| at.elapsed());
+        let mut completion = finish(child, answer, receiving.as_ref());
+        completion.wall = wall;
         // `rule:concurrency/a-connection-is-a-root-isolate`: a connection isolate's end **is** the connection's end,
         // and § 7 asks for a defined code rather than the reset a dropped
         // descriptor gives. This is the one place that holds both halves — the
@@ -858,10 +915,13 @@ fn start_as_task(
 
     let Some(id) = spawned else {
         // Unreachable from inside a turn: holding a `Wake` is `current_task`
-        // and the tree both answering. Nothing ran, so nothing is owed.
+        // and the tree both answering. Nothing ran, so nothing is owed — the
+        // event goes on to the handle either way, and the join closes it with
+        // no child time, which is what a child that never ran took.
         return Box::new(Collected {
             completion: Some(cancelled_completion()),
             output,
+            open,
         });
     };
 
@@ -870,6 +930,7 @@ fn start_as_task(
         slot,
         done,
         output,
+        open,
     })
 }
 
@@ -879,9 +940,16 @@ fn run_here(
     program: Program,
     args: Value,
     receiving: Option<ErrorClass>,
+    timed: bool,
 ) -> Completion {
+    // The flag the caller asked the question for, and the same reading the task
+    // above takes: the clock is read only where an event was opened, and the
+    // body is what it measures.
+    let began = timed.then(Instant::now);
     let answer = program(&mut isolate_ctx, args);
-    let completion = finish(&mut isolate_ctx, answer, receiving.as_ref());
+    let wall = began.map(|at| at.elapsed());
+    let mut completion = finish(&mut isolate_ctx, answer, receiving.as_ref());
+    completion.wall = wall;
     // `rule:concurrency/after-response-outlives-the-connection`, on the host that has no response and no scheduler either:
     // the isolate's own frame has returned and its answer is in hand, which is
     // the same trigger the task above reads. There is nothing to detach from —
@@ -1024,6 +1092,10 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
                 class,
                 message: thrown.message(),
             }),
+            // Filled by whoever ran the body, on every path out of here: this
+            // one measures the child, and a throw is a way for a body to end
+            // rather than a reason not to have timed it.
+            wall: None,
         };
     }
     if cancelled {
@@ -1053,6 +1125,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             status,
             headers,
             error: None,
+            wall: None,
         },
         Err(refused) => Completion {
             ok: false,
@@ -1065,6 +1138,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
                 class: "Error".to_owned(),
                 message: refused.to_string(),
             }),
+            wall: None,
         },
     }
 }
@@ -1089,6 +1163,8 @@ fn refused_completion(message: &str) -> Completion {
             class: "Error".to_owned(),
             message: message.to_string(),
         }),
+        // No body ran, so there is no child time for a split to subtract.
+        wall: None,
     }
 }
 
@@ -1106,6 +1182,9 @@ fn cancelled_completion() -> Completion {
             class: "Error".to_owned(),
             message: "the isolate was cancelled".to_owned(),
         }),
+        // The body never reported, so nothing measured it — the join that reads
+        // this still closes the event, with the wall it observed alone.
+        wall: None,
     }
 }
 
@@ -1138,7 +1217,9 @@ fn release(value: Value) {
 mod tests {
     use super::*;
     use crate::scheduler::{Scheduler, current_task};
-    use nvs_runtime::{ClassDesc, ClassTable, FieldDefault, MethodRow, NvsObj};
+    use nvs_runtime::{
+        ClassDesc, ClassTable, DebugFlags, FieldDefault, MethodRow, NvsObj, TraceKind,
+    };
 
     /// A parent that looks like a request: armed statics, a buffer of its own,
     /// and an error class, so a child's bare-message failure becomes a `Thrown`
@@ -2317,6 +2398,71 @@ mod tests {
              had not held before them, the worst by {} — memory is tracking \
              traffic rather than what is in flight",
             readings.iter().copied().max().unwrap_or(before) - before
+        );
+    }
+
+    /// One event for the spawn, filed where the child starts and closed at the
+    /// await with the child's own wall time beside the parent's, which is the
+    /// overhead split `rule:observability/spawn-is-its-own-event` asks a
+    /// `spawn script` for — and the form it carries is this construct's
+    /// spelling rather than a task's.
+    ///
+    /// The second half is the gate every probe in the tree shares
+    /// (`rule:testing/debug-probes`): with both bits off there is no event, and
+    /// nothing on either side of the boundary reads the clock that would have
+    /// filled one. `group::an_untraced_spawn_records_no_spawn_event` is the
+    /// same claim for a `Core\Task` child.
+    #[test]
+    fn a_traced_spawn_script_records_one_spawn_event_closed_at_its_join() {
+        let program: Program = Box::new(|_child: &mut Ctx, _args| Value::null());
+        let mut ctx = parent();
+        ctx.set_debug_flags(DebugFlags::TRACE);
+
+        let done = run(
+            Isolate::new(program, Value::null(), Output::Capture),
+            &mut ctx,
+        )
+        .expect("the argument crosses");
+
+        assert!(done.ok);
+        assert!(
+            done.wall.is_some(),
+            "the parent opened an event and the child reported no time of its own"
+        );
+        let events: Vec<&str> = ctx
+            .trace()
+            .iter()
+            .filter(|event| event.kind == TraceKind::Spawn)
+            .map(|event| event.callee.as_str())
+            .collect();
+        assert_eq!(events.len(), 1, "one event per spawn, not one per await");
+        let event = events[0];
+        assert!(
+            event.starts_with("spawn script started="),
+            "the event names another construct: {event}"
+        );
+        assert!(
+            event.contains(" joined=") && event.contains(" child="),
+            "the await left the event open, or closed it with no split: {event}"
+        );
+
+        let program: Program = Box::new(|_child: &mut Ctx, _args| Value::null());
+        let mut untraced = parent();
+
+        let done = run(
+            Isolate::new(program, Value::null(), Output::Capture),
+            &mut untraced,
+        )
+        .expect("the argument crosses");
+
+        assert!(done.ok);
+        assert!(
+            untraced.trace().is_empty(),
+            "a request nobody is observing recorded an event"
+        );
+        assert!(
+            done.wall.is_none(),
+            "a request nobody is observing read a clock for a split nobody asked for"
         );
     }
 }

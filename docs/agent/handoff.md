@@ -2,47 +2,49 @@
 
 ## State
 
-**Goal `m5-proofs` (M5). Stage 2 is closed, and stage 4 is half landed.**
+**Goal `m5-proofs` (M5). Stage 4 is closed, and stage 3's two `.nvst` cases are the earliest red check.**
 
-Stage 2 needed no new assertions. Both deadlock tests and the `.nvst` case were already on disk
-from an earlier session under names the check does not spell; the two `cargo-named` tests now carry
-the check's own spelling in `crates/nvs-host/src/group.rs` and their assertions are untouched, and
-`tests/conformance/task/a-deliberate-deadlock-is-ended-by-the-deadline-and-leaves-no-child-running.nvst`
-passes as it stood.
+Stage 4's isolate half is on disk. `Completion` (`crates/nvs-runtime/src/host.rs:268`) carries `wall`, the
+child's own body time, read only where the parent opened an event and stopped where the body stops — so
+the answer's crossing lands on the parent's side of the overhead split rather than inside the child's
+compute. `Isolate::start` (`crates/nvs-host/src/isolate.rs:423`) opens one `TraceKind::Spawn` event per
+`spawn script`, both `Running` handles close it at the join with that number, and a child that is
+abandoned rather than joined leaves its event open. All four of the stage's test names now resolve.
 
-Stage 4's runtime half is built: `Ctx::open_spawn` and `Ctx::close_spawn`
-(`crates/nvs-runtime/src/ctx/trace.rs`) file one `TraceKind::Spawn` event per spawn under `TRACE` or
-`PROFILE`, carrying the form's spelling, both timestamps on a process-wide monotonic epoch, the
-parent-observed wall and the split against the child's own. `run_as_children` emits one per
-`Core\Task` child and closes them all where the call returns. Two of that stage's three `-p
-nvs-host` tests are green; the third is the isolate's, and `Completion` has nowhere yet to carry a
-child's own wall time, which is what the next group builds.
+One thing the rule says that the tree does not: `rule:observability/spawn-is-its-own-event` describes the
+child's wall time as "already arriving on `ScriptResult`", and that shape's four fields
+(`crates/nvs-stdlib/src/script.rs:428`) do not carry it — the split reads it off the native `Completion`
+before the language shape is built. Backlog.
 
 Nothing is blocked.
 
 ## Next group
 
-**Stage 4: the `spawn` trace event, the isolate half** — one file set:
-`crates/nvs-host/src/isolate.rs` and `crates/nvs-runtime/src/host.rs`.
+**Stage 3: the isolate proofs** — one file set: `docs/agent/loop-goal.toml`,
+`docs/agent/goals/55-m5-proofs.toml` and `tests/conformance/core/`.
 
-- [ ] **A child isolate reports its own wall time** — `Completion` at
-      `crates/nvs-runtime/src/host.rs:268` gains the field the split is computed against, filled
-      where the child's body ends, at `crates/nvs-host/src/isolate.rs:630`'s join and the placed
-      form's at `crates/nvs-host/src/isolate.rs:674`. Timed only where the parent opened an event,
-      as `crates/nvs-host/src/group.rs`'s `Child::timed` does it.
-      `rule:observability/spawn-is-its-own-event`.
-- [ ] **A `spawn script` opens its event where the child starts and closes it at the join** — the
-      test name `a_traced_spawn_script_records_one_spawn_event_closed_at_its_join` verbatim, in
-      `crates/nvs-host/src/isolate.rs`'s own test module, over `Isolate::start` at
-      `crates/nvs-host/src/isolate.rs:423` and the joins at `crates/nvs-host/src/isolate.rs:630`.
-      `rule:observability/spawn-is-its-own-event`.
-- [ ] **The untraced gate covers an isolate as well as a task child** — the same isolate test
-      asserts that with both bits off `crates/nvs-host/src/isolate.rs:423` records nothing and reads
-      no clock; `crates/nvs-host/src/group.rs:1020` is that assertion for a `Core\Task` child.
-      `rule:testing/debug-probes`.
+- [ ] **The drafted isolate case is on disk under the name its author chose** — the check at
+      `docs/agent/loop-goal.toml:9759` names
+      `tests/conformance/isolate/a-child-reading-request-or-session-state-throws-a-logic-error.nvst`,
+      and `tests/conformance/isolate/a-child-refuses-request-state-and-still-reads-the-process.nvst:2`
+      is that claim whole, `Core\Server::isDraining` included. Re-point the name in both toml copies,
+      which are byte-identical by construction. `rule:security/request-state-throws-in-an-isolate`.
+- [ ] **A session opened where no request arrived is a `LogicError`** — write
+      `tests/conformance/core/session-start-where-no-request-arrived-is-a-logic-error.nvst`, the check's
+      second case: a program answering no request calling `Core\Session::start()`, whose refusal
+      `crates/nvs-stdlib/src/session.rs:284` spells and `crates/nvs-stdlib/src/session.rs:735`
+      documents. `tests/conformance/core/session-start-refuses-a-tree-that-configured-no-store.nvst:1`
+      is the nearest shape to copy, and it answers a request where this one must not.
+      `rule:security/request-state-throws-in-an-isolate`.
+- [ ] **Stage 3's other check is already green, so confirm rather than write** — the three names under
+      `docs/agent/loop-goal.toml:9767` are in `crates/nvs-host/src/isolate.rs`; a `cargo test -p
+      nvs-host` filter says so in one call, and a miss there is the whole of that stage's remaining
+      work. `rule:security/isolate-shares-nothing`.
 
 ## Backlog
 
+- `ScriptResult` carries no child wall time, against `rule:observability/spawn-is-its-own-event`'s own
+  sentence — either a fifth member in `crates/nvs-stdlib/src/script.rs:428` or a corrected fragment.
 - Stage 5: the record, and the concurrency rule its check names by id — the ruling it writes down is
   already settled in `docs/agent/loop-goal.md` § *Standing decisions*.
 - Stage 6: `on:`, `limits:` and `grants:` — two `-p nvs-types` tests, three `-p nvs-host` tests and

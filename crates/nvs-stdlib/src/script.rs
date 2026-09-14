@@ -1069,6 +1069,12 @@ fn result_of(completion: Completion) -> Value {
         // header line for a pair to reach, so what a child declared is read by
         // whoever is answering a peer or dropped here with the rest of it.
         headers: _,
+        // And the child's own wall time, which is the parent's to spend: the
+        // `spawn` event's overhead split reads it off the completion before
+        // this shape is built (`rule:observability/spawn-is-its-own-event`),
+        // and a program that never turned a debug bit on would read `null`
+        // here for a clock nobody was allowed to consult.
+        wall: _,
         error,
     } = completion;
     let error = error.map_or_else(Value::null, |failure| {

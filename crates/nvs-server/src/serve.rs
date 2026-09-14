@@ -2053,6 +2053,7 @@ mod tests {
             status: None,
             headers: Vec::new(),
             error: None,
+            wall: None,
         }
     }
 
@@ -4370,6 +4371,7 @@ mod tests {
                 status: None,
                 headers: Vec::new(),
                 error: None,
+                wall: None,
             }
         }
 

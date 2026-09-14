@@ -322,6 +322,18 @@ pub struct Completion {
     pub headers: Vec<DeclaredHeader>,
     /// Present exactly when `ok` is false.
     pub error: Option<Failure>,
+    /// How long the child's own body ran, as the child measured it — the half
+    /// `rule:observability/spawn-is-its-own-event`'s overhead split is computed
+    /// against, so a spawn reads as real child compute beside the scheduling
+    /// and copy-out cost around it rather than as one opaque total. It stops
+    /// where the body does, ahead of the answer's crossing, which is the other
+    /// side of that subtraction.
+    ///
+    /// `None` where the parent opened no spawn event. The gate
+    /// `rule:testing/debug-probes` names is that a request nobody is observing
+    /// reads no clock at all, so the parent asks once at the spawn and the
+    /// child is handed the answer rather than reading the flags a second time.
+    pub wall: Option<Duration>,
 }
 
 impl Completion {
@@ -678,6 +690,7 @@ mod tests {
                 status: None,
                 headers: Vec::new(),
                 error: None,
+                wall: None,
             }
         }
 

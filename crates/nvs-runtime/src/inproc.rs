@@ -224,6 +224,7 @@ mod tests {
                 status: Some(self.0),
                 headers: Vec::new(),
                 error: None,
+                wall: None,
             })
         }
     }
