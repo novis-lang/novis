@@ -89,10 +89,20 @@
 //! # Known gaps
 //!
 //! A child spawned `on: "worker"` starts on this core.
-//! [`SchedulerHost::start_isolate`] reads the placement and routes both words
-//! to the same start, because the other core's inbox —
-//! `rule:concurrency/on-worker-runs-the-child-on-another-core`'s mechanism — is
-//! not built. Everything else about such a child is what the rule describes.
+//! [`SchedulerHost::start_isolate`] reads the placement and routes both words to
+//! the same start, and what stops the worker word going anywhere else is the
+//! shape of its own argument: a [`Program`] is a `Box<dyn FnOnce(&mut Ctx,
+//! Value) -> Value>` built by the *parent's* resolver, so it is neither `Send`
+//! nor meaningful on another core, and a [`Value`] is reachable from one core by
+//! construction. The cores and the inbox behind that word are built —
+//! [`crate::worker`] is
+//! `rule:concurrency/on-worker-runs-the-child-on-another-core`'s mechanism and
+//! owns what a placement costs. Routing to them takes a seam that carries the
+//! child's program **named** rather than resolved — a path the far core's own
+//! resolver resolves, or a static method of a unit it resolves the same way —
+//! and its argument as `nvs_runtime::graph::encode`'s bytes, which is the copy
+//! at every node ADR 0184 § 2 prices. Everything else about such a child is
+//! what the rule describes.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -209,9 +219,11 @@ impl Host for SchedulerHost {
             Entry::Method => isolate.running_a_method_of_the_parents_unit(),
         };
         match placement {
-            // One arm, and the module doc's `# Known gaps` is why: a worker
-            // placement names another core's inbox, and both words reach this
-            // core's own start until that inbox is here.
+            // One arm, and the module doc's `# Known gaps` is why: the cores a
+            // worker placement names are here, but a `Program` is a closure the
+            // parent's resolver built and cannot cross to one, so both words
+            // reach this core's own start until the seam names the program
+            // instead of carrying it.
             Placement::Here | Placement::Worker => isolate.start(ctx),
         }
     }
