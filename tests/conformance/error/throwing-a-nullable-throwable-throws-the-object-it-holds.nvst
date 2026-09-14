@@ -1,0 +1,34 @@
+--TEST--
+A `throw` whose operand is a `?Throwable` raises the object the tag holds — `rule:errors/propagation`
+--FILE--
+<?nvs
+// The checker settles neither question a `?Throwable` asks: whether there is
+// an object at all, and whether it descends from `Throwable`. Both hold here,
+// so the raise is the one a declared exception type already gets.
+?Throwable $held = new RuntimeError("the tag held it");
+
+try {
+    throw $held;
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+
+class Source {
+    // A call's result rather than a local, so the operand is a fresh value the
+    // frame owns rather than one a slot keeps owning.
+    public static function make(): ?Throwable {
+        return new LogicError("a call handed it over");
+    }
+}
+
+try {
+    throw Source::make();
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+
+echo "after\n";
+--EXPECT--
+caught: the tag held it
+caught: a call handed it over
+after

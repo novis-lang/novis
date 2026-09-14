@@ -1,0 +1,18 @@
+--TEST--
+A `throw` through a `?Throwable` holding `null` raises PHP's own "Can only throw objects" — `rule:errors/propagation`
+--FILE--
+<?nvs
+// `null` is the one tag a `?Throwable` can carry that is not an object, and
+// the raise is catchable like any other rather than a fatal.
+?Throwable $empty = null;
+
+try {
+    throw $empty;
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+
+echo "after\n";
+--EXPECT--
+caught: Can only throw objects
+after

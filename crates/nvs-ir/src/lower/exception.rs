@@ -18,19 +18,32 @@ impl<'a> Lowering<'a> {
     /// `$e` then happens in the landing block, which is why the two do not
     /// cancel out.
     ///
+    /// # A tagged operand
+    ///
+    /// A [`Ty::Tagged`] operand arrives here on purpose. `nvs_types`'
+    /// `expr::members::reject_unthrowable` refuses a type that can hold no
+    /// object and a class outside spec § 10's tree, and passes `mixed`,
+    /// `object` and every union — `?Throwable` among them — because the tree
+    /// is what `catch` matches on at run time. [`Self::guard_throwable`] asks
+    /// the two questions that leaves, where the value is.
+    ///
     /// # Panics
     ///
-    /// Panics naming the operand's representation if it is not a
-    /// [`Ty::Object`] — the checker has already refused throwing anything but
-    /// a `Throwable` subclass, so anything else here is a lowering bug.
+    /// Panics naming the operand's representation if it is neither
+    /// [`Ty::Object`] nor [`Ty::Tagged`]. Those two are what
+    /// `reject_unthrowable`'s `can_hold_an_object` predicate lets past, so a
+    /// third is a bug in this crate and not a shape a program can write.
     pub(crate) fn lower_throw(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
-            matches!(ty, Ty::Object),
-            "nvs-ir lowers `throw` only for an exception object — got representation {ty:?}; \
-             see the crate docs' known gaps"
+            matches!(ty, Ty::Object | Ty::Tagged),
+            "`throw`'s operand is a `Ty::Object` or a `Ty::Tagged`, the pair \
+             `nvs_types::expr::members::reject_unthrowable` admits — representation {ty:?} means \
+             this is a bug in nvs-ir"
         );
-        if self.aliasing_read(inner) {
+        let borrowed = self.aliasing_read(inner);
+        let v = self.guard_throwable(v, ty, borrowed, inner.span, env, cur);
+        if borrowed {
             self.emit_retain(*cur, v);
         }
         let source = self.throw_source(*cur);
@@ -39,6 +52,139 @@ impl<'a> Lowering<'a> {
             *cur,
             Terminator::Throw {
                 value: v,
+                source,
+                landing,
+            },
+        );
+    }
+    /// The two answers a [`Ty::Tagged`] `throw` operand's type did not settle,
+    /// asked in front of the raise: whether the tag is an object at all, and
+    /// whether that object is inside spec § 10's tree. `cur` is left on the
+    /// block where both hold, and the value handed back is the object itself.
+    ///
+    /// A [`Ty::Object`] operand is handed straight back. Its class is the
+    /// checker's own answer, and `reject_unthrowable` has already refused
+    /// every named one outside the tree.
+    ///
+    /// **The wording is PHP's, word for word.**
+    /// `rule:php-migration/every-divergence-is-deliberate-and-listed` lists no
+    /// divergence here, so a program that catches one of these reads what it
+    /// reads in PHP. The class carrying it is [`LOGIC_ERROR`] — spec § 10's
+    /// "a bug in the program", the entry [`Lowering::lower_match`]'s unmatched
+    /// subject already raises — because the closed tree has no `Error` of
+    /// PHP's own. A `Tag::Closure` payload takes the first message rather than
+    /// the second: [`InstKind::TagIs`] compares one tag byte, and a closure
+    /// carries its own.
+    ///
+    /// **What it spends** (`rule:programs/memory-priority`): one tag compare
+    /// and one descriptor walk, on the tagged operand alone, and no allocation
+    /// on the path where both hold.
+    ///
+    /// `borrowed` is [`Self::aliasing_read`]'s answer for the operand, and it
+    /// is what decides the release on either raise: a fresh operand is this
+    /// frame's to discharge before the block leaves, and [`InstKind::Untag`]
+    /// carries that obligation onto the narrowed value with the reference.
+    fn guard_throwable(
+        &mut self,
+        v: ValueId,
+        ty: Ty,
+        borrowed: bool,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        if ty != Ty::Tagged {
+            return v;
+        }
+        let (is_object, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::TagIs {
+                operand: v,
+                repr: Ty::Object,
+            },
+        );
+        let an_object = self.new_block();
+        let not_an_object = self.new_block();
+        let then_edge = self.ids.next_edge(span);
+        let else_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: is_object,
+                then_block: an_object,
+                then_edge,
+                else_block: not_an_object,
+                else_edge,
+            },
+        );
+        if !borrowed {
+            self.emit_release(not_an_object, v);
+        }
+        self.raise_logic_error(not_an_object, "Can only throw objects", env);
+
+        let (object, _) = self.emit(an_object, Ty::Object, InstKind::Untag { operand: v });
+        let (in_the_tree, _) = self.emit(
+            an_object,
+            Ty::Bool,
+            InstKind::InstanceOf {
+                value: object,
+                class: TestedClass::Named(THROWABLE_ROOT.to_owned()),
+            },
+        );
+        let inside = self.new_block();
+        let outside = self.new_block();
+        let then_edge = self.ids.next_edge(span);
+        let else_edge = self.ids.next_edge(span);
+        self.seal(
+            an_object,
+            Terminator::Branch {
+                cond: in_the_tree,
+                then_block: inside,
+                then_edge,
+                else_block: outside,
+                else_edge,
+            },
+        );
+        if !borrowed {
+            self.emit_release(outside, object);
+        }
+        self.raise_logic_error(
+            outside,
+            "Cannot throw objects that do not implement Throwable",
+            env,
+        );
+        *cur = inside;
+        object
+    }
+    /// Builds a [`LOGIC_ERROR`] carrying `message` in `block` and seals the
+    /// block on the raise of it.
+    ///
+    /// Argument 2 is the `{previous}` bag flattened to its own `null` default,
+    /// widened into the [`Ty::Tagged`] slot spec § 10's `Throwable|null`
+    /// erases to — the list [`Lowering::lower_match`]'s own throw builds by
+    /// hand, for the same reason. No retain: the instance is built here and
+    /// has exactly one owner, which [`Terminator::Throw`] takes.
+    fn raise_logic_error(&mut self, block: BlockId, message: &str, env: &mut Env) {
+        let (message, _) = self.emit(block, Ty::Str, InstKind::ConstStr(message.to_owned()));
+        let (absent, _) = self.emit(block, Ty::Null, InstKind::ConstNull);
+        let absent = self.coerce(block, absent, Ty::Null, Ty::Tagged, env);
+        let (exception, _) = self.emit_fallible(
+            block,
+            Ty::Object,
+            InstKind::New {
+                class: LOGIC_ERROR.to_owned(),
+                ctor: Some(THROWABLE_CTOR.to_owned()),
+                args: vec![message, absent],
+            },
+            env,
+        );
+        let source = self.throw_source(block);
+        let landing = self.landing_block(env);
+        self.seal(
+            block,
+            Terminator::Throw {
+                value: exception,
                 source,
                 landing,
             },
