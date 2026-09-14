@@ -38,6 +38,17 @@ VS Code's own API, and asserts them exactly rather than by appearance. What a sc
 that, once the server's range test, the position conversion's unit test and the reveal state machine's
 logic test have run too, is a CSS constant that never varies — the test that never fires.
 
+**The test surface `activate` returns is read-only.** The host tier reads almost everything it asserts
+through VS Code's own API, but a decoration and a `LanguageStatusItem` are sinks — `setDecorations` takes
+ranges and hands none back — so what is concealed on screen and what the status item says can only be
+observed if this extension says so. `activate` returns the three readings in `src/surface.ts` and nothing
+else: the status item's text and severity, the AST view's provider, and the ranges each visible editor was
+last handed per decoration kind. There is no reveal on it, no setter and no way to run anything, because
+`activate`'s return value is `extension.exports` and every extension installed beside this one can reach
+it: a reveal there would uncover a `secret` on the user's screen without the user asking, which
+`rule:ide/reveal-is-explicit-and-window-local` reserves for the person at the keyboard. It holds no
+language logic either, so `rule:ide/dependencies-are-allowlisted` is untouched by it.
+
 **The `tainted` marker is a themed text glyph, not a codicon.** [ADR 0101](../../docs/decisions/0101.md)
 § 4 asks for a themed codicon after each `tainted` declaration, and the API it would be drawn with does
 not offer one: an inline decoration attachment takes `contentText` **or** an image path and never both,

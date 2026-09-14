@@ -107,6 +107,17 @@ const provider: TreeDataProvider<Node> = {
   },
 };
 
+/**
+ * The provider the view draws from, which is how the panel's contents are read from outside it.
+ *
+ * A `TreeDataProvider` and not the `TreeView`: the view has `reveal` on it, and `surface.ts` hands
+ * back nothing that acts. Asking this for its children is asking the same question the editor asks
+ * when it draws the panel.
+ */
+export function tree(): TreeDataProvider<Node> {
+  return provider;
+}
+
 /** Run the CLI over `file` and hang the tree it printed in the view, or say why there is none. */
 async function render(file: string): Promise<void> {
   const printed = await dump(file);

@@ -45,6 +45,7 @@ import {
 import { LanguageClient } from "vscode-languageclient/node";
 
 import { Concealment, Position as Where, Range as Wire, Redaction } from "./concealment";
+import { Drawn } from "./surface";
 
 // The server's own request, spelled where `crates/nvs-lsp/src/redactions.rs` spells it. Its params
 // are an LSP `TextDocumentIdentifier` and its answer a list of `{range, kind}`.
@@ -78,6 +79,11 @@ const REVEAL = "nvs.revealSecret";
 const BLUR = "10px";
 
 const held = new Concealment();
+// What the last draw handed each visible Novis editor, which is `surface.ts`'s reading of this file.
+// A decoration cannot be read back off an editor, so this is the only record of what is on screen.
+// It is rebuilt whole by every draw rather than amended, because `draw` recomputes every range it
+// hands out anyway and a record kept any other way is a second copy of this state to fall behind it.
+let last: Drawn[] = [];
 let concealing: TextEditorDecorationType | undefined;
 let marking: TextEditorDecorationType | undefined;
 let serving: LanguageClient | undefined;
@@ -234,18 +240,30 @@ function draw(): void {
   if (bar === undefined || mark === undefined) {
     return;
   }
+  const drawing: Drawn[] = [];
   for (const editor of window.visibleTextEditors) {
     if (!novis(editor.document)) {
       continue;
     }
     const settings = workspace.getConfiguration("nvs", editor.document.uri);
     const uri = editor.document.uri.toString();
-    editor.setDecorations(bar, settings.get<boolean>("secrets.redact", true) ? options(editor) : []);
-    editor.setDecorations(
-      mark,
-      settings.get<string>("taint.mark", "off") === "off" ? [] : marks(uri),
-    );
+    const concealed = settings.get<boolean>("secrets.redact", true) ? options(editor) : [];
+    const marked = settings.get<string>("taint.mark", "off") === "off" ? [] : marks(uri);
+    editor.setDecorations(bar, concealed);
+    editor.setDecorations(mark, marked);
+    drawing.push({
+      document: uri,
+      column: editor.viewColumn,
+      concealed: concealed.map((option) => option.range),
+      marked,
+    });
   }
+  last = drawing;
+}
+
+/** The ranges each visible editor was last handed, which is what `surface.ts` exposes of this file. */
+export function drawn(): readonly Drawn[] {
+  return last;
 }
 
 /**

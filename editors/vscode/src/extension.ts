@@ -13,6 +13,11 @@
 // The concealment of `secret` values is `redactions.ts`, installed once here and told which client
 // to ask. It is on its own listeners rather than this file's, because what it draws outlives the
 // server it drew from (`rule:ide/redaction-ranges-come-from-the-server`).
+//
+// `activate` returns a `Surface`: a read-only reading of the status item, the AST panel's tree and
+// the ranges each editor was last decorated with, for the suite that runs inside the extension host.
+// It is what this extension exports to every other one in the window, so nothing on it acts —
+// `surface.ts` is where that is argued.
 
 import {
   ConfigurationChangeEvent,
@@ -37,6 +42,7 @@ import { binary } from "./binary";
 import * as format from "./format";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
+import { Health, Surface } from "./surface";
 import * as tasks from "./tasks";
 import * as testing from "./tests";
 import { refusal } from "./version";
@@ -67,7 +73,7 @@ let client: LanguageClient | undefined;
 let status: LanguageStatusItem | undefined;
 let channel: OutputChannel | undefined;
 
-export async function activate(context: ExtensionContext): Promise<void> {
+export async function activate(context: ExtensionContext): Promise<Surface> {
   channel = window.createOutputChannel("Novis");
   status = languages.createLanguageStatusItem("nvs.server", SELECTOR);
   status.name = "Novis";
@@ -113,6 +119,30 @@ export async function activate(context: ExtensionContext): Promise<void> {
   // program, so the editor asks for it when the Testing view is opened rather than now.
   testing.install(context);
   await start(context);
+  return surface();
+}
+
+/**
+ * What this client exports, which is a reading of three things the editor's own API gives no way to
+ * read back: `surface.ts` is where its shape, and the reason nothing on it acts, are written down.
+ *
+ * Each member is taken at the moment it is asked for, because this object is handed back once at
+ * activation and everything it describes changes for the rest of the session.
+ */
+function surface(): Surface {
+  return {
+    get status(): Health | undefined {
+      return status === undefined
+        ? undefined
+        : { text: status.text, severity: status.severity };
+    },
+    get ast() {
+      return ast.tree();
+    },
+    get drawn() {
+      return redactions.drawn();
+    },
+  };
 }
 
 export function deactivate(): Promise<void> {
