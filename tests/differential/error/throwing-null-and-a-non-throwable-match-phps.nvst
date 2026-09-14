@@ -1,0 +1,44 @@
+--TEST--
+Throwing `null` and throwing an object outside the tree raise PHP's own two messages
+--FILE--
+<?nvs
+class Plain {}
+
+?Throwable $empty = null;
+
+try {
+    throw $empty;
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+
+mixed $plain = new Plain();
+
+try {
+    throw $plain;
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+
+echo "after\n";
+--ORACLE--
+<?php
+class Plain {}
+
+$empty = null;
+
+try {
+    throw $empty;
+} catch (Throwable $e) {
+    echo $e->getMessage(), "\n";
+}
+
+$plain = new Plain();
+
+try {
+    throw $plain;
+} catch (Throwable $e) {
+    echo $e->getMessage(), "\n";
+}
+
+echo "after\n";
