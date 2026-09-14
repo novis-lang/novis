@@ -2704,6 +2704,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   client the `WouldBlock` transport the server half has — `nvs_config::control`'s `Client`, adapted
   by `nvs_server::io::Nonblocking` — and read its connection future finishing as the answer having
   arrived, not as a truncation. [until: reviewed 2026-09-14]
+- **`#[cfg(unix)]` code is not compiled by anything this box runs, so a green `verify.py` says
+  nothing about it.** The first Linux build of `nvs-cli`'s signal half reported
+  `function_casts_as_integer` on a line that had been green here for sessions, and clippy's
+  `-D warnings` on the driver's own leg would have failed on it. Build it yourself in seconds
+  against the warm target dir the leg uses — `wsl.exe -- bash -lc "cd <the repo's /mnt path> &&
+  CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build --quiet"` — whenever a session writes or
+  edits a `#[cfg(unix)]` block. [until: reviewed 2026-09-15]
 
 ## Writing a test case
 
