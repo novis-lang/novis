@@ -135,6 +135,7 @@ use nvs_server::{
 };
 
 use crate::script::Compiler;
+use crate::service::{Notify, State};
 
 /// `nvs serve <file>` — resolve the tree, build § 4's mount table, compile every
 /// entry in it, bind the socket and run the accept loop until this process is
@@ -409,6 +410,14 @@ pub(crate) fn run(
         eprintln!("error: {error}");
         return ExitCode::FAILURE;
     }
+    // Whatever started this process, taken from the environment it was started
+    // in and kept as the process's: the boot reports `READY=1` below, the
+    // reload its pair, and the terminating signal's thread — which is handed
+    // nothing — reports `STOPPING=1` through `Notify::process`
+    // (`crate::service`). A process nothing supervises reports to nobody, which
+    // is what an operator running this by hand has.
+    let told = Notify::from_env();
+    told.install();
     // The endpoint's own thread, started before anything accepts so that the
     // first thing an operator can ask this process is answerable. It is a
     // thread and not a task on a core (`rule:concurrency/one-scheduler`), it
@@ -426,6 +435,7 @@ pub(crate) fn run(
             Arc::clone(&compiler),
             Arc::clone(&admission),
             nvs_server::Draining::process(),
+            told.clone(),
         );
         if let Err(error) = std::thread::Builder::new()
             .name("nvs-control".to_owned())
@@ -435,15 +445,7 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     }
-    // One line per socket, and the path as it was written rather than the
-    // canonical one the table holds: an operator reads these against the
-    // command they typed. The address is the listener's own, so an entry
-    // written with port `0` prints the port the platform chose; the address
-    // asked for is the fallback for a platform that will not answer.
-    for (listener, requested) in bound.iter().zip(&wanted) {
-        let addr = listener.local_addr().unwrap_or(*requested);
-        println!("listening on http://{addr} — {}", path.display());
-    }
+    listening(&bound, &wanted, path, &told);
 
     // The fan-out itself: one worker per core, each taking its own handle on
     // every socket bound above, so a connection is accepted by whichever core
@@ -1269,6 +1271,28 @@ fn addresses(
     Ok(bound)
 }
 
+/// The boot's last words: one line per socket for whoever is reading the
+/// terminal, then `READY=1` for whatever started this process.
+///
+/// The path is printed as it was written rather than the canonical one the
+/// table holds, because an operator reads these against the command they typed.
+/// The address is the listener's own, so an entry written with port `0` prints
+/// the port the platform chose; the address asked for is the fallback for a
+/// platform that will not answer.
+///
+/// **`READY=1` belongs here and last**, because what that state claims is
+/// exactly what the lines above report: every socket in the set is bound, and
+/// every mounted entry was compiled before any of them was. A `Type=notify`
+/// unit whose process says it any earlier is one `systemctl start` returns from
+/// while the port still refuses (`crate::service`).
+fn listening(bound: &[std::net::TcpListener], wanted: &[SocketAddr], path: &Path, told: &Notify) {
+    for (listener, requested) in bound.iter().zip(wanted) {
+        let addr = listener.local_addr().unwrap_or(*requested);
+        println!("listening on http://{addr} — {}", path.display());
+    }
+    told.state(State::Ready);
+}
+
 /// Every socket the process opens, in the order it opens them: the control
 /// endpoint `controlled` names, then every address [`addresses`] gave.
 ///
@@ -1373,8 +1397,9 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 #[cfg(test)]
 mod tests {
     use super::{
-        Address, Compiler, Ctx, Isolate, Listen, Output, OutputSink, SocketAddr, TaskRoot, Value,
-        addresses, bind_all, bind_sockets, handles_for, sweep_orphans, workers_for,
+        Address, Compiler, Ctx, Isolate, Listen, Notify, Output, OutputSink, SocketAddr, TaskRoot,
+        Value, addresses, bind_all, bind_sockets, handles_for, listening, sweep_orphans,
+        workers_for,
     };
     use std::cell::Cell;
     use std::collections::BTreeMap;
@@ -2181,6 +2206,9 @@ mod tests {
     /// never a reset, and nothing written after the head that was already sent.
     #[test]
     fn a_terminating_signal_drains_serve_and_every_connection_closes_cleanly() {
+        let _in_turn = ONE_STOP_AT_A_TIME
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         crate::stop::on_termination().expect("this process's terminating signals arm");
         let mut listener =
             nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
@@ -2286,5 +2314,106 @@ mod tests {
             "the drained server wrote something after the response it had already finished"
         );
         closed.expect("the drained connection ended in a reset rather than a clean close");
+    }
+
+    /// The two cases that stop this process take it in turn.
+    ///
+    /// The drain is one bit for the whole binary and the service manager is one
+    /// installed sink beside it, so two cases delivering a stop at once would
+    /// each be reading the other's report.
+    static ONE_STOP_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// A tree of this case's own on disk, and the [`crate::control::Process`]
+    /// serving it — the reload driven below is the real one, which re-resolves
+    /// these files exactly as the boot that wrote them would.
+    ///
+    /// The drain is `Draining::detached` because this server's stopping is not
+    /// this process's, and this process's is what the case stops afterwards.
+    fn a_server_over(case: &str, told: &Notify) -> crate::control::Process {
+        let beside = std::env::current_exe().expect("the test binary knows its own path");
+        let dir = beside
+            .parent()
+            .expect("a test binary sits in a directory")
+            .join(format!("nvs-serve-{}-{case}", std::process::id()));
+        drop(std::fs::remove_dir_all(&dir));
+        std::fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
+        let root = dir.join("nvs.toml");
+        std::fs::write(&root, "[limits]\nmemory = \"64M\"\n").expect("a tree of this case's own");
+        let entry = dir.join("app.nvs");
+        std::fs::write(&entry, "fn main(): void {}\n")
+            .expect("an entry file for the tree to be about");
+        let mut sources = nvs_diagnostics::SourceMap::new();
+        let snapshot = crate::config::boot_snapshot(
+            std::slice::from_ref(&root),
+            &entry,
+            &mut sources,
+            crate::config::Init::Never,
+        )
+        .expect("the tree this case wrote resolves");
+        let current = Arc::new(nvs_config::snapshot::Current::new(snapshot));
+        let capacity = nvs_config::server::capacity_for(&current.load().config, &BTreeMap::new())
+            .expect("a tree that named no ceiling has this machine's");
+        crate::control::Process::new(
+            Arc::clone(&current),
+            vec![root],
+            entry,
+            Arc::new(Compiler::default()),
+            Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
+                &capacity,
+            ))),
+            nvs_server::Draining::detached(),
+            told.clone(),
+        )
+    }
+
+    /// The four states a `Type=notify` unit is owed, in the order a served life
+    /// sends them and each taken from the call the process itself makes:
+    /// [`listening`] is the boot's last act, `Controlled::reload` is where every
+    /// spelling of a reload ends, and [`crate::stop::deliver`] is what a
+    /// terminating signal ends in.
+    ///
+    /// **The manager is a recording sink rather than a datagram socket**,
+    /// because a case may not assume it is running under systemd — and on
+    /// Windows there is no socket of that kind to bind at all. What is asserted
+    /// is still the protocol's own lines, so the seam is the only thing
+    /// standing in.
+    ///
+    /// The reload is the real one over a real tree, so the pair around it is
+    /// the pair an operator's `systemctl reload` produces rather than two calls
+    /// a case made in the right order.
+    #[test]
+    fn sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping() {
+        let _in_turn = ONE_STOP_AT_A_TIME
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (told, sent) = crate::service::recording();
+        told.install();
+
+        let listener =
+            std::net::TcpListener::bind(a_free_address()).expect("the loopback refused a listener");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener knows its own address");
+        listening(&[listener], &[addr], Path::new("app.nvs"), &told);
+
+        let process = a_server_over("sd-notify", &told);
+        nvs_server::control::Controlled::reload(&process)
+            .expect("the tree this case wrote reloads");
+
+        // The stop a terminating signal's thread ends in, over a drain of this
+        // case's own: the process's bit is begun once for the life of a binary
+        // and the case that owns it is the one above, while the manager told
+        // here is the process's either way.
+        crate::stop::deliver_to(&nvs_server::Draining::detached());
+
+        let sent = sent
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert_eq!(
+            sent.as_slice(),
+            ["READY=1", "RELOADING=1", "READY=1", "STOPPING=1"],
+            "the states this process reported are not the ones a `Type=notify` unit is owed, in \
+             the order a served life sends them"
+        );
     }
 }

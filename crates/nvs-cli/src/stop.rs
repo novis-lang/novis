@@ -14,7 +14,8 @@
 //! # A delivery is one call, and it is not made in the signal handler
 //!
 //! [`deliver`] is the whole of what a stop does: `Draining::process().begin()`,
-//! the drain every other reader already has. From there the accept loops stop
+//! the drain every other reader already has, and `STOPPING=1` to whatever
+//! started this process ([`crate::service`]). From there the accept loops stop
 //! accepting, `Core\Server::isDraining()` answers `true`, the health probe
 //! answers `503`, and a program's `Core\Signal::onShutdown` handler runs at its
 //! request's next safepoint (`nvs_stdlib::signal` owns that path).
@@ -63,9 +64,24 @@ pub(crate) fn on_termination() -> Result<(), String> {
 /// The process's drain and not a handle handed down from the boot, because this
 /// is called from a signal handler's thread which was given nothing: it is the
 /// same bit either way (`nvs_runtime::drain`), and taking it here is what makes
-/// that true by construction.
+/// that true by construction. The process's service manager is taken the same
+/// way and for the same reason ([`crate::service::Notify::process`]).
+///
+/// The drain is begun before the manager is told, so `STOPPING=1` is a state
+/// this process is already in rather than one it is about to enter.
 pub(crate) fn deliver() {
-    nvs_server::Draining::process().begin();
+    deliver_to(&nvs_server::Draining::process());
+}
+
+/// The stop itself, over the drain it begins.
+///
+/// The process's drain is [`deliver`]'s and is begun once for the life of a
+/// process, so a case about what a stop *reports* takes a detached one: the
+/// report is the same call either way, and the bit a signal sets stays a bit
+/// only the case about signals has set.
+pub(crate) fn deliver_to(draining: &nvs_server::Draining) {
+    draining.begin();
+    crate::service::Notify::process().state(crate::service::State::Stopping);
 }
 
 #[cfg(unix)]
@@ -199,7 +215,11 @@ mod platform {
         let mut action: libc::sigaction = unsafe { std::mem::zeroed() };
         // SAFETY: the mask belongs to the local above.
         unsafe { libc::sigemptyset(&raw mut action.sa_mask) };
-        action.sa_sigaction = delivered as usize;
+        // Through a pointer rather than straight to an integer: a function item
+        // is a zero-sized value of its own type, and the direct cast is the one
+        // `function_casts_as_integer` names — it reads as an address without
+        // there being a pointer anywhere in it.
+        action.sa_sigaction = delivered as *const () as usize;
         action.sa_flags = libc::SA_RESTART;
         // SAFETY: the action is a live local for the whole call, and a null
         // third argument is "do not report the old disposition".

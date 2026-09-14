@@ -59,9 +59,31 @@
 //! which is what makes "printed, and written only on install" a property this
 //! module can be asked about rather than a comment.
 //!
+//! # The manager is told what state this process is in
+//!
+//! The `Type=notify` line [`unit()`] renders is a promise, and [`Notify`] is
+//! what keeps it: a unit of that type whose process never sends `READY=1` is
+//! one systemd ends at `TimeoutStartSec` however well it is serving.
+//! `rule:packaging/the-generated-unit-is-hardened` is the list — `READY=1` once
+//! every listener is bound, `RELOADING=1` and `READY=1` around a reload, and
+//! `STOPPING=1` once the drain has begun.
+//!
+//! **The protocol is written by hand.** `sd_notify` is one datagram of
+//! `NAME=value` lines to whatever `$NOTIFY_SOCKET` names, so what a crate for
+//! it would save is the page below, and `libsystemd` would be a C dependency
+//! `rule:packaging/a-c-dependency-answers-two-questions` would have to answer
+//! for. A process nothing started that way has no `NOTIFY_SOCKET` and sends
+//! nothing at all, which is every `nvs serve` an operator runs by hand.
+//!
+//! **A report is a sink call, so the states a process goes through are
+//! assertable without a service manager.** [`Supervisor`] is that seam, and the
+//! datagram is one implementation of it. What it spends is one unbound socket
+//! for the life of a process systemd started, and nothing per request or per
+//! report.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::{Arc, OnceLock};
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap, code};
 
@@ -542,6 +564,275 @@ fn shell_word(word: &str) -> String {
         format!("\"{}\"", word.replace('\\', "\\\\").replace('"', "\\\""))
     } else {
         word.to_owned()
+    }
+}
+
+/// What a service manager is told this process is doing, and the whole set.
+///
+/// There is no `STATUS=` line beside these: what an operator reads a refusal
+/// out of is the diagnostic the reload rendered and `Core\Log`, and a summary
+/// in a third place is a third place for it to be wrong in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum State {
+    /// The boot is finished — every listener is bound and every mounted entry
+    /// is compiled — so `systemctl start` returns when the port accepts rather
+    /// than when this process was forked.
+    Ready,
+    /// A reload has begun. What ends it is [`State::Ready`] whatever the
+    /// reload's own outcome was: a refused reload leaves this process serving
+    /// the tree it already had, and a manager left in `reloading` over it would
+    /// be reporting a state the process is not in.
+    Reloading,
+    /// The drain has begun, so this process is answering what it accepted and
+    /// accepting nothing further.
+    Stopping,
+}
+
+impl State {
+    /// The assignment this state sends. A datagram carries this line, and for a
+    /// reload the timestamp beneath it.
+    ///
+    /// Present where there is something to write it to: a datagram on Unix, and
+    /// a case standing in for a manager anywhere.
+    #[cfg(any(unix, test))]
+    fn line(self) -> &'static str {
+        match self {
+            State::Ready => "READY=1",
+            State::Reloading => "RELOADING=1",
+            State::Stopping => "STOPPING=1",
+        }
+    }
+}
+
+/// Where this process's state changes go.
+///
+/// A seam rather than the datagram itself, so that what a boot, a reload and a
+/// stop report is what a case reads back — a service manager is not something
+/// a test may assume it is running under.
+pub(crate) trait Supervisor: std::fmt::Debug + Send + Sync {
+    /// Say that this process is now in `state`.
+    ///
+    /// Nothing is returned, because there is nothing a caller could do with a
+    /// failure: a server that refused to serve because the manager that started
+    /// it stopped listening would be an outage bought for a status line. An
+    /// implementation reports its own.
+    fn told(&self, state: State);
+}
+
+/// The service manager this process reports to, or nobody.
+///
+/// Cheap to clone and held by each half that has something to report — the boot
+/// here, the reload in [`crate::control`] and the stop in [`crate::stop`].
+#[derive(Clone, Debug)]
+pub(crate) struct Notify(Option<Arc<dyn Supervisor>>);
+
+/// What [`Notify::install`] left, for the reporter that is handed nothing.
+static PROCESS: OnceLock<Notify> = OnceLock::new();
+
+impl Notify {
+    /// The manager `$NOTIFY_SOCKET` names, or silence where the variable is
+    /// unset — which is every process an operator started by hand, and every
+    /// process at all on Windows, where a service's state is the SCM's and not
+    /// a datagram's.
+    pub(crate) fn from_env() -> Self {
+        #[cfg(unix)]
+        {
+            match std::env::var_os("NOTIFY_SOCKET") {
+                Some(name) if !name.is_empty() => systemd::manager(&name),
+                _ => Self::silent(),
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            Self::silent()
+        }
+    }
+
+    /// A process that reports to nobody.
+    pub(crate) fn silent() -> Self {
+        Self(None)
+    }
+
+    /// A process that reports to `sink`.
+    #[cfg(any(unix, test))]
+    pub(crate) fn to(sink: Arc<dyn Supervisor>) -> Self {
+        Self(Some(sink))
+    }
+
+    /// Report `state`, or do nothing at all.
+    pub(crate) fn state(&self, state: State) {
+        if let Some(sink) = &self.0 {
+            sink.told(state);
+        }
+    }
+
+    /// Keep this as the process's, for the one reporter that is handed nothing:
+    /// a terminating signal's thread is given no boot and no server, which is
+    /// why it takes this and `nvs_server::Draining::process()` the same way.
+    ///
+    /// Installed once — a second call keeps the first, because a process has
+    /// one manager for its whole life.
+    pub(crate) fn install(&self) {
+        drop(PROCESS.set(self.clone()));
+    }
+
+    /// What [`Notify::install`] left, or silence before a boot installed
+    /// anything.
+    pub(crate) fn process() -> Self {
+        PROCESS.get().cloned().unwrap_or_else(Self::silent)
+    }
+}
+
+/// A [`Notify`] whose reports a case reads back, and the log it writes them to.
+///
+/// What it records is the line each state would have sent, so a case asserts
+/// the protocol rather than the spelling of an enum.
+#[cfg(test)]
+pub(crate) fn recording() -> (Notify, Arc<std::sync::Mutex<Vec<&'static str>>>) {
+    #[derive(Debug)]
+    struct Recorder(Arc<std::sync::Mutex<Vec<&'static str>>>);
+
+    impl Supervisor for Recorder {
+        fn told(&self, state: State) {
+            self.0
+                .lock()
+                .expect("the recorded states are only taken here")
+                .push(state.line());
+        }
+    }
+
+    let log = Arc::new(std::sync::Mutex::new(Vec::new()));
+    (Notify::to(Arc::new(Recorder(Arc::clone(&log)))), log)
+}
+
+#[cfg(unix)]
+mod systemd {
+    //! `sd_notify` as the protocol is: one `AF_UNIX` datagram of `NAME=value`
+    //! lines to the address `$NOTIFY_SOCKET` holds.
+
+    use std::ffi::OsStr;
+    use std::io;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::net::{SocketAddr, UnixDatagram};
+    use std::path::Path;
+    use std::sync::Arc;
+
+    use super::{Notify, State, Supervisor};
+
+    /// The manager listening at `name`, or silence and one line saying why.
+    ///
+    /// A boot that cannot reach the manager that started it will be stopped at
+    /// `TimeoutStartSec` with no explanation of its own, so the only useful
+    /// place to say what went wrong is here.
+    pub(super) fn manager(name: &OsStr) -> Notify {
+        match opened(name) {
+            Ok(manager) => Notify::to(Arc::new(manager)),
+            Err(error) => {
+                eprintln!(
+                    "warning: `$NOTIFY_SOCKET` names `{}`, and this process cannot report its \
+                     state to it: {error}",
+                    Path::new(name).display()
+                );
+                Notify::silent()
+            }
+        }
+    }
+
+    /// The socket and the address, both taken once: a report is then a `send`
+    /// and nothing else.
+    fn opened(name: &OsStr) -> io::Result<Manager> {
+        Ok(Manager {
+            socket: UnixDatagram::unbound()?,
+            at: address(name)?,
+        })
+    }
+
+    /// `$NOTIFY_SOCKET` as an address: a path, or — where it begins with `@` —
+    /// a name in Linux's abstract namespace, which is the same socket with no
+    /// file to find it by.
+    fn address(name: &OsStr) -> io::Result<SocketAddr> {
+        if let [b'@', rest @ ..] = name.as_bytes() {
+            #[cfg(target_os = "linux")]
+            {
+                use std::os::linux::net::SocketAddrExt;
+                return SocketAddr::from_abstract_name(rest);
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                drop(rest);
+                return Err(io::Error::other(
+                    "an abstract socket name is Linux's, and this platform has no namespace to \
+                     look one up in",
+                ));
+            }
+        }
+        SocketAddr::from_pathname(Path::new(name))
+    }
+
+    /// One datagram per report, over a socket held for the life of the process.
+    ///
+    /// A report is rare — the boot's, a reload's pair, the stop's — so what
+    /// this holds is one descriptor rather than one per report, and nothing
+    /// that grows with either.
+    #[derive(Debug)]
+    struct Manager {
+        /// Unbound, because `sd_notify` is one-way: a manager never answers,
+        /// and a socket with a name of its own would be a file in a directory
+        /// this process was not told it may write to.
+        socket: UnixDatagram,
+        /// Where `$NOTIFY_SOCKET` pointed when this process started.
+        at: SocketAddr,
+    }
+
+    impl Supervisor for Manager {
+        fn told(&self, state: State) {
+            if let Err(error) = self
+                .socket
+                .send_to_addr(message(state).as_bytes(), &self.at)
+            {
+                eprintln!(
+                    "warning: the service manager was not told `{}`: {error}",
+                    state.line()
+                );
+            }
+        }
+    }
+
+    /// The datagram's whole text, one assignment per line.
+    ///
+    /// A reload carries `MONOTONIC_USEC` as well: it is the clock reading a
+    /// manager matches a reload it asked for against, and a `RELOADING` with
+    /// none can be read as the answer to a request that had not been made when
+    /// it was sent. A clock this platform will not read is left off rather than
+    /// guessed at — the state itself is still the honest half of the message.
+    fn message(state: State) -> String {
+        match state {
+            State::Reloading => match monotonic_usec() {
+                Some(usec) => format!("{}\nMONOTONIC_USEC={usec}\n", state.line()),
+                None => format!("{}\n", state.line()),
+            },
+            _ => format!("{}\n", state.line()),
+        }
+    }
+
+    /// `CLOCK_MONOTONIC` in microseconds, which is the clock the protocol
+    /// names. `Instant` is the same reading with no way to ask for its value.
+    #[expect(
+        unsafe_code,
+        reason = "`clock_gettime` is the platform's only reading of `CLOCK_MONOTONIC`, and \
+                  `std` hands back an opaque `Instant` instead of one"
+    )]
+    fn monotonic_usec() -> Option<u64> {
+        // SAFETY: `timespec` is a plain C struct whose all-zero value is a
+        // valid one, and the call below overwrites every field of it.
+        let mut now: libc::timespec = unsafe { std::mem::zeroed() };
+        // SAFETY: the platform writes one `timespec`, which this frame owns.
+        if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &raw mut now) } != 0 {
+            return None;
+        }
+        let seconds = u64::try_from(now.tv_sec).ok()?;
+        let nanos = u64::try_from(now.tv_nsec).ok()?;
+        seconds.checked_mul(1_000_000)?.checked_add(nanos / 1_000)
     }
 }
 

@@ -663,7 +663,9 @@ mod tests {
     ///
     /// The drain is [`Draining::detached`] because this server's stopping is not this process's,
     /// and the compiler is one of its own: the count a reload reports is the fleet's unit cache,
-    /// and this fleet has compiled nothing.
+    /// and this fleet has compiled nothing. Nothing supervises it either — what these cases assert
+    /// is the answer that crosses the endpoint, and the states a reload reports are
+    /// `crate::serve`'s own case.
     fn a_server_over(dir: &Path, written: &str) -> (PathBuf, Arc<Current>, Process) {
         let root = dir.join("nvs.toml");
         fs::write(&root, written).expect("a tree of this case's own");
@@ -687,6 +689,7 @@ mod tests {
             Arc::new(Compiler::default()),
             Arc::new(Admission::new(&Ceiling::of(&capacity))),
             Draining::detached(),
+            crate::service::Notify::silent(),
         );
         (root, current, process)
     }

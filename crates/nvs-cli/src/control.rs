@@ -14,7 +14,10 @@
 //! the same `rule:config/a-reload-names-what-it-could-not-apply` report. Nothing
 //! here decides what a `Boot` key does — [`nvs_config::Current::publish`] carries
 //! the running value back over the incoming tree, and what it reports is what
-//! [`Process::unapplied`] then remembers on the process's behalf.
+//! [`Process::unapplied`] then remembers on the process's behalf. It is also
+//! where a service manager is told a reload is happening and then that it is
+//! over ([`crate::service::State`]), for the same reason: one function, so one
+//! pair of transitions however the reload was asked for.
 //!
 //! **A reload re-reads the tree; it never writes one.** The boot may have been
 //! asked to create a default `nvs.toml` ([`crate::config::Init`]), and a control
@@ -48,6 +51,7 @@ use nvs_server::control::{Controlled, Report};
 use nvs_server::{Admission, Draining};
 
 use crate::script::Compiler;
+use crate::service::{Notify, State};
 
 /// What `nvs serve` supplies to its control endpoint.
 pub(crate) struct Process {
@@ -68,6 +72,11 @@ pub(crate) struct Process {
     admission: Arc<Admission>,
     /// This process's drain bit.
     draining: Draining,
+    /// Whatever started this process, told `RELOADING=1` and `READY=1` around
+    /// the reload below — the transitions `rule:packaging/the-generated-unit-is-hardened`'s
+    /// `Type=notify` unit is owed, from the one function every spelling of a
+    /// reload ends in.
+    notify: Notify,
     /// The `Boot` keys the last reload reported and left unapplied. Empty until
     /// one has happened, which is the honest answer: a process that has never
     /// reloaded has ignored nothing.
@@ -83,6 +92,7 @@ impl Process {
         compiler: Arc<Compiler>,
         admission: Arc<Admission>,
         draining: Draining,
+        notify: Notify,
     ) -> Self {
         Self {
             current,
@@ -91,13 +101,20 @@ impl Process {
             compiler,
             admission,
             draining,
+            notify,
             unapplied: Mutex::new(Vec::new()),
         }
     }
-}
 
-impl Controlled for Process {
-    fn reload(&self) -> Result<Report, String> {
+    /// The reload itself, which is everything except saying that one is
+    /// happening.
+    ///
+    /// # Errors
+    ///
+    /// The tree as it now stands does not resolve, or the publish refused it.
+    /// Either way this process is still serving the tree it had, which is what
+    /// makes the `READY=1` its caller sends next true.
+    fn published(&self) -> Result<Report, String> {
         let mut sources = SourceMap::new();
         let next = crate::config::boot_snapshot(
             &self.roots,
@@ -122,6 +139,19 @@ impl Controlled for Process {
         self.compiler
             .rekey(nvs_config::cache::env_hash(&self.current.load().config));
         Ok(report)
+    }
+}
+
+impl Controlled for Process {
+    fn reload(&self) -> Result<Report, String> {
+        self.notify.state(State::Reloading);
+        let outcome = self.published();
+        // `READY=1` whatever that outcome was, and `State::Reloading` owns why:
+        // a refused reload leaves this process serving the tree it already had,
+        // so a manager left in `reloading` over one would be reporting a state
+        // this process is not in.
+        self.notify.state(State::Ready);
+        outcome
     }
 
     fn snapshot(&self) -> Arc<Snapshot> {
