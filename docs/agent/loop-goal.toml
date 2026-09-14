@@ -137,6 +137,9 @@ modules = [
   # `rule:concurrency/an-upgrade-is-spawn-shaped` 's WebSocket upgrade, as the signature a program
   # writes.
   "crates/nvs-stdlib/src/socket.rs",
+  # A response body written over time, at the one seam where it crosses between two tasks: the
+  # isolate that writes it, and the connection that frames it onto the wire.
+  "crates/nvs-runtime/src/stream.rs",
 ]
 
 # Every stage works inside these three: a call returns with nothing still running, an isolate
