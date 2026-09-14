@@ -41,6 +41,20 @@
 //! unit cache rather than about this crossing.
 //! — owner: m5-proofs
 //!
+//! **A spawn that wrote `limits:` or `grants:` runs on the parent's core.** The
+//! seed a far core builds its child's context from
+//! ([`nvs_runtime::ctx::PlacedIsolate`]) carries the ceilings and the grant
+//! narrowing a parent already holds, but a narrowing written *at this spawn* is
+//! applied to a `Ctx` that only the parent's core builds
+//! (`nvs_runtime::Ctx::narrow`), so crossing with it would drop it. A narrowing
+//! silently not applied is the one thing
+//! `rule:security/isolate-budget-is-the-trees` does not trade, and the core the
+//! placement asked for is the cheaper thing to lose — so `crate::group`'s seam
+//! declines the crossing rather than this module. Closing it is the narrowing
+//! computed where [`nvs_runtime::Ctx::placed_isolate`] is and carried in the
+//! seed, which is one more field and the far side's constructor.
+//! — owner: m5-proofs
+//!
 //! # What it spends
 //!
 //! `rule:programs/memory-priority` asks for this out loud. Per placement in

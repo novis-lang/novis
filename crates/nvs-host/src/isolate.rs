@@ -99,7 +99,7 @@ pub use nvs_runtime::script::Program;
 // and a name written out in two crates is a name that can drift. They
 // are re-exported here because this module is where they *mean* something: the
 // seam fixes the shape, and everything below decides the behaviour.
-pub use nvs_runtime::host::{Completion, Failure, Output, Running};
+pub use nvs_runtime::host::{Completion, Failure, Narrowing, Output, Running};
 
 /// One isolate: a program, the argument crossing into it, and where its output
 /// goes.
@@ -126,6 +126,10 @@ pub struct Isolate {
     /// CPU ceiling — [`Isolate::watched_by`], and `None` for every isolate
     /// nobody handed a registration to.
     watch: Option<Rc<Registration>>,
+    /// What the spawn site wrote to hold this child to less than its parent
+    /// holds — [`Isolate::narrowed_by`], and the default for every isolate
+    /// spawned without `limits:` or `grants:`.
+    narrowing: Narrowing,
 }
 
 /// Which of [ADR 0006](/docs/decisions/0006.md)
@@ -190,7 +194,28 @@ impl Isolate {
             peer: None,
             event_stream: None,
             watch: None,
+            narrowing: Narrowing::default(),
         }
+    }
+
+    /// Holds this child to what the spawn site wrote beside it —
+    /// `rule:security/isolate-budget-is-the-trees`' sub-cap and
+    /// `rule:security/isolate-shares-nothing`'s grant list.
+    ///
+    /// A builder for [`Self::watched_by`]'s reason: `spawn script` is the one
+    /// caller that has a narrowing to hand over, and every other isolate in this
+    /// tree — a test's program, a connection, the engine's own handler — would
+    /// otherwise pass a default to say it has none.
+    ///
+    /// It is applied in [`Self::start`], to the child's own context and before
+    /// its first statement runs, because that context does not exist until
+    /// there. What it can do there is only narrow: `Ctx::narrow` reaches the
+    /// child's configuration overlay, which refuses a value wider than what is
+    /// in force whoever writes it.
+    #[must_use]
+    pub fn narrowed_by(mut self, narrowing: Narrowing) -> Self {
+        self.narrowing = narrowing;
+        self
     }
 
     /// Publishes this isolate to `watch` for as long as it runs, so the
@@ -452,6 +477,7 @@ impl Isolate {
             peer,
             event_stream,
             watch,
+            narrowing,
         } = self;
         // `rule:errors/on-limit`'s ceiling on the tree, ahead of everything else in this
         // body: `Ctx::script_depth_breach` owns why the question belongs to the
@@ -548,6 +574,14 @@ impl Isolate {
             (Charge::Tree, Form::Method) => ctx.method_isolate(sink),
             (Charge::EngineReserve, _) => ctx.handler_isolate(sink),
         };
+        // The spawn site's own narrowings, on the child and before its first
+        // statement — `rule:security/isolate-budget-is-the-trees`. Against
+        // `ctx`, which is the parent, because a sub-cap is tighter than what
+        // *remains* of the tree rather than tighter than what the file
+        // configured, and the parent is the only side that knows what remains.
+        // A widening is refused inside and leaves the inherited ceiling
+        // standing, so this line can only ever take room away.
+        ctx.narrow(&mut isolate_ctx, &narrowing);
         // The request this child answers, on the context that will run it and
         // before it can run — [`Isolate::answering`] owns why it arrives here
         // rather than on the parent, and `Ctx::set_inbound` why it is written

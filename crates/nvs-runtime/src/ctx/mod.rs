@@ -784,6 +784,24 @@ pub struct Ctx {
     /// `rule:programs/memory-priority` — the tree
     /// itself is shared and is charged to the snapshot, not to the request.
     config: Option<nvs_config::Request>,
+    /// The capabilities a spawn site's `grants:` left this context able to ask
+    /// for, and `None` for one no spawn narrowed —
+    /// `rule:security/isolate-shares-nothing`.
+    ///
+    /// A whitelist laid **over** [`Self::config`] rather than an edit of it, and
+    /// that is the direction the option is defined in: a grant is a list and not
+    /// a quantity, so narrowing it is an intersection with what the parent
+    /// already held, and a name the parent lacks stays lacking because the
+    /// overlay below is still asked. It is inherited by everything this context
+    /// spawns ([`Ctx::isolate`]), so a second `grants:` deeper in the tree can
+    /// only shorten the list again.
+    ///
+    /// An [`Arc`](std::sync::Arc) because it crosses to the core a placed child
+    /// runs on ([`crate::ctx::PlacedIsolate`]) and is read on every capability
+    /// question either side. **What it spends**
+    /// (`rule:programs/memory-priority`): one allocation per spawn that wrote
+    /// `grants:`, shared by every descendant of that child.
+    grant_filter: Option<std::sync::Arc<[nvs_config::capability::Cap]>>,
     /// This request's place in a distributed trace —
     /// `rule:observability/a-trace-id-exists-for-every-request`, whose id
     /// is Novis's only request identifier.

@@ -153,6 +153,7 @@ impl Ctx {
             program_name: String::new(),
             program_id: String::new(),
             config: None,
+            grant_filter: None,
             trace_context: crate::trace_context::TraceContext::started(),
             fixed_clock: None,
             random_state: None,

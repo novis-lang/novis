@@ -374,6 +374,11 @@ impl Ctx {
         // narrowed a limit for itself has narrowed it for the tree beneath it,
         // and a child re-reading the snapshot would silently widen it back.
         isolate.config = self.config.clone();
+        // And the grant narrowing laid over it, for the same reason one line
+        // up: a parent held to a shorter list of capabilities has narrowed the
+        // tree beneath it, and a child that started from the overlay alone
+        // would read back the names its parent gave up.
+        isolate.grant_filter = self.grant_filter.clone();
         // One deeper than whatever spawned it, and carrying the same ceiling.
         // The ceiling is *copied* rather than re-read out of the configuration
         // this constructor just cloned, for the reason the overlay crosses at
@@ -514,6 +519,7 @@ impl Ctx {
             debug: self.debug,
             origin: self.origin.clone(),
             config: self.config.clone(),
+            grant_filter: self.grant_filter.clone(),
             script_depth: self.script_depth.saturating_add(1),
             max_script_depth: self.max_script_depth,
             runtime_error_class: self.runtime_error_class.clone(),
@@ -525,6 +531,92 @@ impl Ctx {
             cpu_limit: self.cpu_limit,
             fatal_reserve: self.fatal_reserve,
         }
+    }
+
+    /// Holds `child` — an isolate this context just made — to what the spawn
+    /// site wrote beside it, and to nothing wider.
+    ///
+    /// **Two narrowings, two mechanisms, one word.** A sub-cap goes through the
+    /// child's own configuration overlay, because `nvs_config::Request::set`
+    /// already refuses a value wider than the one in force whoever writes it —
+    /// one reader for the number a spawn site writes and the number the file
+    /// writes, rather than a second one grown beside it. What that overlay
+    /// cannot know is what the tree has already *spent*, so the ceilings it
+    /// resolves are clamped against what remains of this context's, which is
+    /// the arithmetic [`Self::placed_isolate`] hands a child on another core and
+    /// the whole of what `rule:security/isolate-budget-is-the-trees` means by
+    /// tighter than what remains. A grant list is an intersection instead: a
+    /// grant is a list and not a quantity, and the overlay the child inherited
+    /// is still asked underneath it, so a name the parent lacks stays lacking.
+    ///
+    /// [`Self::max_script_depth`] is put back after the refresh, and that line
+    /// is the point of the two around it: the depth ceiling is *copied* into a
+    /// child by [`Self::isolate`] precisely so that a child cannot re-read the
+    /// file and widen it, and a refresh reading the configuration would do
+    /// exactly that. A child holding no configuration takes no sub-cap at all —
+    /// there is no ceiling in force for one to be tighter than.
+    pub fn narrow(&self, child: &mut Self, narrowing: &crate::host::Narrowing) {
+        if !narrowing.limits.is_empty() && child.config.is_some() {
+            if let Some(config) = child.config.as_mut() {
+                for (key, written) in &narrowing.limits {
+                    // The refusal is the answer: a sub-cap wider than what is in
+                    // force leaves the inherited ceiling standing, which is the
+                    // direction that fails closed. `Core\Config::set` reports
+                    // the same refusal to a program that can read one, and a
+                    // spawn site has nothing to read it with.
+                    let _narrowed = config.set(key, written);
+                }
+            }
+            let depth = child.max_script_depth;
+            child.refresh_limits();
+            child.max_script_depth = depth;
+            child.cpu_limit = tighter(child.cpu_limit, self.cpu_limit);
+            child.output_limit = tighter(
+                child.output_limit,
+                remaining(self.output_limit, self.output_used()),
+            );
+            // Last, and through the setter, because it arms the allocator with
+            // the number beside this context's safepoint address — the same
+            // order and the same reason [`PlacedIsolate::build`] has.
+            child.set_memory_limit(tighter(
+                child.memory_limit,
+                remaining(self.memory_limit, self.memory_used()),
+            ));
+        }
+        if let Some(names) = &narrowing.grants {
+            child.restrict_grants(names);
+        }
+    }
+
+    /// Narrows what `child` may ask a capability for to the names it was given,
+    /// intersected with whatever narrowing it already inherited.
+    ///
+    /// A name no capability has is dropped rather than refused: it grants
+    /// nothing, and dropping it from a list that only ever narrows fails closed.
+    /// The names are the spelling `nvs.toml` grants them under, which is the one
+    /// spelling either side of this has to learn.
+    fn restrict_grants(&mut self, names: &[String]) {
+        let asked = names
+            .iter()
+            .filter_map(|name| nvs_config::capability::Cap::parse(name));
+        let kept: Vec<nvs_config::capability::Cap> = match &self.grant_filter {
+            Some(held) => asked.filter(|cap| held.contains(cap)).collect(),
+            None => asked.collect(),
+        };
+        self.grant_filter = Some(kept.into());
+    }
+
+    /// Whether `cap` survives the `grants:` narrowing this context carries —
+    /// `true` for one that carries none.
+    ///
+    /// Asked *beside* the configuration's own answer and never instead of it
+    /// ([`crate::capability::granted`]): this list can only ever subtract, so a
+    /// capability the overlay does not hold is not granted by appearing in it.
+    #[must_use]
+    pub fn grants_allow(&self, cap: nvs_config::capability::Cap) -> bool {
+        self.grant_filter
+            .as_ref()
+            .is_none_or(|kept| kept.contains(&cap))
     }
 
     /// The base of the static-property storage compiled code loads inline —
@@ -620,6 +712,7 @@ pub struct PlacedIsolate {
     debug: DebugFlags,
     origin: Option<Box<str>>,
     config: Option<nvs_config::Request>,
+    grant_filter: Option<std::sync::Arc<[nvs_config::capability::Cap]>>,
     script_depth: u32,
     max_script_depth: u32,
     runtime_error_class: Option<ErrorClass>,
@@ -652,6 +745,7 @@ impl PlacedIsolate {
         child.debug = self.debug;
         child.origin = self.origin;
         child.config = self.config;
+        child.grant_filter = self.grant_filter;
         child.script_depth = self.script_depth;
         child.max_script_depth = self.max_script_depth;
         child.runtime_error_class = self.runtime_error_class;
@@ -704,6 +798,23 @@ fn remaining(limit: usize, used: usize) -> usize {
         return 0;
     }
     limit.saturating_sub(used).max(1)
+}
+
+/// The tighter of two ceilings written in one unit, where `0` is the sentinel
+/// for no ceiling at all and so loses to every number beside it.
+///
+/// [`Ctx::narrow`]'s clamp, and the reason a plain `min` is wrong here: an
+/// uncapped side spells itself the smallest number there is, so `min` would read
+/// "no ceiling" as the tightest ceiling of all and stop a child that nothing was
+/// bounding.
+fn tighter<T: Ord + Default>(one: T, other: T) -> T {
+    if one == T::default() {
+        return other;
+    }
+    if other == T::default() {
+        return one;
+    }
+    one.min(other)
 }
 
 #[cfg(test)]

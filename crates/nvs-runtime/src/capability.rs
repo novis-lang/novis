@@ -125,14 +125,19 @@ pub(crate) fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Op
 /// strength of the answer would still meet `require` at the door.
 #[must_use]
 pub fn granted(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
-    ctx.config().is_some_and(|config| {
-        config
-            .snapshot()
-            .config
-            .capabilities
-            .as_ref()
-            .is_some_and(|caps| caps.allows(cap, scope, &nvs_config::resolve::Disk))
-    })
+    // `rule:security/isolate-shares-nothing`'s `grants:` narrowing, asked first
+    // and beside the overlay rather than instead of it: the list a spawn site
+    // wrote can only ever subtract, so a capability this context's own
+    // configuration does not hold is not granted by being named in one.
+    ctx.grants_allow(cap)
+        && ctx.config().is_some_and(|config| {
+            config
+                .snapshot()
+                .config
+                .capabilities
+                .as_ref()
+                .is_some_and(|caps| caps.allows(cap, scope, &nvs_config::resolve::Disk))
+        })
 }
 
 /// § 5's message. The capability's name comes first after the member because the reader is usually

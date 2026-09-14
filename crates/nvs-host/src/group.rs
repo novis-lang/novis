@@ -104,7 +104,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use nvs_runtime::host::{
-    Bounds, Entry, Host, Job, Outcome, Output, Placement, Running, StartError, Woken,
+    Bounds, Entry, Host, Job, Narrowing, Outcome, Output, Placement, Running, StartError, Woken,
 };
 use nvs_runtime::{AssertionOutcome, Ctx, OpenSpawn, SpawnForm, TaskRoot, Thrown, Value};
 
@@ -199,6 +199,7 @@ impl Host for SchedulerHost {
         args: Value,
         output: Output,
         placement: Placement,
+        narrowing: Narrowing,
     ) -> Result<Box<dyn Running>, StartError> {
         // The whole implementation: `crate::isolate` is `rule:security/isolate-shares-nothing`'s boundary and
         // decides everything about it, and what this seam adds is only that a
@@ -212,7 +213,16 @@ impl Host for SchedulerHost {
         // fall-through to the body below rather than a failure. A depth breach is
         // one of them — the refusal it produces is `Isolate::start`'s, written
         // once, and a child that may not start does not need a core first.
+        //
+        // A narrowing is one more of those reasons, and the strictest: the seed
+        // a far core builds its child from carries no sub-cap and no grant list
+        // of its own, so a spawn that wrote either **stays here on purpose**
+        // rather than crossing without it. `crate::placed`'s `# Known gaps` owns
+        // that reading — a narrowing dropped on the way to another core is the
+        // one thing `rule:security/isolate-budget-is-the-trees` cannot trade,
+        // and the core the placement asked for is the cheaper thing to lose.
         if placement == Placement::Worker
+            && narrowing == Narrowing::default()
             && ctx.script_depth_breach().is_none()
             && let Some(destination) = crate::placed::destination_for(ctx, &entry)
         {
@@ -235,7 +245,7 @@ impl Host for SchedulerHost {
         // `Err` this answers with. It is the same reading `copy_graph` is
         // written under below.
         let program = entry.program(ctx).map_err(StartError::Entry)?;
-        let isolate = Isolate::new(program, args, output);
+        let isolate = Isolate::new(program, args, output).narrowed_by(narrowing);
         let isolate = if method {
             isolate.running_a_method_of_the_parents_unit()
         } else {
