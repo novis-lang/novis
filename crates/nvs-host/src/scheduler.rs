@@ -1965,6 +1965,95 @@ mod tests {
         );
     }
 
+    /// The width `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`
+    /// states its claim at, which is the only width that proves it: a hundred
+    /// thousand tasks in flight on one core, each holding its own
+    /// [`TASK_STACK_SIZE`] reservation before the first one is driven. That is
+    /// 100 GiB of address space in a 64-bit process against a resident cost
+    /// measured in the pages these shallow bodies wrote, and what is asserted
+    /// is that one core drives every one of them to its end.
+    ///
+    /// **Skipped in the debug profile**, for the reason `nvs-cli`'s throughput
+    /// guard is: `tools/verify.py` runs this binary beside every other test
+    /// binary in the workspace, and a hundred thousand stack reservations and
+    /// the switches they cost through an unoptimized scheduler is not a thing to
+    /// do on that path. The driver runs it under `--release` once its sweep has
+    /// finished — `tools/loop.py`'s release checks.
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        ignore = "100k stack reservations belong in the driver's release slot"
+    )]
+    fn a_hundred_thousand_tasks_are_in_flight_on_one_core() {
+        const TASKS: usize = 100_000;
+
+        demand_the_mappings_this_many_stacks_needs(TASKS);
+
+        let mut sched = Scheduler::new();
+        let ran = Rc::new(Cell::new(0_usize));
+        for _ in 0..TASKS {
+            let counted = Rc::clone(&ran);
+            sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+                // Suspending is what puts every task in flight at the same
+                // moment: `Scheduler::start` takes the stack at spawn, so the
+                // hundred thousandth reservation is live while the first task
+                // still has both of its turns left to run.
+                suspend(ctx, Waiting::Yielded);
+                counted.set(counted.get() + 1);
+                suspend(ctx, Waiting::Yielded);
+            });
+        }
+
+        let report = sched.run();
+        assert_eq!(report.finished, TASKS, "a task never reached its end");
+        assert_eq!(report.parked, 0, "a yielding task was filed as parked");
+        assert_eq!(
+            report.resumes,
+            TASKS * 3,
+            "a task cost more or fewer stack switches than its two suspensions"
+        );
+        assert_eq!(ran.get(), TASKS, "a task's body did not run past its turn");
+        assert_eq!(
+            sched.pooled_stacks(),
+            MAX_POOLED_STACKS,
+            "a hundred thousand finished tasks left the pool at something other \
+             than its cap"
+        );
+    }
+
+    /// Refuses to run the test above on a Linux kernel that cannot hold its
+    /// mappings, naming the sysctl that fixes it.
+    ///
+    /// A stack is an `mmap` plus an `mprotect` (`stack`'s module doc), so a task
+    /// in flight costs more than one VMA and Linux counts VMAs against
+    /// `vm.max_map_count`, whose stock setting is far short of what this many
+    /// stacks needs. The demand is on the kernel rather than on the test: a run
+    /// that shrank until it fit would prove the claim at a width nobody doubts,
+    /// on the one platform servers are actually deployed to.
+    #[cfg(target_os = "linux")]
+    fn demand_the_mappings_this_many_stacks_needs(tasks: usize) {
+        /// Two mappings per stack and the process's own on top, at the value
+        /// distributions ship as the raised setting.
+        const MAPPINGS: usize = 262_144;
+        const SYSCTL: &str = "/proc/sys/vm/max_map_count";
+
+        let read = std::fs::read_to_string(SYSCTL)
+            .unwrap_or_else(|err| panic!("{SYSCTL} could not be read: {err}"));
+        let allowed: usize = read
+            .trim()
+            .parse()
+            .unwrap_or_else(|err| panic!("{SYSCTL} did not hold a number: {err}"));
+        assert!(
+            allowed >= MAPPINGS,
+            "{tasks} task stacks need about {MAPPINGS} mappings and this kernel allows \
+             {allowed}: raise it with `sysctl -w vm.max_map_count={MAPPINGS}`"
+        );
+    }
+
+    /// Windows and macOS cap no equivalent count, so there is nothing to demand.
+    #[cfg(not(target_os = "linux"))]
+    fn demand_the_mappings_this_many_stacks_needs(_tasks: usize) {}
+
     /// Sets its flag when it is dropped — a stand-in for the native teardown a
     /// cancelled task still owes: an arena released, a transaction rolled back,
     /// a file closed. `rule:concurrency/cancellation-runs-no-user-code` is the list.
