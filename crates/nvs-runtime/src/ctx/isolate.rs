@@ -333,7 +333,7 @@ impl Ctx {
     /// a budget is accounted at the root of the request tree and never per
     /// isolate. Both cross as the *word* and not as its value — one store stops
     /// the whole tree, whenever in the child's life it happens — and
-    /// [`Self::deadline`]'s and [`Self::safepoint_word`]'s field docs own why a
+    /// [`Self::deadline`]'s and [`Self::safepoint`]'s field docs own why a
     /// copy was the wrong half of that. The output sink is the caller's,
     /// because `output: 'capture'` and `output: 'inherit'` differ in nothing
     /// else.
