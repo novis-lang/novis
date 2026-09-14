@@ -326,7 +326,9 @@ pub struct Ctx {
     /// slot index compiled code carries comes from `nvs_ir::Program::statics`,
     /// so there is an index only where there is a slot.
     statics: *mut Value,
-    /// The safepoint word itself, owned here and named by [`Self::safepoint`].
+    /// The state this request tree shares — the safepoint word [`Self::safepoint`]
+    /// names, and the counters a member of the tree running on another core
+    /// charges into. [`TreeState`] owns what it holds and what it costs.
     ///
     /// Cold, and below `statics` for [`Self::memory_base`]'s reason: compiled
     /// code loads the address above and never this field, and the hot line is
@@ -334,13 +336,14 @@ pub struct Ctx {
     ///
     /// **Shared with every context in the request tree.**
     /// `rule:security/isolate-shares-nothing` gives a tree one ceiling to
-    /// divide, so it gives it one word to be stopped by: a child built after a
-    /// flag was raised must not be born clean, and the raiser holds the root
-    /// and has no registry of live children to walk. [`Self::child`] and
-    /// [`Self::isolate`] therefore clone the handle rather than copy the
-    /// word's value, through [`Self::share_safepoint_with`] — the one place
-    /// the handle and the address are written together.
-    safepoint_word: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    /// divide, so it gives it one word to be stopped by and one pair to be
+    /// counted in: a child built after a flag was raised must not be born clean,
+    /// and the raiser holds the root and has no registry of live children to
+    /// walk. [`Self::child`] and [`Self::isolate`] therefore clone the handle
+    /// rather than copy what it holds, through [`Self::share_safepoint_with`] —
+    /// the one place the handle and the address are written together, which
+    /// [`Self::join_tree`] is across a thread boundary.
+    tree: std::sync::Arc<TreeState>,
     /// Whether this context has been cancelled, which [`Self::cancel`] is the
     /// only writer of.
     ///
@@ -412,6 +415,24 @@ pub struct Ctx {
     /// [`Self::memory_base`]'s twin in every respect, the reason it sits below
     /// `statics` included.
     output_base: usize,
+    /// Whether this context runs on the core its request tree's root runs on,
+    /// which is every context of a tree that has placed no child elsewhere.
+    ///
+    /// What it decides is one branch in [`Self::memory_used`] and
+    /// [`Self::output_used`]: a context on the root's core adds the tree's
+    /// off-core counters to its thread-local share, and one off it adds nothing,
+    /// because its own thread's balance already holds every context beneath it
+    /// there. [`Self::join_tree`] is the only writer and
+    /// [`Self::share_safepoint_with`] carries the answer down.
+    on_root_core: bool,
+    /// What this context has already published into its tree's off-core
+    /// counters, or `None` for one that publishes nothing — which is every
+    /// context on the root's core and every descendant of a member off it.
+    ///
+    /// `Some` is the whole of what makes a context a *publisher*, so an
+    /// ordinary request pays one predictable branch per poll and no atomic.
+    /// [`Self::publish_off_core`] is the step and [`TreeShare`] the pair.
+    tree_share: Option<TreeShare>,
     /// `[limits] memory` as a byte count, or `0` for a request under no cap —
     /// `rule:errors/on-limit`'s
     /// first resource limit.
@@ -1310,6 +1331,11 @@ pub struct Ctx {
 /// there is no second owner to coordinate with and no table to clear.
 impl Drop for Ctx {
     fn drop(&mut self) {
+        // Before the teardown below, so what that allocates on this core is no
+        // longer being charged to a tree whose root is on another one —
+        // `Ctx::end_off_core_share` owns why the memory share is given back
+        // whole and the written one is not.
+        self.end_off_core_share();
         // First, because what the teardown below allocates is not part of what
         // this request held: republishing here leaves those bytes to raise the
         // enclosing context's mark, where they belong. `Ctx::memory_peak_saved`

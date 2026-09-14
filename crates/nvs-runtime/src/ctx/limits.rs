@@ -23,9 +23,83 @@ impl Ctx {
     /// it allocated — because it released what it inherited — has used none of
     /// its own budget rather than a negative amount of it. [`crate::budget`]
     /// says why the underlying counter is per thread.
+    ///
+    /// **Plus whatever the tree holds on another core**, for a context on the
+    /// tree's root core — one relaxed load of
+    /// [`crate::budget::OffCore`], which is what makes the ceiling that stops
+    /// the tree the root's whichever core a child was placed on
+    /// (`rule:security/isolate-budget-is-the-trees`). A context off that core
+    /// adds nothing and reads its own thread, which already holds every context
+    /// beneath it there — [`Self::on_root_core`]'s field doc owns the division.
     #[must_use]
     pub fn memory_used(&self) -> usize {
-        usize::try_from(crate::budget::live_bytes().saturating_sub(self.memory_base)).unwrap_or(0)
+        let own = crate::budget::live_bytes().saturating_sub(self.memory_base);
+        let tree = if self.on_root_core {
+            self.tree.off_core.memory()
+        } else {
+            0
+        };
+        usize::try_from(own.saturating_add(tree)).unwrap_or(0)
+    }
+
+    /// Charges this context's share of the tree's budget into the counters its
+    /// tree shares, where it runs on a core other than its root's.
+    ///
+    /// Nothing at all for any other context — the `None` this returns on is what
+    /// keeps an ordinary request to one predictable branch — and the difference
+    /// since the last publication for one that does, so a member that has not
+    /// moved since its last poll writes nothing either.
+    ///
+    /// **The cadence is the poll, not the allocation.** Charging an atomic per
+    /// allocation would put a contended read-modify-write on the far core's
+    /// allocation path to buy a freshness nothing enforced depends on: what
+    /// bounds a child placed off the root's core is the sub-cap it was handed
+    /// where it was placed, which is what remained of the tree's budget there
+    /// (`rule:security/isolate-budget-is-the-trees`). So the tree's reading of
+    /// such a member is as fresh as that member's last poll, and
+    /// [`Self::memory_breach`] — the question `crate::run_helper` asks ahead of
+    /// every `Core` member — is where the poll happens.
+    pub fn publish_off_core(&self) {
+        let Some(share) = &self.tree_share else {
+            return;
+        };
+        let memory = crate::budget::live_bytes().saturating_sub(self.memory_base);
+        let moved = memory.saturating_sub(share.memory.get());
+        if moved != 0 {
+            self.tree.off_core.charge_memory(moved);
+            share.memory.set(memory);
+        }
+        let written = crate::budget::written_bytes().saturating_sub(self.output_base);
+        let wrote = written.saturating_sub(share.output.get());
+        if wrote != 0 {
+            self.tree.off_core.charge_output(wrote);
+            share.output.set(written);
+        }
+    }
+
+    /// Gives this context's share of the tree's memory back, publishing what it
+    /// wrote one last time — what a member off the root's core owes as it ends.
+    ///
+    /// The two counters part here, and they part for the reason
+    /// [`crate::budget`] keeps one signed and one monotonic: the bytes a context
+    /// held are released with it, so leaving its share on the tree's balance
+    /// would charge the tree for a member that has gone, while the bytes it
+    /// wrote are in a response and are the tree's for good.
+    ///
+    /// The memory share is given back **whole** rather than re-measured. A
+    /// context that ends holding bytes has handed them to whatever outlives it
+    /// on its own core, and that thread's balance is where they are counted;
+    /// carrying a remainder on the tree's pair would be a figure nothing is ever
+    /// going to take off again.
+    pub(super) fn end_off_core_share(&mut self) {
+        let Some(share) = self.tree_share.take() else {
+            return;
+        };
+        let written = crate::budget::written_bytes().saturating_sub(self.output_base);
+        self.tree
+            .off_core
+            .charge_output(written.saturating_sub(share.output.get()));
+        self.tree.off_core.charge_memory(-share.memory.get());
     }
 
     /// The highest [`Self::memory_used`] has been during this request.
@@ -149,10 +223,16 @@ impl Ctx {
     /// beneath it and each isolate's holds only its own, which is
     /// `rule:security/isolate-shares-nothing`'s
     /// "child output against the root's `max_output`" and the same arrangement
-    /// [`Self::memory_used`] already has.
+    /// [`Self::memory_used`] already has, plus the tree's off-core count for the
+    /// same reason and on the same branch.
     #[must_use]
     pub fn output_used(&self) -> usize {
-        crate::budget::written_bytes().saturating_sub(self.output_base)
+        let own = crate::budget::written_bytes().saturating_sub(self.output_base);
+        if self.on_root_core {
+            own.saturating_add(self.tree.off_core.output())
+        } else {
+            own
+        }
     }
 
     /// The response-size ceiling this request is held to, in bytes, `0` for no
@@ -256,6 +336,10 @@ impl Ctx {
     /// the program.
     #[must_use]
     pub fn memory_breach(&self) -> Option<crate::Fault> {
+        // A member off its tree's root core publishes here and nowhere else —
+        // [`Self::publish_off_core`] owns why the poll is the cadence, and this
+        // is the poll every `Core` member passes through.
+        self.publish_off_core();
         if !self.over_memory_limit() {
             return None;
         }

@@ -91,18 +91,19 @@ impl Ctx {
         // it — the safe direction.
         let anchor = 0_u8;
         let base = std::ptr::from_ref(&anchor) as usize;
-        // The word before the struct that names it: what the hot slot holds is
-        // the address of this allocation, and moving the handle into the field
-        // below leaves the allocation exactly where it is.
-        let safepoint_word = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        // The tree's shared state before the struct that names its word: what
+        // the hot slot holds is an address inside this allocation, and moving
+        // the handle into the field below leaves the allocation exactly where it
+        // is.
+        let tree = std::sync::Arc::new(TreeState::default());
         let mut ctx = Self {
-            safepoint: std::sync::Arc::as_ptr(&safepoint_word),
+            safepoint: std::ptr::from_ref(&tree.word),
             debug: DebugFlags::empty(),
             deadline: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
             stack_limit: 0,
             stack_floor: 0,
             statics: std::ptr::null_mut(),
-            safepoint_word,
+            tree,
             cancelled: false,
             exit_code: 0,
             memory_base: crate::budget::live_bytes(),
@@ -117,6 +118,11 @@ impl Ctx {
             // hands back what it took as it drops.
             memory_refused_saved: crate::budget::take_refusal(),
             output_base: crate::budget::written_bytes(),
+            // A context is on its tree's root core until something says
+            // otherwise, and the only thing that can is `Ctx::join_tree` on the
+            // core the child was placed on.
+            on_root_core: true,
+            tree_share: None,
             memory_limit: 0,
             output_limit: 0,
             limit_handler: Value::null(),

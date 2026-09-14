@@ -52,6 +52,32 @@
 //! balance, because bytes written to a response are never given back, so it
 //! needs no sign.
 //!
+//! # The part a thread cannot hold
+//!
+//! A request tree is one core's until a child is placed on another one
+//! (`rule:concurrency/on-worker-runs-the-child-on-another-core`), and from that
+//! moment the counters above hold only part of the answer: the child's bytes
+//! are on the far core's balance, where the root's reading cannot see them and
+//! the root's ceiling cannot stop them. [`OffCore`] is the rest — an atomic
+//! pair, one per request tree, that a context running off the root's core
+//! charges its own share into and every context on the root's core adds to its
+//! reading.
+//!
+//! **It is the tree's and not the placing context's.** A pair made by whichever
+//! context happened to place the child would be one that context's own
+//! ancestors never learn about, and the ceiling that stops a tree is the root's
+//! (`rule:security/isolate-budget-is-the-trees`) — the root has no registry of
+//! live descendants to walk, which is the same argument that puts the safepoint
+//! word in one allocation per tree. So the pair sits in that allocation, and a
+//! tree that places nothing off its core pays two words nothing ever writes and
+//! one relaxed load per reading.
+//!
+//! A member off the root's core publishes **at its own polls**, not at its
+//! allocations, so the root's reading of it is as fresh as that member's last
+//! poll. Nothing enforced rests on that freshness: what bounds such a child is
+//! the sub-cap it is handed where it is placed, which is what remains of the
+//! tree's budget there and never more.
+//!
 //! # Where the breach is noticed
 //!
 //! Counting is universal; *noticing* is not, and the difference is worth
@@ -150,6 +176,11 @@
 //! The accounting boundary is two more cells of that set and one predictable
 //! branch per allocation, taken by the store that opened a bracket and by
 //! nothing else.
+//!
+//! [`OffCore`] is two words per request *tree*, inside an allocation the tree
+//! already makes, plus one relaxed load per reading taken on its root core and
+//! one read-modify-write per poll taken by a member off it. Nothing on the
+//! allocation path reads or writes them.
 
 #[cfg(not(test))]
 use std::alloc::{GlobalAlloc, Layout};
@@ -292,6 +323,76 @@ impl Detached {
 impl Drop for Detached {
     fn drop(&mut self) {
         DETACHING.with(|open| open.set(self.0));
+    }
+}
+
+/// What a request tree holds, and has written, on cores other than the one its
+/// root runs on — the module doc's *the part a thread cannot hold*.
+///
+/// One per request tree, in the allocation its safepoint word already occupies.
+/// [`Ctx::memory_used`](crate::Ctx::memory_used) and
+/// [`Ctx::output_used`](crate::Ctx::output_used) add these figures to the
+/// thread-local share when the context asking runs on the tree's root core, and
+/// add nothing when it does not: a context off that core reads its own thread's
+/// balance, which already holds every context beneath it there.
+///
+/// `Relaxed` on both sides, exactly as the safepoint word is. The number is the
+/// whole of what is published — nothing is ordered behind it — and a reading one
+/// poll out of date is a reading of a tree that is still allocating anyway.
+#[derive(Debug, Default)]
+pub struct OffCore {
+    /// A balance: charged as a member off the root's core grows, and given back
+    /// whole when that member's context ends.
+    ///
+    /// Signed for [`live_bytes`]'s reason and one sharper — a child that
+    /// releases what it was handed drives its own share below zero, and the
+    /// reading that adds it floors rather than wrapping.
+    memory: std::sync::atomic::AtomicIsize,
+    /// Monotonic, as [`written_bytes`] is: bytes written to a response are never
+    /// given back, so a member's share stays on the tree's count after that
+    /// member has ended.
+    output: std::sync::atomic::AtomicUsize,
+}
+
+impl OffCore {
+    /// A tree with nothing placed off its root's core.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            memory: std::sync::atomic::AtomicIsize::new(0),
+            output: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    /// How many bytes this tree holds on cores other than its root's.
+    #[must_use]
+    pub fn memory(&self) -> isize {
+        self.memory.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// How many bytes this tree has written from cores other than its root's.
+    #[must_use]
+    pub fn output(&self) -> usize {
+        self.output.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Charges `delta` to the balance — negative where a member is giving its
+    /// share back.
+    pub fn charge_memory(&self, delta: isize) {
+        self.memory
+            .fetch_add(delta, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Charges `bytes` to the written count.
+    ///
+    /// Saturating for [`wrote`]'s reason: a count that wrapped would answer
+    /// "under the ceiling" for the one tree that most certainly is not.
+    pub fn charge_output(&self, bytes: usize) {
+        let _ = self.output.fetch_update(
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+            |written| Some(written.saturating_add(bytes)),
+        );
     }
 }
 

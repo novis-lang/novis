@@ -348,6 +348,15 @@ impl Ctx {
     /// [`Self::set_output_limit`] — narrows itself further and can never widen
     /// the tree.
     ///
+    /// A thread's balance says all of that only while the tree is one core's.
+    /// The child that is *not* — one placed on another core, made through
+    /// [`Self::join_tree`] rather than here — publishes its share into the
+    /// counters its tree shares ([`TreeState`]), and a reading taken on the
+    /// root's core adds them. That is the same division in a second place
+    /// rather than a second budget: the arithmetic is still one tree's, and the
+    /// pair exists because a thread-local cannot be read from the thread that
+    /// did not open it.
+    ///
     /// **What it spends:** one `Ctx` per in-flight isolate plus its own statics
     /// store once armed, both freed when that isolate ends. O(in-flight), per
     /// `rule:programs/memory-priority`.

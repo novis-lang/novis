@@ -349,7 +349,7 @@ pub use ctx::{
     Limit, LogChannel, OpenSpawn, OutputSink, RequestBody, SAFEPOINT_OFFSET, STACK_CEILING,
     STACK_LIMIT_OFFSET, STACK_RESERVE, STATICS_OFFSET, SafepointFlags, SafepointView, Scheme,
     Session, SnapshotMismatch, SocketAnswer, SocketFrame, SpawnForm, SpecBody, SpecPart, SseSlot,
-    TraceEvent, TraceKind, Upgrade, UpgradeSlot, is_carrier, nvs_probe_call_enter,
+    TraceEvent, TraceKind, TreeState, Upgrade, UpgradeSlot, is_carrier, nvs_probe_call_enter,
     nvs_probe_call_exit, nvs_probe_stmt, nvs_safepoint, nvs_stack_check,
 };
 pub use decimal::Decimal;

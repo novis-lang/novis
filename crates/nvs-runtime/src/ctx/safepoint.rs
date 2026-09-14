@@ -40,22 +40,58 @@ impl Ctx {
     /// Only compiled code follows [`Ctx`]'s raw address of it.
     #[must_use]
     pub fn safepoint_flags(&self) -> SafepointFlags {
-        SafepointFlags::from_bits_retain(
-            self.safepoint_word
-                .load(std::sync::atomic::Ordering::Relaxed),
-        )
+        SafepointFlags::from_bits_retain(self.tree.word.load(std::sync::atomic::Ordering::Relaxed))
     }
 
     /// Joins `parent`'s request tree: from here on this context polls the word
-    /// `parent` polls, carrying whatever was already raised in it.
+    /// `parent` polls, carrying whatever was already raised in it, and reads the
+    /// tree's off-core counters exactly as `parent` reads them.
     ///
     /// The one place the handle and the address are written together, so the
     /// hot slot can never name a word this context holds no share of.
     /// `rule:security/isolate-shares-nothing` is why a child may not be born
-    /// clean, and [`Ctx::safepoint_word`]'s field doc owns the rest.
+    /// clean, and [`Ctx::tree`]'s field doc owns the rest.
+    ///
+    /// A child of a context that is itself off the root's core is off it too,
+    /// which is what `on_root_core` carries down: its bytes are already on that
+    /// core's balance and inside the share its ancestor there publishes, so it
+    /// reads its own thread and adds nothing.
     pub(super) fn share_safepoint_with(&mut self, parent: &Self) {
-        self.safepoint_word = std::sync::Arc::clone(&parent.safepoint_word);
-        self.safepoint = std::sync::Arc::as_ptr(&self.safepoint_word);
+        self.tree = std::sync::Arc::clone(&parent.tree);
+        self.safepoint = std::ptr::from_ref(&self.tree.word);
+        self.on_root_core = parent.on_root_core;
+    }
+
+    /// Joins `tree` as a member running on a core **other** than the one that
+    /// tree's root runs on — what a child placed `on: "worker"` is made with,
+    /// where a same-core child is made by [`Ctx::isolate`].
+    ///
+    /// It is [`Self::share_safepoint_with`] across a thread boundary, and it has
+    /// to be a second entry point rather than that one because the parent's
+    /// `Ctx` is not reachable from here: what crosses is the handle, which is
+    /// the whole of what a stranger core may hold
+    /// (`rule:concurrency/a-wake-never-moves-a-task`). The word crosses so a
+    /// stop reaches the child, and the counters cross so the tree's budget stays
+    /// the tree's (`rule:security/isolate-budget-is-the-trees`).
+    ///
+    /// From here on this context **publishes its own share** into those
+    /// counters — [`Ctx::publish_off_core`] is that step and owns its cadence —
+    /// and gives it back when it ends. Its zero points are this thread's, taken
+    /// by [`Ctx::new`] where this context was made, so what it publishes is what
+    /// it and every context beneath it on this core hold.
+    pub fn join_tree(&mut self, tree: std::sync::Arc<TreeState>) {
+        self.tree = tree;
+        self.safepoint = std::ptr::from_ref(&self.tree.word);
+        self.on_root_core = false;
+        self.tree_share = Some(TreeShare::default());
+    }
+
+    /// A handle on the state this request tree shares — what a core other than
+    /// this one is given to start a member of the tree with, through
+    /// [`Self::join_tree`].
+    #[must_use]
+    pub fn tree_handle(&self) -> std::sync::Arc<TreeState> {
+        std::sync::Arc::clone(&self.tree)
     }
 
     /// Whether this request's deadline has passed —
@@ -120,7 +156,8 @@ impl Ctx {
     /// and the thread that does holds the `&mut` for as long as it is inside a
     /// helper body.
     pub fn request_safepoint(&self, flags: SafepointFlags) {
-        self.safepoint_word
+        self.tree
+            .word
             .fetch_or(flags.bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
@@ -130,7 +167,8 @@ impl Ctx {
     /// a store would drop a bit another thread raised between this caller's
     /// load and its write.
     pub(super) fn lower_safepoint(&self, flags: SafepointFlags) {
-        self.safepoint_word
+        self.tree
+            .word
             .fetch_and(!flags.bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
@@ -141,8 +179,8 @@ impl Ctx {
     /// `rule:security/isolate-shares-nothing` gives a tree one ceiling to
     /// divide and so one word to be stopped by: a store through the handle
     /// reaches every isolate and task under this context, whether it was
-    /// spawned before that store or after it. [`Ctx::safepoint_word`]'s field
-    /// doc owns the rest of that argument.
+    /// spawned before that store or after it. [`Ctx::tree`]'s field doc owns the
+    /// rest of that argument.
     ///
     /// This is the shape `nvs-host`'s watchdog already reads a core's earliest
     /// deadline through, for the same reason: the reader is a stranger to the
@@ -158,7 +196,7 @@ impl Ctx {
     #[must_use]
     pub fn safepoint_view(&self) -> SafepointView {
         SafepointView {
-            word: std::sync::Arc::clone(&self.safepoint_word),
+            tree: std::sync::Arc::clone(&self.tree),
             deadline: std::sync::Arc::clone(&self.deadline),
         }
     }
@@ -231,7 +269,7 @@ impl Ctx {
 /// view when that request ends, rather than relying on the store to be refused.
 #[derive(Clone, Debug)]
 pub struct SafepointView {
-    word: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    tree: std::sync::Arc<TreeState>,
     deadline: std::sync::Arc<std::sync::atomic::AtomicU64>,
 }
 
@@ -239,14 +277,15 @@ impl SafepointView {
     /// Asks the next poll in the request tree to act — the same store
     /// [`Ctx::request_safepoint`] makes for the thread that owns the request.
     pub fn request(&self, flags: SafepointFlags) {
-        self.word
+        self.tree
+            .word
             .fetch_or(flags.bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The flags standing in the word, which is what the next poll reads.
     #[must_use]
     pub fn flags(&self) -> SafepointFlags {
-        SafepointFlags::from_bits_retain(self.word.load(std::sync::atomic::Ordering::Relaxed))
+        SafepointFlags::from_bits_retain(self.tree.word.load(std::sync::atomic::Ordering::Relaxed))
     }
 
     /// Expires the request tree's deadline — the same store
@@ -269,6 +308,47 @@ impl SafepointView {
     pub fn deadline_expired(&self) -> bool {
         self.deadline.load(std::sync::atomic::Ordering::Relaxed) != 0
     }
+}
+
+/// The state a request **tree** shares: the word every context in it is stopped
+/// through, and the counters a context running off its root's core charges into.
+///
+/// One allocation per tree, held by every context in it through [`Ctx::tree`]
+/// and by a stranger thread through [`SafepointView`]. The two live together
+/// because they are the same decision made twice — a tree is stopped as one and
+/// budgeted as one (`rule:security/isolate-shares-nothing`), and neither answer
+/// can be a copy a child carries, since the root has no registry of live
+/// descendants to correct afterwards. Sharing one allocation is also what lets a
+/// child placed on another core be started from one handle
+/// (`rule:concurrency/on-worker-runs-the-child-on-another-core`).
+///
+/// **What it spends:** one allocation per request tree — which is what the
+/// safepoint word alone already cost — and two words more inside it, which stay
+/// zero and unwritten for a tree that places nothing off its core.
+#[derive(Debug, Default)]
+pub struct TreeState {
+    /// The safepoint word itself, named by [`Ctx::safepoint`] and polled by
+    /// compiled code through that address.
+    pub(super) word: std::sync::atomic::AtomicU64,
+    /// What this tree holds, and has written, on cores other than its root's —
+    /// [`crate::budget::OffCore`] owns what the pair means and what it costs.
+    pub(super) off_core: crate::budget::OffCore,
+}
+
+/// What a context off its tree's root core has already published into
+/// [`TreeState::off_core`], so that each poll charges the difference rather than
+/// the whole of its share again.
+///
+/// `Cell`s because publishing is a read of counters this context does not own
+/// and a store into a number it shares — neither needs a `&mut Ctx`, and the
+/// poll that publishes is reached through `&self`
+/// ([`Ctx::memory_breach`](Ctx::memory_breach)).
+#[derive(Debug, Default)]
+pub(super) struct TreeShare {
+    /// The live balance last charged, given back whole when this context ends.
+    pub(super) memory: std::cell::Cell<isize>,
+    /// The written count last charged, which nothing ever gives back.
+    pub(super) output: std::cell::Cell<usize>,
 }
 
 /// The safepoint poll's slow path — reached only when the word compiled code
@@ -481,7 +561,7 @@ mod tests {
 
         for (kind, ctx) in [("an isolate", &isolate), ("a task child", &child)] {
             assert!(
-                std::sync::Arc::ptr_eq(&root.safepoint_word, &ctx.safepoint_word),
+                std::sync::Arc::ptr_eq(&root.tree, &ctx.tree),
                 "{kind} holds a word of its own"
             );
             assert!(
@@ -569,7 +649,7 @@ mod tests {
             ("a task child", &child),
         ] {
             assert!(
-                std::ptr::eq(ctx.safepoint, std::sync::Arc::as_ptr(&ctx.safepoint_word)),
+                std::ptr::eq(ctx.safepoint, std::ptr::from_ref(&ctx.tree.word)),
                 "{kind}'s hot slot does not name the word beside it"
             );
         }
