@@ -117,6 +117,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover -- 3.10 and older
+    import tomli as tomllib  # type: ignore
+
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 AGENT = DOCS / "agent"
@@ -606,6 +611,8 @@ def validate(sections: list[Section]) -> list[str]:
                               f"got {first[:40]!r}")
             if len(s.body.strip().split("\n")) > 1:
                 errors.append("`## status` -- one line only")
+            if first.startswith("DONE"):
+                errors.extend(named_test_findings())
         elif s.kind == "commit":
             errors.extend(validate_commit(s))
         elif s.kind == "handoff":
@@ -1009,6 +1016,45 @@ def manifest_findings() -> list[str]:
         problems += [p for p in found if p not in problems]
     return [f"{p} -- `chain.py --check` is on the floor and halts a DONE claim on this; fix the "
             f"manifest before the wrap, or drop the line" for p in problems]
+
+
+def named_test_findings() -> list[str]:
+    """Every test the live goal's `cargo-named` checks name that is not a `fn` in the tree -- on a
+    DONE claim only.
+
+    A `cargo-named` check passes when its `tests` names all appear in cargo's output, and a filter
+    that matches no test runs zero of them and exits 0, so the name is the whole check. A goal's
+    toml names its tests before they are written, and the release-profile ones sit behind the
+    driver's floor gate in every scoped run; a test written under a near miss of the toml's name
+    is green for the whole goal and surfaces once, in the sweep that confirms the DONE claim, as a
+    hand the run waits for. The names come from `playbook.test_names` -- the same `git grep` its
+    `[until: test <name>]` trailer uses -- over both copies of the goal, for the reason
+    `manifest_findings` reads both, and a name matches as a substring of a `fn`, because that is
+    how the driver reads cargo's output and how cargo's own filter selects: a check naming
+    `..._are_refused` is met by `fn ..._are_refused_naming_both`. A CONTINUE is not gated: a test
+    not yet written is what the stages ahead of it are for."""
+    goal = goalsmod.find(goalsmod.load(), goalsmod.live())
+    if goal is None or goal.retired:
+        return []
+    manifests = [goal.toml] + ([orient.GOAL_TOML] if orient.GOAL_TOML.is_file() else [])
+    on_disk = playbookmod.test_names()
+    missing: list[tuple[str, str]] = []
+    for toml in manifests:
+        try:
+            spec = tomllib.loads(toml.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        for c in spec.get("check", []):
+            if c.get("kind") != "cargo-named":
+                continue
+            for name in c.get("tests", []):
+                if (c.get("name", "?"), name) in missing:
+                    continue
+                if not any(name in fn for fn in on_disk):
+                    missing.append((c.get("name", "?"), name))
+    return [f"`## status` DONE -- check {label!r} names test `{name}`, and no `fn {name}` is in "
+            f"the tree; the driver's sweep runs it, matches nothing and halts the claim. Rename the "
+            f"test to what the toml names, or write it" for label, name in missing]
 
 
 def body_links(sections: list[Section]) -> list[str]:

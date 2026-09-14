@@ -293,19 +293,24 @@ run; a wider one does satisfy a narrower.
 **The docs gates are not in that list and `verify.py` runs none of them.** `rules.py --check`,
 `rules.py --render --check`, `check-links.py`, `layout.py`, `records.py --check`, `plan.py --check`,
 `playbook.py --check` and `release.py --check` are CI's `docs` job — Python-only, no toolchain, about a
-second together — and `session.py --wrap` runs **five families** of them in-process, so a wrap cannot
-commit what it just broke: the link half and the live goal's `[context]` manifest always, and then the
-rulebook (`rules.py`), the records (`records.py`) and the migration table (`check-migration.py`, which
-is CI's too) — each only when the session has edited the tree that feeds it, `docs/rules/`,
-`docs/decisions/` and `docs/spec/`. That trigger is the difference between the first two gates and the
-other three. A dead link is a per-file fact, so the link gate can ask HEAD which findings are inherited;
-a rulebook, record or migration finding is a property of the whole set, so the conservative equivalent
-is to ask whether this session touched that tree at all — including a rename, which is what makes a
-citation elsewhere go dead. The manifest gate is the reading `chain.py --check` gives the driver's
-floor — a `playbook` selector that reaches no bullet, a `shapes` heading that is not there — taken
-before the commit rather than after the session is gone, because that floor check halting a DONE claim
-is a hand the run waits for; a wrap that retires a bullet prunes the lines that named it, so whatever
-the gate finds is this session's.
+second together — and `session.py --wrap` runs **six families** of them in-process, so a wrap cannot
+commit what it just broke: the link half and the live goal's `[context]` manifest always, the tests the
+goal's `cargo-named` checks name on a DONE claim, and then the rulebook (`rules.py`), the records
+(`records.py`) and the migration table (`check-migration.py`, which is CI's too) — each only when the
+session has edited the tree that feeds it, `docs/rules/`, `docs/decisions/` and `docs/spec/`. That
+trigger is the difference between the first three gates and the other three. A dead link is a per-file
+fact, so the link gate can ask HEAD which findings are inherited; a rulebook, record or migration finding
+is a property of the whole set, so the conservative equivalent is to ask whether this session touched
+that tree at all — including a rename, which is what makes a citation elsewhere go dead. The manifest
+gate is the reading `chain.py --check` gives the driver's floor — a `playbook` selector that reaches no
+bullet, a `shapes` heading that is not there — taken before the commit rather than after the session is
+gone, because that floor check halting a DONE claim is a hand the run waits for; a wrap that retires a
+bullet prunes the lines that named it, so whatever the gate finds is this session's. The named-test gate
+is there for the same hand: a `cargo-named` check is only its `tests` names, a filter that matches no
+test runs nothing and exits 0, and the release-profile ones sit behind the floor gate in every scoped
+run — so a test written under a near miss of the toml's name is green for the whole goal and surfaces
+once, in the sweep that confirms the DONE claim. The wrap refuses a DONE whose named tests are not
+`fn`s in the tree, with the same reading `playbook.py`'s `[until: test]` trailer uses.
 
 **`docs/novis.md` is the fifth thing a wrap settles, and it is a write rather than a gate.** The
 reference is generated from the binary, the chapters under `docs/reference/` and the migration table's
