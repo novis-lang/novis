@@ -1,0 +1,47 @@
+--TEST--
+An `inout` argument names storage the callee can write back through, so an array element, a static property, a call's result and a literal are each refused at the argument — `rule:types/arrays`, `rule:php-migration/an-element-write-needs-storage-to-write-back-into`
+--FILE--
+<?nvs
+// The callee writes back through the reference after it returns, so an
+// `inout` argument has to name storage that is still there to be written.
+// This sweeps one spelling per shape that is not, in source order, so a shape
+// that stopped refusing shows up as a missing line rather than as a write
+// that lands somewhere nobody reads.
+//
+// The array element is the interesting one, and it is first: it looks like a
+// place and is not. `rule:types/arrays`'s copy-on-write separation means the
+// element the callee would be handed is a copy's, so the write-back would be
+// invisible to the holder — the fix the help names is to read it into a
+// local, pass that, and store it back where the copy is visible.
+class P {
+    public static int $count = 0;
+    public int $n = 0;
+    public static function bump(inout int $x): void { $x = $x + 1; }
+    public static function make(): int { return 1; }
+}
+
+array<int> $a = [1];
+P::bump(inout $a["0"]);
+P::bump(inout P::$count);
+P::bump(inout P::make());
+P::bump(inout 7);
+
+// The two shapes that are accepted, deliberately last: a bare local and a
+// property of one. `nvs-ir` stages a reference from exactly these, so a line
+// that started refusing either would leave that staging with nothing to do.
+int $n = 1;
+P $p = new P();
+P::bump(inout $n);
+P::bump(inout $p->n);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0439]: an array element cannot be passed to an `inout` parameter
+%A
+error[E0439]: only a variable or a property can be passed to an `inout` parameter
+%A
+error[E0439]: only a variable or a property can be passed to an `inout` parameter
+%A
+error[E0439]: only a variable or a property can be passed to an `inout` parameter
+%A
+error: aborting due to 4 errors

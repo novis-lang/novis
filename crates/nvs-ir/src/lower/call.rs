@@ -44,7 +44,9 @@ impl<'a> Lowering<'a> {
     /// argument that reached no parameter at all, more arguments than `sig`
     /// has parameters, a parameter no argument filled and that has no default,
     /// or a by-reference argument that is neither a bare local nor a
-    /// compile-time-known property.
+    /// compile-time-known property — that last one a [`guarded_by!`] naming
+    /// `E0439`, which `nvs_types::expr::args::check_inout_arg` raises at the
+    /// call site.
     ///
     /// The first-class callable sentinel panics too, and its roster is closed:
     /// `rule:types/callable-is-a-closure`'s member spellings record
@@ -1167,10 +1169,13 @@ impl<'a> Lowering<'a> {
                     v,
                 )
             }
-            other => panic!(
-                "nvs-ir stages a by-reference argument only from a bare local or a \
-                 compile-time-known property — not from {other:?}; nvs_types' \
-                 `check_inout_arg` is expected to have refused it at the call site"
+            other => guarded_by!(
+                code::E_INOUT_ARG_NOT_A_PLACE,
+                "nvs-ir reached by-reference argument staging from {other:?}. The callee writes \
+                 back through the reference, so the argument has to name storage that outlives \
+                 the call, and `nvs_types::expr::args::check_inout_arg` refuses every other \
+                 operand at the call site — an array element among them, which \
+                 `rule:types/arrays`'s copy-on-write separation leaves no stable address"
             ),
         };
         // The staging retain: from here the slot owns one reference of its

@@ -5226,12 +5226,16 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let (value, ty) = self.lower_expr(inner, None, env, cur);
-        assert!(
-            matches!(ty, Ty::Object | Ty::Tagged),
-            "nvs-ir lowers `instanceof` only against a subject that can hold an object — \
-             got representation {ty:?}, every subject whose declared type cannot being \
-             `E0497` at the checker"
-        );
+        if !matches!(ty, Ty::Object | Ty::Tagged) {
+            guarded_by!(
+                code::E_INSTANCEOF_SUBJECT_NOT_OBJECT,
+                "nvs-ir reached `instanceof` over representation {ty:?}. A subject whose declared \
+                 type can hold no object has its answer before the program runs, so the checker \
+                 refuses it where it is written rather than lowering a test that is constantly \
+                 `false`; what does reach here is an object or the `Ty::Tagged` this method's doc \
+                 comment describes"
+            );
+        }
         // The subject is written first and evaluated first; the class side is
         // second, and for the dynamic form it is an expression of its own.
         let tested = match &class.kind {
