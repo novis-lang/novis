@@ -98,15 +98,32 @@
 //! `rule:concurrency/on-worker-runs-the-child-on-another-core`'s mechanism and
 //! owns what a placement costs).
 //!
-//! What is left is the route and the two things that travel it. The argument
-//! crosses as `nvs_runtime::graph::encode`'s bytes rather than as a [`Value`],
-//! which is ADR 0184 § 2's copy at every node — and it is encoded on the worker
-//! arm rather than at the seam, because a here-placement's crossing is one walk
-//! into the child's arena and a byte round trip would be two plus a buffer on
-//! every spawn. The far core must also have a resolver installed on it for the
-//! path form, and for the method form it must be able to find the parent's
-//! class table, which is `Rc`-shared and does not cross today. Everything else
-//! about such a child is what the rule describes.
+//! **What stands in the way is the budget, and it is a security question.**
+//! `rule:security/isolate-budget-is-the-trees` charges a child's memory and
+//! output to the root of its tree, and `nvs_runtime::budget` implements that by
+//! counting per **thread**: a request is charged the difference between its
+//! thread's balance now and the balance when its `Ctx` was made, which is exact
+//! for every isolate that runs where its parent runs and wrong for one that does
+//! not. A child started on another core would take its zero point there, be
+//! measured against that core's reading, and so hold a whole `[limits] memory`
+//! of its own — one per core, for one request, which is precisely the arithmetic
+//! the rule bounds. ADR 0184 § 4 asserts the opposite, so the record is ahead of
+//! the code here and the code is what has to move: the tree's two counters have
+//! to be reachable from a thread that is not the one which opened them before
+//! any placement may post.
+//!
+//! Behind that sit the argument and the entry, and neither is a question any
+//! more. The argument crosses as `nvs_runtime::graph::encode`'s bytes rather
+//! than as a [`Value`], which is ADR 0184 § 2's copy at every node, encoded on
+//! the worker arm rather than at the seam — a here-placement's crossing is one
+//! walk into the child's arena, and a byte round trip would be two plus a buffer
+//! on every spawn. Encoding *consumes* the value, so the arm secures its core
+//! first ([`crate::worker::destination`]) and encodes second, or it would hold
+//! neither a placement nor a value to start here instead. The far core still
+//! needs a resolver of its own for the path form — one is `!Sync`, because it
+//! holds the unit cache — and for the method form it needs the parent's class
+//! table, which is `Rc`-shared and does not cross.
+//! — owner: m5-proofs
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -239,9 +256,13 @@ impl Host for SchedulerHost {
             isolate
         };
         match placement {
-            // One arm, and the module doc's `# Known gaps` is why: what is left
+            // One arm, and the module doc's `# Known gaps` is why: what stands
             // between a worker placement and the cores `crate::worker` already
-            // starts is the route, not the shape.
+            // starts is `nvs_runtime::budget`'s counters being the thread's, so
+            // posting the child would give it a budget root of its own rather
+            // than its tree's. Starting it here is the safe half of that trade
+            // and the only one priority 1 admits — it costs the placement, and
+            // an isolate whose memory nobody can cap costs the isolation.
             Placement::Here | Placement::Worker => isolate.start(ctx).map_err(StartError::Argument),
         }
     }
