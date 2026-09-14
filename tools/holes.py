@@ -34,6 +34,7 @@ work is, so that no session spends its context re-deriving it.
     python tools/holes.py --unattributed   only the sites no item claims
     python tools/holes.py --cases          only the `.nvst`/differential artefacts still missing
     python tools/holes.py --sites          every site, file by file, with its message
+    python tools/holes.py --guarded        every `guarded_by!` site and the code it names
     python tools/holes.py --json           one JSON object instead
 """
 
@@ -59,6 +60,10 @@ CARRIED_MD = ROOT / "docs" / "agent" / "carried-refusals.md"
 # that `--item N` takes the number the document shows. Enforced below: a goal's own items start at 1
 # and never reach this, so the two numberings cannot collide silently.
 CARRIED_BASE = 900
+
+# The registry is the one home for what an `E`-code constant spells, so a guarded site names the
+# constant and this reads the number off that file rather than carrying a second copy of the map.
+REGISTRY = ROOT / "crates" / "nvs-diagnostics" / "src" / "lib.rs"
 
 # Where a refusal can live. Both crates lower; nothing else does.
 SOURCES = ["crates/nvs-ir/src", "crates/nvs-codegen/src"]
@@ -103,6 +108,16 @@ UNSUPPORTED = re.compile(r"CodegenError::Unsupported\s*\(\s*(?:format!\s*\(\s*)?
 # ...except the ones that are engine bugs wearing the same type. A unit that holds a call and not
 # its callee was assembled wrong; that is nobody's language hole.
 ENGINE = re.compile(r"this is a bug|declares no (?:descriptor|slot)|which this unit", re.IGNORECASE)
+# The other close a refusal site can take, and the reason this tool has two lists rather than one
+# number. `lower::guarded_by!` says the shape never arrives -- the front end refuses it where it is
+# written -- and names the code that does the refusing, so it is a guarantee to check rather than a
+# hole to count: the construct is not a `panic!` and `sites` above therefore does not see it. What
+# checks it is `crates/nvs-ir/tests/refusals.rs`, which holds every code listed here to a
+# conformance case expecting it, so a guard naming a code nothing raises fails rather than passing
+# quietly. A path qualifier is optional because a site may spell the constant imported or through
+# `code::`.
+GUARDED = re.compile(r"guarded_by!\s*\(\s*(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Z][A-Z0-9_]*)")
+DECLARES_CODE = re.compile(r"pub const ([A-Z][A-Z0-9_]*): Code = Code::new\(\"([A-Z]\d+)\"\)")
 ANCHOR = re.compile(r"(crates/[A-Za-z0-9_\-./]+\.rs):(\d+)")
 ITEM = re.compile(r"^(\d+)\. \*\*(.+?)\*\*", re.MULTILINE)
 # A backticked snake_case word in an item's prose is how it names the function it changes --
@@ -192,6 +207,48 @@ def sites() -> list[dict]:
                     "line": line,
                     "fn": enclosing_fn(lines, line),
                     "message": message or "(no literal message at the site)",
+                })
+    return found
+
+
+def registry() -> dict[str, str]:
+    """Every `E`-code constant the registry declares, as `name -> code`."""
+    if not REGISTRY.exists():
+        return {}
+    text = REGISTRY.read_text(encoding="utf-8", errors="replace")
+    return {name: code for name, code in DECLARES_CODE.findall(text)}
+
+
+def guarded() -> list[dict]:
+    """Every `guarded_by!` site under `SOURCES`, in file order.
+
+    A site whose constant the registry does not declare comes back with an empty `code`, which is
+    what the test reading this reports rather than skipping: a guard naming nothing is the one
+    shape that would otherwise look like a closed gap while guaranteeing nothing."""
+    declared = registry()
+    found = []
+    for source in SOURCES:
+        for path in sorted((ROOT / source).rglob("*.rs")):
+            if path.name == "tests.rs" or path.parent.name == "tests":
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            lines = text.split("\n")
+            for match in GUARDED.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                # The macro's own doc comment shows a call, and so does the crate preamble that
+                # contrasts the two closes, so a match inside a comment is prose about the
+                # spelling rather than a site written in it -- the same reason `literals` skips
+                # comments for the other list.
+                column = match.start() - (text.rfind("\n", 0, match.start()) + 1)
+                remark = lines[line - 1].find("//")
+                if remark != -1 and remark < column:
+                    continue
+                found.append({
+                    "file": rel(path),
+                    "line": line,
+                    "fn": enclosing_fn(lines, line),
+                    "const": match.group(1),
+                    "code": declared.get(match.group(1), ""),
                 })
     return found
 
@@ -295,6 +352,8 @@ def main() -> int:
     ap.add_argument("--unattributed", action="store_true", help="only sites no item claims")
     ap.add_argument("--cases", action="store_true", help="only the named cases not yet written")
     ap.add_argument("--sites", action="store_true", help="every site, file by file")
+    ap.add_argument("--guarded", action="store_true",
+                    help="every `guarded_by!` site and the code it names")
     ap.add_argument("--json", action="store_true", help="one JSON object instead")
     opts = ap.parse_args()
 
@@ -303,16 +362,34 @@ def main() -> int:
             stream.reconfigure(encoding="utf-8", errors="replace")
 
     found, scheduled, cases = sites(), items(), named_cases()
+    guards = guarded()
     by_item = attribute(found, scheduled)
     absent = [c for c in cases if not c["written"]]
 
     if opts.json:
         print(json.dumps({
             "sites": found,
+            "guarded": guards,
             "items": [dict(i, sites=len(by_item.get(i["n"], []))) for i in scheduled],
             "unattributed": by_item.get(0, []),
             "cases": cases,
         }, indent=2))
+        return 0
+
+    if opts.guarded:
+        print(f"{len(guards)} guarded site(s)\n")
+        current = ""
+        for site in guards:
+            if site["file"] != current:
+                current = site["file"]
+                print(f"  {current}")
+            # One token, so that the test reading this column fails on a guard naming a constant
+            # the registry does not declare instead of parsing a sentence as a code.
+            code = site["code"] or "no-such-constant"
+            print(f"    :{site['line']:<5} {code:<16} {site['const']}  in {site['fn'] or '(file scope)'}")
+        if guards:
+            print("\nEach says the shape never arrives because the code beside it refuses one where")
+            print("it is written. crates/nvs-ir/tests/refusals.rs holds each to a conformance case.")
         return 0
 
     if opts.item is not None:
@@ -357,6 +434,7 @@ def main() -> int:
         return 0
 
     print(f"{len(found)} refusal site(s) across {len(SOURCES)} crate(s), "
+          f"{len(guards)} guarded (--guarded), "
           f"{len(scheduled)} scheduled item(s), "
           f"{len(absent)} of {len(cases)} named case(s) still to write\n")
 
