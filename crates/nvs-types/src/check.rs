@@ -223,6 +223,11 @@ pub fn check_program_granted(
     // `jsonAs<T>` decodes is a peer's, so `rule:security/derived-codec-qualifiers`
     // asks the fields receiving it to declare the qualifier they receive.
     crate::derive::check_decode_sites(&decode_sites, &codec_sites, interner, diags);
+    // `rule:types/type-test`'s `is callable(int): string` asks which of the
+    // program's closures satisfy a written signature, which is the same
+    // deferral one more time: the `is` and the literal it answers about need
+    // not be in the same file. See `crate::callables`.
+    crate::callables::resolve(exprs, interner, &module.graph, &signatures);
     // § 5's table crosses to `nvs-ir` here rather than being dropped: `rule:routing/api-document-is-generated-from-the-route-table`
     // emits the OpenAPI document from it, and it is what `nvs-ir` reads a
     // handler's declared path back out of.

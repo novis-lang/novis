@@ -1073,6 +1073,9 @@ pub struct ExprTypeTable {
     locals: Vec<(Span, Vec<LocalBinding>)>,
     routes: crate::routes::RouteTable,
     commands: crate::commands::CommandTable,
+    callable_values: FxHashMap<Span, TypeId>,
+    callable_markers: Vec<(TypeId, String)>,
+    callable_conformance: FxHashMap<Span, Vec<String>>,
 }
 
 /// One local variable, as the body that declared it left it.
@@ -1230,6 +1233,95 @@ impl ExprTypeTable {
             } => Some((class.as_str(), captures, *return_ty)),
             _ => None,
         })
+    }
+
+    /// Records that the expression at `span` evaluates to a closure whose
+    /// signature the checker interned as `sig` — a `fn` literal, or one of
+    /// `rule:types/callable-is-a-closure`'s first-class-callable spellings,
+    /// those being the only expressions that make one.
+    ///
+    /// Keyed by the literal rather than by the class `nvs-ir` synthesizes for
+    /// it, because a first-class callable's class is that crate's own name for
+    /// a site and never reaches this one. `nvs-ir` is lowering the literal
+    /// when it builds the class, so a span is the key both sides hold.
+    pub(crate) fn record_callable_value(&mut self, span: Span, sig: TypeId) {
+        self.callable_values.insert(span, sig);
+    }
+
+    /// Every literal that makes a closure, beside the signature it makes one
+    /// of — [`crate::callables`]'s input, and the counterpart of
+    /// [`Self::tested_types`].
+    pub(crate) fn callable_values(&self) -> impl Iterator<Item = (Span, TypeId)> + '_ {
+        self.callable_values.iter().map(|(span, sig)| (*span, *sig))
+    }
+
+    /// Every type an `is` in this program asks a value to hold. Iterates for
+    /// [`Self::closures`]' reason: the question is about the program rather
+    /// than about one site, so there is no span to look up.
+    pub(crate) fn tested_types(&self) -> impl Iterator<Item = TypeId> + '_ {
+        self.entries.iter().filter_map(|info| match info {
+            ExprInfo::TypeTest { tested } => Some(*tested),
+            _ => None,
+        })
+    }
+
+    /// Records [`crate::callables`]' answer for one written signature: the
+    /// marker class a test against it walks for, and the literals whose
+    /// closures conform to that marker.
+    pub(crate) fn record_callable_conformance(
+        &mut self,
+        sig: TypeId,
+        marker: String,
+        conformers: &[Span],
+    ) {
+        for span in conformers {
+            self.callable_conformance
+                .entry(*span)
+                .or_default()
+                .push(marker.clone());
+        }
+        self.callable_markers.push((sig, marker));
+    }
+
+    /// The marker class a test against the written signature `sig` walks for,
+    /// or `None` for a signature no `is` in this program tested — which is
+    /// every signature in a program that writes no such test, the markers
+    /// being emitted for the tests that need them and not for every type the
+    /// interner holds.
+    #[must_use]
+    pub fn callable_sig_marker(&self, sig: TypeId) -> Option<&str> {
+        self.callable_markers
+            .iter()
+            .find(|(tested, _)| *tested == sig)
+            .map(|(_, marker)| marker.as_str())
+    }
+
+    /// Every marker class this program needs a descriptor for, in the order
+    /// [`crate::callables`] resolved them.
+    pub fn callable_sig_markers(&self) -> impl Iterator<Item = &str> {
+        self.callable_markers
+            .iter()
+            .map(|(_, marker)| marker.as_str())
+    }
+
+    /// The marker classes the closure made at `span` conforms to — the
+    /// supertypes `nvs-ir` gives that literal's synthesized class, beside the
+    /// one every closure carries.
+    #[must_use]
+    pub fn callable_markers_at(&self, span: Span) -> &[String] {
+        self.callable_conformance
+            .get(&span)
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// Every literal that conforms to at least one marker, beside the markers
+    /// it conforms to — the enumerating counterpart of
+    /// [`Self::callable_markers_at`], for a consumer with no span to start
+    /// from.
+    pub fn callable_conformance(&self) -> impl Iterator<Item = (Span, &[String])> {
+        self.callable_conformance
+            .iter()
+            .map(|(span, markers)| (*span, markers.as_slice()))
     }
 
     /// Records the `Class::method` label of the method *declaration* whose
@@ -2026,6 +2118,41 @@ mod tests {
         assert_eq!(call.class.to_string(), "T");
         assert_eq!(call.method, "a");
         assert!(!call.is_static);
+    }
+
+    /// `rule:types/type-test`'s `is callable(int): string` is answered by a
+    /// marker class the tested signature names and the closures that conform
+    /// to it, and the relation is `crate::expr::is_assignable`: this literal
+    /// declares a *wider* parameter than the test asks for, which is the
+    /// direction a callable conversion makes sound, so it conforms.
+    #[test]
+    fn a_closure_conforms_to_the_marker_of_every_signature_it_satisfies() {
+        let (exprs, _span) = check_and_find_expr_span(
+            "<?nvs\nclass T {\n  function m(mixed $v): bool {\n    return $v is callable(int): string;\n  }\n  function f(): callable {\n    return fn (mixed $n): string => \"x\";\n  }\n}\n",
+        );
+        assert_eq!(
+            exprs.callable_sig_markers().collect::<Vec<_>>(),
+            ["$callable(int): string"]
+        );
+        let conformance = exprs.callable_conformance().collect::<Vec<_>>();
+        assert_eq!(conformance.len(), 1);
+        assert_eq!(conformance[0].1, ["$callable(int): string"]);
+    }
+
+    /// The other half of the same relation, and why the marker is recorded
+    /// whether or not anything satisfies it: a closure returning the wrong
+    /// type conforms to nothing, and the test still needs a descriptor to walk
+    /// before it can answer `false`.
+    #[test]
+    fn a_closure_whose_return_type_differs_conforms_to_no_marker() {
+        let (exprs, _span) = check_and_find_expr_span(
+            "<?nvs\nclass T {\n  function m(mixed $v): bool {\n    return $v is callable(int): string;\n  }\n  function f(): callable {\n    return fn (int $n): int => $n;\n  }\n}\n",
+        );
+        assert_eq!(
+            exprs.callable_sig_markers().collect::<Vec<_>>(),
+            ["$callable(int): string"]
+        );
+        assert_eq!(exprs.callable_conformance().count(), 0);
     }
 
     /// A closure carries its callee with it, so the one receiver `rule:types/erased-member-access`

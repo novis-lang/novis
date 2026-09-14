@@ -183,7 +183,9 @@ pub(crate) fn infer_method_call(
         {
             let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
-            return first_class_callable_type(sig, env);
+            let held = first_class_callable_type(sig, env);
+            env.exprs.record_callable_value(expr.span, held);
+            return held;
         }
         return env.interner.callable();
     }
@@ -452,7 +454,9 @@ pub(crate) fn infer_static_call(
                 call.static_class = resolve_class_expr(class, ctx, env);
             }
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
-            return first_class_callable_type(sig, env);
+            let held = first_class_callable_type(sig, env);
+            env.exprs.record_callable_value(expr.span, held);
+            return held;
         }
         return env.interner.callable();
     }
@@ -1950,7 +1954,12 @@ pub(crate) fn check_fn_literal(
             return_ty,
         },
     );
-    env.interner.callable_sig(params, return_ty)
+    // The literal's own type, and the one `crate::callables` reads back: which
+    // closures satisfy a written `callable(...)` is asked of the signature the
+    // checker gave each literal, not of the erased object.
+    let sig = env.interner.callable_sig(params, return_ty);
+    env.exprs.record_callable_value(expr.span, sig);
+    sig
 }
 
 /// The type an unannotated closure parameter binds — the `index`th of

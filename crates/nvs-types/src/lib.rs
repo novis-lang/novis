@@ -163,6 +163,7 @@
 //!   — owner: unowned
 
 pub(crate) mod attributes;
+pub(crate) mod callables;
 pub(crate) mod capability;
 pub mod check;
 // Public for [`routes`]'s reason: `rule:tooling/commands-are-compiled`'s finished table is read back
