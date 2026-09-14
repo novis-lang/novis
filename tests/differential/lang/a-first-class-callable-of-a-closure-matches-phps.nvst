@@ -1,0 +1,62 @@
+--TEST--
+PHP answers a first-class callable of a closure with that same closure, and so does Novis — the identity, not just the result of calling it
+--FILE--
+<?nvs
+// PHP is the authority on this one: `$f(...)` over something that is already a
+// `Closure` hands back the same object rather than a wrapper around it, so the
+// identity test is the row that matters and the arithmetic beside it is only
+// there to show the answer is still callable. Novis has no second reading
+// available — `rule:types/callable-is-a-closure` leaves `callable` one
+// inhabitant — but the wording of that agreement is PHP's.
+class C {
+    public int $base = 10;
+    public static function twice(int $n): int { return $n * 2; }
+    public function plus(int $n): int { return $this->base + $n; }
+    public static function pick(callable $c): callable { return $c(...); }
+}
+
+callable $f = C::twice(...);
+callable $g = $f(...);
+echo $g(3), "\n";
+echo $g == $f ? "same\n" : "different\n";
+
+callable $h = fn (int $n): int => $n + 1;
+callable $k = $h(...);
+echo $k(4), "\n";
+echo $k == $h ? "same\n" : "different\n";
+echo C::pick($h) == $h ? "same\n" : "different\n";
+
+C $c = new C();
+callable $m = $c->plus(...);
+callable $n = $m(...);
+echo $n(5), "\n";
+
+callable $p = C::pick($h)(...);
+echo $p(6), "\n";
+--ORACLE--
+<?php
+class C {
+    public int $base = 10;
+    public static function twice(int $n): int { return $n * 2; }
+    public function plus(int $n): int { return $this->base + $n; }
+    public static function pick(callable $c): callable { return $c(...); }
+}
+
+$f = C::twice(...);
+$g = $f(...);
+echo $g(3), "\n";
+echo $g == $f ? "same\n" : "different\n";
+
+$h = fn (int $n): int => $n + 1;
+$k = $h(...);
+echo $k(4), "\n";
+echo $k == $h ? "same\n" : "different\n";
+echo C::pick($h) == $h ? "same\n" : "different\n";
+
+$c = new C();
+$m = $c->plus(...);
+$n = $m(...);
+echo $n(5), "\n";
+
+$p = C::pick($h)(...);
+echo $p(6), "\n";
