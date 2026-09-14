@@ -163,7 +163,6 @@ playbook = [
   "Tooling > holes.py's count",
   "Tooling > nvs-ir's refusal",
   "Tooling > refusals.rs's ceiling",
-  'Tooling > a carried-refusals.md',
   'Writing Novis itself > a new panic!',
   'Writing Novis itself > a holes.py',
 ]
