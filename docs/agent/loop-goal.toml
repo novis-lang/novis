@@ -218,8 +218,12 @@ shapes = [
 ]
 
 [context.stage.6]
-# The options: a wake carries an id, the budget is the tree's, and a core is never blocked.
+# The options: what a placement is, a wake carries an id, the budget is the tree's, and a core is
+# never blocked. The sibling site's own option rule, because `Core\Socket::upgrade` declines the same
+# three and its module doc says why.
 rules = [
+  "concurrency/on-worker-runs-the-child-on-another-core",
+  "concurrency/an-upgrades-options-are-spawn-scripts",
   "concurrency/a-wake-never-moves-a-task",
   "security/isolate-budget-is-the-trees",
   "http-server/a-core-is-never-blocked-on-a-syscall",

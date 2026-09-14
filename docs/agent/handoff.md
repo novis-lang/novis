@@ -2,72 +2,59 @@
 
 ## State
 
-**Goal `m5-proofs` (M5). Stage 5 is closed — the record and its rule are on disk — and stage 6, the
-options, is the earliest red check.**
+**Goal `m5-proofs` (M5). Stage 6's first item is on disk: all five `spawn script` options are checked
+where they are written, and the placement refusal has a code.**
 
-[ADR 0184](../decisions/0184.md) decides the mechanism behind `on: "worker"` and creates one `designed`
-rule, `rule:concurrency/on-worker-runs-the-child-on-another-core`, which the check at
-`docs/agent/loop-goal.toml:9812` now resolves. The record argues only the mechanism, as § *Standing
-decisions* fixed it: the child is **started** on another core (never migrated), through that core's
-inbox; the answer comes back as a copy in a `RemoteWake`'s slot, the shape
-`crates/nvs-host/src/blocking.rs:14-20` already uses in the other direction; the child stays its
-parent's — cancelled with it, charged to its tree; under `nvs serve` the core is a sibling serving core
-round-robin, elsewhere a lazily started worker core bounded at the core count. The standing decision's
-starvation fallback is the record's § *Revisiting* trigger rather than a second sentence in the rule.
+`limits:` is a shape of the `[limits]` sub-caps a program may narrow, each optional, with a key that is
+not one of them refused as `E0454` rather than accepted by width subtyping; `grants:` is an
+`array<string>` of capability names in `nvs.toml`'s spelling; `on:` is one of two written words,
+`E0818` otherwise. `crates/nvs-types/src/expr/isolate.rs:120`'s doc is the home of which type and why,
+and the key set itself is `SUB_CAP_SETTINGS`/`SUB_CAP_COUNTS` in that file.
 
-The rule sits third in `docs/rules/concurrency.json`, after
-`rule:concurrency/a-child-belongs-to-the-calling-task` — the rule that says whose child it is comes
-before the one that says which core runs it. `guardedBy` is empty on purpose; stage 9 fills it and flips
-the status.
+`E0777` is retired the way `E0776` is — the option it refused is now checked — and the five sites whose
+prose said so are rewritten: the lowering's doc, `nvs-ir`'s refused-in-a-body table, `Core\Socket`'s and
+`Core\Queue`'s module docs, and the two `.nvst` cases.
 
-Stage 4's gap is unchanged and still in `## Backlog`. Nothing is blocked.
-
-`[context]` gap closed here: stage 5's `shapes` did not name *Where a rule sits in the order*, so the
-position of a new JSON entry had to be fetched by hand; it is in the list now. Still missing and not
-fixed: `[context] adrs = ["0006"]` slices only *In short*, while the record needed
-`docs/decisions/0006.md:151-153` and `:328-329`.
+**Checked is not applied.** Nothing below `nvs-types` carries any of the three yet: lowering drops them
+(`crates/nvs-ir/src/lower/expr.rs:3122`), so a `limits:` narrows nothing, a `grants:` narrows nothing and
+every child starts on this core. The next two items are what closes that, and until they land a program
+that writes one of the three gets the compile-time check and no run-time effect.
 
 ## Next group
 
-**Stage 6: the options** — one file set: `crates/nvs-types/src/expr/isolate.rs`,
-`crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-stdlib/src/script.rs`, `crates/nvs-host/src/group.rs`,
-`crates/nvs-host/src/isolate.rs`, a new module beside them for the worker cores, and
-`tests/conformance/isolate/`.
+**Stage 6: the options, below the checker** — one file set: `crates/nvs-ir/src/lower/expr.rs`,
+`crates/nvs-stdlib/src/script.rs`, `crates/nvs-host/src/group.rs`, `crates/nvs-host/src/isolate.rs`, a
+new module beside them, and `tests/conformance/isolate/`.
 
-- [ ] **The three options are accepted and typed, and an unknown placement is refused** —
-      `docs/agent/loop-goal.toml:9826` wants `spawn_script_accepts_limits_grants_and_on_and_checks_their_types`
-      and `an_unknown_placement_for_on_is_refused_at_compile_time` under `-p nvs-types`. The option keys
-      are already spelled at `crates/nvs-types/src/expr/isolate.rs:387`; `on:` accepts `"worker"` and
-      `"here"` and nothing else, refused where that check is written, per
-      `rule:concurrency/on-worker-runs-the-child-on-another-core` § 1 and
-      [0184 § *Diagnostics*](../decisions/0184.md), which claims no code so the band is this slice's to
-      pick.
-- [ ] **The placement reaches the host seam** — lowering passes it as one more argument to
-      `nvs_core_script_spawn` (`crates/nvs-ir/src/lower/expr.rs:3188`,
-      `crates/nvs-stdlib/src/script.rs:619`), and `crates/nvs-host/src/group.rs:190` routes a worker
-      placement to the new mechanism instead of starting every isolate on the calling core.
-      `rule:security/isolate-values-cross-by-copy` is the crossing; the move is not available across
-      cores.
-- [ ] **The worker cores and their inbox** — a new module under `crates/nvs-host/src/`, built on
-      `Worker::spawn` (`crates/nvs-host/src/lib.rs:180`) and `RemoteWake`
-      (`crates/nvs-host/src/reactor.rs:219`). `docs/agent/loop-goal.toml:9836` wants
-      `a_worker_child_runs_on_another_core_and_its_answer_is_copied_back`,
-      `a_cancelled_parent_cancels_its_worker_child_across_cores` and
-      `worker_cores_are_started_lazily_and_bounded_by_the_core_count` under `-p nvs-host`;
-      `rule:concurrency/on-worker-runs-the-child-on-another-core` § 3–5 specifies all three.
-- [ ] **The three `.nvst` cases** — `docs/agent/loop-goal.toml:9850` names
-      `a-child-on-a-worker-core-answers-as-one-on-this-core-does.nvst`,
-      `a-child-given-grants-holds-only-those-and-cannot-widen-them.nvst` and
-      `a-child-given-limits-is-stopped-at-its-own-ceiling.nvst` under `tests/conformance/isolate/`.
-      `limits:` never widens the tree's ceilings (`rule:security/isolate-budget-is-the-trees`).
+- [ ] **The placement reaches the host seam** — lowering passes `on:` as one more argument beside the
+      path, `args:` and `output:` at `crates/nvs-ir/src/lower/expr.rs:3188`, the symbol's row takes it at
+      `crates/nvs-stdlib/src/script.rs:619`, and the seam routes it at
+      `crates/nvs-host/src/group.rs:190`. The word crossing is `"here"`/`"worker"` as written;
+      `rule:concurrency/on-worker-runs-the-child-on-another-core` ¶ 1 is what a placement means, and
+      `crates/nvs-ir/src/lower/expr.rs:3122`'s doc is the sentence this item makes false.
+- [ ] **The worker cores and their inbox** — a new module under `crates/nvs-host/src/`, built on the
+      handoff shape at `crates/nvs-host/src/blocking.rs:14-20` turned around and the cross-thread wake at
+      `crates/nvs-host/src/reactor.rs:219`, bounded at the core count as
+      `crates/nvs-host/src/blocking.rs:29-36` bounds its pool. The child is *started* there and never
+      migrated: `rule:concurrency/on-worker-runs-the-child-on-another-core` ¶ 3-4 and
+      `rule:concurrency/a-wake-never-moves-a-task`.
+- [ ] **The three `.nvst` cases** `docs/agent/loop-goal.toml:9850` names, under
+      `tests/conformance/isolate/` — a worker-placed child answering as a local one does, a child that
+      holds only its grants, and one stopped at its own ceiling.
+      `rule:security/isolate-budget-is-the-trees` and `rule:security/isolate-shares-nothing` are what the
+      last two assert; the enforcement they need is the item above plus the budget seam.
 
 ## Backlog
 
+- `limits:`/`grants:` enforcement lands in this stage; when it does, `Core\Queue::push` can declare both
+  — `crates/nvs-stdlib/src/queue.rs`'s gap 1 is the home of that condition.
+- `tests/conformance/core/a-socket-upgrade-declines-the-options-its-sibling-does-not-enforce.nvst`'s
+  *name* goes stale once the sibling enforces them; rename it in the item that does.
 - `rule:observability/spawn-is-its-own-event` says the child's wall time "already arrives on
-  `ScriptResult`", and that shape's fields (`crates/nvs-stdlib/src/script.rs:428`) do not carry it — the
-  overhead split reads it off the native `Completion` instead. Either the rule's sentence or the shape.
+  `ScriptResult`", and that shape's fields (`crates/nvs-stdlib/src/script.rs:428`) do not carry it —
+  the overhead split reads it off the native `Completion` instead. Either the rule's sentence or the shape.
 - `[context] adrs = ["0006"]` gives *In short* only; a session needing § *Decision* slices it by hand.
 - `Core\Server`'s request-reading members and `traceId()` are `crates/nvs-stdlib/src/server.rs:11-14`'s
   known gap, not this goal's.
-- `docs/plan/m5.md`'s stale prose, the `callable`-in-`Task::all` sentence included — goal `plan-truth`'s.
-- Module-doc gaps tagged `unowned` in these files — goal `unowned-closures`'s.
+- `docs/plan/m5.md`'s stale prose and the module-doc gaps tagged `unowned` — goals `plan-truth`'s and
+  `unowned-closures`'s.
