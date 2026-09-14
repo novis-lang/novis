@@ -22,12 +22,12 @@ and adding to it is the move that gate forbids outright. Each entry ends with th
 [tools/playbook.py](../../tools/playbook.py)'s module doc defines, naming the state of the tree that
 closes it; `python tools/playbook.py --check` reads it and `--retire` deletes the entry when it holds.
 
-901. **M4's carried lowering refusals — seventeen when this entry was written, fifteen now.**
-    `nvs-ir` type-checks each of these shapes and then refuses it. M4's own item list anchored every one,
-    and no goal of the parity program writes `nvs-ir` lowering, so none of them can claim one. The two
-    that have gone were `expr.rs`'s instance call and static call with no resolved target in the
-    typed-expression table; `python tools/holes.py --item 901` prints the live list and is the count that
-    matters, since a line number here drifts with every edit above it.
+901. **M4's carried lowering refusals — every shape `nvs-ir` type-checks and then refuses.**
+    M4's own item list anchored every one, and no goal of the parity program writes `nvs-ir` lowering, so
+    none of them can claim one. Goal `m4-refusals` is what draws the list down, each site either lowering
+    or becoming a `lower::guarded_by!` naming the diagnostic that refuses its shape where it is written.
+    `python tools/holes.py --item 901` prints the live list and is the count that matters, since a line
+    number here drifts with every edit above it.
 
     - `crates/nvs-ir/src/lower/call.rs:786` and `:1117` — an argument list through a `callable` that is
       not plain positional, and a by-reference argument from something other than a bare local or a

@@ -6757,6 +6757,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   real call site in the same slice — for `guarded_by!` that meant closing one refusal site and
   lowering `crates/nvs-ir/tests/refusals.rs`'s `CEILING` alongside it.
   [until: reviewed 2026-12-14]
+- **`nvs_syntax::ast::StmtKind` is `#[non_exhaustive]`, so no match on it outside `nvs-syntax` may drop
+  its wildcard arm.** `crates/nvs-syntax/src/ast.rs:1271` carries the attribute, and Rust requires that
+  wildcard however many variants a cross-crate match spells out, so a plan to make a new variant fail to
+  compile in `nvs-ir` cannot be written there. Spell the named shapes as their own arms and leave the
+  wildcard as an engine invariant, or take the attribute off — the second is a decision about
+  `nvs-syntax`'s surface. [until: reviewed 2026-09-14]
 
 ## Divergences and refusals already pinned
 

@@ -1468,22 +1468,25 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics naming the shape for any other `unset` operand, which is a
-    /// checker bug rather than a gap: `nvs_types::expr::check_unset_target` is
-    /// the one home of what an operand may be, and it refuses every other
-    /// spelling where it is written — a declared property as `E0413`
-    /// (`rule:classes/unset-is-refused-on-a-property`), and everything from a bare local to a subscript of a
-    /// temporary as `E0234`.
+    /// A [`guarded_by!`] naming `E0234` for any other `unset` operand:
+    /// `nvs_types::expr::check_unset_target` is the one home of what an operand
+    /// may be, and it refuses every other spelling where it is written — a
+    /// declared property as `E0413`
+    /// (`rule:classes/unset-is-refused-on-a-property`), and everything from a
+    /// bare local to a subscript of a temporary as that code.
     pub(crate) fn lower_unset(&mut self, target: &Expr, env: &mut Env, cur: &mut BlockId) {
         let ExprKind::Index {
             base,
             index: Some(index),
         } = &target.kind
         else {
-            panic!(
-                "nvs-ir lowers `unset` only on an array element with an explicit subscript — \
-                 got {:?}, which `nvs_types::expr::check_unset_target` is supposed to have \
-                 refused as `E0234`",
+            guarded_by!(
+                code::E_UNSET_TARGET_NOT_AN_ELEMENT,
+                "nvs-ir reached `unset` on {:?}. `rule:classes/unset-is-refused-on-a-property` \
+                 leaves one operand standing — an element of an array a local, a property or a \
+                 static property holds, including at depth — and \
+                 `nvs_types::expr::check_unset_target` refuses every other spelling where it is \
+                 written, a declared property as `E0413` and the rest as this code",
                 target.kind
             );
         };
