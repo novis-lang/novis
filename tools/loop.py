@@ -3802,6 +3802,22 @@ class Chain:
             else:
                 say(f"  chain: goal `{prev.slug}` was not retired -- {r.first_err_line}", C.GRAY)
 
+        # The plan's derived cells, re-derived now that a carrier has left the chain. A milestone
+        # whose every carrier has walked reads `done` in its `Carried by` cell, and `plan.py
+        # --check` -- on every goal's floor -- refuses the cell that still names the goals. The
+        # moment that cell changes is this one, so the sync rides in the switch commit; left to a
+        # session, the stale cell was found by the floor of the goal after, as a DONE claim held
+        # for a hand. Hygiene like the retirement above: a refusal is printed and the run goes on.
+        synced = []
+        if prev is not None:
+            r = capture(sys.executable, [str(ROOT / "tools" / "plan.py"), "--sync"])
+            for line in stdout_lines(r.out):
+                say(f"  {line}", C.GRAY)
+            if r.code == 0:
+                synced = ["docs/implementation-plan.md"]
+            else:
+                say(f"  chain: the plan's cells were not synced -- {r.first_err_line}", C.GRAY)
+
         # The one line here that outlives the run. It names the goals and never their numbers: `git
         # log` is read long after a later insert has moved every number, and a subject line saying
         # `advances to 29 xml-tree` would by then name a different goal with no way to tell. The
@@ -3815,7 +3831,7 @@ class Chain:
         # `git add` on a path that is gone stages the deletion, so the retirement rides in this
         # commit rather than sitting in the tree for whichever session commits next.
         git("add", rel_to_root(nxt.toml), "docs/agent/loop-goal.toml", "docs/agent/loop-goal.md",
-            "docs/agent/handoff.md", *retired)
+            "docs/agent/handoff.md", *retired, *synced)
         git("commit", "-F", str(msg_file))
         say(f"chain: goal `{nxt.slug}` is live, {nxt.num} of {len(self.goals)}", C.GREEN)
         return ""
