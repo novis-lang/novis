@@ -3908,7 +3908,7 @@ tests = [
   # `rule:config/one-local-control-socket` and `rule:config/no-network-control-surface`.
   "the_control_socket_is_created_0600",
   "a_world_writable_socket_directory_refuses_the_socket",
-  "reload_is_the_sockets_only_operation",
+  "the_socket_answers_three_operations_and_nothing_else",
   "there_is_no_network_reachable_control_surface",
   # `rule:config/a-reload-names-what-it-could-not-apply` -- a reload reports what it did AND what it could not do.
   "a_changed_boot_key_is_reported_and_does_not_take_effect",
