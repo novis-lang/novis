@@ -68,7 +68,7 @@
 //! header) — see that variant's own doc comment for why only the shape is
 //! reserved.
 
-use nvs_diagnostics::{SourceFile, SourceId, Span};
+use nvs_diagnostics::{SourceFile, SourceId, Span, code};
 use nvs_render::Source;
 use nvs_syntax::ast::{
     ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassMemberKind,
@@ -89,6 +89,27 @@ use crate::ir::{
 };
 use crate::ty::{EnumRepr, Ty};
 use crate::{span_text, strip_sigil};
+
+/// Panics because a shape the front end already refuses reached lowering
+/// anyway, naming the diagnostic that refuses it.
+///
+/// `guarded_by!(code::E_ELEMENT_WRITE_ROOT_NOT_A_PLACE, "…")` panics as
+/// `E0700: …`. The code comes first so that a backtrace names the guarantee
+/// before the sentence describing it, and the message takes `format!`
+/// arguments like any other panic.
+///
+/// **The spelling is the claim.** A plain `panic!` naming a shape says the gap
+/// is open: `tools/holes.py` counts it and `crates/nvs-ir/tests/refusals.rs`
+/// ratchets the total down, so it is owed a lowering or a diagnostic. This
+/// macro says the opposite — the shape never arrives, because the code it
+/// names refuses it where it is written. That test holds the claim to a
+/// conformance case expecting the code, so the guarantee is checked rather
+/// than asserted. The crate's own § *Known gaps* preamble contrasts the two.
+macro_rules! guarded_by {
+    ($code:expr, $($message:tt)+) => {
+        panic!("{}: {}", $code.as_str(), format_args!($($message)+))
+    };
+}
 
 // One `impl Lowering` split across this directory — see each module's own
 // header. Rust allows that for an inherent impl inside one crate; the methods
@@ -2612,13 +2633,14 @@ impl<'a> Lowering<'a> {
                 let (class, name, _) = self.static_property_of(base);
                 self.emit_static_set(*cur, class, name, written);
             }
-            other => panic!(
-                "nvs-ir lowers an array-element write only through a bare local, a \
-                 compile-time-known property or a static property, because `rule:types/arrays`'s \
-                 copy-on-write separation has to be written back to whatever holds the array — \
-                 not through {other:?}, which `nvs_types::expr::assign::check_write_target` \
-                 refuses as `E0700` where it is written, so this body was not checked with the \
-                 same table"
+            other => guarded_by!(
+                code::E_ELEMENT_WRITE_ROOT_NOT_A_PLACE,
+                "nvs-ir reached an array-element write back through {other:?}. \
+                 `nvs_types::expr::assign::check_write_target` refuses every root but a bare \
+                 local, a compile-time-known property and a static property where the write is \
+                 written, because `rule:types/arrays`'s copy-on-write separation has to be \
+                 written back to whatever holds the array, so this body was not checked with \
+                 the same table"
             ),
         }
     }

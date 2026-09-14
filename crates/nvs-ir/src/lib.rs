@@ -184,7 +184,22 @@
 //!
 //! # Known gaps
 //!
-//! Each panics naming itself rather than miscompiling.
+//! Each panics naming itself rather than miscompiling, in one of two spellings,
+//! and **the spelling is the claim**.
+//!
+//! A plain `panic!` naming the shape it does not take — "only lowers", "has no
+//! arm for" — is a gap still open: the program type-checks and stops working
+//! here anyway. That is what `tools/holes.py` counts and what
+//! `crates/nvs-ir/tests/refusals.rs` ratchets down, so it is owed a lowering or
+//! a diagnostic, and rewording it past that recognizer is not a close.
+//!
+//! `lower::guarded_by!(code::E_…, …)` is the other close: the shape never
+//! arrives, because the front end refuses it where it is written with the code
+//! the macro names, and that name is held to a conformance case expecting it.
+//! It is a guarantee this crate leans on, written down where it is leaned on —
+//! not a hole, and not counted as one. An engine invariant no front-end
+//! diagnostic guards keeps its bare `panic!` or `unreachable!`, because there
+//! is no code for it to name.
 //!
 //! **A number here is a stable identifier**, cited from `docs/agent/loop-goal.md`
 //! and `docs/agent/playbook.md`. A closed gap is deleted and leaves a hole
