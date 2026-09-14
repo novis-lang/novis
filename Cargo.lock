@@ -2199,6 +2199,7 @@ dependencies = [
  "nvs-host",
  "nvs-ir",
  "nvs-lsp",
+ "nvs-render",
  "nvs-runtime",
  "nvs-server",
  "nvs-stdlib",

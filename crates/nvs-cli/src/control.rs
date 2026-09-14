@@ -47,6 +47,8 @@ use std::sync::{Arc, Mutex};
 
 use nvs_config::snapshot::{Current, Snapshot};
 use nvs_diagnostics::{Diagnostic, Renderer, SourceMap};
+use nvs_render::{Level, Node, Record, Rendered, Scalar};
+use nvs_runtime::LogWriter;
 use nvs_server::control::{Controlled, Report};
 use nvs_server::{Admission, Draining};
 
@@ -140,6 +142,30 @@ impl Process {
             .rekey(nvs_config::cache::env_hash(&self.current.load().config));
         Ok(report)
     }
+
+    /// Writes what the reload did where `[log] target` says —
+    /// `rule:config/one-local-control-socket`'s "every reload is written to
+    /// `Core\Log` with its outcome".
+    ///
+    /// **Written from the tree that is now serving**, which is the new one after
+    /// a publish and the old one after a refusal: either way it is the tree this
+    /// process is running under by the time the line is written, so an operator
+    /// who moved `[log] target` in the reload that just landed finds the record
+    /// at the new target rather than at the one it replaced.
+    ///
+    /// The directives behind that sink are read by
+    /// [`nvs_runtime::LogWriter`] and not here, so this thread is not a second
+    /// reader of them — its doc comment owns why, and owns where a record goes
+    /// when the tree names no target at all.
+    ///
+    /// The write's own failure is swallowed, per `rule:errors/engine-floor`: a
+    /// full disk under the log target is not a reason to fail the reload that
+    /// already happened, and the answer the operator is holding says what it did
+    /// regardless.
+    fn logged(&self, outcome: &Result<Report, String>) {
+        let config = nvs_config::Request::new(self.current.load());
+        drop(LogWriter::resolve(Some(&config)).write(&record(outcome)));
+    }
 }
 
 impl Controlled for Process {
@@ -151,6 +177,9 @@ impl Controlled for Process {
         // so a manager left in `reloading` over one would be reporting a state
         // this process is not in.
         self.notify.state(State::Ready);
+        // After the state, and from the tree now in force: a record written
+        // before the publish settled could name a target the reload replaced.
+        self.logged(&outcome);
         outcome
     }
 
@@ -174,6 +203,65 @@ impl Controlled for Process {
     }
 }
 
+/// The reload's outcome as one record — what [`Process::logged`] writes.
+///
+/// **The message is a fixed line either way and the outcome is in the fields.**
+/// A deployment then greps one string for every reload this process performed
+/// and reads the answer beside it, instead of matching a sentence that varies
+/// with what changed; and the fields are already the shape
+/// `rule:errors/log-fields` keeps a compile-time schema possible for.
+///
+/// `ignored` names its keys one at a time rather than counting them, which is
+/// `rule:config/a-reload-names-what-it-could-not-apply` in the log as well as in
+/// the answer: a deployment that silently ignores a changed listen address
+/// believes it applied a change it did not.
+///
+/// A refusal's rendered diagnostic is a field for the same reason — it is many
+/// lines with a span in it, and a message is a line.
+fn record(outcome: &Result<Report, String>) -> Record {
+    match outcome {
+        Ok(report) => {
+            let mut record = Record::at(Level::Info);
+            record.envelope.message = Some(Rendered::new("configuration reloaded"));
+            record.envelope.fields = vec![
+                (
+                    "applied".to_string(),
+                    names(report.applied.iter().map(String::as_str)),
+                ),
+                ("ignored".to_string(), names(report.ignored.iter().copied())),
+                (
+                    "invalidated".to_string(),
+                    Node::Scalar(Scalar::Uint(
+                        u64::try_from(report.invalidated).unwrap_or(u64::MAX),
+                    )),
+                ),
+            ];
+            record
+        }
+        Err(refusal) => {
+            let mut record = Record::at(Level::Error);
+            record.envelope.message = Some(Rendered::new("configuration reload refused"));
+            record.envelope.fields = vec![("refusal".to_string(), text(refusal))];
+            record
+        }
+    }
+}
+
+/// One string as a record node, with `rule:tooling/terminal-output-is-a-sink`'s
+/// substitution applied by [`Rendered`] and the value's own length beside it.
+fn text(value: &str) -> Node {
+    Node::Scalar(Scalar::Str {
+        text: Rendered::new(value),
+        bytes: value.len(),
+    })
+}
+
+/// A list of directive names as a node — empty where the reload changed or
+/// ignored nothing, which is the honest answer and not an absent field.
+fn names<'a>(keys: impl Iterator<Item = &'a str>) -> Node {
+    Node::Sequence(keys.map(text).collect())
+}
+
 /// A refusal as the text that crosses the [`Controlled`] seam.
 ///
 /// Rendered rather than summarised, because a malformed `nvs.toml` is a
@@ -188,4 +276,47 @@ fn rendered(refusal: &Diagnostic, sources: &SourceMap) -> String {
             .render(refusal, sources, &mut out),
     );
     String::from_utf8_lossy(&out).into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `rule:config/one-local-control-socket`'s "every reload is written to
+    /// `Core\Log` with its outcome": a reload that landed is one `Info` record
+    /// naming the three answers its report carries, each in a field.
+    #[test]
+    fn a_reload_that_landed_is_one_info_record_naming_what_it_did() {
+        let written = record(&Ok(Report {
+            applied: vec!["server.workers".to_string()],
+            ignored: vec!["server.listen"],
+            invalidated: 12,
+        }));
+        assert_eq!(written.envelope.level, Level::Info);
+        let named: Vec<&str> = written
+            .envelope
+            .fields
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect();
+        assert_eq!(named, ["applied", "ignored", "invalidated"]);
+        assert_eq!(
+            written.envelope.fields[1].1,
+            names(["server.listen"].into_iter()),
+            "a `Boot` key left unapplied was counted instead of named"
+        );
+    }
+
+    /// A refused reload says so at `Error` and carries the diagnostic in a
+    /// field, so the message is the same greppable line as the one above.
+    #[test]
+    fn a_refused_reload_is_one_error_record_carrying_the_diagnostic_in_a_field() {
+        let refusal = "E0601: the tree does not deserialize\n  --> nvs.toml:4:1";
+        let written = record(&Err(refusal.to_string()));
+        assert_eq!(written.envelope.level, Level::Error);
+        assert_eq!(
+            written.envelope.fields,
+            vec![("refusal".to_string(), text(refusal))]
+        );
+    }
 }

@@ -24,6 +24,10 @@ nvs-types.workspace = true
 nvs-ir.workspace = true
 nvs-codegen.workspace = true
 nvs-runtime.workspace = true
+# The record a reload writes to `Core\Log` — `rule:config/one-local-control-socket`'s
+# last sentence. `control.rs` builds it and `nvs_runtime::LogWriter` routes it, so
+# this binary names the record model and never the directives behind the sink.
+nvs-render.workspace = true
 # `nvs run` executes its program inside a task rather than on the main thread's
 # stack, because ADR 0072 § 1's children are children *of the calling task* and
 # there has to be one. `main.rs`'s § *What `run` executes* owns the rest.

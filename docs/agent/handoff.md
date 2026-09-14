@@ -3,55 +3,58 @@
 ## State
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
-carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal
-opens). **Stage 3's reporting half is complete**: a `Type=notify` unit gets `READY=1` once every
-listener is bound, `RELOADING=1` and `READY=1` around every reload, `STOPPING=1` once the drain has
-begun, and `WATCHDOG=1` for as long as the fleet is turning.
+carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens).
+**Stage 3 is complete**: a `Type=notify` unit gets `READY=1`, `RELOADING=1`/`READY=1`, `STOPPING=1`
+and `WATCHDOG=1` as `crate::service::Heartbeat` owns, and a reload now writes its outcome to
+`Core\Log`.
 
-**The watchdog ping is gated rather than timed.** `crate::service::Heartbeat` sends `State::Alive`
-every half of `WATCHDOG_USEC` — and only where `WATCHDOG_PID` admits this process — while
-`nvs_host::Watchdog::turning()` holds, which is the stall detector read rather than written to, so
-no request path pays for it. One wedged core of several keeps the ping; it stops only where no core
-turns at all, because `rule:http-server/a-wedged-core-is-shed-never-killed` sheds the first and a
-restart is the only recovery left for the second. Both rule fragments now say so, and `service.rs`'s
-module doc § *The manager is told what state this process is in* points at `Heartbeat` for the rest.
+`nvs_runtime::LogWriter` (`crates/nvs-runtime/src/ctx/output.rs`) is the `Ctx`-free door: `[log]
+target`, `level` and `format` each keep **one** reader — the free `log_target`/`log_minimum`/
+`log_format` that `Ctx::write_log_record` and `LogWriter::resolve` both call. A writer with no
+request under it and a tree naming no target writes to stderr; `LogChannel::Output` is unreachable
+there, because it is the program's output through the capture stack and there is no program. That
+decision's home is `LogWriter`'s doc comment.
 
-Left in stage 3: a reload's outcome is still not written to `Core\Log`, and the door it needs does
-not exist yet — the next group is that door and then the write.
+`Process::logged` (`crates/nvs-cli/src/control.rs:145`) writes one record after `READY=1`, resolved
+from the tree now in force: `Info` with `applied`/`ignored`/`invalidated`, or `Error` with the
+rendered refusal in a `refusal` field. The write's own failure is swallowed
+(`rule:errors/engine-floor`). Nothing is blocked.
+
+Stage 4 is next and is the acceptance check that is red. The goal prose says it shares no files with
+stage 3, and `NvsUnixListener` already exists — what is missing is the binding and the mode.
 
 ## Next group
 
-**Stage 3: a reload writes its outcome to `Core\Log`** — one file set:
-`crates/nvs-runtime/src/ctx/output.rs`, `crates/nvs-cli/src/control.rs`.
+**Stage 4: the Unix listener, phase-gated** — one file set: `crates/nvs-cli/src/serve.rs`,
+`crates/nvs-host/src/net.rs`, and one new case under `crates/nvs-cli/tests/`.
 
-- [ ] **The log write has no door for a thread that holds no request** — `Ctx::write_log_record` at
-      `crates/nvs-runtime/src/ctx/output.rs:251` is `rule:errors/record-producers`'s one reader of
-      `[log] target`, `level` and `format`, and `resolve_log_target` at
-      `crates/nvs-runtime/src/ctx/output.rs:345` reads them off the context's own config. Give that
-      resolution a `Ctx`-free entry — a config and an `nvs_render::Record` in, the rendered line out
-      — so the control thread does not become a second reader of the directive, and decide there
-      where such a record goes when `[log] target` names nothing, which for a writer that is no
-      request cannot be `LogChannel::Output` at `crates/nvs-runtime/src/ctx/output.rs:108`.
-- [ ] **A reload's outcome is not written to `Core\Log`** — `rule:config/one-local-control-socket`'s
-      last sentence, over the reload at `crates/nvs-cli/src/control.rs:117`
-      (`crate::control::Process::published`) and the `Reloading`/`Ready` pair wrapping it at
-      `crates/nvs-cli/src/control.rs:146`. The `Report` it hands back is what an operator reads on
-      `nvs ctl`'s stdout and nothing else; the record is what the deployment reads afterwards.
-      `crates/nvs-stdlib/src/log.rs:305`'s `record` is the shape one is built in, and the level a
-      refused reload carries is the half to decide first.
+- [ ] **A Unix-domain `listen` entry is still refused where the rule admits it** —
+      `crates/nvs-cli/src/serve.rs:1261` pushes every `Listen::Unix(path)` onto `unsupported` and
+      refuses the whole set once. `rule:http-server/a-unix-socket-listener` admits it on Unix and
+      refuses it on Windows, so the refusal narrows to `cfg(windows)` rather than disappearing, and
+      it stays taken once over the whole set before any socket exists. The bind itself exists:
+      `crates/nvs-host/src/net.rs:566` is `NvsUnixListener::bind`, and `:484` is the alias, both
+      `#[cfg(unix)]`.
+- [ ] **Nothing applies `[server] socket_mode`** — the directive is spelled at
+      `crates/nvs-config/src/default.toml:394` and applies to Unix entries only. Decide where the
+      chmod goes: `NvsUnixListener::bind` at `crates/nvs-host/src/net.rs:566` takes no mode today,
+      and a mode applied after the bind leaves a window at the umask's mode.
+      `rule:http-server/a-unix-socket-listener`'s last paragraph is why the value is load-bearing —
+      `0660` trusts by group membership, and such a listener is implicitly trusted for the forwarded
+      headers.
+- [ ] **The acceptance check's one case, both platforms** —
+      `a_unix_socket_listen_entry_binds_with_its_mode_on_unix_and_is_refused_once_elsewhere`, under
+      `-p nvs-cli`, so a new file beside `crates/nvs-cli/tests/request.rs`. It binds and asserts the
+      mode where the rule admits one and asserts the single refusal elsewhere, so it runs on every
+      leg. The refusal half already has cases at `crates/nvs-cli/src/serve.rs:1673-1692` to read
+      first.
 
 ## Backlog
 
-- A drain does not cut a connection's idle wait short — `crates/nvs-server/src/io.rs:141`,
-  `crates/nvs-server/src/socket.rs:266`; `nvs_host::wake_at_drain` is now the seam for both readers.
-- A connection between one response and the next request waits under `header` and not `keepalive` —
-  `crates/nvs-server/src/io.rs:130`'s `Phase::KeepAlive` looks never to be set.
-- A `[[schedule]]` waits out one interval before a stop ends its ticker —
-  `crates/nvs-cli/src/serve.rs`'s `keep_ticking` closure says so.
-- Nothing sends a datagram in any test: the `Supervisor` sink is what the case drives, so
-  `crates/nvs-cli/src/service.rs`'s `mod systemd` is compiled on Linux and never run.
-- Stage 4 is unwritten — `a_unix_socket_listen_entry_binds_with_its_mode_on_unix_and_is_refused_once_elsewhere`
-  is the test the driver's acceptance check is waiting for.
-- `[context] modules` printed neither `crates/nvs-host/src/watchdog.rs`, which this item's own gate
-  lives in, nor `crates/nvs-runtime/src/drain.rs` and `crates/nvs-server/src/io.rs`/`socket.rs`,
-  which are the drain's other readers.
+- The acceptance check's stage-5 half (`nvs service` registration) is untouched —
+  `docs/agent/loop-goal.md` § *Stage 5*.
+- `crates/nvs-cli/src/serve.rs:57-62`'s module doc states the refusal as unconditional; stage 4
+  rewrites it, not goal `plan-truth`.
+- `nvs ctl config --origin` against the live snapshot —
+  `rule:config/ctl-config-reports-the-live-snapshot`, stage 3's sibling, already landed in
+  `nvs-server`; nothing here owes it.
