@@ -128,6 +128,13 @@ modules = [
   # The accept loop: one listening socket, one coroutine per connection, and one `hyper`
   # connection future driven on that coroutine's own stack.
   "crates/nvs-server/src/serve.rs",
+  # `Core\Queue` — `rule:concurrency/enqueue-commits-with-your-write`'s durable background job,
+  # over the `[db.<name>]` block a `[queue] connection` names.
+  "crates/nvs-stdlib/src/queue.rs",
+  # `Core\Socket` — `rule:concurrency/a-connection-is-a-root-isolate` and
+  # `rule:concurrency/an-upgrade-is-spawn-shaped` 's WebSocket upgrade, as the signature a program
+  # writes.
+  "crates/nvs-stdlib/src/socket.rs",
 ]
 
 # Every stage works inside these three: a call returns with nothing still running, an isolate
