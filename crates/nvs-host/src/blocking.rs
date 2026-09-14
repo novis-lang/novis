@@ -383,6 +383,7 @@ mod tests {
     use nvs_runtime::{Ctx, OutputSink, TaskRoot};
     use std::cell::Cell;
     use std::rc::Rc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::mpsc;
     use std::time::Duration;
 
@@ -499,9 +500,12 @@ mod tests {
     /// Item 6's two halves in one place: the call reaches the *pool* rather
     /// than the core, and the pool it reaches is `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s — bounded at
     /// twice the core count, per worker, however many calls are in flight. The
-    /// jobs overlap on purpose (each holds its thread while the rest are
-    /// submitted), so a pool that grew with the fan-out would be caught here
-    /// rather than merely being under its bound by luck.
+    /// jobs overlap by construction rather than by timing: each holds its
+    /// thread until the pool is full, so a pool that grew with the fan-out would
+    /// be caught here rather than merely being under its bound by luck, and a
+    /// loaded machine — the sanitizer leg running beside a release build —
+    /// cannot let one job finish before the rest are submitted and bring the
+    /// thread count up short.
     #[test]
     fn a_blocking_call_goes_to_a_pool_bounded_at_twice_the_core_count() {
         let mut sched = Scheduler::new();
@@ -514,16 +518,24 @@ mod tests {
 
         // Two more calls than the pool may have threads, so the last two have
         // to wait for a thread rather than make one.
-        let calls = bound() + 2;
+        let full = bound();
+        let calls = full + 2;
         let elsewhere = Rc::new(Cell::new(0_usize));
         let here = std::thread::current().id();
+        // How many jobs have reached a pool thread. A job waits until the count
+        // is the bound, which needs that many threads alive at once; the two
+        // extra jobs find the count already there and pass straight through, on
+        // a thread one of the first ones freed.
+        let running = Arc::new(AtomicUsize::new(0));
         for _ in 0..calls {
             let counted = Rc::clone(&elsewhere);
+            let running = Arc::clone(&running);
             sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
-                let ran_on = run(|| {
-                    // Long enough that every task has submitted before any job
-                    // ends, which is what makes the calls concurrent.
-                    std::thread::sleep(Duration::from_millis(40));
+                let ran_on = run(move || {
+                    running.fetch_add(1, Ordering::SeqCst);
+                    while running.load(Ordering::SeqCst) < full {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
                     std::thread::current().id()
                 });
                 assert_ne!(ran_on, here, "the blocking call ran on the core");

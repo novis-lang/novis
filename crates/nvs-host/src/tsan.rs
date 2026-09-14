@@ -75,11 +75,13 @@
 #[cfg(feature = "tsan")]
 use std::ffi::c_void;
 
-/// The sanitizer's fiber interface, as the ThreadSanitizer runtime exports it.
-///
-/// The flag word both switching calls take selects a variant of the operation;
-/// a `0` is the plain one, which is the module doc's § *Why the switch
-/// synchronizes*.
+// The sanitizer's fiber interface, as the ThreadSanitizer runtime exports it.
+// A plain comment because rustdoc documents nothing on an extern block and
+// warns about a doc comment there.
+//
+// The flag word both switching calls take selects a variant of the operation;
+// a `0` is the plain one, which is the module doc's § *Why the switch
+// synchronizes*.
 #[cfg(feature = "tsan")]
 #[expect(
     unsafe_code,
