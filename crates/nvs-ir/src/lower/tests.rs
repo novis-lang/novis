@@ -3875,10 +3875,10 @@ fn a_fall_through_seals_with_one_for_a_require_and_null_for_the_entry_frame() {
 /// is named by a path *value* handed to a native symbol, so no second
 /// frame is lowered for it, nothing here forks a thread or a process, and
 /// the instruction sits in the same block as the statements around it.
-/// The whole of the child's identity is the three arguments, in the fixed
-/// order — the path, the `args:` value, the `output:` spelling — with the
-/// option the program omitted materialized here rather than defaulted in
-/// the helper.
+/// The whole of the child's identity is the arguments, in the fixed order
+/// — the path, the `args:` value, the `output:` spelling, the placement
+/// and the two narrowings — with every option the program omitted
+/// materialized here rather than defaulted in the helper.
 ///
 /// The refcount asymmetry is the transfer, and it is the reason this
 /// asserts over the arguments rather than snapshotting them: the path
@@ -3912,11 +3912,13 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
     };
     assert_eq!(
         args.len(),
-        4,
-        "the path, the `args:` value, the `output:` spelling and the placement: {}",
+        6,
+        "the path, the `args:` value, the `output:` spelling, the placement and \
+         the `limits:` and `grants:` narrowings: {}",
         print_function(&f, map.file(file))
     );
     let (path, payload, output, on) = (args[0], args[1], args[2], args[3]);
+    let (limits, grants) = (args[4], args[5]);
     let const_str = |v: ValueId| {
         insts().find_map(|i| match &i.kind {
             InstKind::ConstStr(s) if i.result == Some(v) => Some(s.clone()),
@@ -3945,6 +3947,25 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
         const_str(on).as_deref(),
         Some("here"),
         "the fourth argument is the placement, and no `on:` is this core: {}",
+        print_function(&f, map.file(file))
+    );
+    // And the two narrowings, which this program wrote neither of. `null` and
+    // not an empty shape or an empty array, because those say something else:
+    // `grants: []` is a child that may ask for nothing at all, where no
+    // `grants:` leaves the parent's own set standing
+    // (`rule:security/isolate-shares-nothing`).
+    // Through the `tag`: an option is carried at `tagged`, so what the call
+    // takes is the widened value and the constant is one instruction behind it.
+    let is_null = |v: ValueId| {
+        let produced = |v: ValueId| insts().find(|i| i.result == Some(v)).map(|i| &i.kind);
+        let Some(InstKind::Tag { operand }) = produced(v) else {
+            return false;
+        };
+        matches!(produced(*operand), Some(InstKind::ConstNull))
+    };
+    assert!(
+        is_null(limits) && is_null(grants),
+        "a spawn that narrowed nothing carries a `null` for each option: {}",
         print_function(&f, map.file(file))
     );
     let released_in = |b: &crate::ir::BasicBlock, v: ValueId| {

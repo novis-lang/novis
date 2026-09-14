@@ -3115,15 +3115,14 @@ impl<'a> Lowering<'a> {
     /// so nothing but this arm can reach it, which is what keeps `spawn
     /// script` syntax rather than a member with a keyword in front of it.
     ///
-    /// Four arguments in a fixed order — the path, the `args:` value, the
-    /// `output:` spelling and the `on:` placement — with the options the
-    /// program omitted materialized to `null`, `"capture"` and `"here"`, the
-    /// same way
+    /// Six arguments in a fixed order — the path, the `args:` value, the
+    /// `output:` spelling, the `on:` placement, the `limits:` sub-cap and the
+    /// `grants:` list — with the options the program omitted materialized to
+    /// `null`, `"capture"` and `"here"`, the same way
     /// [`Self::lower_options_arg`] materializes an `rule:core-api/shape-rules` R2 bag's defaults.
-    /// `limits:` and `grants:` are checked where they are written
-    /// (`nvs_types::expr::isolate`) and are not carried here, so a program that
-    /// writes one is compiled as though it had not: the isolate applies no
-    /// sub-cap and narrows no grant.
+    /// Every option the language accepts is carried, because one that is
+    /// checked where it is written and then dropped is a narrowing the program
+    /// asked for and did not get — `rule:security/isolate-budget-is-the-trees`.
     ///
     /// The `args:` value is **transferred**, alone among the three, because it
     /// is the one the isolate keeps: it crosses the boundary into the child's
@@ -3137,10 +3136,10 @@ impl<'a> Lowering<'a> {
     /// there is nothing for a resolver to compile. `nvs_stdlib::script`'s
     /// `SPAWN_METHOD_SYMBOL` owns why the fork is a second symbol rather than a
     /// fourth argument, and [`Self::spawn_method_entry`] is the fork itself.
-    /// The method symbol does take a **fifth** argument the path form has no
-    /// use for — the entry's parameter names, for ADR 0006 § *Decision*'s
-    /// `args:` binding — and that one is a value the child needs rather than a
-    /// branch this module already took.
+    /// The method symbol does take a **last** argument the path form has no use
+    /// for — the entry's parameter names, for ADR 0006 § *Decision*'s `args:`
+    /// binding — and that one is a value the child needs rather than a branch
+    /// this module already took.
     fn lower_spawn_script(
         &mut self,
         path: &Expr,
@@ -3225,6 +3224,15 @@ impl<'a> Lowering<'a> {
             }
         };
 
+        // The two narrowings, carried as the values the program wrote and read
+        // on the other side of the seam (`nvs_stdlib::script`'s `limits_of` and
+        // `grants_of`). Borrowed, where `args:` is transferred: neither value
+        // crosses into the child, only the narrowing decoded from it — which is
+        // also why they are lowered here rather than folded to constants, since
+        // a sub-cap may be any expression of the shape's type.
+        let limits_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Limits), env, cur);
+        let grants_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Grants), env, cur);
+
         // ADR 0006 § *Decision* binds `args:`'s entries to the entry's own
         // parameters **by name**, which is a question only the declaration
         // answers — so the names travel with the label, as a fourth argument
@@ -3232,8 +3240,10 @@ impl<'a> Lowering<'a> {
         // empty for an entry that declares none: a `ConstStr` costs the child
         // no parse of the unit it is about to call into, and
         // `nvs_runtime::MethodRow` cannot answer this at all (it has arity and
-        // parameter tags, never names).
-        let mut call_args = vec![path_v, args_v, output_v, on_v];
+        // parameter tags, never names). It goes **last**, after the two
+        // narrowings above, so that the argument the method form alone takes
+        // stays the one at the end of the list.
+        let mut call_args = vec![path_v, args_v, output_v, on_v, limits_v, grants_v];
         if let Some((_, names)) = &method {
             let (names_v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(names.join(",")));
             self.account_for_arg(names_v, Ty::Str, ArgOwnership::Borrowed, false, *cur);
@@ -3265,6 +3275,39 @@ impl<'a> Lowering<'a> {
         );
         self.release_temporaries_since(mark, *cur);
         result
+    }
+
+    /// One of `spawn script`'s two narrowing options — `limits:` or `grants:` —
+    /// as the value the program wrote, and `null` for one it did not write.
+    ///
+    /// Borrowed rather than transferred, which is the difference from `args:`:
+    /// what reaches the child is the sub-cap and the grant list decoded out of
+    /// these, and the values themselves are read on the parent's side before any
+    /// child exists.
+    ///
+    /// `null` for an option nobody wrote, and not an empty shape or an empty
+    /// array, for the reason `args:` defaults to `null`: the two say different
+    /// things. `grants: []` is a child that may ask for no capability at all,
+    /// where no `grants:` at all leaves the parent's set as it stands.
+    fn lower_spawn_narrowing(
+        &mut self,
+        written: Option<&SpawnOption>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        let (v, ty, aliasing) = match written {
+            Some(opt) => {
+                let (v, ty) = self.lower_expr(&opt.value, Some(Ty::Tagged), env, cur);
+                (v, ty, self.aliasing_read(&opt.value))
+            }
+            None => {
+                let (v, _) = self.emit(*cur, Ty::Null, InstKind::ConstNull);
+                (v, Ty::Null, false)
+            }
+        };
+        let v = self.coerce(*cur, v, ty, Ty::Tagged, env);
+        self.account_for_arg(v, Ty::Tagged, ArgOwnership::Borrowed, aliasing, *cur);
+        v
     }
 
     /// `Class::method` and the entry's parameter names, for a `spawn script`

@@ -348,6 +348,35 @@ pub enum Placement {
     Worker,
 }
 
+/// The two narrowings a spawn site wrote, as the child is to be held to them —
+/// `rule:security/isolate-budget-is-the-trees`' sub-cap and
+/// `rule:security/isolate-shares-nothing`'s grant list.
+///
+/// **Text, and not numbers.** A sub-cap is written in the spelling `nvs.toml`
+/// writes the same directive in, and what applies it is the child's own
+/// configuration overlay: `nvs_config::Request::set` already refuses a value
+/// wider than what is in force, so carrying the word gets *tighter than what
+/// remains, never wider* out of one reader rather than a second one grown
+/// beside it. A count is rendered to that same spelling for the same reason.
+///
+/// A default is the spawn that narrowed nothing, which is what
+/// [`Host::start_isolate`] is handed for a program that wrote neither option.
+/// The empty grant list is **not** that: `Some(vec![])` is a child that may ask
+/// for no capability at all, where `None` leaves the parent's set as it stands.
+///
+/// **What it spends** (`rule:programs/memory-priority`): one short `Vec` per
+/// spawn that wrote an option, released once the child's context is built, and
+/// one empty `Vec` — no allocation — for every spawn that wrote neither.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Narrowing {
+    /// `[limits]` keys and the values written beside them, in the order the
+    /// program wrote them.
+    pub limits: Vec<(String, String)>,
+    /// The capability names the child may still ask for, and `None` for a spawn
+    /// that named no `grants:`.
+    pub grants: Option<Vec<String>>,
+}
+
 /// What a child's failure looks like on the parent's side: data, never an
 /// exception object (ADR 0006 § *Failure is a value*).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -637,6 +666,13 @@ pub trait Host: std::fmt::Debug {
     /// `placement` says which core that is. Those are the facts about a child
     /// only this side can act on; see [`Entry`] and [`Placement`].
     ///
+    /// `narrowing` is what the spawn site wrote to hold the child to less than
+    /// its parent holds — [`Narrowing`], applied to the child's own context
+    /// before its first statement runs. It reaches the seam rather than being
+    /// applied above it because the context it narrows is built here, and a
+    /// narrowing applied anywhere else would be one the placed child on another
+    /// core never saw.
+    ///
     /// `args` is **transferred on the success path**, where the graph copy
     /// takes the one reference the caller handed over. An `Err` leaves that
     /// reference with the caller, whose own fault edge releases it:
@@ -665,6 +701,7 @@ pub trait Host: std::fmt::Debug {
         args: Value,
         output: Output,
         placement: Placement,
+        narrowing: Narrowing,
     ) -> Result<Box<dyn Running>, StartError>;
 }
 
@@ -775,6 +812,7 @@ mod tests {
             args: crate::value::Value,
             _output: super::Output,
             _placement: super::Placement,
+            _narrowing: super::Narrowing,
         ) -> Result<Box<dyn super::Running>, super::StartError> {
             // No scheduler here, so "started" is "already finished": the route
             // is what this proves, and a boundary needs a task tree that a unit

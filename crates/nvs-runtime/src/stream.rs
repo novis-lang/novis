@@ -525,7 +525,8 @@ mod tests {
     use super::{Drain, Drained, SEND_TIMED_OUT, open};
     use crate::ctx::Ctx;
     use crate::host::{
-        Bounds, Entry, Host, Job, Outcome, Output, Placement, Running, StartError, Woken, install,
+        Bounds, Entry, Host, Job, Narrowing, Outcome, Output, Placement, Running, StartError,
+        Woken, install,
     };
     use crate::value::Value;
 
@@ -595,6 +596,7 @@ mod tests {
             _args: Value,
             _output: Output,
             _placement: Placement,
+            _narrowing: Narrowing,
         ) -> Result<Box<dyn Running>, StartError> {
             unreachable!("a response body cell starts no isolate")
         }

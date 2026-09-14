@@ -103,9 +103,10 @@
 //! second crossing, and no copy per call, however often the child asks.
 
 use nvs_config::capability::{Cap, Scope};
-use nvs_runtime::host::{Completion, Entry, Output, Placement, StartError};
+use nvs_runtime::Tag;
+use nvs_runtime::host::{Completion, Entry, Narrowing, Output, Placement, StartError};
 use nvs_runtime::script::ResolveError;
-use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Fault, NvsObj, NvsStr, ThrownClass, Value};
 
 use crate::registry::{CaseDoc, CoreClass, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc};
 
@@ -624,16 +625,157 @@ fn placement_of(value: &Value) -> Result<Placement, Fault> {
     }
 }
 
+/// Decodes the two narrowing options into the one value the seam takes —
+/// `rule:security/isolate-budget-is-the-trees`' sub-cap and
+/// `rule:security/isolate-shares-nothing`'s grant list.
+///
+/// Both arrive as the values the program wrote, and `null` for an option it did
+/// not write. One function because both are read at the same two call sites and
+/// a spawn narrowed by neither is then one default rather than two.
+///
+/// # Errors
+///
+/// A fatal for a value whose shape the type checker already refused, which is
+/// what makes the two readers below total.
+fn narrowing_of(limits: &Value, grants: &Value) -> Result<Narrowing, Fault> {
+    Ok(Narrowing {
+        limits: limits_of(limits)?,
+        grants: grants_of(grants)?,
+    })
+}
+
+/// Decodes `limits:` — the `[limits]` keys the spawn site narrowed, paired with
+/// the values written beside them.
+///
+/// The values stay **text**, in the spelling the same directive takes in
+/// `nvs.toml`, because what applies them is the child's own configuration
+/// overlay and that overlay already refuses one wider than what is in force
+/// (`nvs_config::Request::set`). A count is rendered rather than parsed here for
+/// the same reason: the number the child is held to is read by one parser, not
+/// by this one and then again by that one.
+fn limits_of(value: &Value) -> Result<Vec<(String, String)>, Fault> {
+    if matches!(value.tag(), Some(Tag::Null)) {
+        return Ok(Vec::new());
+    }
+    let ptr = value.obj_ptr().ok_or_else(|| {
+        // Unreachable from source: `nvs_types::expr::isolate`'s `sub_caps`
+        // checks this option against a shape and `reject_unknown_sub_cap`
+        // refuses a key that is not a sub-cap, so a value that is neither a
+        // shape nor absent is `E_TYPE_MISMATCH` where it is written.
+        Fault::fatal(format!(
+            "`spawn script`'s `limits:` expected a shape, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    // A shape is an object with one slot per field it names — `crate::instance`'s
+    // `shape` owns that layout — so the slots a spawn site wrote *are* the
+    // sub-caps it narrowed, and the walk needs no second copy of the sub-cap
+    // list on this side of the seam.
+    #[expect(
+        unsafe_code,
+        reason = "the value owns a reference to a live allocation, so it is live \
+                  for this borrow; the handle is never dropped, so the reference \
+                  is not released twice"
+    )]
+    let shape = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor is owned by the unit's class table, which \
+                  outlives every instance of the class it describes"
+    )]
+    let desc = unsafe { &*shape.class() };
+    let mut caps = Vec::new();
+    for slot in 0..shape.field_count() {
+        // Unreachable from source: a descriptor names every slot it has, and
+        // the count above is that descriptor's own.
+        let Some(key) = desc.field_name(slot) else {
+            continue;
+        };
+        let entry = shape.field(slot);
+        let written = match (entry.as_text(), entry.as_int()) {
+            (Some(text), _) => text.to_owned(),
+            (None, Some(count)) => count.to_string(),
+            // Unreachable from source: every field of `sub_caps`' shape is a
+            // `string` or an `int`, so a third tag is `E_TYPE_MISMATCH` at the
+            // written key.
+            (None, None) => {
+                return Err(Fault::fatal(format!(
+                    "`spawn script`'s `limits: {key}` expected a string or an int, got tag {}",
+                    entry.tag_byte()
+                )));
+            }
+        };
+        caps.push((key.to_owned(), written));
+    }
+    Ok(caps)
+}
+
+/// Decodes `grants:` — the capability names the child may still ask for, and
+/// `None` for a spawn that named none.
+///
+/// The distinction the `Option` carries is the whole of what this reader
+/// decides: an empty list is a child that may ask for nothing, and no list at
+/// all is the parent's own set unchanged. The names are not checked against
+/// [`Cap::parse`] here — a name no capability has grants nothing, and dropping
+/// it from a list that only ever narrows fails closed.
+fn grants_of(value: &Value) -> Result<Option<Vec<String>>, Fault> {
+    if matches!(value.tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    let array = value.array_ptr().ok_or_else(|| {
+        // Unreachable from source: `nvs_types::expr::isolate` checks this
+        // option against `array<string>`, so a value that is neither an array
+        // nor absent is `E_TYPE_MISMATCH` where it is written.
+        Fault::fatal(format!(
+            "`spawn script`'s `grants:` expected an array, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    let mut names = Vec::new();
+    let mut from = 0_usize;
+    loop {
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live allocation, \
+                      so it is live for the length of this call, and `from` only \
+                      ever advances past a slot this same cursor reported"
+        )]
+        let (slot, entry) = unsafe {
+            let slot = nvs_runtime::nvs_array_next_slot(array, from);
+            let Ok(slot) = usize::try_from(slot) else {
+                break;
+            };
+            let mut entry = Value::null();
+            nvs_runtime::nvs_array_value_at(array, slot, &raw mut entry);
+            (slot, entry)
+        };
+        from = slot + 1;
+        let name = entry.as_text().ok_or_else(|| {
+            // Unreachable from source: the option is checked against
+            // `array<string>`, so a non-string element is `E_TYPE_MISMATCH` at
+            // the written element.
+            Fault::fatal(format!(
+                "`spawn script`'s `grants:` expected a string name, got tag {}",
+                entry.tag_byte()
+            ))
+        })?;
+        names.push(name.to_owned());
+    }
+    Ok(Some(names))
+}
+
 nvs_runtime::nvs_helper! {
     /// `spawn script <path> with(args: …, output: …)` — starts the isolate and
     /// answers the handle that `await` collects.
     ///
-    /// Four arguments in the order the lowering builds them: the path as
+    /// Six arguments in the order the lowering builds them: the path as
     /// written, the `args:` value (`null` when the option was not given), the
-    /// `output:` spelling and the `on:` placement, which is `'here'` for a
-    /// spawn that named none. The argument is **transferred** to the isolate,
-    /// which is why the lowering hands it over rather than borrowing it as an
-    /// ordinary `Core` call would.
+    /// `output:` spelling, the `on:` placement, which is `'here'` for a spawn
+    /// that named none, and the `limits:` and `grants:` narrowings, each `null`
+    /// for a spawn that wrote neither. The argument is **transferred** to the
+    /// isolate, which is why the lowering hands it over rather than borrowing it
+    /// as an ordinary `Core` call would; the two narrowings are borrowed,
+    /// because what crosses is what [`narrowing_of`] reads out of them.
     ///
     /// A path that does not resolve is a **throw in the parent**, not an
     /// `ok = false`: `nvs_runtime::script::ResolveError` is one step before the
@@ -646,7 +788,7 @@ nvs_runtime::nvs_helper! {
     /// . A spawn the parent was never allowed to attempt therefore never
     /// reaches a child at all, which is what makes it a value on *this* side
     /// while a child that fails on its own is an `ok = false` on the other.
-    fn nvs_core_script_spawn(ctx, args: [4]) {
+    fn nvs_core_script_spawn(ctx, args: [6]) {
         // Unreachable from source: the path expression is checked against
         // `string` by `nvs_types::expr::isolate`'s `check_spawn_script`, so a
         // non-string is `E_TYPE_MISMATCH` where it is written.
@@ -658,6 +800,7 @@ nvs_runtime::nvs_helper! {
         })?;
         let output = output_of(&args[2])?;
         let placement = placement_of(&args[3])?;
+        let narrowing = narrowing_of(&args[4], &args[5])?;
         // The argument is handed over here: one reference goes to the isolate
         // and the lowering emitted no release for it.
         let crossing = args[1];
@@ -672,6 +815,7 @@ nvs_runtime::nvs_helper! {
                 crossing,
                 output,
                 placement,
+                narrowing,
             )
         });
         let running = match started {
@@ -781,8 +925,8 @@ nvs_runtime::nvs_helper! {
     /// **method entry**, started as a fresh isolate over the unit this context
     /// is already running.
     ///
-    /// [`nvs_core_script_spawn`]'s four arguments in its order, with its
-    /// ownership rules, plus a fifth this form alone takes; and one
+    /// [`nvs_core_script_spawn`]'s arguments in its order, with its ownership
+    /// rules, plus a last one this form alone takes; and one
     /// difference: argument 0 is a **constant label**
     /// the lowering wrote — `Class::method`, resolved by `nvs_types` at the
     /// spawn site — rather than a path the program computed. Nothing is
@@ -818,7 +962,7 @@ nvs_runtime::nvs_helper! {
     /// judges each against the slot it is about to fill. The map still crosses
     /// whole and `Core\Script::args()` still answers it, which is `rule:security/isolate-shares-nothing`'s
     /// accessor rule for both forms.
-    fn nvs_core_script_spawn_method(ctx, args: [5]) {
+    fn nvs_core_script_spawn_method(ctx, args: [7]) {
         // Unreachable from source: the lowering emits this as a `ConstStr`, so
         // a non-string here is a compiler bug rather than a program's.
         let label = args[0]
@@ -833,12 +977,12 @@ nvs_runtime::nvs_helper! {
         // Unreachable from source for the same reason argument 0 is: the
         // lowering emits this as a `ConstStr` too, so a non-string here is a
         // compiler bug rather than a program's.
-        let names: Vec<String> = args[4]
+        let names: Vec<String> = args[6]
             .as_text()
             .ok_or_else(|| {
                 Fault::fatal(format!(
                     "`spawn script Class::method` expected constant parameter names, got tag {}",
-                    args[4].tag_byte()
+                    args[6].tag_byte()
                 ))
             })?
             .split(',')
@@ -847,6 +991,7 @@ nvs_runtime::nvs_helper! {
             .collect();
         let output = output_of(&args[2])?;
         let placement = placement_of(&args[3])?;
+        let narrowing = narrowing_of(&args[4], &args[5])?;
         // Nothing is released here for the transferred argument 1, and that is
         // the spawn's own ownership rule rather than an omission: a
         // `TemporaryKind::Transferred` value is still on the lowering's
@@ -874,7 +1019,7 @@ nvs_runtime::nvs_helper! {
         // emitted no release for it.
         let crossing = args[1];
         let started = nvs_runtime::host::with_current(|host| {
-            host.start_isolate(ctx, entry, crossing, output, placement)
+            host.start_isolate(ctx, entry, crossing, output, placement, narrowing)
         });
         let running = match started {
             // Every arm is `nvs_core_script_spawn`'s, for its reasons — the
