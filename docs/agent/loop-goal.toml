@@ -99,8 +99,8 @@ modules = [
   "crates/nvs-host/src/scheduler.rs",
   # The reservation, the pool bound (:62-71) and the address-space sentence (:15-16). Stage 2.
   "crates/nvs-host/src/stack.rs",
-  # `run_group` (:137), its child spawn (:376) and the host seam `spawn script` enters by (:190-203).
-  # Stages 2, 4 and 6.
+  # `run_group` (:137), its child spawn (:376) and the host seam `spawn script` enters by (:191-217),
+  # which is where a worker placement routes. Stages 2, 4 and 6.
   "crates/nvs-host/src/group.rs",
   # `Core\Task\Channel`'s host half, which the deadlock waits on. Stage 2.
   "crates/nvs-host/src/channel.rs",
@@ -118,9 +118,11 @@ modules = [
   "crates/nvs-stdlib/src/script.rs",
   # `Core\Session::start` (:734-790), which opens a session where no request arrived. Stage 3.
   "crates/nvs-stdlib/src/session.rs",
-  # `check_spawn_script` and `E_SPAWN_OPTION_UNSUPPORTED` (:143-160). Stage 6.
+  # `check_spawn_script` (:153) and `check_placement` (:506), which is what `on:` is checked against.
+  # Stage 6.
   "crates/nvs-types/src/expr/isolate.rs",
-  # `lower_spawn_script` (:3163-3256), which reads `args:` and `output:` alone. Stage 6.
+  # `lower_spawn_script` (:3164), which carries the path, `args:`, `output:` and `on:` (:3206) to the
+  # seam. Stage 6.
   "crates/nvs-ir/src/lower/expr.rs",
   # `rule:testing/in-process-request`'s in-process request: the seam `Core\Test::request` reaches
   # the unit under test through.
@@ -235,6 +237,15 @@ rules = [
   "security/isolate-budget-is-the-trees",
   "http-server/a-core-is-never-blocked-on-a-syscall",
 ]
+# This stage adds error paths to `nvs-stdlib`'s spawn helpers, and the gate over them is two bullets
+# the base's tooling selectors do not reach.
+playbook = [
+  'Writing a test case > every `Fault::thrown` site owes a case',
+  'Writing a test case > the `unreachable from source` phrase',
+]
+# The mechanism the record fixed: the crossing, the inbox, the child that is still its parent's, and
+# which cores there are. Stage 6's second item builds exactly these four sections.
+adrs = ["0184 §2", "0184 §3", "0184 §4", "0184 §5"]
 shapes = ["A `.nvst` test case"]
 
 [context.stage.7]
