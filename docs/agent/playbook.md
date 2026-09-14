@@ -6770,6 +6770,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   — `clone`'s `must be of type object, <type> given` is the one in front of us — needs its own
   rendering with PHP's spellings, and the two must not be folded into one table without deciding
   which set of names each caller wants. [until: reviewed 2026-12-14]
+- **A new `nvs_ir::Helper` row takes four edits, and the one no compiler catches is the JIT's
+  symbol table.** `emit.rs`'s `helper_symbol` and `print.rs`'s `helper_name` are exhaustive
+  matches the build names, but the `("nvs_…", address(…))` list in
+  `crates/nvs-runtime/src/helpers.rs` is data, so a missing row is a `can't resolve symbol`
+  panic out of `cranelift-jit` that only a case reaching the helper sees. Add the registry row
+  in the same edit as the variant, and run such a case.
+  [until: gone crates/nvs-codegen/src/emit.rs:fn helper_symbol]
 
 ## Divergences and refusals already pinned
 

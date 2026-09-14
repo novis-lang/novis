@@ -1,0 +1,52 @@
+--TEST--
+`clone` through a `?Box` copies the object the binding holds, one level deep, as it does for a declared class — `rule:classes/clone-is-shallow`
+--FILE--
+<?nvs
+// The operand is nullable, so its representation is a tag rather than an
+// object: the copy happens behind the one tag test the erased operand leaves,
+// and nothing about what it produces differs from a `Box` operand's copy.
+class Tag {
+    public string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+}
+
+class Box {
+    public string $label;
+    public Tag $tag;
+
+    public function constructor(string $label, Tag $tag) {
+        $this->label = $label;
+        $this->tag = $tag;
+    }
+}
+
+?Box $held = new Box("first", new Tag("red"));
+?Box $copy = clone $held;
+
+// The copy is a second instance: its own `string` slot moves alone.
+if ($copy != null) {
+    $copy->label = "second";
+}
+if ($held != null) {
+    echo $held->label, ",";
+}
+if ($copy != null) {
+    echo $copy->label, "\n";
+}
+
+// Its object slot is the same instance, which is the shallow half of the rule.
+if ($copy != null) {
+    $copy->tag->text = "blue";
+}
+if ($held != null) {
+    echo $held->tag->text, ",";
+}
+if ($copy != null) {
+    echo $copy->tag->text, "\n";
+}
+--EXPECT--
+first,second
+blue,blue

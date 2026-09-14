@@ -1,0 +1,42 @@
+--TEST--
+Cloning a binding that holds `null` raises PHP's own message, word for word
+--FILE--
+<?nvs
+class Box {
+    public string $label;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+    }
+}
+
+?Box $empty = null;
+?Box $copy = null;
+
+try {
+    $copy = clone $empty;
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+
+echo "after\n";
+--ORACLE--
+<?php
+class Box {
+    public string $label;
+
+    public function __construct(string $label) {
+        $this->label = $label;
+    }
+}
+
+$empty = null;
+$copy = null;
+
+try {
+    $copy = clone $empty;
+} catch (Throwable $e) {
+    echo $e->getMessage(), "\n";
+}
+
+echo "after\n";
