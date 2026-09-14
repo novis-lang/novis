@@ -5581,14 +5581,35 @@ enum TestShape {
 /// # Known gaps
 ///
 /// Three rows answer `None`, and each reaches the caller's panic rather than a
-/// diagnostic. An `array<T>` whose element type no tag decides — `array<Foo>`,
-/// an array of shapes, an array of unions — has no tag word for the walk to
-/// take. A shape has no row here at all. So does
-/// `rule:types/callable-signature`'s written signature, which asks what a
-/// closure's parameters are and not merely whether the value is one, so the
-/// marker `callable` walks does not answer it. `as array<Foo>` is refused where
-/// it is written (`E0711`) and `is array<Foo>` is not, so closing these is a
-/// decision about `rule:types/type-test`'s table, not about this function.
+/// diagnostic.
+///
+/// A **shape** has no row here, and what it waits on is a walk rather than a
+/// decision about `rule:types/type-test`'s table. Neither walk this compiler
+/// already has is the one: `as` performs none at all, `convert.rs`'s
+/// `lower_checked_downcast` having no shape arm, and `Core\Arr::shapeAs`'s
+/// reads an `NvsArray` and builds an object out of it, so it answers a
+/// different question from a different source — its
+/// `nvs_stdlib::json::Reading::Wire` half is the strict per-field read `is`
+/// wants, over a document's keys rather than a receiver's fields.
+/// `rule:types/shape-type` makes a shape compile-time-only and structural with
+/// width subtyping, so the run-time question is whether *this object* carries
+/// the named fields at the named types: an O(n) walk over
+/// [`InstKind::SlotGet`]'s name-keyed fetch, one [`TestShape`] per field,
+/// chained by [`TestShape::All`] behind the object tag so that a subject
+/// holding no object declines before any field is read.
+///
+/// That walk needs one thing the IR does not carry — a **presence probe that
+/// does not throw**. `AbsentKey::Null` answers an absent field with `null`,
+/// which a `{a: ?int}` field cannot tell from an `a` holding one, and both it
+/// and `AbsentKey::Throws` throw on a slot that was never written. `is` is
+/// total, so a subject missing a field answers `false` and raises nothing.
+///
+/// The other two are slices. An `array<T>` whose element type no tag decides —
+/// `array<Foo>`, an array of shapes, an array of unions — has no tag word for
+/// the walk to take. `rule:types/callable-signature`'s written signature asks
+/// what a closure's parameters are and not merely whether the value is one, so
+/// the marker `callable` walks does not answer it. `as array<Foo>` is refused
+/// where it is written (`E0711`) and `is array<Foo>` is not.
 fn test_shape(
     tested: TypeId,
     checked_types: &TypeInterner,
