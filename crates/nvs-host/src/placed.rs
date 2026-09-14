@@ -40,7 +40,7 @@
 //! [`destination_for`] refuses a placement under. Closing it is a resolver a
 //! worker core can reach, which is a question about that seam's ownership of the
 //! unit cache rather than about this crossing.
-//! — owner: m5-proofs
+//! — owner: unowned
 //!
 //! # What it spends
 //!
@@ -125,10 +125,12 @@ pub(crate) fn start(
     let argument = nvs_runtime::graph::encode(args)?;
     // `rule:observability/spawn-is-its-own-event`'s event, opened where the child
     // starts exactly as a same-core one is, so a placement reads as a spawn in
-    // the same trace beside them. It is also the gate on the child reading a
-    // clock at all, asked once here and carried rather than asked again over
-    // there.
-    let open = ctx.open_spawn(SpawnForm::Script);
+    // the same trace beside them — under the `spawn worker` spelling, which is
+    // what tells it apart from the `spawn script` the same source line is when
+    // it stays here and is the only way a reading can say what the core cost.
+    // It is also the gate on the child reading a clock at all, asked once here
+    // and carried rather than asked again over there.
+    let open = ctx.open_spawn(SpawnForm::Worker);
     let crossing = Crossing {
         entry,
         argument,
@@ -358,7 +360,11 @@ impl Running for Placed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nvs_runtime::{ClassTable, FieldDefault};
+    use crate::reactor::{self, Reactor, run_until_idle};
+    use crate::scheduler::Scheduler;
+    use nvs_runtime::{ClassTable, DebugFlags, FieldDefault, TaskRoot, TraceKind};
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
     /// A context carrying a compiled unit's class table, which is what a method
     /// entry is looked up in.
@@ -421,6 +427,69 @@ mod tests {
     /// entry's names, the argument's bytes, the seed's shared handles and the
     /// answer's bytes — and nothing that is added to those types later may be a
     /// `Value` again.
+    /// A placement's trace event names `spawn worker`, which is the one of
+    /// `rule:observability/spawn-is-its-own-event`'s three forms that says a
+    /// core was crossed.
+    ///
+    /// The same source line is a `spawn script` when it stays here, so a
+    /// reading that spells both the same way can say what a child cost but not
+    /// what the crossing did — which is the split the rule exists for.
+    ///
+    /// The entry names a method this program declares nothing under, so the far
+    /// core answers a refusal rather than a value. That is the child's business
+    /// and not the event's: the parent opens the event where it posts the work
+    /// and closes it at the join it reached, whichever way the child ended.
+    #[test]
+    fn a_placed_childs_event_names_the_worker_form() {
+        let mut sched = Scheduler::new();
+        let _installed = reactor::install(Reactor::new().expect("the OS refused a poll"));
+
+        let recorded: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+        let collected = Rc::clone(&recorded);
+        sched.spawn(with_a_class_table(), TaskRoot::Worker, move |ctx| {
+            ctx.set_debug_flags(DebugFlags::TRACE);
+            let entry = Entry::Method {
+                label: "Work::run".to_owned(),
+                names: Vec::new(),
+            };
+            let destination = destination_for(ctx, &entry).expect("a task on a core secured none");
+            let running = start(
+                destination,
+                ctx,
+                entry,
+                Value::null(),
+                Output::Capture,
+                Narrowing::default(),
+            )
+            .expect("the argument crosses");
+            running.join(ctx);
+            collected.borrow_mut().extend(
+                ctx.trace()
+                    .iter()
+                    .filter(|event| event.kind == TraceKind::Spawn)
+                    .map(|event| event.callee.clone()),
+            );
+        });
+        run_until_idle(&mut sched).expect("the loop failed");
+
+        let events = recorded.borrow();
+        assert_eq!(
+            events.len(),
+            1,
+            "one event per placement, not one per await"
+        );
+        assert!(
+            events[0].starts_with("spawn worker started="),
+            "a placement read as another construct: {}",
+            events[0]
+        );
+        assert!(
+            events[0].contains(" joined="),
+            "the join left the placement's event open: {}",
+            events[0]
+        );
+    }
+
     #[test]
     fn what_crosses_is_send() {
         const fn assert_send<T: Send>() {}
