@@ -13,7 +13,7 @@
 //!
 //! The goal's standing decision, and the workspace `Cargo.toml`'s entry is
 //! where it is argued. What makes a *synchronous* codec the right one here is
-//! [`nvs_host::NvsTcp`]: its `Read` and `Write` park the coroutine instead of
+//! [`nvs_host::NvsConnection`]: its `Read` and `Write` park the coroutine instead of
 //! blocking the core, so a `read()` that finds nothing suspends the isolate's
 //! own task and resumes inside the same call. § 3's straight-line `while (var
 //! $msg = $conn->receive())` is what that buys, and it is why nothing in this
@@ -63,7 +63,7 @@
 use std::io::{Read, Write};
 use std::time::Instant;
 
-use nvs_host::NvsTcp;
+use nvs_host::NvsConnection;
 use nvs_runtime::{Closing, PeerError, PeerFrame, PeerSocket};
 use tungstenite::Message;
 use tungstenite::protocol::WebSocketConfig;
@@ -97,7 +97,7 @@ pub struct Prefixed {
     /// Emptied once and never refilled.
     read: std::io::Cursor<Vec<u8>>,
     /// The connection itself, from the first byte the prefix does not answer.
-    stream: NvsTcp,
+    stream: NvsConnection,
 }
 
 impl Prefixed {
@@ -194,7 +194,7 @@ impl Framed {
     /// asks for a defined code rather than a reset.
     #[must_use]
     pub fn new(
-        stream: NvsTcp,
+        stream: NvsConnection,
         already_read: Vec<u8>,
         bounds: Connection,
         draining: Draining,

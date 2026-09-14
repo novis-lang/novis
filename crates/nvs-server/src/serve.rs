@@ -86,7 +86,7 @@ use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
 use nvs_config::Waits;
 use nvs_host::{
-    Completion, Isolate, NvsListener, NvsTcp, Output, Running, Waiting, Wake, block_on,
+    Completion, Isolate, NvsConnection, NvsListener, Output, Running, Waiting, Wake, block_on,
     spawn_child, suspend_current,
 };
 use nvs_runtime::host::Woken;
@@ -877,7 +877,7 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// reason its caller already knows about. **A request's own failure is not one
 /// either**: `rule:security/isolate-shares-nothing`'s failure is a value, so it becomes a response instead.
 pub fn serve_connection<H>(
-    stream: NvsTcp,
+    stream: NvsConnection,
     arrival: Arrival,
     ctx: &mut Ctx,
     handler: &H,
@@ -1713,6 +1713,57 @@ fn failed() -> Response<Answer> {
     response
 }
 
+/// A listening socket [`serve_on_this_core`] accepts on, and the whole of what
+/// differs between the families it may be.
+///
+/// `rule:http-server/a-unix-socket-listener` gives the server a second
+/// transport and says nothing about a connection differs past the accept, so
+/// the accept is where the difference is spent: one method, answering the
+/// connection as [`NvsConnection`] and who connected as an [`Arrival`]. That
+/// second half is why the trait is here rather than in `nvs-host` — deriving
+/// an arrival is deciding what the operating system just asserted about trust
+/// (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`), and
+/// that reading belongs in the crate that applies it.
+///
+/// Object-safe on purpose: a boot whose `[server] listen` mixes the two
+/// families holds one collection of listeners, so `nvs serve` hands each core a
+/// `dyn Listening` and the loop above is generic over `?Sized`.
+pub trait Listening {
+    /// The next connection, or `None` for a park that ended without one —
+    /// [`nvs_host::NvsAcceptor::accept_or_woken`], with the arrival derived.
+    ///
+    /// # Errors
+    ///
+    /// The socket's own, on that function's terms.
+    fn arrived_or_woken(&mut self) -> io::Result<Option<(NvsConnection, Arrival)>>;
+}
+
+impl Listening for NvsListener {
+    /// The peer is taken from the accept rather than asked of the socket
+    /// afterwards: this is the one place where who connected is a fact the
+    /// operating system has just stated, and a `peer_addr` later would be
+    /// re-deriving it from a descriptor that may already have failed.
+    fn arrived_or_woken(&mut self) -> io::Result<Option<(NvsConnection, Arrival)>> {
+        Ok(self
+            .accept_or_woken()?
+            .map(|(stream, peer)| (NvsConnection::Tcp(stream), Arrival::Tcp(peer.ip()))))
+    }
+}
+
+#[cfg(unix)]
+impl Listening for nvs_host::NvsUnixListener {
+    /// The peer is not read at all. A Unix-domain socket's address is a path or
+    /// nothing, never an address a forwarded header could be checked against,
+    /// and `rule:http-server/a-unix-socket-listener` makes the connection
+    /// trusted for the filesystem's own reason: what decided who may connect
+    /// was the mode on the socket.
+    fn arrived_or_woken(&mut self) -> io::Result<Option<(NvsConnection, Arrival)>> {
+        Ok(self
+            .accept_or_woken()?
+            .map(|(stream, _)| (NvsConnection::Unix(stream), Arrival::Unix)))
+    }
+}
+
 /// Accepts on `listener`, giving every connection its own coroutine, until
 /// `draining` begins, `keep_serving` breaks, or the listener itself fails.
 ///
@@ -1770,8 +1821,8 @@ fn failed() -> Response<Answer> {
 /// called off a task, because there is then no parent to put a connection
 /// under and serving it on this stack would silently be a one-connection
 /// server.
-pub fn serve_on_this_core<H>(
-    listener: &mut NvsListener,
+pub fn serve_on_this_core<L, H>(
+    listener: &mut L,
     handler: &Rc<H>,
     waits: Waits,
     serving: &Serving,
@@ -1780,6 +1831,7 @@ pub fn serve_on_this_core<H>(
     mut keep_serving: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
 where
+    L: Listening + ?Sized,
     H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
 {
     // Taken once, and it is also the check that this is a task at all: a wake
@@ -1806,7 +1858,7 @@ where
         if draining.is_draining() {
             break;
         }
-        let (stream, peer) = match listener.accept_or_woken() {
+        let (stream, arrival) = match listener.arrived_or_woken() {
             // The park ended and named nothing — the drain above is what this
             // goes back round to read.
             Ok(None) => continue,
@@ -1833,12 +1885,6 @@ where
                 continue;
             }
         };
-        // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s peer, taken from the accept rather than asked of the
-        // socket afterwards: this is the one place where who connected is a
-        // fact the operating system has just stated, and a `peer_addr` later
-        // would be re-deriving it from a descriptor that may already have
-        // failed.
-        let arrival = Arrival::Tcp(peer.ip());
         let handler = Rc::clone(handler);
         // `Arc`s and not `Rc`s: § 5's valve is counted process-wide and `rule:http-server/secure-headers-with-nothing-written`
         // 's header set is one policy for the whole server, so what a
@@ -6121,6 +6167,68 @@ mod tests {
         assert!(
             answer.ends_with("hello /hello"),
             "the response did not carry the handler's body: {answer}"
+        );
+    }
+
+    /// `rule:http-server/a-unix-socket-listener`'s claim that a request over
+    /// the socket is byte-identical to the same request over TCP, asserted as
+    /// the same case over the other family.
+    ///
+    /// It is the whole of what [`Listening`] and `nvs_host::NvsConnection`
+    /// exist for, and the only test that runs their Unix arms: everything past
+    /// the accept — `hyper`'s framing, the coroutine per connection, the
+    /// handler, the answer — is reached through the same two functions as
+    /// above, so a variant whose `poll_read` or `poll_write` went to the wrong
+    /// socket would fail here and nowhere else. The trust half is not asserted
+    /// here but in `crate::forwarded`, where the arrival is read.
+    #[cfg(unix)]
+    #[test]
+    fn one_connection_over_a_unix_socket_gets_the_same_response() {
+        let path = std::env::temp_dir().join(format!(
+            "nvs-serve-unix-{}-{:?}.sock",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        drop(std::fs::remove_file(&path));
+        let mut listener =
+            nvs_host::NvsUnixListener::bind(&path).expect("the OS refused a socket path");
+
+        let asked = path.clone();
+        let client = std::thread::spawn(move || {
+            let mut socket = std::os::unix::net::UnixStream::connect(&asked)
+                .expect("the socket refused a connection");
+            socket
+                .write_all(b"GET /hello HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let answer = client.join().expect("the client thread panicked");
+        drop(std::fs::remove_file(&path));
+        assert!(
+            answer.starts_with("HTTP/1.1 200 OK\r\n") && answer.ends_with("hello /hello"),
+            "the same request over a socket path was answered differently: {answer}"
         );
     }
 

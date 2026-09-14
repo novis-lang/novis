@@ -99,7 +99,7 @@ use std::time::{Duration, Instant};
 
 use hyper::rt::{Read, ReadBufCursor, Write};
 use nvs_config::Waits;
-use nvs_host::NvsTcp;
+use nvs_host::NvsConnection;
 
 /// The scratch buffer one read borrows from the coroutine's stack.
 ///
@@ -145,13 +145,15 @@ impl Phase {
 
 /// One accepted connection, as the two traits `hyper` drives it through.
 ///
-/// Concrete over [`NvsTcp`] rather than generic over the stream: `rule:http-server/two-deployments-and-nothing-a-proxy-owns`
-/// gives this listener no TLS and no second transport, so a type parameter here
-/// would have exactly one instantiation and would put `mio`'s `Source` in this
-/// crate's public signatures to get it.
+/// Concrete over [`NvsConnection`] rather than generic over the stream:
+/// `rule:http-server/two-deployments-and-nothing-a-proxy-owns` gives this
+/// listener no TLS, so the only thing a connection here can differ in is which
+/// family accepted it — and that enum carries it. A type parameter would put
+/// `mio`'s `Source` in this crate's public signatures, and would carry it out
+/// through `hyper`'s service into the upgrade path, to say the same thing.
 #[derive(Debug)]
 pub struct ConnectionIo {
-    stream: NvsTcp,
+    stream: NvsConnection,
     /// The numbers, fixed for this connection's life — `[server]` is
     /// `Boot`-class (`rule:http-server/the-server-block-is-boot-class`), so a reload does not move them under a
     /// connection already being served.
@@ -168,7 +170,7 @@ pub struct ConnectionIo {
 impl ConnectionIo {
     /// Takes over an accepted connection, bounded by `waits`.
     #[must_use]
-    pub fn new(stream: NvsTcp, waits: Waits) -> Self {
+    pub fn new(stream: NvsConnection, waits: Waits) -> Self {
         Self {
             stream,
             waits,
@@ -213,7 +215,7 @@ impl ConnectionIo {
     /// move them between the request head, the body and the response — and so
     /// does a caller that has taken the stream back for an upgrade and owns the
     /// clock from then on.
-    pub fn stream_mut(&mut self) -> &mut NvsTcp {
+    pub fn stream_mut(&mut self) -> &mut NvsConnection {
         &mut self.stream
     }
 
@@ -231,7 +233,7 @@ impl ConnectionIo {
     /// the upgrade was agreed, so the stream is handed over unbounded and the
     /// caller arms it.
     #[must_use]
-    pub fn into_stream(mut self) -> NvsTcp {
+    pub fn into_stream(mut self) -> NvsConnection {
         self.stream.set_deadline(None);
         self.stream
     }

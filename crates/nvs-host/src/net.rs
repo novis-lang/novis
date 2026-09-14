@@ -138,6 +138,13 @@
 //! and so are `finish_connecting` and `connected`, through the private
 //! `Connecting` trait — both families answer `take_error`, and a local connect
 //! is in flight too when the listener's backlog is full.
+//!
+//! [`NvsConnection`] is where that stops. A caller that accepts on both
+//! families and then treats what it accepted the same way — a server, and it is
+//! the only one — wants the family folded *into* the value rather than into its
+//! own signatures, so it holds the enum and the generic ends at the accept. Its
+//! own doc is why an enum is the right side of that trade there and the wrong
+//! one here.
 
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
@@ -903,6 +910,99 @@ impl NvsStream<mio::net::UnixStream> {
     /// The platform's answer for a socket that is no longer connected.
     pub fn peer_addr(&self) -> io::Result<std::os::unix::net::SocketAddr> {
         self.inner.peer_addr()
+    }
+}
+
+/// One accepted connection, whichever family answered the accept.
+///
+/// An enum and not a type parameter, and that is the decision rather than an
+/// implementation detail: past the accept the two families are the same
+/// contract — the same registration, the same deadline, the same four
+/// functions — and a server holds the connection across `hyper`'s service and
+/// out the far side into a WebSocket isolate. A parameter would spread
+/// [`mio::event::Source`] through every signature on that path to name a
+/// difference that ends at `accept`, which is what
+/// `rule:http-server/a-unix-socket-listener`'s "nothing about a connection
+/// differs" says there is not.
+///
+/// The match costs one branch per syscall on a socket that is about to enter
+/// the kernel, which is not a cost this repository spends a type parameter to
+/// avoid.
+#[derive(Debug)]
+pub enum NvsConnection {
+    /// A connection accepted on a port.
+    Tcp(NvsTcp),
+    /// A connection accepted on a Unix-domain path. Unix only, for
+    /// [`NvsUnix`]'s reason.
+    #[cfg(unix)]
+    Unix(NvsUnix),
+}
+
+impl NvsConnection {
+    /// Bounds every wait on this connection by `at`, or lifts the bound —
+    /// [`NvsStream::set_deadline`], which owns what a deadline is.
+    pub fn set_deadline(&mut self, at: Option<Instant>) {
+        match self {
+            Self::Tcp(stream) => stream.set_deadline(at),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.set_deadline(at),
+        }
+    }
+
+    /// [`NvsStream::poll_read`] on whichever family this is.
+    ///
+    /// # Errors
+    ///
+    /// The socket's own, or `TimedOut` once this connection's deadline has
+    /// passed.
+    pub fn poll_read(&mut self, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        match self {
+            Self::Tcp(stream) => stream.poll_read(buf),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.poll_read(buf),
+        }
+    }
+
+    /// [`NvsStream::poll_write`] on whichever family this is.
+    ///
+    /// # Errors
+    ///
+    /// The socket's own, or `TimedOut` once this connection's deadline has
+    /// passed.
+    pub fn poll_write(&mut self, buf: &[u8]) -> Poll<io::Result<usize>> {
+        match self {
+            Self::Tcp(stream) => stream.poll_write(buf),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.poll_write(buf),
+        }
+    }
+}
+
+impl Read for NvsConnection {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.read(buf),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for NvsConnection {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.write(buf),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::Tcp(stream) => stream.flush(),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.flush(),
+        }
     }
 }
 

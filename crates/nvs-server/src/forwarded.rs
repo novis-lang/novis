@@ -114,9 +114,10 @@ pub enum Arrival {
     /// enforces who may connect to it. The operator warning that belongs beside
     /// that is in the ADR — a `0660` socket is trusted by *group membership*.
     ///
-    /// No listener produces one yet ([`nvs_host::NvsListener`] is TCP), so this
-    /// variant is the rule stated where the rule is applied, ahead of the slice
-    /// that binds one.
+    /// Carries no address, because a Unix-domain socket's is a path or nothing
+    /// and never something a forwarded header could be checked against: what
+    /// decided who may connect was the mode on the socket
+    /// (`[server] socket_mode`), which is why the connection is trusted at all.
     Unix,
 }
 

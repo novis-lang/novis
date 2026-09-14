@@ -150,6 +150,8 @@ pub use metrics::{Family, Histogram, Kind, Refused, Registry, Series, Value};
 pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
 pub use schedule::{Armed, Fires, Leases, arm, tick_on_this_core};
 pub use secure::{Scheme, Secure};
-pub use serve::{Answer, Draining, Reply, Serving, serve_connection, serve_on_this_core};
+pub use serve::{
+    Answer, Draining, Listening, Reply, Serving, serve_connection, serve_on_this_core,
+};
 pub use socket::{Framed, accept_key};
 pub use statics::{Source, Stat};
