@@ -88,10 +88,23 @@ toml.workspace = true
 # this crate writes an object, that is `nvs-codegen`'s side.
 object.workspace = true
 
+# What tells a long-running `nvs serve` that it has been asked to stop, which
+# `src/stop.rs` turns into `rule:concurrency/a-drain-closes-a-connection-cleanly`'s
+# one drain. There is no `std` spelling of a signal disposition or of a console
+# control handler, and both answers to ADR 0051 § 4 are the module's: what
+# reaches these calls is a signal number this file names and nothing a request
+# chose, and the effect is one relaxed store on a bit the process already has.
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
 # `unsafe_code` is `deny` rather than the workspace's `forbid` because ADR 0042
 # § 3 both verifies an artifact where the page cache already put it and calls
 # what it relocated: `Mmap::map` and the entry frame's fn-pointer transmute have
-# no safe spelling. Two calls, both in `cache.rs`, each carrying its own
+# no safe spelling. Those two live in `cache.rs`, and the platform calls the
+# dependencies above are taken for live in `stop.rs`; each carries its own
 # `#[expect]` with the reason it is sound. Everything else here is the workspace
 # table verbatim.
 

@@ -399,6 +399,16 @@ pub(crate) fn run(
                 return ExitCode::FAILURE;
             }
         };
+    // What stops this process, armed before anything is serving: from here a
+    // `SIGTERM`, a Ctrl-C or a console closing is
+    // `rule:concurrency/a-drain-closes-a-connection-cleanly`'s drain rather
+    // than a kill, and every accept loop below reads the same bit. A start that
+    // could not arm it is refused, because a server nothing can stop gracefully
+    // is one an operator has to end mid-request (`crate::stop`).
+    if let Err(error) = crate::stop::on_termination() {
+        eprintln!("error: {error}");
+        return ExitCode::FAILURE;
+    }
     // The endpoint's own thread, started before anything accepts so that the
     // first thing an operator can ask this process is answerable. It is a
     // thread and not a task on a core (`rule:concurrency/one-scheduler`), it
@@ -611,13 +621,14 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // that is step 5 every time and the resolve is a cache hit on the unit
     // compiled above, so what it costs per request is one `Program` over shared
     // code.
-    // The one state the probe reports, and the accept loop below is what writes
-    // it: this command never asks the loop to stop yet, so it reads `false` for
-    // the whole of a run and § 5's `503` half arrives with the control socket
-    // that can ask (`rule:config/no-network-control-surface`).
-    // The *process's* bit, because this command is the process: an application
-    // reads the same one through `Core\Server::isDraining()`, which has no
-    // handle to have been given (`nvs_runtime::drain`).
+    // The one state the probe reports, and what ends this worker: the accept
+    // loop below reads it on every pass, so a stop asked for on any thread of
+    // this process stops every core.
+    //
+    // The *process's* bit, because this command is the process: a terminating
+    // signal writes it (`crate::stop`), an application reads the same one
+    // through `Core\Server::isDraining()`, which has no handle to have been
+    // given (`nvs_runtime::drain`), and § 5's probe answers `503` off it.
     let draining = nvs_server::Draining::process();
     // The reactor is what a parked coroutine is woken by, and every connection
     // parks. It is installed ahead of the handler rather than beside the accept
@@ -850,13 +861,24 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         // fault under a fire belongs to that run and must not retire the worker
         // the requests are being served by.
         let fires = Rc::new(Scheduled);
+        let ticking = draining.clone();
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
             // `Zoned::now` and not a fixed instant: § 6's missed interval is
             // skipped rather than replayed, which is the ticker asking the clock
             // for every fire and never counting from the last one.
             let ticked =
                 nvs_server::tick_on_this_core(&mut armed, &fires, None, Zoned::now, || {
-                    ControlFlow::Continue(())
+                    // The same drain the accept loop reads, so a stop ends the
+                    // roster too rather than leaving this core turning for a
+                    // ticker nobody can reach. An interval already being waited
+                    // out is waited out first: `sleep` answers the instant its
+                    // caller asked for and a wake does not cut it short, so the
+                    // bound on a stop here is one entry's interval.
+                    if ticking.is_draining() {
+                        ControlFlow::Break(())
+                    } else {
+                        ControlFlow::Continue(())
+                    }
                 });
             if let Err(error) = ticked {
                 eprintln!("error: the schedule ticker stopped: {error}");
@@ -892,17 +914,14 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             let handler = Rc::clone(&handler);
             let serving = serving.clone();
             move |_ctx| {
-                // `ControlFlow::Continue` forever: nothing yet asks this command to
-                // stop. Both of `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s
-                // deployments run until the process ends — the proxied production
-                // origin as much as the laptop — so this is not a development
-                // shortcut but the absence of a caller. The two that will ask are
-                // each their own slice: `Core\Signal`'s handler, which enters this
-                // same drain rather than a second state machine, and the control
-                // socket `rule:config/the-config-is-an-immutable-snapshot` gives
-                // this command. Until one lands, the tail below is unreachable,
-                // `Draining::begin` is never called, and an instance ends by being
-                // killed mid-request.
+                // `ControlFlow::Continue` forever, because this command has no
+                // count of connections to serve and no ending of its own: both
+                // of `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s
+                // deployments run until the process is asked to stop, and what
+                // asks is the drain the loop reads for itself — a terminating
+                // signal today (`crate::stop`), the control socket's own stop
+                // when it lands. The seam stays a seam for the caller that
+                // ends a loop on its own terms, which this one is not.
                 let served = nvs_server::serve_on_this_core(
                     &mut listener,
                     &handler,
@@ -1357,9 +1376,13 @@ mod tests {
         Address, Compiler, Ctx, Isolate, Listen, Output, OutputSink, SocketAddr, TaskRoot, Value,
         addresses, bind_all, bind_sockets, handles_for, sweep_orphans, workers_for,
     };
+    use std::cell::Cell;
     use std::collections::BTreeMap;
+    use std::io::{Read, Write};
     use std::num::NonZeroUsize;
+    use std::ops::ControlFlow;
     use std::path::{Path, PathBuf};
+    use std::rc::Rc;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::{Duration, Instant};
@@ -2103,5 +2126,165 @@ mod tests {
             "`{wanted}` was bound by a start that refused, so this process was serving requests \
              on the way to failing"
         );
+    }
+
+    /// How long the client below waits on a server that may already have
+    /// stopped: a loaded machine is not the failure this case is looking for,
+    /// and a run that stopped answering has to fail rather than hang.
+    const CLIENT_PATIENCE: Duration = Duration::from_secs(20);
+
+    /// What the connection below is given to say anything more, shortened for
+    /// this case from the ten seconds a deployment gets.
+    ///
+    /// **It is what bounds the close**, because a drain does not yet cut an
+    /// idle wait short: a connection sees the drain when its own wait ends, and
+    /// `nvs_server::socket`'s `receive` owns that gap for both readers. Both
+    /// waits are set because a connection between one response and the next
+    /// request is waiting for a request head, so `header` is the one in force
+    /// and `keepalive` is here to say that neither is what this case turns on.
+    /// What it asserts is unaffected either way: the close is the connection's
+    /// own, and it arrives without a reset.
+    const KEPT_ALIVE_FOR: Duration = Duration::from_millis(250);
+
+    /// One response head off the wire, read a byte at a time so that nothing
+    /// after it is taken with it — what the case asserts next is that the
+    /// server writes nothing more.
+    fn head_from(socket: &mut std::net::TcpStream) -> String {
+        let mut head = Vec::new();
+        let mut byte = [0_u8; 1];
+        while !head.ends_with(b"\r\n\r\n") {
+            let got = socket
+                .read(&mut byte)
+                .expect("the response could not be read");
+            assert_eq!(got, 1, "the connection ended before its response head did");
+            head.push(byte[0]);
+        }
+        String::from_utf8(head).expect("a response head is text")
+    }
+
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly` end to end, from
+    /// the seam the operating system's handler calls: the delivery begins the
+    /// process's drain, the accept loop parked in `accept` on another thread is
+    /// told rather than finding out at its next connection, and the connection
+    /// already handed over ends in a clean close.
+    ///
+    /// **Nothing else could have stopped this loop.** Its `keep_serving` seam
+    /// answers `Continue` for ever, so the return asserted below is the drain's
+    /// and only the drain's — and the drain is the **process's** bit, which
+    /// every other case in this binary avoids on purpose
+    /// ([`crate::worker`]'s cases say why). Here it is the subject: a signal
+    /// handler is handed no server, so the bit it writes has to be the one a
+    /// worker takes for itself.
+    ///
+    /// The close is asserted as *what the client's socket saw*, since that is
+    /// the whole of the rule: end of stream after a response that was finished,
+    /// never a reset, and nothing written after the head that was already sent.
+    #[test]
+    fn a_terminating_signal_drains_serve_and_every_connection_closes_cleanly() {
+        crate::stop::on_termination().expect("this process's terminating signals arm");
+        let mut listener =
+            nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener knows its own address");
+
+        // The client is a thread because this one is about to be the server. It
+        // asks for one response, keeps the connection — no `Connection: close`,
+        // so what closes it is the server's own decision and not the request's
+        // — and only then asks the process to stop.
+        let client = std::thread::spawn(move || {
+            let mut socket =
+                std::net::TcpStream::connect(addr).expect("the loopback refused a socket");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(b"GET /healthz HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .expect("the request could not be written");
+            let answered = head_from(&mut socket);
+            // The delivery itself, made from a thread that is not a core's —
+            // which is where a signal handler's call comes from.
+            crate::stop::deliver();
+            let mut after = Vec::new();
+            let closed = socket.read_to_end(&mut after);
+            (answered, after, closed)
+        });
+
+        let serving = nvs_server::Serving::new(
+            Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
+                &nvs_config::server::Capacity {
+                    configured: u64::MAX,
+                    per_request: None,
+                    budget: None,
+                },
+            ))),
+            Arc::new(nvs_server::Secure::of(None)),
+            Arc::new(nvs_server::Trusted::of(&[]).0),
+            Arc::new(nvs_server::Cors::of(None)),
+            Arc::default(),
+        );
+        let handler = Rc::new(
+            |_request: nvs_server::Request<nvs_server::Incoming>, _origin: nvs_server::Origin| {
+                nvs_server::Reply::healthy()
+            },
+        );
+        let waits = nvs_config::server::Waits {
+            header: KEPT_ALIVE_FOR,
+            keepalive: KEPT_ALIVE_FOR,
+            ..nvs_config::server::Waits::default()
+        };
+        let draining = nvs_server::Draining::process();
+        let returned = Rc::new(Cell::new(false));
+        let mut sched = nvs_host::Scheduler::new();
+        let installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let draining = draining.clone();
+            let returned = Rc::clone(&returned);
+            move |_ctx| {
+                nvs_server::serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    waits,
+                    &serving,
+                    &draining,
+                    |_note| {},
+                    || ControlFlow::Continue(()),
+                )
+                .expect("the accept loop failed");
+                returned.set(true);
+            }
+        });
+        // The same loop `serve_on_worker` turns, and for its reason: the accept
+        // loop is a parked task for as long as it is serving, so a report with
+        // anything still parked is a turn to take rather than an end.
+        loop {
+            match nvs_host::run_until_idle(&mut sched) {
+                Ok(report) if report.parked > 0 => {}
+                Ok(_) => break,
+                Err(error) => panic!("the scheduler stopped: {error}"),
+            }
+        }
+        drop(installed);
+
+        let (answered, after, closed) = client.join().expect("the client thread panicked");
+        assert!(
+            answered.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the request made before the stop was not answered: {answered}"
+        );
+        assert!(
+            draining.is_draining(),
+            "the delivery did not begin this process's drain"
+        );
+        assert!(
+            returned.get(),
+            "the accept loop was still accepting after the drain began"
+        );
+        let after = String::from_utf8_lossy(&after).into_owned();
+        assert_eq!(
+            after, "",
+            "the drained server wrote something after the response it had already finished"
+        );
+        closed.expect("the drained connection ended in a reset rather than a clean close");
     }
 }

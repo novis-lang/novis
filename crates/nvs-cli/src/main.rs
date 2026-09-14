@@ -145,6 +145,7 @@ mod schema;
 mod script;
 mod serve;
 mod service;
+mod stop;
 #[cfg(test)]
 mod testing;
 mod tmp;
