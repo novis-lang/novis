@@ -3,7 +3,7 @@
 
 # The editor
 
-*64 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*61 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1009,7 +1009,7 @@ never as the only mechanism, because that would make coverage invisible to the g
 
 <a id="ide-headless-gates-the-loop-the-host-run-gates-the-milestone"></a>
 
-## Both tiers run on every acceptance sweep: the headless suites with no editor, and the extension-host run in a pinned build with a throwaway profile  *(designed — not yet in the compiler)*
+## Both tiers run on every acceptance sweep: the headless suites with no editor, and the extension-host run in a pinned build with a throwaway profile
 
 `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`
 
@@ -1270,7 +1270,7 @@ identifiers asserts it.
 
 <a id="ide-the-extension-runs-where-the-binary-is"></a>
 
-## The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: ["workspace"]`, built as a `.vsix` and published nowhere  *(designed — not yet in the compiler)*
+## The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: ["workspace"]`, built as a `.vsix` and published nowhere
 
 `rule:ide/the-extension-runs-where-the-binary-is`
 
@@ -1400,7 +1400,7 @@ panel and the compiler cannot disagree about a file's shape.
 
 <a id="ide-the-lockfile-is-committed-and-build-output-is-not"></a>
 
-## `package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored  *(designed — not yet in the compiler)*
+## `package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored
 
 `rule:ide/the-lockfile-is-committed-and-build-output-is-not`
 
@@ -1410,9 +1410,9 @@ panel and the compiler cannot disagree about a file's shape.
 named `out`, and an unanchored pattern silently stops tracking new files in it.
 
 `package-lock.json` **is** committed, because `npm ci` is what the acceptance run uses and it requires one,
-and because an unpinned dependency tree makes the grammar snapshots reproducible only by luck. CI grows two
-jobs beside the ones already there — the headless suites on all three platforms and the extension-host run
-on Linux — and `ci.yml` is the count of those.
+and because an unpinned dependency tree makes the grammar snapshots reproducible only by luck. CI carries
+two jobs for the package beside the ones already there — `extension`, the headless suites on all three
+platforms, and `extension-host` on Linux — and `ci.yml` is the count of those.
 
 <sub>See also [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is). Decided in [0099](../decisions/0099.md).</sub>
 

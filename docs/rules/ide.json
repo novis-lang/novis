@@ -687,7 +687,7 @@
     {
       "id": "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
       "title": "Both tiers run on every acceptance sweep: the headless suites with no editor, and the extension-host run in a pinned build with a throwaway profile",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0099",
         "0101",
@@ -700,7 +700,10 @@
         "ide/the-lockfile-is-committed-and-build-output-is-not",
         "testing/ci-lanes"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "editors/vscode/scripts/headless.mjs",
+        "editors/vscode/test/host/index.ts"
+      ]
     },
     {
       "id": "ide/one-server-two-thin-clients",
@@ -872,7 +875,7 @@
     {
       "id": "ide/the-extension-runs-where-the-binary-is",
       "title": "The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0099",
         "0155"
@@ -885,7 +888,10 @@
         "ide/one-server-two-thin-clients",
         "ide/the-extension-guides-an-install-and-never-bundles-one"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "editors/vscode/test/contributions/contributions.test.ts",
+        ".github/workflows/ci.yml"
+      ]
     },
     {
       "id": "ide/the-extension-guides-an-install-and-never-bundles-one",
@@ -956,7 +962,7 @@
     {
       "id": "ide/the-lockfile-is-committed-and-build-output-is-not",
       "title": "`package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0099"
       ],
@@ -964,7 +970,10 @@
         "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
         "ide/the-extension-runs-where-the-binary-is"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "editors/vscode/package-lock.json",
+        ".github/workflows/ci.yml"
+      ]
     },
     {
       "id": "ide/phpstorm-bridges-to-the-same-server",

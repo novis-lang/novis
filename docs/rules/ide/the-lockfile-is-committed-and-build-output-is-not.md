@@ -4,6 +4,6 @@
 named `out`, and an unanchored pattern silently stops tracking new files in it.
 
 `package-lock.json` **is** committed, because `npm ci` is what the acceptance run uses and it requires one,
-and because an unpinned dependency tree makes the grammar snapshots reproducible only by luck. CI grows two
-jobs beside the ones already there — the headless suites on all three platforms and the extension-host run
-on Linux — and `ci.yml` is the count of those.
+and because an unpinned dependency tree makes the grammar snapshots reproducible only by luck. CI carries
+two jobs for the package beside the ones already there — `extension`, the headless suites on all three
+platforms, and `extension-host` on Linux — and `ci.yml` is the count of those.
