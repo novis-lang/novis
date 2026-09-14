@@ -2,44 +2,52 @@
 
 ## State
 
-**Goal `m5-proofs` (M5), stage 3's first two items landed; stage 1's floor is goal `m4-refusals`'s
-list, carried.**
+**Goal `m5-proofs` (M5), stage 3 is complete.** The request and session refusals landed last
+session; the three isolate proofs the Verify paragraph names are now on disk, and the stage's
+`cargo-named` check has all three of its tests.
 
-`Core\Session::start` now asks `rule:security/request-state-throws-in-an-isolate`'s question — is
-there a request at all — before it asks anything about the store, so a CLI program, a job worker and a
-child isolate are refused with `Core\Request`'s one `LogicError` instead of being handed the session a
-configured deployment would have minted, cookie and all. That is the other ordering from the one the
-last handoff proposed, and the commit says why; the five session cases that call `start` carry a
-`--GET--` section now, and the two whose `--SKIPIF--` probed the store through `start` ask
-`Core\Cache::shared` instead, since scaffolding answers no request whatever the case does.
+A child's memory breach and its CPU breach each cross as `ok = false` with the parent running
+(`crates/nvs-host/tests/limits.rs`), reading the limit out of `rule:errors/on-limit`'s report as the
+depth case beside them does. The CPU case also asserts the flag is still up on the parent, because
+`Ctx::isolate` shares the safepoint word: the parent keeps running in the sense
+`rule:security/isolate-failure-is-a-value` means, while the tree's ceiling still stands.
 
-The boundary itself is one `.nvst` case under `tests/conformance/isolate/`, with the parent answering
-its own request throughout — a CLI case cannot tell the boundary from a process that has no request,
-because every line of one refuses. The rule's fragment carries the `isDraining` sentence the goal's
-§ *Standing decisions* settled.
+The cyclic-argument proof went into `crates/nvs-host/src/isolate.rs`'s own test module rather than
+into `limits.rs` as the last handoff proposed — it is a crossing and not a limit, and that module
+already holds the `parent`, `run` and class-resolution fixtures it needs. Same `-p nvs-host`, which
+is all the check names.
 
-The floor's one red check was the plan index's M4 cell, synced from the chain. Nothing is blocked.
+**Stage 2 is the earliest red stage and nothing of it is written.** Nothing is blocked.
+
+The pack's `[context] rules` is missing `errors/on-limit` and `security/isolate-budget-is-the-trees`;
+both are cited by the tests this stage just landed.
 
 ## Next group
 
-**Stage 3: the isolate proofs the Verify paragraph names, continued** — one file set:
-`crates/nvs-host/tests/limits.rs`, both beside the depth breach it already holds.
+**Stage 2: the deadlock** — one file set: `crates/nvs-host/src/channel.rs` and
+`crates/nvs-host/src/group.rs`, both in their own `#[cfg(test)]` modules, plus one `.nvst` case.
 
-- [ ] **A child's memory breach and CPU breach are each `ok = false` with the parent still running** —
-      one test each beside the depth breach at `crates/nvs-host/tests/limits.rs:769`, reading the word
-      the handler is handed out of `rule:errors/on-limit`'s report as that test does, rather than out
-      of the message. `rule:security/isolate-failure-is-a-value`.
-- [ ] **A cyclic argument crosses a real spawn** — driven through `Isolate::run` at
-      `crates/nvs-host/src/isolate.rs:401` rather than over the walk alone, reading the cycle back out
-      of the child's answer, beside `crates/nvs-host/tests/limits.rs:769`. The walk's own cyclic fixture
-      is `crates/nvs-runtime/src/graph.rs:1127`, and the `table()`/`node()`/`borrow_object` helpers it
-      builds the ring with are that module's private test ones — settle what an integration test can
-      build a cycle out of before budgeting this. `rule:security/isolate-values-cross-by-copy`.
+- [ ] **Two tasks waiting on each other's channel are ended by the group's deadline** — the test name
+      `two_tasks_waiting_on_each_others_channel_are_ended_by_the_groups_deadline` verbatim, in
+      `crates/nvs-host/src/channel.rs:540`'s test module over the `recv` that suspends at
+      `crates/nvs-host/src/channel.rs:352` and the group's own expiry at
+      `crates/nvs-host/src/group.rs:350`.
+      `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
+- [ ] **A deadlocked pair is ended by cancelling the task that awaits them** —
+      `a_deadlocked_pair_is_ended_by_cancelling_the_task_that_awaits_them`, the other half of the
+      same check, in `crates/nvs-host/src/group.rs:573`'s test module.
+      `rule:concurrency/cancellation-runs-no-user-code`.
+- [ ] **The same deadlock as a program** —
+      `tests/conformance/task/a-deliberate-deadlock-is-ended-by-the-deadline-and-leaves-no-child-running.nvst`,
+      the stage's second check, written beside
+      `tests/conformance/task/a-task-tree-dies-with-its-parent.nvst:1`.
+      `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
 
 ## Backlog
 
-- `Core\Server`'s request-reading members — the request's environment and `traceId()` — are
-  `crates/nvs-stdlib/src/server.rs`'s known gap, and not this goal's.
-- The stale `callable`-in-`Task::all` prose of `docs/plan/m5.md` is goal `plan-truth`'s.
-- Stage 3's remaining `.nvst` room is the `with(args:)` side of the boundary: no isolate case passes an
-  argument at all, so every one of them spawns with the default.
+- Stage 2's scale check names `a_hundred_thousand_tasks_in_flight_at_once_all_finish_on_one_core`;
+  `crates/nvs-host/src/scheduler.rs:1987` holds the near miss `a_hundred_thousand_tasks_are_in_flight_on_one_core`
+  — read what it asserts before writing a second one (`docs/agent/loop-goal.toml:9727`).
+- Stage 4, the `spawn` trace event — `crates/nvs-runtime/src/ctx/trace.rs`, `docs/agent/loop-goal.md:107`.
+- Stage 5, the one record this goal may open — `docs/agent/loop-goal.md:128`.
+- Stages 6 to 9 are unstarted: the three dropped options, the speedup, TSAN, the rulebook.
