@@ -513,8 +513,16 @@ impl Ctx {
     /// budget at the spawn, which is what
     /// `rule:security/isolate-budget-is-the-trees` means by tighter than what
     /// remains and never wider.
+    ///
+    /// That reading is also what lets a spawn site's own `limits:` and `grants:`
+    /// cross with the child. [`PlacedIsolate::narrowed_by`] attaches them and
+    /// [`Self::narrow_under`] applies them over there, against the three
+    /// ceilings resolved here — which are the whole of what [`Self::narrow`]
+    /// reads a parent for, so the far core needs no parent to hold a child to
+    /// what was written beside it.
     #[must_use]
     pub fn placed_isolate(&self) -> PlacedIsolate {
+        let remains = self.remains();
         PlacedIsolate {
             debug: self.debug,
             origin: self.origin.clone(),
@@ -526,28 +534,52 @@ impl Ctx {
             unit_statics: self.unit_statics.clone(),
             deadline: std::sync::Arc::clone(&self.deadline),
             tree: self.tree_handle(),
-            memory_limit: remaining(self.memory_limit, self.memory_used()),
-            output_limit: remaining(self.output_limit, self.output_used()),
-            cpu_limit: self.cpu_limit,
+            memory_limit: remains.memory,
+            output_limit: remains.output,
+            cpu_limit: remains.cpu,
             fatal_reserve: self.fatal_reserve,
+            narrowing: crate::host::Narrowing::default(),
         }
     }
 
     /// Holds `child` — an isolate this context just made — to what the spawn
     /// site wrote beside it, and to nothing wider.
     ///
-    /// **Two narrowings, two mechanisms, one word.** A sub-cap goes through the
-    /// child's own configuration overlay, because `nvs_config::Request::set`
+    /// The same-core half of one narrowing. All it adds to
+    /// [`Self::narrow_under`] is the reading of what this tree has already
+    /// spent, which is the one thing a child built on another core cannot take
+    /// for itself: there the same numbers cross in [`PlacedIsolate`], resolved
+    /// by [`Self::placed_isolate`] where the parent could still be read.
+    pub fn narrow(&self, child: &mut Self, narrowing: &crate::host::Narrowing) {
+        child.narrow_under(narrowing, self.remains());
+    }
+
+    /// What is left of this context's three ceilings, in the units they are
+    /// written in — what a sub-cap is clamped against, and what a child placed
+    /// on another core is handed in place of the parent that holds them.
+    fn remains(&self) -> Remains {
+        Remains {
+            memory: remaining(self.memory_limit, self.memory_used()),
+            output: remaining(self.output_limit, self.output_used()),
+            cpu: self.cpu_limit,
+        }
+    }
+
+    /// Holds **this** context to `narrowing`, clamped against ceilings a caller
+    /// already resolved rather than against a parent it can reach.
+    ///
+    /// **Two narrowings, two mechanisms, one word.** A sub-cap goes through this
+    /// context's own configuration overlay, because `nvs_config::Request::set`
     /// already refuses a value wider than the one in force whoever writes it —
     /// one reader for the number a spawn site writes and the number the file
     /// writes, rather than a second one grown beside it. What that overlay
     /// cannot know is what the tree has already *spent*, so the ceilings it
-    /// resolves are clamped against what remains of this context's, which is
-    /// the arithmetic [`Self::placed_isolate`] hands a child on another core and
-    /// the whole of what `rule:security/isolate-budget-is-the-trees` means by
+    /// resolves are clamped against `remains`, and that clamp is the whole of
+    /// what `rule:security/isolate-budget-is-the-trees` means by
     /// tighter than what remains. A grant list is an intersection instead: a
-    /// grant is a list and not a quantity, and the overlay the child inherited
-    /// is still asked underneath it, so a name the parent lacks stays lacking.
+    /// grant is a list and not a quantity, and the overlay this context
+    /// inherited is still asked underneath it, so a name the parent lacks stays
+    /// lacking.
     ///
     /// [`Self::max_script_depth`] is put back after the refresh, and that line
     /// is the point of the two around it: the depth ceiling is *copied* into a
@@ -555,9 +587,9 @@ impl Ctx {
     /// file and widen it, and a refresh reading the configuration would do
     /// exactly that. A child holding no configuration takes no sub-cap at all —
     /// there is no ceiling in force for one to be tighter than.
-    pub fn narrow(&self, child: &mut Self, narrowing: &crate::host::Narrowing) {
-        if !narrowing.limits.is_empty() && child.config.is_some() {
-            if let Some(config) = child.config.as_mut() {
+    fn narrow_under(&mut self, narrowing: &crate::host::Narrowing, remains: Remains) {
+        if !narrowing.limits.is_empty() && self.config.is_some() {
+            if let Some(config) = self.config.as_mut() {
                 for (key, written) in &narrowing.limits {
                     // The refusal is the answer: a sub-cap wider than what is in
                     // force leaves the inherited ceiling standing, which is the
@@ -567,24 +599,18 @@ impl Ctx {
                     let _narrowed = config.set(key, written);
                 }
             }
-            let depth = child.max_script_depth;
-            child.refresh_limits();
-            child.max_script_depth = depth;
-            child.cpu_limit = tighter(child.cpu_limit, self.cpu_limit);
-            child.output_limit = tighter(
-                child.output_limit,
-                remaining(self.output_limit, self.output_used()),
-            );
+            let depth = self.max_script_depth;
+            self.refresh_limits();
+            self.max_script_depth = depth;
+            self.cpu_limit = tighter(self.cpu_limit, remains.cpu);
+            self.output_limit = tighter(self.output_limit, remains.output);
             // Last, and through the setter, because it arms the allocator with
             // the number beside this context's safepoint address — the same
             // order and the same reason [`PlacedIsolate::build`] has.
-            child.set_memory_limit(tighter(
-                child.memory_limit,
-                remaining(self.memory_limit, self.memory_used()),
-            ));
+            self.set_memory_limit(tighter(self.memory_limit, remains.memory));
         }
         if let Some(names) = &narrowing.grants {
-            child.restrict_grants(names);
+            self.restrict_grants(names);
         }
     }
 
@@ -723,9 +749,23 @@ pub struct PlacedIsolate {
     output_limit: usize,
     cpu_limit: u64,
     fatal_reserve: usize,
+    narrowing: crate::host::Narrowing,
 }
 
 impl PlacedIsolate {
+    /// Holds the child this seed builds to what the spawn site wrote beside it,
+    /// the way `crate::host::Narrowing` reaches a same-core child through
+    /// `nvs-host`'s `Isolate::narrowed_by`.
+    ///
+    /// It is carried rather than applied because the context it narrows does not
+    /// exist yet: [`Self::build`] makes it on the far core and narrows it there,
+    /// against the ceilings this seed already resolved.
+    #[must_use]
+    pub fn narrowed_by(mut self, narrowing: crate::host::Narrowing) -> Self {
+        self.narrowing = narrowing;
+        self
+    }
+
     /// Builds the child's root context, **on the core that will run it**.
     ///
     /// [`Ctx::isolate`]'s body from the other side of the thread boundary, and
@@ -739,8 +779,18 @@ impl PlacedIsolate {
     /// zero points are this thread's, taken by [`Ctx::new`] below, which is what
     /// makes the share this context publishes its own rather than the far
     /// thread's whole history.
+    ///
+    /// [`Self::narrowed_by`]'s narrowing lands here for that same reason.
+    /// [`Ctx::narrow`] reads a parent only for what its tree has already spent,
+    /// and this seed carries that reading, so the spawn site's `limits:` and
+    /// `grants:` hold a child on a core the spawn never ran on.
     #[must_use]
     pub fn build(self, output: OutputSink) -> Ctx {
+        let remains = Remains {
+            memory: self.memory_limit,
+            output: self.output_limit,
+            cpu: self.cpu_limit,
+        };
         let mut child = Ctx::new(output);
         child.debug = self.debug;
         child.origin = self.origin;
@@ -760,6 +810,11 @@ impl PlacedIsolate {
         // would ever poll.
         child.join_tree(self.tree);
         child.set_memory_limit(self.memory_limit);
+        // After the ceiling above rather than before it, because a sub-cap is
+        // only ever tighter: what it clamps is the number just armed, and
+        // `remains` is what the parent had left when it placed this child. A
+        // seed carrying no narrowing leaves every line of this untouched.
+        child.narrow_under(&self.narrowing, remains);
         child
     }
 
@@ -783,6 +838,22 @@ impl PlacedIsolate {
         }
         child
     }
+}
+
+/// What is left of a context's three ceilings at a spawn, in the units they are
+/// written in — [`Ctx::remains`]'s answer.
+///
+/// A value rather than a second reading of the parent, because the context a
+/// placed child is narrowed in is built on a core the parent is not reachable
+/// from (`rule:concurrency/a-wake-never-moves-a-task`). The numbers are resolved
+/// where they can be read and cross in [`PlacedIsolate`] beside everything else
+/// the far core builds from, which is what lets one narrowing have one
+/// implementation on both sides of the boundary.
+#[derive(Clone, Copy, Debug)]
+struct Remains {
+    memory: usize,
+    output: usize,
+    cpu: u64,
 }
 
 /// What is left of `limit` once `used` is taken off it, in the unit the ceiling
