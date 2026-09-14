@@ -948,7 +948,13 @@ impl<'a> Lowering<'a> {
                 // `Ty::Ref` and `InstKind::RefStore`.
                 if let Some(&(slot, Ty::Ref)) = env.get(&lname) {
                     let pointee = self.pointee_of(&lname);
-                    let (v, _, aliasing) = self.lower_stored(stored, Some(pointee), env, cur);
+                    let (v, vty, aliasing) = self.lower_stored(stored, Some(pointee), env, cur);
+                    // Into the slot's representation first, so the retain
+                    // below lands on the value that is stored: a scalar
+                    // variable written into a `mixed` slot arrives as its own
+                    // `Int`/`Float`/`Bool`, and a refcount on that is the
+                    // internal error `nvs-codegen` reserves for exactly this.
+                    let v = self.coerce(*cur, v, vty, pointee, env);
                     if pointee.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
                     }
@@ -1118,10 +1124,14 @@ impl<'a> Lowering<'a> {
                         self.emit_retain(*cur, object_v);
                     }
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
+                    // Coerce first, retain second: the retain has to land on
+                    // the value that is stored, and a scalar variable written
+                    // into a `mixed` field arrives as its own `Int`/`Float`/
+                    // `Bool` until this widens it.
+                    let v = self.coerce(*cur, v, vty, field_ty, env);
                     if field_ty.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
                     }
-                    let v = self.coerce(*cur, v, vty, field_ty, env);
                     // Before the call, not after it: the argument convention
                     // transfers this reference to the hook, so once the call
                     // has run there is no value here left to retain.
@@ -1173,10 +1183,11 @@ impl<'a> Lowering<'a> {
                     let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
                     let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
+                    // Coerce first, retain second — the arm above says why.
+                    let v = self.coerce(*cur, v, vty, field_ty, env);
                     if field_ty.is_refcounted() && aliasing {
                         self.emit_retain(*cur, v);
                     }
-                    let v = self.coerce(*cur, v, vty, field_ty, env);
                     if field_ty.is_refcounted() && extra_owner {
                         self.emit_retain(*cur, v);
                     }
@@ -1220,10 +1231,11 @@ impl<'a> Lowering<'a> {
             ExprKind::StaticPropertyAccess { .. } => {
                 let (class, name, slot_ty) = self.static_property_of(target);
                 let (v, vty, aliasing) = self.lower_stored(stored, Some(slot_ty), env, cur);
+                // Coerce first, retain second — the property arms say why.
+                let v = self.coerce(*cur, v, vty, slot_ty, env);
                 if slot_ty.is_refcounted() && aliasing {
                     self.emit_retain(*cur, v);
                 }
-                let v = self.coerce(*cur, v, vty, slot_ty, env);
                 if slot_ty.is_refcounted() && extra_owner {
                     self.emit_retain(*cur, v);
                 }
@@ -1352,7 +1364,11 @@ impl<'a> Lowering<'a> {
                         Some((key_v, key_aliasing))
                     }
                 };
-                let (v, _, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
+                let (v, vty, aliasing) = self.lower_stored(stored, Some(elem_ty), env, cur);
+                // Into the element's representation before any retain, for
+                // the reason the `inout` arm above states: `$mixed[] = $n`
+                // with `int $n` is otherwise a refcount on a plain integer.
+                let v = self.coerce(*cur, v, vty, elem_ty, env);
                 for key in &inner_keys {
                     if let Some((key_v, true)) = *key {
                         self.emit_retain(*cur, key_v);

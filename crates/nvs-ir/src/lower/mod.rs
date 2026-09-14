@@ -2590,6 +2590,24 @@ impl<'a> Lowering<'a> {
         match &base.kind {
             ExprKind::Variable(name_span) => {
                 let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
+                // `$a[] = e` where `$a` is an `inout` parameter: the holder is
+                // the caller's slot, reached through the reference the
+                // parameter is bound to, so the separated array goes back
+                // through that slot — the store `Self::lower_store`'s
+                // reference arm makes, minus its retain and release, because
+                // the reference the `ArraySet` consumed was the slot's and the
+                // one it produced replaces it (the paragraph above). The `Env`
+                // entry stays the reference: re-pointing it at the array would
+                // leave the caller's slot holding the consumed reference and
+                // every later read of `$a` on a binding that is not the slot,
+                // which is one write the caller never sees and one release
+                // too many at the end of the frame.
+                if let Some(&(slot, Ty::Ref)) = env.get(&name) {
+                    let pointee = self.pointee_of(&name);
+                    let written = self.coerce(*cur, written, Ty::Array, pointee, env);
+                    self.emit_ref_store(*cur, slot, written);
+                    return;
+                }
                 // A narrowed `?array<T>` root was *read* at `Ty::Array`
                 // (`Lowering::untag_narrowed`), but the local it is written
                 // back into is still the one tagged slot its declaration gave
