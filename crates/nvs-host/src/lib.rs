@@ -66,6 +66,14 @@
 //! recursion limit's bounds come from — a task's limit is armed from the stack
 //! this crate handed it, not asserted from a ceiling.
 //!
+//! What a stack switch costs the *sanitizer* is `src/tsan.rs`: ThreadSanitizer
+//! keeps one history of accesses per thread and expects a stack to belong to
+//! one of them, so every resume and every forced unwind is bracketed by a fiber
+//! switch saying the stack moved. Without it a run under `tools/tsan.sh` reports
+//! at every task boundary. None of it is compiled into any build but that leg's,
+//! and that module's doc owns why the switch draws a happens-before edge rather
+//! than suppressing one.
+//!
 //! [`blocking`] is the other half of that: the pool `rule:http-server/a-core-is-never-blocked-on-a-syscall` sends a
 //! filesystem call, a name resolution or a wait on a child process to, bounded
 //! at twice the core count and started only when work arrives.
@@ -126,6 +134,7 @@ pub mod scheduler;
 pub mod stack;
 pub mod timer;
 pub mod tls;
+mod tsan;
 pub mod watchdog;
 pub mod worker;
 

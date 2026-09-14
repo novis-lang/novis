@@ -169,6 +169,7 @@ use corosensei::{Coroutine, CoroutineResult, Yielder};
 use nvs_runtime::{Ctx, TaskPanic, TaskRoot};
 
 use crate::stack::StackPool;
+use crate::tsan::Fiber;
 
 /// What a suspended task is waiting for.
 ///
@@ -603,6 +604,40 @@ struct Task {
     /// [`Scheduler::run`]'s parked sweep from spinning against a park site that
     /// ignores the answer.
     told: bool,
+    /// This task's ThreadSanitizer fiber — a zero-sized nothing in every build
+    /// but the sanitizer leg's, where it is the access history that follows
+    /// this stack rather than the thread currently under it. [`crate::tsan`] is
+    /// the home of what it is for.
+    fiber: Fiber,
+}
+
+impl Task {
+    /// Resumes this task, telling the sanitizer that the stack changed.
+    ///
+    /// The resume and nothing else goes inside [`Fiber::around`], which is that
+    /// method's whole contract.
+    fn resume(&mut self, resume: Resume) -> CoroutineResult<Suspended, Finished> {
+        let Self { coro, fiber, .. } = self;
+        fiber.around(|| coro.resume(resume))
+    }
+
+    /// Unwinds this task's stack where it stands, telling the sanitizer that
+    /// the stack changed.
+    ///
+    /// A forced unwind is a `longjmp` onto the task's stack and back out of it,
+    /// so it is the same switch a resume makes and is announced the same way —
+    /// but only when there is a stack to switch to. `corosensei` performs no
+    /// switch at all for a coroutine that has not started or has already
+    /// finished, and announcing one would leave the sanitizer attributing the
+    /// scheduler's own frames to the task.
+    fn force_unwind(&mut self) {
+        let Self { coro, fiber, .. } = self;
+        if coro.started() && !coro.done() {
+            fiber.around(|| coro.force_unwind());
+        } else {
+            coro.force_unwind();
+        }
+    }
 }
 
 impl std::fmt::Debug for Task {
@@ -703,8 +738,16 @@ impl Drop for Scheduler {
         let _teardown = nvs_runtime::Teardown::enter();
         let ready = std::mem::take(&mut self.ready);
         let parked = std::mem::take(&mut self.parked);
-        for task in ready.into_iter().chain(parked.into_values()) {
+        for mut task in ready.into_iter().chain(parked.into_values()) {
             if task.unwindable {
+                // Unwound here rather than left to `Coroutine`'s own `Drop`,
+                // which would make the same switch with nothing to announce it
+                // — [`Task::force_unwind`]. What the drop below is left to do
+                // is release a coroutine that is already finished, which
+                // switches no stack. A task that is *forgotten* keeps its
+                // fiber for the same reason it keeps its stack: neither is
+                // handed back, so neither is retired.
+                task.force_unwind();
                 drop(task);
             } else {
                 std::mem::forget(task);
@@ -825,6 +868,7 @@ impl Scheduler {
             coro,
             unwindable: true,
             told: false,
+            fiber: Fiber::new(),
         });
     }
 
@@ -891,7 +935,7 @@ impl Scheduler {
                     Resume::Run
                 };
                 report.resumes += 1;
-                match task.coro.resume(resume) {
+                match task.resume(resume) {
                     CoroutineResult::Yield(suspended) => {
                         task.unwindable = suspended.unwindable;
                         match suspended.waiting {
@@ -999,7 +1043,7 @@ impl Scheduler {
     fn tear_down(&mut self, mut task: Task, report: &mut RunReport) {
         {
             let _teardown = nvs_runtime::Teardown::enter();
-            task.coro.force_unwind();
+            task.force_unwind();
         }
         // Unwound is finished as far as the stack is concerned, so the mapping
         // is recyclable here exactly as it is for a task that returned.

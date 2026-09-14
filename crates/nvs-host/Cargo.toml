@@ -9,6 +9,14 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+[features]
+# `src/tsan.rs`'s fiber annotations, which tell ThreadSanitizer that a task's
+# stack switch is a stack switch. Off, and turned on by `tools/tsan.sh` alone:
+# the code behind it calls symbols only the sanitizer runtime exports, so a
+# build that enables it without `-Zsanitizer=thread` fails to link. That
+# module's doc owns why the gate is a feature rather than `cfg(sanitize)`.
+tsan = []
+
 [dependencies]
 nvs-runtime.workspace = true
 # ADR 0020 § 3's tier-3 handler is an isolate, so the spawn is `src/ladder.rs`'s — and the record it
