@@ -383,7 +383,7 @@ const SETTLE: Duration = Duration::from_millis(1);
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::io::{Read, Write};
+    use std::io::{self, Read, Write};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -393,8 +393,8 @@ mod tests {
     use nvs_config::trust::Untrusted;
 
     use super::{
-        Address, Answer, Controlled, Denied, Operation, Refusal, Report, VERSION, VERSION_HEADER,
-        answer, answer_connection, bind, boundary, reload, same_build,
+        Address, Answer, Controlled, Denied, Operation, Refusal, Report, SETTLE, VERSION,
+        VERSION_HEADER, answer, answer_connection, bind, boundary, reload, same_build,
     };
 
     /// A directory of this case's own, empty, beside the test binary under `target/`.
@@ -829,13 +829,22 @@ mod tests {
                     // the *client's* to take: the answer is on the wire long before the server's
                     // connection is finished, and what finishes it is this client hanging up. A
                     // client that waited for an end of stream would be waiting for the server that
-                    // is waiting for it.
+                    // is waiting for it. The `WouldBlock` turn is the client's own transport
+                    // answering rather than waiting, which is `nvs_config::control::connect`'s
+                    // contract and what `nvs ctl` drives it by.
                     let mut answered = String::new();
                     while !answered.contains("invalidated: 7") {
                         let mut arrived = [0_u8; 256];
-                        let read = connected.read(&mut arrived).expect("the answer's next bytes");
-                        assert!(read > 0, "the answer ended early: {answered:?}");
-                        answered.push_str(&String::from_utf8_lossy(&arrived[..read]));
+                        match connected.read(&mut arrived) {
+                            Ok(0) => panic!("the answer ended early: {answered:?}"),
+                            Ok(read) => {
+                                answered.push_str(&String::from_utf8_lossy(&arrived[..read]));
+                            }
+                            Err(nothing) if nothing.kind() == io::ErrorKind::WouldBlock => {
+                                std::thread::sleep(SETTLE);
+                            }
+                            Err(failed) => panic!("the answer's next bytes: {failed}"),
+                        }
                     }
                     answered
                 })

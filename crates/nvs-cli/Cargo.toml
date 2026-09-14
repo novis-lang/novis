@@ -33,6 +33,12 @@ nvs-host.workspace = true
 # an isolate's program is `script.rs`'s compiler, which lives here because the
 # front end does. `serve.rs`'s module doc owns the rest of that direction.
 nvs-server.workspace = true
+# `rule:config/one-local-control-socket`'s framing, on the client's half of it:
+# `nvs ctl` sends the request `nvs-server` answers, and the workspace manifest's
+# comment above the `hyper` line is where taking the `client` feature for it is
+# argued. `src/ctl.rs` owns the drive, which is `nvs_server::control`'s loop from
+# the other end.
+hyper.workspace = true
 # The clock `nvs serve` hands ADR 0073 § 5's ticker. `nvs_server::tick_on_this_core`
 # takes one rather than reading the wall clock itself, so the instant a fire is
 # judged against arrives from the caller — and here the caller is the process,

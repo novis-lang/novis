@@ -132,6 +132,7 @@ mod bundle;
 mod cache;
 mod check;
 mod config;
+mod ctl;
 mod doc;
 mod fmt;
 mod info;
@@ -517,6 +518,26 @@ enum Command {
         #[command(subcommand)]
         command: TmpCommand,
     },
+    /// Drive a running server over its control socket: reload it, read what it
+    /// is serving, or ask what it is doing.
+    ///
+    /// A namespace of its own because every other subcommand acts on files with
+    /// no server involved, and these three exist only where a long-running
+    /// process does.
+    // `rule:config/one-local-control-socket`'s client; see [`ctl`], whose module
+    // doc owns the drive and why an answer from another build is refused unread.
+    Ctl {
+        /// The endpoint to reach, which is how one of several servers on a host
+        /// is addressed.
+        ///
+        /// Read without resolving a tree at all, so a server whose configuration
+        /// has moved is still reachable by the name it is listening on. Absent,
+        /// the tree's `[control] socket` says where to look.
+        #[arg(long, value_name = "PATH", global = true)]
+        socket: Option<PathBuf>,
+        #[command(subcommand)]
+        command: CtlCommand,
+    },
     /// Register this binary with the platform's service manager, or print what
     /// registering it would store.
     ///
@@ -896,6 +917,30 @@ enum TmpCommand {
     },
 }
 
+/// `nvs ctl`'s own subcommands, which are
+/// `rule:config/one-local-control-socket`'s three operations and nothing else.
+///
+/// The roster is closed, and it is closed in [`nvs_server::control`] rather than
+/// here: the method and target each operation is performed with are that
+/// module's, and a surface that could be extended by adding a name here would be
+/// `rule:security/no-eval`'s door under another one. [`ctl`]'s module doc owns
+/// what this binary does with an answer.
+#[derive(Subcommand)]
+enum CtlCommand {
+    /// Re-read the whole configuration tree and publish it, printing what the
+    /// running process applied and what it could not.
+    Reload,
+    /// Print the configuration the running process is actually holding, each key
+    /// with the file it was written in.
+    ///
+    /// `nvs config dump --origin` reads the same tree from disk, so a difference
+    /// between the two is a reload that has not happened yet.
+    Config,
+    /// Report how many requests are in flight, and whether the process is
+    /// draining.
+    Status,
+}
+
 /// `nvs service`'s own subcommands.
 ///
 /// `unit` is the one `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` makes the default on Linux:
@@ -1117,6 +1162,14 @@ fn main() -> ExitCode {
         Command::Tmp {
             command: TmpCommand::Clean { dry_run },
         } => tmp::clean(&cli.config, dry_run),
+        Command::Ctl { socket, command } => {
+            let socket = socket.as_deref();
+            match command {
+                CtlCommand::Reload => ctl::reload(&cli.config, socket),
+                CtlCommand::Config => ctl::config(&cli.config, socket),
+                CtlCommand::Status => ctl::status(&cli.config, socket),
+            }
+        }
         Command::Service {
             command:
                 ServiceCommand::Unit {

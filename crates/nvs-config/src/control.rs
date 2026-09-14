@@ -206,6 +206,12 @@ impl Endpoint {
 /// already owns in the other direction, and a client that spelled it a second time would be a
 /// second place to get `\\.\pipe\` wrong.
 ///
+/// **What comes back answers [`io::ErrorKind::WouldBlock`] rather than waiting**, for the mirror
+/// of the reason `platform::Stream` does: the client's half of the connection is `hyper`'s too,
+/// and its dispatcher reads the transport before it has written anything, so a read that waited
+/// there would be waiting for a server that is waiting for the request. `nvs-cli`'s `ctl` module
+/// is the loop that turns it back into a wait.
+///
 /// # Errors
 ///
 /// The OS's own error, for an endpoint that is not there — which is what a host with no running
@@ -446,8 +452,26 @@ pub mod platform {
         }
     }
 
-    /// A client's end of the endpoint: the connected socket itself.
-    pub type Client = UnixStream;
+    /// A client's end of the endpoint: the connected socket, non-blocking for the reason
+    /// [`super::connect`] gives.
+    #[derive(Debug)]
+    pub struct Client(UnixStream);
+
+    impl Read for Client {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.0.read(buf)
+        }
+    }
+
+    impl Write for Client {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.write(buf)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.0.flush()
+        }
+    }
 
     /// § 3's socket, and the `chmod` whose window this module's doc bounds.
     pub(super) fn create(name: &Path) -> io::Result<Bound> {
@@ -463,7 +487,9 @@ pub mod platform {
     /// The client's connect, which on Unix is the whole of it: a client arriving while another is
     /// being answered waits in the listen backlog.
     pub(super) fn connect(name: &Path) -> io::Result<Client> {
-        UnixStream::connect(name)
+        let stream = UnixStream::connect(name)?;
+        stream.set_nonblocking(true)?;
+        Ok(Client(stream))
     }
 }
 
@@ -475,6 +501,7 @@ pub mod platform {
     use std::io::{self, Read, Write};
     use std::marker::PhantomData;
     use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::AsRawHandle;
     use std::path::Path;
     use std::time::{Duration, Instant};
 
@@ -584,53 +611,60 @@ pub mod platform {
     }
 
     impl Read for Stream<'_> {
-        /// The peek that makes this stream non-blocking, and then the read it licenses.
-        ///
-        /// A synchronous pipe handle has no read timeout and no non-blocking mode worth having —
-        /// `PIPE_NOWAIT` is documented as existing for 16-bit compatibility and not to be used —
-        /// so "is there anything to read" is asked with [`PeekNamedPipe`] and answered before any
-        /// byte is committed to. That is this platform's spelling of the `WouldBlock` the Unix
-        /// half gets from the socket, and [`Stream`]'s own doc is why either is needed.
-        #[expect(
-            unsafe_code,
-            reason = "two `kernel32` calls over the borrowed instance; the peek writes one `u32` \
-                      this frame owns, and the read fills a slice it holds mutably for at most its \
-                      own length"
-        )]
+        /// Non-blocking, which is [`peeked`]'s doc and this type's own.
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            let mut waiting: u32 = 0;
-            let peeked = unsafe {
-                PeekNamedPipe(
-                    self.handle,
-                    std::ptr::null_mut(),
-                    0,
-                    std::ptr::null_mut(),
-                    &mut waiting,
-                    std::ptr::null_mut(),
-                )
-            };
-            if peeked == 0 {
-                return closed(io::Error::last_os_error());
-            }
-            if waiting == 0 {
-                return Err(io::ErrorKind::WouldBlock.into());
-            }
-            let mut read: u32 = 0;
-            let want = u32::try_from(buf.len()).unwrap_or(u32::MAX).min(waiting);
-            let ok = unsafe {
-                ReadFile(
-                    self.handle,
-                    buf.as_mut_ptr(),
-                    want,
-                    &mut read,
-                    std::ptr::null_mut(),
-                )
-            };
-            if ok == 0 {
-                return closed(io::Error::last_os_error());
-            }
-            Ok(usize::try_from(read).expect("a read of at most this buffer's own length"))
+            peeked(self.handle, buf)
         }
+    }
+
+    /// The peek that makes a read on a synchronous pipe non-blocking, and then the read it
+    /// licenses.
+    ///
+    /// A synchronous pipe handle has no read timeout and no non-blocking mode worth having —
+    /// `PIPE_NOWAIT` is documented as existing for 16-bit compatibility and not to be used — so
+    /// "is there anything to read" is asked with [`PeekNamedPipe`] and answered before any byte is
+    /// committed to. That is this platform's spelling of the `WouldBlock` the Unix half gets from
+    /// the socket, and **both ends of a control connection need it**: [`Stream`]'s own doc is why
+    /// the server's does, and [`super::connect`]'s is why the client's does.
+    #[expect(
+        unsafe_code,
+        reason = "two `kernel32` calls over a handle the caller owns and keeps open across them; \
+                  the peek writes one `u32` this frame owns, and the read fills a slice it holds \
+                  mutably for at most its own length"
+    )]
+    fn peeked(handle: HANDLE, buf: &mut [u8]) -> io::Result<usize> {
+        let mut waiting: u32 = 0;
+        let peeked = unsafe {
+            PeekNamedPipe(
+                handle,
+                std::ptr::null_mut(),
+                0,
+                std::ptr::null_mut(),
+                &mut waiting,
+                std::ptr::null_mut(),
+            )
+        };
+        if peeked == 0 {
+            return closed(io::Error::last_os_error());
+        }
+        if waiting == 0 {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        let mut read: u32 = 0;
+        let want = u32::try_from(buf.len()).unwrap_or(u32::MAX).min(waiting);
+        let ok = unsafe {
+            ReadFile(
+                handle,
+                buf.as_mut_ptr(),
+                want,
+                &mut read,
+                std::ptr::null_mut(),
+            )
+        };
+        if ok == 0 {
+            return closed(io::Error::last_os_error());
+        }
+        Ok(usize::try_from(read).expect("a read of at most this buffer's own length"))
     }
 
     /// `failed` as the end of input where that is what it is.
@@ -677,8 +711,29 @@ pub mod platform {
         }
     }
 
-    /// A client's end of the endpoint: the pipe instance opened for reading and writing.
-    pub type Client = std::fs::File;
+    /// A client's end of the endpoint: the pipe instance opened for reading and writing, read
+    /// through the same peek the server's stream is and non-blocking for the reason
+    /// [`super::connect`] gives.
+    #[derive(Debug)]
+    pub struct Client(std::fs::File);
+
+    impl Read for Client {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            peeked(self.0.as_raw_handle().cast(), buf)
+        }
+    }
+
+    impl Write for Client {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.write(buf)
+        }
+
+        /// Nothing is held back: a write has reached the pipe by the time it returns, which is
+        /// [`Stream`]'s note from the other end of the same object.
+        fn flush(&mut self) -> io::Result<()> {
+            self.0.flush()
+        }
+    }
 
     /// Whichever `WIN32_ERROR` `failed` carries, in the type the constants naming one are.
     fn os_error(failed: &io::Error) -> Option<u32> {
@@ -812,7 +867,7 @@ pub mod platform {
                         return Err(busy);
                     }
                 }
-                other => return other,
+                other => return other.map(Client),
             }
         }
     }

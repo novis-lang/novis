@@ -21,8 +21,8 @@ use std::path::PathBuf;
 use nvs_config::control::{bind, connect};
 
 /// The whole of `into` from a stream that answers `WouldBlock` rather than waiting, which is what
-/// an accepted control stream does — see `nvs_config::control`'s module doc. In production the
-/// waiting is the drive loop's, and here it is this.
+/// **both** ends of a control connection do — see `nvs_config::control`'s module doc. In production
+/// the waiting is the drive loop's, and here it is this.
 fn filled(from: &mut impl Read, into: &mut [u8]) {
     let mut taken = 0;
     while taken < into.len() {
@@ -77,9 +77,7 @@ fn a_client_is_answered_on_the_stream_the_accept_hands_back() {
         connected.write_all(b"ping").expect("the client's request");
         connected.flush().expect("the client's request, delivered");
         let mut answered = [0_u8; 4];
-        connected
-            .read_exact(&mut answered)
-            .expect("the answer the server wrote");
+        filled(&mut connected, &mut answered);
         answered
     });
 
@@ -116,9 +114,7 @@ fn the_next_client_is_accepted_once_the_stream_before_it_is_dropped() {
             connected.write_all(&[round]).expect("the client's request");
             connected.flush().expect("the client's request, delivered");
             let mut answered = [0_u8; 1];
-            connected
-                .read_exact(&mut answered)
-                .expect("the answer the server wrote");
+            filled(&mut connected, &mut answered);
             answered[0]
         });
 

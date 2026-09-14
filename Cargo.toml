@@ -119,13 +119,17 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # `docs/plan/design.md`'s refusal to own FCGI framing is the same argument and
 # `docs/agent/loop-goal.md` § *Two things every session must hold* applies it here.
 #
-# **`default-features = false` is load-bearing, not tidiness.** With `http1` and
-# `server` alone the graph is `http`, `http-body`, `bytes`, `futures-core`,
-# `futures-channel`, `pin-project-lite`, `httparse`, `httpdate`, `itoa`,
-# `smallvec` and `atomic-waker` — all pure Rust and all MIT. No `http2` and no
-# `client`: ADR 0097 § 1 dropped h2c and this binary is not an HTTP client
-# (`Core\Http` is `ureq`'s), and both features are where `h2` and `want` would
-# come from.
+# **`default-features = false` is load-bearing, not tidiness.** With `http1`,
+# `server` and `client` the graph is `http`, `http-body`, `bytes`,
+# `futures-core`, `futures-channel`, `pin-project-lite`, `httparse`, `httpdate`,
+# `itoa`, `smallvec`, `atomic-waker`, `want` and `try-lock` — all pure Rust and
+# all MIT. No `http2`: ADR 0097 § 1 dropped h2c, and that feature is the one
+# `h2` comes from. `client` is on for the one client in this tree that is not an
+# application's: `nvs ctl` is the other end of
+# `rule:config/one-local-control-socket`'s endpoint, and an operator surface
+# framed by a parser of ours would be a parser of ours to get right. What a
+# program makes outbound requests with is `Core\Http\Client`, which is `ureq`'s
+# and stays there.
 #
 # **`tokio` is in the lock file, and it is not a runtime.** `hyper` 1.11 depends
 # on `tokio` unconditionally with `features = ["sync"]` — one `oneshot` in
@@ -144,7 +148,11 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # traded for anything, least of all for a string. What guards the real rule is a
 # test over the lock file's *feature set*, and `docs/agent/handoff.md` names the
 # open decision about what that test is called.
-hyper = { version = "1", default-features = false, features = ["http1", "server"] }
+hyper = { version = "1", default-features = false, features = [
+    "http1",
+    "server",
+    "client",
+] }
 
 # --- RFC 6455, over the connection h1 handed back (ADR 0083 § 1) ---
 # The framing crate, and ADR 0051 § 4's first question answers "yes" for exactly
