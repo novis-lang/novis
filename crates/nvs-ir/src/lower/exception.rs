@@ -58,7 +58,8 @@ impl<'a> Lowering<'a> {
         );
     }
     /// The two answers a [`Ty::Tagged`] `throw` operand's type did not settle,
-    /// asked in front of the raise: whether the tag is an object at all, and
+    /// asked in front of the raise: whether the tag is an object at all —
+    /// [`Self::split_on_object_tag`], shared with `clone`'s own guard — and
     /// whether that object is inside spec § 10's tree. `cur` is left on the
     /// block where both hold, and the value handed back is the object itself.
     ///
@@ -96,6 +97,62 @@ impl<'a> Lowering<'a> {
         if ty != Ty::Tagged {
             return v;
         }
+        let (object, not_an_object) = self.split_on_object_tag(v, span, cur);
+        if !borrowed {
+            self.emit_release(not_an_object, v);
+        }
+        self.raise_logic_error(not_an_object, "Can only throw objects", env);
+
+        let (in_the_tree, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::InstanceOf {
+                value: object,
+                class: TestedClass::Named(THROWABLE_ROOT.to_owned()),
+            },
+        );
+        let inside = self.new_block();
+        let outside = self.new_block();
+        let then_edge = self.ids.next_edge(span);
+        let else_edge = self.ids.next_edge(span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: in_the_tree,
+                then_block: inside,
+                then_edge,
+                else_block: outside,
+                else_edge,
+            },
+        );
+        if !borrowed {
+            self.emit_release(outside, object);
+        }
+        self.raise_logic_error(
+            outside,
+            "Cannot throw objects that do not implement Throwable",
+            env,
+        );
+        *cur = inside;
+        object
+    }
+    /// The one question a [`Ty::Tagged`] operand's type leaves an operator that
+    /// needs an object: whether the tag is one. `cur` is left on the block where
+    /// it is, holding the [`InstKind::Untag`] whose value is handed back, and
+    /// the block handed back beside it is the one the caller owes its own
+    /// refusal — which is the whole of what the two operators differ in.
+    /// [`Self::guard_throwable`] asks `throw`'s second question there and
+    /// [`Lowering::guard_cloneable`] renders the tag into PHP's `clone()`
+    /// message.
+    ///
+    /// **What it spends** (`rule:programs/memory-priority`): one tag compare on
+    /// the tagged operand, and no allocation on either side of the branch.
+    pub(crate) fn split_on_object_tag(
+        &mut self,
+        v: ValueId,
+        span: Span,
+        cur: &mut BlockId,
+    ) -> (ValueId, BlockId) {
         let (is_object, _) = self.emit(
             *cur,
             Ty::Bool,
@@ -118,44 +175,9 @@ impl<'a> Lowering<'a> {
                 else_edge,
             },
         );
-        if !borrowed {
-            self.emit_release(not_an_object, v);
-        }
-        self.raise_logic_error(not_an_object, "Can only throw objects", env);
-
         let (object, _) = self.emit(an_object, Ty::Object, InstKind::Untag { operand: v });
-        let (in_the_tree, _) = self.emit(
-            an_object,
-            Ty::Bool,
-            InstKind::InstanceOf {
-                value: object,
-                class: TestedClass::Named(THROWABLE_ROOT.to_owned()),
-            },
-        );
-        let inside = self.new_block();
-        let outside = self.new_block();
-        let then_edge = self.ids.next_edge(span);
-        let else_edge = self.ids.next_edge(span);
-        self.seal(
-            an_object,
-            Terminator::Branch {
-                cond: in_the_tree,
-                then_block: inside,
-                then_edge,
-                else_block: outside,
-                else_edge,
-            },
-        );
-        if !borrowed {
-            self.emit_release(outside, object);
-        }
-        self.raise_logic_error(
-            outside,
-            "Cannot throw objects that do not implement Throwable",
-            env,
-        );
-        *cur = inside;
-        object
+        *cur = an_object;
+        (object, not_an_object)
     }
     /// Builds a [`LOGIC_ERROR`] carrying `message` in `block` and seals the
     /// block on the raise of it.

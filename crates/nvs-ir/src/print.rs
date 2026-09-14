@@ -555,6 +555,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::EchoValue => "echo_value",
         Helper::Exit => "exit",
         Helper::LiteralMismatch => "literal_mismatch",
+        Helper::CloneOperandNotAnObject => "clone_not_an_object",
         Helper::Identical => "identical",
         Helper::NumericEq => "numeric_eq",
         Helper::NumericLt => "numeric_lt",

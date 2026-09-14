@@ -2838,6 +2838,40 @@ pub unsafe extern "C" fn nvs_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader
     copy.into_raw()
 }
 
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::CloneOperandNotAnObject` — a `clone` whose operand
+    /// reached run time as a tag, carrying something [`nvs_object_clone`] has no
+    /// instance to copy.
+    ///
+    /// **Never returns `Ok`.** The tag test in front of it already decided the
+    /// answer; this exists to carry PHP's own wording, whose type name is the
+    /// tag the operand arrived with and therefore not a compile-time fact — see
+    /// that `nvs_ir::ir::Helper` variant. The name is [`Tag::describe`]'s, which
+    /// is the Novis type a program would have written rather than PHP's
+    /// spelling of it, so a `uint` or a `decimal` is named as itself.
+    ///
+    /// **It releases `args[0]`**, the one argument in this file a helper owns
+    /// rather than borrows. A helper that never returns leaves its caller no
+    /// reachable point to release one at, so `nvs_ir::lower` retains a borrowed
+    /// operand in front of the call and hands the reference over here.
+    fn nvs_clone_not_an_object(_ctx, args: [1]) {
+        let given = args[0].tag().map_or("null", Tag::describe);
+        let message =
+            format!("clone(): Argument #1 ($object) must be of type object, {given} given");
+        #[expect(
+            unsafe_code,
+            reason = "the operand's reference is this call's, retained by the \
+                      lowering when the frame did not already hold a fresh one, \
+                      and no reachable instruction follows a helper that never \
+                      returns"
+        )]
+        unsafe {
+            args[0].release();
+        }
+        Err(Fault::thrown_as(crate::ThrownClass::Logic, message))
+    }
+}
+
 /// Adds a reference — `nvs_ir::InstKind::Retain` for a `Ty::Object` operand.
 ///
 /// # Safety

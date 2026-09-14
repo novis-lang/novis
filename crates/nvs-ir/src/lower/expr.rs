@@ -5283,6 +5283,22 @@ impl<'a> Lowering<'a> {
     /// no `__clone` hook to run — so the whole operation is one
     /// instruction, and the result is a fresh object with exactly one
     /// owner, the same as `new`.
+    ///
+    /// # A tagged operand
+    ///
+    /// A [`Ty::Tagged`] operand arrives here on purpose. `nvs_types`'
+    /// `expr::members::reject_non_object_clone` refuses a type that can hold no
+    /// object and passes `mixed`, `object` and every union — `?Foo` among them —
+    /// because a value that is one at run time names the class to instantiate.
+    /// [`Self::guard_cloneable`] asks the one question that leaves, and the copy
+    /// itself is then the same single instruction either way.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the operand's representation if it is neither
+    /// [`Ty::Object`] nor [`Ty::Tagged`]. Those two are what
+    /// `reject_non_object_clone`'s `can_hold_an_object` predicate lets past, so
+    /// a third is a bug in this crate and not a shape a program can write.
     fn lower_clone_expr(
         &mut self,
         inner: &Expr,
@@ -5291,20 +5307,81 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let (v, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
-            matches!(ty, Ty::Object),
-            "nvs-ir lowers `clone` only for an object — got representation {ty:?}. ADR \
-             0023 § 1 scopes `clone` to an object; an array is already a copy-on-write \
-             value, and a scalar has nothing to copy"
+            matches!(ty, Ty::Object | Ty::Tagged),
+            "`clone`'s operand is a `Ty::Object` or a `Ty::Tagged`, the pair \
+             `nvs_types::expr::members::reject_non_object_clone` admits — representation \
+             {ty:?} means this is a bug in nvs-ir"
         );
-        let result = self.emit(*cur, Ty::Object, InstKind::Clone { object: v });
+        let borrowed = self.aliasing_read(inner);
+        let object = self.guard_cloneable(v, ty, borrowed, inner.span, env, cur);
+        let result = self.emit(*cur, Ty::Object, InstKind::Clone { object });
         // The operand is only *read* — see `InstKind::Clone`. A fresh
         // one nothing else owns is released right after, the same
         // "release a fresh value once its one and only use is done"
-        // rule `Self::concat_operand`'s caller applies.
-        if !self.aliasing_read(inner) {
-            self.emit_release(*cur, v);
+        // rule `Self::concat_operand`'s caller applies, and a tagged one is
+        // released through the object [`InstKind::Untag`] carried the
+        // reference onto.
+        if !borrowed {
+            self.emit_release(*cur, object);
         }
         result
+    }
+
+    /// The tag question a [`Ty::Tagged`] `clone` operand's type did not settle,
+    /// asked in front of the copy: whether there is an object to copy at all.
+    /// `cur` is left on the block where there is, and the value handed back is
+    /// that object. A [`Ty::Object`] operand is handed straight back, its class
+    /// being the checker's own answer.
+    ///
+    /// **The wording is PHP's, word for word**, and it is rendered in
+    /// `nvs_runtime`'s `nvs_clone_not_an_object` rather than here because PHP
+    /// names the type it was given, which is a tag the operand carries and not
+    /// a type this crate holds.
+    /// `rule:php-migration/every-divergence-is-deliberate-and-listed` lists no
+    /// divergence here, so a program that catches this reads what it reads in
+    /// PHP.
+    ///
+    /// That helper never returns, so it takes the operand's reference with it
+    /// and a borrowed operand is retained in front of the call: an instruction
+    /// emitted after a call that never returns sits in a block only an `Ok`
+    /// would reach, which is the same inversion [`Helper::LiteralMismatch`]
+    /// carries for its own rendered argument.
+    ///
+    /// **What it spends** (`rule:programs/memory-priority`): the one tag compare
+    /// [`Self::split_on_object_tag`] states, and no allocation on the path where
+    /// the tag holds.
+    fn guard_cloneable(
+        &mut self,
+        v: ValueId,
+        ty: Ty,
+        borrowed: bool,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        if ty != Ty::Tagged {
+            return v;
+        }
+        let (object, not_an_object) = self.split_on_object_tag(v, span, cur);
+        if borrowed {
+            self.emit_retain(not_an_object, v);
+        }
+        let landing = self.landing_block(env);
+        self.block_insts[not_an_object.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::HelperCall {
+                helper: Helper::CloneOperandNotAnObject,
+                args: vec![v],
+            },
+            on_error: Some(landing),
+        });
+        // `Helper::CloneOperandNotAnObject` never returns normally, so this jump
+        // is unreachable — written anyway because a block still owes a
+        // terminator, and the block where the tag held is where control would
+        // have gone.
+        self.seal(not_an_object, Terminator::Jump(*cur));
+        object
     }
 }
 

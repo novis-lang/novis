@@ -91,7 +91,7 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 /// and leaves a literal, an enum case, a shape, a union, `iterable` and
 /// `callable` for the stage after it. That item's own attribution is what keeps
 /// the first half of this gate green while it stands.
-const CEILING: usize = 7;
+const CEILING: usize = 6;
 
 /// The repository root — this crate is `crates/nvs-ir`.
 fn root() -> PathBuf {

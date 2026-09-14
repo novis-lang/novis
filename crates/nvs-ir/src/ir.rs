@@ -2118,6 +2118,25 @@ pub enum Helper {
     /// [`InstKind::ConstStr`] at, so `nvs_runtime`'s own helper drops it.
     /// The operand keeps the ordinary convention and is the caller's.
     LiteralMismatch,
+    /// One argument: the [`crate::ty::Ty::Tagged`] operand of a `clone` whose
+    /// tag turned out not to be an object, so `rule:classes/clone-is-shallow`'s
+    /// "a new instance of `$x`'s class" names no class. It is the miss arm of
+    /// the one [`InstKind::TagIs`] `crate::lower::Lowering::guard_cloneable`
+    /// asks, defines no value and **never returns normally**, so it is pushed
+    /// with `result: None` the way [`Self::LiteralMismatch`] is and always
+    /// carries `rule:errors/propagation`'s error edge.
+    ///
+    /// The message is PHP's own, and it names the type it was given — which is
+    /// why it is rendered in `nvs_runtime` rather than at lowering time the way
+    /// [`Self::LiteralMismatch`]'s accepted set is: the operand's tag is what
+    /// answers it, and that is a run-time fact.
+    ///
+    /// It **owns** its argument, the second helper here to do so and for
+    /// [`Self::LiteralMismatch`]'s reason: a call that never returns leaves no
+    /// reachable instruction to release a reference at, so lowering retains a
+    /// borrowed operand in front of the call and `nvs_runtime` releases what it
+    /// was handed.
+    CloneOperandNotAnObject,
     /// `a == b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
     /// `rule:expressions/mixed-equality`'s `mixed`-or-union case, the one pairing whose § 3 row is a runtime
     /// tag rather than a static type. **`!=` is this helper under
