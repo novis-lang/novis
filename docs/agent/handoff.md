@@ -2,55 +2,55 @@
 
 ## State
 
-**Goal `m4-refusals` — Stage 7's shape row is decided and not yet built.** The `iterable`, `callable`,
-union and intersection rows are landed. `python tools/holes.py` reports **3** refusal sites,
-`UNATTRIBUTED: 0`, **15** guarded, and `crates/nvs-ir/tests/refusals.rs`'s `CEILING` is **3** to match.
+**Goal `m4-refusals` — Stage 7's shape row is landed.** `$x is {a: int}` lowers and walks the
+subject's own fields; the `iterable`, `callable`, union and intersection rows were already there.
+`python tools/holes.py` reports **3** refusal sites, `UNATTRIBUTED: 0`, **15** guarded, and
+`crates/nvs-ir/tests/refusals.rs`'s `CEILING` is **3** to match — unchanged, because the one panic
+that carried the shape gap still stands for the two rows left under it.
 
-- **Which walk answers a shape: neither of the two that exist**, and that is written into
-  `crates/nvs-ir/src/lower/expr.rs:5581`'s `# Known gaps`, which is the decision this item owed. `as`
-  performs no shape walk (`crates/nvs-ir/src/lower/convert.rs:1158` has no arm for one), and
-  `Core\Arr::shapeAs`'s reads an `NvsArray` and builds an object out of it — its strict half
-  (`nvs_stdlib::json::Reading::Wire`, `crates/nvs-stdlib/src/json.rs:1322`) is the per-field read `is`
-  wants, over a document's keys rather than a receiver's fields.
-- **So the row is an object field walk.** `rule:types/shape-type` makes a shape compile-time-only and
-  structural with width subtyping, so the run-time question is whether this object carries the named
-  fields at the named types: an O(n) `InstKind::SlotGet` walk, one `TestShape` per field, chained by
-  `TestShape::All` behind the object tag so a subject holding no object declines before a field is read.
-- **What blocks building it is a presence probe that does not throw.** `AbsentKey::Null`
-  (`crates/nvs-ir/src/ir.rs:831`) answers an absent field with `null`, which a `{a: ?int}` field cannot
-  tell from an `a` holding one, and both `AbsentKey` arms throw on a slot never written.
-  `rule:types/type-test` makes `is` total, so a subject missing a field answers `false` and raises nothing.
-- **The floor's `examples/queue-purge.nvs` failure after session 0009 is a fixture race, not a
-  regression** — green 14/14 here (6 serial, 8 concurrent), a healthy run 1.2s against that failure's
-  16s, and its three waits now name themselves on timeout. The playbook bullet holds the triage.
+- **The probe is an `InstKind` of its own, not a third `AbsentKey` arm.** That enum says what an
+  absent *read* answers and every arm of it answers the field's value; this answers a `bool` and is
+  infallible, so it carries no error edge — `crates/nvs-ir/src/ir.rs:909` is the variant and
+  `crates/nvs-runtime/src/object.rs:3378` the helper. `Tag::Unset` could not be handed back as
+  absence instead: `crates/nvs-runtime/src/value.rs:221` makes it a storage state that never becomes
+  an expression's value.
+- **The read and the probe cannot disagree**, both answering off `slot_state`
+  (`crates/nvs-runtime/src/object.rs:3743`), which is the `present`/`absent`/`unwritten` split the
+  three throws were already making by hand. The agreement is asserted over every state rather than
+  case by case.
+- **A shape is `TestShape::All` over one `TestShape::Field` per field, behind a `Tag(Ty::Object)`**,
+  so a subject holding no object declines before a field is read. Each field's value is read at
+  `Ty::Tagged`, the subject's own class not being the shape it was tested against, and the read's
+  error edge on the probe-proven side is unreachable.
+- **Stage 7 is not finished.** Its check also names
+  `tests/conformance/lang/an-is-test-against-an-array-of-a-class-walks-every-element.nvst`, which is
+  the `array<Foo>` gap and is not on disk. That row and a written `callable` signature are the two
+  `test_shape` still answers `None` for.
 - Nothing is blocked.
 
 ## Next group
 
-**Stage 7: the shape row — its presence probe, then its field walk** — one file set:
-`crates/nvs-ir/src/ir.rs` and `crates/nvs-ir/src/lower/expr.rs`, plus `crates/nvs-runtime/src/object.rs`
-and `crates/nvs-codegen/src/emit.rs` for the helper the probe calls. `docs/agent/loop-goal.md`
+**Stage 7: the element row — `is array<Foo>`** — one file set: `crates/nvs-ir/src/lower/expr.rs`,
+`crates/nvs-ir/src/lower/mod.rs` and `crates/nvs-runtime/src/helpers.rs`. `docs/agent/loop-goal.md`
 § *Stage 7* is the spec and `rule:types/type-test` is the rule.
 
-- [ ] **A presence probe that answers instead of throwing** — a third `AbsentKey` arm, or an
-      `InstKind` of its own, answering present / absent / unwritten without an error edge, since `is`
-      is total. `crates/nvs-ir/src/ir.rs:831` is the enum's doc and `crates/nvs-codegen/src/emit.rs:2714`
-      picks the helper off it; the runtime pair it joins is
-      `crates/nvs-runtime/src/object.rs:3249` and `crates/nvs-runtime/src/object.rs:3313`.
-- [ ] **The shape row over that probe** — a `TestShape` variant carrying one `(name, required, TestShape)`
-      per field, built in `test_shape` from `Ty::Shape`'s `Vec<ShapeField>` and emitted as the
-      `All`-chain above. The arm goes beside the `iterable` one at
-      `crates/nvs-ir/src/lower/expr.rs:5592`, and `crates/nvs-ir/src/lower/expr.rs:5012`'s
-      `emit_test_shape` is where it lowers.
-- [ ] **The stage's case** — `tests/conformance/lang/an-is-test-against-a-shape-walks-its-fields.nvst`,
-      which stage 7's check names and nothing writes yet; width subtyping, a missing required field and
-      a `{a: ?int}` against both an absent `a` and a present `null` are the four rows.
-      `crates/nvs-ir/src/lower/expr.rs:5592` is the row under test.
+- [ ] **Decide what the element walk takes instead of a tag word** — `array_element_tags`
+      (`crates/nvs-ir/src/lower/mod.rs:3849`) answers `None` for an element type no tag decides, and
+      the `u64` it packs has no room for a class label, a shape or a union. The walk behind it is
+      `to_array_of` (`crates/nvs-runtime/src/helpers.rs:2115`), which `as ?array<T>` shares, so
+      widening it moves both spellings at once — and `rule:types/type-test` keeps `as array<Foo>`
+      refused where it is written while `is array<Foo>` has to answer.
+- [ ] **The `array<Foo>` row over that decision** — `crates/nvs-ir/src/lower/expr.rs:5829` builds
+      `TestShape::ArrayOf` from the tag word and `crates/nvs-ir/src/lower/expr.rs:5125` emits it;
+      both take the `u64` today, and the shape row beside them is the model for a member test that
+      is not one comparison.
+- [ ] **The stage's case** — `an-is-test-against-an-array-of-a-class-walks-every-element.nvst`, new
+      beside the shape one, in the counted-rows shape
+      `tests/conformance/lang/an-is-test-against-a-shape-walks-its-fields.nvst:58` uses.
 
 ## Backlog
-- The element row — `array<Foo>`, an array of shapes, an array of unions — and then the panic and
-  `CEILING`; `crates/nvs-ir/src/lower/expr.rs:4985` (`docs/agent/loop-goal.md` § *Stage 7*).
-- `rule:types/callable-signature`'s written signature is stage 7's third open row
-  (`crates/nvs-ir/src/lower/expr.rs:5581`).
-- `examples/queue/flaky.nvs` logs its throw twice under `maxAttempts: 1`; not investigated, and it
-  does not move `dead-survives=1` (`examples/queue-purge.nvs:106`).
+
+- A written `callable` signature has no `is` row — `crates/nvs-ir/src/lower/expr.rs:5691`'s
+  `# Known gaps` states it, `rule:types/callable-signature` is what it owes.
+- The shape walk's `SlotGet` carries an error edge the probe above it makes unreachable; erasing one
+  needs a proof the IR does not hold — `crates/nvs-ir/src/ir.rs:909`.

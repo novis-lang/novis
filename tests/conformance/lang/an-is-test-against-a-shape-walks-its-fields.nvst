@@ -1,0 +1,94 @@
+--TEST--
+An `is` test against a shape walks the subject's own fields by name, and an absent key answers differently from one holding `null` — `rule:types/type-test`, `rule:types/shape-type`
+--FILE--
+<?nvs
+// `rule:types/type-test`'s shape row. A shape is compile-time-only and
+// structural (`rule:types/shape-type`), so what is left to ask at run time is
+// whether this object carries the named fields at the named types. The rows
+// are counted rather than read off their own lines: a walk that answered
+// `true` for everything prints plausibly row by row and still fails the count.
+
+class Animal {
+    public string $animalName;
+    public int $legs;
+
+    public function constructor(string $animalName, int $legs) {
+        $this->animalName = $animalName;
+        $this->legs = $legs;
+    }
+}
+
+class Row {
+    // 1 where the row answered `true` for the subject that satisfies the shape
+    // and `false` for the one that does not. The row is named on stdout when it
+    // did not, so a failure says which one moved rather than only that the
+    // count fell.
+    public static function both(string $row, bool $holds, bool $other): int {
+        if ($holds && !$other) {
+            return 1;
+        }
+        echo "WRONG ", $row, ": ", Row::yn($holds), Row::yn($other), "\n";
+        return 0;
+    }
+
+    // `bool as string` renders `false` as the empty string, which would let a
+    // row whose two halves both went missing read as agreement.
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+mixed $point = {x: 1, y: 2};
+mixed $wide = {x: 1, y: 2, label: "here"};
+mixed $texty = {x: "1", y: 2};
+mixed $held = {a: null};
+mixed $absent = {b: 1};
+mixed $animal = new Animal("rex", 4);
+mixed $plain = 7;
+mixed $list = [1, 2];
+
+int $rows = 0;
+
+// One field, then two. Each name is looked up on the subject's own class, so
+// the order the shape writes its fields in is not the order the value holds
+// them.
+$rows = $rows + Row::both("one field", $point is {x: int}, $texty is {x: int});
+$rows = $rows + Row::both("two fields", $point is {y: int, x: int}, $texty is {y: int, x: int});
+
+// Width subtyping: a subject carrying more than the shape names satisfies it,
+// and the extra field is never looked at.
+$rows = $rows + Row::both("wider subject", $wide is {x: int}, $texty is {label: string});
+
+// A required key the subject does not carry answers `false`; the same key
+// written optional answers `true` with nothing read. A key that is there is
+// held to its type either way.
+$rows = $rows + Row::both("required key", $wide is {label: string}, $point is {z: int});
+$rows = $rows + Row::both("optional key", $point is {z?: int}, $point is {y?: string});
+
+// The boundary this walk exists for, asserted on both sides: `{a: ?int}`
+// demands an `a` that may hold `null`, so a value holding `null` answers `true`
+// and a value with no `a` at all answers `false` (`rule:types/shape-type`). A
+// read that answered `null` for an absent key could not tell the two apart.
+$rows = $rows + Row::both("null is not absent", $held is {a: ?int}, $absent is {a: ?int});
+
+// `rule:types/shape-type`'s one exception to an otherwise nominal type system:
+// two unrelated classes sharing field names and types are interchangeable
+// wherever a shape is used, so an ordinary object answers this walk like any
+// other value does.
+$rows = $rows + Row::both("a class instance", $animal is {animalName: string}, $animal is {animalName: int});
+
+// A subject holding no object at all declines before any field is read.
+$rows = $rows + Row::both("not an object", $point is {x: int}, $plain is {x: int});
+$rows = $rows + Row::both("an array is not a shape", $point is {x: int}, $list is {x: int});
+
+echo "rows=", $rows as string, "/9\n";
+
+// A union's members are each their own row, and a shape is a member like any
+// other one.
+echo "union=", Row::yn($point is {x: int}|int), Row::yn($plain is {x: int}|int), Row::yn($list is {x: int}|int), "\n";
+--EXPECT--
+rows=9/9
+union=yyn
