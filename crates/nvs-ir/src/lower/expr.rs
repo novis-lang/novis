@@ -4983,11 +4983,11 @@ impl<'a> Lowering<'a> {
             TypeTestPlan::AtRunTime(tested) => {
                 let Some(shape) = test_shape(tested, self.checked_types, self.enums) else {
                     panic!(
-                        "nvs-ir only lowers `is` against a scalar, `null`, `object`, a bare \
-                         `array`, a class, a shape, a literal, an enum case, `iterable`, \
-                         `callable`, or a union or intersection of those — got {:?}; an \
-                         element type no tag decides and a written callable signature each \
-                         still need a row of their own",
+                        "nvs-ir only lowers `is` against a scalar, `null`, `object`, an \
+                         `array` of any element type, a class, a shape, a literal, an enum \
+                         case, `iterable`, `callable`, or a union or intersection of those \
+                         — got {:?}; a written callable signature still needs a row of its \
+                         own",
                         self.checked_types.get(tested)
                     );
                 };
@@ -5148,6 +5148,13 @@ impl<'a> Lowering<'a> {
             // constant — see the class row above, which reaches its own for the
             // same reason.
             TestShape::ArrayOf(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+            // The same walk with the element's own row inside it instead of a
+            // tag nibble, lowered because no helper can be handed a
+            // [`TestShape`] across the ABI.
+            TestShape::Every(element) if matches!(subject, Ty::Array | Ty::Tagged) => {
+                self.emit_every_element(*element, value, subject, span, env, cur)
+            }
+            TestShape::Every(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
             // `rule:types/shape-type`'s walk, one field at a time: the probe
             // asks whether the subject carries the key, and only the proven
             // edge reads it — which is what makes that read's error edge
@@ -5242,6 +5249,168 @@ impl<'a> Lowering<'a> {
                 cur,
             ),
         }
+    }
+
+    /// [`TestShape::Every`]'s walk: whether every element of an array answers
+    /// one row, as a lowered loop over the cursor `foreach` steps.
+    ///
+    /// Three exits, and the loop is the middle one: a subject that carries no
+    /// array declines before a slot is read, a drained array answers `true`
+    /// having found no element that declined, and the first element that
+    /// declines answers `false` without reading the rest. An empty array is the
+    /// second of those, which is what makes the row vacuously true — the same
+    /// answer `as array<T>` gives one.
+    ///
+    /// **Nothing is retained.** [`InstKind::ArrayValueAt`] borrows and the
+    /// element's row only reads, so the subject's own single release by
+    /// [`Self::lower_type_test`] still covers everything this touches; the
+    /// untag of a [`Ty::Tagged`] subject is the same reference read one
+    /// representation down, not a second one, and sits on the edge the tag
+    /// compare proved.
+    ///
+    /// The back edge carries a safepoint poll ([`InstKind::Safepoint`]) like
+    /// every other loop this crate lowers: the array is the request's, so its
+    /// length is the request's too, and a walk that cannot be preempted is
+    /// `rule:programs/memory-priority`'s first priority spent for nothing.
+    fn emit_every_element(
+        &mut self,
+        element: TestShape,
+        value: ValueId,
+        subject: Ty,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let merge = self.new_block();
+        let mut incoming = Vec::new();
+        // A `Ty::Array` subject is the array; a `Ty::Tagged` one is it only
+        // where the tag says so, and the untag is unchecked
+        // ([`InstKind::Untag`]), so it goes after the branch rather than before.
+        let (array, entry) = if subject == Ty::Tagged {
+            let (carries, _) = self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::TagIs {
+                    operand: value,
+                    repr: Ty::Array,
+                },
+            );
+            let (missed, _) = self.emit(*cur, Ty::Bool, InstKind::ConstBool(false));
+            incoming.push((*cur, missed));
+            let enter = self.new_block();
+            let enter_edge = self.ids.next_edge(span);
+            let missed_edge = self.ids.next_edge(span);
+            self.seal(
+                *cur,
+                Terminator::Branch {
+                    cond: carries,
+                    then_block: enter,
+                    then_edge: enter_edge,
+                    else_block: merge,
+                    else_edge: missed_edge,
+                },
+            );
+            let (array, _) = self.emit(enter, Ty::Array, InstKind::Untag { operand: value });
+            (array, enter)
+        } else {
+            (value, *cur)
+        };
+        let (start, _) = self.emit(entry, Ty::Int, InstKind::ConstInt(0));
+        let header = self.new_block();
+        self.seal(entry, Terminator::Jump(header));
+
+        // The cursor's phi is written by hand and patched from the back edge
+        // below, `Self::lower_while`'s way: the value it carries round the loop
+        // is defined by the body, which cannot exist yet.
+        let cursor = self.ids.next_value();
+        let cursor_phi = self.block_insts[header.index() as usize].len();
+        self.block_insts[header.index() as usize].push(Inst {
+            result: Some(cursor),
+            ty: Some(Ty::Int),
+            kind: InstKind::Phi {
+                incoming: vec![(entry, start)],
+            },
+            on_error: None,
+        });
+        let (slot, _) = self.emit(
+            header,
+            Ty::Int,
+            InstKind::ArrayNextSlot {
+                array,
+                from: cursor,
+            },
+        );
+        let (exhausted_at, _) = self.emit(header, Ty::Int, InstKind::ConstInt(0));
+        let (more, _) = self.emit(
+            header,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::GtEq,
+                lhs: slot,
+                rhs: exhausted_at,
+            },
+        );
+        let (drained, _) = self.emit(header, Ty::Bool, InstKind::ConstBool(true));
+        incoming.push((header, drained));
+        let body = self.new_block();
+        let body_edge = self.ids.next_edge(span);
+        let drained_edge = self.ids.next_edge(span);
+        self.seal(
+            header,
+            Terminator::Branch {
+                cond: more,
+                then_block: body,
+                then_edge: body_edge,
+                else_block: merge,
+                else_edge: drained_edge,
+            },
+        );
+
+        // The element is read at `Ty::Tagged` because that is what an array
+        // slot holds: the subject's own declared element type is not what is
+        // being asked about, and against a `mixed` subject there is none.
+        let mut body_cur = body;
+        let (held, _) = self.emit(body, Ty::Tagged, InstKind::ArrayValueAt { array, slot });
+        let (answer, _) = self.emit_test_shape(element, held, Ty::Tagged, span, env, &mut body_cur);
+        let (one, _) = self.emit(body_cur, Ty::Int, InstKind::ConstInt(1));
+        // A slot index cannot reach `i64::MAX`, so this add never throws, and
+        // the landing block it carries is on an edge no run takes —
+        // `Self::lower_foreach`'s own cursor step says the rest.
+        let (next, _) = self.emit_fallible(
+            body_cur,
+            Ty::Int,
+            InstKind::BinOp {
+                op: BinOp::Add,
+                lhs: slot,
+                rhs: one,
+            },
+            env,
+        );
+        let (declined, _) = self.emit(body_cur, Ty::Bool, InstKind::ConstBool(false));
+        incoming.push((body_cur, declined));
+        self.emit_safepoint(body_cur);
+        let inst = &mut self.block_insts[header.index() as usize][cursor_phi];
+        let InstKind::Phi {
+            incoming: carried, ..
+        } = &mut inst.kind
+        else {
+            unreachable!("the instruction this index names is the cursor phi written just above");
+        };
+        carried.push((body_cur, next));
+        let again_edge = self.ids.next_edge(span);
+        let declined_edge = self.ids.next_edge(span);
+        self.seal(
+            body_cur,
+            Terminator::Branch {
+                cond: answer,
+                then_block: header,
+                then_edge: again_edge,
+                else_block: merge,
+                else_edge: declined_edge,
+            },
+        );
+        *cur = merge;
+        self.emit(merge, Ty::Bool, InstKind::Phi { incoming })
     }
 
     /// `rule:types/type-test`'s union and intersection rows: each member's own
@@ -5600,7 +5769,32 @@ enum TestShape {
     /// [`super::array_element_tags`]' word — one tag nibble per level of `T`.
     /// Never a second walk of its own either: the spelling that *answers*
     /// instead of throwing is `as ?array<T>`'s, over the same helper.
+    ///
+    /// This is the row for every `T` that word can say, and [`Self::Every`] is
+    /// the row for the rest. The split is a latency one: the helper walks the
+    /// whole array inside the runtime, while [`Self::Every`] pays two calls and
+    /// a branch per element for the generality of asking a whole [`TestShape`]
+    /// of each one.
     ArrayOf(u64),
+    /// The same O(n) element walk, lowered here instead, against one
+    /// [`TestShape`] per element — `is array<Foo>`, and every other element
+    /// type [`super::array_element_tags`]' word has no room for: a shape, a
+    /// union, an enum case, a literal, a `callable`, an array nested past
+    /// [`super::ARRAY_ELEMENT_TAG_LEVELS`].
+    ///
+    /// A tag word cannot carry a class label, so the alternative was a second
+    /// runtime walk per element kind. This is the walk `rule:types/type-test`
+    /// already owes, over the cursor `foreach` steps
+    /// ([`InstKind::ArrayNextSlot`]), with the element read at [`Ty::Tagged`] —
+    /// what an array slot holds — and handed to the element's own row. Every
+    /// row therefore composes: `is array<{a: int}>` is this over
+    /// [`Self::Field`], and `is array<array<Foo>>` is this over itself.
+    ///
+    /// There is no `as` spelling to share, because `rule:types/type-test` keeps
+    /// `as array<Foo>` refused where it is written (`E0711`) while `is` has to
+    /// answer — so this is one implementation of one question, not a second
+    /// copy of [`Self::ArrayOf`]'s.
+    Every(Box<TestShape>),
     /// One field of `rule:types/shape-type`'s shape row: the name is looked up
     /// on the subject's *concrete* class, and where it is there, what it holds
     /// is tested against the field's own row.
@@ -5820,16 +6014,21 @@ fn test_shape(
         CheckedTy::Array(element) if matches!(checked_types.get(*element), CheckedTy::Mixed) => {
             Ty::Array
         }
-        // A named element type is the walk instead, and the tag word is the
-        // whole of what the helper takes. A `None` here is an element no tag
-        // decides — a class, a shape, a `callable`, an enum, a literal, a
-        // union — which `as array<T>` refuses where it is written (`E0711`)
-        // and `is` does not yet: see this function's own known gap.
-        CheckedTy::Array(_) => {
-            return Some(TestShape::ArrayOf(array_element_tags(
-                tested,
+        // A named element type is the walk instead. Where one tag word says the
+        // whole of `T`, that word is all the shared helper takes; where it does
+        // not — a class, a shape, a `callable`, an enum, a literal, a union —
+        // the same walk is lowered here over the element's own row, which is
+        // what `as array<T>` has no need of, refusing each of those where it is
+        // written (`E0711`) while `rule:types/type-test` makes `is` answer.
+        CheckedTy::Array(element) => {
+            if let Some(tags) = array_element_tags(tested, checked_types) {
+                return Some(TestShape::ArrayOf(tags));
+            }
+            return Some(TestShape::Every(Box::new(test_shape(
+                *element,
                 checked_types,
-            )?));
+                enums,
+            )?)));
         }
         // A qualified atom never reaches here: `is tainted string` is `E0813`,
         // there being no run-time bit to read.
