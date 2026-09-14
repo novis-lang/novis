@@ -291,6 +291,7 @@
     "watch": "tsc -p ./ --watch",
     "lint": "eslint .",
     "test:headless": "tsc -p ./ && node scripts/headless.mjs",
+    "test:host": "tsc -p ./ && node scripts/host.mjs",
     "package": "vsce package --out nvs.vsix"
   },
   "dependencies": {
@@ -301,6 +302,7 @@
     "@types/mocha": "^10.0.9",
     "@types/node": "^20.16.0",
     "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.2.0",
     "eslint": "^9.13.0",
     "mocha": "^10.8.0",
