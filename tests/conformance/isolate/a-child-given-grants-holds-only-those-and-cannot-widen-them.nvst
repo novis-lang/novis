@@ -1,0 +1,73 @@
+--TEST--
+A `spawn script` child given `grants:` holds only the capabilities named there, intersected with what its parent held: a name the parent never held stays lacking, and a child that gave one up cannot ask for it back — `rule:security/isolate-shares-nothing`, `rule:security/isolate-budget-is-the-trees`, `rule:security/capability-question-is-grant-and-scope` and `rule:security/denial-is-a-runtime-error`
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a
+# door that asks for `script.spawn` first, and deny-by-default means a case with
+# no configuration cannot spawn at all. Both grants are the parent's, and every
+# refusal below is a `grants:` list taking one of them away again.
+[capabilities.script]
+spawn = true
+
+[capabilities.fs]
+read = ["."]
+--FILE note.txt--
+note
+--FILE reader.nvs--
+<?nvs
+// `fs.read` is named in this child's `grants:` and held by its parent, so it
+// survives the intersection and the read answers.
+echo "reader read ", Core\IO::read('./note.txt');
+
+// `script.spawn` is not named in it, though the parent holds it. A narrowing
+// takes a capability away from everything beneath it, so the child is refused
+// at the same door its parent passed — and refused as `rule:security/denial-is-a-runtime-error`'s
+// catchable `RuntimeError` rather than as a `FATAL`.
+try {
+    spawn script "note.nvs" with(grants: ["fs.read"]);
+    echo "unreachable", "\n";
+} catch (RuntimeError $denied) {
+    echo "reader: ", $denied->message, "\n";
+}
+--FILE stranger.nvs--
+<?nvs
+// `net.connect` is a name the parent never held. `grants:` intersects with what
+// the parent holds rather than replacing it, so naming it grants nothing — and
+// `fs.read`, which the parent *did* hold, is gone because this list did not
+// name it.
+try {
+    Core\IO::read('./note.txt');
+    echo "unreachable", "\n";
+} catch (RuntimeError $denied) {
+    echo "stranger refused", "\n";
+}
+--FILE--
+<?nvs
+// The parent's own reading first, so that what a child prints is a comparison
+// against a known grant rather than an absolute.
+echo "parent read ", Core\IO::read('./note.txt');
+
+// `output: 'capture'` for the reason a-child-shares-nothing-with-its-parent
+// gives: the child's lines arrive here as a value the parent prints, so their
+// order against the parent's own is a fact rather than a race.
+var $reader = spawn script "reader.nvs" with(grants: ["fs.read"], output: "capture");
+var $read = await $reader;
+echo "reader ok=", $read->ok ? "true" : "false", "\n";
+echo $read->output;
+
+var $stranger = spawn script "stranger.nvs" with(grants: ["net.connect"], output: "capture");
+var $strange = await $stranger;
+echo "stranger ok=", $strange->ok ? "true" : "false", "\n";
+echo $strange->output;
+
+// And the parent kept everything it narrowed for its children: a `grants:` is
+// the child's list, never an edit of the list it was spawned from.
+echo "parent still reads ", Core\IO::read('./note.txt');
+--EXPECT--
+parent read note
+reader ok=true
+reader read note
+reader: `spawn script` needs the capability `script.spawn` for note.nvs, which is not granted
+help: grant it in nvs.toml under `[capabilities.script]`
+stranger ok=true
+stranger refused
+parent still reads note

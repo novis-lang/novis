@@ -1,0 +1,43 @@
+--TEST--
+A `spawn script` child given `limits:` runs under that sub-cap rather than the tree's: it is stopped where its own ceiling is, its parent goes on running with `ok = false`, and the same allocation the child was stopped for succeeds in the parent — `rule:security/isolate-budget-is-the-trees`, `rule:errors/on-limit` and `rule:security/isolate-shares-nothing`
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: a case with no configuration
+# cannot spawn at all.
+[capabilities.script]
+spawn = true
+
+# The tree's own ceiling, wide enough that everything below is the sub-cap's
+# doing and not this number's — `rule:security/isolate-budget-is-the-trees`.
+[limits]
+memory = "256M"
+--FILE greedy.nvs--
+<?nvs
+// Well past the `limits:` this child was spawned under and well inside the
+// tree's own, so what stops it is the sub-cap alone. A limit breach is
+// `rule:errors/on-limit`'s `FATAL`, which no `catch` in here sees — it arrives
+// on the parent's side as `ok = false` instead.
+array<int> $rows = [];
+for (var $i = 0; $i < 400000; $i = $i + 1) {
+    $rows[] = $i;
+}
+echo "unreachable", "\n";
+--FILE--
+<?nvs
+// `output: 'capture'` for the reason a-child-shares-nothing-with-its-parent
+// gives: the child's lines arrive here as a value the parent prints, so their
+// order against the parent's own is a fact rather than a race.
+var $child = spawn script "greedy.nvs" with(limits: {memory: "1M"}, output: "capture");
+var $done = await $child;
+echo "child ok=", $done->ok ? "true" : "false", "\n";
+
+// The parent is still running, and still under the tree's own ceiling rather
+// than the child's: the sub-cap was the child's to spend, and a child spending
+// it did not narrow anything here.
+array<int> $rows = [];
+for (var $i = 0; $i < 400000; $i = $i + 1) {
+    $rows[] = $i;
+}
+echo "parent held ", Core\Arr::count($rows), "\n";
+--EXPECT--
+child ok=false
+parent held 400000

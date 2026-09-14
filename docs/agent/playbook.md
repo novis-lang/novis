@@ -6866,6 +6866,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   writing a case over an option, because a `.nvst` that asserts a narrowing took effect will fail for
   a reason no diagnostic names.
   [until: gone crates/nvs-ir/src/lower/expr.rs:SpawnOptionKey::Limits]
+- **A `spawn script` shape option arrives as an object, not an array.** `limits: {memory: "1M"}`
+  is a shape literal, and a shape is an object with one slot per field it names, so a helper that
+  reads it with `nvs_array_next_slot` gets `expected a shape, got tag 7` at run time and nothing
+  at compile time. Walk it with `NvsObj::from_raw` plus `ClassDesc::field_name(slot)` and
+  `NvsObj::field(slot)`, which is also what spares the reader a second copy of the field list.
+  [until: gone crates/nvs-stdlib/src/script.rs:fn limits_of]
 
 ## Divergences and refusals already pinned
 
