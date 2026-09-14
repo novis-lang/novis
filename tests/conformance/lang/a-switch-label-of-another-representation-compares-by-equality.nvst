@@ -1,0 +1,81 @@
+--TEST--
+A `switch` label at a representation other than the subject's compares by the one equality — `rule:expressions/switch-match-equality`, `rule:expressions/one-equality-operator`, `rule:expressions/mixed-equality`
+--FILE--
+<?nvs
+// `rule:expressions/disjoint-comparison-refused` puts `int`, `uint` and
+// `float` in one numeric domain, so a label may be written at a
+// representation the subject does not share. It is still the one comparison
+// `$n == $u` makes — exact across the whole domain, so the label that equals
+// the subject is the one that runs whichever side holds which type.
+int $n = 2;
+uint $two = 2;
+uint $three = 3;
+switch ($n) {
+    case $three:
+        echo "int subject: three\n";
+        break;
+    case $two:
+        echo "int subject: two\n";
+        break;
+    default:
+        echo "int subject: neither\n";
+}
+
+float $f = 3.0;
+switch ($f) {
+    case $two:
+        echo "float subject: two\n";
+        break;
+    case $three:
+        echo "float subject: three\n";
+        break;
+    default:
+        echo "float subject: neither\n";
+}
+
+// `rule:expressions/mixed-equality`'s row: a `mixed` subject names no
+// representation of its own, so the tags decide it at run time — and a label
+// beside one is still written at its own, a digit run staying a digit run.
+mixed $m = "2";
+switch ($m) {
+    case 2:
+        echo "mixed subject: the int\n";
+        break;
+    case "2":
+        echo "mixed subject: the string\n";
+        break;
+    default:
+        echo "mixed subject: neither\n";
+}
+
+// A `?int` erases to the same tagged representation, and `null` is a label
+// like any other: the equality is what answers it, not a separate test.
+?int $maybe = null;
+switch ($maybe) {
+    case 7:
+        echo "nullable subject: seven\n";
+        break;
+    case null:
+        echo "nullable subject: null\n";
+        break;
+    default:
+        echo "nullable subject: something else\n";
+}
+
+// A fresh, refcounted label beside a tagged subject: the comparison only
+// reads it, so it is released once the comparison has, on the path a throw
+// out of the chain takes as well as on this one.
+mixed $word = "novis";
+switch ($word) {
+    case "no" . "vis":
+        echo "concatenated label: hit\n";
+        break;
+    default:
+        echo "concatenated label: miss\n";
+}
+--EXPECT--
+int subject: two
+float subject: three
+mixed subject: the string
+nullable subject: null
+concatenated label: hit
