@@ -1,0 +1,84 @@
+--TEST--
+A child isolate answers no request of its own, so `Core\Request` and `Core\Session` throw inside one while its parent goes on answering the request that spawned it, and `Core\Server::isDraining` answers anyway because the drain bit is process state — `rule:security/request-state-throws-in-an-isolate`, `rule:security/isolate-shares-nothing`
+--GET--
+page=2
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no configuration
+# cannot spawn at all. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+
+# A store is chosen, so that the child's `Core\Session::start` is refused for the
+# reason this case is about and not for an unconfigured tree. Nothing ever reaches
+# it: `start` asks whether there is a request before it asks anything about where
+# a record would live, and the message asserted below is how the child says which
+# question stopped it.
+[session]
+backend = "shared"
+--FILE child.nvs--
+<?nvs
+// `rule:security/isolate-shares-nothing`: this program shares the compiled unit
+// with the one that spawned it and nothing else. That the parent is answering a
+// request is not a fact reachable from here, and the refusals below are how the
+// child is told so — passing the request down automatically would be ambient
+// authority crossing the boundary that exists to stop it.
+uint $refused = 0;
+try {
+    var $verb = Core\Request::method();
+} catch (LogicError $none) {
+    $refused = $refused + 1;
+}
+
+// The same question one class over, and the one that would otherwise *succeed*:
+// a deployment that has a store would mint a record and write a cookie for a
+// caller that can never present either. `[session] backend` is written in this
+// tree, so a child that got as far as the store question would say so in the
+// message, and the line below reads the message rather than the count.
+string $said = "";
+try {
+    Core\Session::start();
+} catch (LogicError $nothing) {
+    $refused = $refused + 1;
+    $said = $nothing->message;
+}
+
+echo "request state refused ", $refused, " of 2\n";
+echo "and it refused for the absent request rather than the absent store: ",
+    Core\Str::contains($said, "there is no request here") ? "yes" : "no", "\n";
+
+// The bound asserted on the other side. `Core\Server::isDraining` is not request
+// state: it reads the process's drain bit, which a child, its parent and a CLI
+// program all share, so it answers instead of refusing — a child that refused
+// here would be reporting that a shutdown question has no answer in an isolate.
+echo "the process is still readable: draining=",
+    Core\Server::isDraining() ? "true" : "false", "\n";
+--FILE--
+<?nvs
+// The parent is answering a request — the `--GET--` section above is that
+// request — which is what makes the child's refusals a property of the boundary
+// rather than of this process. A case run with no request at all cannot tell
+// those two apart, because every line of it would refuse.
+echo "the parent reads its own request: page=",
+    Core\Request::query("page") as string, "\n";
+
+var $handle = spawn script "child.nvs" with(output: "capture");
+var $child = await $handle;
+
+// `rule:security/isolate-failure-is-a-value`: what the child did arrives as data.
+// It ran to its end past both refusals, so this is the success row and its whole
+// buffer crossed with it.
+echo "ok=", $child->ok ? "true" : "false", "\n";
+echo $child->output;
+
+// And the request is still the parent's afterwards: the child asking for it and
+// being refused consumed nothing from the context that has one.
+echo "the parent still reads its own request: page=",
+    Core\Request::query("page") as string, "\n";
+--EXPECT--
+the parent reads its own request: page=2
+ok=true
+request state refused 2 of 2
+and it refused for the absent request rather than the absent store: yes
+the process is still readable: draining=false
+the parent still reads its own request: page=2
