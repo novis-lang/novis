@@ -3343,6 +3343,79 @@ pub unsafe extern "C" fn nvs_object_slot_optional_get(
     }
 }
 
+/// `$x is {path: string}`'s presence question: **is `name` readable off this
+/// receiver right now**, answered as a `bool` and never as a throw.
+///
+/// True exactly when [`nvs_object_slot_get`] over the same receiver and the
+/// same name would answer a value. The three states that make it false are the
+/// three that function throws on — a receiver holding no object, a concrete
+/// class carrying no field of that name, and a slot that was never written
+/// ([`Tag::Unset`]) — and they collapse into one answer because the caller is
+/// `rule:types/type-test`'s shape walk, which declines on all three alike. Both
+/// read their answer off [`slot_state`], so the read and the presence question
+/// cannot disagree about where a field is. An object tag over a null pointer
+/// answers `false` as well, where the read raises the engine's own fatal: a
+/// total operator has nowhere to report one, and any read of that receiver
+/// still does.
+///
+/// **No `ctx`, no `out` and no status.** `is` is total, so this raises nothing,
+/// allocates nothing, reaches no safepoint and borrows its receiver — the shape
+/// walk pays one call and, on the common case, one name comparison per field,
+/// which is `rule:types/type-test`'s stated O(n).
+///
+/// `hint` is [`nvs_object_slot_get`]'s slot hint, for its reason.
+///
+/// # Safety
+///
+/// `receiver` must point at one initialized [`Value`] its caller still owns,
+/// and `name`/`len` must describe initialized bytes that live for the call.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a value by address and a static byte \
+              range, neither of which the signature can bound"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_object_slot_probe(
+    receiver: *const Value,
+    name: *const u8,
+    len: usize,
+    hint: usize,
+) -> bool {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the byte range is initialized and outlives \
+                  this call"
+    )]
+    let name = unsafe { std::slice::from_raw_parts(name, len) };
+    let Ok(name) = std::str::from_utf8(name) else {
+        return false;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees this points at one initialized value"
+    )]
+    let receiver = unsafe { *receiver };
+    let Some(ptr) = receiver.obj_ptr() else {
+        return false;
+    };
+    if ptr.is_null() {
+        return false;
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the allocation is live, so its descriptor \
+                  is too"
+    )]
+    let desc = unsafe { &*NvsObj::class_of(ptr) };
+    #[expect(
+        unsafe_code,
+        reason = "`desc` is this object's own descriptor, which is `slot_state`'s \
+                  whole contract"
+    )]
+    let state = unsafe { slot_state(desc, ptr, name, hint) };
+    matches!(state, SlotState::Present(_))
+}
+
 /// `$issue->path = "x";` — [`nvs_object_slot_get`]'s write half, and
 /// `rule:types/erased-member-access`'s whole
 /// write rule: the slot is found by **name** on the receiver's own descriptor,
@@ -3597,14 +3670,79 @@ fn read_erased_property_hinted(
                   is too"
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
-    let Some(slot) = desc.field_slot(name, hint) else {
-        return match absent {
+    #[expect(
+        unsafe_code,
+        reason = "`desc` is this object's own descriptor, which is `slot_state`'s \
+                  whole contract"
+    )]
+    match unsafe { slot_state(desc, ptr, name, hint) } {
+        SlotState::Present(held) => Ok(held),
+        SlotState::Absent => match absent {
             AbsentField::Null => Ok(Value::null()),
             AbsentField::Throws => Err(Fault::thrown(format!(
                 "`{}` has no field `{name}`",
                 desc.name()
             ))),
-        };
+        },
+        // `rule:classes/an-unwritten-property-read-throws`: a slot that was
+        // never written reads as a throw, never as a value standing in for one.
+        // A `lateinit` property (`rule:classes/lateinit`) and an absent optional
+        // field of a shape are the two declarations that reach the state; the
+        // compiled read makes the same refusal from the payload alone,
+        // `nvs_ir::lower`'s `emit_never_written_guard` owning that half.
+        //
+        // On a shape class the state means something the `lateinit` one does
+        // not: the key was absent from the subject a hydration read, which is
+        // exactly the presence question `??`, `isset` and `empty` ask
+        // (`rule:types/shape-type`). So a guarded read of one answers `null`
+        // where the same read of a `lateinit` slot still throws — the two are
+        // told apart by [`ClassDesc::is_shape`], since no `lateinit` property
+        // can be declared on a class only a shape hydration mints.
+        SlotState::Unwritten => {
+            if matches!(absent, AbsentField::Null) && desc.is_shape() {
+                return Ok(Value::null());
+            }
+            Err(Fault::thrown(format!(
+                "`{}`'s property `${name}` is read before it is written",
+                desc.name()
+            )))
+        }
+    }
+}
+
+/// What the name a reader is keyed on currently is on the receiver's
+/// *concrete* class — [`nvs_object_slot_get`], its guarded twin and
+/// [`nvs_object_slot_probe`] all read their answers off this one lookup, so a
+/// read and the presence question that guards it cannot disagree about where a
+/// field is or whether it holds anything.
+#[derive(Clone, Copy)]
+enum SlotState {
+    /// The class carries no field of that name. `rule:types/shape-type`'s width
+    /// subtyping is why a static shape does not settle this: the value's own
+    /// class need not be the one the receiver was typed as.
+    Absent,
+    /// It carries one, and the slot was never written — [`Tag::Unset`], the
+    /// storage state [`Tag`]'s own docs keep off the roster of values.
+    Unwritten,
+    /// What the slot holds, borrowed exactly as the slot holds it: no retain,
+    /// so a consumer outliving the receiver owes it one.
+    Present(Value),
+}
+
+/// [`SlotState`] for `name` on the object at `ptr`, trying `hint` first — see
+/// [`ClassDesc::field_slot`] for what a hint buys.
+///
+/// # Safety
+///
+/// `ptr` must point at one live object whose class is `desc`.
+#[expect(
+    unsafe_code,
+    reason = "the object and its descriptor are a pairing only the caller can \
+              establish"
+)]
+unsafe fn slot_state(desc: &ClassDesc, ptr: *mut ObjHeader, name: &str, hint: usize) -> SlotState {
+    let Some(slot) = desc.field_slot(name, hint) else {
+        return SlotState::Absent;
     };
     #[expect(
         unsafe_code,
@@ -3612,31 +3750,10 @@ fn read_erased_property_hinted(
                   inside the allocation and was initialized by `new`"
     )]
     let held = unsafe { *field_ptr(ptr, slot) };
-    // `rule:classes/an-unwritten-property-read-throws`: a slot that was never written reads as a throw, never as a
-    // value standing in for one. This is the reader that holds the whole slot
-    // rather than its payload, so the *tag* is what answers — which is why
-    // `Tag::Unset` is a tag at all. A `lateinit` property (`rule:classes/lateinit`) and an
-    // absent optional field of a shape are the two declarations that reach the
-    // state; the compiled read makes the same refusal from the payload alone,
-    // `nvs_ir::lower`'s `emit_never_written_guard` owning that half.
-    //
-    // On a shape class the state means something the `lateinit` one does not:
-    // the key was absent from the subject a hydration read, which is exactly
-    // the presence question `??`, `isset` and `empty` ask
-    // (`rule:types/shape-type`). So a guarded read of one answers `null` where
-    // the same read of a `lateinit` slot still throws — the two are told apart
-    // by [`ClassDesc::is_shape`], since no `lateinit` property can be declared
-    // on a class only a shape hydration mints.
     if held.tag() == Some(Tag::Unset) {
-        if matches!(absent, AbsentField::Null) && desc.is_shape() {
-            return Ok(Value::null());
-        }
-        return Err(Fault::thrown(format!(
-            "`{}`'s property `${name}` is read before it is written",
-            desc.name()
-        )));
+        return SlotState::Unwritten;
     }
-    Ok(held)
+    SlotState::Present(held)
 }
 
 /// `rule:types/erased-member-access`'s erased write and
@@ -4346,6 +4463,51 @@ mod tests {
         // A hint past the end is not an index error.
         assert_eq!(desc.field_slot("x", 9), Some(0));
         assert_eq!(desc.field_slot("z", 0), None);
+    }
+
+    /// `nvs_object_slot_probe` answers `true` in exactly the cases the
+    /// throwing read hands a value back, which is what lets
+    /// `rule:types/type-test`'s shape walk guard a read it then knows cannot
+    /// throw. Asserted as an **agreement** over every state a name can be in
+    /// rather than case by case, so a probe that grew a rule of its own fails
+    /// here while still looking right on each line.
+    #[test]
+    fn the_slot_probe_answers_true_in_exactly_the_cases_the_read_does_not_throw() {
+        let mut table = ClassTable::new();
+        let id = table.define("Point", &["x", "y"], &[]);
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        let object = unsafe { NvsObj::new(table.desc(id)) };
+        object.set_field(0, Value::int(3));
+        // The state an absent optional shape field and an unwritten `lateinit`
+        // property both reach, and the one a fresh object's `null` is not.
+        object.set_field(1, Value::unset());
+        let receiver = Value::object(object.clone());
+
+        // Present, present through a hint that misses, unwritten, a name the
+        // class does not carry, and a receiver holding no object at all.
+        let subjects = [
+            (receiver, "x", 0_usize),
+            (receiver, "x", 9),
+            (receiver, "y", 1),
+            (receiver, "nope", 0),
+            (Value::int(7), "x", 0),
+        ];
+        for (subject, name, hint) in subjects {
+            #[expect(
+                unsafe_code,
+                reason = "the receiver and the name both outlive the call, which \
+                          is the probe's whole contract"
+            )]
+            let probed = unsafe {
+                nvs_object_slot_probe(&raw const subject, name.as_ptr(), name.len(), hint)
+            };
+            let read = read_erased_property_hinted(subject, name, hint, AbsentField::Throws);
+            assert_eq!(
+                probed,
+                read.is_ok(),
+                "the probe and the read disagree about `{name}` at hint {hint}"
+            );
+        }
     }
 
     #[test]

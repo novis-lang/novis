@@ -876,6 +876,49 @@ pub enum InstKind {
         /// no field of that name.
         absent: AbsentKey,
     },
+    /// `$x is {path: string}`'s presence question, and the one object access
+    /// that **cannot fail**: does the receiver carry a readable field of this
+    /// name, answered as a [`Ty::Bool`]?
+    ///
+    /// One call to `nvs_runtime::nvs_object_slot_probe`, keyed on the **name**
+    /// and taking [`Self::SlotProbe::slot`] as the same hint, for the reasons
+    /// [`InstKind::SlotGet`] gives for both. It answers `true` exactly when
+    /// that instruction under [`AbsentKey::Throws`] would answer a value rather
+    /// than throw, so `probe`-then-`get` is a total pair and the read's error
+    /// edge on the proven side is unreachable — the IR carries it anyway,
+    /// holding no proof to erase it with.
+    ///
+    /// **Infallible, so no error edge.** `rule:types/type-test` makes `is`
+    /// total, and the three states answering `false` here are the three
+    /// [`InstKind::SlotGet`] throws on: a receiver holding no object, a
+    /// concrete class carrying no field of that name, and a slot that was never
+    /// written. `nvs-codegen` emits no status check for it, and
+    /// `crate::lower::Lowering::emit` needs no landing pad.
+    ///
+    /// **Why not a third [`AbsentKey`].** That enum says what an absent *read*
+    /// answers, and every arm of it answers the field's own value; this asks a
+    /// different question and answers a `bool`. Nor could the read hand absence
+    /// back as a value instead: `nvs_runtime::Tag::Unset` is a storage state
+    /// that never becomes an expression's value, and [`AbsentKey::Null`] cannot
+    /// tell an absent `{a: ?int}` from an `a` holding `null` — the distinction
+    /// `rule:types/type-test`'s shape row exists to make.
+    ///
+    /// Borrows its receiver and allocates nothing: one call, and one name
+    /// comparison where the hint holds. The shape walk spends that once per
+    /// field, which is `rule:types/type-test`'s stated O(n).
+    SlotProbe {
+        /// The subject, already lowered — a [`Ty::Object`], or a [`Ty::Tagged`]
+        /// whose tag this instruction checks and answers `false` for.
+        object: ValueId,
+        /// The field's own name, `$`-sigil not included — what the probe is
+        /// keyed on.
+        field: String,
+        /// The field's position in the shape being *tested against*, sorted by
+        /// name: a hint, not the answer, and wrong for the reason
+        /// [`InstKind::SlotGet`]'s is — the subject's own class is not the shape
+        /// this asks about.
+        slot: u32,
+    },
     /// `$issue->path = "x";` — [`InstKind::SlotGet`]'s write half, and
     /// `rule:types/erased-member-access`'s other paragraph: one call to
     /// `nvs_runtime::nvs_object_slot_set`, keyed on the **name** and taking

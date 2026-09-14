@@ -1516,6 +1516,13 @@ struct Signatures {
     /// as a whole 16-byte value, because a `mixed` one arrives with a tag
     /// nothing proved and this helper is where it is checked.
     slot_get: Signature,
+    /// `nvs_object_slot_probe(receiver, name, len, hint) -> bool` — the
+    /// presence half of [`Self::slot_get`], and `I8` for [`Self::instanceof`]'s
+    /// reason. Narrower than the read by both of the parameters
+    /// `rule:errors/propagation` asks for: the question cannot fail, so there is
+    /// no `ctx` to raise through and no `out` to write a value to. See
+    /// `nvs_ir::ir::InstKind::SlotProbe`.
+    slot_probe: Signature,
     /// `nvs_object_slot_set(ctx, receiver, name, len, hint, value, out) -> status`
     /// — `rule:types/erased-member-access`'s name-keyed shape *write*. One parameter wider than
     /// [`Self::slot_get`], because the value travels through a caller-owned
@@ -2076,6 +2083,13 @@ impl Signatures {
         slot_get.params.push(AbiParam::new(ptr)); // out
         slot_get.returns.push(AbiParam::new(types::I32));
 
+        let mut slot_probe = module.make_signature();
+        slot_probe.params.push(AbiParam::new(ptr)); // receiver, by address
+        slot_probe.params.push(AbiParam::new(ptr)); // field name bytes
+        slot_probe.params.push(AbiParam::new(ptr)); // field name length
+        slot_probe.params.push(AbiParam::new(types::I64)); // slot hint
+        slot_probe.returns.push(AbiParam::new(types::I8));
+
         let mut slot_set = module.make_signature();
         slot_set.params.push(AbiParam::new(ptr)); // ctx
         slot_set.params.push(AbiParam::new(ptr)); // receiver, by address
@@ -2172,6 +2186,7 @@ impl Signatures {
             instanceof,
             class_method,
             slot_get,
+            slot_probe,
             slot_set,
             key_get,
             key_set,

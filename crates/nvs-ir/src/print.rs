@@ -244,6 +244,11 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             };
             format!("slot.get{suffix} v{}, {field} @{slot}", object.index())
         }
+        InstKind::SlotProbe {
+            object,
+            field,
+            slot,
+        } => format!("slot.probe v{}, {field} @{slot}", object.index()),
         InstKind::SlotSet {
             object,
             field,

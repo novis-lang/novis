@@ -699,6 +699,14 @@ impl Emitter<'_, '_> {
             } => {
                 return self.emit_slot_get(cur, inst, *object, field, *slot, *absent);
             }
+            InstKind::SlotProbe {
+                object,
+                field,
+                slot,
+            } => {
+                let answer = self.emit_slot_probe(*object, field, *slot)?;
+                self.define(inst, answer)?;
+            }
             InstKind::SlotSet {
                 object,
                 field,
@@ -2730,6 +2738,32 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
+    /// `$x is {path: string}`'s per-field presence question: one call to
+    /// `nvs_runtime::nvs_object_slot_probe`, on [`Self::emit_slot_get`]'s
+    /// arguments less the two the read needs and this does not.
+    ///
+    /// **No status check and no landing block**, because the helper cannot
+    /// fail — see `nvs_ir::ir::InstKind::SlotProbe`, which owns why the
+    /// question is total. That is also why the current block is not returned:
+    /// nothing here splits it, so this emits like
+    /// [`Self::emit_instanceof`] rather than like the read.
+    ///
+    /// The name goes in this unit's data section and the slot index rides
+    /// along as the hint, both for [`Self::emit_slot_get`]'s reasons.
+    fn emit_slot_probe(
+        &mut self,
+        object: ValueId,
+        field: &str,
+        slot: u32,
+    ) -> Result<Value, CodegenError> {
+        let (name, len) = self.emit_bytes(field.as_bytes())?;
+        let hint = self.b.ins().iconst(types::I64, i64::from(slot));
+        let recv_p = self.materialize_receiver(object)?;
+        let callee = self.runtime_ref("nvs_object_slot_probe", RuntimeSig::SlotProbe)?;
+        let call = self.b.ins().call(callee, &[recv_p, name, len, hint]);
+        Ok(self.b.inst_results(call)[0])
+    }
+
     /// `$issue->path = "x";`: one call to `nvs_runtime::nvs_object_slot_set`,
     /// [`Self::emit_slot_get`]'s write half and a call for the same reason —
     /// a shape value has no class label to resolve a layout under, and the
@@ -3796,6 +3830,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::InstanceOf => &self.sigs.instanceof,
             RuntimeSig::ClassMethod => &self.sigs.class_method,
             RuntimeSig::SlotGet => &self.sigs.slot_get,
+            RuntimeSig::SlotProbe => &self.sigs.slot_probe,
             RuntimeSig::KeyGet => &self.sigs.key_get,
             RuntimeSig::KeySet => &self.sigs.key_set,
             RuntimeSig::SlotSet => &self.sigs.slot_set,
@@ -3856,6 +3891,7 @@ enum RuntimeSig {
     InstanceOf,
     ClassMethod,
     SlotGet,
+    SlotProbe,
     SlotSet,
     KeyGet,
     KeySet,

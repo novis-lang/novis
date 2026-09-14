@@ -371,7 +371,8 @@ pub use object::{
     nvs_abstract_method, nvs_class_method, nvs_object_class_name, nvs_object_field_get,
     nvs_object_field_set, nvs_object_instanceof, nvs_object_key_get, nvs_object_key_set,
     nvs_object_new, nvs_object_release, nvs_object_retain, nvs_object_slot_get,
-    nvs_object_slot_optional_get, nvs_object_slot_set, nvs_value_instanceof, write_erased_property,
+    nvs_object_slot_optional_get, nvs_object_slot_probe, nvs_object_slot_set, nvs_value_instanceof,
+    write_erased_property,
 };
 pub use peer::{
     Closing, Delivery, INBOX_CAP, Inbox, PeerError, PeerFrame, PeerSocket, slow_subscribers_closed,
