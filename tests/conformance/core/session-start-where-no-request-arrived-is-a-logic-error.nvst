@@ -1,0 +1,92 @@
+--TEST--
+`Core\Session::start` in a program answering no request throws a `LogicError` naming the absent request, and it asks that question before it asks anything about the store — `rule:security/request-state-throws-in-an-isolate`, `rule:core-api/session-roster`
+--FILE nvs.toml--
+# A store *is* chosen here, and that is the point of the file. The refusal below
+# has to be the one about the absent request, and a tree that configured nothing
+# cannot tell that refusal apart from
+# `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s
+# — both would stop `start()` and only the message would say which. Nothing ever
+# reaches the store: `start` asks whether a request arrived first
+# (`crates/nvs-stdlib/src/session.rs:752`).
+[session]
+backend = "shared"
+--FILE--
+<?nvs
+// This case writes none of the seven request sections, so it is a program
+// answering no request — `crates/nvs-test/src/lib.rs`'s module doc is where that
+// is decided. `rule:security/request-state-throws-in-an-isolate` reaches one step
+// wider than an isolate for exactly this shape: a CLI program, a scheduled
+// script, a job worker and a test all run with nothing inbound, and a session
+// belongs to the client a request came from, so there is none to open.
+uint $refused = 0;
+string $said = "";
+try {
+    Core\Session::start();
+} catch (LogicError $noRequest) {
+    $refused = $refused + 1;
+    $said = $noRequest->message;
+}
+echo "start was refused ", $refused, " of 1\n";
+
+// The class is the assertion above; the sentence is the one below. An empty
+// session would say the request arrived and carried no session, which is a
+// different fact from no request arriving at all, and the message is how the
+// program is told which of the two it is looking at.
+echo "and it says there is no request here: ",
+    Core\Str::contains($said, "there is no request here") ? "yes" : "no", "\n";
+echo "and it names the member the program wrote: ",
+    Core\Str::contains($said, "Core\\Session::start()") ? "yes" : "no", "\n";
+
+// The bound on the other side of the ordering. `[session] backend` is written in
+// this tree, so a `start` that asked the store question first would have opened a
+// record here and minted an identifier for a caller that can never present one.
+// A refusal naming the directive would mean the questions run the other way
+// round, so the absence of that name is what is asserted.
+echo "and it is not the store's refusal: ",
+    Core\Str::contains($said, "[session]") ? "no" : "yes", "\n";
+
+// Agreement across the classes the rule governs: `Core\Request` owes the same
+// answer for the same reason, so the two refuse alike rather than each growing
+// its own story about a context with nothing inbound.
+uint $alike = 0;
+try {
+    var $verb = Core\Request::method();
+} catch (LogicError $noRequestEither) {
+    if (Core\Str::contains($noRequestEither->message, "there is no request here")) {
+        $alike = $alike + 1;
+    }
+}
+try {
+    var $page = Core\Request::query("page");
+} catch (LogicError $stillNone) {
+    if (Core\Str::contains($stillNone->message, "there is no request here")) {
+        $alike = $alike + 1;
+    }
+}
+echo "Core\\Request refuses alike ", $alike, " of 2\n";
+
+// And the exemption, which is the half that keeps this a rule about requests
+// rather than a rule about `Core`. Whether a shutdown has begun is a fact about
+// the process, so `Core\Server::isDraining` answers here as it answers in a
+// child isolate — `crates/nvs-stdlib/src/server.rs:25-28` decided what a program
+// nobody is serving reads.
+echo "the process is still readable: draining=",
+    Core\Server::isDraining() ? "true" : "false", "\n";
+
+// It is catchable at the root of spec § 10's tree as well: a program that cannot
+// open a session is one that can say so, not one that dies.
+uint $byRoot = 0;
+try {
+    Core\Session::start();
+} catch (Throwable $any) {
+    $byRoot = $byRoot + 1;
+}
+echo "caught by the root of the tree ", $byRoot, " of 1\n";
+--EXPECT--
+start was refused 1 of 1
+and it says there is no request here: yes
+and it names the member the program wrote: yes
+and it is not the store's refusal: yes
+Core\Request refuses alike 2 of 2
+the process is still readable: draining=false
+caught by the root of the tree 1 of 1
