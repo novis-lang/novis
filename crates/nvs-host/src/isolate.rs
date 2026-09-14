@@ -1491,6 +1491,106 @@ mod tests {
         }
     }
 
+    /// A read-only handle on the object a [`Value`] holds, for reading one
+    /// field back off it.
+    ///
+    /// [`NvsObj::from_raw`] takes a reference **over**, and the one here belongs
+    /// to the caller's `value` — so the handle is never dropped, which is how
+    /// `nvs_runtime::graph`'s own fixtures borrow one. Its counterpart there is
+    /// private to that module, so this is a copy rather than an import.
+    fn borrowed(value: Value) -> std::mem::ManuallyDrop<NvsObj> {
+        let ptr = value.obj_ptr().expect("an object value");
+        #[expect(
+            unsafe_code,
+            reason = "the caller's `value` owns the reference this borrows"
+        )]
+        // SAFETY: `value` keeps the object alive for as long as the caller holds
+        // it, and this handle is never dropped, so the reference is neither
+        // released here nor counted twice.
+        let handle = unsafe { NvsObj::from_raw(ptr) };
+        std::mem::ManuallyDrop::new(handle)
+    }
+
+    /// `rule:security/isolate-values-cross-by-copy`'s cycle rule, driven
+    /// through a real spawn rather than over the walk alone: `$a['self'] = $a`
+    /// crosses **in** as the argument, and what the child hands back is cyclic
+    /// in the same place.
+    ///
+    /// `nvs_runtime::graph`'s `a_cyclic_value_crosses_without_hanging` pins the
+    /// termination at the line that performs it. What a spawn adds is that
+    /// there are *two* walks and they are not the same walk: the argument copy
+    /// names no receiving table, and the answer copy names the parent's — so
+    /// the cycle has to close on each side, and the second one closes in a root
+    /// the child's arena is about to be dropped out from under.
+    ///
+    /// Both are asserted, the first from inside the child, because a boundary
+    /// that unrolled the argument one level and handed back something acyclic
+    /// is green against either half alone. The ring is built from the parent's
+    /// own descriptor for
+    /// [`an_unresolvable_class_is_refused_at_the_boundary`]'s reason: a class
+    /// the parent cannot name is refused on the way back, and this case is
+    /// about the cycle rather than about that refusal. `previous` is the slot it
+    /// closes through, being the one a `Throwable` holds another `Throwable` in.
+    #[test]
+    fn a_cyclic_argument_crosses_a_real_spawn_and_comes_back_with_its_cycle() {
+        let mut ctx = parent();
+        let desc = ctx
+            .class_desc("Throwable")
+            .expect("the parent's own table declares it");
+        #[expect(unsafe_code, reason = "the parent's table outlives this isolate")]
+        // SAFETY: the descriptor came out of the parent's own live table.
+        let ring = unsafe { NvsObj::new(desc) };
+        // `$ring->previous = $ring`, which is where a naive walk never returns —
+        // and which is also the second owner that makes the crossing below a
+        // copy rather than the move a uniquely-owned value gets.
+        ring.set_field(1, Value::object(ring.clone()));
+        let argument = Value::object(ring);
+        let ring_ptr = argument.obj_ptr().expect("an object value");
+
+        let closed: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let inside = Rc::clone(&closed);
+        let program: Program = Box::new(move |_: &mut Ctx, args: Value| {
+            inside.set(borrowed(args).field(1).obj_ptr() == args.obj_ptr());
+            args
+        });
+
+        let done = run(Isolate::new(program, argument, Output::Capture), &mut ctx)
+            .expect("a cycle is not an argument that has no meaning on the other side");
+
+        assert!(done.ok, "{:?}", done.error);
+        assert!(
+            closed.get(),
+            "the argument's cycle closes on the child's own copy, in the child's arena",
+        );
+        assert_ne!(
+            done.value.obj_ptr(),
+            Some(ring_ptr),
+            "and the answer is a copy: the parent's own object never crossed",
+        );
+        assert_eq!(
+            borrowed(done.value).field(1).obj_ptr(),
+            done.value.obj_ptr(),
+            "the answer's cycle closes on the answer, rather than on an arena that is gone",
+        );
+
+        // Each ring holds itself, which is the leak a refcount cannot see. The
+        // child's went with its arena; these two are cleared by hand, as
+        // `nvs_runtime::graph`'s fixtures clear theirs.
+        borrowed(done.value).set_field(1, Value::null());
+        release(done.value);
+        #[expect(unsafe_code, reason = "the ring is still held by its own field")]
+        // SAFETY: the self-reference is the last one, so the object is live, and
+        // this handle is never dropped — the owner taken from it below is.
+        let held = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ring_ptr) });
+        // The parent's ring is down to that one reference, the argument's having
+        // crossed, so it takes one more owner before the clear: releasing a
+        // self-reference at a count of one takes the object apart half-way
+        // through the very store that would have made it safe to free.
+        let owner = (*held).clone();
+        owner.set_field(1, Value::null());
+        drop(owner);
+    }
+
     /// `rule:classes/graph-copy`'s third bullet, at this boundary: an object whose class the
     /// receiving side does not have is refused naming the class, and never
     /// arrives as a stub.
