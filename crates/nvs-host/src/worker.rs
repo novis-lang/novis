@@ -11,19 +11,32 @@
 //! # The blocking pool, turned around
 //!
 //! [`crate::blocking::run`] takes work that cannot be waited on *off* a core and
-//! brings its answer back. [`place`] is the same handoff pointing the other way,
-//! and it is deliberately the same shape: on the parent's core, take a
+//! brings its answer back. A placement is the same handoff pointing the other
+//! way, and it is deliberately the same shape: on the parent's core, take a
 //! [`RemoteWake`] for the running task, put the work and a slot for its answer
-//! into another core's [`Inbox`], ring that core's bell, and park. On the far
-//! core, run the work **as a task** — so it may park, spawn children and reach a
+//! into another core's [`Inbox`], and ring that core's bell. On the far core,
+//! run the work **as a task** — so it may park, spawn children and reach a
 //! reactor of its own, which is the whole difference from a pool thread — put
 //! the outcome in the slot, and drop the handle, which ends the parent's park.
 //! Back on the parent's core, take the answer out of the slot, or park again:
 //! the slot is the record and the wake only ends the wait.
 //!
-//! **Off a core, [`place`] simply calls the function.** There is no core to hand
-//! back and no task to park, which is the answer [`crate::blocking::run`] and
-//! [`crate::timer::park_until`] both give for the same state.
+//! # Posting and collecting are two calls
+//!
+//! [`post`] does the first half and answers a [`Posted`]: the child is on its
+//! way to a core, and nothing here has parked. [`Posted::collect`] does the
+//! second. The split is [`nvs_runtime::host::Host::start_isolate`]'s
+//! **eagerness**, and it is what makes `spawn` and `await` two constructs rather
+//! than one blocking call wearing two names — a parent that posts three children
+//! and then collects three has three of them running at once, on as many cores
+//! as [`WorkerCores::pick`] had to give it. [`place`] is the two halves back to
+//! back, for a caller that wants the answer and nothing in between.
+//!
+//! **Off a core, [`post`] hands the function back** rather than answering a
+//! placement nothing would ever collect: there is no core to give up and no task
+//! to park, so [`place`] calls the function where it stands. That is the answer
+//! [`crate::blocking::run`] and [`crate::timer::park_until`] both give for the
+//! same state.
 //!
 //! # The inbox is a task, not a hook inside the reactor
 //!
@@ -83,16 +96,15 @@
 //! by the goal's standing decisions, and closing it is a serving core calling
 //! into this module as it starts rather than anything about the crossing.
 //!
-//! Nothing above `nvs-host` reaches this yet. `nvs_runtime::host::Placement`
-//! arrives at [`crate::group`]'s seam beside a
-//! [`nvs_runtime::script::Program`], which is a `Box<dyn FnOnce(&mut Ctx, Value)
-//! -> Value>` and therefore neither `Send` nor meaningful on another core: the
-//! program a worker placement crosses with has to be *named* — a path the far
-//! core's own resolver resolves, or a static method of a unit it resolves the
-//! same way — and its argument has to cross as `nvs_runtime::graph::encode`'s
-//! bytes rather than as a `Value`. Until the seam carries those, both placement
-//! words start the child on the parent's core; `crate::group`'s module doc is
-//! that gap's one home.
+//! Nothing above `nvs-host` reaches this yet, and what is left is the route
+//! rather than the shape. [`nvs_runtime::host::Entry`] arrives at
+//! [`crate::group`]'s seam as the child's program **named** — a path, or a
+//! static method of the parent's unit — which is `Send` and becomes code on
+//! whichever core is about to run it. What a worker placement still owes is its
+//! argument as [`nvs_runtime::graph::encode`]'s bytes rather than as a `Value`,
+//! and an arm that posts the two across. Until then both placement words start
+//! the child on the parent's core; [`crate::group`]'s module doc is that gap's
+//! one home.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -376,6 +388,92 @@ impl Drop for Awaited {
     }
 }
 
+/// A placement that has been posted and not collected yet: a child already on
+/// its way to another core, and the whole of what its parent holds.
+///
+/// [`post`] answers one of these without parking, [`Posted::collect`] parks for
+/// what the child answered, and [`Posted::finished`] asks whether that park
+/// would wait at all. Dropping one instead is legal and is not a leak: the drop
+/// is [`Awaited`]'s, which cancels the child and lets the far core tear it down
+/// on its own time — [`nvs_runtime::host::Running`]'s own reading of a spawn
+/// nobody awaited, with the answer discarded rather than crossing.
+pub struct Posted<T> {
+    /// Where the far core leaves the answer. The record; the wake that ends the
+    /// park only says there is something to re-read.
+    slot: Arc<Mutex<Option<Answer<T>>>>,
+    /// The cancellation half, which is also this handle's `Drop`.
+    awaited: Awaited,
+}
+
+impl<T> std::fmt::Debug for Posted<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Hand-written so that a `T` with no `Debug` of its own still leaves the
+        // handle printable, and what is printed is what a reader asks of one:
+        // whether there is anything left to wait for.
+        f.debug_struct("Posted")
+            .field("finished", &self.finished())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<T> Posted<T> {
+    /// Whether the child has ended, asked **without waiting** for it.
+    ///
+    /// [`Answering`]'s `Drop` is what sets it, so it is true for a child that
+    /// ran to its end, one that panicked on the far core and one torn down
+    /// half-way — every state in which [`Posted::collect`] has nothing to park
+    /// for. `false` says only that the child had not ended when it was asked;
+    /// what says to ask again is the wake, never a re-read on a loop.
+    #[must_use]
+    pub fn finished(&self) -> bool {
+        self.awaited.placed.is_finished()
+    }
+
+    /// Parks the calling task until the child's answer is in the slot, and
+    /// answers with it.
+    ///
+    /// The slot is read before the first park, because the child may have ended
+    /// while its parent was doing something else — which is the whole point of
+    /// posting separately — and a wake delivered before that park is one the
+    /// park would otherwise wait out.
+    pub fn collect(self) -> Answer<T> {
+        loop {
+            if let Some(answer) = lock(&self.slot).take() {
+                return answer;
+            }
+            let resumed = suspend_current(Waiting::Parked);
+            if resumed.cancelled() {
+                // ADR 0184 § 4: the cancellation goes across and this call keeps
+                // waiting for the acknowledgement, which arrives as the child's
+                // teardown filling the slot. Ending the wait here would return
+                // with work still running on another core.
+                self.awaited.cancel();
+            } else if !resumed.suspended() {
+                // Unreachable in practice: this handle exists, so a task asked
+                // for it and there is a scheduler. Yielding rather than
+                // asserting keeps a hypothetical wrong answer here a slow loop
+                // instead of a killed worker.
+                std::thread::yield_now();
+            }
+        }
+    }
+
+    /// Ends the child now, discards whatever it had produced, and does not
+    /// return while it is still running.
+    ///
+    /// [`nvs_runtime::host::Running::abandon`]'s contract, and its one carve-out
+    /// with it: a stack the scheduler is force-unwinding may not park, so the
+    /// cancellation goes out and the wait does not happen. The child dies either
+    /// way — what the wait buys is that it has *already* died when this returns.
+    pub fn abandon(self) {
+        self.awaited.cancel();
+        if self.finished() || nvs_runtime::Teardown::in_progress() {
+            return;
+        }
+        drop(self.collect());
+    }
+}
+
 /// The cores this process has started for placements, and the bound on them.
 ///
 /// One per process in practice — [`cores`] holds it — and a type rather than a
@@ -502,6 +600,10 @@ fn cores() -> &'static Mutex<WorkerCores> {
 /// and the placement is decided here and never revisited: `f` runs as a task on
 /// the core this hands it to, and that task never migrates.
 ///
+/// [`post`] and [`Posted::collect`] back to back, for a caller that has nothing
+/// to do between them. A caller that does — one child per core, all of them
+/// running before any is waited for — posts them itself.
+///
 /// Off a core the function is simply called on this thread — there is no core to
 /// protect, no task to park, and nothing to hand back. So is the case where no
 /// core could be started at all, which is a platform that lists no CPU or an OS
@@ -519,6 +621,33 @@ where
     T: Send + 'static,
 {
     place_on(cores(), f)
+}
+
+/// Starts `f` on another core and hands back the handle that collects it, or
+/// gives `f` back when there is no core to start it on.
+///
+/// The eager half of a placement, and the one
+/// [`nvs_runtime::host::Host::start_isolate`]'s contract asks for: `f` is a
+/// runnable task on the far core before this returns, so a parent that posts
+/// three children has three of them going while it is still posting. The park
+/// is [`Posted::collect`]'s and belongs to whoever wants the answer.
+///
+/// `Err(f)` is the function handed back untouched, for a caller off a core, one
+/// whose reactor cannot issue a wake, and a set that could start no core at all
+/// — the three states [`place`] answers by calling `f` where it stands. It is
+/// not a failure: nothing has been started, so the caller still owns every
+/// choice it had.
+///
+/// # Panics
+///
+/// Not here, and not in [`Posted::collect`] either: [`place`]'s own note owns
+/// why a panic on the far core crosses as [`Answer::Panicked`].
+pub fn post<T, F>(f: F) -> Result<Posted<T>, F>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    post_on(cores(), f)
 }
 
 /// How many cores this process has started for placements, and the bound on
@@ -542,16 +671,29 @@ where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
+    match post_on(cores, f) {
+        Ok(posted) => posted.collect(),
+        Err(f) => here(f),
+    }
+}
+
+/// [`post`], against a named set of cores — [`place_on`]'s seam, for the half
+/// of it that does not park.
+fn post_on<T, F>(cores: &Mutex<WorkerCores>, f: F) -> Result<Posted<T>, F>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
     let Some(me) = current_task() else {
-        return here(f);
+        return Err(f);
     };
     let Some(inbox) = lock(cores).pick() else {
-        return here(f);
+        return Err(f);
     };
     // Rule 1's ordering, and the reason the core is picked first: the handle
     // exists before anything can be written to the inbox that would fire it.
     let Some(wake) = reactor::with_current(|reactor| reactor.remote_wake(me)) else {
-        return here(f);
+        return Err(f);
     };
 
     let slot: Arc<Mutex<Option<Answer<T>>>> = Arc::new(Mutex::new(None));
@@ -580,25 +722,10 @@ where
     // rather than waiting for a core that has stopped receiving.
     drop(inbox.post(start));
 
-    let awaited = Awaited { placed, inbox };
-    loop {
-        if let Some(answer) = lock(&slot).take() {
-            return answer;
-        }
-        let resumed = suspend_current(Waiting::Parked);
-        if resumed.cancelled() {
-            // ADR 0184 § 4: the cancellation goes across and this call keeps
-            // waiting for the acknowledgement, which arrives as the child's
-            // teardown filling the slot. Ending the wait here would return with
-            // work still running on another core.
-            awaited.cancel();
-        } else if !resumed.suspended() {
-            // Unreachable in practice: `current_task` answered, so there is a
-            // scheduler. Yielding rather than asserting keeps a hypothetical
-            // wrong answer here a slow loop instead of a killed worker.
-            std::thread::yield_now();
-        }
-    }
+    Ok(Posted {
+        slot,
+        awaited: Awaited { placed, inbox },
+    })
 }
 
 /// The answer for a caller with no core to hand back.
@@ -886,6 +1013,89 @@ mod tests {
             lock(&cores).started(),
             2,
             "the set grew while it was draining"
+        );
+    }
+
+    #[test]
+    fn two_posted_children_run_at_once_before_either_is_collected() {
+        let cores = Mutex::new(WorkerCores::new(2));
+        let (mut sched, _installed) = core();
+
+        let (first_up, first_arrived) = mpsc::channel();
+        let (second_up, second_arrived) = mpsc::channel();
+
+        let answers: Rc<Cell<Option<(ThreadId, ThreadId)>>> = Rc::new(Cell::new(None));
+        let collected = Rc::clone(&answers);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_| {
+            // Each child waits for the other, so neither can answer until both
+            // are running. A placement that only started at the collect would
+            // leave the first one waiting out its own timeout here.
+            let Ok(first) = post_on(&cores, move || {
+                first_up.send(()).expect("the test went away");
+                second_arrived
+                    .recv_timeout(Duration::from_secs(5))
+                    .expect("the sibling was not running while this one was");
+                std::thread::current().id()
+            }) else {
+                panic!("the first child was not posted");
+            };
+            let Ok(second) = post_on(&cores, move || {
+                second_up.send(()).expect("the test went away");
+                first_arrived
+                    .recv_timeout(Duration::from_secs(5))
+                    .expect("the sibling was not running while this one was");
+                std::thread::current().id()
+            }) else {
+                panic!("the second child was not posted");
+            };
+            let (Answer::Value(one), Answer::Value(two)) = (first.collect(), second.collect())
+            else {
+                panic!("a posted child never answered");
+            };
+            collected.set(Some((one, two)));
+        });
+        run_until_idle(&mut sched).expect("the loop failed");
+
+        let Some((one, two)) = answers.take() else {
+            panic!("the parent never collected what it posted");
+        };
+        let placing = std::thread::current().id();
+        assert_ne!(
+            one, placing,
+            "a posted child ran on the core that posted it"
+        );
+        assert_ne!(
+            two, placing,
+            "a posted child ran on the core that posted it"
+        );
+        assert_ne!(
+            one, two,
+            "both children took one core, which two overlapping placements may not"
+        );
+    }
+
+    #[test]
+    fn a_placement_posted_off_a_core_hands_the_function_back() {
+        let cores = Mutex::new(WorkerCores::new(1));
+        let ran = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&ran);
+
+        let Err(f) = post_on(&cores, move || flag.store(true, Ordering::Relaxed)) else {
+            panic!("a thread with no task of its own was handed a core to place on");
+        };
+        assert!(
+            !ran.load(Ordering::Relaxed),
+            "the function ran before its caller had decided where to run it"
+        );
+        f();
+        assert!(
+            ran.load(Ordering::Relaxed),
+            "what came back was not the function that was handed in"
+        );
+        assert_eq!(
+            lock(&cores).started(),
+            0,
+            "a core was started for a placement that was never made"
         );
     }
 }
