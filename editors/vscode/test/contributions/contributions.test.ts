@@ -243,8 +243,9 @@ describe("the extension's identity", () => {
   });
 
   it("carries the npm scripts the repository's tooling calls", () => {
-    // `tools/verify.py` runs `test:headless`; the loop's stage 8 check runs `package`.
-    for (const script of ["compile", "lint", "test:headless", "package"]) {
+    // `tools/verify.py` runs `test:headless`; the loop's acceptance sweep runs `test:host` on every
+    // iteration and `package` at stage 8.
+    for (const script of ["compile", "lint", "test:headless", "test:host", "package"]) {
       assert.ok(manifest.scripts[script], `package.json declares no ${script} script`);
     }
   });
@@ -391,8 +392,9 @@ describe("what the extension may depend on", () => {
   });
 
   it("keeps the tooling in devDependencies", () => {
-    // A runtime dependency ships to users and a test library does not.
-    for (const tool of ["typescript", "mocha", "eslint"]) {
+    // A runtime dependency ships to users and a test library does not. `@vscode/test-electron`
+    // downloads an editor, which is the clearest case of the two there is.
+    for (const tool of ["typescript", "mocha", "eslint", "@vscode/test-electron"]) {
       assert.ok(manifest.devDependencies?.[tool], `${tool} is not a devDependency`);
       assert.equal(manifest.dependencies?.[tool], undefined);
     }

@@ -1,5 +1,6 @@
-// The headless tier, as one command: every suite under `out/test/`, run in order, each reporting
-// its own line so a failing ledger entry says which one broke.
+// The headless tier, as one command: every suite under `out/test/` that runs without an editor, in
+// order, each reporting its own line so a failing ledger entry says which one broke. The host tier's
+// suite lives under the same tree and is skipped here; `scripts/host.mjs` is what runs it.
 //
 // `tools/loop.py`'s acceptance check greps this output for `grammar:`, `contributions:`,
 // `protocol:` and `0 failing`, and `tools/verify.py` greps it for `N passing`. A suite that does
@@ -20,6 +21,10 @@ const OUT = resolve(HERE, "..", "out", "test");
 // named here runs after these, alphabetically.
 const ORDER = ["grammar", "contributions", "protocol"];
 
+// `host` is the other tier and imports `vscode`, which resolves to nothing outside the extension host.
+// `scripts/host.mjs` is what runs it.
+const ELSEWHERE = ["host"];
+
 function suites() {
   if (!existsSync(OUT)) {
     return [];
@@ -27,6 +32,7 @@ function suites() {
   const found = readdirSync(OUT, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
+    .filter((name) => !ELSEWHERE.includes(name))
     .filter((name) => cases(name).length > 0);
   return found.sort((a, b) => {
     const ai = ORDER.indexOf(a);
