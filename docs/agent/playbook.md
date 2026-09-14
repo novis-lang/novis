@@ -2064,6 +2064,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `docs/rules/<topic>.json`, the only home for that metadata. Edit the fragment and the json, then
   `python tools/rules.py --render`, or `verify.py` fails on the stale generated chapter — a sentence
   about a file nobody edits rather than about the key you added. [until: reviewed 2026-09-14]
+- **`cargo test --lib -p nvs-cli <name>` cannot run one of that crate's cases: it has no library
+  target.** The cases live in the `nvs` binary, so the answer is `no library targets found in
+  package` and not a missing test. Run `cargo test --bin nvs <name>` — no `-p`, which is what
+  `AGENTS.md` asks for anyway, and the bin name is unique across the workspace.
+  [until: exists crates/nvs-cli/src/lib.rs]
 
 ## Running things
 

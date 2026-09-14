@@ -4,62 +4,55 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal
-opens). **Stage 3 is now whole on both halves.** `nvs serve` binds the endpoint `[control] socket`
-names before any listener is bound, runs `nvs_server::control::serve` on one thread of its own, and
-supplies `crate::control::Process` as the `Controlled` behind it; `nvs ctl` drives all three
-operations against it.
+opens). **Stage 3's stopping half is now on disk.** `nvs serve` arms this process's terminating
+signals before anything is bound (`crate::stop::on_termination`, `crates/nvs-cli/src/serve.rs:404`),
+a delivery ends in `Draining::process().begin()`, and every accept loop reads that bit on every pass
+and stops accepting.
 
-The order is `crates/nvs-cli/src/serve.rs`'s `bind_sockets`, and its doc owns why: the endpoint's
-directory is held to `rule:config/ownership-is-the-trust-boundary`, so a boot that bound listeners
-first would be answering requests on the way to refusing to start. A test passes a verdict instead
-of the real check, which is what makes the order assertable on a platform whose filesystem cannot be
-put in the refused state.
+**A parked accept loop is told rather than finding out.** `serve_on_this_core` holds one
+`nvs_host::wake_at_drain` registration for its whole life — not one per park, which would issue a
+cross-thread handle per connection served — and `NvsAcceptor::accept_or_woken` hands the turn back
+the first time the park ends, so the loop re-reads the drain instead of retrying inside `accept`.
+`Draining::bit` is the crate-private accessor that makes the registration sayable; from outside the
+crate a drain can still only be begun and read.
 
-**A reload now reaches the next request.** `Serving` holds an `Arc<nvs_config::Current>` rather than
-a snapshot (`Serving::live`; `Serving::new` wraps a tree nothing publishes into, which is every
-embedder and every test), and `nvs serve` hands it the holder `crate::control::Process` publishes
-into. The unit cache is re-keyed with it — `[[extension]]` is reloadable and is the whole of the
-environment digest — so `Compiler::rekey` drops every unit keyed under the digest it leaves and the
-report's `invalidated` count is a fact rather than a prediction.
+On Unix the handler does not call `begin` itself: it writes a byte to a pipe and a thread of this
+process's own makes the call, because beginning a drain takes a lock and a signal delivered to the
+thread holding it would deadlock the shutdown. `crates/nvs-cli/src/stop.rs`'s module doc owns that,
+the `errno` it does not preserve, and why Windows needs neither the thread nor the pipe.
 
-Left in stage 3: the two cases its `-p nvs-cli` check names that are about **stopping** —
-`a_terminating_signal_drains_serve_and_every_connection_closes_cleanly` and
-`sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping`. Nothing installs a signal
-handler and nothing writes to `NOTIFY_SOCKET` yet.
+Left in stage 3: `sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping` — nothing
+writes to `NOTIFY_SOCKET` yet, while `unit()` already renders `Type=notify`.
 
 ## Next group
 
-**Stage 3: a signal drains `serve`, and systemd is told each state** — one file set:
-`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/service.rs`.
+**Stage 3: systemd is told each state** — one file set: `crates/nvs-cli/src/service.rs`,
+`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/stop.rs`.
 
-- [ ] **A terminating signal begins the one drain** — installed in `run` beside the control thread
-      at `crates/nvs-cli/src/serve.rs:411`, ending in `nvs_server::Draining::process().begin()`,
-      which is the same state machine the SCM stop and the control endpoint's own loop already read
-      (`rule:concurrency/a-drain-closes-a-connection-cleanly`). The accept loop's half is
-      `crates/nvs-server/src/serve.rs:473`'s `Draining` and the bit under it is
-      `crates/nvs-runtime/src/drain.rs:123`, whose `wake_at_drain` is what makes a parked connection
-      see the drain rather than wait out its own idle timer.
-- [ ] **`sd_notify` says `READY`, `RELOADING`, `READY`, `STOPPING`** — beside `unit()` at
-      `crates/nvs-cli/src/service.rs:491`, which is where this binary already knows what a service
-      manager was told about it (`rule:packaging/a-service-is-one-stored-argv`). The reload leg fires
-      from `crate::control::Process::reload` at `crates/nvs-cli/src/control.rs:100`, which is the one
-      function the socket, `ExecReload` and `PARAMCHANGE` all end in.
-- [ ] **A reload's outcome is written to `Core\Log`** — `rule:config/one-local-control-socket`'s last
-      sentence, unbuilt: `crate::control::Process::reload` at
-      `crates/nvs-cli/src/control.rs:100` returns the report and logs nothing.
+- [ ] **`sd_notify` says `READY`, `RELOADING`, `READY`, `STOPPING`** — the writer beside `unit()`,
+      whose `Type=notify` at `crates/nvs-cli/src/service.rs:503` is what owes it
+      (`rule:packaging/a-service-is-one-stored-argv`). `READY=1` goes where the boot finishes
+      reporting its listeners, `crates/nvs-cli/src/serve.rs:445`; `STOPPING=1` goes in
+      `crate::stop::deliver` at `crates/nvs-cli/src/stop.rs:67`, which is the one call every stop
+      already ends in; the reload pair belongs to `crate::control::Process`'s reload. A datagram to
+      `$NOTIFY_SOCKET` and nothing when the variable is unset, with the sink as the seam the way
+      `nvs service` takes its `Manager`.
+- [ ] **`WatchdogSec=30` is a promise nothing keeps** — a `Type=notify` unit with the line at
+      `crates/nvs-cli/src/service.rs:516` is killed by systemd unless `WATCHDOG=1` arrives inside
+      half its period. Either the pings go out beside the notifications above, or the line comes out
+      of `unit()`; decide it where the writer lands, and say which in the commit.
 
 ## Backlog
-- `nvs ctl`'s wait for a server that answers nothing is unbounded — the endpoint serializes
-  operations, so bounding it is a `--timeout` decision rather than a constant
-  (`crates/nvs-cli/src/ctl.rs`'s `exchange`).
-- On Windows a control client that stops *reading* can still wedge the thread: a `WriteFile` into a
-  full pipe buffer waits, where the Unix socket answers `WouldBlock` and the idle bound catches it.
-  A `config` listing is the only answer big enough to reach it (`crates/nvs-config/src/control.rs`).
-- `nvs_config::control::Endpoint::bound()` has no caller now that `accept` is on the endpoint.
-- `[opcache]`'s `validate`, `revalidate_freq` and the artifact cache are still read once at
-  `Compiler::new`, so a reload that changes them is reported as applied and is not
-  (`crates/nvs-cli/src/script.rs:288`).
-- Stale prose — `docs/plan/m7.md`'s carrier list, `crates/nvs-cli/src/serve.rs`'s "no
-  configuration" gap — belongs to goal `plan-truth`.
-- The four `unowned` gaps at `crates/nvs-server/src/route.rs:30` and its siblings — goal
-  `unowned-closures`.
+
+- A drain does not cut a connection's idle wait short — `crates/nvs-server/src/io.rs:141`,
+  `crates/nvs-server/src/socket.rs:266`; `nvs_host::wake_at_drain` is now the seam for both readers.
+- A connection between one response and the next request waits under `header` and not `keepalive` —
+  `crates/nvs-server/src/io.rs:130`'s `Phase::KeepAlive` looks never to be set.
+- A reload's outcome is not written to `Core\Log` — `rule:config/one-local-control-socket`'s last
+  sentence, in `crates/nvs-cli/src/control.rs`.
+- A `[[schedule]]` waits out one interval before a stop ends its ticker —
+  `crates/nvs-cli/src/serve.rs`'s `keep_ticking` closure says so.
+- `crates/nvs-cli/src/stop.rs`'s Unix half is not compiled on this machine — the first Linux run of
+  the suite is what checks it.
+- `[context] modules` printed neither `crates/nvs-runtime/src/drain.rs` nor
+  `crates/nvs-server/src/io.rs` and `socket.rs`, which are the drain's other readers.
