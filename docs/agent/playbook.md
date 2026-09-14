@@ -4857,6 +4857,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   other side as a binding — `uint $two = 2;` then `case $two:` — or as a literal no placement can move
   (`2.0` beside an `int`), and read the answer back rather than trusting the shape.
   [until: gone crates/nvs-ir/src/lower/control.rs:Some(subj_ty)]
+- **`$x is Iterable` with no type argument is `E0442`, so an agreement row over `iterable`'s members
+  cannot be spelled the obvious way.** `rule:iteration/concrete-generic-implements` makes the argument
+  mandatory at every site naming either reserved interface, an `is` test included, and the diagnostic
+  says so where a reader expects a bare interface name to work. Write `$x is Iterable<int> || $x is
+  Iterator<int>`: the walk compares the label alone, so which argument is written never changes the
+  answer. [until: reviewed 2026-09-14]
 
 ## Splitting a file that got too big
 
