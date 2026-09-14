@@ -1,24 +1,94 @@
-//! `rule:config/one-local-control-socket`, `rule:config/a-reload-names-what-it-could-not-apply` and `rule:config/no-network-control-surface`'s operator surface: the one local endpoint, the one operation a client
-//! connected to it may ask for, and what a reload reports back.
+//! `rule:config/one-local-control-socket`, `rule:config/a-reload-names-what-it-could-not-apply` and `rule:config/no-network-control-surface`'s operator surface: the one local endpoint, the three operations a client
+//! connected to it may ask for, and what each of them answers.
 //!
 //! **The endpoint itself is [`nvs_config::control`] and is re-exported here**, because creating an
 //! object no other account can reach is a mode on Unix and a DACL on Windows and that crate already
 //! owns both spellings for `rule:config/ownership-is-the-trust-boundary`'s trust boundary. What is *here* is the half that is about
 //! being a server: which requests arriving on that endpoint mean anything.
 //!
-//! **`reload` is the only operation, and that is a scope decision rather than the whole of § 3.**
-//! That section also reserves `ctl config` — `rule:config/check-and-dump-audit-the-tree-offline`'s read of the live snapshot with each
-//! directive's origin — and this surface does not answer it yet. Nothing here is shaped to prevent
-//! it: [`Operation`] is an enum that gains a variant when that lands, and the
-//! refusal below names the operation it did not know rather than claiming the roster is closed.
+//! **The roster is three operations and it is closed.** `POST /reload` re-reads the tree and
+//! publishes it; `GET /config` is `rule:config/ctl-config-reports-the-live-snapshot`'s read of the
+//! snapshot this process is actually serving, with each directive's origin; `GET /status` reports
+//! what the process is doing right now. A target outside those is refused by name rather than
+//! resolved, and the refusal names it back so an operator holding a `nvs ctl` from a newer build
+//! learns that is what they have.
 //!
 //! **No control operation runs Novis code, ever**, which is § 3's own sentence and the reason the
 //! roster is an enum rather than a route table: a control surface that could dispatch is
 //! `rule:security/no-eval`'s `eval` door with a different name on it. There is no path from here into the
 //! compiler, and there is deliberately nothing to add one to.
 //!
+//! **What the process has to supply is [`Controlled`], and everything else is here.** Re-reading the
+//! tree needs the roots this server booted on and the unit cache it holds, which are `nvs-cli`'s;
+//! the in-flight count is the accept loop's; the drain bit is `nvs-runtime`'s. Behind that trait,
+//! [`answer`] is the whole of what a connected client can cause, and a test drives it with a
+//! recording process rather than a running one.
+//!
+//! Cost, as `rule:programs/memory-priority` requires: one answer's bytes, built and written and
+//! dropped, and for `config` the flattened key list it is rendered from. Operations serialize, so
+//! that is one at a time for the whole process rather than one per connection.
+
+use std::sync::Arc;
+
+use hyper::{Response, StatusCode, header};
+use nvs_config::audit::Audit;
+use nvs_config::snapshot::Snapshot;
+
+use crate::serve::Answer;
 
 pub use nvs_config::control::{Address, Endpoint, Refusal, Report, bind, boundary, reload};
+
+/// The header every answer carries, so a client can tell what it is talking to before it reads a
+/// body — `rule:config/one-local-control-socket`.
+pub const VERSION_HEADER: &str = "nvs-control-version";
+
+/// What this build answers as. The wire shape is unstable until 1.0, so the version is the whole of
+/// the compatibility story: there is no negotiation and no minimum, and two builds either match or
+/// do not.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Whether an answer carrying `reported` came from a server this build may read.
+///
+/// `nvs ctl` refuses when this is false, and it lives here rather than in the client so that the
+/// constant above has one reader as well as one home. An answer with no version header at all is a
+/// mismatch: it is not this surface, whatever it is.
+#[must_use]
+pub fn same_build(reported: Option<&str>) -> bool {
+    reported == Some(VERSION)
+}
+
+/// What the control surface asks of the process it is controlling.
+///
+/// The seam is here because each answer needs something only the running process holds, and none of
+/// it belongs to this crate: re-reading the tree needs the roots and the unit cache `nvs-cli` owns,
+/// the count is the accept loop's, and the drain bit is the runtime's. A test supplies a recording
+/// implementation, which is what makes [`answer`] assertable without a server.
+pub trait Controlled {
+    /// Re-read the whole configuration tree and publish it.
+    ///
+    /// # Errors
+    ///
+    /// The refusal as text, already rendered. A malformed tree is reported as a diagnostic against
+    /// the files it was read from, and the `SourceMap` those spans point into belongs to the caller
+    /// that read them — so what crosses this seam is the rendering and never the span.
+    fn reload(&self) -> Result<Report, String>;
+
+    /// The snapshot serving now.
+    fn snapshot(&self) -> Arc<Snapshot>;
+
+    /// The `Boot` keys the last reload reported and left unapplied, if one has happened.
+    ///
+    /// Publishing carries every running `Boot` value back over the incoming tree, so by the time a
+    /// snapshot exists the change that was refused is nowhere in it. This is the process
+    /// remembering what it reported.
+    fn unapplied(&self) -> Vec<&'static str>;
+
+    /// Requests in flight across this process right now.
+    fn in_flight(&self) -> usize;
+
+    /// Whether the drain has begun — `rule:concurrency/a-drain-closes-a-connection-cleanly`.
+    fn draining(&self) -> bool;
+}
 
 /// What a request arriving on the control endpoint asked for — `rule:config/one-local-control-socket`.
 ///
@@ -26,6 +96,11 @@ pub use nvs_config::control::{Address, Endpoint, Refusal, Report, bind, boundary
 pub enum Operation {
     /// `POST /reload`: re-read the whole configuration tree and publish it, reporting [`Report`].
     Reload,
+    /// `GET /config`: the live snapshot, every key with the file it was written in —
+    /// `rule:config/ctl-config-reports-the-live-snapshot`.
+    Config,
+    /// `GET /status`: how many requests are in flight, and whether the process is draining.
+    Status,
 }
 
 /// Why a request arriving on the control endpoint asked for nothing this surface has.
@@ -59,6 +134,19 @@ impl Denied {
             Self::WrongMethod { .. } => 405,
         }
     }
+
+    /// The refusal as the body it is sent as, naming the target back where there is one.
+    #[must_use]
+    pub fn message(&self) -> String {
+        match self {
+            Self::NoSuchOperation(target) => {
+                format!("no control operation is named `{target}`\n")
+            }
+            Self::WrongMethod { allow } => {
+                format!("that operation is performed with `{allow}`\n")
+            }
+        }
+    }
 }
 
 impl Operation {
@@ -79,9 +167,97 @@ impl Operation {
         match target {
             "/reload" if method == "POST" => Ok(Self::Reload),
             "/reload" => Err(Denied::WrongMethod { allow: "POST" }),
+            "/config" if method == "GET" => Ok(Self::Config),
+            "/config" => Err(Denied::WrongMethod { allow: "GET" }),
+            "/status" if method == "GET" => Ok(Self::Status),
+            "/status" => Err(Denied::WrongMethod { allow: "GET" }),
             other => Err(Denied::NoSuchOperation(other.to_string())),
         }
     }
+
+    /// The operation performed, as the body an answer carries.
+    fn perform(self, host: &dyn Controlled) -> Result<String, String> {
+        match self {
+            Self::Reload => host.reload().map(|report| {
+                let mut body = String::new();
+                for key in &report.applied {
+                    body.push_str(&format!("applied: {key}\n"));
+                }
+                for key in &report.ignored {
+                    body.push_str(&format!("ignored: {key}\n"));
+                }
+                body.push_str(&format!("invalidated: {}\n", report.invalidated));
+                body
+            }),
+            // Always with the origin column, because the target is the operation's whole name and a
+            // control operation takes no parameters: there is nowhere for a client to ask for less,
+            // and the origin is what this read exists for — the offline `nvs config dump` is where
+            // the listing without it already is.
+            Self::Config => {
+                Ok(Audit::of_snapshot(&host.snapshot(), &host.unapplied()).render(true))
+            }
+            Self::Status => Ok(format!(
+                "in_flight: {}\ndraining: {}\n",
+                host.in_flight(),
+                host.draining(),
+            )),
+        }
+    }
+}
+
+/// The answer to `method target` on the control endpoint.
+///
+/// This is the whole of what a connected client can cause. It is one function and not a router
+/// because the roster is fixed: [`Operation::of`] either names one of three things or refuses, and
+/// nothing between here and [`Controlled`] can be reached any other way.
+///
+/// A reload the process refused is `409`, not `500` and not `400`. The request was well formed and
+/// this surface is working; what conflicts with it is the state of the tree on disk, which the
+/// operator changed out of band and is the thing they have to act on. The body is the rendered
+/// refusal, so `curl --unix-socket` shows what a `nvs ctl` would print.
+#[must_use]
+pub fn answer(method: &str, target: &str, host: &dyn Controlled) -> Response<Answer> {
+    match Operation::of(method, target) {
+        Ok(operation) => match operation.perform(host) {
+            Ok(body) => sent(StatusCode::OK, body, None),
+            Err(why) => sent(StatusCode::CONFLICT, why, None),
+        },
+        Err(denied) => {
+            let status = StatusCode::from_u16(denied.status()).unwrap_or(StatusCode::BAD_REQUEST);
+            let allow = match &denied {
+                Denied::WrongMethod { allow } => Some(*allow),
+                Denied::NoSuchOperation(_) => None,
+            };
+            sent(status, denied.message(), allow)
+        }
+    }
+}
+
+/// One answer, with the header every answer carries and nothing a browser would act on.
+///
+/// The body is `text/plain` for the reason the wire protocol is HTTP at all: an operator reaches
+/// this with `curl --unix-socket` and reads what comes back. `nosniff` is here because a `config`
+/// listing is operator-supplied text going out over a channel whose client is not always `nvs ctl`.
+fn sent(status: StatusCode, body: String, allow: Option<&'static str>) -> Response<Answer> {
+    let mut response = Response::new(Answer::new(body));
+    *response.status_mut() = status;
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        header::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        header::HeaderName::from_static(VERSION_HEADER),
+        header::HeaderValue::from_static(VERSION),
+    );
+    if let Some(allow) = allow {
+        headers.insert(header::ALLOW, header::HeaderValue::from_static(allow));
+    }
+    response
 }
 
 #[cfg(test)]
@@ -90,11 +266,15 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
+    use nvs_config::resolve::Origin;
     use nvs_config::snapshot::{Current, Snapshot};
     use nvs_config::tree::{Config, Control, Setting};
     use nvs_config::trust::Untrusted;
 
-    use super::{Address, Denied, Operation, Refusal, bind, boundary, reload};
+    use super::{
+        Address, Answer, Controlled, Denied, Operation, Refusal, Report, VERSION, VERSION_HEADER,
+        answer, bind, boundary, reload, same_build,
+    };
 
     /// A directory of this case's own, empty, beside the test binary under `target/`.
     ///
@@ -281,18 +461,20 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// `rule:config/one-local-control-socket`: `reload` is the operation, and the goal's own standing decision is that it is
-    /// the only one this surface has. Nothing is dispatched, nothing is compiled, and no Novis code
-    /// runs — so a target this roster does not hold is refused rather than resolved.
+    /// `rule:config/one-local-control-socket`: the surface has three operations and nothing else.
+    /// Nothing is dispatched, nothing is compiled, and no Novis code runs — so a target this roster
+    /// does not hold is refused rather than resolved, and the refusal names it back.
     ///
-    /// `ctl config` is § 3's other reserved operation and is not here yet; the module doc says so,
-    /// and the refusal names the unknown target rather than declaring the roster closed.
+    /// The method each is performed with is part of its name. A reload changes what the process is
+    /// serving, so `GET /reload` is refused rather than treated as a synonym, and the two reads are
+    /// refused the other way round for the same reason read as a rule.
     #[test]
-    fn reload_is_the_sockets_only_operation() {
+    fn the_socket_answers_three_operations_and_nothing_else() {
         assert_eq!(Operation::of("POST", "/reload"), Ok(Operation::Reload));
+        assert_eq!(Operation::of("GET", "/config"), Ok(Operation::Config));
+        assert_eq!(Operation::of("GET", "/status"), Ok(Operation::Status));
 
         for target in [
-            "/config",     // § 3 reserves it; this surface does not answer it yet
             "/shutdown",   // the operation an operator would most expect a control socket to have
             "/eval",       // `rule:security/no-eval`'s door, under the name it would arrive as
             "/",           // the root, which names nothing
@@ -301,6 +483,7 @@ mod tests {
             "/RELOAD",
             "//reload",
             "/reload/../config",
+            "/config/origin", // the origin column is not a second target; `/config` carries it
         ] {
             assert_eq!(
                 Operation::of("POST", target),
@@ -319,10 +502,232 @@ mod tests {
                 "and the answer says which method does"
             );
         }
+        for target in ["/config", "/status"] {
+            assert_eq!(
+                Operation::of("POST", target),
+                Err(Denied::WrongMethod { allow: "GET" }),
+                "`{target}` reads and changes nothing, so it is not performed with `POST`",
+            );
+        }
         assert_eq!(
             Operation::of("POST", "/shutdown").map_err(|why| why.status()),
             Err(404),
         );
+    }
+
+    /// The process a control answer is about, recorded rather than running: everything
+    /// [`Controlled`] asks for, set by the case that is asking about it.
+    struct Process {
+        current: Current,
+        unapplied: Vec<&'static str>,
+        in_flight: usize,
+        draining: bool,
+        refuse: Option<String>,
+    }
+
+    impl Process {
+        /// A process serving `document`, read from `written_in`, with nothing else going on.
+        fn serving(document: &str, written_in: &str) -> Self {
+            Self {
+                current: Current::new(Arc::new(traced(document, written_in))),
+                unapplied: Vec::new(),
+                in_flight: 0,
+                draining: false,
+                refuse: None,
+            }
+        }
+    }
+
+    impl Controlled for Process {
+        fn reload(&self) -> Result<Report, String> {
+            match &self.refuse {
+                Some(why) => Err(why.clone()),
+                None => Ok(Report {
+                    applied: vec!["limits.memory".to_string()],
+                    ignored: vec!["control.socket"],
+                    invalidated: 7,
+                }),
+            }
+        }
+
+        fn snapshot(&self) -> Arc<Snapshot> {
+            self.current.load()
+        }
+
+        fn unapplied(&self) -> Vec<&'static str> {
+            self.unapplied.clone()
+        }
+
+        fn in_flight(&self) -> usize {
+            self.in_flight
+        }
+
+        fn draining(&self) -> bool {
+            self.draining
+        }
+    }
+
+    /// A snapshot of `document` with every leaf recorded as written in `written_in`, which is what
+    /// makes the origin column have something to print. One file for the whole tree is enough here:
+    /// what the case is about is that the column comes from the *snapshot*, and a second file only
+    /// widens the same assertion.
+    fn traced(document: &str, written_in: &str) -> Snapshot {
+        let mut sources = nvs_diagnostics::SourceMap::new();
+        let source = sources.add(written_in, document);
+        let table: toml::Table = document.parse().expect("the case's own TOML parses");
+        let origin = Origin {
+            path: PathBuf::from(written_in),
+            source,
+        };
+        let origins = nvs_config::audit::leaves(&table)
+            .into_iter()
+            .map(|(key, _)| (key, origin.clone()))
+            .collect();
+        Snapshot {
+            config: toml::from_str(document).expect("the case's own TOML deserializes"),
+            table,
+            origins,
+            ..Snapshot::default()
+        }
+    }
+
+    /// The bytes an answer carries, which a control answer always has whole.
+    fn body(response: hyper::Response<Answer>) -> String {
+        match response.into_body() {
+            Answer::Whole(Some(bytes)) => {
+                String::from_utf8(bytes.to_vec()).expect("a control answer is text")
+            }
+            other => panic!("a control answer is one frame of bytes, not {other:?}"),
+        }
+    }
+
+    /// `rule:config/ctl-config-reports-the-live-snapshot`: `config` reports what the running process
+    /// actually holds, with the file each directive was written in — not what the files on disk say
+    /// now.
+    ///
+    /// The difference is the whole point of the operation, so the case publishes a second tree over
+    /// the first and asks again: the answer moves because it is read out of the snapshot, and both
+    /// the value and its origin move with it. A `Boot` key the last reload could not apply is named
+    /// on the row that still holds the running value, which is § *the live snapshot*'s other half.
+    #[test]
+    fn a_config_request_is_answered_with_the_live_snapshot_and_each_origin() {
+        let mut process = Process::serving(
+            "[control]\nsocket = \"/run/nvs/control.sock\"\n[limits]\nmemory = \"128M\"\n",
+            "/etc/nvs/nvs.toml",
+        );
+
+        let first = body(answer("GET", "/config", &process));
+        let row = first
+            .lines()
+            .find(|line| line.starts_with("limits.memory"))
+            .expect("a key in force is a row in the listing");
+        assert!(
+            row.contains("= \"128M\"") && row.trim_end().ends_with("/etc/nvs/nvs.toml"),
+            "every directive is reported with the file it was written in: {row}",
+        );
+
+        process.current = Current::new(Arc::new(traced(
+            "[control]\nsocket = \"/run/nvs/control.sock\"\n[limits]\nmemory = \"256M\"\n",
+            "/etc/nvs/conf.d/limits.toml",
+        )));
+        process.unapplied = vec!["control.socket"];
+
+        let second = body(answer("GET", "/config", &process));
+        assert!(
+            second.contains("\"256M\"") && second.contains("/etc/nvs/conf.d/limits.toml"),
+            "the answer is the snapshot now serving, and the origin moved with it:\n{second}",
+        );
+        assert!(
+            !second.contains("\"128M\""),
+            "the tree that stopped serving is gone from it:\n{second}",
+        );
+        let unapplied = second
+            .lines()
+            .find(|line| line.starts_with("control.socket"))
+            .expect("the key is in the listing because it is in force");
+        assert!(
+            unapplied.ends_with("(changed on disk; needs a restart)"),
+            "a `Boot` key the last reload left unapplied is named on its own row: {unapplied}",
+        );
+    }
+
+    /// `status` reports what the process is doing right now: how many requests are in flight, and
+    /// whether `rule:concurrency/a-drain-closes-a-connection-cleanly`'s drain has begun.
+    ///
+    /// Both are read at the moment of the answer and neither is remembered, which is what makes this
+    /// the operation an operator polls during a stop: a `draining: true` with a falling count is a
+    /// drain finishing, and the same two numbers are what a health check reads.
+    #[test]
+    fn a_status_request_reports_the_in_flight_count_and_whether_the_process_is_draining() {
+        let mut process = Process::serving("[limits]\nmemory = \"128M\"\n", "/etc/nvs/nvs.toml");
+        process.in_flight = 3;
+
+        assert_eq!(
+            body(answer("GET", "/status", &process)),
+            "in_flight: 3\ndraining: false\n",
+        );
+
+        process.draining = true;
+        process.in_flight = 1;
+        assert_eq!(
+            body(answer("GET", "/status", &process)),
+            "in_flight: 1\ndraining: true\n",
+            "a stop in progress says so, and says how much of it is left",
+        );
+    }
+
+    /// `rule:config/one-local-control-socket`: the wire shape is unstable until 1.0, so **every**
+    /// answer carries the server version and `nvs ctl` refuses a mismatch.
+    ///
+    /// Every means every: a refusal carries it too, because a `404` from a server of another build
+    /// is exactly the answer an operator would otherwise read as "that operation does not exist"
+    /// rather than as "you are talking to the wrong process". A reload the tree refused carries it
+    /// for the same reason.
+    #[test]
+    fn every_control_answer_carries_the_server_version() {
+        let mut process = Process::serving("[limits]\nmemory = \"128M\"\n", "/etc/nvs/nvs.toml");
+
+        for (method, target) in [
+            ("POST", "/reload"),
+            ("GET", "/config"),
+            ("GET", "/status"),
+            ("GET", "/reload"),   // 405
+            ("GET", "/shutdown"), // 404
+        ] {
+            let response = answer(method, target, &process);
+            let reported = response
+                .headers()
+                .get(VERSION_HEADER)
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned);
+            assert!(
+                same_build(reported.as_deref()),
+                "`{method} {target}` answered {} without this build's version: {reported:?}",
+                response.status(),
+            );
+        }
+
+        process.refuse = Some("error: the tree does not parse\n".to_string());
+        let refused = answer("POST", "/reload", &process);
+        assert_eq!(
+            refused.status(),
+            409,
+            "a tree the reload refused conflicts with the request; it is not this surface failing",
+        );
+        assert!(same_build(
+            refused
+                .headers()
+                .get(VERSION_HEADER)
+                .and_then(|value| value.to_str().ok())
+        ));
+        assert_eq!(body(refused), "error: the tree does not parse\n");
+
+        assert!(
+            !same_build(None) && !same_build(Some("0.0.0")),
+            "an answer from another build, or from something that is not this surface at all, \
+             is refused rather than read",
+        );
+        assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
     }
 
     /// `rule:config/no-network-control-surface`: there is no network-reachable control surface, in either direction of

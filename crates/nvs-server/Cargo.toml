@@ -55,6 +55,13 @@ rand.workspace = true
 # in this crate's own code names a TOML value; the configuration reaches it as
 # `nvs_config::snapshot::Snapshot` and never as a document.
 toml.workspace = true
+# Test-only, and for one type: `src/control.rs`'s `config` case builds the snapshot a live read is
+# rendered from, and a snapshot says where every leaf was written as a `resolve::Origin`, whose
+# `SourceId` half only a `SourceMap` hands out. Nothing in this crate's own code names either -- the
+# origin column is `nvs_config::audit`'s to render and this crate passes the snapshot whole -- so the
+# vocabulary is needed only to *build* a tree that has origins in it. Not a new crate in the graph:
+# `nvs-config`, `nvs-runtime` and `nvs-host` all already rest on it.
+nvs-diagnostics.workspace = true
 # Test-only, and for one seam: `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active` has a log record carry the trace id this crate's
 # `src/trace.rs` decided at the door, and a record is a `nvs_render::Record` at a
 # `nvs_render::Level`. Nothing in this crate's own code names either — the door writes a

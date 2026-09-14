@@ -142,7 +142,7 @@ pub use hyper::body::Incoming;
 
 pub use admit::{Admission, Ceiling, InFlight};
 pub use body::{Arrived, Pull, Supply};
-pub use control::{Denied, Operation};
+pub use control::{Controlled, Denied, Operation, answer};
 pub use cors::Cors;
 pub use forwarded::{Arrival, Origin, Trusted, Unusable};
 pub use io::{ConnectionIo, Phase};
