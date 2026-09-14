@@ -105,6 +105,20 @@ runs the valgrind sweep directly. Install a C toolchain, PHP 8.5, and (on Linux)
 `cargo-fuzz` still needs a nightly toolchain. macOS has no valgrind, so the leak sweep is a Linux or WSL
 machine's job.
 
+**One sysctl, Linux only — and the WSL distro is a Linux machine for this.** A task's stack is a
+reservation that leaves more than one mapping behind
+(`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`), and a Linux process may hold only
+`vm.max_map_count` of those. The stock setting is well under what the release-only test holding a hundred
+thousand tasks at once needs, so on an unraised kernel that test fails naming this sysctl — it demands the
+kernel rather than shrinking to fit, because a run proving 32k tasks on the platform servers deploy to has
+not proved the claim. Nothing else in the tree cares, so this is only worth doing on a machine that runs
+the release checks:
+
+```sh
+sudo sysctl -w vm.max_map_count=262144                  # until the next boot
+echo 'vm.max_map_count=262144' | sudo tee /etc/sysctl.d/99-novis.conf   # across one
+```
+
 ## What a clone does not carry
 
 Three things sit outside what git tracks. The first is not optional, and neither is the trust flag in the

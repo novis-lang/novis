@@ -15,6 +15,16 @@
 //! 100k concurrent tasks is 100 GiB of *address space* in a 64-bit process
 //! against a resident cost measured in what the handlers touched.
 //!
+//! **Linux bounds the mappings rather than the bytes**, and that is the limit
+//! this width meets first. Each reservation leaves more than one VMA behind —
+//! the `mmap` and the `mprotect` that opens the usable part — and a process may
+//! hold only `vm.max_map_count` of them, a sysctl whose stock setting is well
+//! under what a hundred thousand stacks needs. Nothing here can raise it, so
+//! `scheduler`'s release-only width test demands it of the kernel and names the
+//! sysctl when it is short, rather than shrinking to a width that would prove
+//! the claim only where nobody doubted it. `docs/setup.md` § *Linux and macOS*
+//! is what an operator does about it.
+//!
 //! What it spends, in the terms
 //! `rule:programs/memory-priority` asks for: one
 //! reservation per in-flight task, charged to the request that owns it, plus at
