@@ -108,6 +108,8 @@ modules = [
   "editors/vscode/src/tasks.ts",
   # The three-candidate binary lookup `nvs.path` wins, which the throwaway profile points at the build. Stage 3.
   "editors/vscode/src/binary.ts",
+  # TODO: why a session opens this.
+  "editors/vscode/src/surface.ts",
 ]
 
 # Every stage works inside these three. The two tiers and their isolation; no language logic and an
