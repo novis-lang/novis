@@ -2,40 +2,45 @@
 
 ## State
 
-**Goal `m5-proofs` (M5). Stage 8 `tsan` is complete: all four of its acceptance checks are green.**
-`wsl.exe -- bash -lc "bash tools/tsan.sh"` ends on `tsan: clean` over `nvs-host` and `nvs-runtime`,
-and `.github/workflows/ci.yml:598` is the `tsan:` job that runs that same script.
+**Goal `m5-proofs` (M5) is met.** Stage 9 `the rulebook` was its last stage and both its checks now
+print `shipped`: `python tools/rules.py --show concurrency/on-worker-runs-the-child-on-another-core`
+and `… observability/spawn-is-its-own-event`. `python tools/verify.py` is 11 of 11 green, and
+`--doc` is green since `crates/nvs-runtime/src/ctx/isolate.rs:336` stopped linking a field named
+`safepoint_word` that `Ctx` does not have.
 
-`crates/nvs-host/src/tsan.rs` is the annotation half — one fiber per task, switched inside
-`Fiber::around`, which `Task::resume` and `Task::force_unwind`
-(`crates/nvs-host/src/scheduler.rs:614`) wrap the stack switch in. That module's doc owns why an
-annotation may not straddle a switch; the playbook carries the failure it produces.
+Both fragments were rewritten to what the tree does before they were flipped, because a `shipped`
+rule is one `docs/novis.md` may print: only a **method** entry crosses to another core, `nvs serve`
+places on a lazily started worker core rather than on a sibling serving core, and a placement's
+trace event is a `spawn worker` — which it was not until this session, `crates/nvs-host/src/placed.rs:133`.
 
-**The gate is this crate's `tsan` cargo feature, not the `--cfg nvs_tsan` the goal's stage 8 names.**
-`cfg(sanitize = "thread")` — the predicate that would read as what it means — is unstable and is an
-`E0658` on the pinned stable compiler whether or not the branch is taken, and a bare `--cfg` trips
-`unexpected_cfgs` in every ordinary build because the only place `check-cfg` could declare it is the
-`[lints]` table `tools/lints.py` generates. Recorded in the module doc's § *What is compiled*.
-
-**Stage 9 `the rulebook` is the last stage and none of it is done.**
+**The four gaps this goal owned are `owner: unowned`**, each with its reason under
+[carried-gaps.md](carried-gaps.md) § *Unowned*, so the goal retires without leaving a tag naming a
+retired owner. Nothing schedules them: each is a decision the user takes.
 
 ## Next group
 
-**Stage 9: the rulebook** — one file set: `docs/rules/concurrency.json`,
-`docs/rules/observability.json` and the two chapters `python tools/rules.py --render` writes from them.
+**Goal met — the next group is the next goal's**, and `python tools/brief.py` prints which.
+If the driver reopens `m5-proofs`, this is what is left, one file set — and every item is a
+decision first, which is why all three are unowned rather than queued:
 
-- [ ] **`concurrency/on-worker-runs-the-child-on-another-core` flips to `shipped`, with `guardedBy`
-      filled from this goal's cases and tests** — `docs/rules/concurrency.json:45` is the `status`
-      field, `:43` the rule's `id`. The rule is `rule:concurrency/on-worker-runs-the-child-on-another-core`
-      itself, and stage 5's record `docs/decisions/0184.md` is its `because`.
-- [ ] **`observability/spawn-is-its-own-event` flips to `shipped` the same way** —
-      `docs/rules/observability.json:322` is its `id`, and `rule:observability/spawn-is-its-own-event`
-      is what it has to be true of.
-- [ ] **`python tools/rules.py --render` rewrites the chapters** — `docs/rules/concurrency.md:53` and
-      `docs/rules/observability.md` are what it overwrites, and `--check` is what gates them.
+- [ ] **A path entry crosses, or a placement that cannot cross refuses instead of falling through
+      silently** — `crates/nvs-host/src/placed.rs:34` is the gap and
+      `docs/agent/carried-gaps.md:719` the reason.
+      `rule:concurrency/on-worker-runs-the-child-on-another-core` states the limit as it stands, and
+      `docs/decisions/0184.md` § *Diagnostics* is what rejects the silence.
+- [ ] **A serving core registers an inbox, so `nvs serve` places on a sibling rather than starting a
+      thread** — `crates/nvs-host/src/worker.rs:99`, reason at `docs/agent/carried-gaps.md:728`,
+      and `docs/decisions/0184.md` § *Revisiting* is the fallback that was taken.
+- [ ] **The test suite runs its isolates in parallel** — `crates/nvs-cli/src/runner.rs:85`, reason at
+      `docs/agent/carried-gaps.md:736`; `docs/decisions/0079.md:158` promises both halves and only
+      the isolation half is built.
 
 ## Backlog
 
-- `docs/agent/loop-goal.md:200` still says `--cfg nvs_tsan`; the goal file is the user's, so the
-  deviation is recorded in `crates/nvs-host/src/tsan.rs`'s module doc instead.
-- No `nvs serve` end-to-end runaway test for the CPU/memory ceilings — `docs/agent/carried-gaps.md`.
+- A `spawn worker` event is pinned by `crates/nvs-host/src/placed.rs`'s own test; no `.nvst` case
+  reads a trace at all, which is `rule:testing/debug-probes`'s sink's business.
+- `rule:observability/spawn-is-its-own-event`'s export-time nesting needs a child's events to reach
+  an export; nothing carries them today — `docs/agent/carried-gaps.md` is not where that lives,
+  `rule:testing/debug-probes` is.
+- `website/` pages are regenerated by `npm --prefix website run sync:rules`, which no verification
+  step runs — playbook § *Tooling* has the bullet.
