@@ -799,6 +799,152 @@ mod tests {
         assert_eq!(sched.tracked_tasks(), 0);
     }
 
+    /// Two jobs that can only ever wait for each other: each holds one
+    /// channel's receiving end and the other's sending end, and neither reaches
+    /// its `send` because neither's receive can return. Both senders stay alive
+    /// inside the jobs, so nothing disconnects and nothing errors — this is a
+    /// wait, which is what makes it the deadlock a program writes by accident.
+    ///
+    /// `reached` counts the children that entered the wait and `past` the
+    /// instructions run after one, so a pair that never started and a pair that
+    /// was resumed after its cancellation fail on different lines.
+    fn a_deadlocked_pair(
+        reached: &Rc<std::cell::Cell<u32>>,
+        past: &Rc<std::cell::Cell<u32>>,
+    ) -> Vec<Job> {
+        let (tx_a, rx_a) = crate::channel::channel::<i64>(1);
+        let (tx_b, rx_b) = crate::channel::channel::<i64>(1);
+        let (in_a, in_b) = (Rc::clone(reached), Rc::clone(reached));
+        let (past_a, past_b) = (Rc::clone(past), Rc::clone(past));
+        vec![
+            Box::new(move |_: &mut Ctx| {
+                in_a.set(in_a.get() + 1);
+                let carried = rx_a.recv().unwrap_or(0);
+                past_a.set(past_a.get() + 1);
+                let _ = tx_b.send(carried);
+                Value::int(0)
+            }) as Job,
+            Box::new(move |_: &mut Ctx| {
+                in_b.set(in_b.get() + 1);
+                let carried = rx_b.recv().unwrap_or(0);
+                past_b.set(past_b.get() + 1);
+                let _ = tx_a.send(carried);
+                Value::int(1)
+            }) as Job,
+        ]
+    }
+
+    /// A deliberate deadlock ends at the deadline like any other group that has
+    /// not finished, and the call still does not return until both children are
+    /// torn down where they park.
+    ///
+    /// The pair waits on a channel rather than on a bare park because that is
+    /// the shape a program reaches the same state through, and because a
+    /// channel is where a cancellation that left a registration behind would
+    /// show: `crate::channel`'s § *A cancelled waiter takes itself out of the
+    /// queue* is the claim, and a parked count of zero here is it.
+    #[test]
+    fn a_deliberate_deadlock_is_ended_by_the_deadline() {
+        let _reactor = reactor::install(Reactor::new().expect("the OS refused a poll"));
+        let mut sched = Scheduler::new();
+        let reached = Rc::new(std::cell::Cell::new(0_u32));
+        let past = Rc::new(std::cell::Cell::new(0_u32));
+        let timed_out = Rc::new(std::cell::Cell::new(false));
+        let seen = Rc::clone(&timed_out);
+        let (entered, further) = (Rc::clone(&reached), Rc::clone(&past));
+
+        sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+            let jobs = a_deadlocked_pair(&entered, &further);
+            let bounds = Bounds {
+                limit: None,
+                deadline: Some(Duration::from_millis(20)),
+            };
+            seen.set(matches!(group(ctx, jobs, bounds), Outcome::TimedOut));
+        });
+        run_until_idle(&mut sched).expect("the reactor refused a poll");
+
+        assert!(
+            timed_out.get(),
+            "the deadlock ended as something but the clock"
+        );
+        assert_eq!(
+            reached.get(),
+            2,
+            "a child never reached the wait it deadlocks in"
+        );
+        assert_eq!(
+            past.get(),
+            0,
+            "a cancelled child ran an instruction past its wait"
+        );
+        assert_eq!(
+            sched.parked_count(),
+            0,
+            "a child was left parked on a channel"
+        );
+        assert_eq!(sched.tracked_tasks(), 0);
+    }
+
+    /// The same deadlock with no deadline at all: what ends it is the
+    /// cancellation of the task awaiting it, which is § 4's last row. The
+    /// children die with that wait rather than outliving it, and the call
+    /// answers [`Outcome::Cancelled`] rather than unwinding through itself.
+    #[test]
+    fn a_deliberate_deadlock_is_ended_by_cancelling_its_awaiter() {
+        let mut sched = Scheduler::new();
+        let reached = Rc::new(std::cell::Cell::new(0_u32));
+        let past = Rc::new(std::cell::Cell::new(0_u32));
+        let cancelled = Rc::new(std::cell::Cell::new(false));
+        let seen = Rc::clone(&cancelled);
+        let (entered, further) = (Rc::clone(&reached), Rc::clone(&past));
+
+        let awaiter = sched.spawn(ctx(), TaskRoot::Request, move |ctx| {
+            // What a `Core\Task::all` stands on, and the reason this answer is a
+            // return value at all: a stack carrying a helper frame is one no
+            // forced unwind may cross, so the scheduler resumes the awaiter with
+            // its notice instead of tearing it down where it parks. Without the
+            // frame this call never comes back and the group's last row could
+            // not be observed from anywhere.
+            let _frame = nvs_runtime::HelperFrame::enter();
+            let jobs = a_deadlocked_pair(&entered, &further);
+            seen.set(matches!(
+                group(ctx, jobs, Bounds::default()),
+                Outcome::Cancelled
+            ));
+        });
+        // A second root, because the cancellation has to arrive from outside a
+        // wait that by construction never ends. Its yields are what give the
+        // group its turns to start both children and park on them.
+        sched.spawn(ctx(), TaskRoot::Request, move |_| {
+            for _ in 0..4 {
+                suspend_current(Waiting::Yielded);
+            }
+            cancel_task(awaiter);
+        });
+        sched.run();
+
+        assert!(
+            cancelled.get(),
+            "the group answered something other than its awaiter's cancellation"
+        );
+        assert_eq!(
+            reached.get(),
+            2,
+            "a child never reached the wait it deadlocks in"
+        );
+        assert_eq!(
+            past.get(),
+            0,
+            "a cancelled child ran an instruction past its wait"
+        );
+        assert_eq!(
+            sched.parked_count(),
+            0,
+            "a child outlived the wait that owned it"
+        );
+        assert_eq!(sched.tracked_tasks(), 0);
+    }
+
     /// The children share the request's statics, which is the whole of what
     /// "share the request" means for the acceptance program's gauge.
     #[test]

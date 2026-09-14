@@ -1,0 +1,55 @@
+--TEST--
+A group whose children can only wait for each other ends at the deadline, runs no instruction past the wait, and leaves nothing parked that a later send could wake — `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:concurrency/cancellation-runs-no-user-code`
+--FILE--
+<?nvs
+// The neighbouring deadline case pins the clock against children that would
+// have finished on their own. This is the case where nothing would ever
+// finish: two channels, and each child waits for a value only the other could
+// send once its own wait had ended. Neither channel is closed, so neither
+// `foreach` can end on end-of-stream either.
+class Deadlock {
+    public static int $reached = 0;
+    public static int $past = 0;
+}
+
+var $a = new Core\Task\Channel<int>(1);
+var $b = new Core\Task\Channel<int>(1);
+
+try {
+    Core\Task::all({
+        first: fn(): int => {
+            Deadlock::$reached += 1;
+            foreach ($a as int $n) {
+                Deadlock::$past += 1;
+                $b->send($n);
+            }
+            return 1;
+        },
+        second: fn(): int => {
+            Deadlock::$reached += 1;
+            foreach ($b as int $n) {
+                Deadlock::$past += 1;
+                $a->send($n);
+            }
+            return 2;
+        },
+    }, {deadline: 100ms});
+    echo "the deadlock returned", "\n";
+} catch (TimeoutError $e) {
+    echo "the deadlock ended at the deadline", "\n";
+}
+
+echo Deadlock::$reached, " children waited, ", Deadlock::$past, " ran past the wait", "\n";
+
+// "Leaves no child running", asserted rather than assumed: a child still
+// parked on `$a` would be woken by this send and would run the body of its
+// `foreach`. The capacity is one and the channel is empty, so the send itself
+// does not wait, and the sleep gives any survivor a turn to prove it exists.
+$a->send(1);
+Core\Time::sleep(20ms);
+
+echo Deadlock::$past, " ran past the wait after the group returned", "\n";
+--EXPECT--
+the deadlock ended at the deadline
+2 children waited, 0 ran past the wait
+0 ran past the wait after the group returned

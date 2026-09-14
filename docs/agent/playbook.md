@@ -4863,6 +4863,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   says so where a reader expects a bare interface name to work. Write `$x is Iterable<int> || $x is
   Iterator<int>`: the walk compares the label alone, so which argument is written never changes the
   answer. [until: reviewed 2026-09-14]
+- **A group test that cancels the task awaiting it sees `Outcome::Cancelled` only when that task
+  stands on a `HelperFrame`.** A stack carrying no helper frame is one the scheduler may force-unwind,
+  so a bare Rust closure parked inside `run_group` is torn down where it parks and never reaches the
+  line that records the answer — the assertion then reads as though the group answered something else.
+  Open `nvs_runtime::HelperFrame::enter()` at the top of the awaiting task's body, which is what a real
+  `Core\Task::all` stands on.
+  [until: gone crates/nvs-host/src/scheduler.rs:unwindable]
 
 ## Splitting a file that got too big
 
