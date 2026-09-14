@@ -774,12 +774,24 @@ impl<'a> Lowering<'a> {
     /// array is one more borrowed argument, so this frame releases it on both
     /// edges exactly as it releases everything else it built here.
     ///
+    /// # `$f(...)`
+    ///
+    /// The first-class-callable sentinel makes no call at all.
+    /// `rule:types/callable-is-a-closure` gives `callable` exactly one
+    /// inhabitant, a closure, so `$f(...)` already names the value a reference
+    /// to `$f` would have to produce and the answer is that closure itself —
+    /// which is also PHP's, pinned by
+    /// `tests/differential/lang/a-first-class-callable-of-a-closure-matches-phps.nvst`.
+    /// It is handed on as a fresh owner: one retain where the callee borrowed a
+    /// slot this frame does not own, and none where the callee already produced
+    /// one, which is [`Self::aliasing_read`]'s judgment everywhere else in this
+    /// file.
+    ///
     /// # Panics
     ///
-    /// Panics for a first-class-callable argument list, the way
-    /// [`Self::lower_call_args`] does for a resolved call, and for a `name:`
-    /// argument — `rule:types/closure-literal` gives `callable` no parameter list, so there is no parameter for a
-    /// name to fill and `nvs_types` refuses one where it is written (`E0712`).
+    /// Panics for a `name:` argument — `rule:types/closure-literal` gives
+    /// `callable` no parameter list, so there is no parameter for a name to fill
+    /// and `nvs_types` refuses one where it is written (`E0712`).
     pub(crate) fn lower_closure_call(
         &mut self,
         call: &Expr,
@@ -788,11 +800,15 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let CallArgs::List(list) = args else {
-            panic!(
-                "nvs-ir only lowers a plain positional argument list for a call through a \
-                 `callable` — got {args:?}; see the crate docs' known gaps"
-            );
+        let list = match args {
+            CallArgs::List(list) => list,
+            CallArgs::FirstClassCallable => {
+                let (closure, closure_ty) = self.lower_expr(callee, None, env, cur);
+                if closure_ty.is_refcounted() && self.aliasing_read(callee) {
+                    self.emit_retain(*cur, closure);
+                }
+                return (closure, closure_ty);
+            }
         };
         // `rule:types/callable-signature`: the checker records this on the
         // call's own span, and only where the callee's type named its

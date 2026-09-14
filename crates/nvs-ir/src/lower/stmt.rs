@@ -237,35 +237,81 @@ impl<'a> Lowering<'a> {
             StmtKind::Destructure { target, value } => {
                 self.lower_destructure(target, value, cur, env);
             }
-            // Nothing the checker accepts reaches this arm, and the proof is
-            // the roster rather than the message below it. The arms above
-            // cover every `StmtKind` a body can hold, and every `LocalDecl`
-            // shape but one. Of what is left:
+            // `rule:types/grammar`.3's destructuring lowers one arm above, and
+            // what is left is the roster: every `StmtKind` a body can hold is
+            // spelled out here, and each remaining shape is one the front end
+            // already refuses where it is written. The arm names the code that
+            // does the refusing rather than claiming a lowering gap, so the
+            // guarantee is checked against a conformance case expecting it
+            // (`crates/nvs-ir/tests/refusals.rs`).
             //
-            // * `global`, `goto` and a function-scope `static` are reported by
-            //   the parser that built them (`rule:statements/no-function-static-and-no-global`), and `Error` is a
-            //   parse error already reported — none of them survives to a
-            //   compilation that lowers.
-            // * `var $x;` with no initializer is `E0101` at the missing `=`;
-            //   `var` has nothing else to infer a type from.
-            // * a top-level `function` or `const` is `E0215`/`E0216` from
-            //   `nvs_hir::members` at every scope (`rule:classes/no-free-functions-or-constants`).
-            // * the rest are declarations — `class`, `interface`,
-            //   `enum`, `type`, `namespace`, `use` and `autoload`. At file
-            //   scope `lower_script_stmts` above skips them; anywhere
-            //   else they are `E0233` from `nvs_types::locals`, whose walk is
-            //   reached only from inside a body. The decision is in
-            //   `docs/adr/README.md` § *Decisions taken at project start*,
-            //   since PHP's "declared when the statement runs" has no reading
-            //   a static table built before any code runs can give it.
-            //
-            // `rule:types/grammar`.3's destructuring lowers one arm above.
-            other => panic!(
-                "nvs-ir's control-flow slice only lowers a typed local declaration with or \
-                 without an initializer, a plain reassignment, destructuring, `echo`, inline \
-                 HTML, `unset`, `return`, an empty statement, a nested block, `if`, `while`, \
-                 `do`/`while`, `for`, `foreach`, `switch`, `try`/`catch`, `throw` and a \
-                 loop-scoped `break`/`continue` — got {other:?}; see the crate docs' known gaps"
+            // `var $x;` — `var` reads its type off the initializer and has
+            // nothing else to read one off, so the parser requires the `=`
+            // where it would be (`rule:types/var-inference`). The `LocalDecl`
+            // shapes that carry a type, a value or both lower above.
+            StmtKind::LocalDecl {
+                ty: None,
+                value: None,
+                ..
+            } => guarded_by!(
+                code::E_EXPECTED_TOKEN,
+                "`var` with no initializer has no type to lower — the parser requires the `=`"
+            ),
+            // `global`, `goto` and a function-scope `static` are each reported
+            // at the statement the parser built, so none reaches a compilation
+            // that lowers (`rule:statements/no-function-static-and-no-global`
+            // for the two storage shapes).
+            StmtKind::Global(_) => guarded_by!(
+                code::E_GLOBAL_UNSUPPORTED,
+                "`global` reaches outside its own frame, which nothing that lowers does"
+            ),
+            StmtKind::StaticLocal { .. } => guarded_by!(
+                code::E_STATIC_LOCAL_UNSUPPORTED,
+                "a function-scope `static` is not a storage class this compiler has"
+            ),
+            StmtKind::Goto(_) => guarded_by!(
+                code::E_GOTO_UNSUPPORTED,
+                "`goto` names an edge no structured control-flow graph carries"
+            ),
+            // A free function or constant is refused at every scope by
+            // `nvs_hir::members` (`rule:classes/no-free-functions-or-constants`).
+            StmtKind::TopLevelFunction(_) => guarded_by!(
+                code::E_TOPLEVEL_FUNCTION_UNSUPPORTED,
+                "every function is a method, so a free one never reaches a body"
+            ),
+            StmtKind::TopLevelConst(_) => guarded_by!(
+                code::E_TOPLEVEL_CONST_UNSUPPORTED,
+                "every constant belongs to a class, so a free one never reaches a body"
+            ),
+            // The declarations. At file scope `lower_script_stmts` above skips
+            // them; anywhere else `nvs_types::locals`' walk, which is reached
+            // only from inside a body, reports this code. The decision is in
+            // `docs/adr/README.md` § *Decisions taken at project start*, since
+            // PHP's "declared when the statement runs" has no reading a static
+            // table built before any code runs can give it.
+            StmtKind::ClassDecl(_)
+            | StmtKind::InterfaceDecl(_)
+            | StmtKind::EnumDecl(_)
+            | StmtKind::NamespaceDecl(_)
+            | StmtKind::UseDecl(_)
+            | StmtKind::AutoloadDecl(_)
+            | StmtKind::TypeAliasDecl(_) => guarded_by!(
+                code::E_NESTED_TYPE_DECLARATION_UNSUPPORTED,
+                "a declaration inside a body is refused there — only file scope carries one"
+            ),
+            // The last two are engine invariants rather than refusals, so
+            // neither has a code to name. `Error` is error recovery's
+            // placeholder, and a compilation that reported a parse error never
+            // reaches lowering. The wildcard reaches no variant at all: it is
+            // there because `StmtKind` is `#[non_exhaustive]`, which makes Rust
+            // ask for one however many arms a cross-crate match spells out.
+            StmtKind::Error => unreachable!(
+                "a parse error was reported before lowering, so its recovery placeholder \
+                 never reaches this dispatch"
+            ),
+            _ => unreachable!(
+                "every `StmtKind` has an arm above; this one is `#[non_exhaustive]`'s, and \
+                 nothing the parser builds occupies it"
             ),
         }
     }

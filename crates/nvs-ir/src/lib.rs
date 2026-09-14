@@ -403,7 +403,11 @@
 //!    into one array, because `CallClosure`'s own argument count is a literal
 //!    in the emitted call and a spread's is not — and a `name:` one is refused
 //!    where it is written (`E0712`), § 1 leaving no parameter for a name to
-//!    fill at either end. The type gap is **not** this
+//!    fill at either end. The first-class-callable sentinel is the one
+//!    `$f(...)` that makes no call: `rule:types/callable-is-a-closure` gives
+//!    `callable` a single inhabitant, so the site answers the closure `$f`
+//!    already holds — PHP's own answer, retained once so the value leaves as a
+//!    fresh owner. The type gap is **not** this
 //!    crate's to close — a `callable` carries
 //!    no parameter list (§ 1), so a closure declaring `string $s` reads a
 //!    caller's `int` payload as a pointer whether that caller is `$f(1)` or
