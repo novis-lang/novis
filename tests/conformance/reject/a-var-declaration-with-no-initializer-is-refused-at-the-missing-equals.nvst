@@ -1,0 +1,23 @@
+--TEST--
+`var` writes no type, so a declaration with no initializer is refused at the missing `=` — `rule:types/var-inference`
+--FILE--
+<?nvs
+// `var` writes no type, so the initializer is the only thing a type can be
+// read off and the parser requires it where it would be. The accepted
+// spelling is first, so a `var` that stopped inferring at all fails here as
+// a missing line rather than reading as a stricter `var`.
+var $n = 1;
+echo $n, "\n";
+
+var $x;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0101]: expected `=` — `var` infers its type from the initializer, so one is required
+  --> case.nvs:9:7
+%A
+error[E0102]: expected an expression
+  --> case.nvs:9:7
+%A
+error: aborting due to 2 errors

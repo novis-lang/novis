@@ -1,0 +1,21 @@
+--TEST--
+`goto` is refused at the keyword, and the diagnostic names the three shapes that replace it — a jump into the middle of a body has no edge in the control-flow graph the compiler builds
+--FILE--
+<?nvs
+// `goto` is one of the PHP spellings the parser refuses outright, and the
+// refusal lands on the keyword rather than on a label, so a file that never
+// writes the label it names is refused just the same. `nvs-ir` leans on that:
+// the statement roster in `lower/stmt.rs` guards this shape by `E0203`
+// instead of lowering it.
+int $n = 0;
+if ($n == 0) {
+    goto done;
+}
+echo $n, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0203]: `goto` is not supported
+  --> case.nvs:9:5
+%A
+error: aborting due to 1 error
