@@ -2,44 +2,41 @@
 
 ## State
 
-**Goal `m4-refusals` is met and its floor is green again.** `python tools/holes.py` reports 0 refusal
-sites across both crates, `CEILING` is `0`, `ALLOWLIST` is empty and `docs/agent/carried-refusals.md`
-holds no entry. The acceptance check that held the previous done-claim —
-`python tools/chain.py --check` — now exits 0 with 2 notes and no problem.
+**Goal 55 — the scheduler's claims are proven at the scale M5 promised them — has just started; nothing of it has landed yet.** Goal `m4-refusals`'s whole list is this goal's Stage 1 floor.
 
-- **A `for` header whose condition clause is a comma list lowers.**
-  `crates/nvs-ir/src/lower/control.rs:451` evaluates every expression in the clause into the header
-  as the statement it is and decides on the last, which is PHP's rule; the phi seeding already walked
-  the whole clause, so a local a discarded expression writes carries across the back edge. Checked
-  against `D:\srv\php\php.exe` on the same two programs, output for output, including the `continue`
-  path and the trip that fails the test.
-- **`crates/nvs-ir/src/lib.rs`'s gap 1 is deleted and leaves a hole**, per that section's own
-  preamble. Its `switch`/`match` half was already a decision `lower_switch`'s doc comment owns, and
-  the `for` half is the shape above.
-- `docs/reference/lang/40-statements.md` now states the last-decides rule, and `docs/novis.md` is
-  regenerated from it.
-- `python tools/verify.py` green over the slice; conformance is 1895.
+Settled before the first session, in the goal's § *Standing decisions*: `on: worker`'s meaning is ADR
+0006's and only its mechanism is new (stage 5's one record); `Core\Task::map` stays on its core and the
+speedup is proven through worker-placed children; `Core\Server::isDraining` answers in a child; the
+100k test is release-only and demands the Linux map count rather than shrinking; `race` is not built.
+None of these is re-decided.
 
 ## Next group
 
-**The next goal's, not this one's** — `m4-refusals` has no stage left. This item is a finding the
-previous session made and neither session could take: the goal's § *Standing decisions* assigns every
-other gap in `crates/nvs-ir/src/lib.rs` to goal `unowned-closures`, and it is not a refusal the gate
-can see.
+**Stage 2: the scale and the deadlock** — one file set: `crates/nvs-host/src/scheduler.rs`,
+`crates/nvs-host/src/group.rs`, `crates/nvs-host/src/channel.rs`, `crates/nvs-host/src/stack.rs`.
 
-- [ ] **Gap 3 names nothing outstanding any more** — `crates/nvs-ir/src/lib.rs:219`. Its closing
-      claim was the tagged-arithmetic panic, which is gone; deleting the whole entry needs a sweep of
-      every `Ty::Tagged` reading rather than the four rows two sessions have now run by hand, and the
-      § *Known gaps* preamble says a closed gap is deleted and leaves a hole rather than renumbering.
-- [ ] **`carried-gaps.md`'s `nvs-ir` entry lists panics that no longer exist** —
-      `docs/agent/carried-gaps.md:182`. It names `<=>` and `**` having no `ir::BinOp` row and a
-      ternary having no recorded result type to widen to, while `holes.py` reports 0 sites; the same
-      `Ty::Tagged` sweep settles which sentences of it survive.
+- [ ] **A hundred thousand tasks in flight on one core** — beside
+      `crates/nvs-host/src/scheduler.rs:1934`, marked release-only as
+      `crates/nvs-cli/src/serve.rs:1812-1817` is; on Linux it reads `/proc/sys/vm/max_map_count` and
+      fails naming the sysctl. `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`.
+- [ ] **The map-count fact** — `crates/nvs-host/src/stack.rs:15-16`'s module doc, and the operator's
+      line in `docs/setup.md`.
+- [ ] **A deliberate deadlock ended by the deadline, and by cancelling its awaiter** — beside
+      `crates/nvs-host/src/group.rs:771`, over `crates/nvs-host/src/channel.rs`'s channel, plus
+      `tests/conformance/task/a-deliberate-deadlock-is-ended-by-the-deadline-and-leaves-no-child-running.nvst`.
+      `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
 
 ## Backlog
 
-- `holes.py`'s `REFUSAL` reads a phrasing, not a kind — the source-declared kind the crate's
-  § *Known gaps* preamble describes is what would end this class (`tools/holes.py:96`).
-- `crates/nvs-ir/tests/refusals.rs`'s gate is only as wide as that recognizer; its module doc says so.
-- `docs/agent/goals/55-m5-proofs.toml` and `57-m7-server-surface.toml` hold prose against rules no
-  `rules` entry reaches — `chain.py --check`'s two standing notes.
+- Stage 3, the isolate proofs — `crates/nvs-host/src/isolate.rs`, `crates/nvs-host/tests/limits.rs:769`,
+  `crates/nvs-stdlib/src/session.rs:743-771`; its own file set.
+- Stage 4, the `spawn` event — `crates/nvs-runtime/src/ctx/trace.rs:155`,
+  `crates/nvs-host/src/isolate.rs:401`, `crates/nvs-host/src/group.rs:376`; shares `isolate.rs` with
+  stage 3.
+- Stages 5–6, the record and the three options — `crates/nvs-types/src/expr/isolate.rs:143`,
+  `crates/nvs-ir/src/lower/expr.rs:3188`, `crates/nvs-stdlib/src/script.rs:619`,
+  `crates/nvs-host/src/group.rs:197`.
+- Stage 7, the speedup guard — `benches/abi-probe/tests/perf_guards.rs:486`; needs stage 6.
+- Stage 8, TSAN — `.github/workflows/ci.yml:460-574`, `tools/tsan.sh`; the worker cores of stage 6 are
+  in its scope, so it runs after them.
+- When this goal's last check goes green the driver takes goal `m4b-editor`.

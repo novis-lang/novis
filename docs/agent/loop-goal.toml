@@ -1,13 +1,12 @@
-# Goal 54 -- every shape the checker admits lowers, or a diagnostic naming its rule refuses it
+# Goal 55 -- the scheduler's claims are proven at the scale M5 promised them
 # The acceptance test, as data.
 #
-# `54-m4-refusals.md` is the prose. One home each.
+# `55-m5-proofs.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # No example of its own: every check below is a case, a named test or a command. M4's "non-trivial
-  # program leaks nothing" is the valgrind sweep over the floor's files, which goal-switch.py unions in.
+  # No example of its own: every proof here is a Rust test, a `.nvst` case or a release guard.
   # carried from the previous goal by tools/goal-switch.py
   "examples/webcrypto.nvs",
   "examples/finish.nvs",
@@ -95,47 +94,41 @@ files = [
 [context]
 
 modules = [
-  # `guarded_by!` (stage 2); the element-write catch-all (:2615, stage 3); the two declared-type
-  # boundaries (:3069, :3288, stage 8).
-  "crates/nvs-ir/src/lower/mod.rs",
-  # The `is` site (:5004) and `test_shape` (:5376), `instanceof` (:5229), `clone` (:5289), and the `match`
-  # label (:1927). Stages 3, 5, 6 and 7.
+  # The run queue, `spawn`'s stack take (:755-772) and the 1,000-task test (:1934). Stage 2; the
+  # stack switch TSAN annotates, stage 8.
+  "crates/nvs-host/src/scheduler.rs",
+  # The reservation, the pool bound (:62-71) and the address-space sentence (:15-16). Stage 2.
+  "crates/nvs-host/src/stack.rs",
+  # `run_group` (:137), its child spawn (:376) and the host seam `spawn script` enters by (:190-203).
+  # Stages 2, 4 and 6.
+  "crates/nvs-host/src/group.rs",
+  # `Core\Task\Channel`'s host half, which the deadlock waits on. Stage 2.
+  "crates/nvs-host/src/channel.rs",
+  # The isolate: its two crossings, `start` and `join` (:401-420, :674). Stages 3, 4 and 6.
+  "crates/nvs-host/src/isolate.rs",
+  # `RemoteWake` (:219), the cross-thread wake a worker child answers by. Stage 6.
+  "crates/nvs-host/src/reactor.rs",
+  # The run-elsewhere-then-wake handoff and its lazy bound (:12-36), the shape worker cores copy. Stage 6.
+  "crates/nvs-host/src/blocking.rs",
+  # `TraceKind::Spawn` (:62-64) and `record_query`/`record_http` (:155, :181). Stage 4.
+  "crates/nvs-runtime/src/ctx/trace.rs",
+  # The `Host` seam and `Running::join` (:371-380, :540). Stage 6.
+  "crates/nvs-runtime/src/host.rs",
+  # `nvs_core_script_spawn` (:619) and `await` (:922). Stage 6.
+  "crates/nvs-stdlib/src/script.rs",
+  # `Core\Session::start` (:734-790), which opens a session where no request arrived. Stage 3.
+  "crates/nvs-stdlib/src/session.rs",
+  # `check_spawn_script` and `E_SPAWN_OPTION_UNSUPPORTED` (:143-160). Stage 6.
+  "crates/nvs-types/src/expr/isolate.rs",
+  # `lower_spawn_script` (:3163-3256), which reads `args:` and `output:` alone. Stage 6.
   "crates/nvs-ir/src/lower/expr.rs",
-  # `$f(...)` through a callable (:789) and the by-reference argument (:1170). Stages 3 and 4.
-  "crates/nvs-ir/src/lower/call.rs",
-  # The `switch` label (:741) and the two `foreach` asserts (:974, :985). Stages 3 and 6.
-  "crates/nvs-ir/src/lower/control.rs",
-  # The truthy conversion's catch-all (:608). Stage 6.
-  "crates/nvs-ir/src/lower/convert.rs",
-  # `throw` on a tagged operand (:28). Stage 5.
-  "crates/nvs-ir/src/lower/exception.rs",
-  # The statement roster (:263) and `unset` (:1483). Stage 3.
-  "crates/nvs-ir/src/lower/stmt.rs",
-  # Where the ordinary element walk and per-site unit tests live. Stages 7 and 8.
-  "crates/nvs-ir/src/lower/tests.rs",
-  # The gaps that describe these sites: the preamble (:187), gap 1 (:194) and gap 6 (:333). Stages 2 and 9.
-  "crates/nvs-ir/src/lib.rs",
-  # The ratchet and the new guarded-site test. Stages 2 and 9.
-  "crates/nvs-ir/tests/refusals.rs",
-  # The checker's refusals the guarded sites name: throw, clone (:447-461) and `foreach` subjects.
-  "crates/nvs-types/src/expr/members.rs",
-  "crates/nvs-types/src/expr/iteration.rs",
-  # Every code a `guarded_by!` takes.
-  "crates/nvs-diagnostics/src/lib.rs",
-  # `rule:types/arithmetic`'s operator table — the scalar rows, `decimal`'s own set, the
-  # short-circuiting operators, and the widening that places a mixed pair.
-  "crates/nvs-ir/src/lower/operator.rs",
-  # `rule:types/closure-literal`'s closure literals, lowered to an object of a synthesized class
-  # with one field per capture.
-  "crates/nvs-ir/src/lower/closure.rs",
-  # The natural ordering of two `Value`s — what "smaller" means when no comparator was given.
-  "crates/nvs-stdlib/src/ordering.rs",
 ]
 
-# Every stage works inside these two: a shape that lowers answers as PHP does, and nothing it adds is
-# charged anywhere but where it runs.
+# Every stage works inside these three: a call returns with nothing still running, an isolate
+# shares nothing but compiled code, and what a change spends is said out loud.
 rules = [
-  "php-migration/every-divergence-is-deliberate-and-listed",
+  "concurrency/nothing-is-still-running-when-a-call-returns",
+  "security/isolate-shares-nothing",
   "programs/memory-priority",
 ]
 
@@ -146,7 +139,7 @@ shapes = [
   "A code comment",
 ]
 
-milestones = ["M4:verify"]
+milestones = ["M5:verify"]
 
 playbook = [
   # The process traps, by hand.
@@ -158,20 +151,13 @@ playbook = [
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
-  # The ratchet and the recognizer, which every slice of this goal moves.
-  'Tooling > holes.py --item',
-  "Tooling > holes.py's count",
-  "Tooling > nvs-ir's refusal",
-  "Tooling > refusals.rs's ceiling",
-  'Writing Novis itself > a new panic!',
-  'Writing Novis itself > a holes.py',
 ]
 
 plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `54-m4-refusals.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `55-m5-proofs.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -179,68 +165,78 @@ plan = ["Open now", "Blocking"]
 # of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
 #
 # These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
-# the `[[check]]` blocks' `stage = "2 the keystone"` labels, which may group several prose stages under
+# the `[[check]]` blocks' `stage = "2 the scale"` labels, which may group several prose stages under
 # one acceptance line. loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# A guarded panic names the diagnostic the checker raises in its place, and a crash report is not a
-# request's own code running.
-rules = ["errors/panics-bypass-user-code", "errors/diagnostic-record"]
-shapes = ["A diagnostic"]
-
-[context.stage.3]
-# The refusals the seven guarded sites trust.
+# A stack is a reservation, a cancelled task runs no user code, and a deadline is the only bound.
 rules = [
-  "iteration/foreach-subjects",
-  "classes/unset-is-refused-on-a-property",
-  "types/class-reference-sites",
+  "concurrency/a-task-stack-is-reserved-wide-and-pooled",
+  "concurrency/cancellation-runs-no-user-code",
+  "concurrency/limit-and-deadline-are-the-only-bounds",
 ]
 shapes = ["A `.nvst` test case"]
-playbook = ['Writing Novis itself > a checker table']
+
+[context.stage.3]
+# A child answers no request, its failure is a value, and what crosses is one graph copy.
+rules = [
+  "security/request-state-throws-in-an-isolate",
+  "security/isolate-failure-is-a-value",
+  "security/isolate-values-cross-by-copy",
+]
+shapes = ["A `.nvst` test case"]
 
 [context.stage.4]
-rules = ["types/callable-is-a-closure", "types/callable-signature"]
-shapes = ["A `.nvst` test case"]
+# The event, its kind, and the probe bits that gate it.
+rules = [
+  "observability/spawn-is-its-own-event",
+  "observability/trace-events-carry-a-kind",
+  "testing/debug-probes",
+]
+adrs = ["0041 §3"]
 
 [context.stage.5]
-# The tagged operand throws the way the erased receiver already does.
-rules = ["classes/clone-is-shallow", "types/erased-member-access"]
-shapes = ["A `.nvst` test case"]
+# The record: what a worker placement already means, and how a result may cross a thread.
+rules = [
+  "security/isolate-values-cross-by-copy",
+  "concurrency/a-wake-never-moves-a-task",
+  "concurrency/one-scheduler",
+]
+adrs = ["0006"]
+shapes = ["A decision record", "A rule fragment", "Citing a document"]
 
 [context.stage.6]
-# The one comparison and the pair it refuses; the truthy table and the declaration rule that keeps
-# `void` out of a condition.
+# The options: a wake carries an id, the budget is the tree's, and a core is never blocked.
 rules = [
-  "expressions/switch-match-equality",
-  "expressions/one-equality-operator",
-  "expressions/disjoint-comparison-refused",
-  "expressions/truthy-table",
-  "types/declaration",
+  "concurrency/a-wake-never-moves-a-task",
+  "security/isolate-budget-is-the-trees",
+  "http-server/a-core-is-never-blocked-on-a-syscall",
 ]
 shapes = ["A `.nvst` test case"]
 
 [context.stage.7]
-rules = ["types/type-test", "iteration/two-interfaces", "types/callable-is-a-closure"]
-shapes = ["A `.nvst` test case"]
+# A guard is self-relative on one machine, and a bench is attributed by its path.
+rules = ["testing/perf-two-mechanisms", "testing/proof-attribution"]
 
 [context.stage.8]
-rules = ["types/grammar", "types/literal-types"]
+# Where a sanitizer runs, and which lane it is in.
+rules = ["testing/the-deep-lane", "testing/lane-table"]
 
 [context.stage.9]
-shapes = ["A playbook bullet"]
+shapes = ["A rule fragment"]
 
-# No new refcount edge crosses a boundary this goal writes: `$f(...)` adds one retain to an existing
-# closure, and a tagged throw or clone reuses the object path. No cycle shape, so nothing is added to the
-# skip list.
+# The crossings this goal adds copy graphs the valgrind sweep already walks through `spawn script`;
+# no new cycle shape, so nothing is added to the skip list.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# None of this goal's own checks needs a daemon. The floor is goal `gap-register`'s whole list, which
-# carries the database, queue and cache checks of the goals before it, and those need the containers.
+# None of this goal's own checks needs a daemon. The floor is goal `m4-refusals`'s whole list, carried
+# forward from every goal before it, and its database and shared-tier checks run against these
+# containers -- the daemons are the floor's.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
@@ -249,7 +245,7 @@ memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 680 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 693 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -9573,15 +9569,12 @@ name = "brief.py routes a gap question to the register"
 argv = ["python", "tools/brief.py", "--where", "gap"]
 want = ["tools/owners.py"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the keystone"
+stage = "1 floor"
 name = "every guarded site names a diagnostic code that a conformance case expects"
 args = ["test", "-p", "nvs-ir", "--test", "refusals"]
 tests = [
@@ -9592,17 +9585,16 @@ tests = [
 # Stage 3 -- the guarded sites. Goal prose stage 3. `--guarded` lists by file, then line, so these
 # codes appear in this order: call.rs, control.rs's key then subject, expr.rs, mod.rs, stmt.rs's `unset`.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "3 the guarded sites"
+stage = "1 floor"
 name = "the by-reference, foreach, instanceof, element-write and unset sites are guarded by their codes"
 argv = ["python", "tools/holes.py", "--guarded"]
 want = ["E0439", "E0723", "E0443", "E0497", "E0700", "E0234"]
 
 [[check]]
 kind = "nvs-suite"
-stage = "3 the guarded sites"
+stage = "1 floor"
 name = "a foreach over an un-narrowed nullable array is refused at the subject"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9612,10 +9604,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- `$f(...)` through a callable. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 first-class callable"
+stage = "1 floor"
 name = "a first-class callable of a closure is that closure"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9624,7 +9615,7 @@ cases = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "4 first-class callable"
+stage = "1 floor"
 name = "a first-class callable of a closure matches PHP's identity"
 args = ["test", "tests/differential/"]
 cases = [
@@ -9634,10 +9625,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- `throw` and `clone` through a tag. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "5 tagged throw and clone"
+stage = "1 floor"
 name = "a nullable throwable is thrown, a nullable object is cloned, and null throws an error for both"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9649,7 +9639,7 @@ cases = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "5 tagged throw and clone"
+stage = "1 floor"
 name = "throwing and cloning a non-object match PHP's errors"
 args = ["test", "tests/differential/"]
 cases = [
@@ -9660,10 +9650,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- labels and the condition. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "6 labels and the condition"
+stage = "1 floor"
 name = "a switch label and a match arm of another representation compare by the one equality"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9673,7 +9662,7 @@ cases = [
 
 [[check]]
 kind = "command"
-stage = "6 labels and the condition"
+stage = "1 floor"
 name = "the label pairs with no equality row and a void condition are guarded by their codes"
 argv = ["python", "tools/holes.py", "--guarded"]
 want = ["E0466"]
@@ -9681,10 +9670,9 @@ want = ["E0466"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- `is` answers for every type. Goal prose stage 7.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "7 is is total"
+stage = "1 floor"
 name = "an is test answers a shape, a union, an intersection, iterable, callable and an array of a class"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -9697,10 +9685,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- declared types. Goal prose stage 8.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "8 declared types"
+stage = "1 floor"
 name = "every type atom lowers as a declared type, and every checked type a value can have erases"
 args = ["test", "-p", "nvs-ir", "--lib"]
 tests = [
@@ -9712,17 +9699,224 @@ tests = [
 # Stage 9 -- the gate. Goal prose stage 9. The floor's `every_refusal_is_a_diagnostic_or_decided`
 # holds the tree's count equal to CEILING, so CEILING at 0 is the count at 0.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "9 the gate"
+stage = "1 floor"
 name = "the refusal ceiling is zero"
 argv = ["git", "grep", "-n", "const CEILING: usize = 0;", "--", "crates/nvs-ir/tests/refusals.rs"]
 want = ["const CEILING: usize = 0;"]
 
 [[check]]
 kind = "command"
-stage = "9 the gate"
+stage = "1 floor"
 name = "carried-refusals.md holds no entry for M4's lowering refusals"
 argv = ["git", "grep", "-n", "M4's carried lowering refusals", "--", "docs/agent/carried-refusals.md"]
 exit = "nonzero"
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the scale and the deadlock. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+# `--release` and the filter, so the driver runs it in its release slot after the sweep, on an idle
+# machine -- the test is `#[cfg_attr(debug_assertions, ignore)]`, so the debug `-p nvs-host` run
+# skips it. `--lib` because the scheduler's tests are in the library.
+[[check]]
+kind = "cargo-named"
+stage = "2 the scale"
+name = "a hundred thousand tasks in flight on one core all finish"
+args = ["test", "--release", "-p", "nvs-host", "--lib", "a_hundred_thousand_tasks_in_flight_at_once_all_finish_on_one_core"]
+tests = [
+  "a_hundred_thousand_tasks_in_flight_at_once_all_finish_on_one_core",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the deadlock"
+name = "a deliberate deadlock is ended by the deadline, and by cancelling the task that awaits it"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "two_tasks_waiting_on_each_others_channel_are_ended_by_the_groups_deadline",
+  "a_deadlocked_pair_is_ended_by_cancelling_the_task_that_awaits_them",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the deadlock"
+name = "a program's deliberate deadlock ends at its deadline with no child still running"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/task/a-deliberate-deadlock-is-ended-by-the-deadline-and-leaves-no-child-running.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the isolate proofs. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the isolate proofs"
+name = "a child asking for request or session state is refused, and so is a session with no request"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/isolate/a-child-reading-request-or-session-state-throws-a-logic-error.nvst",
+  "tests/conformance/core/session-start-where-no-request-arrived-is-a-logic-error.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the isolate proofs"
+name = "a child's limit breach is a value, and a cyclic argument crosses a real spawn"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_childs_memory_breach_arrives_as_ok_false_and_the_parent_keeps_running",
+  "a_childs_cpu_breach_arrives_as_ok_false_and_the_parent_keeps_running",
+  "a_cyclic_argument_crosses_a_real_spawn_and_comes_back_with_its_cycle",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the `spawn` trace event. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the spawn event"
+name = "a spawn event carries its form, both timestamps and the overhead split"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_spawn_event_carries_its_form_and_both_timestamps_and_splits_the_overhead",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the spawn event"
+name = "every spawn records one event under TRACE, closed at its join, and none with the bits off"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_traced_spawn_script_records_one_spawn_event_closed_at_its_join",
+  "a_traced_task_group_records_a_spawn_event_per_child",
+  "an_untraced_spawn_records_no_spawn_event",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the record. Goal prose stage 5. A bare id, which stays true after stage 9 flips it.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 the record"
+name = "a worker placement running the child on another core is a rule"
+argv = ["python", "tools/rules.py", "--show", "concurrency/on-worker-runs-the-child-on-another-core"]
+want = ["concurrency/on-worker-runs-the-child-on-another-core"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- `on:`, `limits:` and `grants:`. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the options"
+name = "the three options are accepted and typed, and an unknown placement is refused"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "spawn_script_accepts_limits_grants_and_on_and_checks_their_types",
+  "an_unknown_placement_for_on_is_refused_at_compile_time",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the options"
+name = "a worker child runs on another core, answers by copy, dies with its parent, and the cores are bounded"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_worker_child_runs_on_another_core_and_its_answer_is_copied_back",
+  "a_cancelled_parent_cancels_its_worker_child_across_cores",
+  "worker_cores_are_started_lazily_and_bounded_by_the_core_count",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 the options"
+name = "a worker child answers as a local one does, and limits and grants only ever narrow"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/isolate/a-child-on-a-worker-core-answers-as-one-on-this-core-does.nvst",
+  "tests/conformance/isolate/a-child-given-grants-holds-only-those-and-cannot-widen-them.nvst",
+  "tests/conformance/isolate/a-child-given-limits-is-stopped-at-its-own-ceiling.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the speedup. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+# The same `args` as the floor's `abi-probe` checks, so the driver runs the package's guards once.
+[[check]]
+kind = "cargo-named"
+stage = "7 the speedup"
+name = "a CPU-bound fan-out across four worker cores is near-linear"
+args = ["test", "--release", "-p", "nvs-abi-probe", "--test", "perf_guards"]
+tests = [
+  "a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names",
+]
+
+[[check]]
+kind = "command"
+stage = "7 the speedup"
+name = "the fan-out has its bench row beside spawn-to-result"
+argv = ["git", "grep", "-n", "-e", "worker_fan_out", "--", "benches/abi-probe/benches/isolation.rs"]
+want = ["worker_fan_out"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- ThreadSanitizer. Goal prose stage 8. CI is not running, so the job is proven by reading
+# the workflow file and the sanitizer by running the job's own script under WSL.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "8 tsan"
+name = "the workflow has a tsan job"
+argv = ["git", "grep", "-n", "-e", "^  tsan:", "--", ".github/workflows/ci.yml"]
+want = ["tsan:"]
+
+[[check]]
+kind = "command"
+stage = "8 tsan"
+name = "the tsan job builds with the thread sanitizer"
+argv = ["git", "grep", "-n", "-e", "-Zsanitizer=thread", "--", ".github/workflows/ci.yml"]
+want = ["-Zsanitizer=thread"]
+
+[[check]]
+kind = "command"
+stage = "8 tsan"
+name = "the workflow no longer says TSAN is owed"
+argv = ["git", "grep", "-n", "-e", "TSAN is still owed", "--", ".github/workflows/ci.yml"]
+exit = "nonzero"
+want = []
+
+# The job's own command, run locally. `wsl.exe` because this driver runs on Windows
+# (docs/agent/commands.md's WSL section); the script ends on the one line this reads.
+[[check]]
+kind = "command"
+stage = "8 tsan"
+name = "ThreadSanitizer is clean over nvs-host and nvs-runtime"
+argv = ["wsl.exe", "--", "bash", "-lc", "bash tools/tsan.sh"]
+want = ["tsan: clean"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the rulebook. Goal prose stage 9.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "9 the rulebook"
+name = "a worker placement running the child on another core is shipped"
+argv = ["python", "tools/rules.py", "--show", "concurrency/on-worker-runs-the-child-on-another-core"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "9 the rulebook"
+name = "a spawn is its own trace event, shipped"
+argv = ["python", "tools/rules.py", "--show", "observability/spawn-is-its-own-event"]
+want = ["shipped"]
