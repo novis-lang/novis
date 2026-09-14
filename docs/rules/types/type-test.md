@@ -27,12 +27,17 @@ if ($m is int) {
 | `iterable`, `callable`, a callable signature | `$x is iterable`, `$x is callable` |
 | a literal type | `$x is 5`, `$x is 'yay'`, `$x is true` |
 | a class constant or an enum case | `$x is Mode::Read`, `$x is self::Wild` |
+| an enum | `$x is Rank` |
 | `mixed` | `$x is mixed` — always `true`, and the RFC's wildcard |
 | a union or an intersection of any of those | `$x is int\|float`, `$x is Countable&Traversable` |
 
 `array<T>` with a named element type, and a shape, each cost an O(n) walk — the same walk
-`as array<T>` already performs, in a spelling that answers instead of throwing. Every other row is one
-tag comparison, or the descriptor walk `instanceof` already does.
+`as array<T>` already performs, in a spelling that answers instead of throwing. An enum is its cases:
+`$x is Rank` answers exactly what asking every `$x is Rank::Case` in turn answers, at one payload
+compare per case, and `rule:enums/representation` owns what that can tell apart — a value that reached
+`mixed` is its backing integer, so a case is not distinguishable there from that integer nor from
+another enum's case of the same value. Every other row is one tag comparison, or the descriptor walk
+`instanceof` already does.
 
 There is no float literal type to test against (`rule:types/literal-types`), so `$x is 3.14` is
 refused by that rule and not by this one.

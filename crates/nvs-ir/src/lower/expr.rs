@@ -4983,10 +4983,12 @@ impl<'a> Lowering<'a> {
                 let Some(shape) = test_shape(tested, self.exprs, self.checked_types, self.enums)
                 else {
                     panic!(
-                        "nvs-ir only lowers `is` against a scalar, `null`, `object`, an \
-                         `array` of any element type, a class, a shape, a literal, an enum \
-                         case, `iterable`, `callable`, a written callable signature, or a \
-                         union or intersection of those — got {:?}",
+                        "nvs-ir: `is {:?}` reached lowering with no run-time row, and every \
+                         type [`test_shape`] answers `None` for is one the front end holds \
+                         back — a qualifier (`E0813`), `void` or `never` (`E0811`), `mixed`, \
+                         which the checker settles instead, a compiler-owned type no source \
+                         spelling produces, or a written signature `nvs_types::check` \
+                         resolved no marker class for. So this is a checker that did not run",
                         self.checked_types.get(tested)
                     );
                 };
@@ -5438,13 +5440,17 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        // An empty chain is the identity of the operation it chains: nothing
+        // to answer `true` makes a [`TestShape::Any`] `false`, and nothing to
+        // answer `false` makes a [`TestShape::All`] `true`. A union or an
+        // intersection never arrives empty —
         // `nvs_types::ty::TypeInterner::make_union` collapses a one-member
-        // union to that member and never interns an empty one, so there is
-        // always a last member for the chain to end on.
-        debug_assert!(
-            !members.is_empty(),
-            "a union or intersection interns with at least two members"
-        );
+        // union to that member and interns no empty one — so the shape that
+        // does is an enum declaring no cases, whose set of values is empty and
+        // which therefore holds no value at all.
+        if members.is_empty() {
+            return self.emit(*cur, Ty::Bool, InstKind::ConstBool(!decided));
+        }
         let merge = self.new_block();
         let last = members.len().saturating_sub(1);
         let mut incoming = Vec::with_capacity(members.len());
@@ -5871,19 +5877,29 @@ enum TestShape {
 /// step more specific, against the marker class `nvs_types::callables`
 /// resolved for that signature — which is what `exprs` is read for here.
 ///
-/// `mixed` is not here and cannot arrive: it holds every value, so the checker
-/// folded that test to `true`.
+/// An enum is `rule:types/enum-case-type`'s row asked of every case at once,
+/// and its own arm below owns why the backing tag alone is not the answer.
 ///
-/// # Known gaps
+/// # Why the `None`s are unreachable
 ///
-/// One row answers `None` and reaches the caller's panic rather than a
-/// diagnostic: a written signature the checker recorded no marker for. No
-/// checked program produces one — `nvs_types::check` resolves that table for
-/// every unit, and its `collect_signatures` takes every tested signature from
-/// the same places this function recurses into: a union member, an
-/// intersection member, an array element, a shape field. The `None` keeps it
-/// that way rather than a fallback to [`CLOSURE_MARKER`](super::CLOSURE_MARKER),
-/// which would answer `true` for a closure of any signature at all.
+/// `nvs_types::ty::Ty` is `#[non_exhaustive]`, so the walk ends in a wildcard
+/// the compiler requires here and no checked program reaches — which is what
+/// [`Lowering::lower_type_test`]'s panic states, rather than a gap. Each type
+/// falling to it is held back earlier: `rule:types/type-test`'s three refusals
+/// are a qualifier (`E0813`), `void` or `never` (`E0811`) and a variable
+/// (`E0812`), each pinned to a conformance case expecting the code; `mixed`
+/// holds every value, so the checker settles that test to `true` instead of
+/// lowering it; and `ClassRef`, `PropertyKey`, `ShapeOfCallables` and
+/// `CoreShape` are compiler-owned types no source spelling produces.
+///
+/// The one `None` inside the walk rather than at its end is a written
+/// signature the checker recorded no marker for. No checked program produces
+/// one either — `nvs_types::check` resolves that table for every unit, and its
+/// `collect_signatures` takes every tested signature from the same places this
+/// function recurses into: a union member, an intersection member, an array
+/// element, a shape field. The `None` keeps it that way rather than a fallback
+/// to [`CLOSURE_MARKER`](super::CLOSURE_MARKER), which would answer `true` for
+/// a closure of any signature at all.
 fn test_shape(
     tested: TypeId,
     exprs: &ExprTypeTable,
@@ -5965,6 +5981,48 @@ fn test_shape(
         // any field is read. A field whose own type has no row makes the whole
         // shape `None`, which keeps `is {a: array<Foo>}` a single known gap
         // rather than a walk half of which lowers.
+        // `rule:enums/representation` makes a case its backing integer and
+        // nothing else, so the enum *itself* is the disjunction of its cases:
+        // one [`TestShape::Literal`] per case, chained by [`TestShape::Any`],
+        // which is `rule:types/enum-case-type`'s row asked of every case at
+        // once. Anything weaker — the backing type's tag alone — would answer
+        // `true` for an integer that names no case of this enum while every
+        // `is Enum::Case` over that same value answered `false`, and an
+        // operator whose whole-type row disagrees with its own case rows is
+        // not answering one question. `as EnumName` tests the same closed set
+        // and throws where this answers `false`, so both walk
+        // [`super::convert::sorted_enum_cases`]. Two cases may carry one value
+        // (`rule:enums/declaration`) and the second compare would decide
+        // nothing the first did not, so the set is deduplicated — which the
+        // sort makes one adjacent pass.
+        //
+        // What it spends (`rule:programs/memory-priority`): one integer
+        // compare per distinct case at worst, allocating nothing, and none at
+        // all where the subject's declared type let the checker settle the
+        // test. An enum with no cases is inhabited by nothing, so its chain is
+        // empty and answers the constant `false` [`Lowering::emit_test_chain`]
+        // gives it.
+        CheckedTy::Enum(qname, backing) => {
+            let info = enums.get(qname).unwrap_or_else(|| {
+                panic!(
+                    "nvs-ir: `{qname}` is an interned enum type with no entry in the run's enum \
+                     table — `nvs_types` interns one only for an enum it resolved, so the two \
+                     tables disagree"
+                )
+            });
+            let repr = enum_repr(*backing);
+            let mut cases = super::convert::sorted_enum_cases(info);
+            cases.dedup_by_key(|(_, value)| *value);
+            return Some(TestShape::Any(
+                cases
+                    .into_iter()
+                    .map(|(_, value)| TestShape::Literal {
+                        repr,
+                        atom: LiteralAtom::EnumCase(value),
+                    })
+                    .collect(),
+            ));
+        }
         CheckedTy::Shape(fields) => {
             let mut rows = Vec::with_capacity(fields.len() + 1);
             rows.push(TestShape::Tag(Ty::Object));
@@ -6001,11 +6059,7 @@ fn test_shape(
                      resolved, so the two tables disagree"
                 )
             });
-            let repr = match backing {
-                nvs_types::EnumBacking::Int => Ty::Enum(EnumRepr::Int),
-                nvs_types::EnumBacking::Uint => Ty::Enum(EnumRepr::Uint),
-            };
-            Some((repr, LiteralAtom::EnumCase(value)))
+            Some((enum_repr(*backing), LiteralAtom::EnumCase(value)))
         }
         _ => None,
     };
@@ -6052,6 +6106,20 @@ fn test_shape(
         // there being no run-time bit to read.
         _ => return None,
     }))
+}
+
+/// The representation a value of an enum with this backing type carries.
+///
+/// [`Ty::Enum`] and not the backing scalar itself, because the two are the
+/// same word and different types: `nvs_codegen::ty::tag_of` answers an enum
+/// with its backing type's tag (`rule:enums/representation`), while
+/// [`payload_repr`] is what steps down to the scalar where a payload is
+/// actually compared.
+fn enum_repr(backing: nvs_types::EnumBacking) -> Ty {
+    match backing {
+        nvs_types::EnumBacking::Int => Ty::Enum(EnumRepr::Int),
+        nvs_types::EnumBacking::Uint => Ty::Enum(EnumRepr::Uint),
+    }
 }
 
 /// The representation one [`TestShape::Literal`]'s payload compare happens at,

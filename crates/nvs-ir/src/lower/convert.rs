@@ -1884,14 +1884,36 @@ impl<'a> Lowering<'a> {
 /// `nvs-hir`, and [`Lowering::closed_literal_set`] holds the one reference to
 /// one long enough to do the table lookup itself.
 ///
-/// **Sorted by the case's own constant**, which is not cosmetic:
-/// `EnumInfo::cases` is an `FxHashMap`, so an unsorted set would render the
-/// throw's accepted list in a different order from run to run and no test
-/// could pin the message. By the constant rather than by the name so that the
-/// ordinary declaration — no `= n` clause anywhere, values auto-incrementing
-/// from 0 (`rule:enums/one-backing-type`) — reads back in the order it was written; the name
-/// breaks a tie, so the order is total either way.
+/// The order is [`sorted_enum_cases`]', which is also what `is` walks: one
+/// declaration has one closed set, and `as` throwing on a value outside it
+/// while `is` answers `false` is the only difference between the two.
 pub(crate) fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> AcceptedSet {
+    let cases = sorted_enum_cases(info);
+    AcceptedSet {
+        members: cases
+            .iter()
+            .map(|(_, value)| LiteralAtom::EnumCase(*value))
+            .collect(),
+        rendered: cases
+            .iter()
+            .map(|(case, _)| format!("`{name}::{case}`"))
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
+}
+
+/// One enum declaration's cases, as `(name, constant)` in a total order.
+///
+/// **Sorted by the case's own constant**, which is not cosmetic:
+/// `EnumInfo::cases` is an `FxHashMap`, so an unsorted set would render an
+/// `as` throw's accepted list in a different order from run to run, and would
+/// emit `is`'s membership chain in a different order too — neither a message
+/// a test can pin nor a function one program lowers to once. By the constant
+/// rather than by the name so that the ordinary declaration — no `= n` clause
+/// anywhere, values auto-incrementing from 0 (`rule:enums/one-backing-type`) —
+/// reads back in the order it was written; the name breaks a tie, so the order
+/// is total either way.
+pub(crate) fn sorted_enum_cases(info: &nvs_types::EnumInfo) -> Vec<(&str, nvs_types::EnumValue)> {
     let mut cases: Vec<(&str, nvs_types::EnumValue)> = info
         .cases
         .iter()
@@ -1904,17 +1926,7 @@ pub(crate) fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> Accepted
         };
         (ordinal, *case)
     });
-    AcceptedSet {
-        members: cases
-            .iter()
-            .map(|(_, value)| LiteralAtom::EnumCase(*value))
-            .collect(),
-        rendered: cases
-            .iter()
-            .map(|(case, _)| format!("`{name}::{case}`"))
-            .collect::<Vec<_>>()
-            .join(", "),
-    }
+    cases
 }
 
 /// The closed set of values a checked `as` into an

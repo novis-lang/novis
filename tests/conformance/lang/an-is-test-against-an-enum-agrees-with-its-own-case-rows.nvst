@@ -1,0 +1,102 @@
+--TEST--
+`is` against a whole enum answers exactly what its own case rows answer, for a case, another enum's case of the same value, a bare integer, a `uint` backing, a string and `null` — `rule:types/type-test`, `rule:types/enum-case-type`, `rule:enums/representation`
+--FILE--
+<?nvs
+// `rule:types/type-test` makes `is` total and strict, and
+// `rule:enums/representation` makes an enum value its backing integer and
+// nothing else. Together those decide the whole-enum row: `$x is Rank` is the
+// disjunction of `$x is Rank::Case` over every case `Rank` declares. This
+// case asserts that agreement by counting rather than by reading each value
+// off its own line — a whole-enum row that answered by the backing type's tag
+// alone says `true` for every integer, which prints plausibly value by value
+// and still fails the count.
+
+enum Rank: int {
+    Bronze = 1,
+    Silver = 2,
+}
+
+enum Grade: int {
+    Pass = 2,
+    Fail = 7,
+}
+
+enum Wide: uint {
+    Low = 0,
+    High = 9,
+}
+
+enum Nothing: int {
+}
+
+class Probe {
+    // 1 where the whole-enum row answered what the case rows did. The value
+    // is named on stdout when it did not, so a failure says which one moved
+    // rather than only that the count fell.
+    public static function agrees(string $named, mixed $v): int {
+        bool $whole = $v is Rank;
+        bool $cases = ($v is Rank::Bronze) || ($v is Rank::Silver);
+        if ($whole == $cases) {
+            return 1;
+        }
+        echo "WRONG ", $named, ": ", Probe::yn($whole), Probe::yn($cases), "\n";
+        return 0;
+    }
+
+    // `bool as string` renders `false` as the empty string, which would let a
+    // row whose two halves both went missing read as agreement.
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+Rank $bronze = Rank::Bronze;
+Rank $silver = Rank::Silver;
+Grade $pass = Grade::Pass;
+Grade $fail = Grade::Fail;
+Wide $high = Wide::High;
+
+int $agreed = 0;
+$agreed = $agreed + Probe::agrees("Rank::Bronze", $bronze);
+$agreed = $agreed + Probe::agrees("Rank::Silver", $silver);
+// `rule:enums/representation`'s stated consequence, asked of both rows at
+// once: a value that reached `mixed` is not distinguishable there from its
+// backing integer, nor one enum from another enum with the same backing. So
+// `Grade::Pass` and a plain `2` answer the `Rank::Silver` row, `Grade::Fail`
+// answers no row at all, and the whole-enum row has to say the same.
+$agreed = $agreed + Probe::agrees("Grade::Pass", $pass);
+$agreed = $agreed + Probe::agrees("Grade::Fail", $fail);
+$agreed = $agreed + Probe::agrees("int 1", 1);
+$agreed = $agreed + Probe::agrees("int 99", 99);
+// A different backing type is a different tag, so no case of a `uint`-backed
+// enum can answer an `int`-backed one's row.
+$agreed = $agreed + Probe::agrees("Wide::High", $high);
+$agreed = $agreed + Probe::agrees("string", "Bronze");
+$agreed = $agreed + Probe::agrees("null", null);
+echo "agreed=", $agreed as string, "/9\n";
+
+// An enum declaring no cases is inhabited by nothing, so nothing is it — the
+// one whole-enum row with no case row behind it, and still an answer rather
+// than a refusal.
+mixed $one = 1;
+echo "nothing=", Probe::yn($one is Nothing), "\n";
+
+// The O(n) element walk `as array<T>` already pays for, over the row above.
+mixed $ranks = [Rank::Bronze, Rank::Silver];
+mixed $strays = [Rank::Bronze, 99];
+echo "array=", Probe::yn($ranks is array<Rank>), Probe::yn($strays is array<Rank>), "\n";
+
+// `rule:types/narrowing`: the true edge knows the subject is a `Rank`, which
+// is what makes `$m as int` legal there.
+mixed $m = $silver;
+if ($m is Rank) {
+    echo "narrowed=", $m as int as string, "\n";
+}
+--EXPECT--
+agreed=9/9
+nothing=n
+array=yn
+narrowed=2
