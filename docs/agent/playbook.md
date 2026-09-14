@@ -4967,6 +4967,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   has no such parent and `verify.py` here never runs the Unix half, so it first fails in the WSL
   leg. Use a directory beside the test binary, as `crates/nvs-server/src/control.rs`'s `scratch`
   does. [until: reviewed 2026-09-14]
+- **A `-p nvs-cli` case that writes a tree under `scratch("x")` and then drives it through
+  `asked("x", …)` loses the tree.** `ctl.rs`'s `scratch` empties the directory it hands back, and
+  `asked` reaches it again through `endpoint`, so the `nvs.toml` the case just wrote is deleted
+  before the reload re-reads it — and the failure arrives as `E0605: cannot read …nvs.toml` from
+  inside the server's answer rather than from the case. Give the tree a name of its own
+  (`scratch("reload-live-tree")`) and leave the endpoint's to `asked`. [until: reviewed 2026-11-01]
 
 ## Splitting a file that got too big
 

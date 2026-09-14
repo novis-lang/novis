@@ -4,42 +4,49 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal
-opens). **Stage 3's client half is now whole.** `nvs ctl` has `reload`, `config` and `status`,
-`--socket` addresses one of several servers on a host, and an answer that does not carry this
-build's version is refused before its body is looked at.
+opens). **Stage 3 is now whole on both halves.** `nvs serve` binds the endpoint `[control] socket`
+names before any listener is bound, runs `nvs_server::control::serve` on one thread of its own, and
+supplies `crate::control::Process` as the `Controlled` behind it; `nvs ctl` drives all three
+operations against it.
 
-`crates/nvs-cli/src/ctl.rs` is the whole of it and its module doc owns the drive: `hyper` frames
-both halves, so the workspace manifest now takes its `client` feature and the lock file gained
-`want` and `try-lock`. `nvs_config::control::connect` hands back a `Client` that answers
-`WouldBlock` on both platforms rather than the blocking socket it used to alias — that is measured
-and not defensive: with a blocking one the exchange sends nothing at all and hangs until the
-server's idle bound fires.
+The order is `crates/nvs-cli/src/serve.rs`'s `bind_sockets`, and its doc owns why: the endpoint's
+directory is held to `rule:config/ownership-is-the-trust-boundary`, so a boot that bound listeners
+first would be answering requests on the way to refusing to start. A test passes a verdict instead
+of the real check, which is what makes the order assertable on a platform whose filesystem cannot be
+put in the refused state.
 
-**Nothing binds the endpoint yet.** `nvs serve` never calls `control::bind`, no thread runs
-`nvs_server::control::serve`, and nothing implements `Controlled` over the running process, so the
-three `ctl_*` cases stage 3's `-p nvs-cli` check names are unwritten — each needs a live server.
-What is asserted today is the exchange itself, against the real `answer_connection` over a real
-endpoint.
+**A reload now reaches the next request.** `Serving` holds an `Arc<nvs_config::Current>` rather than
+a snapshot (`Serving::live`; `Serving::new` wraps a tree nothing publishes into, which is every
+embedder and every test), and `nvs serve` hands it the holder `crate::control::Process` publishes
+into. The unit cache is re-keyed with it — `[[extension]]` is reloadable and is the whole of the
+environment digest — so `Compiler::rekey` drops every unit keyed under the digest it leaves and the
+report's `invalidated` count is a fact rather than a prediction.
+
+Left in stage 3: the two cases its `-p nvs-cli` check names that are about **stopping** —
+`a_terminating_signal_drains_serve_and_every_connection_closes_cleanly` and
+`sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping`. Nothing installs a signal
+handler and nothing writes to `NOTIFY_SOCKET` yet.
 
 ## Next group
 
-**Stage 3: `serve` binds the endpoint and supplies `Controlled`** — one file set:
-`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/ctl.rs`.
+**Stage 3: a signal drains `serve`, and systemd is told each state** — one file set:
+`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/service.rs`.
 
-- [ ] **`serve` binds the control endpoint before any listener accepts** — in `run` at
-      `crates/nvs-cli/src/serve.rs:124`, ahead of the `bind_all` at
-      `crates/nvs-cli/src/serve.rs:1197`. `nvs_config::control::Address::of` over the booted tree,
-      `bind(name, boundary)` so that a directory another account can write refuses the boot rather
-      than being served from, and one thread of its own running `nvs_server::control::serve`
-      (`rule:config/one-local-control-socket`).
-- [ ] **The `Controlled` the running process supplies** — the trait and its five members are at
-      `crates/nvs-server/src/control.rs:82`. `snapshot` and `reload` are the roots and unit cache
-      `serve` already holds, with `nvs_config::control::reload` as the one function the socket,
-      `systemctl reload` and `PARAMCHANGE` all end in; the count is the accept loop's and the drain
-      bit is `nvs-runtime`'s (`rule:concurrency/a-drain-closes-a-connection-cleanly`).
-- [ ] **The three `ctl_*` cases the stage's `-p nvs-cli` check names** — beside the exchange cases
-      at `crates/nvs-cli/src/ctl.rs:390`, once a server with a bound endpoint can be booted in
-      process. `ctl_refuses_an_answer_from_a_server_of_another_version` is already there and green.
+- [ ] **A terminating signal begins the one drain** — installed in `run` beside the control thread
+      at `crates/nvs-cli/src/serve.rs:411`, ending in `nvs_server::Draining::process().begin()`,
+      which is the same state machine the SCM stop and the control endpoint's own loop already read
+      (`rule:concurrency/a-drain-closes-a-connection-cleanly`). The accept loop's half is
+      `crates/nvs-server/src/serve.rs:473`'s `Draining` and the bit under it is
+      `crates/nvs-runtime/src/drain.rs:123`, whose `wake_at_drain` is what makes a parked connection
+      see the drain rather than wait out its own idle timer.
+- [ ] **`sd_notify` says `READY`, `RELOADING`, `READY`, `STOPPING`** — beside `unit()` at
+      `crates/nvs-cli/src/service.rs:491`, which is where this binary already knows what a service
+      manager was told about it (`rule:packaging/a-service-is-one-stored-argv`). The reload leg fires
+      from `crate::control::Process::reload` at `crates/nvs-cli/src/control.rs:100`, which is the one
+      function the socket, `ExecReload` and `PARAMCHANGE` all end in.
+- [ ] **A reload's outcome is written to `Core\Log`** — `rule:config/one-local-control-socket`'s last
+      sentence, unbuilt: `crate::control::Process::reload` at
+      `crates/nvs-cli/src/control.rs:100` returns the report and logs nothing.
 
 ## Backlog
 - `nvs ctl`'s wait for a server that answers nothing is unbounded — the endpoint serializes
@@ -49,8 +56,10 @@ endpoint.
   full pipe buffer waits, where the Unix socket answers `WouldBlock` and the idle bound catches it.
   A `config` listing is the only answer big enough to reach it (`crates/nvs-config/src/control.rs`).
 - `nvs_config::control::Endpoint::bound()` has no caller now that `accept` is on the endpoint.
-- Stale prose — `docs/plan/m7.md`'s carrier list, `crates/nvs-cli/src/serve.rs:79-90`'s "no
+- `[opcache]`'s `validate`, `revalidate_freq` and the artifact cache are still read once at
+  `Compiler::new`, so a reload that changes them is reported as applied and is not
+  (`crates/nvs-cli/src/script.rs:288`).
+- Stale prose — `docs/plan/m7.md`'s carrier list, `crates/nvs-cli/src/serve.rs`'s "no
   configuration" gap — belongs to goal `plan-truth`.
 - The four `unowned` gaps at `crates/nvs-server/src/route.rs:30` and its siblings — goal
   `unowned-closures`.
-- `Core\Metrics`'s three rows — goal `m8-stdlib-depth`.

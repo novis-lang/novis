@@ -388,6 +388,7 @@ const SETTLE: Duration = Duration::from_millis(1);
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::fs;
     use std::io::{self, Read, Write};
     use std::path::{Path, PathBuf};
@@ -395,12 +396,16 @@ mod tests {
 
     use hyper::StatusCode;
     use nvs_config::control::bind;
-    use nvs_config::snapshot::Snapshot;
+    use nvs_config::snapshot::{Current, Snapshot};
+    use nvs_diagnostics::SourceMap;
     use nvs_server::control::{
         Controlled, Report, VERSION, VERSION_HEADER, answer_connection, same_build,
     };
+    use nvs_server::{Admission, Ceiling, Draining};
 
     use super::{Answered, SETTLE, exchange, judged};
+    use crate::control::Process;
+    use crate::script::Compiler;
 
     /// The process a control answer is about, recorded rather than running: what [`Controlled`]
     /// asks for, set by the case that is asking about it.
@@ -497,7 +502,13 @@ mod tests {
     }
 
     /// The server half, answering one client for real.
-    fn served(process: Answering) -> impl FnOnce(nvs_config::control::platform::Stream<'_>) + Send {
+    ///
+    /// Generic over the process because both halves of this module's coverage go through it: the
+    /// recording one above, for the cases that are about the client's framing, and the real
+    /// [`Process`] below, for the two that are about what a running server answers.
+    fn served<H: Controlled + Send>(
+        process: H,
+    ) -> impl FnOnce(nvs_config::control::platform::Stream<'_>) + Send {
         move |connected| {
             answer_connection(connected, &process).expect("one client, answered whole");
         }
@@ -644,6 +655,113 @@ mod tests {
             judged(nameless, Path::new("here"), "GET", "/status").is_err(),
             "an answer with no version header at all is a mismatch too: it is not this surface, \
              whatever it is",
+        );
+    }
+
+    /// A server of this case's own: the tree `written` resolved out of a file under `dir` exactly
+    /// as a boot resolves it, held where a reload publishes, and the [`Process`] serving it.
+    ///
+    /// The drain is [`Draining::detached`] because this server's stopping is not this process's,
+    /// and the compiler is one of its own: the count a reload reports is the fleet's unit cache,
+    /// and this fleet has compiled nothing.
+    fn a_server_over(dir: &Path, written: &str) -> (PathBuf, Arc<Current>, Process) {
+        let root = dir.join("nvs.toml");
+        fs::write(&root, written).expect("a tree of this case's own");
+        let entry = dir.join("app.nvs");
+        fs::write(&entry, "fn main(): void {}\n").expect("an entry file for the tree to be about");
+        let mut sources = SourceMap::new();
+        let snapshot = crate::config::boot_snapshot(
+            std::slice::from_ref(&root),
+            &entry,
+            &mut sources,
+            crate::config::Init::Never,
+        )
+        .expect("the tree this case wrote resolves");
+        let current = Arc::new(Current::new(snapshot));
+        let capacity = nvs_config::server::capacity_for(&current.load().config, &BTreeMap::new())
+            .expect("a tree that named no ceiling has this machine's");
+        let process = Process::new(
+            Arc::clone(&current),
+            vec![root.clone()],
+            entry,
+            Arc::new(Compiler::default()),
+            Arc::new(Admission::new(&Ceiling::of(&capacity))),
+            Draining::detached(),
+        );
+        (root, current, process)
+    }
+
+    /// `rule:config/a-reload-names-what-it-could-not-apply`, end to end over the endpoint: the
+    /// reloadable key is applied and the process is serving it, and the `Boot` block the edit also
+    /// changed is named back rather than taken.
+    #[test]
+    fn ctl_reload_publishes_the_edited_tree_and_prints_what_it_could_not_apply() {
+        // A directory of its own and not the endpoint's: `scratch` empties what it hands back, so
+        // a tree written under the name `asked` will use is a tree deleted before it is re-read.
+        let dir = scratch("reload-live-tree");
+        let (root, current, process) = a_server_over(
+            &dir,
+            "[limits]\nmemory = \"64M\"\n\n[server]\nlisten = [\"127.0.0.1:8080\"]\n",
+        );
+        fs::write(
+            &root,
+            "[limits]\nmemory = \"128M\"\n\n[server]\nlisten = [\"127.0.0.1:9090\"]\n",
+        )
+        .expect("the operator edits the tree the server booted on");
+
+        let answered = asked("reload-live", "POST", "/reload", served(process));
+        let body = judged(answered, &root, "POST", "/reload").expect("the reload is performed");
+
+        assert!(
+            body.contains("applied: limits.memory"),
+            "the reloadable key the edit changed is named as applied: {body}",
+        );
+        assert!(
+            body.contains("ignored: server"),
+            "and the `Boot` block it also changed is named as not applied — a row naming a block \
+             governs every key beneath it, so `[server]` is one change: {body}",
+        );
+        let serving = current.load();
+        assert_eq!(
+            serving.table["limits"]["memory"].as_str(),
+            Some("128M"),
+            "the published snapshot is the edited one, so the next request reads it",
+        );
+        assert_eq!(
+            serving.table["server"]["listen"][0].as_str(),
+            Some("127.0.0.1:8080"),
+            "and the address already bound is still what the tree says, which is what makes \
+             `does not take effect` true rather than aspirational",
+        );
+    }
+
+    /// `rule:config/ctl-config-reports-the-live-snapshot`: the listing is what the process is
+    /// holding, with the file each directive was written in beside it.
+    ///
+    /// The tree on disk is edited and **not** reloaded, so a listing taken from the files would
+    /// answer `128M` and the live one answers `64M`. That difference is the whole of what this
+    /// operation exists for — the offline `nvs config dump --origin` is the other half.
+    #[test]
+    fn ctl_config_prints_the_live_snapshot_with_each_directives_origin() {
+        let dir = scratch("config-live-tree");
+        let (root, _current, process) = a_server_over(&dir, "[limits]\nmemory = \"64M\"\n");
+        fs::write(&root, "[limits]\nmemory = \"128M\"\n")
+            .expect("the file changes under a process that has not reloaded");
+
+        let answered = asked("config-live", "GET", "/config", served(process));
+        let body = judged(answered, &root, "GET", "/config").expect("the snapshot is listed");
+
+        let row = body
+            .lines()
+            .find(|line| line.starts_with("limits.memory "))
+            .unwrap_or_else(|| panic!("the listing names every key in force: {body}"));
+        assert!(
+            row.contains("\"64M\""),
+            "the value is the one the process is serving and not the one on disk: {row}",
+        );
+        assert!(
+            row.contains(&root.display().to_string()),
+            "and the origin column names the file it was written in: {row}",
         );
     }
 }
