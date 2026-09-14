@@ -98,19 +98,18 @@
 //! `rule:concurrency/on-worker-runs-the-child-on-another-core`'s mechanism and
 //! owns what a placement costs).
 //!
-//! **What stands in the way is the budget, and it is a security question.**
-//! `rule:security/isolate-budget-is-the-trees` charges a child's memory and
-//! output to the root of its tree, and `nvs_runtime::budget` implements that by
-//! counting per **thread**: a request is charged the difference between its
-//! thread's balance now and the balance when its `Ctx` was made, which is exact
-//! for every isolate that runs where its parent runs and wrong for one that does
-//! not. A child started on another core would take its zero point there, be
-//! measured against that core's reading, and so hold a whole `[limits] memory`
-//! of its own — one per core, for one request, which is precisely the arithmetic
-//! the rule bounds. ADR 0184 § 4 asserts the opposite, so the record is ahead of
-//! the code here and the code is what has to move: the tree's two counters have
-//! to be reachable from a thread that is not the one which opened them before
-//! any placement may post.
+//! **The budget no longer stands in the way, and what it asks of the arm is
+//! named.** `rule:security/isolate-budget-is-the-trees` charges a child's memory
+//! and output to the root of its tree, and `nvs_runtime::budget` counts per
+//! **thread**: exact for every isolate that runs where its parent runs, and
+//! silent about one that does not. The tree's counters now cross beside the word
+//! every context in it is stopped through — `nvs_runtime::TreeState`, holding
+//! `nvs_runtime::budget::OffCore` — so a child started on another core joins its
+//! tree there through `Ctx::join_tree`, publishes its share at its own polls, and
+//! lands on the reading the root's ceiling is enforced against. What the arm owes
+//! is the rest of that sentence: the far core's `Ctx` is made with that handle
+//! and with a sub-cap taken from what remained of the tree's budget here, which
+//! is the bound that holds between one poll and the next.
 //!
 //! Behind that sit the argument and the entry, and neither is a question any
 //! more. The argument crosses as `nvs_runtime::graph::encode`'s bytes rather
@@ -256,13 +255,13 @@ impl Host for SchedulerHost {
             isolate
         };
         match placement {
-            // One arm, and the module doc's `# Known gaps` is why: what stands
-            // between a worker placement and the cores `crate::worker` already
-            // starts is `nvs_runtime::budget`'s counters being the thread's, so
-            // posting the child would give it a budget root of its own rather
-            // than its tree's. Starting it here is the safe half of that trade
-            // and the only one priority 1 admits — it costs the placement, and
-            // an isolate whose memory nobody can cap costs the isolation.
+            // One arm, and the module doc's `# Known gaps` is why: the cores,
+            // the inbox and the tree's counters are all built, and the arm that
+            // secures a core, encodes the argument and posts is what is not
+            // written yet. Starting a worker placement here keeps every promise
+            // the placement makes but one — the child is its parent's child,
+            // charged to its tree, dying with it — and loses only the core it
+            // asked for.
             Placement::Here | Placement::Worker => isolate.start(ctx).map_err(StartError::Argument),
         }
     }

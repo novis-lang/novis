@@ -102,18 +102,17 @@
 //! by the goal's standing decisions, and closing it is a serving core calling
 //! into this module as it starts rather than anything about the crossing.
 //!
-//! Nothing above `nvs-host` reaches this yet, and what stops it is the budget
-//! rather than the transport. `nvs_runtime::budget`'s two counters are
-//! **thread-local** — a request is charged the difference between its thread's
-//! balance now and the balance when its `Ctx` was made — so a child allocating
-//! on another core is measured from a base taken there and is bounded by that
-//! core's reading rather than by its tree's. That is the opposite of what
-//! `rule:security/isolate-budget-is-the-trees` promises and what ADR 0184 § 4
-//! asserts, and it is a security question rather than a cost one: a placement
-//! that opens a budget root of its own is a way for one request to hold the
-//! whole cap once per core. Both placement words therefore still start the child
-//! on the parent's core, and [`crate::group`]'s module doc is that gap's one
-//! home.
+//! Nothing above `nvs-host` reaches this yet, and what is missing is the arm
+//! that secures a core, encodes the argument and posts. The budget is no longer
+//! what holds it: `nvs_runtime::budget`'s two counters are thread-local — a
+//! request is charged the difference between its thread's balance now and the
+//! balance when its `Ctx` was made — and the tree's own pair now crosses beside
+//! its safepoint word, so a child started here joins its tree through
+//! `Ctx::join_tree`, publishes its share at its own polls, and is read and capped
+//! at the tree's root as `rule:security/isolate-budget-is-the-trees` and ADR 0184
+//! § 4 both say it is. Both placement words still start the child on the parent's
+//! core until the arm is written, and [`crate::group`]'s module doc is that gap's
+//! one home.
 //! — owner: m5-proofs
 
 use std::collections::VecDeque;
