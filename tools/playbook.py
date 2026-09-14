@@ -19,7 +19,7 @@ script.
     python tools/playbook.py --manifest <term>...  # the same, as a paste-ready `playbook = [...]`
     python tools/playbook.py --goal                # --manifest driven by loop-goal.toml's modules
     python tools/playbook.py --check               # expiry, stale paths, colliding selectors, sizes (CI)
-    python tools/playbook.py --retire              # delete every bullet whose retirement condition holds
+    python tools/playbook.py --retire              # delete every bullet whose retirement condition holds, and the manifest lines that named only it
     python tools/playbook.py --dupes               # bullets that already say what another says
 
 EVERY BULLET DECLARES WHAT RETIRES IT
@@ -70,6 +70,10 @@ ordinary English word. `spellings` holds that split and `score` applies it.
 A second way to add one would be a second thing to keep in agreement. The one write this script
 does make is `--retire`, and it only ever removes: a bullet whose declared condition holds is
 mechanically dead, and a second reader deciding that again is the cost the trailer exists to end.
+It removes the goal manifests' `playbook` lines that resolved to that bullet alone in the same
+pass, because `chain.py --check` refuses a selector that reaches nothing and every goal's floor
+runs that check -- a bullet retired by a wrap and left named by the live manifest held the loop
+for a hand once, at a DONE claim, over a line that had outlived the trap it fetched.
 
 Beyond the trailers, `--check` and `--dupes` are the two pruning signals an append-mostly file can
 have. A bullet naming a path that is no longer in the tree is describing a trap someone already
@@ -518,7 +522,7 @@ def report_expiry(today: date | None = None) -> tuple[int, int]:
 
 
 def run_retire(dry: bool) -> int:
-    """Delete every block whose declared condition holds, file by file, and say what went."""
+    """The `--retire` flag: refuse while a declaration cannot be read, otherwise `retire`."""
     expired, _owed, bad, _rows = expiry_report()
     if bad:
         print(f"playbook.py: {len(bad)} bullet(s) declare nothing or declare it wrongly; `--check` "
@@ -527,9 +531,25 @@ def run_retire(dry: bool) -> int:
     if not expired:
         print("playbook.py: no bullet's retirement condition holds; nothing to delete.")
         return 0
+    retire(expired, dry)
+    return 0
+
+
+def retire(expired: list[dict], dry: bool) -> list[str]:
+    """Delete every block in `expired`, file by file, then every goal manifest's `playbook` line
+    that resolved only to a bullet that just went. Returns the files changed, repo-relative.
+
+    The second half is what keeps a retirement from halting the loop: a goal's `[context]
+    playbook` names its bullets by lead-in, `chain.py --check` refuses a selector that reaches
+    nothing, and that check is on every goal's floor. So a bullet retired by one wrap and left
+    named by the live manifest was a DONE claim the driver held for a hand -- the selector had
+    outlived the trap it fetched, and nothing but a reader's grep connected the two files."""
     by_file: dict[Path, list[dict]] = {}
     for e in expired:
         by_file.setdefault(e["path"], []).append(e)
+    before = read()
+    after = before
+    changed: list[str] = []
     for path, entries in by_file.items():
         lines = path.read_text(encoding="utf-8").split("\n")
         for e in sorted(entries, key=lambda x: -x["start"]):
@@ -539,12 +559,95 @@ def run_retire(dry: bool) -> int:
             # up separated by two.
             if 0 < e["start"] < len(lines) and not lines[e["start"]].strip() and not lines[e["start"] - 1].strip():
                 del lines[e["start"]]
+        text = "\n".join(lines)
+        if path == PLAYBOOK:
+            after = text
         if not dry:
-            path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+            path.write_text(text, encoding="utf-8", newline="\n")
+        changed.append(entries[0]["file"])
+    pruned = prune_manifests(before, after, dry)
     verb = "would delete" if dry else "deleted"
-    print(f"\nplaybook.py: {verb} {len(expired)} bullet(s) across {len(by_file)} file(s). "
-          "Commit is the caller's; the message names what expired.")
-    return 0
+    print(f"\nplaybook.py: {verb} {len(expired)} bullet(s) across {len(by_file)} file(s)"
+          + (f" and {len(pruned)} manifest line(s) that named nothing else" if pruned else "")
+          + ". Commit is the caller's; the message names what expired.")
+    return changed + sorted({p for p, _sel in pruned})
+
+
+#: One entry of a `playbook = [ ... ]` list as the goal files write it: a TOML string on a line
+#: of its own, a trailing comma and comment allowed. Inline lists are not read -- the scaffold
+#: only ever writes the empty one, and `chain.py --check` still reports a selector in one.
+SELECTOR_LINE = re.compile(r"""^\s*('[^']*'|"(?:[^"\\]|\\.)*")\s*,?\s*(?:#.*)?$""")
+
+
+def prune_manifests(before: str, after: str, dry: bool) -> list[tuple[str, str]]:
+    """Drop, from every goal's `[context]`, each `playbook` selector that resolved against
+    `before` and resolves to nothing against `after`. Returns `(file, selector)` per line dropped.
+
+    Only the difference is dropped. A selector that already reached nothing is `chain.py
+    --check`'s finding and stays for a reader; one that still opens another bullet's lead-in --
+    a family named with `*`, or a lead-in the retired bullet shared -- keeps fetching that, and
+    stays too. A comment run left with nothing under it before the closing `]` goes with its
+    lines, so a manifest never ends in a comment about bullets it no longer names.
+
+    `docs/agent/loop-goal.toml` is swept with the goals: it is the live goal's installed copy,
+    the one `orient.py` builds the pack from and the driver runs the sweep from, and a session
+    edits it in place, so it can name a selector the goal's own file no longer does."""
+    import tomllib
+    dropped: list[tuple[str, str]] = []
+    manifests = [g.toml for g in goalsmod.load() if not g.retired]
+    if GOAL_TOML.is_file():
+        manifests.append(GOAL_TOML)
+    for toml in manifests:
+        lines = toml.read_text(encoding="utf-8").split("\n")
+        keep: list[str] = []
+        went: list[str] = []
+        in_list = False
+        comments_since_kept = 0
+        last_went = False
+        for line in lines:
+            if not in_list:
+                keep.append(line)
+                in_list = re.match(r"^\s*playbook\s*=\s*\[\s*(?:#.*)?$", line) is not None
+                comments_since_kept, last_went = 0, False
+                continue
+            stripped = line.strip()
+            if stripped == "]":
+                if last_went and comments_since_kept:
+                    del keep[len(keep) - comments_since_kept:]
+                keep.append(line)
+                in_list = False
+                continue
+            m = SELECTOR_LINE.match(line)
+            if m is None:
+                keep.append(line)
+                if stripped.startswith("#"):
+                    comments_since_kept += 1
+                continue
+            selector = tomllib.loads(f"x = {m.group(1)}")["x"]
+            was, _ = orientmod.slice_bullets(before, selector)
+            _now, complaint = orientmod.slice_bullets(after, selector)
+            if was and complaint:
+                went.append(selector)
+                last_went = True
+                continue
+            keep.append(line)
+            comments_since_kept, last_went = 0, False
+        if not went:
+            continue
+        rel = toml.relative_to(ROOT).as_posix()
+        text = "\n".join(keep)
+        try:
+            tomllib.loads(text)
+        except tomllib.TOMLDecodeError as err:
+            print(f"  keep    {rel}  -- dropping {len(went)} selector(s) leaves it unreadable "
+                  f"({err}); left for a hand")
+            continue
+        for selector in went:
+            print(f"  drop    {rel}  {toml_str(selector)}  -- named only a bullet retired above")
+            dropped.append((rel, selector))
+        if not dry:
+            toml.write_text(text, encoding="utf-8", newline="\n")
+    return dropped
 
 
 # ------------------------------------------------------------------------------ matching

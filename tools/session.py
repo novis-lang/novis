@@ -486,16 +486,18 @@ def retire_expired(dry: bool) -> list[str]:
     decides an expiry twice: `playbook.py --retire` is the one write that script makes, and calling
     it here is what turns a declared condition into a deletion without a session remembering to.
     It refuses nothing -- a bullet that declares nothing is `--check`'s finding, and `run_retire`
-    says so and deletes nothing. The changed files join the last `## commit:` like any other doc
-    the wrap wrote, so `git log` names what expired in the same commit that closes the session."""
+    says so and deletes nothing. The changed files -- the playbook, and every goal manifest whose
+    `playbook` list named a retired bullet alone, which `playbookmod.retire` prunes so the floor's
+    `chain.py --check` never meets a selector that reaches nothing -- join the last `## commit:`
+    like any other doc the wrap wrote, so `git log` names what expired in the same commit that
+    closes the session."""
     expired, _owed, bad, _rows = playbookmod.expiry_report()
     if bad or not expired:
         return []
     files = sorted({e["file"] for e in expired})
     say(f"session.py: {len(expired)} bullet(s) whose retirement condition holds -- "
         f"{'would retire' if dry else 'retiring'} them from {', '.join(files)}")
-    playbookmod.run_retire(dry)
-    return files
+    return playbookmod.retire(expired, dry)
 
 
 def validate(sections: list[Section]) -> list[str]:
@@ -634,7 +636,7 @@ def validate(sections: list[Section]) -> list[str]:
             f"does not run it (its own docstring says why), so a green verify says nothing here. "
             f"A link already dead at the commit this session opened on is not counted: that one is "
             f"not yours. A slice you committed by hand earlier in this session is still yours.")
-    errors += rulebook_findings() + record_findings() + migration_findings()
+    errors += rulebook_findings() + record_findings() + migration_findings() + manifest_findings()
     return errors
 
 
@@ -981,6 +983,32 @@ def migration_findings() -> list[str]:
     acceptance list and nowhere else, so the bare run is what belongs here: it answers whether the
     rows are well formed, which is the half a session can break and then close on."""
     return tree_gate("docs/spec", "check-migration.py", MIGRATION_GATES)
+
+
+def manifest_findings() -> list[str]:
+    """What `chain.py --check` would refuse in the live goal's `[context]` manifest, always.
+
+    The same reading `orient.manifest_findings` gives the driver -- a `playbook` selector that
+    reaches no bullet, a `shapes` heading conventions.md does not have -- taken here, before the
+    commit, because that check sits on every goal's floor and the driver runs the floor after the
+    session is gone: a manifest broken at wrap time is a DONE claim held for a hand. No trigger,
+    unlike the three above: the manifest is one file and the playbook one read, so the whole gate
+    costs less than a link check, and there is no earlier session to blame it on -- the wrap that
+    retires a bullet prunes the lines that named it, so a selector reaching nothing here was
+    written or unwritten by this session."""
+    goal = goalsmod.find(goalsmod.load(), goalsmod.live())
+    if goal is None or goal.retired:
+        return []
+    # Both copies: the goal's own file is what the floor's `chain.py --check` reads, and the
+    # installed `loop-goal.toml` is what the pack and the driver's sweep read -- a session edits
+    # the latter in place, so the two can disagree.
+    manifests = [goal.toml] + ([orient.GOAL_TOML] if orient.GOAL_TOML.is_file() else [])
+    problems: list[str] = []
+    for toml in manifests:
+        found, _notes = orient.manifest_findings(toml)
+        problems += [p for p in found if p not in problems]
+    return [f"{p} -- `chain.py --check` is on the floor and halts a DONE claim on this; fix the "
+            f"manifest before the wrap, or drop the line" for p in problems]
 
 
 def body_links(sections: list[Section]) -> list[str]:

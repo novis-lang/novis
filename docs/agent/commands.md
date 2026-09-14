@@ -61,8 +61,10 @@ signals an append-mostly file has beyond the `[until: ...]` trailer every bullet
 `playbook.py`'s module doc; `--check` tests the trailers and `--retire` deletes the bullets whose condition
 holds. `--check` also reports a bullet naming a path that has left the tree,
 and `--dupes` reports a bullet that already says what another bullet says — one trap had been written down
-six times, by six sessions, in six wordings, before anything could see it. Neither appends to the playbook, and `--retire` only ever removes:
-appending a bullet is `session.py`'s `## playbook:` section and stays there.
+six times, by six sessions, in six wordings, before anything could see it. Neither appends to the playbook, and `--retire` only ever removes —
+the bullet, and every goal manifest's `playbook` line that resolved to that bullet alone, so the floor's
+`chain.py --check` never meets a selector reaching nothing: appending a bullet is `session.py`'s
+`## playbook:` section and stays there.
 
 `--check` **exits non-zero on exactly one of the things it prints**: a selector that does not resolve to
 exactly one bullet. `orient.py` fetches a trap by that string, so a shared lead-in is a bullet the loop
@@ -291,14 +293,19 @@ run; a wider one does satisfy a narrower.
 **The docs gates are not in that list and `verify.py` runs none of them.** `rules.py --check`,
 `rules.py --render --check`, `check-links.py`, `layout.py`, `records.py --check`, `plan.py --check`,
 `playbook.py --check` and `release.py --check` are CI's `docs` job — Python-only, no toolchain, about a
-second together — and `session.py --wrap` runs **four families** of them in-process, so a wrap cannot
-commit what it just broke: the link half always, and then the rulebook (`rules.py`), the records
-(`records.py`) and the migration table (`check-migration.py`, which is CI's too) — each only when the
-session has edited the tree that feeds it, `docs/rules/`, `docs/decisions/` and `docs/spec/`. That
-trigger is the difference between the link gate and the other three. A dead link is a per-file fact, so
-the link gate can ask HEAD which findings are inherited; a rulebook, record or migration finding is a
-property of the whole set, so the conservative equivalent is to ask whether this session touched that
-tree at all — including a rename, which is what makes a citation elsewhere go dead.
+second together — and `session.py --wrap` runs **five families** of them in-process, so a wrap cannot
+commit what it just broke: the link half and the live goal's `[context]` manifest always, and then the
+rulebook (`rules.py`), the records (`records.py`) and the migration table (`check-migration.py`, which
+is CI's too) — each only when the session has edited the tree that feeds it, `docs/rules/`,
+`docs/decisions/` and `docs/spec/`. That trigger is the difference between the first two gates and the
+other three. A dead link is a per-file fact, so the link gate can ask HEAD which findings are inherited;
+a rulebook, record or migration finding is a property of the whole set, so the conservative equivalent
+is to ask whether this session touched that tree at all — including a rename, which is what makes a
+citation elsewhere go dead. The manifest gate is the reading `chain.py --check` gives the driver's
+floor — a `playbook` selector that reaches no bullet, a `shapes` heading that is not there — taken
+before the commit rather than after the session is gone, because that floor check halting a DONE claim
+is a hand the run waits for; a wrap that retires a bullet prunes the lines that named it, so whatever
+the gate finds is this session's.
 
 **`docs/novis.md` is the fifth thing a wrap settles, and it is a write rather than a gate.** The
 reference is generated from the binary, the chapters under `docs/reference/` and the migration table's
