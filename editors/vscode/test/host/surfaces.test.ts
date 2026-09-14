@@ -197,12 +197,11 @@ describe("the surfaces", () => {
 
   it("conceals both secrets on open and reveals exactly one", async () => {
     // The server is answering before the file is opened, on purpose: the test above restarts it,
-    // and a file opened while the client is still starting is asked about once the client has
-    // synced every open document, which is the easy order. A file opened against a running client
-    // is the order a user gets, and the one where the ask can reach the server before the client's
-    // own `didOpen` does -- the server answers `[]` for a document it has nothing open for, and
-    // that answer is held. Waiting here makes that the order every run takes rather than the one a
-    // loaded machine happens to take.
+    // and a file opened against a running client is the order a user gets. It is also the order
+    // that once turned on which of the redaction ask and the client's own `didOpen` reached the
+    // server first, since the server answers `[]` for a document it has nothing open for and that
+    // answer is held; `src/redactions.ts` § `opened` is what settled it. So this waits for a state
+    // the run is in rather than for a head start it needs.
     const reading = await surface();
     await until("the status item naming a running server", async () =>
       reading.status?.text.includes("lsp") === true ? true : undefined);

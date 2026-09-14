@@ -92,8 +92,11 @@ let serving: LanguageClient | undefined;
  * Create the decoration and start following what this window shows.
  *
  * Called once from `activate`, before any server is running: the listeners cost nothing while
- * nothing has answered, and installing them after the handshake would miss the documents that were
- * already open when the window did.
+ * nothing has answered, and installing them after the handshake would miss the window a user
+ * restored with a document already open.
+ *
+ * A document being opened is the one thing this does not listen for. `opened` is that path, and
+ * the difference between the two is a `secret` on screen.
  */
 export function install(context: ExtensionContext): void {
   concealing = bar();
@@ -101,7 +104,6 @@ export function install(context: ExtensionContext): void {
   context.subscriptions.push(
     concealing,
     marking,
-    workspace.onDidOpenTextDocument((document) => void ask(document)),
     workspace.onDidChangeTextDocument((event) => void ask(event.document)),
     workspace.onDidCloseTextDocument((document) => held.forget(document.uri.toString())),
     window.onDidChangeVisibleTextEditors((editors) => shown(editors)),
@@ -137,6 +139,26 @@ export function serve(client: LanguageClient | undefined): void {
   for (const editor of window.visibleTextEditors) {
     void ask(editor.document);
   }
+}
+
+/**
+ * Ask for a document the server has just been told about.
+ *
+ * This is the client's own `didOpen` middleware — `extension.ts` calls it from behind the
+ * notification — and not a `workspace.onDidOpenTextDocument` listener, and the whole of the
+ * difference is the order the two reach the server in. A listener installed at activation runs
+ * before the one `vscode-languageclient` registers when it starts, so the ask can arrive first:
+ * `crates/nvs-lsp/src/document.rs`'s `analyse` answers `None` for a document nothing is open for,
+ * the server turns that into `[]`, and an empty answer is an answer this client holds
+ * (`rule:ide/redaction-ranges-come-from-the-server`). Nothing re-asks a document already answered
+ * for, so the secret stays on screen in cleartext until it is edited. Asking from behind the
+ * notification is what makes that order impossible rather than merely unlikely.
+ *
+ * An edit needs no such care. `vscode-languageclient` flushes the document changes it is holding
+ * before it sends any request, so the ask the change listener makes is already behind them.
+ */
+export function opened(document: TextDocument): void {
+  void ask(document);
 }
 
 /**

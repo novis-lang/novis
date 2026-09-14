@@ -2,45 +2,49 @@
 
 ## State
 
-**Goal `m4b-editor` is met: stages 0 through 8 are all on disk and every one of its checks passes
-locally.** This session closed stages 6, 7 and 8.
+**Goal `m4b-editor` is met: stages 0 through 8 are on disk and every one of its checks passes
+locally.** This session closed the one check the driver reported red after session 0006.
 
-- **Stage 6.** `tools/ci-changes.py:56` holds the `editor` lane over `editors/`, the crates and both
-  manifests, and `.github/workflows/ci.yml` emits it from `changes` and gates two jobs on it:
-  `extension` (the same three platforms as `test` — build `nvs-cli`, `npm ci` against
-  `editors/vscode/.nvmrc`, lint, `test:headless` with `NVS_BIN` on that build, `npm run package`, and
-  `nvs.vsix` uploaded from the Linux leg alone) and `extension-host` (Linux, `xvfb-run -a npm run
-  test:host`, caching the downloaded editor build alone). CI is not running, so the files are the proof;
-  goal `gap-zero`'s green run is what proves the jobs themselves.
-- **Stage 7.** WSL already had a nightly toolchain and `cargo-fuzz`, so no install was needed. The
-  300 s `prefix` run was made here: `Done 246000 runs in 301 second(s)`, no panic, so nothing under
-  `crates/nvs-syntax/` changed. `docs/agent/commands.md` § *Fuzzing and callgrind on Windows* now names
-  the target and the command the check's `argv` copies.
-- **Stage 8.** The three rules are `shipped` with `guardedBy` filled in `docs/rules/ide.json`, rendered.
+- **That check was never a download failure.** The ledger quoted `- Resolving version...`, which is
+  `@vscode/test-electron` announcing the cache hit it went on to use; the run's own console log has
+  `conceals both secrets on open and reveals exactly one: ... did not happen within 20000ms` and
+  `host: 11 passing, 1 failing` under the same check.
+- **Its cause is established and closed.** `redactions.ts` asked `nvs/redactions` from a
+  `workspace.onDidOpenTextDocument` listener installed at activation, and VS Code calls that before
+  the listener `vscode-languageclient` registers when it starts — so the ask could reach the server
+  ahead of the notification that opens the document there. `crates/nvs-lsp/src/document.rs:382`
+  answers `None` for a document nothing is open for, `crates/nvs-lsp/src/server.rs:1357` turns that
+  into `[]`, and `editors/vscode/src/concealment.ts:153` counts an empty answer as an answer, so
+  nothing re-asks: the `secret` stays on screen in cleartext until the file is edited. The ask is
+  the client's own `didOpen` middleware now (`editors/vscode/src/extension.ts:190`), which awaits
+  the notification before it asks.
+- **Evidence.** The host suite ran five times at head, `host: 12 passing, 0 failing` every time,
+  the last of them with the fix in place. `npm run lint` is clean.
 
-`python tools/verify.py` is 11 of 11 (the extension's headless tier at 102 passing),
-`python tools/verify.py --doc` is green, and `python tools/reference.py --check` says `docs/novis.md` is
-current after the status flips.
-
-The pack never prints the goal's own `## Stage N` prose, which is where each stage's exact markers are,
-and `[context]` has no field that reaches it — not `rules`, `adrs`, `modules`, `shapes`, `playbook` or
-`milestones`. One `peek.py` target on `docs/agent/loop-goal.md:"## Stage N"` is the whole fix, but it has
-to be remembered.
+The pack still never prints the goal's own `## Stage N` prose, where each stage's exact markers
+are, and `[context]` has no field that reaches it. One `peek.py` target on
+`docs/agent/loop-goal.md:"## Stage N"` is the whole fix, but it has to be remembered.
 
 ## Next group
 
-**Nothing of this goal is open** — the status line is `DONE` and the next session is the chain's next
-goal, which `python tools/brief.py` names after `tools/goal-switch.py` runs. If the driver's own sweep
-declines the claim, the work is whichever check it names, and only these two could be it:
+**Nothing of this goal is open** — the status line is `DONE` and the next session is the chain's
+next goal, which `python tools/brief.py` names after `tools/goal-switch.py` runs. If the driver's
+sweep declines the claim again, the work is whichever check it names, and only these two could be
+it:
 
-- [ ] **A red stage 3–5 host check is a regression, never new work**
-      (`docs/agent/loop-goal.toml:9915` is the isolation check; one `npm run test:host -- --nvs
-      target/debug/nvs.exe` from `editors/vscode` reproduces all twelve).
-- [ ] **A red stage 8 check means the render is stale**: `python tools/rules.py --render` after any edit
-      to `docs/rules/ide.json:690`, because `docs/rules/ide.md` and `docs/ground-rules.md` are generated.
+- [ ] **A red stage 3–5 host check: read the console log, never the ledger's quoted line**
+      (`docs/agent/loop-goal.toml:9915` is the isolation check; `.loop/logs/<run>-console.log` holds
+      the whole output, and `editors/vscode/test/host/surfaces.test.ts:47`'s `until` now says what
+      was drawn instead of what was waited for). One `npm run test:host -- --nvs
+      target/debug/nvs.exe` from `editors/vscode` reproduces all twelve.
+- [ ] **A red stage 8 check means the render is stale**: `python tools/rules.py --render` after any
+      edit under `docs/rules/` (`docs/rules/ide.json:1` is the chapter this goal ships three rules
+      into).
 
 ## Backlog
 
+- `tools/loop.py:1368` — `first_err_line`'s `startswith("error")` is case-sensitive, so a Mocha
+  `Error: host: 1 failing` loses to stderr's first line and the ledger quotes progress output.
 - A test of `tools/loop.py:1706`'s `EDITOR_READS`: `tools/` has no suite to host one
   (`docs/agent/loop-goal.md` § *The acceptance cache sees an extension change*).
 - Publishing the `.vsix` to the Marketplace or Open VSX, or attaching it to a release —

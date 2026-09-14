@@ -177,10 +177,22 @@ async function start(context: ExtensionContext): Promise<void> {
   // the server learns one. It is read from the root configuration rather than from `settings` above
   // because a `WorkspaceConfiguration` is a proxy with methods on it and this crosses a JSON-RPC
   // boundary, which wants a value.
+  //
+  // The one middleware is an ordering and not a rewrite: nothing here changes a request, an answer
+  // or a notification. `redactions.opened` asks what a document conceals, and it is called from
+  // behind the `didOpen` it belongs to because the server answers nothing for a document it has not
+  // been told about and this client holds that answer — `redactions.ts` § `opened` is why that
+  // order is the difference between a concealed `secret` and one in cleartext.
   const options: LanguageClientOptions = {
     documentSelector: SELECTOR,
     outputChannel: channel,
     initializationOptions: workspace.getConfiguration().get<object>("nvs"),
+    middleware: {
+      didOpen: async (document, next) => {
+        await next(document);
+        redactions.opened(document);
+      },
+    },
   };
 
   // The id is what the trace setting hangs off: `vscode-languageclient` reads `<id>.trace.server`,
