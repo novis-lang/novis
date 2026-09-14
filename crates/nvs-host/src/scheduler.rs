@@ -2028,7 +2028,7 @@ mod tests {
         debug_assertions,
         ignore = "100k stack reservations belong in the driver's release slot"
     )]
-    fn a_hundred_thousand_tasks_are_in_flight_on_one_core() {
+    fn a_hundred_thousand_tasks_in_flight_at_once_all_finish_on_one_core() {
         const TASKS: usize = 100_000;
 
         demand_the_mappings_this_many_stacks_needs(TASKS);
