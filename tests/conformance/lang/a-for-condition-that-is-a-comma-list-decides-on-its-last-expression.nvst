@@ -1,0 +1,29 @@
+--TEST--
+A `for` condition that is a comma list evaluates every expression and decides on the last
+--FILE--
+<?nvs
+// Every expression in the clause runs on every trip through the header —
+// including the trip that fails the test, which is why `$j` ends at `6`.
+int $j = 0;
+for (int $i = 0; $j = $i * 2, $i < 3; $i = $i + 1) {
+    echo "i=", $i, " j=", $j, "\n";
+}
+echo "after j=", $j, "\n";
+
+// A local one of the discarded expressions writes carries across the back
+// edge, and a `continue` reaches the header through the step block as always.
+int $a = 0;
+string $trail = "";
+for (int $k = 0; $a = $a + 1, $trail .= "c", $k < 4; $k = $k + 1) {
+    if ($k == 1) {
+        continue;
+    }
+    $trail .= "b";
+}
+echo "a=", $a, " trail=", $trail, "\n";
+--EXPECT--
+i=0 j=0
+i=1 j=2
+i=2 j=4
+after j=6
+a=5 trail=cbccbcbc

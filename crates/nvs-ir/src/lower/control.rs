@@ -441,13 +441,18 @@ impl<'a> Lowering<'a> {
     /// ([`InstKind::Safepoint`]), and paying it twice on the rarer edge is
     /// cheaper than teaching `continue` which loop shape it sits in.
     ///
+    /// * **A comma list in the condition clause decides on its last
+    ///   expression**, which is PHP's rule. Every expression before that one is
+    ///   lowered into the header as the statement it is, so an assignment
+    ///   written there is visible to the test beside it and to the body, and it
+    ///   runs on every trip through the header including the one that fails the
+    ///   test. The phi seeding above walks the whole clause, so a local such an
+    ///   expression writes carries across the back edge like any other.
+    ///
     /// # Panics
     ///
-    /// Panics for a `for` header whose condition is a comma list of more than
-    /// one expression — PHP evaluates and discards all but the last, and the
-    /// discarded ones may assign, which would need the header environment
-    /// rebuilt around them. Panics too for the cases
-    /// [`Self::lower_expr_stmt`] and [`Self::lower_truthy_cond`] already name.
+    /// Panics for the cases [`Self::lower_expr_stmt`] and
+    /// [`Self::lower_truthy_cond`] already name.
     pub(crate) fn lower_for(
         &mut self,
         init: &'a ForInit,
@@ -457,12 +462,6 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         env: &mut Env,
     ) {
-        assert!(
-            cond.len() <= 1,
-            "nvs-ir lowers a `for` header with at most one condition expression — a comma list \
-             there evaluates and discards every expression but the last, and a discarded one may \
-             assign; see the crate docs' known gaps"
-        );
         // `rule:iteration/for-counter-scope`: the declaration form lowers as the statement it is,
         // into the pre-header block — the same slot store the line above the
         // loop produced, at the same point.
@@ -519,8 +518,13 @@ impl<'a> Lowering<'a> {
         // spelled here as the constant the branch then tests, so the block
         // shape stays the one every other loop builds.
         let mut cond_end = header_block;
-        let cond_v = match cond.first() {
-            Some(c) => self.lower_truthy_cond(c, &mut header_env, &mut cond_end),
+        let cond_v = match cond.split_last() {
+            Some((test, before)) => {
+                for e in before {
+                    self.lower_expr_stmt(e, &mut header_env, &mut cond_end);
+                }
+                self.lower_truthy_cond(test, &mut header_env, &mut cond_end)
+            }
             None => {
                 self.emit(header_block, Ty::Bool, InstKind::ConstBool(true))
                     .0
@@ -533,7 +537,7 @@ impl<'a> Lowering<'a> {
         let body_edge = self.ids.next_edge(body.span);
         let after_edge = self
             .ids
-            .next_edge(cond.first().map_or(body.span, |c| c.span));
+            .next_edge(cond.last().map_or(body.span, |c| c.span));
         self.seal(
             cond_end,
             Terminator::Branch {

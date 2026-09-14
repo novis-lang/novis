@@ -99,7 +99,7 @@ do {
 
 # `for`
 
-`for (init; cond; step) body`. The init clause is **either** one typed local declaration — `int $i = 0`, or `var $i = 0` — **or** a comma-separated list of expressions over locals declared above the loop; never both, and never two declarations. The condition and the step are each a comma-separated list of expressions, any of them empty, so `for (;;)` loops until a `break`. The counter is an ordinary function-scoped local: it is readable after the loop with the value that ended it, and a second loop in the same function needs a different name. `continue` runs the step.
+`for (init; cond; step) body`. The init clause is **either** one typed local declaration — `int $i = 0`, or `var $i = 0` — **or** a comma-separated list of expressions over locals declared above the loop; never both, and never two declarations. The condition and the step are each a comma-separated list of expressions, any of them empty, so `for (;;)` loops until a `break`. A condition list runs every expression in it and decides on the last, so an assignment written before that last one happens on every test, including the one that ends the loop. The counter is an ordinary function-scoped local: it is readable after the loop with the value that ended it, and a second loop in the same function needs a different name. `continue` runs the step.
 
 ```nvs
 <?nvs
