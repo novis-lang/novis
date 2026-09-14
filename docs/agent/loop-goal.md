@@ -1,287 +1,386 @@
 ---
-milestone: M4B
+milestone: M7
 ---
-# Loop goal 56 — the extension is tested in a real editor host and built by CI
+# Loop goal 57 — everything M7 promised a deployment is there to run
 
-M4B's last promises are kept. The VS Code extension is proved inside a real extension host, not only
-by the headless tier around it. That covers TextMate colour before the server answers and semantic
-colour after, a legend equal to the server's, Tasks whose failures reach the Problems panel, the AST
-panel rendering a file that does not compile, and concealment drawn on open. The same host suite runs on
-the developer's Windows machine and on Linux CI under `xvfb-run`. CI builds and tests the extension on
-all three platforms and produces the installable `.vsix`. The five-minute fuzz run over truncated
-input has a local way to run, and a verdict on record.
+A server started with `nvs serve` can be operated the way M7 said it would be. An operator reloads it,
+reads its live configuration and asks its status with `nvs ctl`. They install it under the platform's own
+service manager with `nvs service`, and stop it with a drain rather than a kill. They scrape its metrics
+and receive its traces. A program answers with every body member the spec lists, including `html`
+and `sendFile`, and `echo` escapes into an HTML response. It reads a binary body whole. It links
+through its mount and its enum captures, and its tests send headers and a body. A fleet schedule fires
+once across the deployment, and a runaway script under `nvs serve` is ended as a `FATAL` while the
+core goes on serving.
 
 ## Why here
 
-The chain runs one goal per past milestone, in milestone order, to empty every promise a past
-milestone's plan made (M0–M8). M4B comes after goal `m5-proofs` only because of that order: this goal
-needs nothing from it and shares no files with it. Its file set is `editors/vscode/`,
-`.github/workflows/ci.yml`, `tools/ci-changes.py` and `fuzz/`. Before goal `gap-zero` for that goal's
-standing reason, and for one specific to this goal: goal `gap-zero` needs a green CI run, and the two CI
-jobs added here must be part of it.
+After goal `m4b-editor` and before goal `m8-db-queue`, because the gap program closes milestones in
+order: M7's promises are owed before M8's, and goal `m8-stdlib-depth`'s `Core\Metrics` rows have
+nothing to be read through until this goal's exporter runs. Goal `plan-truth` and goal `gap-register`
+run first so that the anchors below are read from documents that are true. Goal `unowned-closures`
+runs later, behind a decision sheet, and takes the `unowned` gaps this goal leaves alone.
 
 What it needs already built:
-
-- the server half of M4B (`nvs lsp-test tests/lsp/` reported 267 passed at the audit that cut this goal)
-- the headless tier: `editors/vscode/scripts/headless.mjs` with the grammar, contributions, protocol,
-  client, install and surfaces suites
-- packaging, which is already a floor check (`vsix packages`, `npm run --silent package`)
-- the fuzz target `prefix` (`fuzz/Cargo.toml:37-42`, `fuzz/fuzz_targets/prefix.rs`) and CI's
-  `fuzz-smoke` job for it (`.github/workflows/ci.yml:419-458`)
+- the accept loop and its drain state: `crates/nvs-server/src/serve.rs:1726` `serve_on_this_core`,
+  whose `keep_serving` closure is the stop, and `Draining` at `:473`;
+- the control endpoint's creation and trust check: `crates/nvs-config/src/control.rs:150` and `:241`;
+- the reload's publish and report: `crates/nvs-config/src/control.rs:276`, `Current` at
+  `crates/nvs-config/src/snapshot.rs:315`;
+- the operation roster: `crates/nvs-server/src/control.rs:26`;
+- the service plan and its refusals: `crates/nvs-cli/src/service.rs:140`, `:372`, `:553`;
+- the schedule ticker's `Leases` seam: `crates/nvs-server/src/schedule.rs:301`;
+- the per-core registry: `crates/nvs-server/src/metrics.rs:368`;
+- the door's trace identity: `crates/nvs-server/src/trace.rs`;
+- `Core\Html\Markup` as a registry type: `crates/nvs-stdlib/src/html.rs:215`;
+- the in-process request seam: `crates/nvs-runtime/src/inproc.rs`;
+- the shared tier's Redis client: `crates/nvs-stdlib/src/cache/redis.rs`.
 
 ## Stage 0 — the catch-up
 
-Sentences on disk this goal makes wrong. The stage that makes each one wrong corrects it. Re-grep
-before editing: these are anchors, and files move.
+These sentences on disk become wrong under this goal. Each is rewritten whole, in the stage that makes
+it wrong. Re-grep before editing: these are anchors, and files move.
 
-- `docs/rules/ide/headless-gates-the-loop-the-host-run-gates-the-milestone.md:10-13` says the host run
-  is "in CI only" and "not on the loop's acceptance list at all". Stage 2's record amends it.
-- In this goal's own `.toml`, the comment over the floor's `vsix packages` check (carried from goal
-  `http-client`'s list) says the extension-host suite "must not be added". Stage 2 rewrites that comment
-  whole, pointing at the amended rule.
-- `editors/vscode/README.md:20-23` says the host suite is CI's. Stage 3 rewrites the paragraph and adds
-  `npm run test:host` to *Working on it*.
-- `editors/vscode/README.md:29-33`: *No pixel tier* is reasoned from "anything needing a display sits
-  outside the tier the unattended loop gates on", and that stops being true. The decision stands, so
-  stage 3 rewrites its reason whole. The host tier asserts scopes, tokens, diagnostics and decoration
-  ranges as data through the editor's own API, and what a drawn pixel adds on top is still a CSS
-  constant.
-- `editors/vscode/scripts/headless.mjs:1-9` and `:23-30` run "every suite under `out/test/`". A
-  `host` directory there would be picked up and fail on `import "vscode"`, so stage 3 excludes it and
-  rewrites the header comment.
-- `editors/vscode/test/client/concealment.test.ts:3-6` says the README records why no tier drives
-  `setDecorations`. Stage 5 makes the host tier drive it, and rewrites the comment whole.
-- `docs/agent/commands.md:613-617` names `lex` and `parse` as the targets to fuzz under WSL, but not
-  `prefix`, which is the one M4B's *Verify* names. Stage 7 adds `prefix` and the local command.
+- `crates/nvs-server/src/control.rs:9-13` — "`reload` is the only operation". Stage 3.
+- `crates/nvs-cli/src/main.rs:740-743` — `ctl config` "arrives with `nvs ctl`". Stage 3.
+- `crates/nvs-cli/src/main.rs:911-912` — why `install` and its siblings are not here. Stage 5.
+- `crates/nvs-cli/src/service.rs:51-60` — "Registration itself has not landed". Stage 5.
+- `crates/nvs-cli/src/serve.rs:543-546` and `:824-834` — nothing asks the loop to stop, and an instance
+  ends by being killed. Stage 3.
+- `crates/nvs-cli/src/serve.rs:57-62` — a Unix-domain entry is refused. Stage 4.
+- `crates/nvs-cli/src/serve.rs:753-761` — `None` for the lease. Stage 9.
+- `crates/nvs-stdlib/src/response.rs:7-17` and gap 1 at `:191-201`; `crates/nvs-stdlib/src/html.rs:83-90`.
+  Stage 6. `response.rs:13-14`'s reason for `html`'s absence is already false, because
+  `html.rs:154` puts `Markup` in a registry row today.
+- `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:30-31` — two keys owned by the retired
+  goal `test-request`. Stage 6 strikes them.
+- `docs/spec/01-core-library.md:1122` — `sendFile(…)`. The stage 2 record spells it.
+- `docs/spec/01-core-library.md:1101-1102` — `bodyStream` as the raw-body alternative. Stage 7.
+- `docs/spec/01-core-library.md:1001` — `request`, one bare word. Stage 7.
+- `crates/nvs-stdlib/src/test.rs:141-147` — a synthetic request with no headers and no body. Stage 7.
+- `crates/nvs-types/src/links.rs:51-57`, `crates/nvs-types/src/routes.rs:1781-1786`, and the last
+  sentence of `docs/rules/routing/a-capture-narrows-to-a-closed-set.md` — an enum case with no segment
+  spelling. Stage 2 decides the spelling and stage 8 builds it.
+- `crates/nvs-stdlib/src/router.rs:63-72`, `crates/nvs-config/src/mount.rs:28`, and the *Not shipped*
+  paragraph of `docs/rules/routing/an-origin-is-per-mount-and-checked-at-boot.md`. Stage 8.
+- `crates/nvs-server/src/schedule.rs:51-62` and `:77-91`, and the "Today `nvs serve` supplies none"
+  paragraph of `docs/rules/config/a-fleet-entry-fires-at-most-once-under-a-lease.md`. Stage 9.
+- `crates/nvs-server/src/metrics.rs:58-73` (both gaps), `crates/nvs-server/src/route.rs:46-56` (gap 2), the two
+  `[unread: …]` trailers at `crates/nvs-config/src/tree.rs:1020` and `:1024`, and
+  `crates/nvs-config/src/default.toml:725`. Stages 10 and 11.
+- `crates/nvs-runtime/src/trace_context.rs:22-23` and `crates/nvs-server/src/trace.rs:20-25`, which say
+  nothing exports or creates a span. Stage 11.
+- `docs/plan/m6.md:41-42` and `:50` (the reload client and `nvs ctl config` "arrive with M7"), and
+  `docs/plan/m7.md:88-92` (*Not yet named here*). Rewrite them with `python tools/plan.py --amend`, in
+  stages 3 and 7.
 
 ## Stage 1 — the floor
 
-Goal `m5-proofs`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `m4b-editor`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
 ## Stage 2 — the record
 
-One new record, and no other number. Its body is § *Standing decisions* below, argued. It modifies
-`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` and creates no rule:
+One new record, and no other number. It holds the calls that no current rule states, argued under
+ADR 0004's ordering. It creates two rules, both `designed`:
 
-- **The host tier runs wherever a developer does**: the Windows desktop the loop runs on, and Linux CI
-  under `xvfb-run -a`. It is on the acceptance list as `npm run test:host`.
-- **Isolation is what makes that safe.** The rule said "CI only" because an unisolated second instance
-  attaches to the developer's running editor and exits with no results, and because a test writing a
-  setting writes it into the developer's own `settings.json`. A downloaded, pinned VS Code build,
-  `--user-data-dir` and `--extensions-dir` under `.vscode-test/`, and a copied fixture folder answer
-  both.
-- **The rule's title and body are rewritten whole**, and its id stays: renaming a rule under its
-  citations is a tree-wide sweep that buys nothing here. The headless half is unchanged.
+| Rule | Says |
+|---|---|
+| `routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name` | a backed enum's case is its backing value in a path segment and in a query value; a pure enum's case is its case name, compared case-sensitively; a segment naming no admitted case falls through to `404` by the failed-conversion rule |
+| `observability/an-exporter-brings-no-second-scheduler-and-no-second-client` | the scrape endpoint is served by this server's own accept loop, and a push goes through `nvs-host`'s stream and its one TLS client. A crate is taken only for a half that needs neither — an encoder, never a transport |
 
-Then run `python tools/rules.py --render`, and rewrite the floor comment Stage 0 names.
+It modifies `routing/a-capture-narrows-to-a-closed-set`, whose last sentence goes, and
+`observability/the-exporters-are-crates`, which keeps "somebody else's specification" and loses "taken
+as dependencies" wherever a dependency would bring its own runtime or client. **Before writing the
+second rule**, check `Cargo.lock` and each candidate crate's own manifest for what `metrics-exporter-prometheus` and
+`opentelemetry-otlp` pull in. If either can be taken with no async runtime and no HTTP or TLS client of
+its own, the rule says "taken" for that half and the record says why. The record also spells
+`Core\Response::sendFile` in spec § 15 (Stage 6's signature) and names the drain bound Stage 3 uses.
 
-## Stage 3 — the keystone: the host harness
+## Stage 3 — the keystone: the control socket, `nvs ctl`, and the drain
 
-One file set: `editors/vscode/package.json`, `package-lock.json`, `scripts/host.mjs` (new),
-`scripts/headless.mjs`, `test/host/` (new), `test/contributions/contributions.test.ts`, `README.md`.
+`crates/nvs-server/src/control.rs`, `crates/nvs-config/src/control.rs`, `crates/nvs-cli/src/main.rs`,
+`crates/nvs-cli/src/serve.rs`, and a new `crates/nvs-cli/src/ctl.rs`. Everything after this stage
+operates a server through this stage's work. `nvs service status` asks the socket, `PARAMCHANGE`
+calls the reload, a stop is the drain, and the end-to-end stage stops what it started.
 
-- **`@vscode/test-electron` in `devDependencies`**, with its allowlist entry in the contributions
-  suite (`rule:ide/dependencies-are-allowlisted`), and a `test:host` script:
-  `tsc -p ./ && node scripts/host.mjs`.
-- **`scripts/host.mjs`** calls `runTests` against a pinned VS Code version that is cached in
-  `.vscode-test/`. Both platforms run the same script. It passes:
-  - `--user-data-dir` and `--extensions-dir` under `.vscode-test/`, and `--disable-extensions`
-  - a copy of `test/host/fixture/` as the workspace, never the repository
-  - `nvs.path`, written only into that throwaway profile's `settings.json`. The path comes from
-    `--nvs <path>`, falling back to the lookup `test/protocol/session.ts:72-84` uses (`NVS_BIN`, then
-    `target/`).
-- **The in-host index** (`test/host/index.ts`) runs Mocha with the `spec` reporter. It writes the
-  report to `.vscode-test/host-report.txt`, ending on `host: N passing, M failing`. `host.mjs` prints
-  that file after the editor exits and exits non-zero on any failure. This means the loop reads the
-  launcher's own stdout on every platform instead of relying on Electron's.
-- **`headless.mjs` skips `out/test/host/`.** The floor's `vscode (headless)` check is what catches a
-  mistake here.
-- **Its first test** is `runs in a throwaway profile and never the developer's`. It asserts that
-  `env.appRoot` is under `.vscode-test/`, that the user-data directory is the throwaway one, and that
-  the open folder is the fixture copy.
+- **`nvs serve` binds `[control] socket`** with `bind` and `boundary` (`crates/nvs-config/src/control.rs:241`)
+  before any listener accepts, and refuses the boot on a refusal. A tree with no `[control]` block gets no
+  endpoint, per `rule:config/one-local-control-socket`.
+- **The endpoint answers three operations**, and `Operation` (`crates/nvs-server/src/control.rs:26`) gains the
+  two new variants:
+  - `POST /reload` publishes through `reload` (`crates/nvs-config/src/control.rs:276`), passing the
+    unit cache's count as `held`, answers the `Report` and writes it to `Core\Log`;
+  - `GET /config` answers the live snapshot with each directive's origin, as `nvs config dump --origin`
+    prints it (`rule:config/ctl-config-reports-the-live-snapshot`);
+  - `GET /status` answers the in-flight count and whether the process is draining — the reading
+    `rule:packaging/a-service-is-one-stored-argv` says `status` asks for.
+- **Every answer carries the server's version** in one response header.
+- **`nvs ctl reload | config [--origin] | status [--socket <path>]`** is the client, and refuses an
+  answer from another version, naming both.
+- **The drain.** `nvs serve` installs the terminating-signal handler: `sigaction` for `SIGTERM` and
+  `SIGINT` on Unix, `SetConsoleCtrlHandler` on Windows. Both libraries are already dependencies. The
+  handler's whole effect is `Drain::process().begin()` (`crates/nvs-stdlib/src/signal.rs:42-44`).
+  `keep_serving` then answers `Break` once the drain has run out, and every connection closes
+  under `rule:concurrency/a-drain-closes-a-connection-cleanly`.
+- **`sd_notify`.** When `NOTIFY_SOCKET` is set, `nvs serve` sends:
+  - `READY=1` once every listener is bound and every entry is compiled;
+  - `RELOADING=1` with `MONOTONIC_USEC` and then `READY=1` around a reload;
+  - `STOPPING=1` when the drain begins.
 
-Every later stage's test is written into this harness.
+  It is written by hand over a Unix datagram socket, with no crate. The unit
+  `crates/nvs-cli/src/service.rs:503` renders is `Type=notify`, and without this line systemd stops it
+  at `TimeoutStartSec`.
 
-## Stage 4 — colour and activation, in the host
+## Stage 4 — the Unix listener
 
-`editors/vscode/test/host/colour.test.ts` and fixtures under `test/host/fixture/`. No `src/` change is
-expected. Each `it` is named exactly as the check wants it, in this order:
+`crates/nvs-host/src/net.rs` (`NvsListener`) and `crates/nvs-cli/src/serve.rs:57-62`.
+`rule:http-server/a-unix-socket-listener`: a `listen` entry beginning with a separator is a Unix socket,
+Unix only, created with `socket_mode`. On Windows the refusal stays, and it is still taken once over the
+whole set before any socket exists. The listener accepts on the same reactor as TCP, so nothing about a
+connection differs past `accept`. This stage does not share files with stage 3; give it its own session.
 
-1. **`activates on a .nvs file and not on a .php file`**: open `other.php`, assert that
-   `novis-lang.nvs` is not active, then open `app.nvs` and assert that it is
-   (`rule:ide/the-extension-claims-nvs-only`).
-2. **`colours a file from the grammar before the server answers`**: with `nvs.lsp.enable` off in the
-   throwaway profile, `_workbench.captureSyntaxTokens` on `app.nvs` returns the grammar's scopes, and
-   `vscode.provideDocumentSemanticTokens` returns nothing (`rule:ide/highlighting-is-two-layers`).
-3. **`adds semantic colour once the server answers`**: with the setting turned on, the same document
-   returns semantic tokens, and a `secret` binding carries the `secret` modifier
-   (`rule:ide/semantic-tokens-carry-the-qualifiers`).
-4. **`registers the legend the server declares`**: `vscode.provideDocumentSemanticTokensLegend` equals
-   the legend `nvs lsp` returns from `initialize`, read through the protocol suite's
-   `test/protocol/session.ts`.
-5. **`opens a .nvst case coloured`**: `_workbench.captureSyntaxTokens` on `case.nvst` shows the section
-   delimiter's scope and Novis's scopes inside `--FILE--` (`rule:ide/case-files-have-their-own-grammar`).
-6. **`selects $total whole`**: `document.getWordRangeAtPosition` inside `$total` covers the `$`. This is
-   the editor applying `wordPattern`, not the regex alone.
+## Stage 5 — `nvs service`
 
-## Stage 5 — the surfaces, in the host
+`crates/nvs-cli/src/service.rs`, `crates/nvs-cli/src/main.rs:914` (`ServiceCommand`), and the root
+`Cargo.toml`'s `windows-sys` features: add `Win32_System_Services` and `Win32_System_EventLog` beside
+`:186-208`.
 
-`editors/vscode/test/host/surfaces.test.ts`, `editors/vscode/src/extension.ts:@activate`,
-`src/redactions.ts:243-246`, `src/ast.ts:58`, `src/tasks.ts:57`.
+- **`install`, `uninstall`, `start`, `stop`, `status` and `run`** as `rule:packaging/a-service-is-one-stored-argv`
+  lists them, and `nvs install-service` as the hidden alias.
+- **Windows install**: SCM registration with `ImagePath` from `image_path` (`:372`), the per-service virtual
+  account, `PRESHUTDOWN` requested, failure actions (`--restart on-failure`), `--start` for delayed
+  auto-start, `--depends-on`, a description, and the event-log source.
+- **Linux install**: the unit `unit()` renders, written to `destination` (`:553`), then `systemctl
+  daemon-reload`.
+- **`uninstall`** leaves no key, no source, no unit and no ACL (`rule:packaging/a-service-answers-its-manager`).
+- **`start`, `stop` and `status`** go to the SCM directly or to `systemctl` by argv with no shell.
+  `status` adds stage 3's `GET /status`.
+- **`run`** is the SCM's entry point. It maps `STOP` and `PRESHUTDOWN` to the drain, reporting
+  `STOP_PENDING` with a checkpoint that advances while requests remain. It maps `PARAMCHANGE` to the
+  reload function stage 3's `POST /reload` calls — in process, not over the socket. It writes the
+  lifecycle records to the event log.
+- **The seam that keeps it testable.** Every verb is a pure function from the `Plan` to a list of
+  actions, applied through a `Manager` trait. The real implementations are `Scm` and `Systemd`; tests
+  use a recording fake, and `run`'s status reports go to a fake sink the same way. `--dry-run` on
+  `install` and `uninstall` prints the actions and touches nothing. The printed list is also the
+  change-management artifact the unit rule argues for.
+- **What needs no admin rights.** Nothing in this goal's checks. The one step that does — installing for
+  real on each platform — is a manual step the handoff names, never a check.
 
-- **A read-only test surface.** `activate` returns an object with no method that changes, reveals or
-  runs anything. It holds the status item's current text and severity, the AST view's provider, and
-  the ranges last handed to `setDecorations` for each editor and decoration kind. It is recorded in the
-  README's § *Decided here*.
+## Stage 6 — the response body, and `echo` into it
 
-Each `it` is named exactly as the check wants it, in this order:
+`crates/nvs-stdlib/src/response.rs`, `crates/nvs-stdlib/src/html.rs`,
+`crates/nvs-runtime/src/ctx/output.rs`, and `nvs_server::statics` for the file body.
 
-1. **`shows the server's health and version in the status item`**: the status item names the binary's
-   version (`src/extension.ts:72`).
-2. **`runs nvs run as a task whose failure reaches the Problems panel`**: `nvs.run` on `broken.nvs`,
-   wait for the task to end, then `languages.getDiagnostics(uri)` holds the `error[E0301]` the
-   `problemMatcher` parsed (`rule:ide/tasks-carry-a-problem-matcher`).
-3. **`renders the AST panel for a file that does not compile`**: `nvs.showAst` on `broken.nvs` makes
-   the view visible, and its provider's root children include the declaration the errors are about
-   (`rule:ide/the-ast-panel-shells-out-to-the-cli`).
-4. **`conceals both secrets on open and reveals exactly one`**: opening `secrets.nvs` hands both literal
-   ranges to the concealing decoration. `nvs.revealSecret` on the first leaves only the second
-   concealed (`rule:ide/redaction-ranges-come-from-the-server`,
-   `rule:ide/reveal-is-explicit-and-window-local`).
-5. **`decorates nothing for tainted at the default setting`**: with `nvs.taint.mark` unset, no taint
-   decoration is handed any range (`rule:ide/tainted-has-no-default-decoration`).
+- **`html(Core\Html\Markup $body)`** writes the carrier's bytes as they are and declares
+  `text/html; charset=utf-8`.
+- **`sendFile(string $path)`.** The path is a sink (`Qual::Sink`), per
+  `rule:security/response-body-is-one-typed-member`.
+  - It is checked against `fs.read` at the call, and a missing path, a directory or an unreadable file
+    throws there.
+  - The `Ctx` then holds a declared file body, and the server answers it through the static-file policy
+    — its media-type table, `Range`, and the conditional headers — streamed and never read whole.
+  - `setHeader` already admits `Content-Disposition`, so there is no second parameter.
+  - Striking `§15 Response::html` and `§15 Response::sendFile` from the outstanding file
+    (`crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:30-31`) is part of the item.
+- **`echo` into an HTML response escapes**, closing `html.rs`'s and `response.rs`'s owner-M7 gaps. Under
+  `OutputSink::Body` (`crates/nvs-runtime/src/ctx/output.rs:455-463`), a non-`Markup` value is escaped
+  with the five-character escape `Core\Html::escape` already applies, whether it is tainted or not, and
+  `Markup` is written as it is (`rule:core-classes/html-auto-escape`). The escape moves down into
+  `nvs-runtime` so that it has one home, and `Core\Html::escape` calls it. Every other sink keeps the
+  terminal's rendering (`rule:tooling/echo-always-has-a-sink`).
 
-## Stage 6 — CI builds, tests and packages the extension
+## Stage 7 — the request's input, and the test request that sends one
 
-`.github/workflows/ci.yml`, `tools/ci-changes.py:34-64`, and `editors/vscode/.nvmrc` (new).
+`crates/nvs-stdlib/src/request.rs`, `crates/nvs-stdlib/src/test.rs`, `crates/nvs-runtime/src/inproc.rs`,
+and `crates/nvs-runtime/src/ctx/inbound.rs`.
 
-- **An `editor` lane in `LANES`**: `editors/`, `crates/`, `Cargo.toml`, `Cargo.lock` and
-  `.github/workflows/`. The protocol and host suites drive the real binary, so any crate can change
-  their answers. It is emitted as an output of the `changes` job (`ci.yml:70-76`).
-- **Job `extension`**, a matrix over the same three platforms as `test` (`ci.yml:116-123`), under
-  `if: needs.changes.outputs.editor == 'true'`. It:
-  - builds `nvs-cli`
-  - runs `setup-node` with `node-version-file: editors/vscode/.nvmrc` and `cache: npm`
-  - runs `npm ci`, `npm run lint`, and `npm run test:headless` with `NVS_BIN` set to the built binary
-  - runs `npm run package`
-  - on Linux only, uploads `editors/vscode/nvs.vsix` with `actions/upload-artifact`, pinned by SHA
-    like every action in the file
-- **Job `extension-host`** on `ubuntu-latest`: the same setup, then `xvfb-run -a npm run test:host --
-  --nvs <built binary>`, caching `editors/vscode/.vscode-test/` on the pinned VS Code version.
-- Each job carries a comment block in the file's own style saying what it guards. That comment is the
-  count's home, per `rule:ide/the-lockfile-is-committed-and-build-output-is-not`.
+- **Raw body access for an arbitrary content type is M7's, and what is missing is a whole-body `bytes`
+  read.** `docs/plan/m7.md:88-92` names it for this milestone, and ADR 0024's *Revisiting* hands it to
+  whoever designs `Core\Request` there. `body()` already reads every octet
+  (`crates/nvs-stdlib/src/request.rs:2592`), and `bodyStream` already yields `tainted bytes` (`:1210`).
+  But `body()` wraps the octets in `NvsStr::new` unchecked, so a non-UTF-8 body becomes a `string`
+  that `rule:types/string-is-utf8` says cannot exist (`crates/nvs-runtime/src/string.rs:844` asserts
+  it).
+  - **`Core\Request::bytes(): tainted bytes`** is a buffering reader that shares `body()`'s hold under
+    `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`.
+  - **`body()` refuses an ill-formed payload** with the class `bytes as string` throws, and names
+    `bytes()` in the message.
+  - The spec's § 15 bullet gains the member in the same slice.
+- **`Core\Test::request`** (`crates/nvs-stdlib/src/test.rs:412-428`) gains its request bag:
+  `request(Http\Method $method, string $path, {headers?: array<string, string>, body?: bytes})`.
+  - The query rides in the path.
+  - The headers and body arrive `tainted` (`rule:testing/in-process-request`), the body through a
+    production `RequestBody` over held bytes.
+  - Spec § 13's cell at `docs/spec/01-core-library.md:1001` spells the whole signature.
 
-CI is not running while the billing block stands, so this stage is proven by a check that reads the two
-files. Goal `gap-zero`'s green run is what proves the jobs work.
+## Stage 8 — the routes: an enum capture, the mount prefix, the per-mount origin
 
-### The acceptance cache sees an extension change
+`crates/nvs-types/src/links.rs`, `crates/nvs-types/src/routes.rs`, `crates/nvs-stdlib/src/router.rs`,
+`crates/nvs-config/src/mount.rs` and `crates/nvs-server/src/mount.rs`. Two groups share `router.rs`.
 
-`tools/loop.py:1606` fingerprints only `crates/` and `examples/` when it memoizes a check's verdict, so the
-floor's cached `vsix packages` check — and any cached check over `editors/vscode` — stays green after an
-extension change it never re-ran against. The fingerprint gains `editors/` (its sources, manifest and
-lockfile, never `node_modules/` or build output), and a one-line test in `tools/`'s own suite pins that an
-edit under `editors/vscode/src/` invalidates the memo. This goal owns it because its own host checks are
-the first whose verdict would otherwise outlive the code they judged.
+- **The enum capture**, under stage 2's rule:
+  - `Core\Router::match` converts a segment to the case;
+  - `closed_set` (`crates/nvs-types/src/routes.rs:1787`) answers the case spellings;
+  - `within_set` (`crates/nvs-types/src/links.rs:424`) refuses a literal outside the subset at compile
+    time, closing `links.rs` gap 2;
+  - the generated API document emits the spellings as its `enum`.
+- **The mount prefix.** When a request is being answered, `url()`'s `substitute`
+  (`crates/nvs-stdlib/src/router.rs:825`) prepends the prefix `Core\Request::mount()` reports
+  (`rule:routing/a-request-reads-its-mount`). Off a request, the prefix is empty and that is not an
+  error. This closes `router.rs` gap 2, whose owner is the retired goal `signed-urls`.
+- **The per-mount origin**, per `rule:routing/an-origin-is-per-mount-and-checked-at-boot`:
+  - a served request receives its mount's resolved origin, with the captures substituted;
+  - a mount whose unit makes a literal `urlAbsolute` call and resolves no origin is a boot error;
+  - the check re-runs on reload.
 
-## Stage 7 — the five-minute fuzz run, locally
+## Stage 9 — the schedule: fleet leases, their renewal, and each entry's sub-caps
 
-`docs/agent/commands.md:592-617`, `fuzz/seeds/prefix/`, and, only if the run finds something,
-`crates/nvs-syntax/src/` and `crates/nvs-syntax/tests/prefixes.rs`.
+`crates/nvs-server/src/schedule.rs`, `crates/nvs-cli/src/serve.rs:753-763`, and
+`crates/nvs-stdlib/src/cache/redis.rs`.
 
-- **The check runs the `prefix` target for 300 s under WSL** from the repository root, seeded from
-  `fuzz/seeds/prefix/` as CI's job is (`ci.yml:451-458`). It passes both directories to libFuzzer rather
-  than copying one into the other. M4B's *Verify* asks for exactly this: "a fuzz target over truncated
-  and mid-edit inputs finds no panic in five minutes".
-- **A panic it finds is a parser bug, and it is fixed**:
-  - fix the site in `crates/nvs-syntax/src/`
-  - add the minimized input to `fuzz/seeds/prefix/`
-  - add a regression test beside `prefixes.rs`'s cuts
+- **The lease.** The shared tier gains an internal set-if-absent: `SET key token NX PX ttl`, beside the
+  existing `SET … PX` at `crates/nvs-stdlib/src/cache/redis.rs:162-197`. `nvs serve` implements
+  `nvs_server::Leases` (`crates/nvs-server/src/schedule.rs:301`) over it and passes `Some` to
+  `arm`, so every `scope = "fleet"` entry is armed. It is not a `Core\Cache` row: a compare-and-set a
+  program could call is new cross-request coordination and not this goal
+  (`rule:concurrency/cross-request-state-is-explicit`).
+- **Renewal while the run is in flight** (`crates/nvs-server/src/schedule.rs:84-91`). A timer on the fire's own task
+  extends the lease with one fixed, compiled-in `EVAL` that extends only while the token is still this
+  host's. If the server refuses `EVAL`, the TTL alone bounds the lease (the rule's at-most-once still
+  holds) and one boot note says so.
+- **Each entry's `limits` and `grants`** (`crates/nvs-server/src/schedule.rs:79-82`) narrow the run's budget and
+  capabilities, and never widen them. A sub-cap above the tree's own is a boot refusal.
 
-  The check's duration is never lowered, and the target is never narrowed.
-- **`commands.md` § *Fuzzing and callgrind on Windows*** names `prefix` and the exact command. That
-  section is the command's one home; the check's `argv` is its copy for the driver.
+## Stage 10 — the metrics export
 
-## Stage 8 — the rulebook
+`crates/nvs-server/src/metrics.rs`, `crates/nvs-server/src/route.rs`, `crates/nvs-server/src/serve.rs`,
+`crates/nvs-cli/src/serve.rs`, and `crates/nvs-config/src/export.rs`.
 
-Three rules M4B promised are now held by something that fails when they are broken. Flip each to
-`shipped` with `guardedBy` filled, then run `python tools/rules.py --render`:
+- **Each serving core owns `Registry::of(config)`** (`crates/nvs-server/src/metrics.rs:388`), and there is
+  none when the exporter is `false`. The door calls `Registry::request` with `route::label`, which
+  closes `route.rs` gap 2.
+- **`prometheus`.** `nvs serve` binds `[metrics] listen` at boot and answers a scrape through its own
+  hyper h1 accept loop on one core. It gathers each core's series by a message over the existing
+  cross-core channel, merges them arithmetically (`rule:observability/a-registry-is-per-core-and-nothing-reads-it`),
+  and writes the text exposition format.
+- **`otlp`** pushes the merged series on an interval through stage 2's transport.
+- **Behind a cargo feature, on by default** (`rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`).
+  A build without it refuses any `exporter` other than `false` at boot, naming the feature.
 
-- `ide/headless-gates-the-loop-the-host-run-gates-the-milestone`: `scripts/headless.mjs` and
-  `test/host/index.ts`
-- `ide/the-lockfile-is-committed-and-build-output-is-not`: `editors/vscode/package-lock.json` and the
-  `extension` job's `npm ci`
-- `ide/the-extension-runs-where-the-binary-is`: the contributions suite and the `extension` job's
-  package step
+## Stage 11 — spans and the trace push
+
+`crates/nvs-runtime/src/trace_context.rs`, `crates/nvs-server/src/trace.rs`, and the exporter module
+stage 10 opens.
+
+- **Exactly four kinds become a span** (`rule:observability/four-kinds-become-a-span`): the root, a
+  `query`, an outbound call and a `spawn`. Each is derived from the event the timeline already files.
+  A retried call is one span carrying its attempt count.
+- **`[trace] sample`** decides at the root, and an inbound sampled trace is always continued.
+- **A sampled request's spans** are held up to a fixed count and handed at its end to one bounded
+  process-wide queue. One task pushes them over OTLP/HTTP. When the queue is full, spans are dropped and
+  counted, and a collector that cannot be reached never delays a response.
+
+## Stage 12 — the served path, end to end
+
+`crates/nvs-cli/src/serve.rs`'s tests, beside `an_entry_that_costs_a_request` (`:1570`), and
+`crates/nvs-cli/src/script.rs`'s tests.
+
+- **A runaway under `nvs serve`.** A `while (true) {}` entry is ended by `[limits] cpu_time`, and an
+  allocation loop by `[limits] memory`. Each is answered as a `FATAL`, and the same core answers the next
+  request. Each piece is pinned alone today:
+  - `crates/nvs-host/tests/limits.rs:309`;
+  - `crates/nvs-host/src/watchdog.rs:1117`;
+  - `crates/nvs-server/src/serve.rs:5928`.
+
+  This is M6's acceptance met on the served path. If the served answer is not a `FATAL`, the fix is in
+  scope.
+- **The hot-reload case M7's *Verify* names that no test pins**: a revalidation that fails to compile
+  fails only the requests that resolve it afterwards. Its siblings are pinned already:
+  - `crates/nvs-cli/src/script.rs:970` and `:1028` — ten thousand cold requests, one compile;
+  - `:1174` — a reader holding the old unit keeps answering;
+  - `:1353` — a stale revalidation does not overwrite a fresher one;
+  - `:1637` — revalidation is lazy and rate-capped.
+
+  If reading `script.rs` shows an existing test that already asserts it, rename that test to the
+  check's name rather than writing a second one.
+
+## Stage 13 — the rulebook
+
+Flip each rule below to `shipped`, with `guardedBy` filled from this goal's tests and cases, then run
+`python tools/rules.py --render`:
+- stage 2's two rules;
+- `config/one-local-control-socket` and `config/ctl-config-reports-the-live-snapshot`;
+- `packaging/a-service-is-one-stored-argv` and `packaging/a-service-answers-its-manager`;
+- `http-server/a-unix-socket-listener`;
+- `config/a-fleet-entry-fires-at-most-once-under-a-lease`;
+- `routing/an-origin-is-per-mount-and-checked-at-boot`;
+- `observability/the-exporters-are-crates` and `observability/four-kinds-become-a-span`.
 
 ## Standing decisions
 
-- **The host tier runs on every acceptance run, and a visible window is accepted** — the user's call,
-  2026-09-13. Locally it opens a VS Code window for about a minute each time; it is never skipped or
-  cached to avoid that, because a stale green is the one outcome worse than the window. In CI it runs
-  headless under `xvfb-run`.
+- **The user's program rules, settled.**
+  - M0–M8 are completed, and every promise a past milestone's plan made is built.
+  - An item may be deferred to M9 or later (`docs/plan/m9.md` … `m17.md`) only if it cannot be built
+    without that milestone's work — never because it is large. A deferral names that work.
+  - A design call is decided under ADR 0004's ordering (security, then PHP-compatible correctness, then
+    request-path latency, then simplicity, then memory) and written down: in the record where no rule
+    states it, in a module doc otherwise. It is never `BLOCKED`.
+  - CI is not running, so every check here runs locally. None of them needs administrator rights.
+- **The control endpoint is served on one thread of its own**: a blocking accept, one connection at a
+  time, so operations serialize as the rule requires. It is a thread, not a runtime
+  (`rule:concurrency/one-scheduler`). It touches only `Current` and the drain bit, and it runs no Novis
+  code (`rule:security/no-eval`). HTTP framing is `hyper`'s on both halves — enable its `client` feature
+  for `nvs ctl` if it is absent — and never a parser of ours, for M7's own reason about FastCGI.
+- **The drain has one bound.** Read `rule:concurrency/a-drain-closes-a-connection-cleanly` and the
+  `[server]` keys first. If no directive bounds the drain, the stage 2 record names one, and it is not
+  unbounded (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
+- **A reload is one function.** The control socket, `systemctl reload` (by `ExecReload`) and
+  `PARAMCHANGE` all end in it. A drain is one state machine: the signal, the SCM stop and the tests
+  all enter `Drain::process().begin()`.
+- **`nvs service` is testable through its seam, and the seam is the design.** Tests use the recording
+  `Manager` and the fake status sink. Nothing in a test touches the real SCM or `systemctl`.
+  - On Linux, `run` agrees with whatever `unit()` (`crates/nvs-cli/src/service.rs:491-520`) already puts
+    in `ExecStart`.
+  - The installer stays the `rule:packaging/the-installer-is-a-sink` front door: `plan` runs before any
+    `Manager` call, so a refusal touches nothing.
+- **Naming.**
+  - The body reader is `Core\Request::bytes()`, named after `Core\Response::bytes`.
+  - The test bag's keys are `headers` and `body`.
+  - `sendFile` takes the path alone.
+  - `rule:core-api/verb-lexicon` is the tie-break, and a spelling it forces instead is recorded in
+    the stage 2 record.
+- **An ill-formed body is refused, never repaired.** A lossy decode would silently change a webhook's
+  signed payload, which spends security to buy convenience. `bytes()` is the way through.
+- **The fleet lease stays inside the binary.** It is a `Leases` implementation in `nvs-cli` over
+  `nvs-stdlib`'s Redis client, and `nvs-server` still names no `nvs-stdlib`
+  (`crates/nvs-server/src/schedule.rs:31-43`).
+- **What it spends** (`rule:programs/memory-priority`):
+  - **Process-wide:**
+    - one thread for the control endpoint;
+    - one listener for `[metrics] listen`, and one exposition buffer per scrape in progress;
+    - one bounded span queue.
+  - **Per in-flight request:**
+    - a sampled request's spans, up to a fixed count;
+    - a `sendFile` response's open handle and one chunk buffer;
+    - `bytes()`'s hold, which is `body()`'s hold under `[limits] request_body` and never a second copy.
+  - **Elsewhere:** a synthetic test request's held body; one renewal timer per fleet fire in progress.
 
-- **The program's rules, set by the user for every goal from `plan-truth` to `gap-zero`.**
-  - Milestones M0–M8 are complete when this chain ends, and every promise a past milestone's plan made
-    is built.
-  - An item may be deferred to M9+ (`docs/plan/m9.md`..`m17.md`) only if it cannot be built without
-    that milestone's work, and never because it is large. M10-tagged items (format-on-save, the Test
-    Explorer's coverage, PhpStorm) are valid deferrals.
-  - A design call is decided under the priority ordering (ADR 0004: security > PHP-compatible
-    correctness > request-path latency > simplicity > memory) and recorded. It is never `BLOCKED`.
-- **CI is not running** while a GitHub billing block the user is fixing stands, so every check here runs
-  locally. A workflow leg this goal adds is proven by a `command` check that reads the workflow file.
-  Goal `gap-zero` needs a green CI run, and that run is what proves the legs actually work.
-- **The host tier runs on this machine, on the user's call.** It is on the acceptance list and opens a
-  VS Code window on the desktop while it runs.
-  - It is isolated as stage 3 says: a downloaded pinned build (never the user's install), a throwaway
-    profile and extensions directory, `--disable-extensions`, and a fixture copy.
-  - It is **not memoized**: `tools/loop.py:1606`'s `MEMO_DIRS` hashes `crates/` and `examples/` alone,
-    so a memo would stay green over an `editors/` change.
-  - **Fallback**: if the pinned stable build will not start beside the user's own running stable VS
-    Code, pin an Insiders build instead. Never drop the isolation flags to make it start.
-- **`@vscode/test-electron`'s `runTests`, driven by our own `scripts/host.mjs`**, for two reasons: one
-  launcher, and one summary line the loop greps, on both platforms. `@vscode/test-cli` is the fallback
-  only if `runTests` cannot isolate the profile. Either way it is a `devDependency`, and the extension's
-  runtime `dependencies` stay `vscode-languageclient` alone.
-- **Colour is asserted as data, never as pixels**:
-  - The TextMate layer is checked through `_workbench.captureSyntaxTokens`, the command VS Code's own
-    colorize tests use. If the pinned build lacks it, pin one that has it; never weaken the assertion.
-  - The semantic layer is checked through `vscode.provideDocumentSemanticTokens` and `…Legend`.
-  - "Before the server answers" means the server is withheld (`nvs.lsp.enable` off), not raced.
-  - *No pixel tier* stands, with its reason rewritten.
-- **The test surface `activate` returns is read-only**, and exposes nothing another extension cannot
-  already read. There is no reveal, no run and no setter on it; a function that changes state would
-  let any installed extension unconceal a secret. It holds no language logic.
-- **The `.vsix` is a build artefact, and that is already settled.** `.gitignore:98` ignores
-  `/editors/*/*.vsix`, per `rule:ide/the-lockfile-is-committed-and-build-output-is-not`, so the
-  `editors/vscode/nvs.vsix` on the main checkout is untracked because it is ignored. Do not re-decide
-  it. CI uploads it as a workflow artifact and nothing else.
-- **No binary goes into the `.vsix` or into the fixture**
-  (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`). The host tier points
-  `nvs.path` at the binary the build produced, in the throwaway profile only. No host test calls
-  `nvs.downloadBinary` or reaches the network: the install suite's recorded fixtures are that proof, and
-  they are headless.
-- **The Node version has one home, `editors/vscode/.nvmrc`**, read by `setup-node` as `website/.nvmrc`
-  is. The local Node here is v24.14.1.
-- **WSL has the fuzz toolchain, or the session installs it.** Whether the default distro has a nightly
-  toolchain and `cargo-fuzz` is *not checked*. If it does not, run `rustup toolchain install nightly`
-  and `cargo install cargo-fuzz --locked` in the distro, then add both to `docs/setup.md`'s WSL list.
-  The check is memoized: what it fuzzes lives under `crates/`, which the memo hashes.
-- **What it spends**: nothing at run time; no byte of the binary, the server or a request changes.
-  Build-side:
-  - a pinned VS Code build and a throwaway profile under `editors/vscode/.vscode-test/` (ignored,
-    `.gitignore:97`), once per machine
-  - the growing corpus under `fuzz/corpus/prefix/` (ignored)
-  - two more CI jobs, one of them a three-platform matrix
-  - one host run per acceptance sweep, which is a window and about a minute
-- **ADR slots**: the one record of stage 2. It creates no rule and modifies one.
-- **Not this goal** — a session that finds one of these on its path writes it to the handoff's
-  `## Backlog`:
-  - publishing to the Marketplace or Open VSX, or attaching the `.vsix` to a release
-    (`rule:ide/one-server-two-thin-clients` *Revisiting* keeps that open)
-  - a pixel tier
-  - PhpStorm, and every M10 editor feature
-  - the stale trivia paragraph in `docs/plan/m4b.md`, which is goal `plan-truth`'s
-  - the `unowned` module-doc gaps in `crates/nvs-lsp/src/index.rs` and `hints.rs`, which are goal
-    `unowned-closures`'s
-  - widening `MEMO_DIRS` in `tools/loop.py` to cover `editors/`
+  All of it is O(in-flight) or per process, and nothing grows with requests served. The registry stays
+  O(cores × series) under `max_series`.
+- **ADR slots.** Stage 2's one record, and no other number.
+- **Not this goal:**
+  - **Owned by other goals:**
+    - `Core\Metrics`'s three rows, which belong to goal `m8-stdlib-depth`;
+    - the `unowned` gaps at `crates/nvs-server/src/route.rs:30` (the CSRF door),
+      `crates/nvs-server/src/bounds.rs:62`, `crates/nvs-types/src/response.rs:29` and
+      `crates/nvs-stdlib/src/cli.rs:130`, which goal `unowned-closures` takes after its decision sheet;
+    - stale prose — `docs/plan/m7.md`'s carrier list, `crates/nvs-cli/src/serve.rs:79-90`'s "no
+      configuration" gap and the "one core" rows — which belong to goal `plan-truth`.
+  - **Out of scope entirely:**
+    - a network control listener (`rule:config/no-network-control-surface`);
+    - a TLS listener or h2c;
+    - OpenRC, SysV, `rc.d` or `launchd`;
+    - StatsD;
+    - a program-facing compare-and-set on `Core\Cache`.
+
+  A session that finds one of these on its path writes it to the handoff's `## Backlog`.

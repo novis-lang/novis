@@ -1,13 +1,13 @@
-# Goal 56 -- the extension is tested in a real editor host and built by CI
+# Goal 57 -- everything M7 promised a deployment is there to run
 # The acceptance test, as data.
 #
-# `56-m4b-editor.md` is the prose. One home each.
+# `57-m7-server-surface.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # No example of its own. The host suite's fixtures live under `editors/vscode/test/host/fixture/`
-  # and are read by the extension host, not run by `nvs run`.
+  # No example of its own. Every behaviour below either needs a server, a request or a service
+  # manager, which a Rust test or a `.nvst` request section supplies, or is a compile-time refusal.
   # carried from the previous goal by tools/goal-switch.py
   "examples/webcrypto.nvs",
   "examples/finish.nvs",
@@ -95,29 +95,48 @@ files = [
 [context]
 
 modules = [
-  # `activate`, the status item (:72) and the command registrations (:78-91). Stage 5 makes it
-  # return the read-only test surface.
-  "editors/vscode/src/extension.ts",
-  # The AST tree view (:58), whose provider the host suite walks. Stage 5.
-  "editors/vscode/src/ast.ts",
-  # Position conversion and the two `setDecorations` calls (:243-246) the host suite reads back. Stage 5.
-  "editors/vscode/src/redactions.ts",
-  # The reveal state machine, already proved headless; the host suite drives it through the command. Stage 5.
-  "editors/vscode/src/concealment.ts",
-  # `execute` (:57), the one path `nvs.run` and `nvs.test` start a Task through. Stage 5.
-  "editors/vscode/src/tasks.ts",
-  # The three-candidate binary lookup `nvs.path` wins, which the throwaway profile points at the build. Stage 3.
-  "editors/vscode/src/binary.ts",
-  # TODO: why a session opens this.
-  "editors/vscode/src/surface.ts",
+  # The endpoint's creation, trust check and reload publish (:150, :241, :276). Stage 3.
+  "crates/nvs-config/src/control.rs",
+  # The operation roster (:26) that gains `config` and `status`. Stage 3.
+  "crates/nvs-server/src/control.rs",
+  # The `Ctl` command, `ServiceCommand` (:914) and `ConfigCommand` (:745). Stages 3 and 5.
+  "crates/nvs-cli/src/main.rs",
+  # The boot: control bind, drain, sd_notify, fleet leases (:753-763), the exporter's listener, the
+  # end-to-end tests (:1570). Stages 3, 4, 9, 10 and 12.
+  "crates/nvs-cli/src/serve.rs",
+  # The service plan (:140), `image_path` (:372), `destination` (:553), the unit (:491-520). Stage 5.
+  "crates/nvs-cli/src/service.rs",
+  # `serve_on_this_core` (:1726), `Draining` (:473), the door that calls the registry. Stages 3 and 10.
+  "crates/nvs-server/src/serve.rs",
+  # `NvsListener`, which gains a Unix-domain accept. Stage 4.
+  "crates/nvs-host/src/net.rs",
+  # `html` and `sendFile` beside `text` (:273-295); gap 1 (:191). Stage 6.
+  "crates/nvs-stdlib/src/response.rs",
+  # The escape and `Markup` (:215); the owner-M7 gap (:73-90). Stage 6.
+  "crates/nvs-stdlib/src/html.rs",
+  # `OutputSink::Body` and the carrier it selects (:455-463). Stage 6.
+  "crates/nvs-runtime/src/ctx/output.rs",
+  # `body()` (:2582) and the buffering readers' shared hold (:2828). Stage 7.
+  "crates/nvs-stdlib/src/request.rs",
+  # `request` (:412-428, body :1650) and its module doc's owed half (:134-160). Stage 7.
+  "crates/nvs-stdlib/src/test.rs",
+  # The enum-capture set (:1787) and the link check (links.rs :424). Stage 8.
+  "crates/nvs-types/src/routes.rs",
+  "crates/nvs-types/src/links.rs",
+  # `substitute` (:825) and gap 2 (:63). Stage 8.
+  "crates/nvs-stdlib/src/router.rs",
+  # `Leases` (:301), `arm`, the fallback and the not-yet list (:31-91). Stage 9.
+  "crates/nvs-server/src/schedule.rs",
+  # The per-core registry (:368, `of` :388) and `route::label`'s gap 2. Stage 10.
+  "crates/nvs-server/src/metrics.rs",
+  "crates/nvs-server/src/route.rs",
 ]
 
-# Every stage works inside these three. The two tiers and their isolation; no language logic and an
-# allowlisted dependency list; and no binary shipped or fetched behind the user's back.
+# Every stage works inside these two: one server shape and no third deployment, and a parameter that
+# becomes an instruction is a sink.
 rules = [
-  "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
-  "ide/dependencies-are-allowlisted",
-  "ide/the-extension-guides-an-install-and-never-bundles-one",
+  "http-server/two-deployments-and-nothing-a-proxy-owns",
+  "security/sink-predicate",
 ]
 
 adrs = []
@@ -127,7 +146,7 @@ shapes = [
   "A code comment",
 ]
 
-milestones = ["M4B:verify"]
+milestones = ["M7:verify"]
 
 playbook = [
   # The process traps, by hand.
@@ -139,13 +158,16 @@ playbook = [
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
+  # Checks naming a crate's tests, which every stage here writes.
+  "Tooling > a loop-goal.toml check's -p",
+  'Writing a test case > a -p <crate> check is',
 ]
 
 plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `56-m4b-editor.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `57-m7-server-surface.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -158,70 +180,123 @@ plan = ["Open now", "Blocking"]
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The record amends the two-tier rule. Its neighbours say what CI grows and where the lanes are decided.
+# The record: the capture rule it narrows, the exporter rule it amends, the body rule `sendFile` obeys.
 rules = [
-  "ide/the-lockfile-is-committed-and-build-output-is-not",
-  "testing/ci-lanes",
+  "routing/a-capture-narrows-to-a-closed-set",
+  "observability/the-exporters-are-crates",
+  "security/response-body-is-one-typed-member",
 ]
+spec = ["01 §15"]
 shapes = ["A decision record", "A rule fragment", "Citing a document"]
 
 [context.stage.3]
-# The harness. The package the host loads is the one the rule names, and it lives where clients live.
+# The socket, what it answers, and the one drain behind a stop and a reload.
 rules = [
-  "ide/the-extension-runs-where-the-binary-is",
-  "ide/editor-clients-live-under-editors",
+  "config/one-local-control-socket",
+  "config/ctl-config-reports-the-live-snapshot",
+  "concurrency/a-drain-closes-a-connection-cleanly",
+  "concurrency/one-scheduler",
+]
+playbook = [
+  'Writing a test case > a -p nvs-cli test',
+  'Writing a test case > a -p nvs-server test can drive',
+  'Writing a test case > a -p nvs-server test cannot',
 ]
 
 [context.stage.4]
-# Colour is two layers of standard names, and the extension claims `.nvs` alone.
-rules = [
-  "ide/highlighting-is-two-layers",
-  "ide/semantic-tokens-carry-the-qualifiers",
-  "ide/the-extension-claims-nvs-only",
-  "ide/case-files-have-their-own-grammar",
-]
+rules = ["http-server/a-unix-socket-listener", "http-server/the-server-block-is-boot-class"]
 
 [context.stage.5]
-# The surfaces the host suite drives: concealment, the reveal, the taint default, the panel, the Tasks.
+# The namespace, what a stop and a PARAMCHANGE do, and why Linux prints.
 rules = [
-  "ide/redaction-ranges-come-from-the-server",
-  "ide/reveal-is-explicit-and-window-local",
-  "ide/tainted-has-no-default-decoration",
-  "ide/the-ast-panel-shells-out-to-the-cli",
-  "ide/tasks-carry-a-problem-matcher",
+  "packaging/a-service-is-one-stored-argv",
+  "packaging/a-service-answers-its-manager",
+  "packaging/the-unit-is-printed-and-install-is-the-opt-in",
 ]
+playbook = ['Writing Novis itself > a service', 'Writing a test case > a -p nvs-cli test']
 
 [context.stage.6]
-# One workflow and one lane table; the jobs the rule already says CI grows; the artifact, and the
-# publishing question it leaves open.
+# Seven typed members, the HTML sink's escape, and which contexts bind it.
 rules = [
-  "testing/ci-lanes",
-  "ide/the-lockfile-is-committed-and-build-output-is-not",
-  "ide/the-extension-runs-where-the-binary-is",
-  "ide/one-server-two-thin-clients",
+  "security/response-body-is-one-typed-member",
+  "core-classes/html-auto-escape",
+  "tooling/echo-always-has-a-sink",
 ]
+spec = ["01 §15"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+playbook = ["Writing Novis itself > a request's", 'Writing Novis itself > qual::sink needs']
 
 [context.stage.7]
-# The deep lane's fuzzers, and the property the `prefix` target hunts for.
+# The in-process request, a string is UTF-8, and which readers share the body.
 rules = [
-  "testing/the-deep-lane",
-  "ide/the-tree-survives-a-syntax-error",
+  "testing/in-process-request",
+  "types/string-is-utf8",
+  "http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it",
 ]
+spec = ["01 §15", "01 §13"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+playbook = ['Running things > nvs run --request', "Writing Novis itself > a request's"]
 
 [context.stage.8]
+rules = [
+  "routing/a-capture-narrows-to-a-closed-set",
+  "routing/a-request-reads-its-mount",
+  "routing/an-origin-is-per-mount-and-checked-at-boot",
+]
+shapes = ["A `.nvst` test case"]
+playbook = ['Writing Novis itself > a route table']
+
+[context.stage.9]
+# The lease, what the shared tier is, and the entry block's sub-caps.
+rules = [
+  "config/a-fleet-entry-fires-at-most-once-under-a-lease",
+  "concurrency/a-cached-value-is-copied-across-the-boundary",
+  "config/scheduled-work-is-a-config-block",
+  "concurrency/cross-request-state-is-explicit",
+]
+
+[context.stage.10]
+rules = [
+  "observability/a-registry-is-per-core-and-nothing-reads-it",
+  "observability/route-label-is-the-declared-name",
+  "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
+]
+playbook = ['Writing a test case > a -p nvs-server test can serve']
+
+[context.stage.11]
+rules = [
+  "observability/four-kinds-become-a-span",
+  "observability/an-inbound-traceparent-is-continued",
+  "observability/trace-events-carry-a-kind",
+]
+
+[context.stage.12]
+# The ceilings a runaway meets, the watchdog that sees it, and the hot-reload contract.
+rules = [
+  "errors/on-limit",
+  "http-server/a-wedged-core-is-detected-by-its-deadline",
+  "config/an-edit-reaches-the-next-request-without-a-restart",
+]
+playbook = [
+  "Writing Novis itself > rule:errors/on-limit's roster",
+  'Writing a test case > a memory-limit',
+  'Running things > arevalidationthatwinspublishesandreadersneverblockonacompile fa',
+]
+
+[context.stage.13]
 shapes = ["A rule fragment"]
 
-# Nothing here adds a refcounted value or a fixture `nvs run` executes. Every check is TypeScript,
-# a workflow read or a fuzz run, so nothing is added to the skip list.
+# A socket is a host handle like any connection; no refcounted value crosses it. No cycle shape, so
+# nothing is added to the skip list.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# None of this goal's own checks needs a daemon. The floor, goal `m5-proofs`'s whole list, carries
-# container-backed checks, and the daemons belong to them. The driver preflights them before this
-# goal's first session.
+# Both. Stage 9's lease is proved against the compose file's `redis`, because a set-if-absent and its
+# expiry are a server's semantics rather than a fake's; and the floor is goal `m4b-editor`'s whole list,
+# which carries goal `process-cache`'s shared-tier checks and the database goals' daemons.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
@@ -230,7 +305,7 @@ memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 712 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 722 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -9898,16 +9973,13 @@ name = "a spawn is its own trace event, shipped"
 argv = ["python", "tools/rules.py", "--show", "observability/spawn-is-its-own-event"]
 want = ["shipped"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the record. Goal prose stage 2. The rule keeps its id; the amended body is the first
 # place `test:host` is named.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "the host tier running locally and in CI is the rule"
 argv = ["python", "tools/rules.py", "--show", "ide/headless-gates-the-loop-the-host-run-gates-the-milestone"]
 want = ["ide/headless-gates-the-loop-the-host-run-gates-the-milestone", "test:host"]
@@ -9921,10 +9993,9 @@ want = ["ide/headless-gates-the-loop-the-host-run-gates-the-milestone", "test:ho
 # here would report a green editor run on a machine where no editor started (docs/decisions/0185.md
 # section 3). `{nvs}` is the CLI the leg built, and it reaches `nvs.path` in the throwaway profile only.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "3 the host harness"
+stage = "1 floor"
 name = "vscode (host) runs isolated from the developer's editor"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:host", "--", "--nvs", "{nvs}"]
@@ -9933,7 +10004,7 @@ want = ["runs in a throwaway profile and never the developer's", "host:", "0 fai
 
 [[check]]
 kind = "command"
-stage = "4 colour and activation"
+stage = "1 floor"
 name = "vscode (host) activates on .nvs, colours before and after the server, and matches its legend"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:host", "--", "--nvs", "{nvs}"]
@@ -9950,7 +10021,7 @@ want = [
 
 [[check]]
 kind = "command"
-stage = "5 the surfaces"
+stage = "1 floor"
 name = "vscode (host) draws the status, the Problems, the AST panel and the concealment"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:host", "--", "--nvs", "{nvs}"]
@@ -9969,10 +10040,9 @@ want = [
 # these read the two files. Goal `gap-zero`'s green run is what proves the jobs work. Each marker
 # prints only if present, in this order, so a missing one fails the ordered match.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "6 CI"
+stage = "1 floor"
 name = "ci.yml runs the headless suites on three platforms, the host suite under xvfb, and uploads the vsix"
 argv = [
   "python", "-c",
@@ -9994,7 +10064,7 @@ want = [
 
 [[check]]
 kind = "command"
-stage = "6 CI"
+stage = "1 floor"
 name = "the lane table has an editor lane over editors/ and the crates"
 argv = [
   "python", "-c",
@@ -10008,10 +10078,9 @@ want = ['"editor": (', '"editors/"']
 # `fuzz/seeds/prefix/` as CI's job is. `Done N runs in 30x second(s)` is libFuzzer's closing line on a
 # clean run; a crash exits non-zero before it. Memoized: what it fuzzes lives under `crates/`.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "7 fuzz"
+stage = "1 floor"
 name = "the prefix fuzz target finds no panic in five minutes"
 argv = [
   "wsl.exe", "--", "bash", "-lc",
@@ -10023,24 +10092,380 @@ want = ["Done", "runs in"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- the rulebook. Goal prose stage 8.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "the two-tier rule is shipped"
 argv = ["python", "tools/rules.py", "--show", "ide/headless-gates-the-loop-the-host-run-gates-the-milestone"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "the lockfile rule is shipped"
 argv = ["python", "tools/rules.py", "--show", "ide/the-lockfile-is-committed-and-build-output-is-not"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "8 the rulebook"
+stage = "1 floor"
 name = "the extension-runs-where-the-binary-is rule is shipped"
 argv = ["python", "tools/rules.py", "--show", "ide/the-extension-runs-where-the-binary-is"]
+want = ["shipped"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 13
+# flips the status.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an enum capture's segment spelling is a rule"
+argv = ["python", "tools/rules.py", "--show", "routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"]
+want = ["routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an exporter bringing no second scheduler and no second client is a rule"
+argv = ["python", "tools/rules.py", "--show", "observability/an-exporter-brings-no-second-scheduler-and-no-second-client"]
+want = ["observability/an-exporter-brings-no-second-scheduler-and-no-second-client"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the control socket, `nvs ctl`, and the drain. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the control socket"
+name = "nvs ctl names its three operations"
+argv = ["{nvs}", "ctl", "--help"]
+want = ["reload", "config", "status"]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the control socket"
+name = "the endpoint answers reload, config and status, each carrying the version, one at a time"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_config_request_is_answered_with_the_live_snapshot_and_each_origin",
+  "a_status_request_reports_the_in_flight_count_and_whether_the_process_is_draining",
+  "every_control_answer_carries_the_server_version",
+  "two_reloads_on_one_endpoint_are_answered_one_after_the_other",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the control socket"
+name = "serve binds the socket, ctl drives it, a signal drains, and systemd is told each state"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "serve_binds_the_control_socket_the_tree_names_before_any_listener_accepts",
+  "serve_refuses_to_boot_when_the_control_sockets_directory_is_writable_by_another_account",
+  "ctl_reload_publishes_the_edited_tree_and_prints_what_it_could_not_apply",
+  "ctl_config_prints_the_live_snapshot_with_each_directives_origin",
+  "ctl_refuses_an_answer_from_a_server_of_another_version",
+  "a_terminating_signal_drains_serve_and_every_connection_closes_cleanly",
+  "sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the Unix listener. Goal prose stage 4. One test, both platforms: it binds where the rule
+# admits a Unix socket and asserts the refusal where it does not, so it runs on every leg.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the unix listener"
+name = "a unix-socket listen entry binds with its mode where it is admitted and is refused once elsewhere"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_unix_socket_listen_entry_binds_with_its_mode_on_unix_and_is_refused_once_elsewhere",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- `nvs service`. Goal prose stage 5. Every test drives the recording manager; none needs
+# administrator rights.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 the service"
+name = "nvs service names every verb the rule lists"
+argv = ["{nvs}", "service", "--help"]
+want = ["install", "uninstall", "start", "stop", "status", "run", "unit"]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the service"
+name = "every verb is a plan of manager actions, every refusal runs first, and run answers its manager"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "service_install_on_windows_registers_the_encoded_image_path_a_virtual_account_and_preshutdown",
+  "service_install_on_linux_writes_the_unit_then_runs_daemon_reload",
+  "service_install_dry_run_prints_the_actions_and_touches_nothing",
+  "service_uninstall_leaves_no_key_no_event_source_no_unit_and_no_acl",
+  "service_start_stop_and_status_reach_the_manager_by_argv_with_no_shell",
+  "service_status_reports_in_flight_and_drain_progress_from_the_control_socket",
+  "service_run_turns_a_stop_into_a_drain_with_advancing_checkpoints",
+  "service_run_turns_paramchange_into_the_reload",
+  "every_install_refusal_runs_before_the_manager_is_touched",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the response body, and `echo` into it. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 the response body"
+name = "html writes markup, sendFile streams a file, and echo in a request escapes a string"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/response-html-writes-the-markup-and-declares-text-html.nvst",
+  "tests/conformance/core/response-send-file-streams-the-file-under-its-media-type.nvst",
+  "tests/conformance/core/echo-in-a-request-escapes-a-string-and-writes-markup-as-it-is.nvst",
+  "tests/conformance/reject/response-send-file-refuses-a-tainted-path.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the response body"
+name = "a declared file body is answered by the static policy, ranges and conditionals included"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_declared_file_body_is_streamed_under_the_static_policys_media_type",
+  "a_declared_file_body_answers_a_range_and_a_conditional_request",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the response body"
+name = "the escape has one home and every sink but the request's keeps the terminal's rendering"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "echo_into_a_body_sink_escapes_a_string_and_writes_a_markup_carrier_as_it_is",
+  "echo_into_every_other_sink_writes_the_terminals_rendering",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the request's input, and the test request. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "7 the request input"
+name = "bytes reads a binary body tainted, body refuses one, and a test request carries headers and a body"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/request-bytes-reads-a-binary-body-whole-and-tainted.nvst",
+  "tests/conformance/core/request-body-refuses-a-body-that-is-not-utf-8-and-names-bytes.nvst",
+  "tests/conformance/core/test-request-carries-headers-and-a-body-that-arrive-tainted.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the request input"
+name = "bytes shares body's hold, and a synthetic request's body is held bytes"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "request_bytes_and_body_share_one_hold_and_bytes_never_copies_it_twice",
+  "a_synthetic_request_carries_its_headers_and_body_into_the_program",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the routes. Goal prose stage 8.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "8 the routes"
+name = "an enum capture matches its spelling, url refuses a case outside the set, and a link carries its mount"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/router-an-enum-capture-matches-its-backing-value-and-hands-over-the-case.nvst",
+  "tests/conformance/core/router-url-prepends-the-mount-prefix-the-door-stripped.nvst",
+  "tests/conformance/reject/router-url-refuses-an-enum-case-outside-the-captured-subset.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "8 the routes"
+name = "a served request receives its mount's origin, and a mount that needs one and has none refuses the boot"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_served_request_receives_its_mounts_resolved_origin",
+  "a_mount_whose_unit_calls_url_absolute_and_resolves_no_origin_refuses_the_boot",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the schedule. Goal prose stage 9. The lease test needs the compose file's `redis`.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the schedule"
+name = "the shared tier takes a lease once across two clients, renews it only for its holder, and lets it expire"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_shared_tier_lease_is_taken_by_one_of_two_clients_and_expires_after_its_ttl",
+  "a_shared_tier_lease_is_renewed_only_while_the_token_is_still_the_holders",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the schedule"
+name = "serve arms fleet entries under a lease, renews it in flight, and narrows an entry to its sub-caps"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_fleet_lease_is_renewed_while_its_run_is_in_flight",
+  "a_schedule_entrys_limits_and_grants_narrow_its_run_and_never_widen_it",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 the schedule"
+name = "serve hands the ticker a lease when the tree has a shared tier"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "serve_arms_a_fleet_entry_when_the_shared_tier_can_take_a_lease",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- the metrics export. Goal prose stage 10.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "10 the metrics"
+name = "every core counts its requests under the route label and a scrape merges them"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "every_serving_core_owns_a_registry_and_counts_each_request_under_its_route_label",
+  "a_scrape_merges_every_cores_series_into_the_text_exposition_format",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "10 the metrics"
+name = "serve answers a scrape at its listen address, and a tree with no exporter binds nothing"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "serve_answers_a_scrape_at_the_metrics_listen_address",
+  "a_tree_whose_metrics_exporter_is_false_binds_nothing_and_builds_no_registry",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 11 -- spans and the trace push. Goal prose stage 11.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "11 the traces"
+name = "four kinds become a span, sampling is decided at the root, and a push never delays a response"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "exactly_four_event_kinds_become_a_span_and_a_call_never_does",
+  "trace_sample_decides_at_the_root_and_a_sampled_inbound_trace_is_always_continued",
+  "a_sampled_request_is_pushed_to_the_otlp_endpoint_as_one_trace",
+  "an_unreachable_collector_drops_and_counts_spans_and_never_delays_a_response",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 12 -- the served path, end to end. Goal prose stage 12.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "12 the served path"
+name = "a runaway under nvs serve is a fatal and its core answers the next request"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_served_while_true_is_ended_as_a_fatal_and_the_core_answers_the_next_request",
+  "a_served_allocation_loop_is_ended_as_a_fatal_and_the_core_answers_the_next_request",
+  "a_revalidation_that_fails_to_compile_fails_only_the_requests_that_resolve_it_afterwards",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 13 -- the rulebook. Goal prose stage 13.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "an enum capture's segment spelling is shipped"
+argv = ["python", "tools/rules.py", "--show", "routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "an exporter with no second scheduler is shipped"
+argv = ["python", "tools/rules.py", "--show", "observability/an-exporter-brings-no-second-scheduler-and-no-second-client"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "the one local control socket is shipped"
+argv = ["python", "tools/rules.py", "--show", "config/one-local-control-socket"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "ctl config reporting the live snapshot is shipped"
+argv = ["python", "tools/rules.py", "--show", "config/ctl-config-reports-the-live-snapshot"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "a service as one stored argv is shipped"
+argv = ["python", "tools/rules.py", "--show", "packaging/a-service-is-one-stored-argv"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "a service answering its manager is shipped"
+argv = ["python", "tools/rules.py", "--show", "packaging/a-service-answers-its-manager"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "the unix socket listener is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-unix-socket-listener"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "a fleet entry under a lease is shipped"
+argv = ["python", "tools/rules.py", "--show", "config/a-fleet-entry-fires-at-most-once-under-a-lease"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "the per-mount origin and its boot check are shipped"
+argv = ["python", "tools/rules.py", "--show", "routing/an-origin-is-per-mount-and-checked-at-boot"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "the exporters rule is shipped"
+argv = ["python", "tools/rules.py", "--show", "observability/the-exporters-are-crates"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "13 the rulebook"
+name = "four kinds becoming a span is shipped"
+argv = ["python", "tools/rules.py", "--show", "observability/four-kinds-become-a-span"]
 want = ["shipped"]

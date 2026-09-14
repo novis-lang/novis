@@ -2,54 +2,49 @@
 
 ## State
 
-**Goal `m4b-editor` is met: stages 0 through 8 are on disk and every one of its checks passes
-locally.** This session closed the one check the driver reported red after session 0006.
+**Goal `m7-server-surface` — everything M7 promised a deployment is there to run — has just started; nothing of it has landed yet.** Goal `m4b-editor`'s whole list is this goal's Stage 1 floor.
 
-- **That check was never a download failure.** The ledger quoted `- Resolving version...`, which is
-  `@vscode/test-electron` announcing the cache hit it went on to use; the run's own console log has
-  `conceals both secrets on open and reveals exactly one: ... did not happen within 20000ms` and
-  `host: 11 passing, 1 failing` under the same check.
-- **Its cause is established and closed.** `redactions.ts` asked `nvs/redactions` from a
-  `workspace.onDidOpenTextDocument` listener installed at activation, and VS Code calls that before
-  the listener `vscode-languageclient` registers when it starts — so the ask could reach the server
-  ahead of the notification that opens the document there. `crates/nvs-lsp/src/document.rs:382`
-  answers `None` for a document nothing is open for, `crates/nvs-lsp/src/server.rs:1357` turns that
-  into `[]`, and `editors/vscode/src/concealment.ts:153` counts an empty answer as an answer, so
-  nothing re-asks: the `secret` stays on screen in cleartext until the file is edited. The ask is
-  the client's own `didOpen` middleware now (`editors/vscode/src/extension.ts:190`), which awaits
-  the notification before it asks.
-- **Evidence.** The host suite ran five times at head, `host: 12 passing, 0 failing` every time,
-  the last of them with the fix in place. `npm run lint` is clean.
-
-The pack still never prints the goal's own `## Stage N` prose, where each stage's exact markers
-are, and `[context]` has no field that reaches it. One `peek.py` target on
-`docs/agent/loop-goal.md:"## Stage N"` is the whole fix, but it has to be remembered.
+**Every design call the stages reach is already decided, in the goal's § *Standing decisions*.** The
+one record that states the calls no current rule holds is not written yet; Stage 2 writes it. Do not
+re-decide these:
+- an enum case is spelled by its backing value, or else by its case name;
+- an exporter brings no second scheduler and no second client;
+- `Core\Request::bytes()` exists, and `body()` refuses an ill-formed payload rather than repairing it;
+- the control endpoint runs on one thread of its own;
+- `nvs service` is tested through a recording `Manager` and never against a real one.
 
 ## Next group
 
-**Nothing of this goal is open** — the status line is `DONE` and the next session is the chain's
-next goal, which `python tools/brief.py` names after `tools/goal-switch.py` runs. If the driver's
-sweep declines the claim again, the work is whichever check it names, and only these two could be
-it:
+**Stage 2: the record** — one file set: `docs/decisions/`, `docs/rules/routing/`,
+`docs/rules/observability/`, `docs/spec/01-core-library.md`.
 
-- [ ] **A red stage 3–5 host check: read the console log, never the ledger's quoted line**
-      (`docs/agent/loop-goal.toml:9915` is the isolation check; `.loop/logs/<run>-console.log` holds
-      the whole output, and `editors/vscode/test/host/surfaces.test.ts:47`'s `until` now says what
-      was drawn instead of what was waited for). One `npm run test:host -- --nvs
-      target/debug/nvs.exe` from `editors/vscode` reproduces all twelve.
-- [ ] **A red stage 8 check means the render is stale**: `python tools/rules.py --render` after any
-      edit under `docs/rules/` (`docs/rules/ide.json:1` is the chapter this goal ships three rules
-      into).
+- [ ] **The record** — the next free number in `docs/decisions/`, `changes.creates` the two rules the
+      goal's stage 2 table names, `changes.modifies` `routing/a-capture-narrows-to-a-closed-set`
+      (`docs/rules/routing/a-capture-narrows-to-a-closed-set.md:17-19`) and
+      `observability/the-exporters-are-crates` (`docs/rules/observability/the-exporters-are-crates.md:1-4`).
+      Before writing the exporter rule, read `Cargo.lock` and each candidate crate's own manifest for
+      what `metrics-exporter-prometheus` and `opentelemetry-otlp` pull in — *not checked* while the
+      goal was written. The body also names the drain's bound (Stage 3) and `sendFile`'s signature.
+- [ ] **The two rule fragments and their JSON entries**, both `designed`; the two amendments; and spec
+      § 15's `sendFile(…)` at `docs/spec/01-core-library.md:1122` spelled `sendFile(string $path)`.
+      Then `python tools/rules.py --render`.
 
 ## Backlog
 
-- `tools/loop.py:1368` — `first_err_line`'s `startswith("error")` is case-sensitive, so a Mocha
-  `Error: host: 1 failing` loses to stderr's first line and the ledger quotes progress output.
-- A test of `tools/loop.py:1706`'s `EDITOR_READS`: `tools/` has no suite to host one
-  (`docs/agent/loop-goal.md` § *The acceptance cache sees an extension change*).
-- Publishing the `.vsix` to the Marketplace or Open VSX, or attaching it to a release —
-  `rule:ide/one-server-two-thin-clients` § *Revisiting* keeps it open.
-- A pixel tier for the colour assertions; PhpStorm and every M10 editor feature — not this goal.
-- The stale trivia paragraph in `docs/plan/m4b.md`, which is goal `plan-truth`'s.
-- The `unowned` module-doc gaps in `crates/nvs-lsp/src/index.rs` and `hints.rs`, goal
-  `unowned-closures`'s.
+- Stage 3 — the control socket, `nvs ctl` and the drain. Files: `crates/nvs-server/src/control.rs:26`,
+  `crates/nvs-config/src/control.rs:241`, `crates/nvs-cli/src/serve.rs:824`, `crates/nvs-cli/src/main.rs:745`.
+  This is the keystone: stages 5 and 12 need it.
+- Stage 4, the Unix listener (`crates/nvs-host/src/net.rs`), gets its own session. So does stage 5,
+  `nvs service` (`crates/nvs-cli/src/service.rs:140`). After stage 5, install for real by hand on each
+  platform and write the result down; no check does that.
+- Stages 6 and 7 are the response body and `echo` (`crates/nvs-stdlib/src/response.rs:261`,
+  `crates/nvs-runtime/src/ctx/output.rs:455`) and the request input with `Test::request`
+  (`crates/nvs-stdlib/src/request.rs:2582`, `crates/nvs-stdlib/src/test.rs:412`). The two share
+  `nvs-stdlib`'s registry.
+- Stages 8 and 9 are the routes (`crates/nvs-types/src/routes.rs:1787`, `crates/nvs-stdlib/src/router.rs:825`)
+  and the schedule (`crates/nvs-server/src/schedule.rs:301`, `crates/nvs-stdlib/src/cache/redis.rs:162`).
+  Stage 9 needs the compose file's `redis` running.
+- Stages 10 and 11 are the metrics export and the spans. Files: `crates/nvs-server/src/metrics.rs:388`,
+  `crates/nvs-server/src/route.rs:41`, `crates/nvs-runtime/src/trace_context.rs:22`.
+- Stage 12 (the served path end to end, `crates/nvs-cli/src/serve.rs:1570`), then stage 13's flips.
+- When this goal's last check goes green the driver takes goal `m8-db-queue`.
