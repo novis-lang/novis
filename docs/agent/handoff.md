@@ -2,57 +2,61 @@
 
 ## State
 
-**Goal `m5-proofs` (M5). Stage 6's third item is on disk: the worker cores exist, with an inbox, a
-bell and an answer that crosses back in a slot.**
+**Goal `m5-proofs` (M5). Stage 6's first item is on disk: the host seam names the child's program
+instead of carrying it.**
 
-`crates/nvs-host/src/worker.rs` is `rule:concurrency/on-worker-runs-the-child-on-another-core`'s
-mechanism, built as ADR 0184 §§ 3–5 fix it. `worker::place` (`crates/nvs-host/src/worker.rs:516`)
-is the blocking pool's handoff pointing the other way: take a `RemoteWake` for the running task,
-post the work to another core's inbox, ring its bell, park; the far core runs it **as a task**, so
-it may park and spawn children there. `Answering`'s `Drop` is the one path out — a return, a
-contained panic and a forced unwind all answer, so no parent is left parked. Cores are started on
-the first placement and bounded at `cpus().len().max(1)`, one thread per core.
+`nvs_runtime::host::Entry` (`crates/nvs-runtime/src/host.rs:243`) is now the name and not the code —
+`Path(String)`, or `Method { label, names }` — so it is `Send`, and `Entry::program(ctx)` turns it
+into a `Program` on the core that is about to run the child, asking
+`rule:security/capability-check-at-the-door`'s `script.spawn` door there. `Host::start_isolate` lost
+its `program` parameter and answers `StartError`, whose two variants are the two questions asked
+before a child exists. The method form's closure moved to `nvs_runtime::script::method_program`
+(`crates/nvs-runtime/src/script.rs:322`) with `bound_arguments` beside it, which is now that
+function's one home; `nvs_host::Isolate` keeps a private `Form` tag for the one thing the name still
+decides on its side, which context constructor arms the child.
 
-**Built, not routed.** `SchedulerHost::start_isolate` still sends both placement words to this
-core's own start, and the reason is now a shape rather than a missing mechanism: a
-`nvs_runtime::script::Program` is a `Box<dyn FnOnce(&mut Ctx, Value) -> Value>` the *parent's*
-resolver built, so it is not `Send` and means nothing on another core, and a `Value` is reachable
-from one core by construction. `crates/nvs-host/src/group.rs`'s `# Known gaps` is that gap's one
-home and says what the seam has to carry instead. `limits:` and `grants:` still stop at the checker.
+**Still routed here.** `SchedulerHost::start_isolate` (`crates/nvs-host/src/group.rs:205`) sends both
+placement words to this core's own start, and `crates/nvs-host/src/group.rs`'s `# Known gaps` is that
+gap's one home: what is left is the route, not the shape. `limits:` and `grants:` still stop at the
+checker.
 
 ## Next group
 
-**Stage 6: the options, below the checker** — one file set: `crates/nvs-runtime/src/host.rs`,
-`crates/nvs-host/src/group.rs`, `crates/nvs-host/src/worker.rs`, `crates/nvs-stdlib/src/script.rs`,
-`crates/nvs-ir/src/lower/expr.rs` and `tests/conformance/isolate/`.
+**Stage 6: the options, routing a worker placement** — one file set:
+`crates/nvs-host/src/worker.rs`, `crates/nvs-host/src/group.rs`, `crates/nvs-host/src/isolate.rs` and
+`crates/nvs-cli/src/runner.rs`.
 
-- [ ] **The seam names the child's program instead of carrying it** — `start_isolate`
-      (`crates/nvs-runtime/src/host.rs:576`) takes a `Program` today, which a worker placement
-      cannot cross with. Carry what the far core can resolve for itself — the path, or the class
-      and method `Entry::Method` names — and the argument as `nvs_runtime::graph::encode`'s bytes
-      (`crates/nvs-runtime/src/graph.rs:719`, decoded by `:917`), which is ADR 0184 § 2's copy at
-      every node. The two call sites are `crates/nvs-stdlib/src/script.rs:661` and `:917`, which
-      resolve before they reach the seam; `crates/nvs-host/src/group.rs:191` is the one implementor.
-      `rule:security/isolate-values-cross-by-copy` is what may cross.
-- [ ] **`Placement::Worker` routes to a worker core** — the arm at
-      `crates/nvs-host/src/group.rs:211`, over `worker::place` at
-      `crates/nvs-host/src/worker.rs:516`. It deletes `crates/nvs-host/src/group.rs`'s `# Known
-      gaps` paragraph and the second half of `crates/nvs-host/src/worker.rs:86`'s.
-      `rule:concurrency/on-worker-runs-the-child-on-another-core` is the rule.
-- [ ] **`limits:` and `grants:` below the checker** — the lowering drops both today
-      (`crates/nvs-ir/src/lower/expr.rs:3206` writes the placement beside the path, the `args:`
-      value and the `output:` spelling and nothing else); `crates/nvs-stdlib/src/script.rs:606`
-      is where `placement_of` reads its word and where the two others join it.
-      `rule:security/isolate-budget-is-the-trees` is the sub-cap rule and
-      `rule:concurrency/an-upgrades-options-are-spawn-scripts` the sibling site's wording.
-- [ ] **The three `.nvst` cases** `docs/agent/loop-goal.toml:9880` names, under
-      `tests/conformance/isolate/` — a worker child answering as a local one does, grants that
-      only narrow, limits that stop a child at its own ceiling. They need the two items above.
+- [ ] **`worker::place` splits into a post and a collect** — `place_on`
+      (`crates/nvs-host/src/worker.rs:540`) parks the calling task until the answer is in the slot,
+      and `Host::start_isolate`'s contract (`crates/nvs-runtime/src/host.rs:633`) is **eager**: the
+      child is a runnable task before the call returns, so a parent that spawns three and awaits
+      three overlaps them. Post the `Start` and hand back the `Answering`/slot pair as something a
+      `Box<dyn Running>` can join later, leaving today's blocking `place` as one caller of the two
+      halves. `rule:concurrency/on-worker-runs-the-child-on-another-core` is the mechanism it
+      implements.
+- [ ] **The `Placement::Worker` arm posts the entry and the argument's bytes** —
+      `crates/nvs-host/src/group.rs:205`'s one arm becomes two. The `Entry` crosses as it is, the
+      argument as `nvs_runtime::graph::encode`'s bytes (`crates/nvs-runtime/src/graph.rs:719`,
+      decoded by `:917`), which is ADR 0184 § 2's copy at every node — and the encode belongs on this
+      arm rather than at the seam, because a here-placement's crossing is one walk into the child's
+      arena. A `GraphError` from it is `StartError::Argument`, exactly as `copy_graph`'s is.
+- [ ] **The far core starts the child as a root task and answers with a copied `Completion`** —
+      `Isolate::start` (`crates/nvs-host/src/isolate.rs:547` builds the child's context) takes the
+      *parent's* `Ctx` for the tree's budget, the depth ceiling and the class table, none of which
+      exist on the other core. Decide what crosses for those and record it under ADR 0184's § 4;
+      `rule:security/isolate-budget-is-the-trees` is the constraint, and the cancellation edge is
+      § 4's acknowledgement.
+- [ ] **Each worker core needs its own resolver installed** —
+      `crates/nvs-cli/src/runner.rs:454` installs one on the main thread only, and a resolver holds an
+      `Rc` unit cache so it is `!Sync` and cannot be shared (`crates/nvs-runtime/src/script.rs:215`).
+      Without one the far core answers `ResolveError::NoResolver` for every path form.
 
 ## Backlog
 
-- A serving core does not register its inbox, so `nvs serve` places on the lazily started cores —
-  ADR 0184 § 5's pre-authorized fallback; `crates/nvs-host/src/worker.rs`'s `# Known gaps`.
-- The `isDraining`-is-process-state sentence for `rule:security/request-state-throws-in-an-isolate`
-  — the goal's § *Standing decisions* says where it goes if `rules.py` refuses it.
-- Stage 7's bench and stage 8's sanitizer leg are untouched — `docs/agent/loop-goal.md`.
+- `limits:` and `grants:` below the checker: typed at `crates/nvs-types/src/expr/isolate.rs:171`,
+  dropped by the lowering at `crates/nvs-ir/src/lower/expr.rs:3206` — two of stage 6's three cases.
+- The three `.nvst` cases `docs/agent/loop-goal.toml:9880` names, under `tests/conformance/isolate/`.
+- A worker placement of the **method** form needs the parent's class table on the far core, which is
+  `Rc`-shared today — `crates/nvs-host/src/group.rs`'s `# Known gaps`.
+- `Core\Socket::upgrade` still carries a `Program` through `nvs_runtime::Upgrade`
+  (`crates/nvs-stdlib/src/socket.rs:608`), which is right: a connection is a root isolate on this core.
