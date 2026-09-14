@@ -408,15 +408,33 @@
     },
     {
       "id": "observability/the-exporters-are-crates",
-      "title": "The OTLP and Prometheus paths are dependencies; the event-to-span wiring and the per-core registry are ours",
+      "title": "The OTLP and Prometheus paths are somebody else's specification, implemented here; the wiring and the registry are ours",
       "status": "designed",
       "because": [
-        "0076"
+        "0076",
+        "0186"
       ],
       "seeAlso": [
         "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
+        "observability/an-exporter-brings-no-second-scheduler-and-no-second-client",
         "observability/four-kinds-become-a-span",
         "observability/a-registry-is-per-core-and-nothing-reads-it"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "observability/an-exporter-brings-no-second-scheduler-and-no-second-client",
+      "title": "An exporter brings no second registry, no second scheduler and no second client, and a crate is taken only for an encoder",
+      "status": "designed",
+      "because": [
+        "0186"
+      ],
+      "seeAlso": [
+        "observability/the-exporters-are-crates",
+        "observability/a-registry-is-per-core-and-nothing-reads-it",
+        "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
+        "concurrency/one-scheduler",
+        "packaging/a-c-dependency-answers-two-questions"
       ],
       "guardedBy": []
     },

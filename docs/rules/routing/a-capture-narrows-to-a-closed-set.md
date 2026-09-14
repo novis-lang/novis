@@ -14,6 +14,6 @@ client, which is priority 1 spent to buy priority 4 (`rule:programs/memory-prior
 cannot express — a `[a-z0-9-]+` slug — stays a `Core\Validate` check inside the handler, answering `400`.
 
 `Core\Router::url` builds a link for every member of the set and refuses a literal value outside it at
-compile time; a computed value is substituted and encoded. The enum-case-subset half is not yet
-converted at match time: an enum capture matches and hands over its segment text, because a case's
-segment spelling is still undecided.
+compile time; a computed value is substituted and encoded. Which text an enum case is spelled by — in
+a segment, in a link and in the generated document alike — is
+`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`.

@@ -3,7 +3,7 @@
 
 # Observability
 
-*11 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
+*12 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -520,14 +520,17 @@ the class is always there and the driver is a feature.
 
 <a id="observability-the-exporters-are-crates"></a>
 
-## The OTLP and Prometheus paths are dependencies; the event-to-span wiring and the per-core registry are ours  *(designed — not yet in the compiler)*
+## The OTLP and Prometheus paths are somebody else's specification, implemented here; the wiring and the registry are ours  *(designed — not yet in the compiler)*
 
 `rule:observability/the-exporters-are-crates`
 
-The OTLP path, including the W3C TraceContext propagator, and the Prometheus scrape path are
-somebody else's specification and are taken as dependencies — `opentelemetry` and
-`opentelemetry-otlp` for the one, `metrics-exporter-prometheus` for the other — behind the feature
-[`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not) describes.
+The OTLP path, including the W3C TraceContext propagator, and the Prometheus scrape path are somebody
+else's specification, and they are implemented against it behind the feature
+[`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not) describes. A crate is taken for
+a half that is only an encoder, and never for one that would bring its own runtime, its own client or
+its own registry — [`observability/an-exporter-brings-no-second-scheduler-and-no-second-client`](observability.md#observability-an-exporter-brings-no-second-scheduler-and-no-second-client) is
+the predicate, and the reading of `metrics-exporter-prometheus` and `opentelemetry-otlp` that neither
+passes it.
 
 What is ours, and could not be a crate, is the wiring from the runtime's own event kinds to spans
 ([`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span)) and the per-core registry
@@ -536,7 +539,40 @@ whole without an exporter: an exporter reads its series in order and formats the
 changes nothing above it. StatsD is not a wire format here — no histogram semantics worth the name
 and no trace story at all.
 
-<sub>See also [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0076](../decisions/0076.md).</sub>
+<sub>See also [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`observability/an-exporter-brings-no-second-scheduler-and-no-second-client`](observability.md#observability-an-exporter-brings-no-second-scheduler-and-no-second-client), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0076](../decisions/0076.md), [0186](../decisions/0186.md).</sub>
+
+<a id="observability-an-exporter-brings-no-second-scheduler-and-no-second-client"></a>
+
+## An exporter brings no second registry, no second scheduler and no second client, and a crate is taken only for an encoder  *(designed — not yet in the compiler)*
+
+`rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`
+
+An exporter brings no second registry, no second scheduler and no second client: a crate is taken for
+a half that needs none of those — an encoder — and never for a half that carries its own execution or
+its own socket.
+
+The Prometheus scrape endpoint is served by this server's own accept loop, on the listener
+`[metrics] listen` names — one more listening socket driven by the same loop as every other, never a
+second HTTP server. A push goes out over `nvs-host`'s parking stream and the one TLS client this
+workspace has, under `Core\Http\Client`'s own bounds.
+
+Both wire formats are therefore written here, against their specifications, and what a crate may
+supply is encoding: a protobuf encoder is exactly the shape that qualifies, because it is code
+generation and bytes with no runtime, no socket and no trust store. `docs/decisions/0186.md`
+§ *Investigation* is the reading of `metrics-exporter-prometheus` and `opentelemetry-otlp` that
+found neither takeable — the first is separable from a transport but not from `metrics` and
+`metrics-util`'s own registry, which would stand beside the per-core one
+([`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it)); the second cannot be reached
+without either a second HTTP client or `opentelemetry_sdk`'s executor, which is a required
+dependency rather than an optional one.
+
+The objections are priority 1 and priority 4 agreeing. A second scheduler in a thread-per-core
+runtime is what [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler) already refuses; a second HTTP client and a second
+TLS provider are a second set of verification defaults to keep in step, and a provider that is a C
+dependency is priced again by [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). What it costs is
+that two versioned formats are ours to track, which is the trade taken deliberately.
+
+<sub>See also [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0186](../decisions/0186.md).</sub>
 
 <a id="observability-speedscope-timeline-export"></a>
 

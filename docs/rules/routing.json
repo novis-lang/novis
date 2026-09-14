@@ -125,7 +125,8 @@
         "0102",
         "0077",
         "0047",
-        "0075"
+        "0075",
+        "0186"
       ],
       "divergesFromPhp": "there is no `->where('lang', 'en|de|fr')`; the constraint is the parameter's type, and a regex on a route is refused outright",
       "seeAlso": [
@@ -143,6 +144,24 @@
         "tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst",
         "crates/nvs-runtime/src/routes.rs"
       ]
+    },
+    {
+      "id": "routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name",
+      "title": "An enum capture is spelled by a written backing value, and by its case name when the value was counted",
+      "status": "designed",
+      "because": [
+        "0186"
+      ],
+      "divergesFromPhp": "there is no backed-versus-pure split to route on — every enum is integer-backed, so what decides the spelling is whether the value was written",
+      "seeAlso": [
+        "routing/a-capture-narrows-to-a-closed-set",
+        "routing/a-query-parameter-is-declared-like-a-capture",
+        "enums/declaration",
+        "enums/one-backing-type",
+        "security/route-capture-is-laundered-by-its-type",
+        "routing/link-name-and-params-are-checked"
+      ],
+      "guardedBy": []
     },
     {
       "id": "routing/a-trailing-segment-may-be-absent",
