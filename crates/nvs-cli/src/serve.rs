@@ -495,6 +495,12 @@ pub(crate) fn run(
             // there is no core to report a stall against and nothing to watch.
             watched: None,
         };
+        // Nothing is watched here, so there is no stall detector to gate the
+        // manager's ping on and it says only that the process is up — which is
+        // all a host with no core to name a stall against can honestly say.
+        // Withholding it instead would have the manager stop a server that is
+        // serving (`crate::service::Heartbeat`).
+        let _ping = crate::service::Heartbeat::start(&told, || true);
         return if serve_on_worker(&mut sched, core) {
             ExitCode::SUCCESS
         } else {
@@ -507,6 +513,16 @@ pub(crate) fn run(
     // where the fleet is joined, rather than by whichever core happened to end
     // last; its own thread starts with the first registration a core makes.
     let watchdog = Arc::new(nvs_host::Watchdog::new());
+    // What answers the `WatchdogSec=` line `nvs service unit` renders, gated on
+    // that same detector so the ping is evidence the fleet is turning rather
+    // than evidence this thread is. Held in this frame like the watchdog it
+    // reads: dropping it past the join stops the pings where the last core
+    // stopped, and a process that is already reporting `STOPPING=1` owes its
+    // manager no further beat (`crate::service::Heartbeat`).
+    let _ping = {
+        let watchdog = Arc::clone(&watchdog);
+        crate::service::Heartbeat::start(&told, move || watchdog.turning())
+    };
     let mut running = Vec::with_capacity(rows.len());
     for (index, listeners) in rows.into_iter().enumerate() {
         // A count above this machine's parallelism is started rather than

@@ -444,6 +444,43 @@ impl Watchdog {
         lock(&self.shared.state).watching.len()
     }
 
+    /// Whether any watched core was answering its deadlines at the last sweep.
+    ///
+    /// The read side of the episode [`Shared::sweep`] already keeps: a core
+    /// counts as wedged for exactly as long as its earliest deadline stays a
+    /// margin in the past, and the entry recording that is cleared on the first
+    /// sweep where it is not. So this costs a walk of the watched set, lags by
+    /// at most one interval, and needs nothing published on a request path for
+    /// its benefit — which is what makes it the only honest evidence this
+    /// process is doing its job rather than merely existing.
+    ///
+    /// **`true` while one core of many is wedged**, because that is
+    /// `rule:http-server/a-wedged-core-is-shed-never-killed`: the fleet is
+    /// still serving, and what answers the wedged core is admission control
+    /// rather than anything that ends the process. It goes `false` only when
+    /// every watched core is wedged at once, which is a process with nothing
+    /// left to shed onto.
+    ///
+    /// `true` while no core is registered at all — a process whose fleet has
+    /// not started yet, and the host that enumerates no CPU to pin to, are both
+    /// answering every deadline they hold, which is none. A thread that is no
+    /// core ([`Self::register_requests`]) is not counted on either side: it is
+    /// reported as wedged never, so counting it would keep this `true` for a
+    /// process whose every core had stopped.
+    #[must_use]
+    pub fn turning(&self) -> bool {
+        let state = lock(&self.shared.state);
+        let mut cores = 0_usize;
+        let mut wedged = 0_usize;
+        for watched in &state.watching {
+            if watched.core.is_some() {
+                cores += 1;
+                wedged += usize::from(watched.reported.is_some());
+            }
+        }
+        cores == 0 || wedged < cores
+    }
+
     /// Every registered thread that has published a request, paired with what
     /// it published — the handle that stops that request, and the baseline a
     /// charge against its ceiling is measured from. The CPU is the one the
@@ -769,6 +806,52 @@ mod tests {
             assert_eq!(timers.take_due(at), Some(TaskId::from_raw(step)));
             assert!(dog.shared.sweep(at + margin).is_empty());
         }
+    }
+
+    /// The gate a service manager's watchdog ping hangs off: one wedged core of
+    /// several is a fleet that is still serving, and only a fleet where no core
+    /// turns at all stops answering for the process.
+    #[test]
+    fn a_process_turns_until_every_core_it_watches_is_wedged_at_once() {
+        let (tx, _rx) = mpsc::channel();
+        let margin = Duration::from_secs(5);
+        let dog = watchdog_of(margin, tx);
+        assert!(
+            dog.turning(),
+            "a process watching no core is answering every deadline it holds, which is none"
+        );
+
+        // Strictly after each table's publishing base, for the reason the case
+        // below this one spells out.
+        let filed = Instant::now() + Duration::from_millis(1);
+        let mut one = Timers::default();
+        let mut two = Timers::default();
+        one.arm(TaskId::from_raw(1), filed);
+        let _first = dog.register(a_cpu(), one.view());
+        let _second = dog.register(a_cpu(), two.view());
+
+        dog.shared.sweep(filed + margin);
+        assert!(
+            dog.turning(),
+            "one wedged core of two is shed rather than killed, and the other is still accepting"
+        );
+
+        two.arm(TaskId::from_raw(2), filed);
+        dog.shared.sweep(filed + margin);
+        assert!(
+            !dog.turning(),
+            "every watched core is a margin past its deadline and the process still reads as \
+             turning"
+        );
+
+        // A core that answers again ends its episode, and the process reads as
+        // turning on the next sweep rather than staying condemned by one.
+        assert!(two.disarm(TaskId::from_raw(2)));
+        dog.shared.sweep(filed + margin);
+        assert!(
+            dog.turning(),
+            "a core that came back was not enough to make the process read as turning again"
+        );
     }
 
     /// A recovered core that wedges again is a second episode, because the

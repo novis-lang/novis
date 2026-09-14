@@ -65,8 +65,14 @@
 //! what keeps it: a unit of that type whose process never sends `READY=1` is
 //! one systemd ends at `TimeoutStartSec` however well it is serving.
 //! `rule:packaging/the-generated-unit-is-hardened` is the list — `READY=1` once
-//! every listener is bound, `RELOADING=1` and `READY=1` around a reload, and
-//! `STOPPING=1` once the drain has begun.
+//! every listener is bound, `RELOADING=1` and `READY=1` around a reload,
+//! `STOPPING=1` once the drain has begun, and a `WATCHDOG=1` ping for as long
+//! as the fleet is turning.
+//!
+//! **The ping is the `WatchdogSec=` line's promise, and it is gated rather than
+//! timed.** [`Heartbeat`] owns what it is gated on and why one wedged core does
+//! not withhold it; the short of it is that a beat a live thread writes proves
+//! only that the process exists, which is not what the manager is asking.
 //!
 //! **The protocol is written by hand.** `sd_notify` is one datagram of
 //! `NAME=value` lines to whatever `$NOTIFY_SOCKET` names, so what a crate for
@@ -83,7 +89,9 @@
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
+use std::thread::JoinHandle;
+use std::time::Duration;
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap, code};
 
@@ -586,6 +594,14 @@ pub(crate) enum State {
     /// The drain has begun, so this process is answering what it accepted and
     /// accepting nothing further.
     Stopping,
+    /// The fleet is still turning, which is the only thing a `WatchdogSec=`
+    /// unit takes as evidence that this process is doing its job.
+    ///
+    /// A keepalive rather than a transition, so it is sent over and over while
+    /// the others are sent once each — and it is a [`State`] anyway, because
+    /// what a case has to be able to read back is the line, and the seam that
+    /// hands a case the other three is the one holding [`Heartbeat`] up.
+    Alive,
 }
 
 impl State {
@@ -600,6 +616,7 @@ impl State {
             State::Ready => "READY=1",
             State::Reloading => "RELOADING=1",
             State::Stopping => "STOPPING=1",
+            State::Alive => "WATCHDOG=1",
         }
     }
 }
@@ -703,6 +720,147 @@ pub(crate) fn recording() -> (Notify, Arc<std::sync::Mutex<Vec<&'static str>>>) 
 
     let log = Arc::new(std::sync::Mutex::new(Vec::new()));
     (Notify::to(Arc::new(Recorder(Arc::clone(&log)))), log)
+}
+
+/// The `WATCHDOG=1` ping a `WatchdogSec=` unit is owed, and the thread sending
+/// it.
+///
+/// [`unit`] renders `WatchdogSec=30`, which means the manager stops this
+/// process unless a ping arrives inside half that period — so the ping has to
+/// be evidence of something. A beat written by a thread that lives whether or
+/// not a core turns proves only that the process exists, and a process that
+/// exists while answering nothing is the exact fault a watchdog is bought for.
+/// So the gate is [`nvs_host::Watchdog::turning`]:
+/// `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s detector,
+/// read rather than written to, which is what keeps this off every request
+/// path.
+///
+/// **One wedged core does not withhold the ping.** Withholding it there would
+/// hand the manager a whole process to restart over a fault
+/// `rule:http-server/a-wedged-core-is-shed-never-killed` sheds — every healthy
+/// core's in-flight requests ended to answer one core's wedge, which spends
+/// availability and buys nothing. The ping stops when *no* core is turning,
+/// and there a restart is the only recovery left: nothing in this process can
+/// kill a thread, and there is no core left to shed the work onto.
+///
+/// It spends one OS thread, and only under a manager that asked for a watchdog
+/// at all.
+#[derive(Debug)]
+pub(crate) struct Heartbeat {
+    shared: Arc<Beating>,
+    /// Taken by [`Heartbeat::drop`], which joins it.
+    thread: Option<JoinHandle<()>>,
+}
+
+/// What the pinging thread and its handle share.
+#[derive(Debug)]
+struct Beating {
+    /// Cleared by [`Heartbeat::drop`].
+    beating: Mutex<bool>,
+    /// Signalled to end the wait early, so a drop does not wait out an interval
+    /// to join.
+    change: Condvar,
+}
+
+impl Heartbeat {
+    /// The ping this process's manager asked for, or `None` where it asked for
+    /// none — which is every process an operator started by hand, and every
+    /// process at all on Windows.
+    pub(crate) fn start(
+        told: &Notify,
+        turning: impl Fn() -> bool + Send + 'static,
+    ) -> Option<Self> {
+        // A process reporting to nobody has nothing to ping, and the thread
+        // would be an OS thread spent writing datagrams into silence.
+        told.0.as_ref()?;
+        Self::every(told, half_the_period()?, turning)
+    }
+
+    /// The same ping on an interval a caller names, which is what makes the
+    /// gate assertable without a manager and without waiting out a real period.
+    fn every(
+        told: &Notify,
+        interval: Duration,
+        turning: impl Fn() -> bool + Send + 'static,
+    ) -> Option<Self> {
+        let shared = Arc::new(Beating {
+            beating: Mutex::new(true),
+            change: Condvar::new(),
+        });
+        let ticking = Arc::clone(&shared);
+        let told = told.clone();
+        match std::thread::Builder::new()
+            .name("nvs-watchdog-ping".to_owned())
+            .spawn(move || {
+                loop {
+                    {
+                        let beating = ticking
+                            .beating
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner);
+                        let (beating, _) = ticking
+                            .change
+                            .wait_timeout(beating, interval)
+                            .unwrap_or_else(PoisonError::into_inner);
+                        if !*beating {
+                            return;
+                        }
+                    }
+                    // Outside the lock, because the gate walks the watched set
+                    // and the report writes a datagram: neither is work a drop
+                    // waiting to join should be held up by.
+                    if turning() {
+                        told.state(State::Alive);
+                    }
+                }
+            }) {
+            Ok(thread) => Some(Self {
+                shared,
+                thread: Some(thread),
+            }),
+            Err(error) => {
+                eprintln!(
+                    "warning: this process could not start the thread that answers \
+                     `WatchdogSec`, so the manager that started it will stop it once the period \
+                     is up: {error}"
+                );
+                None
+            }
+        }
+    }
+}
+
+impl Drop for Heartbeat {
+    fn drop(&mut self) {
+        *self
+            .shared
+            .beating
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = false;
+        self.shared.change.notify_all();
+        if let Some(thread) = self.thread.take() {
+            // Joined rather than left, so a fleet that has finished cannot be
+            // followed by one more ping saying it is turning.
+            let _ = thread.join();
+        }
+    }
+}
+
+/// Half of `WATCHDOG_USEC`, or `None` where this process is not the one being
+/// watched.
+///
+/// The two variables are the manager's half of `WatchdogSec=`: the period in
+/// microseconds, and — where it set one — the PID it will accept a ping from,
+/// which is what keeps a child that inherited the environment from answering
+/// for its parent. Half the period is the interval the protocol asks for,
+/// because a ping that is late once still lands inside it.
+fn half_the_period() -> Option<Duration> {
+    let usec: u64 = std::env::var("WATCHDOG_USEC").ok()?.trim().parse().ok()?;
+    let ours = match std::env::var("WATCHDOG_PID") {
+        Ok(pid) => pid.trim().parse::<u32>().ok()? == std::process::id(),
+        Err(_) => true,
+    };
+    (ours && usec > 0).then(|| Duration::from_micros((usec / 2).max(1)))
 }
 
 #[cfg(unix)]
@@ -1339,5 +1497,73 @@ mod tests {
         deliver(&text, Some(&installed)).expect("the installing delivery");
         assert_eq!(std::fs::read_to_string(&installed).expect("written"), text);
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// The `WatchdogSec=30` line [`unit`] renders is a promise: the manager
+    /// stops this process unless the ping arrives inside half that period. So
+    /// both halves of what the ping *means* are asserted here — it is sent
+    /// while the fleet turns, and it stops the moment the fleet does, which is
+    /// the difference between evidence and a beat any live thread can write.
+    ///
+    /// The interval is this case's rather than a manager's, because the only
+    /// thing [`Heartbeat::start`] adds is reading two environment variables,
+    /// and a case may not set those out from under another running beside it.
+    #[test]
+    fn the_watchdog_ping_is_sent_while_the_fleet_turns_and_stops_when_it_does_not() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let (told, sent) = recording();
+        let turning = Arc::new(AtomicBool::new(true));
+        let gate = Arc::clone(&turning);
+        let interval = Duration::from_millis(5);
+        let beat = Heartbeat::every(&told, interval, move || gate.load(Ordering::Relaxed))
+            .expect("the thread that answers `WatchdogSec`");
+        let pings = || {
+            sent.lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .iter()
+                .filter(|line| **line == "WATCHDOG=1")
+                .count()
+        };
+        // Generous on purpose: what this waits for is that pings arrive at all,
+        // and a loaded machine can take far longer than the interval to
+        // schedule the thread sending them.
+        let patience = Duration::from_secs(10);
+        let deadline = std::time::Instant::now() + patience;
+        while pings() < 2 && std::time::Instant::now() < deadline {
+            std::thread::sleep(interval);
+        }
+        assert!(pings() >= 2, "a turning fleet's manager was told nothing");
+
+        // No core turning, so the process stops saying otherwise. Counted twice
+        // with intervals in between rather than once, so that a ping already
+        // past the gate when the fleet stopped is not read as a live one.
+        turning.store(false, Ordering::Relaxed);
+        std::thread::sleep(interval * 20);
+        let last = pings();
+        std::thread::sleep(interval * 20);
+        assert_eq!(
+            pings(),
+            last,
+            "a process whose every core had stopped went on telling its manager it was alive"
+        );
+
+        // And a fleet that comes back is reported again, rather than left
+        // condemned by the sweep that found it wedged.
+        turning.store(true, Ordering::Relaxed);
+        let deadline = std::time::Instant::now() + patience;
+        while pings() == last && std::time::Instant::now() < deadline {
+            std::thread::sleep(interval);
+        }
+        assert!(pings() > last, "a fleet that came back was not reported");
+
+        drop(beat);
+        let stopped = pings();
+        std::thread::sleep(interval * 20);
+        assert_eq!(
+            pings(),
+            stopped,
+            "the thread outlived the handle that owns it and is still pinging"
+        );
     }
 }
