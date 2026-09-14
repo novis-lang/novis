@@ -106,7 +106,9 @@ Usage:
                                         reason written, a past milestone counted and not refused
     python tools/owners.py --check --past-is-an-error
                                         adds: no gap is deferred to a milestone already passed
-    python tools/owners.py --json       the same, as one object
+    python tools/owners.py --json       the same, as one object: every kind, every register with
+                                        the owners its items name, and the first milestone that is
+                                        still ahead of the program
 """
 
 from __future__ import annotations
@@ -478,6 +480,21 @@ def registers(found: list[dict]) -> list[dict]:
     ]
 
 
+def owner_tally(items: list[dict]) -> dict[str, int]:
+    """`owner -> how many of these items name it`, over the items that name one.
+
+    A register's length says how much it holds; this says who is on the hook for it. They are
+    different questions, and only the second one can answer whether a milestone still has work
+    tagged to it -- which is what `tools/plan.py --past` asks of every register at once.
+    """
+    found: dict[str, int] = {}
+    for item in items:
+        owner = item.get("owner", "")
+        if owner:
+            found[owner] = found.get(owner, 0) + 1
+    return dict(sorted(found.items()))
+
+
 def report_registers(regs: list[dict]) -> None:
     width = max(len(reg["name"]) for reg in regs)
     print("== EVERY PLACE THIS REPOSITORY WRITES OWED WORK DOWN")
@@ -780,8 +797,13 @@ def main() -> int:
     sections = outside_blocks()
 
     if opts.json:
-        counts = {reg["name"]: len(reg["items"]) for reg in regs}
-        print(json.dumps({**kinds, "registers": counts, "sections": sections}, indent=2))
+        # Each register reports what it holds and who it holds it for, and the cutoff rides along
+        # so a caller asking which milestones are behind the program reads that number here rather
+        # than keeping a second copy of it.
+        counts = {reg["name"]: {"items": len(reg["items"]), "owners": owner_tally(reg["items"])}
+                  for reg in regs}
+        print(json.dumps({**kinds, "registers": counts, "sections": sections,
+                          "first_future_milestone": FIRST_FUTURE_MILESTONE}, indent=2))
         return 0
     if opts.registers:
         report_registers(regs)
