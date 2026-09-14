@@ -25,6 +25,7 @@ how often they change, and this tool is what keeps a caller from having to know 
     python tools/plan.py --check                    # sizes against the aim, index against disk (CI)
     python tools/plan.py --sync                     # rewrite the derived cells from their sources
     python tools/plan.py --stale                    # sentences deferring to a goal that has walked
+    python tools/plan.py --past                     # each milestone behind the program, complete or not
 
 `--set` and `--amend` take the replacement from a *file* rather than the command line, for the
 reason docs/agent/commands.md gives: a shell parses its argument before anything runs, and this
@@ -58,9 +59,12 @@ regenerating rather than by hand-editing whichever copy the reader noticed first
 from the milestone file's own H1. The `Carried by` cell comes from `docs/agent/goals/`, which is
 the chain, because **the chain is the schedule and a milestone is an identity tag one or more goals
 carry** -- AGENTS.md's *The schedule is the chain* bullet is the one home of that rule, and it is
-also why the cell names each goal by its slug. Loop-days is the index's own data and `--sync`
-carries it through untouched; so is the cell of a milestone no goal carries, which has nothing to
-derive it from and says `done`, `ongoing` or `backlog N` instead.
+also why the cell names each goal by its slug. A milestone the program has walked past and finished
+is the exception, and `done` is what its cell says: the goals that carried it have walked, so
+naming them would say where the work was rather than where it is, and `--past` below is what
+decides that. Loop-days is the index's own data and `--sync` carries it through untouched; so is
+the cell of a milestone neither answer reaches, which has nothing to derive it from and says
+`ongoing` or `backlog N` on its own.
 
 `--stale` is a **lint over the prose**, and the only mode here that reads the milestone files for
 what they say rather than for how big they are. It reports one shape: a sentence that names a goal
@@ -69,12 +73,25 @@ is how a plan file goes stale -- the goal ran, the work landed, and the sentence
 not move. It finds neither every stale sentence nor only stale ones, so a finding is a place to
 re-read against the tree rather than a line to delete, and it exits 0 whatever it finds. The count
 on its last line is what an acceptance check matches.
+
+`--past` answers the one question the table cannot: **is a milestone the program has already walked
+past actually finished?** Everything before M9 is complete at the end of this program, so a row
+before it is either done or owed, and two facts say which -- every goal carrying it has walked, and
+no register still tags an item to it. Both are read: the chain for the first, `tools/owners.py
+--json` for the second, summed across every register it walks, since a milestone is not finished
+while a ratchet key or a `carried-gaps.md` row still names it. It writes nothing and exits 0
+whatever it finds: `--sync` is what writes `done` into a complete one's cell, and `--check` is
+what refuses that cell on a milestone this does not call complete. The three read one function,
+so the table can neither claim a milestone finished early nor go on naming goals for a finished
+one.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -237,8 +254,11 @@ def milestones(lines=None):
 #: (`M18` is a typo worth catching) and a tag that is plainly a label is taken as one.
 POST_PARITY = "post-parity"
 
-#: A chain tag that claims to be a milestone id. Anything matching this must be in the table.
-MILESTONE_TAG_RE = re.compile(r"^M\d+[A-Z]?$")
+#: A chain tag that claims to be a milestone id. Anything matching this must be in the table. The
+#: number is captured because a milestone's place in the program is its number and not its suffix:
+#: `M4S` and `M4B` are M4's, which is what the table means by writing them that way, and `--past`
+#: asks that question of every row.
+MILESTONE_TAG_RE = re.compile(r"^M(\d+)[A-Z]?$")
 
 #: `1 core-depth` -> 1. The number is what a person says out loud ("goal `parses`"), and it is read off
 #: the entry's own name rather than its position, so inserting a goal cannot silently renumber the
@@ -249,6 +269,12 @@ GOAL_NUM_RE = re.compile(r"^\s*(\d+)\b")
 #: place in the queue behind the chain. There is nothing to derive it from, so it is the index's
 #: own data -- and anything else in that cell is a `--check` finding rather than a fourth vocabulary.
 UNCHAINED_CELL_RE = re.compile(r"^(?:done\\?\*?|ongoing|backlog \d+)$")
+
+#: The cell of a milestone that is finished, in the two spellings the table writes it -- the star
+#: is its own footnote marker and means the same word. On a milestone the program has already
+#: walked past this is the one cell `--sync` derives and `--check` gates: it is accepted there only
+#: while `past_state` calls that milestone complete, and required as soon as it does.
+DONE_CELL_RE = re.compile(r"^done\\?\*?$")
 
 
 def chain_goals():
@@ -321,6 +347,110 @@ def live_goal():
     return None
 
 
+# ------------------------------------------------------------------ a milestone behind the program
+
+#: How `--past` counts what is still tagged to a milestone: out of process, the way the acceptance
+#: check runs it, so this file never learns what a gap looks like written down. Which sentence in
+#: the tree is owed work, and what a tag on it means, is `tools/owners.py`'s fact alone.
+OWNERS = ["owners.py", "--json"]
+
+
+def milestone_num(mid):
+    """`M4S` -> 4, `M11` -> 11, anything else -> None."""
+    m = MILESTONE_TAG_RE.match(mid.strip())
+    return int(m.group(1)) if m else None
+
+
+def register_tags():
+    """`(owner -> items every register still tags to it, the first milestone still ahead)`.
+
+    Read out of `tools/owners.py --json` and summed across its registers, because a milestone is
+    not finished while any of them still names it -- the module docs' `# Known gaps` blocks, the
+    ratchets' `#` column and `carried-gaps.md` § *Owned* each tag an owner, and a report that read
+    one of them would call a milestone complete over the other two."""
+    proc = subprocess.run([sys.executable, str(Path(__file__).with_name(OWNERS[0])), *OWNERS[1:]],
+                          capture_output=True, text=True, encoding="utf-8")
+    if proc.returncode != 0:
+        raise RuntimeError(f"tools/{OWNERS[0]} exited {proc.returncode}: "
+                           f"{(proc.stderr or proc.stdout).strip().splitlines()[-1:] or ['']}")
+    data = json.loads(proc.stdout)
+    tally = {}
+    for reg in data["registers"].values():
+        for owner, n in reg["owners"].items():
+            tally[owner] = tally.get(owner, 0) + n
+    return tally, data["first_future_milestone"]
+
+
+def goal_state(slug, walked, live):
+    """`walked`, `live` or `ahead` -- where the chain stands relative to one goal."""
+    if slug in walked:
+        return "walked"
+    return "live" if live and live["slug"] == slug else "ahead"
+
+
+def past_state(index=None, goals=None):
+    """Every milestone the program has already walked past, and whether it is finished.
+
+    `({id: {complete, tagged, carried}}, the first milestone still ahead)`, in index order, where
+    `carried` is one `(slug, walked|live|ahead)` per goal carrying it. A milestone at M9 or later
+    is **absent rather than incomplete**: ahead of the program is not a state this answers, and
+    where that line falls is `tools/owners.py`'s fact, read with the counts.
+
+    Complete is two conditions and both are read off the tree rather than written down anywhere:
+    every goal carrying the milestone has walked, and no register still tags an item to it. This
+    is that rule's one home -- `--past` reports it, `--sync` writes `done` from it, and `--check`
+    accepts a `done` cell only where it holds, so the three cannot drift apart."""
+    index = milestones() if index is None else index
+    goals = chain_goals() if goals is None else goals
+    by = carried_by(goals)
+    walked = walked_goals()
+    live = live_goal()
+    tally, first_future = register_tags()
+
+    out = {}
+    for m in index:
+        num = milestone_num(m["id"])
+        if num is None or num >= first_future:
+            continue
+        slugs = by.get(m["id"], [])
+        tagged = tally.get(m["id"], 0)
+        out[m["id"]] = {
+            "complete": tagged == 0 and all(s in walked for s in slugs),
+            "tagged": tagged,
+            "carried": [(s, goal_state(s, walked, live)) for s in slugs],
+        }
+    return out, first_future
+
+
+def run_past():
+    """One line per milestone the program is already past, and whether it is complete.
+
+    The mechanical half of the rule that M0 through M8 are finished at the end of this program;
+    the judgement half is each closure goal's own acceptance list. Nothing here writes and nothing
+    here exits non-zero -- a count is a report to act on, and `--sync` is what acts on it."""
+    rows, first_future = past_state()
+    live = live_goal()
+    print(f"plan.py --past: the {len(rows)} milestone(s) the index holds before M{first_future}, "
+          f"against the chain and every register tools/owners.py reads")
+    print("  complete = every goal carrying it has walked, and nothing is still tagged to it"
+          + (f"; live at goal `{live['slug']}`" if live else ""))
+
+    for mid, st in rows.items():
+        carried = ", ".join(f"`{slug}` {state}" for slug, state in st["carried"])
+        print(textwrap.fill(
+            f"{mid:<4} {'complete' if st['complete'] else 'open':<8} "
+            f"carried by {carried or 'no goal on the chain'}, "
+            f"{st['tagged']} item(s) still tagged to it",
+            width=98, initial_indent="  ", subsequent_indent=" " * 16,
+            break_on_hyphens=False, break_long_words=False))
+
+    print("\nA count above zero names work no closure goal has taken yet: `python tools/owners.py "
+          "--check --past-is-an-error` lists the items behind it, each to be closed or re-owned.")
+    print(f"{sum(st['complete'] for st in rows.values())} of {len(rows)} past milestone(s) "
+          f"complete")
+    return 0
+
+
 # ----------------------------------------------------------------------- milestones, continued
 
 
@@ -373,23 +503,27 @@ def sync_titles(lines):
     return out, changed
 
 
-def sync_schedule(lines):
-    """The index's `Carried by` cells, rewritten from the goals directory.
+def sync_schedule(lines, state=None):
+    """The index's `Carried by` cells, rewritten from the goals directory and the registers.
 
-    Returns the new lines and one (id, was, now) per row that moved. Only a milestone the chain
-    actually names is touched -- one no goal carries has nothing to derive its cell from, and
-    guessing `backlog` for it would be this tool inventing a schedule rather than reading one."""
+    Returns the new lines and one (id, was, now) per row that moved. Two answers are derivable and
+    the milestone's own place in the program says which one applies: a milestone the program has
+    walked past and finished is `done` whatever carried it, and everything else is the goals that
+    carry it now. A row neither answer reaches is left alone -- it has nothing to derive its cell
+    from, and guessing `backlog` for it would be this tool inventing a schedule rather than
+    reading one."""
     by = carried_by()
     if not by:
         return list(lines), []
+    index = milestones(lines)
+    if state is None:
+        state, _first_future = past_state(index)
     out = list(lines)
     changed = []
-    for m in milestones(lines):
-        nums = by.get(m["id"])
-        if not nums:
-            continue
-        want = schedule_cell(nums)
-        if m["carried"] == want:
+    for m in index:
+        st = state.get(m["id"])
+        want = "done" if st and st["complete"] else schedule_cell(by.get(m["id"]) or [])
+        if not want or m["carried"] == want:
             continue
         raw = out[m["line"] - 1]
         row = ROW_RE.match(raw)
@@ -580,9 +714,33 @@ def run_check(fields, index, aim):
                     f"goal `{g['slug']}`: tagged {g['milestone']}, which is spelled like a "
                     "milestone id but is not a row in the milestone table"
                 )
+        state, _first_future = past_state(index, goals)
         for m in index:
             nums = by.get(m["id"])
-            if nums:
+            st = state.get(m["id"])
+            says_done = bool(DONE_CELL_RE.match(m["carried"]))
+            if st and st["complete"]:
+                # `done` is what a finished milestone's cell says, and it outranks the goal list:
+                # the goals that carried it have walked, so naming them says where the work was
+                # rather than where it is. The second table below the index is what still names
+                # them, and `--past` prints them beside the count that settles this.
+                if not says_done:
+                    problems.append(
+                        f"{m['id']}: every goal carrying it has walked and no register still tags "
+                        f"an item to it, so its cell is `done`\n"
+                        f"      index: {m['carried'] or '(empty)'}\n"
+                        f"      `python tools/plan.py --past` is the report, `--sync` writes it"
+                    )
+            elif st and says_done:
+                held = [f"goal `{slug}` has not walked" for slug, where in st["carried"]
+                        if where != "walked"]
+                if st["tagged"]:
+                    held.append(f"{st['tagged']} item(s) in the registers still name it")
+                problems.append(
+                    f"{m['id']}: its cell says it is finished and `python tools/plan.py --past` "
+                    f"does not -- {'; '.join(held)}"
+                )
+            elif nums:
                 want = schedule_cell(nums)
                 if m["carried"] != want:
                     problems.append(
@@ -767,6 +925,8 @@ def main():
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--stale", action="store_true",
                     help="sentences deferring to a goal the chain has already walked")
+    ap.add_argument("--past", action="store_true",
+                    help="one line per milestone behind the program, and whether it is complete")
     ap.add_argument("--sync", action="store_true",
                     help="rewrite the index's title cells from each milestone file's H1")
     ap.add_argument("--from", metavar="FILE", dest="source")
@@ -860,13 +1020,14 @@ def main():
         out, moved = sync_schedule(out)
         if not changed and not moved:
             print(f"plan.py: {len(index)} rows, every title already matching its file's H1 and "
-                  "every `Carried by` cell already matching the chain -- nothing to write")
+                  "every `Carried by` cell already matching the chain and the registers -- "
+                  "nothing to write")
             return 0
         PLAN.write_text("\n".join(out), encoding="utf-8", newline="")
         for mid, rel, was, now in changed:
             print(f"plan.py: {mid} title synced from {rel}\n      was: {was}\n      now: {now}")
         for mid, was, now in moved:
-            print(f"plan.py: {mid} carried-by synced from the goals directory\n"
+            print(f"plan.py: {mid} carried-by synced from the chain and the registers\n"
                   f"      was: {was or '(empty)'}\n      now: {now}")
         print(f"plan.py: {len(changed) + len(moved)} cell(s) rewritten in "
               f"{PLAN.relative_to(ROOT).as_posix()}")
@@ -877,6 +1038,9 @@ def main():
 
     if opts.stale:
         return run_stale(fields)
+
+    if opts.past:
+        return run_past()
 
     # ------------------------------------------------------------------ status block
 

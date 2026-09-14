@@ -72,9 +72,13 @@ one's verification passes.
 [docs/agent/goals/](agent/goals/) — one entry per goal, in the order the driver walks
 them — and the **Carried by** cell names the goals that do a milestone's work. That cell is *derived*:
 `python tools/plan.py --sync` writes it from the chain and `--check` fails CI when the two disagree, so
-this table cannot drift away from what is actually being run. A milestone no goal carries says where it
-stands on its own — `done`, `ongoing`, or `backlog N` for its place in the queue behind the chain — and
-those four words are the whole vocabulary of the column. Rows are in **identity order**, because a table
+this table cannot drift away from what is actually being run. A milestone the program has walked past
+and **finished** says `done` instead, whatever carried it, because naming the goals then says where the
+work was rather than where it is; `python tools/plan.py --past` is what decides that, from two facts read
+off the tree — every goal carrying it has walked, and no register still tags an item to it — and `--check`
+refuses a `done` cell on a milestone it does not call complete. A milestone no goal carries and nothing
+calls finished says where it stands on its own — `ongoing`, or `backlog N` for its place in the queue
+behind the chain — and those words are the whole vocabulary of the column. Rows are in **identity order**, because a table
 that is not the schedule has no business being sorted like one. Nothing is ever renumbered, because a
 number that moves invalidates ~1300 cross-references across `docs/` and every one of them is a link
 somebody has already followed.
@@ -86,7 +90,7 @@ somebody has already followed.
 | done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
 | done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
 | goal `m4-refusals` | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
-| goal `core-depth` | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
+| done | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
 | goals `resilient-tree`, `lsp-server`, `editor`, `m4b-editor` | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | goals `concurrency`, `m5-proofs` | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | goals `governance`, `resource-ceilings`, `config-is-written` | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
