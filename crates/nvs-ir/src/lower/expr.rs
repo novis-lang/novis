@@ -4984,160 +4984,266 @@ impl<'a> Lowering<'a> {
                 let Some(shape) = test_shape(tested, self.checked_types, self.enums) else {
                     panic!(
                         "nvs-ir only lowers `is` against a scalar, `null`, `object`, a bare \
-                         `array`, a class, a literal or an enum case — got {:?}; an element type \
-                         no tag decides, a shape, `iterable` and `callable` each still need a \
-                         walk of their own, and `test_shape`'s own known gap is which of those \
-                         is a decision rather than a slice",
+                         `array`, a class, a literal, an enum case, or a union or intersection \
+                         of those — got {:?}; an element type no tag decides, a shape, \
+                         `iterable` and `callable` each still need a walk of their own, and \
+                         `test_shape`'s own known gap is which of those is a decision rather \
+                         than a slice",
                         self.checked_types.get(tested)
                     );
                 };
-                match shape {
-                    TestShape::Tag(repr) if subject == Ty::Tagged => self.emit(
-                        *cur,
-                        Ty::Bool,
-                        InstKind::TagIs {
-                            operand: value,
-                            repr,
-                        },
-                    ),
-                    TestShape::Tag(repr) => {
-                        self.emit(*cur, Ty::Bool, InstKind::ConstBool(subject == repr))
-                    }
-                    // A literal type is two comparisons rather than one: the
-                    // tag says the payload word may be read at this
-                    // representation, and the payload says whether it holds
-                    // the one value the type is. They are `&&`-shaped and not
-                    // folded together because the second must not run where
-                    // the first missed — a `string` literal's compare is
-                    // `nvs_str_eq` through two pointers, and the payload of a
-                    // value tagged anything else is not one.
-                    TestShape::Literal { repr, atom } if subject == Ty::Tagged => {
-                        let tagged = *cur;
-                        let (carries, _) = self.emit(
-                            tagged,
-                            Ty::Bool,
-                            InstKind::TagIs {
-                                operand: value,
-                                repr,
-                            },
-                        );
-                        let (missed, _) = self.emit(tagged, Ty::Bool, InstKind::ConstBool(false));
-                        let payload = self.new_block();
-                        let merge = self.new_block();
-                        let payload_edge = self.ids.next_edge(expr.span);
-                        let missed_edge = self.ids.next_edge(expr.span);
-                        self.seal(
-                            tagged,
-                            Terminator::Branch {
-                                cond: carries,
-                                then_block: payload,
-                                then_edge: payload_edge,
-                                else_block: merge,
-                                else_edge: missed_edge,
-                            },
-                        );
-                        // The unchecked narrowing [`InstKind::Untag`] is for,
-                        // with the branch above as the proof — and the proof
-                        // holds on this edge alone, which is the whole reason
-                        // for the block. Nothing is merged but the answer:
-                        // both edges assign nothing, so there is no `Env` to
-                        // reconcile, exactly as
-                        // [`Self::lower_literal_membership`]'s chain has none.
-                        let (narrowed, _) = self.emit(
-                            payload,
-                            payload_repr(repr),
-                            InstKind::Untag { operand: value },
-                        );
-                        let (equal, _) = self.literal_payload_eq(payload, narrowed, &atom);
-                        self.seal(payload, Terminator::Jump(merge));
-                        let answer = self.emit(
-                            merge,
-                            Ty::Bool,
-                            InstKind::Phi {
-                                incoming: vec![(tagged, missed), (payload, equal)],
-                            },
-                        );
-                        *cur = merge;
-                        answer
-                    }
-                    // A subject carrying exactly one tag has answered the
-                    // first comparison already, so the payload one stands
-                    // alone: `int $n; $n is 5` is one machine compare, and no
-                    // fold at the checker could have settled it — the two
-                    // types are not disjoint and neither contains the other.
-                    TestShape::Literal { repr, atom } if subject == repr => {
-                        // The reinterpret is an enum case's, for the reason
-                        // [`Self::reinterpret_enum_to_backing`] gives; every
-                        // other atom already arrives at the representation it
-                        // compares at, where that call is the identity.
-                        let (narrowed, _) = self.reinterpret_enum_to_backing(value, subject, cur);
-                        self.literal_payload_eq(*cur, narrowed, &atom)
-                    }
-                    // Every other representation carries a tag this literal's
-                    // is not, which is the class and element rows' constant
-                    // reached for the same reason.
-                    TestShape::Literal { .. } => {
-                        self.emit(*cur, Ty::Bool, InstKind::ConstBool(false))
-                    }
-                    // The walk `instanceof` and `as C` already emit, on the two
-                    // representations that can reach a descriptor at all. Every
-                    // other subject holds no object, so the answer is a
-                    // constant — a `mixed` is the [`Ty::Tagged`] arm and a
-                    // scalar's disjointness folded at the checker, which leaves
-                    // this branch reachable only if a fold is ever weakened.
-                    TestShape::Class(name) if matches!(subject, Ty::Object | Ty::Tagged) => self
-                        .emit(
-                            *cur,
-                            Ty::Bool,
-                            InstKind::InstanceOf {
-                                value,
-                                class: TestedClass::Named(name),
-                            },
-                        ),
-                    TestShape::Class(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
-                    // `as ?array<T>` is the walk that answers rather than
-                    // throws, so this is that lowering with the value thrown
-                    // away and its absence read as the answer — one
-                    // `Helper::ToArrayOfOrNull` and no second walk anywhere in
-                    // the tree. The result carries a reference of its own
-                    // (`nvs_runtime::helpers`' `to_array_of` retains), so it is
-                    // released as soon as the tag has been read; releasing the
-                    // `null` it answers with on the false edge is the no-op
-                    // every other `?T` consumer relies on.
-                    TestShape::ArrayOf(tags) if matches!(subject, Ty::Array | Ty::Tagged) => {
-                        let (word, _) = self.emit(*cur, Ty::Uint, InstKind::ConstUint(tags));
-                        let (walked, _) = self.emit_fallible(
-                            *cur,
-                            Ty::Tagged,
-                            InstKind::HelperCall {
-                                helper: Helper::ToArrayOfOrNull,
-                                args: vec![value, word],
-                            },
-                            env,
-                        );
-                        let (absent, _) =
-                            self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: walked });
-                        self.emit_release(*cur, walked);
-                        self.emit(
-                            *cur,
-                            Ty::Bool,
-                            InstKind::UnOp {
-                                op: UnOp::Not,
-                                operand: absent,
-                            },
-                        )
-                    }
-                    // Nothing else holds an array, so the walk would answer
-                    // one constant — see the class row above, which reaches
-                    // its own for the same reason.
-                    TestShape::ArrayOf(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
-                }
+                self.emit_test_shape(shape, value, subject, expr.span, env, cur)
             }
         };
         if !self.aliasing_read(inner) && subject.is_refcounted() {
             self.emit_release(*cur, value);
         }
         result
+    }
+
+    /// One [`TestShape`]'s comparison, over a subject already lowered and read
+    /// by nobody else — [`Self::lower_type_test`]'s arms, reachable a second
+    /// time because a union's and an intersection's rows are their members'.
+    ///
+    /// The subject is only read here and released by the caller once, however
+    /// many members read it, so nothing in this walk retains it. A row that
+    /// retains something of its own releases it in the block it emitted it
+    /// into, which is what lets a chain branch away between two members.
+    fn emit_test_shape(
+        &mut self,
+        shape: TestShape,
+        value: ValueId,
+        subject: Ty,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        match shape {
+            TestShape::Tag(repr) if subject == Ty::Tagged => self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::TagIs {
+                    operand: value,
+                    repr,
+                },
+            ),
+            TestShape::Tag(repr) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(subject == repr)),
+            // A literal type is two comparisons rather than one: the tag says
+            // the payload word may be read at this representation, and the
+            // payload says whether it holds the one value the type is. They
+            // are `&&`-shaped and not folded together because the second must
+            // not run where the first missed — a `string` literal's compare is
+            // `nvs_str_eq` through two pointers, and the payload of a value
+            // tagged anything else is not one.
+            TestShape::Literal { repr, atom } if subject == Ty::Tagged => {
+                let tagged = *cur;
+                let (carries, _) = self.emit(
+                    tagged,
+                    Ty::Bool,
+                    InstKind::TagIs {
+                        operand: value,
+                        repr,
+                    },
+                );
+                let (missed, _) = self.emit(tagged, Ty::Bool, InstKind::ConstBool(false));
+                let payload = self.new_block();
+                let merge = self.new_block();
+                let payload_edge = self.ids.next_edge(span);
+                let missed_edge = self.ids.next_edge(span);
+                self.seal(
+                    tagged,
+                    Terminator::Branch {
+                        cond: carries,
+                        then_block: payload,
+                        then_edge: payload_edge,
+                        else_block: merge,
+                        else_edge: missed_edge,
+                    },
+                );
+                // The unchecked narrowing [`InstKind::Untag`] is for, with the
+                // branch above as the proof — and the proof holds on this edge
+                // alone, which is the whole reason for the block. Nothing is
+                // merged but the answer: both edges assign nothing, so there
+                // is no `Env` to reconcile, exactly as
+                // [`Self::lower_literal_membership`]'s chain has none.
+                let (narrowed, _) = self.emit(
+                    payload,
+                    payload_repr(repr),
+                    InstKind::Untag { operand: value },
+                );
+                let (equal, _) = self.literal_payload_eq(payload, narrowed, &atom);
+                self.seal(payload, Terminator::Jump(merge));
+                let answer = self.emit(
+                    merge,
+                    Ty::Bool,
+                    InstKind::Phi {
+                        incoming: vec![(tagged, missed), (payload, equal)],
+                    },
+                );
+                *cur = merge;
+                answer
+            }
+            // A subject carrying exactly one tag has answered the first
+            // comparison already, so the payload one stands alone: `int $n; $n
+            // is 5` is one machine compare, and no fold at the checker could
+            // have settled it — the two types are not disjoint and neither
+            // contains the other.
+            TestShape::Literal { repr, atom } if subject == repr => {
+                // The reinterpret is an enum case's, for the reason
+                // [`Self::reinterpret_enum_to_backing`] gives; every other atom
+                // already arrives at the representation it compares at, where
+                // that call is the identity.
+                let (narrowed, _) = self.reinterpret_enum_to_backing(value, subject, cur);
+                self.literal_payload_eq(*cur, narrowed, &atom)
+            }
+            // Every other representation carries a tag this literal's is not,
+            // which is the class and element rows' constant reached for the
+            // same reason.
+            TestShape::Literal { .. } => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+            // The walk `instanceof` and `as C` already emit, on the two
+            // representations that can reach a descriptor at all. Every other
+            // subject holds no object, so the answer is a constant — a `mixed`
+            // is the [`Ty::Tagged`] arm and a scalar's disjointness folded at
+            // the checker, which leaves this branch reachable only if a fold is
+            // ever weakened.
+            TestShape::Class(name) if matches!(subject, Ty::Object | Ty::Tagged) => self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::InstanceOf {
+                    value,
+                    class: TestedClass::Named(name),
+                },
+            ),
+            TestShape::Class(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+            // `as ?array<T>` is the walk that answers rather than throws, so
+            // this is that lowering with the value thrown away and its absence
+            // read as the answer — one `Helper::ToArrayOfOrNull` and no second
+            // walk anywhere in the tree. The result carries a reference of its
+            // own (`nvs_runtime::helpers`' `to_array_of` retains), so it is
+            // released as soon as the tag has been read; releasing the `null`
+            // it answers with on the false edge is the no-op every other `?T`
+            // consumer relies on.
+            TestShape::ArrayOf(tags) if matches!(subject, Ty::Array | Ty::Tagged) => {
+                let (word, _) = self.emit(*cur, Ty::Uint, InstKind::ConstUint(tags));
+                let (walked, _) = self.emit_fallible(
+                    *cur,
+                    Ty::Tagged,
+                    InstKind::HelperCall {
+                        helper: Helper::ToArrayOfOrNull,
+                        args: vec![value, word],
+                    },
+                    env,
+                );
+                let (absent, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: walked });
+                self.emit_release(*cur, walked);
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::UnOp {
+                        op: UnOp::Not,
+                        operand: absent,
+                    },
+                )
+            }
+            // Nothing else holds an array, so the walk would answer one
+            // constant — see the class row above, which reaches its own for the
+            // same reason.
+            TestShape::ArrayOf(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+            TestShape::Any(members) => self.emit_test_chain(
+                members,
+                true,
+                TestSubject {
+                    value,
+                    repr: subject,
+                    span,
+                },
+                env,
+                cur,
+            ),
+            TestShape::All(members) => self.emit_test_chain(
+                members,
+                false,
+                TestSubject {
+                    value,
+                    repr: subject,
+                    span,
+                },
+                env,
+                cur,
+            ),
+        }
+    }
+
+    /// `rule:types/type-test`'s union and intersection rows: each member's own
+    /// test in turn, stopping at the first one that decides the answer.
+    ///
+    /// `decided` is what stopping early answers with — `true` for a union,
+    /// whose first `true` is the whole answer, and `false` for an
+    /// intersection, whose first `false` is. That single parameter is the only
+    /// difference between the two, which is why there is one chain and not
+    /// two: they are the same walk with the branch's edges swapped, and a
+    /// second copy is the one that eventually disagrees.
+    ///
+    /// The shape is [`Self::lower_or`]'s and [`Self::lower_and`]'s, with the
+    /// operands already in hand instead of lowered per edge, and no `Env` is
+    /// merged: a member test binds nothing, so the early edges carry only the
+    /// constant they decided on — [`Self::lower_literal_membership`]'s chain
+    /// has no environment to reconcile for the same reason.
+    ///
+    /// Each member reads the subject and owns none of it, so a chain holds
+    /// nothing across an edge and the caller's single release still covers it.
+    fn emit_test_chain(
+        &mut self,
+        members: Vec<TestShape>,
+        decided: bool,
+        subject: TestSubject,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        // `nvs_types::ty::TypeInterner::make_union` collapses a one-member
+        // union to that member and never interns an empty one, so there is
+        // always a last member for the chain to end on.
+        debug_assert!(
+            !members.is_empty(),
+            "a union or intersection interns with at least two members"
+        );
+        let merge = self.new_block();
+        let last = members.len().saturating_sub(1);
+        let mut incoming = Vec::with_capacity(members.len());
+        for (index, member) in members.into_iter().enumerate() {
+            let (answer, _) =
+                self.emit_test_shape(member, subject.value, subject.repr, subject.span, env, cur);
+            // The last member is not a branch: whatever it answered is the
+            // chain's answer, every earlier one having declined to stop.
+            if index == last {
+                incoming.push((*cur, answer));
+                self.seal(*cur, Terminator::Jump(merge));
+                break;
+            }
+            let (early, _) = self.emit(*cur, Ty::Bool, InstKind::ConstBool(decided));
+            incoming.push((*cur, early));
+            let next = self.new_block();
+            let early_edge = self.ids.next_edge(subject.span);
+            let next_edge = self.ids.next_edge(subject.span);
+            let (then_block, then_edge, else_block, else_edge) = if decided {
+                (merge, early_edge, next, next_edge)
+            } else {
+                (next, next_edge, merge, early_edge)
+            };
+            self.seal(
+                *cur,
+                Terminator::Branch {
+                    cond: answer,
+                    then_block,
+                    then_edge,
+                    else_block,
+                    else_edge,
+                },
+            );
+            *cur = next;
+        }
+        *cur = merge;
+        self.emit(merge, Ty::Bool, InstKind::Phi { incoming })
     }
 
     /// The payload half of `rule:types/type-test`'s literal row: a value
@@ -5384,6 +5490,21 @@ pub(crate) enum ReceiverProof {
     Erased,
 }
 
+/// The one value every member of an [`TestShape::Any`]/[`TestShape::All`] chain
+/// reads, carried as one argument because a chain hands all three parts back
+/// down to [`Lowering::emit_test_shape`] unchanged.
+#[derive(Clone, Copy)]
+struct TestSubject {
+    /// The lowered subject itself, owned by [`Lowering::lower_type_test`] and
+    /// by no member that reads it.
+    value: ValueId,
+    /// The representation it arrived at, which is what decides a tag row and
+    /// which of a literal row's two halves runs.
+    repr: Ty,
+    /// The `is` expression's own span, for the edges a chain seals.
+    span: Span,
+}
+
 /// Which of `rule:types/type-test`'s two shapes one `$x is T` is, read off the
 /// checker's own record before the subject is lowered — see
 /// [`Lowering::lower_type_test`], whose `&mut self` is why the record cannot
@@ -5410,6 +5531,15 @@ enum TestShape {
     /// Never a second walk of its own either: the spelling that *answers*
     /// instead of throwing is `as ?array<T>`'s, over the same helper.
     ArrayOf(u64),
+    /// A union: each member's own row in turn, stopping at the first that
+    /// answers `true`. Never a cost of its own — `$x is int|string` is the two
+    /// tag comparisons its members are, and a member expensive on its own is
+    /// expensive here for exactly the reason it is alone.
+    Any(Vec<TestShape>),
+    /// An intersection: [`Self::Any`]'s mirror, stopping at the first member
+    /// that answers `false`. `$x is Countable&Traversable` is therefore two
+    /// descriptor walks at worst and one whenever the first declines.
+    All(Vec<TestShape>),
     /// One tag comparison, and a payload compare behind it. A literal type
     /// names a single value, so the tag only says the payload word is
     /// readable at this representation and the compare says whether it is
@@ -5439,10 +5569,11 @@ enum TestShape {
 /// The tag rows are the ones that cost one comparison: a scalar, `null`, plain
 /// `object` and a bare `array`. The class row is the descriptor walk, the
 /// element row is the array walk, and the literal row — an enum case included
-/// — is one tag comparison with a payload compare behind it. `None` is a
-/// shape, a union, an intersection, `iterable` and `callable` — each of which
-/// *also* begins with a tag, so a `None` is a row for `crate::lower` to grow a
-/// walk or a payload compare for and never a row to skip.
+/// — is one tag comparison with a payload compare behind it. A union and an
+/// intersection are their members' rows chained, so neither is a cost of its
+/// own. `None` is a shape, `iterable` and `callable` — each of which *also*
+/// begins with a tag, so a `None` is a row for `crate::lower` to grow a walk
+/// or a payload compare for and never a row to skip.
 ///
 /// `mixed` is not here and cannot arrive: it holds every value, so the checker
 /// folded that test to `true`.
@@ -5465,6 +5596,30 @@ fn test_shape(
     // dev-dependency of this crate.
     if let CheckedTy::Class(qname, _) = checked_types.get(tested) {
         return Some(TestShape::Class(qname.to_string()));
+    }
+    // A union and an intersection are their members' own rows and add no test
+    // of their own; `crate::lower` chains them, answering at the first member
+    // that decides. Canonicalization has already flattened and deduplicated
+    // the members (`nvs_types::ty::TypeInterner::make_union`), so the chain is
+    // as short as the written type allows. One member with no row of its own
+    // makes the whole type `None`, which keeps `is array<Foo>|int` a single
+    // known gap rather than a chain half of which lowers.
+    match checked_types.get(tested) {
+        CheckedTy::Union(members) => {
+            return members
+                .iter()
+                .map(|member| test_shape(*member, checked_types, enums))
+                .collect::<Option<Vec<_>>>()
+                .map(TestShape::Any);
+        }
+        CheckedTy::Intersection(members) => {
+            return members
+                .iter()
+                .map(|member| test_shape(*member, checked_types, enums))
+                .collect::<Option<Vec<_>>>()
+                .map(TestShape::All);
+        }
+        _ => {}
     }
     // A literal type carries its own value, so its atom is built here — all
     // but the enum case's, which `rule:types/enum-case-type` deliberately

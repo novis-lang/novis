@@ -1,0 +1,87 @@
+--TEST--
+A union `is` test answers at the first member that holds and an intersection at the first that does not, each agreeing with the members spelled apart — rule:types/type-test
+--FILE--
+<?nvs
+// `rule:types/type-test`: a union and an intersection are their members' own
+// tests, so neither adds a question of its own. What is pinned here is that
+// agreement, member by member, rather than one chain's answer.
+interface Alpha { public function a(): int; }
+interface Beta { public function b(): int; }
+class Both implements Alpha, Beta {
+    public function a(): int { return 1; }
+    public function b(): int { return 2; }
+}
+class OnlyA implements Alpha {
+    public function a(): int { return 1; }
+}
+class Counter {
+    public static uint $calls = 0;
+    public static function subject(): mixed {
+        self::$calls = self::$calls + 1;
+        return "text";
+    }
+}
+
+array<mixed> $values = [
+    "int" => 7,
+    "string" => "x",
+    "float" => 1.5,
+    "null" => null,
+    "bool" => true,
+    "both" => new Both(),
+    "onlyA" => new OnlyA(),
+    "array" => [1, 2],
+];
+
+// Agreement over the whole sweep, counted: a chain that grew a comparison of
+// its own would still print a plausible answer on any single row.
+uint $union = 0;
+foreach ($values as string $key => mixed $v) {
+    if (($v is int|string) == ($v is int || $v is string)) { $union = $union + 1; }
+}
+echo "union agrees ", $union, "/", Core\Arr::count($values), "\n";
+
+uint $meet = 0;
+foreach ($values as string $key => mixed $w) {
+    if (($w is Alpha&Beta) == ($w is Alpha && $w is Beta)) { $meet = $meet + 1; }
+}
+echo "intersection agrees ", $meet, "/", Core\Arr::count($values), "\n";
+
+// The answers themselves, on the rows where the two operators differ.
+echo "both is Alpha&Beta: ", (new Both() as mixed) is Alpha&Beta ? "yes" : "no", "\n";
+echo "onlyA is Alpha&Beta: ", (new OnlyA() as mixed) is Alpha&Beta ? "yes" : "no", "\n";
+echo "onlyA is Alpha|Beta: ", (new OnlyA() as mixed) is Alpha|Beta ? "yes" : "no", "\n";
+
+// Three members, and a union none of whose members holds.
+echo "float is int|string|float: ", (1.5 as mixed) is int|string|float ? "yes" : "no", "\n";
+echo "float is int|string|bool: ", (1.5 as mixed) is int|string|bool ? "yes" : "no", "\n";
+
+// `?int` is the two-member union it interns as, and a literal member is the
+// tag-then-payload row inside a chain.
+echo "null is ?int: ", (null as mixed) is ?int ? "yes" : "no", "\n";
+echo "7 is ?int: ", (7 as mixed) is ?int ? "yes" : "no", "\n";
+echo "'yay' is 'yay'|int: ", ("yay" as mixed) is 'yay'|int ? "yes" : "no", "\n";
+echo "'nope' is 'yay'|int: ", ("nope" as mixed) is 'yay'|int ? "yes" : "no", "\n";
+
+// A member that costs the `array<T>` walk is that walk and no second one, and
+// the chain branches away after it without holding what it retained.
+echo "[1,2] is array<int>|string: ", ([1, 2] as mixed) is array<int>|string ? "yes" : "no", "\n";
+echo "['a'] is array<int>|bool: ", (["a"] as mixed) is array<int>|bool ? "yes" : "no", "\n";
+
+// The subject is lowered once however many members read it.
+echo "subject: ", Counter::subject() is int|string ? "yes" : "no", ", calls ", Counter::$calls, "\n";
+--EXPECT--
+union agrees 8/8
+intersection agrees 8/8
+both is Alpha&Beta: yes
+onlyA is Alpha&Beta: no
+onlyA is Alpha|Beta: yes
+float is int|string|float: yes
+float is int|string|bool: no
+null is ?int: yes
+7 is ?int: yes
+'yay' is 'yay'|int: yes
+'nope' is 'yay'|int: no
+[1,2] is array<int>|string: yes
+['a'] is array<int>|bool: no
+subject: yes, calls 1
