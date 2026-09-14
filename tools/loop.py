@@ -1352,12 +1352,28 @@ class Result:
 
     @property
     def first_err_line(self):
-        """Stderr's first line -- or, when a program reports on stdout and exits non-zero with
-        nothing on stderr, stdout's last. Every verdict in this file quotes this, and without the
-        fallback such a program reaches the ledger as a bare `exit 1 --`: a stop whose whole cause
-        was printed and then thrown away."""
-        return ((self.err.strip().splitlines() or [""])[0]
-                or (self.out.strip().splitlines() or [""])[-1])
+        """The one line that names the failure. Every verdict in this file quotes this.
+
+        A `cargo test` run says which test failed on stdout (`test <name> ... FAILED`, then the
+        panic) and only `error: test failed` on stderr, after every warning the build printed; a
+        `cargo build` puts its `error[E...]` after those same warnings. So the pick is the most
+        specific line either stream holds, in this order: the line naming a failed test, the panic
+        line, the first `error` line, then stderr's first line, then -- for a program that reports
+        on stdout and exits non-zero with nothing on stderr -- stdout's last. Without the fallbacks
+        a run whose whole cause was printed reaches the ledger as a warning, or as a bare
+        `exit 1 --`, and the reader goes to the console log to learn what the ledger threw away."""
+        err = self.err.strip().splitlines()
+        out = self.out.strip().splitlines()
+        both = out + err
+        for pick in (
+            lambda l: l.startswith("test ") and l.endswith("... FAILED"),
+            lambda l: l.startswith("thread '") and "panicked at" in l,
+            lambda l: l.startswith("error"),
+        ):
+            for line in both:
+                if pick(line):
+                    return line
+        return (err or [""])[0] or (out or [""])[-1]
 
 
 def capture(exe, args, timeout=1800, cwd=None, env=None, log_stdout=True):
