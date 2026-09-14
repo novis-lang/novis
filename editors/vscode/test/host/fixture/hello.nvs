@@ -1,0 +1,12 @@
+<?nvs
+// The workspace every host test opens, copied into `.vscode-test/workspace/` so nothing a test does
+// reaches this directory. It is a whole program on purpose: the tier asserts what the editor shows for
+// code the compiler accepts, so a file that does not compile would prove the wrong thing.
+
+class Greeting {
+    public static function of(string $name): string {
+        return "Hello, {$name}!";
+    }
+}
+
+echo Greeting::of('Novis');
