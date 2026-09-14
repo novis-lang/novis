@@ -89,7 +89,7 @@ somebody has already followed.
 | goals `surface`, `type-test` | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
 | done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
 | done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
-| goal `m4-refusals` | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
+| done | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
 | done | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
 | goals `resilient-tree`, `lsp-server`, `editor`, `m4b-editor` | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | goals `concurrency`, `m5-proofs` | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
