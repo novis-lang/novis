@@ -24,16 +24,32 @@
 //! [`answer`] is the whole of what a connected client can cause, and a test drives it with a
 //! recording process rather than a running one.
 //!
+//! **[`serve`] is the loop that reaches [`answer`], and it is one thread.** It accepts, answers the
+//! client whole, closes, and accepts again; `rule:concurrency/one-scheduler` is why that is a
+//! thread and not a second runtime, and [`answer_connection`]'s doc is why the connection on it is
+//! driven by a loop of its own rather than by the runtime's. `hyper` frames both halves of the
+//! exchange, as it does on the request path.
+//!
 //! Cost, as `rule:programs/memory-priority` requires: one answer's bytes, built and written and
-//! dropped, and for `config` the flattened key list it is rendered from. Operations serialize, so
-//! that is one at a time for the whole process rather than one per connection.
+//! dropped, and for `config` the flattened key list it is rendered from, plus
+//! [`crate::io::SCRATCH`] bytes of the control thread's own stack while it is reading. Operations
+//! serialize, so that is one at a time for the whole process rather than one per connection.
 
+use std::convert::Infallible;
+use std::io;
+use std::pin::pin;
 use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
+use std::time::{Duration, Instant};
 
-use hyper::{Response, StatusCode, header};
+use hyper::body::Incoming;
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{Request, Response, StatusCode, header};
 use nvs_config::audit::Audit;
 use nvs_config::snapshot::Snapshot;
 
+use crate::io::Nonblocking;
 use crate::serve::Answer;
 
 pub use nvs_config::control::{Address, Endpoint, Refusal, Report, bind, boundary, reload};
@@ -260,9 +276,114 @@ fn sent(status: StatusCode, body: String, allow: Option<&'static str>) -> Respon
     response
 }
 
+/// The endpoint's accept loop: one client at a time, until the process is draining.
+///
+/// This is `rule:config/one-local-control-socket`'s "operations serialize" as a mechanism rather
+/// than as a promise. There is one endpoint, one thread and one stream alive at a time — the type
+/// of [`Endpoint::accept`] says so — so two reloads arriving together are two connections, the
+/// second of which waits on the transport and is answered whole after the first. Nothing here
+/// shares state with a request, and nothing here runs Novis code.
+///
+/// The drain bit is read between clients and not during one: an operation already being answered
+/// finishes, which is the same clean close
+/// `rule:concurrency/a-drain-closes-a-connection-cleanly` gives a request. A thread parked in the
+/// accept when the drain begins ends with the process, having answered nobody — there is no client
+/// on it to close cleanly.
+///
+/// # Errors
+///
+/// The OS's error from the accept, which is the endpoint itself having gone: the loop ends rather
+/// than spinning on a name that will not answer again. A *connection* that fails is one client's
+/// problem — a `nvs ctl` killed mid-request — and the loop takes the next one.
+pub fn serve(endpoint: &Endpoint, host: &dyn Controlled) -> io::Result<()> {
+    while !host.draining() {
+        drop(answer_connection(endpoint.accept()?, host));
+    }
+    Ok(())
+}
+
+/// Answers one connected client, and returns when its connection is closed.
+///
+/// `hyper` frames both halves, which is § 1's reason for the wire protocol being HTTP at all and
+/// the same argument `crate::serve` makes for the request path: framing is where smuggling lives,
+/// and a parser of ours reachable from an operator's `curl` is a parser of ours to get right.
+/// Keep-alive is **off**: a control operation is one request, `nvs ctl` makes one per invocation,
+/// and a client holding a connection open would hold the whole endpoint with it.
+///
+/// **The drive is this loop and not [`nvs_host::block_on`]**, because a park needs something to
+/// end it. On a core that is the reactor; here there is neither, so the thing that would wake this
+/// thread is this thread, and the loop says so: poll, and where the connection is waiting on its
+/// peer, wait [`SETTLE`] and ask again. That is a sleep and not a spin, it is one thread that has
+/// nothing else to do, and it costs an operator's command at most that much latency. The
+/// alternative is overlapped IO and a second readiness mechanism for one connection at a time,
+/// which is a great deal of machinery to save a millisecond on a reload.
+///
+/// [`IDLE`] is what keeps the wait bounded, as
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` requires of every wait: a
+/// connection that has moved no byte in either direction for that long is given up on, and it is
+/// **idle** time rather than total, so an operation that takes a while to answer is not cut off in
+/// the middle of taking it.
+///
+/// # Errors
+///
+/// Whatever `hyper` ended the connection on, which is a client that went away or sent something
+/// that is not HTTP, and [`io::ErrorKind::TimedOut`] for one that stopped saying anything at all.
+/// It is this client's failure and never the endpoint's.
+pub fn answer_connection(
+    connected: impl std::io::Read + std::io::Write + Unpin,
+    host: &dyn Controlled,
+) -> io::Result<()> {
+    let serving = service_fn(|request: Request<Incoming>| {
+        // The query string is part of the target, because the roster matches a target whole:
+        // `Operation::of`'s doc is why there is no spelling of an operation it would not show.
+        let target = request.uri().path_and_query().map_or_else(
+            || request.uri().path().to_owned(),
+            |named| named.to_string(),
+        );
+        std::future::ready(Ok::<_, Infallible>(answer(
+            request.method().as_str(),
+            &target,
+            host,
+        )))
+    });
+    let driven = Nonblocking::new(connected);
+    let moved = driven.moved();
+    let mut connection = pin!(
+        http1::Builder::new()
+            .keep_alive(false)
+            .serve_connection(driven, serving)
+    );
+    let mut context = Context::from_waker(Waker::noop());
+    let mut since = Instant::now();
+    loop {
+        match connection.as_mut().poll(&mut context) {
+            Poll::Ready(ended) => return ended.map_err(io::Error::other),
+            Poll::Pending if moved.replace(false) => since = Instant::now(),
+            Poll::Pending if since.elapsed() >= IDLE => {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "a control client stopped part way through its operation",
+                ));
+            }
+            Poll::Pending => std::thread::sleep(SETTLE),
+        }
+    }
+}
+
+/// How long a connection that is moving no bytes is left alone before the loop above gives up on
+/// it. A control client is a program that sends one request and reads one answer, so a silence this
+/// long is a client that is not coming back.
+const IDLE: Duration = Duration::from_secs(30);
+
+/// How long the drive waits before asking a connection that had nothing to say whether it has
+/// anything now. Short enough to be invisible to the operator whose command is waiting behind it,
+/// long enough that a connected client costs a thousandth of this thread rather than all of it.
+const SETTLE: Duration = Duration::from_millis(1);
+
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::io::{Read, Write};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -273,7 +394,7 @@ mod tests {
 
     use super::{
         Address, Answer, Controlled, Denied, Operation, Refusal, Report, VERSION, VERSION_HEADER,
-        answer, bind, boundary, reload, same_build,
+        answer, answer_connection, bind, boundary, reload, same_build,
     };
 
     /// A directory of this case's own, empty, beside the test binary under `target/`.
@@ -674,6 +795,80 @@ mod tests {
             "in_flight: 1\ndraining: true\n",
             "a stop in progress says so, and says how much of it is left",
         );
+    }
+
+    /// `rule:config/one-local-control-socket`: operations serialize, so two reloads arriving
+    /// together are answered one after the other rather than interleaving two snapshots.
+    ///
+    /// Two clients are on the endpoint at once and the loop is one thread, which is the mechanism
+    /// that makes that true: the endpoint hands out one stream at a time, so the second client is
+    /// answered only once the first one's connection is closed. What the case can assert about
+    /// *timing* is the same thing twice, so what it asserts instead is the consequence — both
+    /// answers arrive whole, each one a complete HTTP message with the version header and the
+    /// report's own lines, neither of them the other's bytes.
+    #[test]
+    fn two_reloads_on_one_endpoint_are_answered_one_after_the_other() {
+        let dir = scratch("two-reloads");
+        let name = endpoint(&dir, "two-reloads");
+        let listening = bind(&name, boundary).unwrap_or_else(|why| panic!("{}", why.message()));
+        let process = Process::serving("[limits]\nmemory = \"128M\"\n", "/etc/nvs/nvs.toml");
+
+        let clients: Vec<_> = (0..2)
+            .map(|_| {
+                let addressed = name.clone();
+                std::thread::spawn(move || {
+                    let mut connected = nvs_config::control::connect(&addressed)
+                        .expect("a client reaches the endpoint the case bound");
+                    connected
+                        .write_all(
+                            b"POST /reload HTTP/1.1\r\nHost: localhost\r\ncontent-length: 0\r\n\r\n",
+                        )
+                        .expect("the client's request");
+                    connected.flush().expect("the client's request, delivered");
+                    // Read to the report's last line rather than to the close, because the close is
+                    // the *client's* to take: the answer is on the wire long before the server's
+                    // connection is finished, and what finishes it is this client hanging up. A
+                    // client that waited for an end of stream would be waiting for the server that
+                    // is waiting for it.
+                    let mut answered = String::new();
+                    while !answered.contains("invalidated: 7") {
+                        let mut arrived = [0_u8; 256];
+                        let read = connected.read(&mut arrived).expect("the answer's next bytes");
+                        assert!(read > 0, "the answer ended early: {answered:?}");
+                        answered.push_str(&String::from_utf8_lossy(&arrived[..read]));
+                    }
+                    answered
+                })
+            })
+            .collect();
+
+        for _ in 0..2 {
+            answer_connection(
+                listening.accept().expect("a client is on the endpoint"),
+                &process,
+            )
+            .expect("a client that asked for a reload is answered");
+        }
+
+        for client in clients {
+            let answered = client.join().expect("the client thread");
+            assert!(
+                answered.starts_with("HTTP/1.1 200 OK\r\n"),
+                "each client is answered whole: {answered:?}",
+            );
+            assert!(
+                answered.contains(&format!("{VERSION_HEADER}: {VERSION}\r\n")),
+                "every answer carries the version, this one over the wire: {answered:?}",
+            );
+            assert!(
+                answered
+                    .contains("applied: limits.memory\nignored: control.socket\ninvalidated: 7"),
+                "the report is the body, whole and in one piece: {answered:?}",
+            );
+        }
+
+        drop(listening);
+        drop(fs::remove_dir_all(&dir));
     }
 
     /// `rule:config/one-local-control-socket`: the wire shape is unstable until 1.0, so **every**

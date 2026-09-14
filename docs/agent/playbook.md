@@ -2687,6 +2687,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   passed 8 runs and the whole suite passed 3, one under a concurrent `cargo build --tests`. Re-run
   `target/debug/nvs.exe test tests/conformance/` and read the failing case's own name before
   believing the check's. [until: reviewed 2026-10-14]
+- **`hyper` polls its connection's read before it writes the answer it already holds, so a blocking
+  transport under it deadlocks** — the symptom is a test binary that runs its whole body and never
+  reports. It reads the head, dispatches, then asks for the next request, which on a blocking stream
+  waits for a client waiting for that answer. Make a transport's read answer `WouldBlock` rather
+  than wait, as `crate::io::Nonblocking`'s does; and kill the hung `.exe` before rebuilding, or the
+  link fails `LNK1104` naming nothing. [until: reviewed 2026-09-14]
 
 ## Writing a test case
 
@@ -4950,6 +4956,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   to clear, run the task, restore it in a `finally` — as
   `editors/vscode/test/host/surfaces.test.ts:112` does.
   [until: gone crates/nvs-lsp/src/diagnostics.rs:code_description: None]
+- **A case that creates a file under `std::env::temp_dir()` passes here and fails on Linux**, where
+  `/tmp` is mode 1777 and `nvs_config::trust::check` walks the parents of what it is handed. Windows
+  has no such parent and `verify.py` here never runs the Unix half, so it first fails in the WSL
+  leg. Use a directory beside the test binary, as `crates/nvs-server/src/control.rs`'s `scratch`
+  does. [until: reviewed 2026-09-14]
 
 ## Splitting a file that got too big
 

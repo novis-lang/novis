@@ -1,4 +1,7 @@
-//! `hyper`'s two IO traits over the parking stream.
+//! `hyper`'s two IO traits over each transport this server answers on: the
+//! parking stream a request arrives over, and — in [`Nonblocking`], whose own
+//! doc is the whole of it — the plain stream the control endpoint is answered
+//! on. Everything below is the first one.
 //!
 //! `rule:concurrency/one-future-per-connection`
 //! is this module's specification. The whole of the adapter is one sentence:
@@ -309,6 +312,142 @@ impl Write for ConnectionIo {
     /// writes on the same descriptor after `hyper` has let go of it.
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         self.poll_flush(cx)
+    }
+}
+
+/// `hyper`'s two IO traits over a plain non-blocking stream, which is the
+/// control endpoint's transport and nothing else.
+///
+/// Everything above is about a socket that must never block a core, and arms a
+/// reactor so that the `Pending` it answers is one somebody will end. This is
+/// the same sentence with the reactor taken out: `crate::control`'s endpoint is
+/// served on one thread of its own, off every core, and there is no reactor
+/// there to arm. So a syscall that would wait answers `Pending` with nothing
+/// arranged, and the loop that drives the connection —
+/// `crate::control::answer_connection` — is what decides when to ask again.
+///
+/// **A stream that simply blocked instead would deadlock**, which is why the
+/// transport underneath is non-blocking at all: `hyper` polls for the next
+/// request *before* it writes the answer to the one it is holding, so a read
+/// that waited there would be waiting for a client that is waiting for that
+/// answer. `nvs_config::control`'s `Stream` is the half that answers
+/// `WouldBlock`, and its doc owns the platform spellings.
+///
+/// [`Nonblocking::moved`] is how the drive loop tells a connection that is
+/// waiting for its peer from one that is making progress, since every poll of a
+/// stalled connection looks the same from outside. The flag is set by any poll
+/// that carried a byte and read by the loop, which is the same shape
+/// [`ConnectionIo`]'s phase handle has and is there for the same reason: only
+/// the code that sees a byte move knows one moved.
+///
+/// The read is the same zeroed-scratch copy `ConnectionIo`'s is, for the same
+/// reason: this crate forbids `unsafe`, and filling `hyper`'s uninitialised
+/// cursor directly is what that would take. A control message is a short head
+/// and a short body, so it is one pass.
+#[derive(Debug)]
+pub struct Nonblocking<S> {
+    /// The transport, which answers `WouldBlock` rather than waiting.
+    stream: S,
+    /// Set by any poll that moved a byte in either direction.
+    moved: Rc<Cell<bool>>,
+}
+
+impl<S> Nonblocking<S> {
+    /// `stream` as the two traits `hyper` drives a connection over.
+    pub fn new(stream: S) -> Self {
+        Self {
+            stream,
+            moved: Rc::new(Cell::new(false)),
+        }
+    }
+
+    /// The progress flag, for the loop driving this connection: set when a poll
+    /// has moved a byte, and cleared by whoever reads it.
+    #[must_use]
+    pub fn moved(&self) -> Rc<Cell<bool>> {
+        Rc::clone(&self.moved)
+    }
+}
+
+impl<S: io::Read + Unpin> Read for Nonblocking<S> {
+    /// One read into the cursor: `Ready` with whatever arrived, or `Pending`
+    /// where nothing has.
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        mut cursor: ReadBufCursor<'_>,
+    ) -> Poll<io::Result<()>> {
+        let want = cursor.remaining().min(SCRATCH);
+        if want == 0 {
+            // `hyper` has nowhere to put anything, so a syscall here could only
+            // read zero bytes and be mistaken for the peer's end of stream.
+            return Poll::Ready(Ok(()));
+        }
+        let mut scratch = [0_u8; SCRATCH];
+        match interruptible(|| self.stream.read(&mut scratch[..want])) {
+            Ok(read) => {
+                if read > 0 {
+                    self.moved.set(true);
+                }
+                cursor.put_slice(&scratch[..read]);
+                Poll::Ready(Ok(()))
+            }
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
+            Err(err) => Poll::Ready(Err(err)),
+        }
+    }
+}
+
+impl<S: io::Write + Unpin> Write for Nonblocking<S> {
+    /// One write: `Ready` with what went out, or `Pending` where the peer is
+    /// not taking any of it.
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        match interruptible(|| self.stream.write(buf)) {
+            Ok(wrote) => {
+                if wrote > 0 {
+                    self.moved.set(true);
+                }
+                Poll::Ready(Ok(wrote))
+            }
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
+            Err(err) => Poll::Ready(Err(err)),
+        }
+    }
+
+    /// The stream's own flush, because this side buffers nothing but the one
+    /// underneath it may: an answer is not the client's until it is pushed.
+    fn poll_flush(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match interruptible(|| self.stream.flush()) {
+            Ok(()) => Poll::Ready(Ok(())),
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Poll::Pending,
+            Err(err) => Poll::Ready(Err(err)),
+        }
+    }
+
+    /// Says the writing is finished; the close is the stream's own drop, which
+    /// for the control endpoint is what hands the next client its turn.
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.poll_flush(cx)
+    }
+}
+
+/// `call` again for as long as a signal is what stopped it.
+///
+/// A blocking syscall is the one place `ErrorKind::Interrupted` reaches this
+/// crate at all: the parking stream above never waits in the kernel long enough
+/// to be interrupted. `hyper` ends a connection on any error it is handed, so
+/// retrying here is what keeps a control answer from being lost to a signal the
+/// process handled and carried on from.
+fn interruptible<T>(mut call: impl FnMut() -> io::Result<T>) -> io::Result<T> {
+    loop {
+        match call() {
+            Err(err) if err.kind() == io::ErrorKind::Interrupted => (),
+            other => return other,
+        }
     }
 }
 
