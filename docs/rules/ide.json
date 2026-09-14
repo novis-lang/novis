@@ -686,11 +686,12 @@
     },
     {
       "id": "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
-      "title": "The headless suites run every iteration with no editor; the extension-host run is CI-only, under `xvfb-run`, with an isolated profile",
+      "title": "Both tiers run on every acceptance sweep: the headless suites with no editor, and the extension-host run in a pinned build with a throwaway profile",
       "status": "designed",
       "because": [
         "0099",
-        "0101"
+        "0101",
+        "0185"
       ],
       "seeAlso": [
         "ide/highlighting-is-two-layers",

@@ -1009,28 +1009,41 @@ never as the only mechanism, because that would make coverage invisible to the g
 
 <a id="ide-headless-gates-the-loop-the-host-run-gates-the-milestone"></a>
 
-## The headless suites run every iteration with no editor; the extension-host run is CI-only, under `xvfb-run`, with an isolated profile  *(designed — not yet in the compiler)*
+## Both tiers run on every acceptance sweep: the headless suites with no editor, and the extension-host run in a pinned build with a throwaway profile  *(designed — not yet in the compiler)*
 
 `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`
 
-Two tiers, because they answer different questions and cost two orders of magnitude apart.
+Both tiers of the extension's tests run on every acceptance sweep, and they answer different questions
+at costs two orders of magnitude apart.
 
 **Headless, every iteration.** Plain Node, no editor, no display, no network: the grammar snapshot tests, a
 contributions test asserting `package.json` declares what the extension claims and depends only on the
 allowlist, and a protocol round-trip that spawns the real `nvs lsp` binary and drives it with
-`vscode-languageclient`. It is what the loop's acceptance test gates on, and it runs once rather than once
-per leg — a `command` check is not a program fixture, so it has no calling convention for the WSL leg to
-exercise. CI runs it on all three platforms, since a `.vsix` is cross-platform and a path bug is not.
+`vscode-languageclient`. It runs once rather than once per leg — a `command` check is not a program
+fixture, so it has no calling convention for the WSL leg to exercise. CI runs it on all three platforms,
+since a `.vsix` is cross-platform and a path bug is not.
 
-**The extension host, in CI only.** `@vscode/test-electron` runs Mocha inside the real extension host —
-the only thing that can prove activation on `.nvs`, the Tasks, the `LanguageStatusItem`, the AST panel and
-the semantic-token legend. It needs a display, and the only display on a developer's machine is one a
-person is using, so it runs on Linux under `xvfb-run` and is not on the loop's acceptance list at all.
-Wherever it runs it isolates its profile — `--user-data-dir` and `--extensions-dir` to a throwaway
-directory, a fixture folder rather than the repository — or a test that writes a setting writes it into
-the developer's own `settings.json`.
+**The extension host, wherever a developer works.** `@vscode/test-electron` runs Mocha inside the real
+extension host — the only thing that can prove activation on `.nvs`, the Tasks, the `LanguageStatusItem`,
+the AST panel and the semantic-token legend. It is on the loop's acceptance list as `npm run test:host`,
+so it runs on the desktop the loop runs on, opening a window for about a minute; in CI it runs on Linux
+under `xvfb-run -a`.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+**Isolation is what makes that safe, and it is not negotiable.** The run uses a downloaded pinned build
+rather than the editor the developer installed, `--user-data-dir` and `--extensions-dir` under
+`.vscode-test/`, `--disable-extensions`, and a copy of the fixture folder as its workspace rather than the
+repository. Without those, a second instance attaches to the editor already open and exits with no
+results, and a test that writes a setting writes it into that developer's own `settings.json` — the two
+reasons this tier was once CI-only. If a pinned build will not start beside the developer's own editor,
+pin a different one; never drop a flag to make it start.
+
+**The host verdict is never memoized.** The check carries `memoize = false`, so the sweep re-runs it
+whatever the tree hashes to. Every other check's inputs are tracked bytes and the compiler version, which
+is what makes a remembered verdict sound; this one also reads a downloaded editor build and an installed
+package tree that `tools/loop.py`'s walk prunes and never hashes, so a memo hit here would report a green
+editor run on a machine where no editor started.
+
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0185](../decisions/0185.md).</sub>
 
 <a id="ide-one-server-two-thin-clients"></a>
 
