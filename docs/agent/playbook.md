@@ -2010,13 +2010,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `.loop/log.md` for whether the line repeats, then re-run the fixture a dozen times serially and
   concurrently — a bounded wait whose answer is discarded is what turns a timing miss into a false
   accusation further down. [until: reviewed 2026-10-14]
-- **`holes.py` reporting zero sites does not mean nothing is refused: `REFUSAL` matches the panic's
-  *claim*, and a house-style claim it has no phrasing for is invisible to the count.**
-  `crates/nvs-ir/src/lower/control.rs:460` refuses a `for` header whose condition clause is a comma
-  list, saying it "lowers a `for` header with at most one condition expression" — which matches
-  neither `only lowers` nor `has no arm for`, so no run ever counted it. Before reading a zero as
-  totality, run the shape: one scratch `.agent-tmp/*.nvs` per form the rule's own table names.
-  [until: gone crates/nvs-ir/src/lower/control.rs:at most one condition expression]
 
 ## Running things
 
