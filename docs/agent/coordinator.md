@@ -336,6 +336,18 @@ affordable; at the one moment a verdict decides something it is not consulted. W
 of the Linux binary are green, the WSL build is skipped with them — never one without the other, or
 the sweep would silently fall back to a platform with no valgrind on it.
 
+**The carried floor runs one session in N, and the goal's own list every session.** The floor is the
+previous goal's whole list relabelled `1 floor` — some seven hundred checks against the dozen the goal
+is working on — and it is nearly all of what a sweep costs while being almost none of what a session
+is told, because the pack names the goal's earliest red check and a floor regression is rare. So the
+driver holds the carried floor, on every leg and under valgrind, together with the release profile and
+its cost guards, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/loop.py` is that
+number's only home, with the ledger replay that set it. A held floor is not a memo hit: a sweep that
+held anything reports `held` on its cost line, and the goal-end rule above applies to it exactly as to
+a remembered check — the whole list runs again, gate open, before the goal is declared reached. Stage
+0 is never held: it is the goal's own reopened work, not something carried in. `--goal-only` runs
+with the gate open.
+
 The sweep runs several fixtures at once, and **how many is the machine's answer, not this repo's** —
 `tools/machine.py` holds that policy and nothing else does: half the cores the work will actually see,
 never fewer than two, never more than there are fixtures, never more than free memory allows. On

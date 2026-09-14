@@ -88,7 +88,7 @@ WRITTEN = RUNDIR / "written.txt"
 CHAINSTATE = RUNDIR / "chain.json"
 RUNEND = RUNDIR / "run-end.json"
 DOCGATE = RUNDIR / "doc-gate.json"
-RELEASEGATE = RUNDIR / "release-gate.json"
+FLOORGATE = RUNDIR / "floor-gate.json"
 LASTFAIL = RUNDIR / "last-fail.json"
 
 # The run's, one level up from a leg's. § *the run* at the foot of this file is what they are for.
@@ -1585,6 +1585,13 @@ def is_floor(check):
     return "floor" in text.lower() or text.startswith("0")
 
 
+def is_carried(check):
+    """Is this check one `goal-switch.py` carried in from the goal before -- the `"1 floor"`
+    stage and nothing else? Stage 0 is a floor to `is_floor` but is this goal's own reopened
+    work, and the frontier a session is handed, so the floor gate never holds it."""
+    return "floor" in str(check.get("stage", "")).lower()
+
+
 def stage_key(check):
     """A check's stage as something sortable: its leading integer, then its text.
 
@@ -2037,8 +2044,8 @@ class Goal:
         }
         self._prebuild = None  # the thread warming the release profile
         self._prebuilt = ()  # the args it is warming, so `cargo()` knows to wait for it
-        self.release_gate = True  # may the release profile be built, and its cost guards run?
-        self.release_owed = []  # what the gate held back, for `release_catch_up` to settle
+        self.floor_gate = True  # do the carried floor and the release profile run this sweep?
+        self.held = []  # what a shut gate did not run; non-empty means "green" is not "reached"
         self.fast_path = ""  # a check name to try before the sweep; see `fast_fail`
         self.failed_name = ""  # the `cargo-named` check this run died on, for the next one
         self._widen = suite_widening(self.checks)
@@ -2291,11 +2298,11 @@ class Goal:
         not the cost. So the BUILD overlaps and the RUN does not -- `cargo()` joins this thread
         before it starts the real invocation, which by then is a no-op build and a 3s test run.
 
-        Nothing at all when the release gate is shut: that is the whole point of the gate, since
+        Nothing at all when the floor gate is shut: that is the whole point of the gate, since
         this build IS the sweep's critical path and not merely a step in it. Measured on the
         20260904-143054 run, the sweep waited **84s** at `join_prebuild` for a build that had been
         running since t=0, and everything else fitted underneath it."""
-        if not self.release_gate:
+        if not self.floor_gate:
             return
         args = self.release_args()
         cli = self.release_cli()
@@ -2639,7 +2646,7 @@ class Goal:
             self.trace("valgrind sweep skipped -- no valgrind on this platform")
             return ""  # not a failure: this platform simply has no valgrind leg
 
-        targets = [f for f in self.files if f not in self.valgrind_skip]
+        targets = [f for f in self.files if f not in self.valgrind_skip and f in self.swept_files()]
         if not targets:
             return ""
 
@@ -2724,7 +2731,9 @@ class Goal:
             return fails[0] + (f"  (and {len(fails) - 1} more: "
                                f"{', '.join(x.split(':')[0] for x in fails[1:])})"
                                if len(fails) > 1 else "")
-        self.remember(self.leg_specs["valgrind sweep"])
+        # A sweep over the goal's own fixtures alone is not the sweep this memo names.
+        if self.floor_gate:
+            self.remember(self.leg_specs["valgrind sweep"])
         return ""
 
     # -- the whole thing ----------------------------------------------------------------
@@ -2764,9 +2773,10 @@ class Goal:
         It is an upper bound in one direction only -- a failing check returns early, so a run can
         end at 40% -- and it never undercounts, so the bar cannot reach 100% with work left.
         """
-        programs = len(self.all_programs)
+        programs = len(self.swept_programs())
         wsl_leg, vg = self.leg_specs["wsl leg"], self.leg_specs["valgrind sweep"]
-        sweep = sum(1 for f in self.files if f not in self.valgrind_skip)
+        swept = self.swept_files()
+        sweep = sum(1 for f in self.files if f not in self.valgrind_skip and f in swept)
         # Only the wsl leg's valgrind is a given: on a native leg the sweep is skipped outright
         # when the platform has no valgrind, and counting it would strand the bar short of 100%.
         sweepable = not self.remembered(vg) and bool(wsl or shutil.which("valgrind"))
@@ -2781,12 +2791,13 @@ class Goal:
             n += 1  # last session's failing check, tried before anything is built
         n += 1  # the native build
         n += sum(1 for c in self.catch_up_checks if not self.remembered(c))
-        n += sum(1 for c in self.all_programs if not self.remembered(c, "native"))
+        n += sum(1 for c in self.swept_programs() if not self.remembered(c, "native"))
         # The shared workspace test build, paid once by the first plain `cargo test -p` check.
         if any(plain_crate_test(c.get("args", [])) for c in self.catch_up_checks + self.cargo_checks):
             n += 1
-        n += sum(1 for c in self.cargo_checks if not self.remembered(c))
-        n += sum(1 for c in self.release_checks if not self.remembered(c))
+        n += sum(1 for c in self.swept(self.cargo_checks) if not self.remembered(c))
+        if self.floor_gate:
+            n += sum(1 for c in self.release_checks if not self.remembered(c))
         # The whole Linux leg -- probe, build and fixtures -- is skipped when its two consumers are
         # both green over these inputs, so none of the three is counted then either.
         if not (self.remembered(wsl_leg) and self.remembered(vg)):
@@ -2795,10 +2806,36 @@ class Goal:
                 n += 1 + (0 if self.remembered(wsl_leg) else programs)
         return n + (sweep if sweepable else 0)
 
+    # -- the floor gate ----------------------------------------------------------------
+
+    def swept(self, checks):
+        """The checks of `checks` this sweep runs: all of them with the gate open, and with it
+        shut everything but the carried floor. `_check` says what the gate is for."""
+        if self.floor_gate:
+            return list(checks)
+        return [c for c in checks if not is_carried(c)]
+
+    def swept_programs(self):
+        """`all_programs`, less the carried floor when the gate is shut -- what a leg runs."""
+        return self.swept(self.all_programs)
+
+    def swept_files(self):
+        """The fixture files a leg runs this sweep, for the valgrind sweep to run the same set."""
+        return {c["file"] for c in self.swept_programs()}
+
+    def hold(self, checks, what):
+        """Note what a shut gate is not running, once per tier, so the cost line says so and the
+        driver knows this sweep's green is not the goal's."""
+        kept = [c for c in checks if is_carried(c)]
+        if kept and not self.floor_gate:
+            self.held += [c.get("name") or c.get("file") for c in kept]
+            self.trace(f"floor gate shut -- {len(kept)} carried {what} held until it opens")
+
     def begin(self, mode="check"):
         """Reset the per-run bookkeeping, and confirm every fixture is still on disk before
         anything is built. Shared by the two entry points below."""
         self.ran = []
+        self.held = []
         self._cargo = {}
         self._suite = {}
         self._commands = {}
@@ -2875,8 +2912,18 @@ class Goal:
         # sweep makes below, and for the same reason: "one floor fixture broke" and "eleven did"
         # are different bugs. The sweep still stops HERE, so a red floor never goes on to pay for
         # the cargo checks, the WSL leg, the valgrind sweep or the release checks.
+        #
+        # Unless the floor gate is shut, when the carried floor -- here, in `cargo_checks`, on the
+        # WSL leg and under valgrind -- is held, and the sweep is the current goal's own list: its
+        # catch-up, its stages, its fixtures. `FLOOR_GATE_EVERY` owns why and what it risks; the
+        # short form is that the carried floor is nearly all of a sweep's cost and almost none of
+        # what a session is told, since the pack names the goal's earliest red check and a floor
+        # regression is one session in twenty-five. A goal is never reached on a held floor:
+        # `held` is non-empty, and the driver runs the whole list, gate open, before it declares
+        # anything -- the same second sweep a memo hit already costs it.
         fails = []
-        for c in self.program_floor:
+        self.hold(self.program_floor, "fixture(s)")
+        for c in self.swept(self.program_floor):
             if self.skip(c, native.name):
                 continue
             trace(f"{native.name} {c['file']}")
@@ -2888,7 +2935,8 @@ class Goal:
         if fails:
             return self.report_program_fails(fails)
 
-        for c in self.cargo_checks:
+        self.hold(self.cargo_checks, "cargo check(s)")
+        for c in self.swept(self.cargo_checks):
             if self.skip(c, what=f"cargo {c['name']}"):
                 continue
             trace(f"cargo {c['name']}")
@@ -2925,7 +2973,11 @@ class Goal:
         leg = native
         wsl_leg = self.leg_specs["wsl leg"]
         trace("asking whether there is a wsl leg")
-        if self.remembered(self.leg_specs["valgrind sweep"]) and self.skip(
+        if not self.swept_programs():
+            # Every fixture is carried and the gate is shut: nothing for a second leg to run, and
+            # the valgrind sweep below finds the same empty list.
+            trace("wsl leg skipped -- the floor gate holds every fixture this list has")
+        elif self.remembered(self.leg_specs["valgrind sweep"]) and self.skip(
                 wsl_leg, what="wsl leg and valgrind sweep both green on these inputs -- "
                               "neither is rebuilt"):
             pass  # `valgrind()` below notes its own skip
@@ -2942,14 +2994,16 @@ class Goal:
                 # Same sweep-then-report as the native leg above: a Linux-only divergence is
                 # worth knowing the extent of, not just the first instance of.
                 leg_fails = []
-                for c in self.all_programs:
+                for c in self.swept_programs():
                     trace(f"{leg.name} {c['file']}")
                     fail = self.program_check(leg, c)
                     if fail:
                         leg_fails.append((stage_key(c), c, fail))
                 if leg_fails:
                     return self.report_program_fails(leg_fails)
-                self.remember(wsl_leg)
+                # A leg over the goal's own fixtures alone is not the leg this memo names.
+                if self.floor_gate:
+                    self.remember(wsl_leg)
 
         trace("valgrind sweep")
         fail = self.valgrind(leg)
@@ -2973,9 +3027,9 @@ class Goal:
         for c in self.release_checks:
             if self.skip(c, what=f"cargo {c['name']}"):
                 continue
-            if not self.release_gate:
-                self.release_owed.append(c["name"])
-                trace(f"cargo {c['name']} (release gate shut -- owed until the sweep goes green)")
+            if not self.floor_gate:
+                self.held.append(c["name"])
+                trace(f"cargo {c['name']} (floor gate shut -- the release profile is held with it)")
                 continue
             trace(f"cargo {c['name']}")
             fail = self.run_cargo_check(c, native)
@@ -3039,40 +3093,6 @@ class Goal:
         self.trace("fast path green -- the full sweep runs")
         return ""
 
-    def release_catch_up(self, verbose=False):
-        """Run the release-profile checks the gate held back, now that everything else is green.
-
-        This is the gate's hole, closed at the one place it matters. `release_gate` skips a cost
-        guard on four sessions in five, which is right while the sweep is red -- but a green sweep
-        is the end of a goal, and a goal must not be declared reached on a sweep that skipped one.
-        Reaching here with an empty `fail` IS that moment, for the last goal in the chain as much
-        as for any other, so nothing here has to know what a chain or a milestone is.
-
-        Cheap because it is not a second sweep: `_cargo`, `_crate_runs` and `_exes` still hold this
-        run's answers, so what is paid is the release build the gate declined and the two or three
-        checks that read it."""
-        self.verbose = verbose
-        self.release_gate = True
-        owed = set(self.release_owed)
-        self.release_owed = []
-        if not owed:
-            return ""
-        self.trace(f"release gate: settling {len(owed)} check(s) held back, the rest being green")
-        self.prebuild()
-        native = NativeLeg()
-        fail = self.timed("native build (release catch-up)", native.prepare)
-        if fail:
-            return fail
-        for c in self.checks:
-            if c["kind"] in PROGRAM_KINDS or c.get("name") not in owed:
-                continue
-            self.trace(f"cargo {c['name']} (release gate)")
-            fail = self.run_cargo_check(c, native)
-            if fail:
-                return fail
-            self.remember(c)
-        self.save_green()
-        return ""
 
     def leg_check(self, verbose=False):
         """The Linux leg, with the origin its network fixtures need held open around it -- the same
@@ -3147,7 +3167,8 @@ class Goal:
         worst = sorted(self.ran, key=lambda x: -x[1])[:3]
         slow = ", ".join(f"{label} {s:.0f}s" for label, s in worst if s >= 1)
         skipped = f", {len(self.skipped)} remembered" if self.skipped else ""
-        return (f"{wall:.0f}s over {len(self.ran)} check(s){skipped}"
+        held = f", {len(self.held)} held (floor gate shut)" if self.held else ""
+        return (f"{wall:.0f}s over {len(self.ran)} check(s){skipped}{held}"
                 + (f"; slowest: {slow}" if slow else ""))
 
 
@@ -5052,16 +5073,31 @@ def run_cli():
     return 0
 
 
-#: How many sessions run between two runs of the release-profile checks, and the only home for
-#: that number. The release profile is `lto = "thin"` with `codegen-units = 1` and it is the
+#: How many sessions run between two runs of the carried floor and the release-profile checks,
+#: and the only home for that number. The release profile is `lto = "thin"` with
+#: `codegen-units = 1` and it is the
 #: acceptance check's critical path, not a step in it: measured on the 20260904-143054 run, the
 #: sweep spent **84s of 288s** waiting at `join_prebuild` while everything else fitted underneath
 #: the build. Its only consumers are cost-class assertions -- the abi-probe perf guards and the
 #: CLI warm-start bench -- so a stale verdict is a latency regression (priority 3) and never a
-#: wrong answer, it does not compound the way a leak or a semantics bug does, and the blind window
-#: is at most this many sessions of one commit per slice. `Goal.release_catch_up` closes the one
-#: hole that would matter, by refusing to let a goal be declared reached on a gated sweep.
-RELEASE_GATE_EVERY = 5
+#: wrong answer, and it does not compound the way a leak or a semantics bug does.
+#:
+#: The same gate holds the CARRIED FLOOR: the previous goal's whole list, some seven hundred
+#: checks relabelled `1 floor`, which is nearly all of what a sweep costs and almost none of what
+#: a session is told. Replayed over the ledger's 1,240 sessions before this gate existed: 94% of
+#: sweeps ended red, and 1,126 of those were the frontier -- a named test not yet written, a
+#: fixture not yet on disk, the goal's own stage still open -- which the goal's own checks report
+#: without the floor. The floor itself caught 44 regressions, one session in twenty-five, and
+#: 25 of them were doc-gate commands `session.py --wrap` now refuses before the commit; the ten
+#: that were code, and the six valgrind findings, all sat at positions a ten-session window still
+#: reaches inside the goal that made them. The blind window is at most this many sessions of
+#: three commits each, `git log` reads a slice at a time, and a goal is never declared reached on
+#: a held floor: `Goal.held` is non-empty, and `drive` runs the whole list, gate open, first.
+#: Every sweep in between is the goal's own list, so the pack still names the earliest red check.
+#: Measured before the gate: 128s an ordinary sweep and 691s a gated one; after it an ordinary
+#: sweep is the goal's own dozen checks. Dropping this to 5 halves the window for about a minute
+#: a session more.
+FLOOR_GATE_EVERY = 10
 
 
 def read_counter(path, every):
@@ -5172,8 +5208,8 @@ def doc_gate(index):
     A broken intra-doc link stops no build and changes no behaviour, so a goal in progress may
     carry some: an item is renamed, the comment naming it goes stale, and a later session of the
     same goal fixes it. What has to be clean is the tree a goal leaves behind, so this runs where
-    `release_catch_up` does -- on the green sweep that would declare the goal reached -- and not
-    after every session. Paying it per session bought nothing that matters, at a price set by the
+    the floor gate opens for good -- on the green sweep that would declare the goal reached -- and
+    not after every session. Paying it per session bought nothing that matters, at a price set by the
     graph rather than the edit: rustdoc re-documents the edited crate and every workspace crate
     above it, one after another.
 
@@ -5458,31 +5494,32 @@ def drive(opts, goal, chain):
         # a native build, every fixture, both suites, the WSL leg and the valgrind sweep. Silent,
         # this read as a driver that had hung after printing the session's status line.
         # The two gates the sweep itself does not own: which check to try first, and whether the
-        # release profile is built at all this session. Both are read here rather than inside
-        # `Goal` because both are counted in SESSIONS, and a `Goal` is loaded fresh every one.
+        # carried floor and the release profile run at all this session. Both are read here rather
+        # than inside `Goal` because both are counted in SESSIONS, and a `Goal` is loaded fresh
+        # every one.
         goal.fast_path = read_last_fail()
-        release_since = read_counter(RELEASEGATE, RELEASE_GATE_EVERY) + 1
-        goal.release_gate = release_since >= RELEASE_GATE_EVERY
-        held = "" if goal.release_gate else f" (release profile held, 1 session in {RELEASE_GATE_EVERY})"
+        floor_since = read_counter(FLOORGATE, FLOOR_GATE_EVERY) + 1
+        goal.floor_gate = floor_since >= FLOOR_GATE_EVERY
+        held = ("" if goal.floor_gate
+                else f" (carried floor and release profile held, 1 session in {FLOOR_GATE_EVERY})")
         step(f"acceptance check: build, fixtures, suites, wsl leg, valgrind{held}", C.CYAN)
         checked = time.monotonic()
         fail = goal.check(verbose=True)
         # A green sweep is the end of a goal, and a goal is not reached on a sweep that answered
-        # anything from the memo: the whole list runs again, once, remembering nothing. Between
-        # sessions the memo is what keeps the folded floor affordable; at the one moment a verdict
-        # decides something -- this goal is done -- it is not consulted. `Goal.remembered` owns
-        # why a skipped check could not have changed; this is that argument checked.
-        if not fail and goal.skipped:
-            step(f"scoped sweep green with {len(goal.skipped)} check(s) remembered -- running "
-                 f"every one of them before the goal is reached", C.CYAN)
+        # anything from the memo or held anything behind the floor gate: the whole list runs
+        # again, once, gate open, remembering nothing. Between sessions the memo and the gate are
+        # what keep the folded floor affordable; at the one moment a verdict decides something --
+        # this goal is done -- neither is consulted. `Goal.remembered` owns why a skipped check
+        # could not have changed, `FLOOR_GATE_EVERY` why a held one may have; this is both checked.
+        if not fail and (goal.skipped or goal.held):
+            step(f"scoped sweep green with {len(goal.skipped)} check(s) remembered and "
+                 f"{len(goal.held)} held -- running every one of them before the goal is reached",
+                 C.CYAN)
             ledger(f"       goal cost: {goal.summary()} (scoped; confirming in full)")
             goal.full = True
+            goal.floor_gate = True
             fail = goal.check(verbose=True)
-        # Nor on one that skipped a cost guard. `release_catch_up` says why this is the whole of
-        # that argument.
-        if not fail and goal.release_owed:
-            fail = goal.release_catch_up(verbose=True)
-        write_counter(RELEASEGATE, 0 if goal.release_gate else release_since)
+        write_counter(FLOORGATE, 0 if goal.floor_gate else floor_since)
         write_last_fail(goal.failed_name)
         step(f"acceptance check done in {mmss(time.monotonic() - checked)}", C.CYAN)
         ledger(f"       goal cost: {goal.summary()}")
