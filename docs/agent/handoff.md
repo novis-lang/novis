@@ -4,42 +4,41 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal
-opens). **Stage 3's reporting half is on disk**: a `Type=notify` unit gets `READY=1` once every
-listener is bound, `RELOADING=1` and `READY=1` around every reload, and `STOPPING=1` once the drain
-has begun.
+opens). **Stage 3's reporting half is complete**: a `Type=notify` unit gets `READY=1` once every
+listener is bound, `RELOADING=1` and `READY=1` around every reload, `STOPPING=1` once the drain has
+begun, and `WATCHDOG=1` for as long as the fleet is turning.
 
-**The writer is hand-written and takes no crate.** `crate::service::Notify` is one datagram of
-`NAME=value` lines to whatever `$NOTIFY_SOCKET` names, silence where the variable is unset, and a
-`Supervisor` sink as the seam — which is what makes the states assertable on a box with no systemd.
-`service.rs`'s module doc § *The manager is told what state this process is in* owns the rest;
-`rule:packaging/a-service-is-operator-surface` no longer claims a crate for it.
+**The watchdog ping is gated rather than timed.** `crate::service::Heartbeat` sends `State::Alive`
+every half of `WATCHDOG_USEC` — and only where `WATCHDOG_PID` admits this process — while
+`nvs_host::Watchdog::turning()` holds, which is the stall detector read rather than written to, so
+no request path pays for it. One wedged core of several keeps the ping; it stops only where no core
+turns at all, because `rule:http-server/a-wedged-core-is-shed-never-killed` sheds the first and a
+restart is the only recovery left for the second. Both rule fragments now say so, and `service.rs`'s
+module doc § *The manager is told what state this process is in* points at `Heartbeat` for the rest.
 
-**The process's manager is installed by the boot**, because the reporter that needs it is handed
-nothing: `crate::stop::deliver` takes `Notify::process()` exactly as it takes
-`nvs_server::Draining::process()`. `deliver_to` is the same stop over a drain a caller names, which
-is how a case reports a stop without spending the one process-wide drain bit the signal case owns.
-
-Left in stage 3: `WatchdogSec=30` is still a promise nothing keeps.
+Left in stage 3: a reload's outcome is still not written to `Core\Log`, and the door it needs does
+not exist yet — the next group is that door and then the write.
 
 ## Next group
 
-**Stage 3: the watchdog line, and the reload's log** — one file set: `crates/nvs-cli/src/service.rs`,
-`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/control.rs`.
+**Stage 3: a reload writes its outcome to `Core\Log`** — one file set:
+`crates/nvs-runtime/src/ctx/output.rs`, `crates/nvs-cli/src/control.rs`.
 
-- [ ] **`WatchdogSec=30` is a promise nothing keeps** — the line `unit()` renders at
-      `crates/nvs-cli/src/service.rs:538` kills a `Type=notify` service unless `WATCHDOG=1` arrives
-      inside half its period. `rule:packaging/the-generated-unit-is-hardened` says the ping comes
-      from the accept loop, so it is a report beside `State` at
-      `crates/nvs-cli/src/service.rs:576` — `WATCHDOG_USEC` is the period and `WATCHDOG_PID` says
-      whether this process may send it — gated on what the process's stall detector says, which is
-      `nvs_host::Watchdog::with`'s sink over the `Watchdog::new()` at
-      `crates/nvs-cli/src/serve.rs:509`. A ping from a thread that lives whether or not a core turns
-      proves only that the process exists; if that gate cannot be built cheaply, take the line out of
-      `unit()` instead and amend the rule, and say which in the commit.
+- [ ] **The log write has no door for a thread that holds no request** — `Ctx::write_log_record` at
+      `crates/nvs-runtime/src/ctx/output.rs:251` is `rule:errors/record-producers`'s one reader of
+      `[log] target`, `level` and `format`, and `resolve_log_target` at
+      `crates/nvs-runtime/src/ctx/output.rs:345` reads them off the context's own config. Give that
+      resolution a `Ctx`-free entry — a config and an `nvs_render::Record` in, the rendered line out
+      — so the control thread does not become a second reader of the directive, and decide there
+      where such a record goes when `[log] target` names nothing, which for a writer that is no
+      request cannot be `LogChannel::Output` at `crates/nvs-runtime/src/ctx/output.rs:108`.
 - [ ] **A reload's outcome is not written to `Core\Log`** — `rule:config/one-local-control-socket`'s
-      last sentence, and the reload it is about is `crate::control::Process::published` at
-      `crates/nvs-cli/src/control.rs:117`. The `Report` it hands back is what an operator gets on
-      stdout today and nothing else; the log line is the record a deployment reads afterwards.
+      last sentence, over the reload at `crates/nvs-cli/src/control.rs:117`
+      (`crate::control::Process::published`) and the `Reloading`/`Ready` pair wrapping it at
+      `crates/nvs-cli/src/control.rs:146`. The `Report` it hands back is what an operator reads on
+      `nvs ctl`'s stdout and nothing else; the record is what the deployment reads afterwards.
+      `crates/nvs-stdlib/src/log.rs:305`'s `record` is the shape one is built in, and the level a
+      refused reload carries is the half to decide first.
 
 ## Backlog
 
@@ -50,6 +49,9 @@ Left in stage 3: `WatchdogSec=30` is still a promise nothing keeps.
 - A `[[schedule]]` waits out one interval before a stop ends its ticker —
   `crates/nvs-cli/src/serve.rs`'s `keep_ticking` closure says so.
 - Nothing sends a datagram in any test: the `Supervisor` sink is what the case drives, so
-  `crates/nvs-cli/src/service.rs:709`'s `mod systemd` is compiled on Linux and never run.
-- `[context] modules` printed neither `crates/nvs-runtime/src/drain.rs` nor
-  `crates/nvs-server/src/io.rs` and `socket.rs`, which are the drain's other readers.
+  `crates/nvs-cli/src/service.rs`'s `mod systemd` is compiled on Linux and never run.
+- Stage 4 is unwritten — `a_unix_socket_listen_entry_binds_with_its_mode_on_unix_and_is_refused_once_elsewhere`
+  is the test the driver's acceptance check is waiting for.
+- `[context] modules` printed neither `crates/nvs-host/src/watchdog.rs`, which this item's own gate
+  lives in, nor `crates/nvs-runtime/src/drain.rs` and `crates/nvs-server/src/io.rs`/`socket.rs`,
+  which are the drain's other readers.

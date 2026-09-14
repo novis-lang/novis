@@ -6960,6 +6960,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   switch inside one call that leaves and comes back — `Fiber::around` in
   `crates/nvs-host/src/tsan.rs` — and read a SEGV in `__tsan_func_entry` as a broken annotation
   rather than a race. [until: gone crates/nvs-host/src/tsan.rs:__tsan_switch_to_fiber]
+- **A record for `Core\Log` cannot be written from a thread that has no request, because the whole
+  write path is `Ctx`-bound.** `Ctx::write_log_record` (`crates/nvs-runtime/src/ctx/output.rs:251`)
+  is `rule:errors/record-producers`'s one reader of `[log] target`, `level` and `format`, and it
+  resolves all three off the context's own config; nothing in `nvs-cli` or `nvs-server` writes a
+  record, so there is no host-side caller to copy. Give that resolution a `Ctx`-free door rather
+  than reading the directive a second time, which is what the rule exists to stop.
+  [until: gone crates/nvs-runtime/src/ctx/output.rs:fn resolve_log_target(&self)]
 
 ## Divergences and refusals already pinned
 
