@@ -1,0 +1,42 @@
+--TEST--
+An un-narrowed `?array<T>` is refused at the `foreach` subject rather than iterated when it happens to hold an array, and narrowing it is what makes the same loop compile — `rule:iteration/foreach-subjects`, `rule:php-migration/absent-storage-is-never-a-zero-value`
+--FILE--
+<?nvs
+// `rule:iteration/foreach-subjects`'s list names an `array<T>`, and
+// `null|array<T>` is not one: the nullable half has no elements to yield, so
+// the subject is refused where it is written rather than skipped at run time
+// the way PHP's `foreach (null as $v)` warns and continues. That refusal is
+// what `nvs-ir`'s array `foreach` lowering is guarded by — a nullable subject
+// that reached it would have no `array<T>` to walk.
+//
+// Both spellings are here because the sugar and the union have to agree: a
+// shape refused as `?array<string>` and admitted as `null|array<string>`
+// would make the fix depend on which one the author wrote.
+class Bag {
+    public ?array<string> $items = null;
+}
+
+?array<string> $maybe = ["a", "b"];
+array<string>|null $spelled = ["c"];
+Bag $bag = new Bag();
+
+foreach ($maybe as string $v) { echo $v; }
+foreach ($spelled as string $w) { echo $w; }
+foreach ($bag->items as string $x) { echo $x; }
+
+// The narrowed loop is the fix the refusal leaves open, and it is deliberately
+// last: a session that made the three above compile would have to delete this
+// line's reason for existing too.
+if ($maybe != null) {
+    foreach ($maybe as string $y) { echo $y; }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0443]: `foreach` cannot iterate a `null|array<string>`
+%A
+error[E0443]: `foreach` cannot iterate a `null|array<string>`
+%A
+error[E0443]: `foreach` cannot iterate a `null|array<string>`
+%A
+error: aborting due to 3 errors

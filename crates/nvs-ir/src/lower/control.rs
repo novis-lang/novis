@@ -909,14 +909,15 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics naming the case for a subject that is not an `array<T>` (ADR
-    /// 0053's `Iterable`/`Iterator` are a separate lowering, over a
-    /// user-visible interface rather than these primitives), for a key
-    /// binding declared as anything but `string` (`rule:types/arrays` makes every
-    /// stored key a `string`, and `nvs_types` reports `E0723` for every other
-    /// declared key type, so an arrival is an internal inconsistency rather
-    /// than a program), and for a binding with no declared
-    /// type at all, which `nvs_types` already diagnosed.
+    /// Two [`guarded_by!`] sites, each naming the diagnostic that refuses its
+    /// shape where it is written: a subject that is not an `array<T>` once the
+    /// cursor lowering above has taken `Iterable`/`Iterator` (`E0443`, from
+    /// `nvs_types::expr::iteration::report_not_iterable`, which is what an
+    /// un-narrowed `?array<T>` meets), and a key binding declared as anything
+    /// but `string` (`E0723`, `rule:types/arrays` making every stored key a
+    /// `string`). Reaching either means this body was checked against a
+    /// different table. A binding with no declared type at all panics in
+    /// [`binding_ty`], which `nvs_types` has already diagnosed.
     #[expect(
         clippy::too_many_arguments,
         reason = "the arguments are one `StmtKind::Foreach`'s own fields plus \
@@ -971,23 +972,30 @@ impl<'a> Lowering<'a> {
         let value_ty = binding_ty(value, "value", self.exprs, self.checked_types);
         let key_binding = key.map(|k| {
             let ty = binding_ty(k, "key", self.exprs, self.checked_types);
-            assert!(
-                ty == Ty::Str,
-                "nvs-ir lowers a `foreach` key binding only at `string`, `rule:types/arrays`'s one \
-                 stored key type — got {ty:?}, and nvs_types reports E0723 for every other \
-                 declared key type before this runs"
-            );
+            if ty != Ty::Str {
+                guarded_by!(
+                    code::E_FOREACH_KEY_TY,
+                    "nvs-ir reached a `foreach` key binding at {ty:?}. `rule:types/arrays` gives an \
+                     `array<T>` one stored key type, so `nvs_types::expr::iteration` refuses every \
+                     other declared key type where the binding is written rather than converting \
+                     it, and this body was not checked with the same table"
+                );
+            }
             strip_sigil(span_text(self.src, k.name)).to_owned()
         });
         let value_name = strip_sigil(span_text(self.src, value.name)).to_owned();
 
         let (array_v, array_ty) = self.lower_expr(subject, None, env, cur);
-        assert!(
-            array_ty == Ty::Array,
-            "nvs-ir lowers `foreach` only over an `array<T>` — got {array_ty:?}; `rule:iteration/two-interfaces`'s \
-             `Iterable`/`Iterator` subjects are their own lowering (see the crate docs' known \
-             gaps)"
-        );
+        if array_ty != Ty::Array {
+            guarded_by!(
+                code::E_FOREACH_SUBJECT_NOT_ITERABLE,
+                "nvs-ir reached the array `foreach` lowering over {array_ty:?}. \
+                 `rule:iteration/foreach-subjects` drives three subjects and refuses a fourth at \
+                 the subject — `nvs_types::expr::iteration::report_not_iterable` is that refusal's \
+                 one home — so an un-narrowed `?array<T>` is refused where it is written, and the \
+                 `Iterable`/`Iterator` pair took the cursor lowering above"
+            );
+        }
         if !value_inout && self.aliasing_read(subject) {
             self.emit_retain(*cur, array_v);
         }
