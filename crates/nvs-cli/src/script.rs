@@ -1443,6 +1443,151 @@ mod tests {
     }
 
     #[test]
+    fn a_revalidation_that_fails_to_compile_fails_only_the_requests_that_resolve_it_afterwards() {
+        // `rule:config/a-broken-edit-fails-the-requests-that-resolve-it`'s
+        // first paragraph, over the three things it decides at once: the
+        // caller that resolves the broken content is handed the failure as
+        // ordinary checked-return data, the path's pointer is left naming the
+        // content that compiled, and the request already holding the last good
+        // unit runs to completion regardless
+        // (`rule:config/a-request-keeps-the-unit-it-resolved`).
+        //
+        // `[opcache]` is `hash`/`0s` for the reason `revalidating` gives: the
+        // default would answer the resolve below from the pointer without
+        // looking at the file at all, and the edit is the whole subject here.
+        let path = a_file_saying("broken-edit", "one");
+        let written = path.to_string_lossy().into_owned();
+        let compiler = revalidating();
+
+        let (running, _routes) = compiler.compiled(&written).expect("the entry compiles");
+        let good = shared(&compiler.paths)[&path].content_hash;
+
+        // The edit that does not parse, and the resolve that reaches it. What
+        // comes back is a message rather than a panic or a stale unit, which
+        // is the rule's "fail loudly".
+        let _ = a_file_running("broken-edit", "echo \"one\" \"two\";");
+        let Err(refusal) = compiler.compiled(&written) else {
+            panic!("a file that does not parse was handed back as a program");
+        };
+        assert!(
+            refusal.contains("could not be compiled"),
+            "unhelpful refusal: {refusal}"
+        );
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            2,
+            "the broken content never reached the front end"
+        );
+
+        // Step 4 never ran, so the path still resolves to the content that
+        // compiled — and [`Compiler::record`]'s `keep` is why that unit is
+        // still in the table beside the failure rather than swept by it.
+        assert_eq!(
+            shared(&compiler.paths)[&path].content_hash,
+            good,
+            "a broken edit moved the pointer"
+        );
+        assert_eq!(
+            shared(&compiler.units).len(),
+            2,
+            "the unit still in force, and the failure the next resolve of that content is owed"
+        );
+
+        // The request that resolved before the edit is unaffected by it: it
+        // holds its own unit and the file behind it is not read again.
+        assert_eq!(said(running), "one\n");
+
+        // And a repair reaches the next resolve on the same terms the break
+        // did, nothing about the failure being sticky past its own content key.
+        let _ = a_file_saying("broken-edit", "two");
+        let (repaired, _routes) = compiler
+            .compiled(&written)
+            .expect("the repaired entry compiles");
+        assert_eq!(said(repaired), "two\n");
+        assert_ne!(
+            shared(&compiler.paths)[&path].content_hash,
+            good,
+            "the repair never reached the pointer"
+        );
+    }
+
+    #[test]
+    fn a_storm_against_a_broken_file_costs_one_compile_and_one_rendering_of_its_spans() {
+        // The same rule's cost claim, in the shape only a fleet has a spelling
+        // for: every request after the first lands on the same `UnitKey` and
+        // is answered from the table, so the break is compiled — and its spans
+        // rendered — once however many requests arrive against it.
+        // [`Compiler::compiles`] is what says so, because it counts a compile
+        // that failed and the front end it counts is the half that renders.
+        const WORKERS: usize = 4;
+        const PER_WORKER: usize = 500;
+
+        let entry = a_file_saying("broken-storm", "served");
+        let path = entry.to_string_lossy().into_owned();
+        let compiler = Arc::new(revalidating());
+
+        // Warmed first, so what the storm meets is a break in a file this
+        // cache already serves rather than a cold path that never compiled.
+        let (warm, _routes) = compiler.compiled(&path).expect("the entry compiles");
+        let good = shared(&compiler.paths)[&entry].content_hash;
+        drop(warm);
+        let _ = a_file_running("broken-storm", "echo \"one\" \"two\";");
+
+        let refused = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let ready = std::sync::Barrier::new(WORKERS);
+        let finished: usize = std::thread::scope(|fleet| {
+            let workers: Vec<_> = (0..WORKERS)
+                .map(|_| {
+                    fleet.spawn(|| {
+                        let mut sched = nvs_host::Scheduler::new();
+                        for _ in 0..PER_WORKER {
+                            let compiler = Arc::clone(&compiler);
+                            let refused = Arc::clone(&refused);
+                            let path = path.clone();
+                            sched.spawn(
+                                Ctx::new(OutputSink::Buffer(Vec::new())),
+                                nvs_runtime::TaskRoot::Request,
+                                move |_ctx| {
+                                    if compiler.compiled(&path).is_err() {
+                                        refused.fetch_add(1, Ordering::Relaxed);
+                                    }
+                                },
+                            );
+                        }
+                        ready.wait();
+                        sched.run().finished
+                    })
+                })
+                .collect();
+            workers
+                .into_iter()
+                .map(|worker| worker.join().expect("a worker ran its queue"))
+                .sum()
+        });
+
+        assert_eq!(
+            finished,
+            WORKERS * PER_WORKER,
+            "a request never reached its end"
+        );
+        assert_eq!(
+            refused.load(Ordering::Relaxed),
+            WORKERS * PER_WORKER,
+            "a request resolving the broken content was answered with a unit"
+        );
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            2,
+            "the storm put the same break through the front end more than once"
+        );
+        assert_eq!(
+            shared(&compiler.paths)[&entry].content_hash,
+            good,
+            "the storm moved the pointer off the content that compiled"
+        );
+    }
+
+    #[test]
     fn the_compile_counter_counts_compiles_and_not_cores() {
         // [`Compiler::compiles`]'s own claim, which is what `docs/plan/m7.md`'s
         // "compiles it exactly once" is asserted against: one counter per
