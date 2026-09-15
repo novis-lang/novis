@@ -1,0 +1,37 @@
+--TEST--
+`rule:types/conversion` and `rule:types/decimal`: `Core\Decimal`'s four cuts answer a `decimal` at exactly the scale they were asked for, and `round` is the one that names the mode it settles a tie by
+--FILE--
+<?nvs
+// The scale is the answer's, so a cut pads as well as cuts. That is what
+// answering a `decimal` rather than an `int` buys: the places stay visible,
+// which is the whole reason a price is a `decimal` in the first place.
+decimal $price = 1.005;
+echo Core\Decimal::floor($price, 2), "|",
+     Core\Decimal::ceil($price, 2), "|",
+     Core\Decimal::truncate($price, 2), "\n";
+echo Core\Decimal::truncate(1.5, 3), "|", Core\Decimal::floor(2, 2), "\n";
+
+// The scale defaults to zero, which is the cut a conversion wants -- and the
+// answer is still a `decimal`, so the conversion to `int` is written after it
+// rather than hidden inside it.
+echo Core\Decimal::floor(1.9), "|",
+     Core\Decimal::ceil(1.1), "|",
+     Core\Decimal::truncate(1.9), "|",
+     Core\Decimal::floor(1.9) as int, "\n";
+
+// A tie is where the modes part, which is why `round` has no default one:
+// 1.005 at two places is exactly half a cent, and three modes give three
+// answers to it.
+echo Core\Decimal::round($price, Core\RoundMode::HalfEven, 2), "|",
+     Core\Decimal::round($price, Core\RoundMode::HalfUp, 2), "|",
+     Core\Decimal::round($price, Core\RoundMode::Down, 2), "\n";
+
+// The mode comes before the scale because the scale is the optional one; a
+// round to a whole number leaves it out and still names the mode.
+echo Core\Decimal::round(19.99, Core\RoundMode::HalfUp), "\n";
+--EXPECT--
+1.00|1.01|1.00
+1.500|2.00
+1|2|1|1
+1.00|1.01|1.00
+20

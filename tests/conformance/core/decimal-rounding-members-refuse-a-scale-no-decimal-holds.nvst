@@ -1,0 +1,41 @@
+--TEST--
+`rule:types/decimal` and `rule:types/arithmetic`: `Core\Decimal`'s four cuts refuse at both of the type's bounds rather than narrowing to a scale that fits, and each names itself and the scale it was asked for
+--FILE--
+<?nvs
+// The last scale a `decimal` holds, asked for from the side with no
+// fractional digit of its own: 28 zeros fit in 96 bits.
+echo Core\Decimal::floor(1, 28), "\n";
+
+// ...and the first one it does not. Narrowing to 28 would make a cut a second
+// inexact operation without saying so, which is the refusal the `*` and `/`
+// rows already make.
+try {
+    echo Core\Decimal::floor(1.5, 29), "\n";
+} catch (ArithmeticError $deep) {
+    echo $deep->message, "\n";
+}
+try {
+    echo Core\Decimal::ceil(1.5, 29), "\n";
+} catch (ArithmeticError $up) {
+    echo $up->message, "\n";
+}
+
+// The other bound, reached from the other side: a value with eleven digits
+// before the point cannot carry 28 after it, because that is 10^38 and the
+// mantissa is 96 bits.
+try {
+    echo Core\Decimal::truncate(10000000000, 28), "\n";
+} catch (ArithmeticError $wide) {
+    echo $wide->message, "\n";
+}
+try {
+    echo Core\Decimal::round(10000000000, Core\RoundMode::HalfUp, 28), "\n";
+} catch (ArithmeticError $rounded) {
+    echo $rounded->message, "\n";
+}
+--EXPECT--
+1.0000000000000000000000000000
+Core\Decimal::floor cannot answer 1.5 at scale 29: a `decimal` holds 28 fractional digits and a 96-bit mantissa
+Core\Decimal::ceil cannot answer 1.5 at scale 29: a `decimal` holds 28 fractional digits and a 96-bit mantissa
+Core\Decimal::truncate cannot answer 10000000000 at scale 28: a `decimal` holds 28 fractional digits and a 96-bit mantissa
+Core\Decimal::round cannot answer 10000000000 at scale 28: a `decimal` holds 28 fractional digits and a 96-bit mantissa
