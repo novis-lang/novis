@@ -393,9 +393,16 @@ fn ratio(fraction: f64) -> Result<Quantity, &'static str> {
     }
 }
 
-/// The value as the operator wrote it, for a refusal to quote back — this module's, and
-/// [`crate::app`]'s ceiling refusal, which names both sides the same way.
-pub(crate) fn as_written(value: &Setting) -> String {
+/// The value as the operator wrote it: what a refusal quotes back — this module's, and
+/// [`crate::app`]'s ceiling refusal, which names both sides the same way — and what a sub-cap is
+/// carried as.
+///
+/// Public for the second of those. A `[[schedule]]` entry's `limits` crosses to a run as the text
+/// beside the key (`nvs_runtime::host::Narrowing`), so the child compares a `512M` an entry asked
+/// for against a `512M` a file wrote through one parser rather than two — the reason that narrowing
+/// carries text at all, and the reason the ticker renders one here instead of growing a second
+/// renderer of its own.
+pub fn as_written(value: &Setting) -> String {
     match value {
         Setting::Bool(flag) => flag.to_string(),
         Setting::Integer(number) => number.to_string(),
