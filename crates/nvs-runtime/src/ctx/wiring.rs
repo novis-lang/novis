@@ -162,6 +162,7 @@ impl Ctx {
             faked_http: crate::ctx::AnswerTable::default(),
             captures: Vec::new(),
             content_type: None,
+            file_body: None,
             body_stream: None,
             event_stream: None,
             status: None,

@@ -221,6 +221,7 @@ mod tests {
                 value: crate::Value::null(),
                 output: inbound.path().as_bytes().to_vec(),
                 content_type: None,
+                file_body: None,
                 status: Some(self.0),
                 headers: Vec::new(),
                 error: None,

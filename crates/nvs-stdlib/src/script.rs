@@ -1204,6 +1204,13 @@ fn result_of(completion: Completion) -> Value {
         // what that output was declared to be is read by the connection that
         // is answering a peer or by nobody at all.
         content_type: _,
+        // And the file a child named its body, ignored for the declaration's
+        // own reason and with one thing more to say: a `spawn script` child is
+        // not answering a request, so `Core\Response::sendFile` in one wrote the
+        // bytes into the output above rather than leaving a name for a server —
+        // `Ctx::declare_file_body` is where that fork is, and this field is what
+        // the child said on its way past it.
+        file_body: _,
         // Spec § 15's status, ignored on the same reasoning: a `ScriptResult`
         // is not a response, so a child that set one said it to whoever is
         // answering a peer, which a `spawn script`'s collector is not.

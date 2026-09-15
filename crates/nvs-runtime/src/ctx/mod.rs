@@ -1037,6 +1037,22 @@ pub struct Ctx {
     /// **What it spends:** one word per request, and one short allocation per
     /// request that declares — never per write.
     content_type: Option<Box<str>>,
+    /// The file this response's body **is** — `Core\Response::sendFile`, the one
+    /// body member whose bytes never pass through this context.
+    ///
+    /// Beside [`Self::content_type`] because it is the same kind of fact and is
+    /// taken on the same path: a name the finish path lifts onto a
+    /// [`crate::host::Completion`] for whoever is answering. What it holds is a
+    /// path and never the bytes at it, so a response carrying a file of any size
+    /// costs this context one name — the read belongs to the server, which
+    /// streams it under the static policy and answers a range request over it.
+    ///
+    /// `None` on every context that never called that member, which is every
+    /// request answering with what it wrote.
+    ///
+    /// **What it spends:** one word per request, and one short allocation per
+    /// request that sends a file.
+    file_body: Option<Box<std::path::Path>>,
     /// The writing half of a response body being written **over time**, for the
     /// request that opened one — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
     /// streaming response, whose other half the connection is draining.

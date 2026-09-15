@@ -428,6 +428,15 @@ pub struct Completion {
     /// nobody reads it, which is the same shape `Core\Server::isDraining`
     /// takes off a server.
     pub content_type: Option<Box<str>>,
+    /// The file the child declared its body **is** — `Core\Response::sendFile`'s
+    /// path, or `None` where the body is [`Self::output`].
+    ///
+    /// The field above owns the reasoning for both, and this is the one that
+    /// carries a name instead of bytes: whoever answers opens it and streams it
+    /// under the static-file policy, which is what makes a response of any size
+    /// cost one path here. A child that sent a file wrote nothing, so
+    /// [`Self::output`] is empty beside it.
+    pub file_body: Option<Box<std::path::Path>>,
     /// What the child declared this response *means* — spec § 15's status code,
     /// or `None` where nothing set one.
     ///
@@ -836,6 +845,7 @@ mod tests {
                 value: self.0.take().unwrap_or_else(crate::value::Value::null),
                 output: Vec::new(),
                 content_type: None,
+                file_body: None,
                 status: None,
                 headers: Vec::new(),
                 error: None,

@@ -525,6 +525,41 @@ impl Ctx {
         self.content_type.take()
     }
 
+    /// Records the file this response's body is — `Core\Response::sendFile`,
+    /// the one body member that hands over a name instead of bytes.
+    ///
+    /// **Answers whether anything will read it**, which is what makes the
+    /// member's fallback a branch rather than a rule to remember. `true` for a
+    /// context answering an HTTP request: the finish path lifts the name onto a
+    /// [`crate::host::Completion`] and the server streams the file under the
+    /// static policy, so nothing is read here at all. `false` everywhere else —
+    /// a CLI program, a `#[Test]` method, a `.nvst` case, a `spawn script`
+    /// child, none of which is answering a request — and there the member
+    /// writes the bytes into this context's own output, which is
+    /// `nvs_stdlib::response`'s gap 1 for the member whose body is a file.
+    ///
+    /// The request is the question rather than the sink, unlike
+    /// [`Self::carrier`]: a child isolate inside a request takes its parent's
+    /// carrier and answers no response of its own, so a file it sent would
+    /// otherwise reach nobody.
+    ///
+    /// The declaration is made regardless, on [`Self::declare_content_type`]'s
+    /// terms — a word left on a context nobody asks costs a name — so the two
+    /// halves of the answer are one field and never a fact the caller has to
+    /// keep.
+    #[must_use]
+    pub fn declare_file_body(&mut self, path: &std::path::Path) -> bool {
+        self.file_body = Some(path.into());
+        self.inbound.is_some()
+    }
+
+    /// Takes the name away, leaving the context with none — the finish path's
+    /// call beside [`Self::take_content_type`], and the only reader.
+    #[must_use]
+    pub fn take_file_body(&mut self) -> Option<Box<std::path::Path>> {
+        self.file_body.take()
+    }
+
     /// Records the writing half of a response body being written over time —
     /// `Core\Response::stream`, once per request.
     ///

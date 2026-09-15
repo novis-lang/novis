@@ -1114,6 +1114,12 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // and whether that reaches a peer is the collector's call rather than
     // this one's.
     let content_type = isolate_ctx.take_content_type();
+    // `Core\Response::sendFile`'s name, taken beside the declaration that
+    // describes it and on the same paths: a child that named a file and then
+    // threw still named it, and whoever answers is the one deciding whether a
+    // failed request sends one. A name and never the bytes, so this take is the
+    // whole of what a response of any size costs here.
+    let file_body = isolate_ctx.take_file_body();
     // Spec § 15's status, taken on the same paths and for the same reason: a
     // child that threw still said what it said, and a child that set a status
     // and then failed is exactly the case where the declaration matters most.
@@ -1140,6 +1146,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             value: Value::null(),
             output,
             content_type,
+            file_body,
             status,
             headers,
             error: Some(Failure {
@@ -1176,6 +1183,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             value,
             output,
             content_type,
+            file_body,
             status,
             headers,
             error: None,
@@ -1186,6 +1194,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             value: Value::null(),
             output,
             content_type,
+            file_body,
             status,
             headers,
             error: Some(Failure {
@@ -1211,6 +1220,7 @@ pub(crate) fn refused_completion(message: &str) -> Completion {
         value: Value::null(),
         output: Vec::new(),
         content_type: None,
+        file_body: None,
         status: None,
         headers: Vec::new(),
         error: Some(Failure {
@@ -1230,6 +1240,7 @@ pub(crate) fn cancelled_completion() -> Completion {
         value: Value::null(),
         output: Vec::new(),
         content_type: None,
+        file_body: None,
         status: None,
         headers: Vec::new(),
         error: Some(Failure {
