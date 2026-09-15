@@ -5005,6 +5005,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **`echo` inside an in-process request escapes its string**, so a `--EXPECT--` quoting a throw's
   message sees `&quot;` and `&#39;`. Write the message with no `"` and no `'` in it, or expect the
   entities. [until: reviewed 2026-09-15]
+- **A comment added inside a `--FILE--` block moves every line number its `--EXPECTF-ERROR--`
+  pins, and the offset is four: source line 1 is the `<?nvs` on file line 4.** Rewording the
+  prose above the code in
+  `tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst`
+  turned a green case red with a `case.nvs:18` against a `case.nvs:19` and nothing else changed.
+  Keep a comment rewrite the same number of lines when the case pins a diagnostic, or update the
+  expectation in the same edit — and read the failure's `-->` before looking at the message, since
+  the message is what you did not touch. [until: reviewed 2026-09-15]
 
 ## Splitting a file that got too big
 
