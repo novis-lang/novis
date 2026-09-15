@@ -2,51 +2,54 @@
 
 ## State
 
-**Goal `m8-db-queue`, stages 0 and 2 are done.** `docs/decisions/0187.md` is on disk and accepted: it
-decides the parked read per driver, what `serverVersion` answers, null-distinct unique keys on all
-five backends, and where a job's earlier errors live. Its three `designed` rules exist and
-`python tools/rules.py --render` has run, so stage 2's three acceptance checks pass.
+**Goal `m8-db-queue`, stages 0, 2 and 3 are done.** The parked read is on the MySQL wire:
+`crates/nvs-db/src/mysql.rs`'s `MySqlCursor` is the read state split off `MySqlRows`' borrow,
+`next_row_of` is the one row reader both paths drive, and `MySqlConn`/`MariaConn` carry
+`stream`/`stream_next_row`/`stream_columns`/`stream_span`/`name_stream_connection`/`end_stream` over
+a `reading: Option<MySqlCursor>` field. Both resets drain the parked walk before
+`COM_RESET_CONNECTION` goes out. Stage 3's three named tests pass against a scripted server.
 
-**It modifies five fragments, not the four the goal's table names.**
-`rule:core-classes/schema-vocabulary-is-closed` is the fifth, because the v1 exclusion of a partial
-index lives there rather than in `rule:core-classes/schema-plan` — which is what
-`rule:core-classes/queue-storage-is-a-table` had been citing for it, now corrected. `schema-plan` is
-still modified, for the grade the filtered index carries.
+**`Core\Db\Connection::stream` now answers on three drivers.** `crates/nvs-stdlib/src/db/stream.rs`'s
+`mysql_step` and `stream_over` run the walk over `Framed`, which grew the five stream members;
+`unstreamed` and `registry.rs`'s `RuntimeError` card name SQLite and SQL Server as what is left.
 
-No code is touched yet. Stage 1 is goal `m7-server-surface`'s carried floor and is the driver's to
-run. `python tools/records.py --check` was red before this session on `docs/decisions/0186.md` alone —
-two rules whose `because` named it were missing from its `changes:` block — and is now clean.
+**That stdlib half has no runtime proof yet** — no `.nvst` case can reach a MySQL server, and stage 4's
+`db_stream` suite is where it meets one. Nothing is blocked; stage 1 is the carried floor and the
+driver's to run.
 
 ## Next group
 
-**Stage 3: the keystone — a parked read on the MySQL wire** — one file set:
-`crates/nvs-db/src/mysql.rs`, `crates/nvs-db/src/conn.rs`, `crates/nvs-db/src/maria.rs` and
-`crates/nvs-stdlib/src/db/stream.rs`. MySQL and MariaDB share one row loop, so one parked state covers
-both. `rule:core-classes/a-stream-parks-its-read-on-the-connection` is what it must satisfy, and
-`docs/decisions/0187.md` § 1 is the reasoning.
+**Stage 4: the other two drivers park a read** — one file set: `crates/nvs-db/src/tds/rows.rs`,
+`crates/nvs-db/src/tds/mod.rs`, `crates/nvs-db/src/sqlite.rs` and `crates/nvs-db/src/conn.rs`.
+`rule:core-classes/a-stream-parks-its-read-on-the-connection` is what both must satisfy —
+including its SQLite paragraph, which is the user's pinned-thread call — and
+`docs/decisions/0187.md` § 1 is the reasoning. `crates/nvs-db/src/mysql.rs:3239` `MySqlCursor` is the
+shape to copy, with `crates/nvs-db/src/mysql.rs:3390` `next_row_of` as the single row reader.
 
-- [ ] **Split the MySQL read state from the borrow.** `crates/nvs-db/src/mysql.rs:3087` `MySqlRows`
-      holds the wire and the read state together; park the read half on `crates/nvs-db/src/conn.rs:832`
-      `MySqlConn` the way `crates/nvs-db/src/pg.rs:2555` `PgCursor` is parked on `PgConn`, with one row
-      reader serving both paths as `crates/nvs-db/src/pg.rs:2773` `next_row_of` does.
-      `crates/nvs-db/src/conn.rs:439` `State::Streaming` is the refusal
-      (`rule:core-classes/db-connection-busy-state`). Prove it against a scripted server, the way
-      `pg.rs`'s generic `Wire` is proved.
-- [ ] **`stream_step` grows the arm.** `crates/nvs-stdlib/src/db/stream.rs:133` `stream_step` gains a
-      `Connection::MySql`/`MariaDb` arm beside the PostgreSQL one, and
-      `crates/nvs-stdlib/src/db/stream.rs:294` `unstreamed` stops naming PostgreSQL as the only driver
-      that streams.
-- [ ] **The real-server half joins the matrix.** New `crates/nvs-stdlib/tests/db_stream.rs`, gated on
-      `NVS_DB_MATRIX_DRIVER` the way `crates/nvs-stdlib/tests/queue.rs` is, listed in
-      `tools/db-matrix.py:115` `SUITES` — the matrix runs only `nvs-db` and `--test queue` today, so
-      nothing checks a stdlib stream against a server.
+- [ ] **TDS parks its read.** `crates/nvs-db/src/tds/rows.rs:39` `TdsRows` holds the wire and the read
+      state together; split the state off and park it on `crates/nvs-db/src/conn.rs:946` `TdsConn`,
+      with `crates/nvs-db/src/tds/rows.rs:177` `next_row` becoming the free reader both paths drive.
+      `COLMETADATA` is what the cursor carries (`rule:core-classes/a-stream-parks-its-read-on-the-connection`).
+      Prove it against the scripted server `crates/nvs-db/src/tds/stream.rs`'s cases already use:
+      `tds_stream_parks_its_read_and_answers_one_row_per_step`.
+- [ ] **SQLite parks a walk on one pinned thread.** `crates/nvs-db/src/sqlite.rs:595` `query` takes the
+      core back with the rows in hand; a walk instead holds one thread from `nvs-host`'s blocking pool
+      for its life, released when the walk is drained, dropped or its task ends
+      (`rule:core-classes/a-stream-parks-its-read-on-the-connection`, the SQLite paragraph, and the
+      goal's standing decision). `crates/nvs-db/src/conn.rs:997` `SqliteConn` is where the handle sits.
+      Test: `sqlite_stream_parks_its_read_or_names_its_recorded_refusal`.
+- [ ] **The two stdlib arms, and `unstreamed` runs out of drivers.**
+      `crates/nvs-stdlib/src/db/stream.rs:134` `stream_step` gains a `Tds` and a `Sqlite` arm beside
+      `mysql_step`, and `crates/nvs-stdlib/src/db/stream.rs:402` `unstreamed` plus
+      `crates/nvs-stdlib/src/db/registry.rs:2322`'s `RuntimeError` card stop naming a driver that has
+      no parked read (`rule:core-classes/db-streaming`).
 
 ## Backlog
 
-- Stage 4 (SQL Server's token walk and SQLite's pinned thread) is the group after this one —
-  `docs/agent/loop-goal.md` § *Stage 4*.
-- The `errors` entry's message cap that `docs/decisions/0187.md` § 4 requires has no constant yet;
-  stage 7 picks the number beside `crates/nvs-stdlib/src/queue.rs:882` `dead_errors`.
-- Every `— owner: m8-db-queue` tag is still on the tree; stage 10 is what removes them.
-- `docs/agent/loop-goal.md`'s stage anchors run one to three lines off throughout — re-grep rather
-  than trusting them.
+- `crates/nvs-stdlib/tests/db_stream.rs` and `tools/db-matrix.py:115` `SUITES`, plus
+  `tests/conformance/core/db-stream-on-sqlite-walks-its-rows-or-refuses-naming-the-driver.nvst` —
+  stage 4's second and third checks, due once all five drivers park a read.
+- PostgreSQL's `reset` refuses a busy connection (`crates/nvs-db/src/pg.rs:3236`) where MySQL's now
+  drains the parked walk first; decide whether `PgConn::reset` should drain too, in
+  `rule:core-classes/db-connection-busy-state`'s terms.
+- `crates/nvs-stdlib/src/db/mod.rs` gap 3 still owes `streamAs` and `serverVersion` — stage 5's.
