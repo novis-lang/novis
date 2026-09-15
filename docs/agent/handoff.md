@@ -2,46 +2,50 @@
 
 ## State
 
-**Goal `m8-db-queue`, stage 6: the `decimal` half of the row decoders is closed on every wire
-driver.** `nvs_runtime::Decimal::read` is `parse` with its two failures told apart — a literal past
-96 mantissa bits or scale 28, and text that is not a literal at all — and `crates/nvs-db/src/pg.rs`
-`PgColumn::decimal` owns why there are two. Each driver maps them to its own metadata:
-`crates/nvs-db/src/mysql.rs:3200` and `crates/nvs-db/src/tds/value.rs:479` are the same split.
+**Goal `m8-db-queue`, stage 6: `queryAs<T>` has two doors, and the class picks one.** A class
+declaring `Core\Db\Codec`'s `fromRow` and no `#[Db\Derive]` is admitted at the call site by
+`check_row_sites` (`crates/nvs-types/src/derive.rs:779`) and dispatched to at run time by `hydrate`'s
+empty-`db_codec` arm through `hand_written` (`crates/nvs-stdlib/src/db/row.rs:245`), which hands it
+the `Core\Db\Row` a `query` would have answered with. The route is `nvs_runtime::call_static_on`
+(`crates/nvs-runtime/src/dispatch.rs:170`), `call_static`'s half for a caller that already holds the
+descriptor rather than a label.
 
-**A `NUMERIC(30,10)` now names what fixes it.** Past the range the refusal says the column's own type
-is what narrows; the other cause keeps "did not decode as a decimal", which is also where
-PostgreSQL's `NaN` lands — that type has no value for one. Neither message carries the value.
+**The refusal that is left names both doors.** A class carrying neither is still `E0806` while
+compiling and a `LogicError` at run time, and each message now says `fromRow` beside the attribute.
 
-The last handoff flagged `crates/nvs-stdlib/src/db/column.rs` `column_value`'s doc as going stale if
-the split landed a layer down: it holds no sentence about `decimal` at all, so nothing there moved.
-The JSON half closed the session before. Nothing is blocked; stage 1 is the carried floor and the
-driver's to run.
+`nvs_types::derive` gap 2 is **narrowed, not closed**: its subject is the `CodecTy::Opaque` field the
+reader has no case for, which is gap 1's erasure and still open. The paragraph added to it records
+only that a hand-written class is not in it at all — it erases nothing.
+
+Nothing is blocked. Stage 6's other three checks all have their tests on disk; the one item below is
+the whole of what it still owes.
 
 ## Next group
 
-**Stage 6: what `queryAs<T>` does with a class the derive did not write** — one file set:
-`crates/nvs-stdlib/src/db/row.rs`, `crates/nvs-types/src/derive.rs` and `tests/conformance/core/`.
-`rule:core-classes/derive-generates-what-is-missing` owns the first, `rule:core-classes/db-column-types` the second.
+**Stage 6: the conformance half, at both doors** — one file set: `tests/conformance/core/` and
+`crates/nvs-stdlib/src/db/row.rs`. `rule:core-classes/db-column-types` owns the first,
+`rule:core-classes/derive-generates-what-is-missing` the second.
 
-- [ ] **A hand-written `fromRow` is called.** The class carries **no** `#[Db\Derive]` — one that
-      carries both is `E_DERIVE_BOTH_HALVES` at `crates/nvs-types/src/derive.rs:1240`, and
-      `crates/nvs-types/tests/derive.rs:299` is that refusal with the class to copy. So the work is
-      the other door: `crates/nvs-stdlib/src/db/row.rs:123` `hydrate` refuses an empty
-      `desc.db_codec()` as a `LogicError`, and that arm is where a class declaring
-      `Core\Db\Codec`'s `fromRow` is dispatched to instead of refused — ADR 0067 § 9's
-      `docs/decisions/0067.md:283` admits it beside the derived one. `check_row_sites`' `E0806`
-      (`crates/nvs-diagnostics/src/lib.rs:2830`) has to admit it too, or the call never reaches
-      run time. The test is `query_as_calls_a_hand_written_from_row` (`-p nvs-stdlib`), and
-      `crates/nvs-types/src/derive.rs:72-83` gap 2 is closed or struck with what you find.
 - [ ] **`tests/conformance/core/db-query-as-hydrates-a-decimal-an-instant-and-bytes.nvst` is not on
       disk**, and stage 6's `nvs-suite` check names it. What it walks is
-      `crates/nvs-stdlib/src/db/row.rs:322`, `converted`'s three arms for the wire types the erasure
-      gives their own codec type. Its sibling
+      `crates/nvs-stdlib/src/db/row.rs:334`, `converted`'s arms for the three wire types the erasure
+      now gives a codec type of their own. Its sibling
       `tests/conformance/reject/db-query-as-over-an-inline-shape-field-is-refused-while-compiling.nvst`
-      is written and green. The `:memory:` SQLite block a case opens is the playbook's own bullet.
+      is written and green, so copy its header and its `--EXPECTF-ERROR--` neighbours for shape. The
+      `:memory:` SQLite block a case opens is the playbook's own bullet, and it is the only driver a
+      `.nvst` reaches.
+- [ ] **No `.nvst` pins the hand-written door**, which is what this session landed and what no
+      conformance case names. A class with `static fromRow(Core\Db\Row $row): static` and no
+      attribute, over the same `:memory:` block, asserting the member ran — the Rust halves are
+      `crates/nvs-stdlib/src/db/row.rs:1629` `query_as_calls_a_hand_written_from_row` and
+      `crates/nvs-types/tests/derive.rs:805`, and neither reaches a real driver. Not named by a
+      `[[check]]`; take it only after the item above.
 
 ## Backlog
 
+- `nvs_stdlib::json` gap 3 — a hand-written `Core\Json\Codec` is still not consulted — is the same
+  door one format over, and `nvs_runtime::call_static_on` is now the lookup it was missing:
+  `crates/nvs-stdlib/src/json.rs:168`.
 - A literal type is `db_reachable` and erases to `CodecTy::Opaque`, so a well-formed
   `public true $flag;` on a `#[Db\Derive]` class refuses at every `queryAs` —
   `crates/nvs-types/src/derive.rs`'s `codec_ty` catch-all against `db_reachable`'s `Ty::True` row.
