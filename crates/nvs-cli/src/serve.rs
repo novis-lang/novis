@@ -1059,6 +1059,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // of its own (`rule:concurrency/one-scheduler`), it answers one collector at
     // a time, and it runs no Novis code; what it reads is every core's series
     // and never this one's alone.
+    // A build without the feature reaches here with nothing: `scrape_socket`
+    // refused the tree that would have bound a socket, so the `None` this arm is
+    // left with is the only value it can hold.
+    #[cfg(not(feature = "exporter"))]
+    let _ = scrapes;
+    #[cfg(feature = "exporter")]
     if let Some(handle) = scrapes {
         let named = handle.named();
         let mut listener = match handle.accepting() {
@@ -1943,14 +1949,24 @@ fn handles_for(bound: &[Socket], workers: usize) -> std::io::Result<Vec<Vec<Sock
 /// default: the tree would open a port nobody wrote down. `nvs.toml`'s own
 /// commented line is the one to uncomment.
 ///
+/// **A build without the `exporter` feature refuses either protocol here**, which
+/// is [`exporter_not_built`]'s sentence: a tree that configured an exporter has
+/// asked this process for something it has no code for, and answering by serving
+/// nothing would leave an operator watching a collector that never fills. It is
+/// the one refusal this function makes before reading `listen` at all.
+///
 /// # Errors
 ///
-/// The refusal as one line: an exporter with nowhere to answer, an address that
-/// does not resolve, or the platform's own on the bind.
+/// The refusal as one line: an exporter this build cannot run, an exporter with
+/// nowhere to answer, an address that does not resolve, or the platform's own on
+/// the bind.
 fn scrape_socket(config: &nvs_config::Config) -> Result<Option<Socket>, String> {
     let Some(metering) = nvs_config::Metering::of(config) else {
         return Ok(None);
     };
+    if let Some(refusal) = exporter_not_built(metering.exporter, cfg!(feature = "exporter")) {
+        return Err(refusal);
+    }
     if metering.exporter != nvs_config::Exporter::Prometheus {
         return Ok(None);
     }
@@ -1982,6 +1998,33 @@ fn scrape_socket(config: &nvs_config::Config) -> Result<Option<Socket>, String> 
     ))
 }
 
+/// What a build carrying no exporter owes a tree that configured one, or `None`.
+///
+/// `built` is `cfg!(feature = "exporter")` at the one call site, and a parameter
+/// rather than a `#[cfg]` in this body so that the sentence an operator reads is
+/// written once and asserted in the same build everything else here is tested in.
+///
+/// `None` is every build that has the feature, and — because
+/// `nvs_config::Metering::of` already answers `None` for all three ways of writing
+/// `exporter = false` — every tree that asked for nothing. So the refusal is owed
+/// exactly where an operator wrote a protocol that this binary cannot speak, which
+/// is what `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`
+/// asks a featureless build to say rather than start quietly without it.
+fn exporter_not_built(asked: nvs_config::Exporter, built: bool) -> Option<String> {
+    if built {
+        return None;
+    }
+    let protocol = match asked {
+        nvs_config::Exporter::Prometheus => "prometheus",
+        nvs_config::Exporter::Otlp => "otlp",
+    };
+    Some(format!(
+        "`[metrics] exporter` is `{protocol}` and this `nvs` was built without the `exporter` \
+         feature, so it can neither serve a scrape nor push to a collector: run a build that has \
+         the feature, or write `exporter = false`"
+    ))
+}
+
 /// One configuration refusal, rendered with the line it came from.
 fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitCode {
     let mut diags = Diagnostics::new();
@@ -1995,8 +2038,8 @@ mod tests {
     use super::{
         Address, Compiler, Ctx, Inbound, Isolate, Listen, Mounted, Notify, Output, OutputSink,
         Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all, bind_sockets,
-        compiled_under, fall_back_to, handles_for, listening, one_mount, scrape_socket,
-        sweep_orphans, workers_for,
+        compiled_under, exporter_not_built, fall_back_to, handles_for, listening, one_mount,
+        scrape_socket, sweep_orphans, workers_for,
     };
     use std::cell::Cell;
     use std::collections::BTreeMap;
@@ -3519,6 +3562,7 @@ echo Core\Router::{member}("Docs::here", []);
     /// framing parser here: the case is about what the server wrote, and a
     /// keep-alive connection would leave the client waiting out `keepalive` for
     /// bytes it already has.
+    #[cfg(feature = "exporter")]
     #[test]
     fn serve_answers_a_scrape_at_the_metrics_listen_address() {
         let wanted = a_free_address();
@@ -3648,6 +3692,10 @@ echo Core\Router::{member}("Docs::here", []);
     /// The contrast that gives the case above its meaning: what binds nothing is
     /// a tree that asked for nothing, and a tree that asked for an exporter and
     /// forgot where gets told so rather than getting a default.
+    ///
+    /// A build without the `exporter` feature refuses this tree one step earlier
+    /// and for a different reason, which is [`a_build_without_the_exporter_feature_refuses_every_protocol_but_false`]'s.
+    #[cfg(feature = "exporter")]
     #[test]
     fn a_prometheus_exporter_with_no_listen_address_is_refused_at_boot() {
         let refusal = scrape_socket(&config_of("[metrics]\nexporter = \"prometheus\"\n"))
@@ -3655,6 +3703,42 @@ echo Core\Router::{member}("Docs::here", []);
         assert!(
             refusal.contains("`[metrics] listen`"),
             "the refusal did not name the key that is missing: {refusal}"
+        );
+    }
+
+    /// A build carrying no exporter refuses either protocol at boot and names the
+    /// feature, and a tree that asked for nothing is still no refusal at all.
+    ///
+    /// The half of
+    /// `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not` that
+    /// the gate alone cannot show: what a featureless `nvs` *says*. It is asserted
+    /// through [`exporter_not_built`] with `built` written out rather than through
+    /// `scrape_socket`, because the build this suite runs in is the one that has
+    /// the feature — a case behind `#[cfg(not(feature = ...))]` would assert the
+    /// sentence in the only build nobody tests.
+    #[test]
+    fn a_build_without_the_exporter_feature_refuses_every_protocol_but_false() {
+        for asked in [nvs_config::Exporter::Prometheus, nvs_config::Exporter::Otlp] {
+            let refusal = exporter_not_built(asked, false)
+                .expect("a build with no exporter accepted a tree that configured one");
+            assert!(
+                refusal.contains("`exporter` feature"),
+                "the refusal did not name the feature that is missing: {refusal}"
+            );
+            assert!(
+                refusal.contains("`exporter = false`"),
+                "the refusal did not say what to write instead: {refusal}"
+            );
+            assert!(
+                exporter_not_built(asked, true).is_none(),
+                "a build carrying the exporter refused `{asked:?}`"
+            );
+        }
+        assert!(
+            scrape_socket(&config_of("[metrics]\nexporter = false\n"))
+                .expect("a tree asking for no exporter is not a refusal")
+                .is_none(),
+            "`exporter = false` reached the feature's refusal"
         );
     }
 }

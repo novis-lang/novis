@@ -12,6 +12,23 @@ repository.workspace = true
 name = "nvs"
 path = "src/main.rs"
 
+# `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`'s feature,
+# from the binary's end: the encoder is `nvs-server`'s module and this manifest is
+# what decides whether the `nvs` binary carries it. On by default, so the shipped
+# binary is the server one and `--no-default-features` is the command-line-only
+# build; the workspace manifest's comment above `nvs-server` is why the forwarding
+# is spelled here rather than left to that crate's own defaults. `serve.rs`'s
+# `exporter_not_built` is
+# what a build without it answers a tree that configured an exporter, so the two
+# halves of the feature are a compiled-out module and one boot refusal.
+#
+# `cargo check -p nvs-cli --no-default-features --bins` is what proves the second
+# build still compiles. Nothing gates it, and it is the one cargo command in this
+# tree for which `-p` is the point rather than the trap AGENTS.md rule 5 names.
+[features]
+default = ["exporter"]
+exporter = ["nvs-server/exporter"]
+
 [dependencies]
 # ADR 0103's tree and ADR 0078 § 1's snapshot: `nvs run` is the first caller
 # that resolves a real `nvs.toml`, and `LocalFiles` in `config.rs` owns which of

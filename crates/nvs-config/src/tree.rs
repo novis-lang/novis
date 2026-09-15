@@ -1050,7 +1050,7 @@ pub struct Metrics {
     pub listen: Option<String>,
     /// The OTLP collector URL.
     ///
-    /// [unread: no exporter is built, so nothing pushes to this; the `opentelemetry-otlp` dependency that would is not in the workspace. owner: rule:observability/the-exporters-are-crates]
+    /// [unread: the scrape half of the exporter is built and the push half is not, so nothing reaches this; the `opentelemetry-otlp` dependency that would is not in the workspace. owner: rule:observability/the-exporters-are-crates]
     pub endpoint: Option<String>,
     /// Per core (§ 7).
     pub max_series: Option<u64>,

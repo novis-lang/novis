@@ -51,7 +51,13 @@ nvs-codegen = { path = "crates/nvs-codegen", version = "0.0.1" }
 nvs-render = { path = "crates/nvs-render", version = "0.0.1" }
 nvs-runtime = { path = "crates/nvs-runtime", version = "0.0.1" }
 nvs-host = { path = "crates/nvs-host", version = "0.0.1" }
-nvs-server = { path = "crates/nvs-server", version = "0.0.1" }
+# The one internal entry that turns a member's defaults off. `nvs-server`'s
+# `exporter` is the workspace's only feature, and turning it off here is what makes
+# the dependent's own feature the single switch for it: `nvs-cli` is the only
+# dependent, its `exporter` — on by default — forwards to this one, and
+# `cargo tree -p nvs-cli --no-default-features -f "{p} feats={f}"` is what shows
+# the crate then reached with no features at all.
+nvs-server = { path = "crates/nvs-server", version = "0.0.1", default-features = false }
 nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
 nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
