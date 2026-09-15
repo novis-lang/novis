@@ -4002,7 +4002,8 @@ def git(*args):
 #:   wall-timeout    a usage window that does not reopen inside --max-limit-wait
 #:   cli-failed      --max-retries consecutive non-zero exits from the CLI
 #:   done-claim      a session claimed DONE that the acceptance test does not agree with, and
-#:                   the retry session `DONE_RETRIES` grants did too, or the goal is out of retries
+#:                   the retry session failed the same check it was handed, or the goal is out
+#:                   of `DONE_RETRIES`
 #:   blocked         a session wrote BLOCKED
 #:   stalled         --max-stalls sessions in a row produced no commit
 #:   interrupted     Ctrl-C
@@ -5314,12 +5315,24 @@ def doc_gate(index):
 #: three of the four were one session's work. The sweep's failing line is already in the next
 #: pack (`orient.py` reads it from the ledger), so a retry costs one session and no one's hand.
 #:
-#: Bounded twice, and both bounds are needed. A retry whose own DONE fails holds the run: the
-#: same question asked twice is the coordinator's rule for a hand, and a session that could not
-#: fix it with the line in front of it is not going to on a third read. And a goal gets this many
-#: in total, because a DONE claimed early and refused, then CONTINUEd, then claimed and refused
-#: again is a session pair per cycle with no bound but this one.
+#: Bounded twice, and both bounds are needed. A retry whose own DONE fails on the check it was
+#: handed holds the run: the same question asked twice is the coordinator's rule for a hand, and
+#: a session that could not fix it with the line in front of it is not going to on a third read.
+#: A retry that closed its check and fell to a *different* one is not that: the sweep stops at
+#: the first red check, so a goal several checks short of green meets them one per sweep, and
+#: each is a new question a fresh session answers as well as a hand would. And a goal gets this
+#: many in total, because a DONE claimed early and refused, then CONTINUEd, then claimed and
+#: refused again is a session pair per cycle with no bound but this one -- and so is a chain of
+#: sweeps that each fall to a new check.
 DONE_RETRIES = 3
+
+
+def check_of(fail):
+    """The check a `goal check:` line names -- its `name [stage]` label, which every failure line
+    opens with -- so two sweeps that died on the same check compare equal whatever the detail
+    after the label said: a different needle, a different test name, a timeout."""
+    head, sep, _ = fail.partition("]: ")
+    return head + "]" if sep else fail
 
 
 def drive(opts, goal, chain):
@@ -5330,9 +5343,10 @@ def drive(opts, goal, chain):
 
     stalls = 0
     fails = 0
-    # The DONE-claim retries this goal has spent, and whether the session that just ended was one.
+    # The DONE-claim retries this goal has spent, and the check the session that just ended was
+    # handed as one -- "" when it was not a retry.
     done_retries = 0
-    retrying = False
+    retry_check = ""
     reason = f"hit --max-sessions ({opts.max_sessions})"
     kind = "budget"
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}"
@@ -5656,7 +5670,7 @@ def drive(opts, goal, chain):
             # reading rather than committing. Its DONE-claim retries start over for the same reason.
             stalls = 0
             done_retries = 0
-            retrying = False
+            retry_check = ""
             try:
                 goal = load_goal()
             except (tomllib.TOMLDecodeError, GoalError) as e:
@@ -5672,21 +5686,32 @@ def drive(opts, goal, chain):
         # A `DONE` held only by the rustdoc gate is not a wrong claim, just an unfinished one: the
         # next session gets the finding in its pack and fixes it, with no one to wake.
         #
-        # A `DONE` the sweep refuses gets the same treatment once: the failing check is in the
-        # next pack, so one fresh session is given it before a hand is asked. The hand is asked
-        # when that session's own DONE fails too, or when the goal has spent `DONE_RETRIES`.
-        was_retry = retrying
-        retrying = False
+        # A `DONE` the sweep refuses gets the same treatment: the failing check is in the next
+        # pack, so a fresh session is given it before a hand is asked. The hand is asked when the
+        # retry's own DONE fails on the check it was handed -- the same question asked twice --
+        # or when the goal has spent `DONE_RETRIES`. A retry that closed its check and fell to a
+        # different one made progress, and the new check is a new question for a new session.
+        handed = retry_check
+        retry_check = ""
         if line.startswith("DONE") and fail:
-            if was_retry or done_retries >= DONE_RETRIES:
-                reason = f"session reported DONE but the acceptance test does not pass yet: {line}"
+            failing = check_of(fail)
+            if failing == handed:
+                reason = (f"session reported DONE but the acceptance test does not pass yet, and "
+                          f"the retry failed the check it was handed, `{failing}`: {line}")
+                kind = "done-claim"
+                break
+            if done_retries >= DONE_RETRIES:
+                reason = (f"session reported DONE but the acceptance test does not pass yet, and "
+                          f"the goal has spent its {DONE_RETRIES} retries: {line}")
                 kind = "done-claim"
                 break
             done_retries += 1
-            retrying = True
+            retry_check = failing
+            progress = (f"; the retry closed `{handed}` and fell to a different check, "
+                        f"so it is a new question" if handed else "")
             retried = (f"done-claim retried: the DONE above failed its sweep, and one session "
                        f"gets the failing check before a hand is asked "
-                       f"({done_retries} of {DONE_RETRIES} on this goal)")
+                       f"({done_retries} of {DONE_RETRIES} on this goal){progress}")
             step(retried, C.YELLOW)
             ledger(f"       {retried}")
         if line.startswith("BLOCKED"):
