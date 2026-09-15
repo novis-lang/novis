@@ -259,12 +259,11 @@ const KEY_WIDTH: u32 = 255;
 /// the column those two constructs each *derive*: a plain `dedupe_pending` that the statements
 /// maintain, holding `dedupe_key` while the job is pending and `null` once it is not, with a plain
 /// unique key over it. That is `where state = 0` said on the other side, and a null collides with
-/// nothing on the four backends whose unique keys read nulls as distinct — so the guarantee gap 3
-/// names is the same one on every backend `Core\Queue` can run a statement against.
-/// **SQL Server reads two nulls as equal** and so admits one released row rather than any number of
-/// them; it has no queue statements at all ([`no_dialect`]), and the day it gains them the answer is
-/// the filtered index `rule:core-classes/schema-plan` keeps out of v1, which is what the vocabulary
-/// would have to grow first.
+/// nothing on any of the five: four read a unique key's nulls as distinct outright, and SQL Server
+/// reads two nulls as equal but never sees this key as a constraint at all —
+/// `rule:core-classes/a-unique-key-reads-nulls-as-distinct` is the filtered index `nvs_db::ddl`
+/// writes in the constraint's place there. So the guarantee gap 3 names is the same one on every
+/// backend `Core\Queue` runs a statement against, and it is one sentence rather than four.
 ///
 /// **A nullable column rather than a `not null` one with a sentinel**, which is what SQL Server
 /// would otherwise want: a `not null` unique column needs a distinct value per released row, so
@@ -700,6 +699,35 @@ pub const INSERT_SQLITE: Split = Split {
            values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
 };
 
+/// The same enqueue in T-SQL, as a [`Split`] for [`INSERT_MYSQL`]'s reason and one of its own.
+///
+/// **A common table expression cannot carry a data-modifying statement here**, so
+/// [`INSERT_POSTGRES`]'s single text has no transcription at all: the dedupe read and the insert are
+/// two statements in one transaction, exactly as the second dialect runs them, and the transaction
+/// is what makes them one moment.
+///
+/// **`updlock, holdlock` is what `for update` is over a row that does not exist yet.** The dedupe
+/// read is a read of an *absence* — nothing is pending under this key — and an ordinary lock has
+/// nothing to take, so a second enqueue of the same key would pass the same read and reach the same
+/// insert. `holdlock` is serializable range locking over `nvs_jobs_dedupe`, which locks the gap the
+/// key would occupy, and [`INSERT_MYSQL`]'s doc owns why that cost is paid on a keyed push alone.
+///
+/// **`output inserted.id` rather than a second read**, because this driver's answer to
+/// "what id did that insert take" is a row the insert itself returns: `scope_identity()` is another
+/// statement on a connection this member is already holding inside a transaction, and an identity
+/// read that is a statement apart from its insert is a thing a session has to keep right forever.
+/// Every bound value is declared `nvarchar` (`nvs_db::tds`'s § 5), so each one the column table
+/// types as a number is cast where it is written — the same job [`INSERT_POSTGRES`]'s `::` casts do.
+pub const INSERT_SQLSERVER: Split = Split {
+    first: "select top 1 id from nvs_jobs with (updlock, holdlock) where dedupe_pending = @p1",
+    then: "insert into nvs_jobs \
+           (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
+           dedupe_pending, created_at, tag) \
+           output inserted.id \
+           values (@p1, @p2, @p3, cast(@p4 as smallint), 0, cast(@p5 as int), \
+           cast(@p6 as bigint), cast(@p7 as bigint), @p8, @p9, cast(@p10 as bigint), @p11)",
+};
+
 /// [`CLAIM_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
 /// **The `select` answers [`CLAIM_POSTGRES`]'s `returning` list, in its order**, so a worker reads
@@ -761,6 +789,40 @@ pub const CLAIM_SQLITE: Split = Split {
            dedupe_pending = null where id = ?",
 };
 
+/// `rule:concurrency/claiming-is-one-statement`'s claim in T-SQL, and one statement rather than a
+/// [`Split`] — which is the one place this dialect follows [`CLAIM_POSTGRES`] where the enqueue
+/// beside it could not.
+///
+/// **A common table expression is updatable here even though it cannot insert**, so the shape
+/// [`CLAIM_POSTGRES`] takes survives the crossing: the reader picks the one due row and the update
+/// marks it, in a single statement the server cannot be interrupted inside. What crosses with it is
+/// the ordering — `order by run_at, id` needs a `top` to be legal inside a CTE, and one row is what
+/// a claim takes anyway.
+///
+/// **`updlock, readpast, rowlock` is `for update skip locked` in this dialect's spelling**, and the
+/// three hints are one decision: `updlock` takes the lock the update is about to need, `readpast`
+/// steps over a row another worker already holds rather than queueing behind it, and `rowlock`
+/// keeps the engine from escalating to a page and stepping over rows nobody holds. Without
+/// `readpast` every worker in a fleet serialises on the oldest due row, which is the failure
+/// `rule:concurrency/claiming-is-one-statement` exists to refuse.
+///
+/// **`output inserted.<column>` answers the list a `returning` does**, and the columns are the ones
+/// `crates/nvs-cli/src/worker.rs` reads by position — `inserted` is the row *after* the update, so
+/// `attempts` is the incremented count, which is what the other dialects answer too. The CTE names
+/// every column the update writes or the output reads, because `inserted` over an updated CTE
+/// carries that CTE's columns and no others.
+pub const CLAIM_SQLSERVER: &str = "with due as (\
+     select top 1 id, script, args, state, attempts, max_attempts, backoff_ms, run_at, claimed_at, \
+     dedupe_pending from nvs_jobs with (updlock, readpast, rowlock) \
+     where queue = @p1 \
+     and ((state = 0 and run_at <= cast(@p2 as bigint)) \
+     or (state = 1 and claimed_at <= cast(@p3 as bigint))) \
+     order by run_at, id\
+ ) update due set state = 1, attempts = attempts + 1, claimed_at = cast(@p2 as bigint), \
+   dedupe_pending = null \
+   output inserted.id, inserted.script, inserted.args, inserted.attempts, \
+   inserted.max_attempts, inserted.backoff_ms";
+
 /// [`DEAD_LETTER_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
 /// **The copy runs before the delete, which is the reverse of PostgreSQL's order**, and it is the
@@ -801,6 +863,28 @@ pub const DEAD_LETTER_MYSQL: Split = Split {
 /// transaction every [`Split`] on this backend runs inside ([`CLAIM_SQLITE`]).
 pub const DEAD_LETTER_SQLITE: Split = DEAD_LETTER_MYSQL;
 
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s move in T-SQL, as the pair the
+/// second dialect runs rather than the `delete … output … into` this one could spell.
+///
+/// **The copy is written from the table it is read from**, which is the whole of why the pair is
+/// safe to split: both halves are keyed on the lease as well as on the id, so a row another worker
+/// has since re-claimed matches neither, and the transaction around them is what makes the insert
+/// and the delete one moment. A `delete … output deleted.* into nvs_dead_jobs` would be one
+/// statement and is refused for a plainer reason than elegance: the two columns the dead-letter row
+/// adds are not columns of the row being deleted, so the shape that reads as one statement is one
+/// statement with two of its values smuggled through an `output` expression list, and the pair
+/// [`DEAD_LETTER_MYSQL`] already proves is the same work said once.
+pub const DEAD_LETTER_SQLSERVER: Split = Split {
+    first: "insert into nvs_dead_jobs \
+            (id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
+            dedupe_key, created_at, failed_at, errors) \
+            select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
+            dedupe_key, created_at, cast(@p1 as bigint), @p2 from nvs_jobs \
+            where id = cast(@p3 as bigint) and claimed_at = cast(@p4 as bigint)",
+    then: "delete from nvs_jobs where id = cast(@p1 as bigint) \
+           and claimed_at = cast(@p2 as bigint)",
+};
+
 /// [`QUEUES_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
 /// **Not a [`Split`], for [`STATUS_MYSQL`]'s reason**: a `select distinct` over one table with two
@@ -818,6 +902,13 @@ pub const QUEUES_MYSQL: &str = "select distinct queue from nvs_jobs \
 /// arms, in a placeholder spelling both backends share. [`DEAD_LETTER_SQLITE`] owns why an alias
 /// and not a copy.
 pub const QUEUES_SQLITE: &str = QUEUES_MYSQL;
+
+/// The same roster in T-SQL: [`QUEUES_POSTGRES`] with this dialect's markers, and a cast at each of
+/// them because a bound value arrives declared `nvarchar` and both columns it is compared against
+/// are `bigint`.
+pub const QUEUES_SQLSERVER: &str = "select distinct queue from nvs_jobs \
+    where (state = 0 and run_at <= cast(@p1 as bigint)) \
+    or (state = 1 and claimed_at <= cast(@p2 as bigint))";
 
 /// [`SUCCEEDED_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
@@ -840,6 +931,12 @@ pub const SUCCEEDED_MYSQL: &str = "update nvs_jobs set state = 2, claimed_at = n
 /// It is one statement, so it needs no transaction of its own: what stage 2's rule requires a
 /// transaction for is a pair.
 pub const SUCCEEDED_SQLITE: &str = SUCCEEDED_MYSQL;
+
+/// The same write-back in T-SQL, keyed on the lease as every dialect's is: a worker that lost its
+/// row to the visibility timeout writes nothing, because `claimed_at` moved under it.
+pub const SUCCEEDED_SQLSERVER: &str = "update nvs_jobs set state = 2, claimed_at = null, \
+    dedupe_pending = null \
+    where id = cast(@p1 as bigint) and claimed_at = cast(@p2 as bigint)";
 
 /// [`RETRY_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
@@ -867,6 +964,13 @@ pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, claime
 /// `queue_statements_agree_with_the_state_enum` holds it against the enum without a third list to
 /// read.
 pub const RETRY_SQLITE: &str = RETRY_MYSQL;
+
+/// The same re-arming in T-SQL, and it takes [`RETRY_POSTGRES`]'s numbering rather than
+/// [`RETRY_MYSQL`]'s: a marker here carries its own number, so the values go out in the order the
+/// keyed dialect sends them and the new `run_at` is the third of them rather than the first.
+pub const RETRY_SQLSERVER: &str = "update nvs_jobs set state = 0, run_at = cast(@p3 as bigint), \
+    claimed_at = null, dedupe_pending = dedupe_key \
+    where id = cast(@p1 as bigint) and claimed_at = cast(@p2 as bigint)";
 
 /// § 6's `errors` array, as [`DEAD_LETTER_POSTGRES`] binds it: one entry, the attempt that exhausted the job.
 ///
@@ -1001,6 +1105,21 @@ pub const STATUS_MYSQL: &str = "select state from nvs_jobs \
 /// arms never hold it at the same moment anyway.
 pub const STATUS_SQLITE: &str = STATUS_MYSQL;
 
+/// The same reader in T-SQL, with the bound of the union outside it.
+///
+/// `select top 1 … union all …` bounds the first arm alone in this dialect, where `limit` after the
+/// last arm bounds the whole of it in the other two, so the union is a derived table and the `top`
+/// is over that. The arm over the dead-letter table answers the `Dead` ordinal as a literal for
+/// [`STATUS_POSTGRES`]'s reason: a row is dead by being in that table, and the union's first arm is
+/// what names the column both arms are read as.
+pub const STATUS_SQLSERVER: &str = "select top 1 state from (\
+     select state from nvs_jobs \
+     where id = cast(@p1 as bigint) and queue = @p2 \
+     union all \
+     select 3 from nvs_dead_jobs \
+     where id = cast(@p1 as bigint) and queue = @p2\
+ ) as found";
+
 /// `rule:concurrency/queue-four-members`'s `cancel`, as one conditional update.
 ///
 /// **`and state = 0` is the whole of the member's semantics, and it is in the statement rather than
@@ -1046,6 +1165,12 @@ pub const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4, dedupe_pending = 
 /// It is one statement, so it needs no transaction of its own: the reading is the `where`, which is
 /// [`CANCEL_POSTGRES`]'s reason unchanged rather than a property of this backend.
 pub const CANCEL_SQLITE: &str = CANCEL_MYSQL;
+
+/// The same cancel in T-SQL, decided by the statement and read off the affected count — this driver
+/// has an `output` clause to answer with and does not use it, because what the member owes is
+/// whether one row moved and every dialect but the first already answers that with a count.
+pub const CANCEL_SQLSERVER: &str = "update nvs_jobs set state = 4, dedupe_pending = null \
+    where id = cast(@p1 as bigint) and queue = @p2 and state = 0";
 
 /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `delete`, as one statement over both
 /// of § 2's tables.
@@ -1154,6 +1279,15 @@ pub const DELETE_MYSQL: &str = "delete j, d \
 pub const DELETE_SQLITE: Split = Split {
     first: "delete from nvs_jobs where id = ? and queue = ? and state <> 1",
     then: "delete from nvs_dead_jobs where id = ? and queue = ?",
+};
+
+/// The same receipt-shaped delete in T-SQL, as the pair [`DELETE_SQLITE`] is: a CTE cannot delete
+/// here, and the multi-table `delete j, d` [`DELETE_MYSQL`] spells is MySQL's alone, so what is
+/// left is one statement per table inside one transaction. Both halves bind the same two values,
+/// and the arm over the dead-letter table names no ordinal at all for [`DELETE_SQLITE`]'s reason.
+pub const DELETE_SQLSERVER: Split = Split {
+    first: "delete from nvs_jobs where id = cast(@p1 as bigint) and queue = @p2 and state <> 1",
+    then: "delete from nvs_dead_jobs where id = cast(@p1 as bigint) and queue = @p2",
 };
 
 /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `purge` over [`JOBS_TABLE`]: the
@@ -1287,6 +1421,23 @@ pub const PURGE_SQLITE: &str = "delete from nvs_jobs where id in (\
      order by id limit ?\
  )";
 
+/// The same bounded purge in T-SQL: [`PURGE_POSTGRES`]'s subquery with `top` where that one writes
+/// `limit`, which is the only difference the shape has. `top` takes an expression in parentheses,
+/// so the bound is still the caller's and still bound rather than pasted.
+///
+/// The optional filters are one marker each rather than the pair [`PURGE_MYSQL`] needs, because a
+/// marker here carries its own number: `@p2 is null` and `state = cast(@p2 as smallint)` are the
+/// same value read twice, which is what makes this dialect's bound array
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s five values rather than nine.
+pub const PURGE_SQLSERVER: &str = "delete from nvs_jobs where id in (\
+     select top (cast(@p5 as bigint)) id from nvs_jobs \
+     where queue = @p1 and state <> 1 \
+     and ((@p2 is null and state in (2, 4)) or state = cast(@p2 as smallint)) \
+     and (@p3 is null or tag = @p3) \
+     and (@p4 is null or created_at < cast(@p4 as bigint)) \
+     order by id\
+ )";
+
 /// [`PURGE_SQLITE`]'s `state: Dead` selection, which is a different table and therefore a different
 /// statement, carrying that constant's bound and [`PURGE_DEAD_MYSQL`]'s six slots for the four
 /// values [`PURGE_DEAD_POSTGRES`] binds.
@@ -1299,6 +1450,16 @@ pub const PURGE_DEAD_SQLITE: &str = "delete from nvs_dead_jobs where id in (\
      and (? is null or tag = ?) \
      and (? is null or created_at < ?) \
      order by id limit ?\
+ )";
+
+/// The purge's other table in T-SQL, and what it does not carry is the point: there is no state to
+/// filter on, because being in this table is what `Dead` is.
+pub const PURGE_DEAD_SQLSERVER: &str = "delete from nvs_dead_jobs where id in (\
+     select top (cast(@p4 as bigint)) id from nvs_dead_jobs \
+     where queue = @p1 \
+     and (@p2 is null or tag = @p2) \
+     and (@p3 is null or created_at < cast(@p3 as bigint)) \
+     order by id\
  )";
 
 /// `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s `stats`, as one aggregate over one queue.
@@ -1363,6 +1524,121 @@ pub const COUNTS_MYSQL: &str = "select \
 /// and a numeric cast of an integer is that integer. An inert cast is not a dialect difference,
 /// which is what keeps this one text rather than two.
 pub const COUNTS_SQLITE: &str = COUNTS_MYSQL;
+
+/// The same four counters in T-SQL, each widened to the type the other three answer in.
+///
+/// **`count` is `int` on this backend alone**, and `sum` over an `int` column is an `int` that
+/// overflows at a depth a busy queue reaches, so the widening is a correctness fix rather than a
+/// tidiness one: `attempts` is cast before it is summed, and the counters after it so that all four
+/// values arrive as one type whichever backend answered. `rule:core-classes/db-one-api`'s one API
+/// is what that buys — a program reading `stats` reads the same value everywhere.
+pub const COUNTS_SQLSERVER: &str = "select \
+    cast(count(case when state = 0 then 1 end) as bigint), \
+    cast(count(case when state = 1 then 1 end) as bigint), \
+    coalesce(sum(cast(attempts as bigint)), 0), \
+    (select cast(count(*) as bigint) from nvs_dead_jobs where queue = @p1) \
+    from nvs_jobs where queue = @p1";
+
+/// Every statement the queue sends on one driver, as `(member, sql)`, each [`Split`] flattened to
+/// its two halves.
+///
+/// **One roster rather than a list per case that wants one**, which is the same argument the
+/// statements themselves make: a member added to the queue is covered by every property asserted
+/// over this list on the day it lands, rather than on the day somebody remembers to extend a
+/// literal. The match is exhaustive for [`runs`]'s reason — a sixth driver is a build failure here
+/// instead of a roster that silently answers for four of five.
+///
+/// `pub` for the reason [`CLAIM_POSTGRES`] is: `crates/nvs-stdlib/tests/queue.rs` asks this crate
+/// what it sends, and a test target is another crate. What it answers is the text alone, so a
+/// reader cannot mistake it for a way to send one.
+#[must_use]
+pub fn texts(driver: nvs_db::Driver) -> Vec<(&'static str, &'static str)> {
+    fn flattened(
+        pairs: &[(&'static str, Split)],
+        singles: &[(&'static str, &'static str)],
+    ) -> Vec<(&'static str, &'static str)> {
+        let mut texts: Vec<(&'static str, &'static str)> = Vec::new();
+        for (member, split) in pairs {
+            texts.push((*member, split.first));
+            texts.push((*member, split.then));
+        }
+        texts.extend_from_slice(singles);
+        texts
+    }
+    match driver {
+        nvs_db::Driver::Postgres => flattened(
+            &[],
+            &[
+                ("push", INSERT_POSTGRES),
+                ("claim", CLAIM_POSTGRES),
+                ("move", DEAD_LETTER_POSTGRES),
+                ("delete", DELETE_POSTGRES),
+                ("status", STATUS_POSTGRES),
+                ("cancel", CANCEL_POSTGRES),
+                ("stats", COUNTS_POSTGRES),
+                ("roster", QUEUES_POSTGRES),
+                ("succeeded", SUCCEEDED_POSTGRES),
+                ("retry", RETRY_POSTGRES),
+                ("purge", PURGE_POSTGRES),
+                ("purge dead", PURGE_DEAD_POSTGRES),
+            ],
+        ),
+        nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => flattened(
+            &[
+                ("push", INSERT_MYSQL),
+                ("claim", CLAIM_MYSQL),
+                ("move", DEAD_LETTER_MYSQL),
+            ],
+            &[
+                ("delete", DELETE_MYSQL),
+                ("status", STATUS_MYSQL),
+                ("cancel", CANCEL_MYSQL),
+                ("stats", COUNTS_MYSQL),
+                ("roster", QUEUES_MYSQL),
+                ("succeeded", SUCCEEDED_MYSQL),
+                ("retry", RETRY_MYSQL),
+                ("purge", PURGE_MYSQL),
+                ("purge dead", PURGE_DEAD_MYSQL),
+            ],
+        ),
+        nvs_db::Driver::Sqlite => flattened(
+            &[
+                ("push", INSERT_SQLITE),
+                ("claim", CLAIM_SQLITE),
+                ("move", DEAD_LETTER_SQLITE),
+                ("delete", DELETE_SQLITE),
+            ],
+            &[
+                ("status", STATUS_SQLITE),
+                ("cancel", CANCEL_SQLITE),
+                ("stats", COUNTS_SQLITE),
+                ("roster", QUEUES_SQLITE),
+                ("succeeded", SUCCEEDED_SQLITE),
+                ("retry", RETRY_SQLITE),
+                ("purge", PURGE_SQLITE),
+                ("purge dead", PURGE_DEAD_SQLITE),
+            ],
+        ),
+        nvs_db::Driver::SqlServer => flattened(
+            &[
+                ("push", INSERT_SQLSERVER),
+                ("move", DEAD_LETTER_SQLSERVER),
+                ("delete", DELETE_SQLSERVER),
+            ],
+            &[
+                ("claim", CLAIM_SQLSERVER),
+                ("status", STATUS_SQLSERVER),
+                ("cancel", CANCEL_SQLSERVER),
+                ("stats", COUNTS_SQLSERVER),
+                ("roster", QUEUES_SQLSERVER),
+                ("succeeded", SUCCEEDED_SQLSERVER),
+                ("retry", RETRY_SQLSERVER),
+                ("purge", PURGE_SQLSERVER),
+                ("purge dead", PURGE_DEAD_SQLSERVER),
+            ],
+        ),
+    }
+}
 
 /// A [`ID`]'s first slot: the primary key the insert returned.
 const ID_SLOT: &str = "id";
@@ -2451,13 +2727,13 @@ enum Queued<'a> {
 /// driver arriving here lacks is § 4's and § 6's texts: [`INSERT_POSTGRES`] and [`INSERT_MYSQL`] are
 /// the two this module holds, and [`queue_connection`] is the seam that reaches them.
 ///
-/// **SQL Server is the one driver this answers for, and what it waits on is two things rather than
-/// one.** The order is `rule:core-classes/queue-storage-is-a-table`'s own: two nulls are equal
-/// there, so `dedupe_pending`'s plain unique key admits one released row rather than any number of
-/// them, and the vocabulary grows the filtered index `rule:core-classes/schema-plan` keeps out of v1
-/// before a fourth dialect is written against it. An operator told that statements are the only
-/// thing left would be waiting on half of what SQL Server needs, which is why the sentence names
-/// both.
+/// **SQL Server is the one driver this answers for, and what it waits on is the send path alone.**
+/// Both of the things that were ahead of it have landed: `dedupe_pending`'s unique key is the
+/// filtered index `nvs_db::ddl` writes there, so a released row collides with nothing
+/// (`rule:core-classes/a-unique-key-reads-nulls-as-distinct`), and § 4's texts are written in this
+/// dialect too ([`INSERT_SQLSERVER`] and the rest of [`texts`]'s roster). What is missing is the arm
+/// that reaches them — [`queue_connection`] has none for this driver — so the sentence may say the
+/// statements are unsent and may not say they are unwritten.
 ///
 /// Every arm is spelled rather than left to a `_`, so a sixth driver arrives as a build failure here
 /// instead of as whichever sentence happens to be written last. [`runs`] is the roster the last arm
@@ -2465,10 +2741,10 @@ enum Queued<'a> {
 fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
     let missing = match driver {
         nvs_db::Driver::SqlServer => {
-            "and the queue has no statements for it yet — `nvs queue migrate` converges \
-             `rule:core-classes/queue-storage-is-a-table`'s tables here, but this backend reads two nulls as equal, so \
-             `dedupe_pending`'s unique key needs a filtered index the schema vocabulary does not \
-             hold yet and § 4's statements are written after it"
+            "and the queue sends it no statement yet — `nvs queue migrate` converges \
+             `rule:core-classes/queue-storage-is-a-table`'s tables here and § 4's statements are \
+             written in this dialect, so what is left is the path that sends them and nothing \
+             about the schema"
         }
         // Unreachable: [`queue_connection`] matches every one of these out before it asks.
         nvs_db::Driver::Postgres
@@ -4001,18 +4277,18 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL_MYSQL, CANCEL_POSTGRES, CANCEL_SQLITE, CLAIM_MYSQL, CLAIM_POSTGRES, CLAIM_SQLITE,
-        CLASS, COUNTS_MYSQL, COUNTS_POSTGRES, COUNTS_SQLITE, DEAD_LETTER_MYSQL,
-        DEAD_LETTER_POSTGRES, DEAD_LETTER_SQLITE, DEAD_TABLE, DEFAULT_PURGE_LIMIT, DELETE_MYSQL,
-        DELETE_POSTGRES, DELETE_SQLITE, Fault, INSERT_MYSQL, INSERT_POSTGRES, INSERT_SQLITE,
-        JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE, PURGE_MYSQL,
-        PURGE_POSTGRES, PURGE_SQLITE, PURGE_STATE_ARG, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES,
-        QUEUES_SQLITE, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, RETRY_SQLITE, STATE, STATS,
-        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
-        STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL,
-        STATUS_POSTGRES, STATUS_SQLITE, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, SUCCEEDED_SQLITE,
-        Selection, Split, ThrownClass, Value, dead_errors, migration, no_dialect, purge_state_of,
-        purge_texts, retry_at,
+        CANCEL_MYSQL, CANCEL_POSTGRES, CANCEL_SQLITE, CANCEL_SQLSERVER, CLAIM_MYSQL,
+        CLAIM_POSTGRES, CLAIM_SQLITE, CLAIM_SQLSERVER, CLASS, COUNTS_MYSQL, COUNTS_POSTGRES,
+        COUNTS_SQLITE, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_LETTER_SQLSERVER, DEAD_TABLE,
+        DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES, DELETE_SQLITE, Fault, INSERT_MYSQL,
+        INSERT_POSTGRES, INSERT_SQLSERVER, JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL,
+        PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE, PURGE_MYSQL, PURGE_POSTGRES, PURGE_SQLITE,
+        PURGE_STATE_ARG, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL,
+        RETRY_POSTGRES, RETRY_SQLSERVER, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
+        STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT,
+        STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE, STATUS_SQLSERVER,
+        SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, SUCCEEDED_SQLSERVER, Selection, Split, ThrownClass,
+        Value, dead_errors, migration, no_dialect, purge_state_of, purge_texts, retry_at,
     };
     use super::{NAME, PURGE_DOC, PUSH_DOC};
     use crate::registry::{CAPABILITIES, Const, CoreTy};
@@ -4043,14 +4319,12 @@ mod tests {
     /// five drivers here — so a driver gaining a statement path in that module moves this refusal
     /// with it, and a sixth arriving fails the build in [`no_dialect`] before it reaches this test.
     ///
-    /// **Which gap the sentence names is the thing under test**, and there are two of them. Every
-    /// driver has § 2's schema — [`migration`] emits it in whichever dialect the driver speaks — so
-    /// no refusal may send an operator off to build tables `nvs queue migrate` already converges,
-    /// and the only thing left to wait on is § 4's statements. For SQL Server there is a second
-    /// thing behind them, which `rule:core-classes/queue-storage-is-a-table` orders: two nulls are
-    /// equal there, so the vocabulary grows a filtered index before the fourth dialect is written.
-    /// The sentence has to say so, because an operator who reads only the first half will expect
-    /// the queue with the next release.
+    /// **Which gap the sentence names is the thing under test.** Every driver has § 2's schema —
+    /// [`migration`] emits it in whichever dialect the driver speaks — so no refusal may send an
+    /// operator off to build tables `nvs queue migrate` already converges, and the only thing left
+    /// to wait on is § 4's statements. For the one driver this answers for those are written as
+    /// well ([`super::texts`]), so the sentence may not claim otherwise either: what is unbuilt is
+    /// the path that sends them, and an operator reading anything else waits for the wrong release.
     #[test]
     fn the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send() {
         for driver in nvs_db::Driver::ALL {
@@ -4079,10 +4353,10 @@ mod tests {
                 "{driver:?} has § 2's schema, so what it waits on is § 4's statements and the \
                  refusal may not claim otherwise: {refused}"
             );
-            assert_eq!(
-                driver == nvs_db::Driver::SqlServer,
-                refused.contains("filtered index"),
-                "only SQL Server waits on the vocabulary as well as on the statements: {refused}"
+            assert!(
+                !refused.contains("filtered index"),
+                "the vocabulary holds `rule:core-classes/a-unique-key-reads-nulls-as-distinct`'s \
+                 index, so no refusal may still be waiting on it: {refused}"
             );
         }
     }
@@ -4349,36 +4623,14 @@ mod tests {
     /// reason they exist: a text carrying any of these four would have been a transcription of
     /// PostgreSQL's rather than a dialect, and would fail on the first server it reached.
     ///
-    /// Asserted as absence over every half of every [`Split`] rather than on the three that happen
-    /// to be interesting, so a fourth statement added to this set is covered on the day it lands.
+    /// Asked of [`super::texts`] rather than of the three that happen to be interesting, so a
+    /// statement added to this dialect is covered on the day it lands. The readers and the worker's
+    /// own statements are not [`Split`]s — nothing in them rests on a construct MySQL lacks — but
+    /// they are the same second dialect and owe the same check, and one roster is what says so
+    /// without a second list here.
     #[test]
     fn the_mysql_statements_spell_nothing_only_postgresql_has() {
-        let mut texts: Vec<(&str, &str)> = Vec::new();
-        for (member, split) in [
-            ("push", INSERT_MYSQL),
-            ("claim", CLAIM_MYSQL),
-            ("move", DEAD_LETTER_MYSQL),
-        ] {
-            texts.push((member, split.first));
-            texts.push((member, split.then));
-        }
-        // § 5's three readers are not [`Split`]s — nothing in them rests on a construct MySQL
-        // lacks — but they are the same second dialect and owe the same check.
-        texts.push(("status", STATUS_MYSQL));
-        texts.push(("cancel", CANCEL_MYSQL));
-        texts.push(("stats", COUNTS_MYSQL));
-        // §§ 4 and 6's three worker statements, which are not [`Split`]s either and owe the check
-        // for the same reason the readers above do.
-        texts.push(("roster", QUEUES_MYSQL));
-        texts.push(("succeeded", SUCCEEDED_MYSQL));
-        texts.push(("retry", RETRY_MYSQL));
-        // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s three, which are not
-        // [`Split`]s either: one statement removes what it selected, in a dialect that spells a
-        // multi-table delete and a bounded one where the other spells a CTE and a subquery.
-        texts.push(("delete", DELETE_MYSQL));
-        texts.push(("purge", PURGE_MYSQL));
-        texts.push(("purge dead", PURGE_DEAD_MYSQL));
-        for (member, sql) in texts {
+        for (member, sql) in super::texts(nvs_db::Driver::MySql) {
             for absent in ["returning", "::", "$1", "with ", "filter (where"] {
                 assert!(
                     !sql.contains(absent),
@@ -4390,38 +4642,6 @@ mod tests {
                 "{member}'s MySQL text binds nothing, so it is not the statement it replaces"
             );
         }
-    }
-
-    /// Every text of the third dialect, as `(member, sql)`, each [`Split`] flattened to its two
-    /// halves.
-    ///
-    /// One list rather than a literal per case, because what the cases below assert is a property
-    /// of the *roster*: a statement added to this backend is covered on the day it lands rather
-    /// than on the day somebody remembers to extend a list.
-    fn sqlite_texts() -> Vec<(&'static str, &'static str)> {
-        let mut texts: Vec<(&str, &str)> = Vec::new();
-        for (member, split) in [
-            ("push", INSERT_SQLITE),
-            ("claim", CLAIM_SQLITE),
-            ("move", DEAD_LETTER_SQLITE),
-            ("delete", DELETE_SQLITE),
-        ] {
-            texts.push((member, split.first));
-            texts.push((member, split.then));
-        }
-        for text in [
-            ("status", STATUS_SQLITE),
-            ("cancel", CANCEL_SQLITE),
-            ("stats", COUNTS_SQLITE),
-            ("roster", QUEUES_SQLITE),
-            ("succeeded", SUCCEEDED_SQLITE),
-            ("retry", RETRY_SQLITE),
-            ("purge", PURGE_SQLITE),
-            ("purge dead", PURGE_DEAD_SQLITE),
-        ] {
-            texts.push(text);
-        }
-        texts
     }
 
     /// The third dialect's texts are held to what a transcription of another one would spell, and
@@ -4437,13 +4657,13 @@ mod tests {
     /// [`CANCEL_SQLITE`]'s reason, so nothing needs a `returning`; and the CTE [`DELETE_POSTGRES`]
     /// carries its two tables in is [`DELETE_SQLITE`]'s pair here.
     ///
-    /// Asked of [`sqlite_texts`] rather than of the three that are interesting, so a statement
+    /// Asked of [`super::texts`] rather than of the three that are interesting, so a statement
     /// added to this backend is covered on the day it lands. The second half is what the name says
     /// outright: every text binds by position, and one that binds nothing is not the statement it
     /// replaces.
     #[test]
     fn no_sqlite_statement_binds_another_dialects_placeholder() {
-        for (member, sql) in sqlite_texts() {
+        for (member, sql) in super::texts(nvs_db::Driver::Sqlite) {
             for absent in ["$1", "::", "returning", "with ", "for update"] {
                 assert!(
                     !sql.contains(absent),
@@ -4473,7 +4693,7 @@ mod tests {
     /// purge that lost it satisfies the first half by having nothing to move.
     #[test]
     fn no_sqlite_statement_asks_for_a_delete_limit() {
-        for (member, sql) in sqlite_texts() {
+        for (member, sql) in super::texts(nvs_db::Driver::Sqlite) {
             let Some(at) = sql.find("delete from") else {
                 continue;
             };
@@ -4579,6 +4799,36 @@ mod tests {
         assert_eq!(
             read_by(&CLAIM_SQLITE, "SQLite"),
             selected,
+            "a worker reads these by position, so the dialects answer one list or none of them does"
+        );
+    }
+
+    /// The fourth dialect answers that same list, read off the clause it names its columns in.
+    ///
+    /// A case of its own rather than a fourth entry above, because the list is somewhere else in
+    /// the statement: a [`Split`] names its columns in the `select` its first half reads them with
+    /// and PostgreSQL in a `returning`, while T-SQL has neither over an update and writes
+    /// `output inserted.<column>` instead. What is asserted is the same thing either way —
+    /// `crates/nvs-cli/src/worker.rs` reads a claimed job's columns by position, so every dialect
+    /// answers one list or none of them does.
+    #[test]
+    fn the_sql_server_claim_answers_the_columns_the_other_dialects_do() {
+        fn named(list: &str) -> Vec<&str> {
+            list.split(',')
+                .map(|one| one.trim().rsplit('.').next().unwrap_or(one).trim())
+                .collect()
+        }
+        let returned = CLAIM_POSTGRES
+            .split_once("returning ")
+            .expect("PostgreSQL's claim answers with a `returning` list")
+            .1;
+        let output = CLAIM_SQLSERVER
+            .split_once("output ")
+            .expect("SQL Server's claim answers with an `output` list")
+            .1;
+        assert_eq!(
+            named(output),
+            named(returned),
             "a worker reads these by position, so the dialects answer one list or none of them does"
         );
     }
@@ -5066,6 +5316,7 @@ mod tests {
             ("postgres", STATUS_POSTGRES),
             ("mysql", STATUS_MYSQL),
             ("sqlite", STATUS_SQLITE),
+            ("sqlserver", STATUS_SQLSERVER),
         ] {
             assert!(
                 status.contains("select 3 from nvs_dead_jobs"),
@@ -5085,6 +5336,7 @@ mod tests {
             ("postgres", CANCEL_POSTGRES),
             ("mysql", CANCEL_MYSQL),
             ("sqlite", CANCEL_SQLITE),
+            ("sqlserver", CANCEL_SQLSERVER),
         ] {
             assert!(
                 cancel.contains("set state = 4") && cancel.contains("and state = 0"),
@@ -5268,6 +5520,15 @@ mod tests {
                 RETRY_MYSQL,
                 CANCEL_MYSQL,
                 DEAD_LETTER_MYSQL.first,
+            ),
+            (
+                "sqlserver",
+                INSERT_SQLSERVER.then,
+                CLAIM_SQLSERVER,
+                SUCCEEDED_SQLSERVER,
+                RETRY_SQLSERVER,
+                CANCEL_SQLSERVER,
+                DEAD_LETTER_SQLSERVER.first,
             ),
         ] {
             assert!(

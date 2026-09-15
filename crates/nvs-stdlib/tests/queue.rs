@@ -1084,6 +1084,75 @@ const SCRIPT: usize = 1;
 const ATTEMPTS: usize = 3;
 const MAX_ATTEMPTS: usize = 4;
 
+/// Every statement the queue sends has a text in SQL Server's dialect, so the
+/// roster is whole rather than four dialects deep.
+///
+/// **The one case in this file that asks no server**, and it is here rather
+/// than beside the unit tests because what it reads is `queue::texts` — the
+/// roster the cases below send, which is `pub` for this target's sake. Nothing
+/// in it needs a leg, so it asserts on a machine with no containers too, which
+/// is where a text that was never written would otherwise go unnoticed until a
+/// matrix run.
+///
+/// Three properties, in the order a wrong text fails them. The members are the
+/// same set the first dialect has, which is what *every statement* means. Each
+/// text names `@p1`, which is this driver's marker and the one spelling
+/// `sp_prepexec`'s parameter declaration writes, and none of them names another
+/// dialect's — a `$1` or a `?` reaches the server as a syntax error naming a
+/// statement no case here can see. And the markers run `1..n` with no gap:
+/// the driver declares one parameter per number it wrote, so a skipped one is a
+/// value bound into the column beside the one it was meant for, which the
+/// server accepts and answers wrongly.
+#[test]
+fn every_statement_the_queue_sends_has_a_sql_server_text() {
+    fn members(driver: Driver) -> Vec<&'static str> {
+        let mut named: Vec<&'static str> = queue::texts(driver)
+            .into_iter()
+            .map(|(member, _)| member)
+            .collect();
+        named.sort_unstable();
+        named.dedup();
+        named
+    }
+    assert_eq!(
+        members(Driver::SqlServer),
+        members(Driver::Postgres),
+        "a member the queue sends a statement for has one in every dialect or the roster is not \
+         whole"
+    );
+    for (member, sql) in queue::texts(Driver::SqlServer) {
+        for absent in ["$1", "?", "::", "returning", "for update", "limit "] {
+            assert!(
+                !sql.contains(absent),
+                "{member}'s SQL Server text spells `{absent}`, which is another dialect's: {sql}"
+            );
+        }
+        let mut markers: Vec<usize> = Vec::new();
+        let mut rest = sql;
+        while let Some(at) = rest.find("@p") {
+            rest = &rest[at + "@p".len()..];
+            let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+            markers.push(
+                digits
+                    .parse()
+                    .unwrap_or_else(|_| panic!("{member}'s `@p` names no number: {sql}")),
+            );
+        }
+        markers.sort_unstable();
+        markers.dedup();
+        assert!(
+            !markers.is_empty(),
+            "{member}'s SQL Server text binds nothing, so it is not the statement it replaces"
+        );
+        assert_eq!(
+            markers,
+            (1..=markers.len()).collect::<Vec<usize>>(),
+            "{member}'s SQL Server text numbers its markers `1..n` with no gap, because the \
+             driver declares one parameter per number: {sql}"
+        );
+    }
+}
+
 /// § 6: a job whose last attempt threw leaves `nvs_jobs` for `nvs_dead_jobs`
 /// carrying what it threw, rather than being deleted or left claimed forever.
 ///
