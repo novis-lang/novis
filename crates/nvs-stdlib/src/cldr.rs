@@ -107,6 +107,15 @@
 //! roster is data: one arm if the rule shape is new, otherwise one row in
 //! [`RULES`].
 //!
+//! **[`RULES`] is a roster rather than all of CLDR, and it names no absence.**
+//! What is in it is what has been transcribed, and the line is drawn where a
+//! catalog would notice a hole rather than where transcription happened to
+//! stop: `da`, `fil`, `tl` and `ceb` sit in it beside `be`, `he`, `mt` and the
+//! Sorbian pair because a roster that answers for `af` and refuses Danish has
+//! a hole rather than an edge.
+//! `every_language_named_absent_in_the_gap_note_now_has_a_rule` is what holds
+//! this paragraph to the table.
+//!
 //! **The operands come from what the count shows, which is why `decimal` is
 //! the exact one.** CLDR's `v` and `f` are the *visible* fraction digits, so
 //! English puts `1` in `One` and `1.0` in `Other`. A `decimal` carries its
@@ -165,25 +174,14 @@
 //!    `v`, which name a zone the way `X`, `x` and `VV` already do. Each names
 //!    itself rather than emitting a literal. `Y` is the one with a caller
 //!    waiting, since a week-based year beside `w` is the pair ISO 8601 writes.
-//!    — owner: gap-zero
-//! 3. **[`RULES`] is a roster, not all of CLDR**, and it names no absence.
-//!    It carries the languages whose published cardinal rules are transcribed
-//!    here; every other one throws, per the section above. The twenty this
-//!    note used to name — `be`, `he`, `mt`, `dsb`, `hsb`, `gd`, `br`, `kw`,
-//!    `gv`, `is`, `mk`, `tzm`, `shi`, `si`, `ak`, `bh`, `guw`, `nso`, `wa`,
-//!    `naq` — are carried, as fifteen arms between them, and `da`, `fil`,
-//!    `tl` and `ceb` went in beside them because a roster that answers for
-//!    `af` and refuses Danish is a roster with a hole rather than a boundary.
-//!    `every_language_named_absent_in_the_gap_note_now_has_a_rule` is what
-//!    holds this paragraph to the table.
-//!    — owner: gap-zero
-//! 4. **[`ORDINALS`] is the languages that mark a form, and a language that
+//!    — owner: m8-stdlib-depth
+//! 3. **[`ORDINALS`] is the languages that mark a form, and a language that
 //!    marks one but is missing from it answers `Other` silently** — which is
 //!    the cost of the default the section above argues for, stated plainly.
 //!    The cardinal roster has no such failure mode: a missing row there
 //!    throws. Widening this one is a row, and an arm only where the published
 //!    rule is a shape no arm has.
-//!    — owner: gap-zero
+//!    — owner: m8-stdlib-depth
 
 use std::cmp::Ordering;
 use std::ops::RangeInclusive;
@@ -2801,10 +2799,9 @@ mod tests {
         assert!(operands_at(&[Value::float(1e300)], 0, PLURAL_MEMBER).is_err());
     }
 
-    /// The module doc's gap 3 used to name twenty languages the roster did not
-    /// carry. It names none now, and this is what holds it to that: every one
-    /// of the twenty answers, and answers with its *own* published rule rather
-    /// than with a neighbour's.
+    /// The module doc's roster section says `RULES` names no absence, and this
+    /// is what holds that claim to the table: every language below answers, and
+    /// answers with its *own* published rule rather than with a neighbour's.
     ///
     /// Asserted as a disagreement rather than as a category per language: each
     /// count below is one CLDR puts in a different place for the named
@@ -2822,7 +2819,7 @@ mod tests {
         for subtag in named {
             assert!(
                 rules_for(subtag, PLURAL_MEMBER).is_ok(),
-                "`{subtag}` is still absent, and the module doc's gap 3 says it is not"
+                "`{subtag}` is still absent, and the module doc's roster section says it is not"
             );
         }
 
