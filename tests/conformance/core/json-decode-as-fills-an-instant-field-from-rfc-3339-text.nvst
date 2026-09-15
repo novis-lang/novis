@@ -1,0 +1,58 @@
+--TEST--
+`Core\Json::decodeAs` reads a `Core\Time\Instant` field from the RFC 3339 text `Core\Json::encode` writes it as, and refuses every other spelling of the same moment — `rule:core-classes/derive-field-list`, `rule:core-classes/derive-generates-what-is-missing`
+--FILE--
+<?nvs
+// JSON has no timestamp type, so `rule:core-classes/derive-field-list`'s `Core`
+// value type crosses as the one text every reader of a document already agrees
+// a moment looks like: RFC 3339, which is what `$at->toIso()` renders. The two
+// `int` slots an `Instant` is stored in are this runtime's business and no part
+// of what the document promises.
+#[Core\Json\Derive]
+final class Event {
+    public string $name;
+    public Core\Time\Instant $at;
+
+    public function constructor(string $name, Core\Time\Instant $at) {
+        $this->name = $name;
+        $this->at = $at;
+    }
+}
+
+var $booking = Core\Json::decodeAs<Event>("{\"name\":\"launch\",\"at\":\"2024-03-01T12:00:00Z\"}");
+echo "name=", $booking->name, "\n";
+echo "at=", $booking->at->toIso(), "\n";
+
+// One spelling, read by both halves: what the encoder writes is the document
+// the decoder was handed.
+echo Core\Json::encode($booking), "\n";
+
+// An offset is part of RFC 3339, so it is read rather than refused, and what
+// it names is a moment and not a local reading of one: the field holds the
+// same instant the line above decoded, which the rendering in UTC says.
+var $offset = Core\Json::decodeAs<Event>("{\"name\":\"launch\",\"at\":\"2024-03-01T13:00:00+01:00\"}");
+echo "offset=", $offset->at->toIso(), "\n";
+
+// The bound on the other side. An epoch second is what a JSON *number* would
+// carry, and a civil date is text that names no moment: both are reported
+// against the field rather than guessed at, because a wire form that admitted
+// either would make two documents mean one value.
+try {
+    Core\Json::decodeAs<Event>("{\"name\":\"launch\",\"at\":1709294400}");
+    echo "not reached\n";
+} catch (ParseError $number) {
+    echo "  ", $number->issues["0"]->path, ": ", $number->issues["0"]->message, "\n";
+}
+
+try {
+    Core\Json::decodeAs<Event>("{\"name\":\"launch\",\"at\":\"2024-03-01\"}");
+    echo "not reached\n";
+} catch (ParseError $civil) {
+    echo "  ", $civil->issues["0"]->path, ": ", $civil->issues["0"]->message, "\n";
+}
+--EXPECT--
+name=launch
+at=2024-03-01T12:00:00Z
+{"name":"launch","at":"2024-03-01T12:00:00Z"}
+offset=2024-03-01T12:00:00Z
+  at: expected an instant as an RFC 3339 string, found a number
+  at: expected an instant as an RFC 3339 string, found a string

@@ -123,28 +123,44 @@
 //! with every body replaced by `Ok(())` — a second walk to keep in step with
 //! the first, against a cost nothing has measured.
 //!
+//! # A value type crosses as text, not as its slots
+//!
+//! `rule:core-classes/derive-field-list` admits the named `Core` value types as
+//! fields and JSON has a type for none of them. Two of them carry a wire form
+//! here, and both of them are a **string** — written by [`Encodable`] and read
+//! by [`scalar`], so a document this crate writes is one it accepts back.
+//!
+//! A `decimal` is `"19.99"`. JSON has one number type and every consumer reads
+//! it as an `f64`, including [`Decode`], so a `decimal` written as a number
+//! comes back rounded — the degradation the integer band above already refuses.
+//! The cost is that a client sees a string where it may have expected a number,
+//! spent under [ADR 0004](/docs/decisions/0004.md) to buy exactness, which is
+//! the whole of what `rule:types/decimal` makes the type for.
+//!
+//! An `Instant` is RFC 3339: `"2024-03-01T12:00:00Z"`, the spelling
+//! `$i->toIso()` renders and `Core\Time::fromIso` reads, so the wire carries
+//! what a reader of the document already agrees a timestamp looks like. It is
+//! **not** the two-slot object its storage is — an epoch second and a subsecond
+//! nanosecond are this runtime's representation of the type and no part of what
+//! a document promises. `crate::db` answers the same question at the other door
+//! and answers it differently, because a column has its own components to build
+//! one out of.
+//!
 //! # Known gaps
 //!
-//! 1. **A derived field's type roster is narrower than `rule:core-classes/derive-field-list`'s.**
-//!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
-//!    a `string`, a `decimal`, a `mixed`, an enum, another derived class, an
-//!    `array<T>` of any of those, and a `?T` of any of them. An `Instant`, an
-//!    inline shape reached as a *field*, and an `array<T>` of one of those are
-//!    codec-reachable by that rule and are [`undecoded`] here, which
-//!    [`decode_as`] refuses **before reading the document** for the class it
-//!    was handed, and [`decode_field`] refuses on reaching it inside a nested
-//!    one. What is left to decide is what each of those is on the wire before
-//!    either end can carry it — an `Instant` is RFC 3339 text — and
-//!    `crate::db`'s gap 3 is the same knot at the other door.
-//!
-//!    A `decimal` is settled and landed at both ends: it is a JSON **string**,
-//!    `"19.99"`, which is the only spelling that survives the trip. JSON has
-//!    one number type and every consumer reads it as an `f64`, including
-//!    [`Decode`], so a `decimal` written as a number comes back rounded — the
-//!    degradation the integer band above already refuses. The cost is that a
-//!    client sees a string where it may have expected a number, spent under
-//!    [ADR 0004](/docs/decisions/0004.md) to buy exactness, which is the whole
-//!    of what `rule:types/decimal` makes the type for.
+//! 1. **An inline shape reached as a *field* is narrower than
+//!    `rule:core-classes/derive-field-list`'s reachable set.** [`decode_field`]
+//!    has a case for every scalar wire type, a `decimal`, an `Instant`, a
+//!    `mixed`, an enum, another derived class, an `array<T>` of any of those,
+//!    and a `?T` of any of them. A shape written as a *field* — and an
+//!    `array<T>` of one — is codec-reachable by that rule and erases to
+//!    `nvs_runtime::CodecTy::Opaque` in `nvs_types::derive`, so [`decode_as`]
+//!    refuses it **before reading the document** for the class it was handed,
+//!    and [`decode_field`] refuses on reaching it inside a nested one. A shape
+//!    written as the whole *type argument* decodes: what that has and a field
+//!    has not is a [`nvs_runtime::ShapeCodec`] the call site names, so closing
+//!    this is the same contract reached from a field. `crate::db`'s gap 3 is
+//!    the neighbouring question at the other door.
 //!    — owner: m8-stdlib-depth
 //! 2. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
 //!    two default-bearing rows are unimplemented: an absent key fails whether
@@ -743,12 +759,14 @@ impl Encodable<'_> {
     /// [ADR 0063](/docs/decisions/0063.md) § 4 asks
     /// for: participation in a wire format is written, never inferred.
     ///
-    /// The one instance that is not a declared class is an
-    /// `rule:types/object-literal`
-    /// shape, which encodes as a JSON object keyed by its own field names —
-    /// `rule:core-classes/derive-generates-what-is-missing` owns why
-    /// that is not an exception to the rule above, and the arm below says what
-    /// it walks.
+    /// Two instances are not declared classes and answer before that list is
+    /// read. An `rule:types/object-literal` shape encodes as a JSON object
+    /// keyed by its own field names, and a `Core\Time\Instant` as the RFC 3339
+    /// string gap 1 fixes it at; neither is an exception to the rule above,
+    /// because neither has a declaration to carry an attribute and both are
+    /// wire forms the language names rather than a program does —
+    /// `rule:core-classes/derive-generates-what-is-missing` owns the first and
+    /// this module's gap 1 the second.
     fn serialize_object<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
         if self.depth >= DEPTH_CEILING_U32 {
             return Err(S::Error::custom(format!(
@@ -811,6 +829,21 @@ impl Encodable<'_> {
                 map.serialize_entry(name, &self.child(&inside, Step::Key(name), held))?;
             }
             return map.end();
+        }
+        // `Core\Time\Instant`, whose wire form is RFC 3339 text rather than the
+        // object its two slots would spell — this module's gap 1 owns the
+        // decision and [`crate::time::instant_from_iso`] is the half that reads
+        // it back. A `Core` value type declares no member a codec could be
+        // generated from, so the refusal below would otherwise be the only
+        // answer a wire type of its own already has.
+        if crate::instance::is_instance(self.value, &crate::time::INSTANT) {
+            let text = crate::time::instant_iso(self.value).ok_or_else(|| {
+                S::Error::custom(
+                    "a `Core\\Time\\Instant` holds a second and a nanosecond that are \
+                     no point on the timeline",
+                )
+            })?;
+            return ser.serialize_str(&text);
         }
         let fields = desc.codec();
         if fields.is_empty() {
@@ -1494,7 +1527,7 @@ pub(crate) unsafe fn check_codec(
 /// spelling, so `nvs_types::derive`'s reachable set refuses the declaration
 /// before a document is ever read.
 const fn undecoded(ty: CodecTy) -> bool {
-    matches!(ty, CodecTy::Opaque | CodecTy::Bytes | CodecTy::Instant)
+    matches!(ty, CodecTy::Opaque | CodecTy::Bytes)
 }
 
 /// One instance of `class` out of a document already read — or, for `list`, one
@@ -2024,7 +2057,8 @@ unsafe fn convert_field(
         | CodecTy::Uint
         | CodecTy::Float
         | CodecTy::Str
-        | CodecTy::Decimal => {
+        | CodecTy::Decimal
+        | CodecTy::Instant => {
             #[expect(
                 unsafe_code,
                 reason = "the document owns this value for the length of this call"
@@ -2051,7 +2085,7 @@ unsafe fn convert_field(
         // decoder this crate has not written yet, so it is an engine fault
         // wherever it is met and never an issue in a list a program shows a
         // user.
-        CodecTy::Opaque | CodecTy::Bytes | CodecTy::Instant => {
+        CodecTy::Opaque | CodecTy::Bytes => {
             return Err(DecodeFailure::Fault(Fault::fatal(format!(
                 "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
                  has no case for yet — `rule:core-classes/derive-field-list`'s wider codec-reachable set is \
@@ -2265,9 +2299,21 @@ unsafe fn scalar(
                 .map(Value::decimal),
             _ => None,
         },
-        CodecTy::Class | CodecTy::List | CodecTy::Opaque | CodecTy::Bytes | CodecTy::Instant => {
-            None
-        }
+        // `Core\Time\Instant`'s wire form, fixed at RFC 3339 text by this
+        // module's gap 1: the type is a point on the timeline and the string is
+        // what every other reader of the document already agrees that is. The
+        // instance it builds owns the one reference it was made with, so that
+        // arm returns rather than reaching the retain below; an `Instant` the
+        // caller already holds is a pass-through, which is the only way
+        // `Core\Arr::shapeAs` meets the type.
+        CodecTy::Instant => match found.tag() {
+            Some(Tag::Object) if crate::instance::is_instance(found, &crate::time::INSTANT) => {
+                Some(found)
+            }
+            Some(Tag::Str) => return found.as_text().and_then(crate::time::instant_from_iso),
+            _ => None,
+        },
+        CodecTy::Class | CodecTy::List | CodecTy::Opaque | CodecTy::Bytes => None,
     }?;
     // Every arm reaching here either passed the document's own value through
     // or built an unrefcounted scalar, and a retain on the second is the
@@ -2504,15 +2550,16 @@ const fn wanted(ty: CodecTy) -> &'static str {
         CodecTy::Float => "float",
         CodecTy::Str => "string",
         CodecTy::Mixed => "mixed",
-        // The one entry that names its wire form rather than only the declared
-        // type: `rule:types/decimal` is exact and JSON's number is not, so a
-        // reader told "expected decimal" of a document holding `19.99` would
-        // have nothing to act on. [`scalar`]'s own arm owns why.
+        // The two entries that name their wire form rather than only the
+        // declared type, because for both of them the document's own spelling is
+        // the thing the reader has to change: `rule:types/decimal` is exact and
+        // JSON's number is not, and an `Instant` crosses as text JSON has no
+        // type for at all. [`scalar`]'s own arms own why each is what it is.
         CodecTy::Decimal => "a decimal as a JSON string",
+        CodecTy::Instant => "an instant as an RFC 3339 string",
         // Named for the roster's sake: an [`undecoded`] wire type faults before
         // a document is read, so no issue message reaches for one of these.
         CodecTy::Bytes => "bytes",
-        CodecTy::Instant => "an instant",
         // Never reached through a field: `decode_nested` names the class
         // itself, which is what the reader wrote. Here for the roster.
         CodecTy::Class => "an object",
@@ -2745,7 +2792,7 @@ mod tests {
     /// a string — asserted at a width the `f64` spelling demonstrably cannot
     /// hold, decoded into a `decimal` field and written back byte for byte.
     #[test]
-    fn json_decode_into_a_decimal_field_round_trips_25_significant_digits() {
+    fn decode_as_fills_a_decimal_field_from_the_numbers_own_digits() {
         const DIGITS: &str = "1234567890123456789.012345";
 
         // The bound this spelling exists for, on the other side: these digits
@@ -2808,6 +2855,110 @@ mod tests {
         #[expect(unsafe_code, reason = "this frame holds the only reference")]
         unsafe {
             value.release();
+        }
+    }
+
+    /// An `Instant` crosses as the RFC 3339 text `$i->toIso()` renders, so the
+    /// two halves are one spelling: the document names a point on the timeline,
+    /// the field holds an `Instant` of exactly that point, and the encoder
+    /// writes the document back. The object its two slots would spell is this
+    /// runtime's storage and never the contract — the module's own
+    /// *A value type crosses as text* section owns why.
+    #[test]
+    fn decode_as_fills_an_instant_field_from_an_rfc_3339_string() {
+        const AT: &str = "2024-03-01T12:00:00Z";
+
+        let (class, shape) = codec_class("Event", "at", CodecTy::Instant);
+        let document = format!("{{\"at\":\"{AT}\"}}");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`codec_class` leaks its table, so both addresses outlive \
+                      every object decoded against them"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                &document,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let Ok(value) = decoded else {
+            panic!("an `Instant` field decodes from the RFC 3339 spelling it is written as");
+        };
+
+        let ptr = value
+            .obj_ptr()
+            .expect("a decoded shape is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        let held = object.field(0);
+        assert!(
+            crate::instance::is_instance(held, &crate::time::INSTANT),
+            "the field holds an `Instant` rather than the text it was read from"
+        );
+        assert_eq!(
+            crate::time::instant_iso(held).expect("a decoded `Instant` renders"),
+            AT
+        );
+
+        // The other half, one spelling: what the encoder writes is the document
+        // the decoder was handed.
+        assert_eq!(
+            encoded(value).expect("a decoded shape re-encodes"),
+            document
+        );
+
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// A document that spells the timestamp any other way is a **bad
+    /// document** and not an engine gap: a JSON number is what an epoch second
+    /// would arrive as, and a civil date is text that is not RFC 3339, so both
+    /// come back as the reported `ParseError` the field list accumulates rather
+    /// than as the fault an undecodable wire type ends the walk with.
+    #[test]
+    fn an_instant_field_refuses_every_spelling_but_the_one_it_writes() {
+        let (class, shape) = codec_class("Event", "at", CodecTy::Instant);
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut refused = |text: &str| {
+            #[expect(
+                unsafe_code,
+                reason = "`codec_class` leaks its table, so both addresses outlive \
+                          every object decoded against them"
+            )]
+            let outcome = unsafe {
+                decode_as(
+                    &mut ctx,
+                    class,
+                    Some(shape),
+                    text,
+                    DEFAULT_MAX_DEPTH_U32,
+                    false,
+                    r"Core\Json::decodeAs",
+                )
+            };
+            match outcome {
+                Ok(_) => panic!("`{text}` is not an `Instant`'s spelling"),
+                Err(why) => format!("{why:?}"),
+            }
+        };
+
+        for document in [r#"{"at":1709294400}"#, r#"{"at":"2024-03-01"}"#] {
+            let why = refused(document);
+            assert!(why.contains("Parse"), "{why}");
+            assert!(why.contains("did not match"), "{why}");
         }
     }
 

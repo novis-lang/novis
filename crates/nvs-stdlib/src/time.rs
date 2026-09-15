@@ -3173,6 +3173,27 @@ fn instant_built(at: Timestamp) -> Value {
     )
 }
 
+/// The `Instant` `text` names, read as the RFC 3339 timestamp
+/// [`nvs_core_time_from_iso`] reads — `None` where it is not one.
+///
+/// The parse without the throw, because [`crate::json`]'s wire form of this
+/// type is this spelling and a document carrying anything else is a bad
+/// document: it belongs in the issue list beside every other field that did not
+/// fit, rather than ending the decode where it was met.
+pub(crate) fn instant_from_iso(text: &str) -> Option<Value> {
+    text.parse::<Timestamp>().ok().map(instant_built)
+}
+
+/// `value`'s RFC 3339 rendering, where it is an `Instant` — `$i->toIso()`'s
+/// answer, for [`crate::json`] to write the same spelling it reads.
+///
+/// `None` where the two slots hold a pair no [`Timestamp`] is made of, which is
+/// [`instant_of`]'s own unreachable-from-source guard seen through an
+/// [`Option`]: the caller is an encoder and has no member to name in a fault.
+pub(crate) fn instant_iso(value: Value) -> Option<String> {
+    Some(instant_of(&[value], 0, "toIso").ok()?.to_string())
+}
+
 /// The `Instant` in argument slot `at` — slot 0 for a receiver, any other slot
 /// for an `Instant` *parameter*.
 ///
