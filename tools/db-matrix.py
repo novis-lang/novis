@@ -109,12 +109,16 @@ TEST_TIMEOUT = 900
 #: More than `nvs-db`'s own, because what a server has to answer no longer all lives in `nvs-db`:
 #: ADR 0084's queue statements are `nvs_stdlib::queue`'s -- § 2's schema has one home and that is it
 #: -- and `rule:core-classes/db-crate-boundary` forbids the `use nvs_stdlib::…` a `crates/nvs-db` test over them would need,
-#: so they are run from `crates/nvs-stdlib/tests/queue.rs` and this is what reaches them. Narrowed to
-#: that one target on purpose: the rest of `nvs-stdlib`'s suite asks a server nothing, and every
-#: driver leg would pay for it.
+#: so they are run from `crates/nvs-stdlib/tests/queue.rs` and this is what reaches them.
+#: `rule:core-classes/db-streaming`'s promises sit in that crate for a nearer reason: they are
+#: `Core\Db\Connection::stream`'s rather than any one driver's read state, and one case asserting
+#: them on whichever driver the leg named is what makes *answers on all five* a measurement.
+#: `crates/nvs-stdlib/tests/db_stream.rs` is that case. Narrowed to those two targets on purpose:
+#: the rest of `nvs-stdlib`'s suite asks a server nothing, and every driver leg would pay for it.
 SUITES = (
     ["-p", "nvs-db"],
     ["-p", "nvs-stdlib", "--test", "queue"],
+    ["-p", "nvs-stdlib", "--test", "db_stream"],
 )
 
 #: What the driver with no server runs on top of `SUITES`, and nothing else does.
