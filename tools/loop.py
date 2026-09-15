@@ -1852,13 +1852,21 @@ CHECK_KEYS = {
     "contains":    (("file",),                    ("args", "exit", "stderr_contains",
                                                    "stdout_contains", "needs")),
     "min-bytes":   (("file", "min_bytes"),        ("args", "exit", "stream", "needs")),
-    "command":     (("name", "argv"),             ("cwd", "want", "memoize", "exit")),
+    "command":     (("name", "argv"),             ("cwd", "want", "memoize", "exit", "setup")),
     "nvs-suite":   (("name", "args"),             ("cases", "memoize", "min_passing")),
     "cargo-named": (("name", "args", "tests"),    ("memoize",)),
 }
 # `memoize` is read in one direction: `false` means `remembered` never answers this check from the
 # file, for a check whose inputs are not all in the tree. `true` and absent are the same thing --
 # every check is remembered against what it reads now (`reads_of`).
+#
+# `setup` on a `command` is the one key that moves a check between tiers: it runs ahead of the floor
+# fixtures rather than with the other commands, because what it prepares is the environment a
+# fixture needs -- `nvs queue migrate` creates the tables `examples/queue.nvs` pushes a row into.
+# Position in the goal file cannot express that on its own, since a `command` and a fixture are
+# different tiers and the tier decides the order; `Goal.setup_checks` is where that is done. Such a
+# check almost always wants `memoize = false` beside it: what it converges is a database or a file
+# outside the tree, and a memo keyed on the tree would answer green for a server that was replaced.
 # Allowed on every kind. `stage` is read by this driver for the run order and by `holes.py` for the
 # worklist it prints, which is why an unstaged check is still legal but a misspelled one is not.
 COMMON_KEYS = ("kind", "stage")
@@ -1927,6 +1935,8 @@ def validate_spec(spec):
             known = ", ".join(sorted(LEG_NEEDS))
             raise GoalError(f"{where}: `needs` is {c['needs']!r}, which no leg is asked -- one of: "
                             f"{known}")
+        if "setup" in c and not isinstance(c["setup"], bool):
+            raise GoalError(f"{where}: `setup` is a flag, not {c['setup']!r}")
         if c.get("exit", "nonzero") != "nonzero":
             raise GoalError(f'{where}: `exit` is absent or "nonzero", not {c["exit"]!r}')
         if kind == "contains" and not (c.get("stderr_contains") or c.get("stdout_contains")):
@@ -2067,6 +2077,14 @@ class Goal:
         self.failed_name = ""  # the `cargo-named` check this run died on, for the next one
         self._widen = suite_widening(self.checks)
         cargo = [c for c in self.checks if c["kind"] not in PROGRAM_KINDS]
+        # The environment the fixtures run against, prepared before they run: a `setup` command is
+        # lifted out of the commands tier, which is behind every program leg, and run ahead of the
+        # floor. `CHECK_KEYS`' note owns what the key means; what is decided here is that it is a
+        # tier of its own rather than a sort key, because a stage label is what `goal-switch.py`
+        # rewrites when it carries a goal's list forward and an ordering that survives that has to
+        # be written on the check itself.
+        self.setup_checks = [c for c in cargo if c.get("setup")]
+        cargo = [c for c in cargo if not c.get("setup")]
         # Stage 0 is catch-up: work a later ADR reopened inside a milestone that
         # was already reported done. It runs before everything else so the
         # ledger names it while it is unfinished -- a Stage 3 fixture failing is
@@ -2812,6 +2830,7 @@ class Goal:
             n += 1  # last session's failing check, tried before anything is built
         n += 1  # the native build
         n += sum(1 for c in self.catch_up_checks if not self.remembered(c))
+        n += sum(1 for c in self.setup_checks if not self.remembered(c))
         n += sum(1 for c in self.swept_programs() if not self.remembered(c, "native"))
         # The shared workspace test build, paid once by the first plain `cargo test -p` check.
         if any(plain_crate_test(c.get("args", [])) for c in self.catch_up_checks + self.cargo_checks):
@@ -2918,6 +2937,19 @@ class Goal:
             if self.skip(c, what=f"cargo {c['name']} (catch-up)"):
                 continue
             trace(f"cargo {c['name']} (catch-up)")
+            fail = self.run_cargo_check(c, native)
+            if fail:
+                return fail
+            self.remember(c)
+
+        # The fixtures' environment, before the first of them and whatever the floor gate is doing:
+        # a queue fixture claims a row out of a table `nvs queue migrate` creates, and a sweep that
+        # ran the migration afterwards reported a fixture that could never have passed. `setup` in
+        # `CHECK_KEYS` is the key, and it is the goal file's only way to say "before the floor".
+        for c in self.setup_checks:
+            if self.skip(c, what=f"setup {c['name']}"):
+                continue
+            trace(f"setup {c['name']}")
             fail = self.run_cargo_check(c, native)
             if fail:
                 return fail
@@ -4935,7 +4967,7 @@ def run_cli():
         legs = ["native"] + (["wsl"] if wsl_available() else [])
         say(f"{GOAL_TOML.relative_to(ROOT).as_posix()}: {len(goal.checks)} checks, "
             f"{len(goal.files)} fixtures, legs: {', '.join(legs)}", C.CYAN)
-        for c in (goal.catch_up_checks + goal.program_floor
+        for c in (goal.catch_up_checks + goal.setup_checks + goal.program_floor
                   + goal.cargo_checks + goal.program_checks):
             if "file" in c:
                 # The argv `program_check` actually builds, in its order and behind its subcommand:
@@ -4947,8 +4979,9 @@ def run_cli():
                 continue
             if c["kind"] == "command":
                 memo = "  (memoized against the tree)" if c.get("memoize") else ""
+                note = "  (setup: runs before the fixtures)" if c.get("setup") else memo
                 say(f"  [{c.get('stage', '?')}] {c['kind']:<11} {c['name']}: "
-                    f"{' '.join(c['argv'])} in {c.get('cwd', '.')}{memo}")
+                    f"{' '.join(c['argv'])} in {c.get('cwd', '.')}{note}")
                 continue
             driver = "nvs" if c["kind"] == "nvs-suite" else "cargo"
             say(f"  [{c.get('stage', '?')}] {c['kind']:<11} {c['name']}: "

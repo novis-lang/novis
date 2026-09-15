@@ -108,6 +108,9 @@ modules = [
   "crates/nvs-stdlib/src/db/row.rs",
   # A column's value by SQL type; `NUMERIC` becomes a `decimal` here. Stage 6.
   "crates/nvs-stdlib/src/db/column.rs",
+  # `statement_failure` (:179): the `io::ErrorKind` is what decides `LogicError` or `Core\Db\DbError`,
+  # so every refusal a driver adds is classified here. Stages 4-6.
+  "crates/nvs-stdlib/src/db/bind.rs",
   # `PgCursor` (:2575) is the parked-read precedent; `ParameterStatus` is dropped at :1157.
   "crates/nvs-db/src/pg.rs",
   # The MySQL wire, and the `(u16, u16, u16)` version (:814, :866). Stages 3 and 5.
@@ -116,6 +119,9 @@ modules = [
   "crates/nvs-db/src/maria.rs",
   # `Connection`'s five arms (:1015). Stages 3-5.
   "crates/nvs-db/src/conn.rs",
+  # `QuerySpan::rows` (:209), raised where a row is read — what tells a walk from a buffer from
+  # outside the driver. Stage 4.
+  "crates/nvs-db/src/span.rs",
   # The TDS row tokens (:251, :751). Stage 4.
   "crates/nvs-db/src/tds/rows.rs",
   # `LOGINACK` (:202). Stage 5.
@@ -3201,13 +3207,18 @@ argv = ["{nvs}", "queue", "migrate", "--connection", "main", "--dry-run"]
 want = ["jobs", "dead_letter"]
 
 # The applying half, and it has to run before the fixture below: `examples/queue.nvs` pushes a row into
-# `nvs_jobs`, and nothing else in this sweep creates that table. Order here is run order (a `0`-prefixed
-# stage is the only thing that jumps the queue), so this block staying above that one is load-bearing.
+# `nvs_jobs` and claims it back by every column the schema declares, and nothing else in this sweep
+# creates or widens that table. `setup = true` is what orders it -- a `command` otherwise runs behind
+# every program leg, whatever it sits above in this file, so a column added to
+# `rule:core-classes/queue-storage-is-a-table`'s schema left the fixture claiming nothing until a
+# later sweep. `memoize = false` beside it because what it converges is a server rather than the tree.
 # It is also the assertion that the command is idempotent, since the sweep runs it against a server the
 # previous iteration already migrated -- every statement carries `if not exists`.
 [[check]]
 kind = "command"
 stage = "1 floor"
+setup = true
+memoize = false
 name = "nvs queue migrate creates both tables"
 argv = ["{nvs}", "queue", "migrate", "--connection", "main"]
 want = ["jobs: applied", "dead_letter: applied"]
@@ -7140,10 +7151,10 @@ cases = [
 
 # The database the fixture's jobs live in, converged before it runs. `examples/queue.nvs`'s own
 # pair says why a block like this exists at all -- nothing else in the sweep creates `nvs_jobs` --
-# but the ordering argument is a different one: this is a `command` check and the fixture below is
-# a program check, so the sweep runs every one of these before any of those and position in this
-# file decides nothing. `--config` names the tree `examples/queue-sqlite.toml` holds, whose own
-# comments own where the `[db.jobs]` path resolves to.
+# and `setup = true` is what puts it ahead of the fixture below: a `command` check runs behind every
+# program leg, so position in this file decides nothing and the key is the only thing that does.
+# `--config` names the tree `examples/queue-sqlite.toml` holds, whose own comments own where the
+# `[db.jobs]` path resolves to; `memoize = false` because the file it converges is not in the tree.
 #
 # Idempotent for the reason the PostgreSQL pair is, and this is the assertion of it: the sweep runs
 # it against the file the last iteration already converged. It touches no port and starts no
@@ -7151,6 +7162,8 @@ cases = [
 [[check]]
 kind = "command"
 stage = "1 floor"
+setup = true
+memoize = false
 name = "nvs queue migrate converges the fixture's SQLite file"
 argv = ["{nvs}", "queue", "migrate", "--config", "examples/queue-sqlite.toml"]
 want = ["jobs: applied", "dead_letter: applied"]
