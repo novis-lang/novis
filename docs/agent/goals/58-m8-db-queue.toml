@@ -6591,10 +6591,11 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-stdlib (Core\\Queue's limits and grants stay refused by name)"
+name = "nvs-stdlib (Core\\Queue's limits and grants are recorded at enqueue and enforced on the job)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  "limits_and_grants_are_refused_by_name_until_an_isolate_enforces_them",
+  "push_refuses_a_grant_the_enqueuing_request_does_not_hold",
+  "a_job_runs_under_the_grants_and_limits_recorded_at_enqueue",
   "the_core_db_open_half_of_the_same_blocker_and_this_one_agree_on_the_spelling",
 ]
 
@@ -7103,11 +7104,11 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-stdlib (the roster is three, the refusal is SQL Server's alone)"
+name = "nvs-stdlib (every driver has a queue schema, and no statement binds another dialect's placeholder)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  "runs_answers_false_for_sql_server_alone",
-  "the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send",
+  "every_driver_has_a_queue_schema_and_none_answers_none",
+  "the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one",
   "no_sqlite_statement_binds_another_dialects_placeholder",
 ]
 
@@ -7118,11 +7119,11 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-cli (a SQLite block starts a worker, a SQL Server block still does not)"
+name = "nvs-cli (a SQLite block and a SQL Server block each start a worker)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
   "a_sqlite_block_opens_a_queue_worker",
-  "a_sql_server_block_still_starts_no_worker_and_names_the_driver",
+  "a_worker_opens_a_sql_server_queue_block",
   "the_worker_reads_args_and_script_at_the_positions_the_claim_statement_returns_them",
 ]
 

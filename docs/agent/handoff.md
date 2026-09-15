@@ -2,49 +2,62 @@
 
 ## State
 
-**Goal `m8-db-queue`, stage 9 is complete: the socket leg and the CI leg both land**, and all three
-of that stage's checks pass locally — `python tools/db-matrix.py --all` prints the five TCP legs and
-then `mysql`, `mariadb` and `postgres` `over a socket: ok`.
+**Goal `m8-db-queue` is met.** Stage 10's four checks pass locally: the three rules ADR 0187 created
+print `shipped` with `guardedBy` filled from this goal's own cases and tests, and
+`git grep -F "owner: m8-db-queue" -- crates tools` finds nothing.
 
-`tests/db/compose.yaml` bind-mounts each of those three servers' *own* default socket directory onto
-the host under `${NOVIS_DB_SOCKET_DIR:-/mnt/host/wsl/novis-db}/<service>`, and the `certs` service
-makes each one writable by the uid 999 all three images drop to. Nothing moved a server off its
-default socket path, so every image's own healthcheck still reaches it. On Windows the leg's `cargo
-test` runs inside WSL over `/var/tmp/nvs-target-wsl`, because a Windows build has no `AF_UNIX`
-transport and the socket a Linux container publishes is the distro's to reach;
-`tools/db-matrix.py` § *The socket leg* is the home for all of that, and `SOCKET_SUITES` for why the
-leg runs `-p nvs-db` alone.
+`rule:core-classes/db-streaming` is flipped with them. Stage 2 removed its *Not shipped whole*
+paragraph and both members now answer on all five drivers, so `designed` was the stale half of one
+change; `crates/nvs-stdlib/tests/db_stream.rs` joins its `guardedBy`.
 
-`crates/nvs-db/src/matrix.rs` gap 1 is retired. `.github/workflows/ci.yml` gained a `database` job
-running `python tools/db-matrix.py --all` on `ubuntu-latest`, gated by a new `db` lane in
-`tools/ci-changes.py`; CI itself is still not running, so that leg is proved by reading those two
-files, as the goal's standing decisions say.
+**Two fragments were corrected while being flipped**, because `shipped` claims the tree holds every
+sentence in them. `rule:core-classes/a-unique-key-reads-nulls-as-distinct` said `plan` refuses where a
+filtered index cannot be read back as its key; `crates/nvs-db/src/catalog.rs:44-60` is the opposite and
+is what the tree does — a predicate that is not the key's own drops the index out of the read value,
+and a plan proposing a name a partial index already owns fails on the server rather than in the plan.
+ADR 0187 § 3 wrote that refusal as the fallback *if* the round trip could not be made to work, and
+`a_filtered_unique_index_reads_back_as_the_same_key` is it working.
+`rule:core-classes/server-version-is-what-the-server-said` charged a string per open connection to all
+five; SQLite reads `crate::sqlite::library_version()` and holds nothing per connection.
+
+**The two `# Known gaps` blocks shrank rather than went.** `crates/nvs-stdlib/src/db/mod.rs` gap 3 is
+closed; its gap 4 keeps only the skipped field's constructor default and is re-owned to
+`m8-stdlib-depth`, beside `crate::json`'s gap 1, which is the same knot at the other door.
+`crates/nvs-types/src/derive.rs` gaps 1–2 are closed and its gap 3 is renumbered to 1. Renumbering
+moved three in-file citations and two in other crates, one of them the text of a runtime fatal
+(`crates/nvs-stdlib/src/db/row.rs:209`, which named a gap 8 that has not existed for some time).
+
+**Three carried floor checks named tests this goal's own work deleted**, found by the wrap's `DONE`
+gate rather than by the floor, which runs one session in ten; they now name the tests that hold the
+same ground on five drivers. The playbook bullet is the general form.
 
 ## Next group
 
-**Stage 10: the rulebook and the module docs** — one file set: `docs/rules/core-classes.json`,
-`crates/nvs-stdlib/src/db/mod.rs` and `crates/nvs-types/src/derive.rs`. This is the last stage of the
-goal; the owner gates are met once no `— owner: m8-db-queue` tag is left, and four are.
+**The goal is met, so this names what a session in this file set takes next** — all of it goal
+`unowned-closures`'s, whose decision sheet answers each one; the `Decided:` line is already on disk
+under every item below. One file set: `crates/nvs-stdlib/src/db/mod.rs` and
+`crates/nvs-types/src/derive.rs`.
 
-- [ ] **Flip stage 2's three rules from `designed` to `shipped`**, with `guardedBy` filled from this
-      goal's own cases and tests, then `python tools/rules.py --render`:
-      `docs/rules/core-classes.json:487` (`rule:core-classes/a-stream-parks-its-read-on-the-connection`),
-      `docs/rules/core-classes.json:405` (`rule:core-classes/server-version-is-what-the-server-said`)
-      and `docs/rules/core-classes.json:549` (`rule:core-classes/a-unique-key-reads-nulls-as-distinct`).
-- [ ] **Rewrite `crates/nvs-stdlib/src/db/mod.rs:212`'s `# Known gaps` as a whole** — gaps 3–4 are
-      built, and their owner tags are `crates/nvs-stdlib/src/db/mod.rs:291` and `:308`. Gaps 1–2 are
-      `unowned` and stay, so the section shrinks rather than going.
-      `rule:core-classes/db-streaming` and `rule:core-classes/db-one-api` are what it now describes.
-- [ ] **Rewrite `crates/nvs-types/src/derive.rs:42`'s `# Known gaps` the same way** — gaps 1–2 are
-      built, tags at `crates/nvs-types/src/derive.rs:76` and `:98`; gap 3 is
-      `rule:core-classes/derive-attribute`'s and `unowned`, so it stays and is renumbered.
+- [ ] **Build `crates/nvs-stdlib/src/db/mod.rs:214`'s gap 1** — a literal naming an endpoint no
+      `[db.<name>]` block describes gets `PoolBounds::DEFAULT`, and the decision on disk is that the
+      defaults apply and a deployment that wants bounds writes a block
+      (`rule:security/db-pool-reset-is-a-boundary`). What is left is the first-use notice, or the
+      record that there is none.
+- [ ] **Close `crates/nvs-stdlib/src/db/mod.rs:240`'s gap 2** — `Db\DbError` declares no `issues` and
+      a per-column refusal is thrown as a `ParseError`; the split stands, so the work is stating it in
+      `rule:core-classes/db-one-api`'s neighbourhood and striking the gap rather than changing a class.
+- [ ] **Build `crates/nvs-types/src/derive.rs:44`'s gap 1** — `check_row_sites` gains the
+      `Core\Json::decodeAs` half, checking `T` and `array<T>`'s element statically, which is the rule
+      amendment `rule:core-classes/derive-attribute` owes.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/queue.rs` gaps 1–2 and `crates/nvs-stdlib/src/db/mod.rs` gaps 1–2 are goal
-  `unowned-closures`'s — `docs/agent/loop-goal.md` § *Standing decisions*, *Not this goal*.
+- `crates/nvs-stdlib/src/queue.rs` gaps 1–2 are goal `unowned-closures`'s — `docs/agent/loop-goal.md`
+  § *Standing decisions*, *Not this goal*.
 - The socket leg asserts `crates/nvs-db`'s case list alone: `queue`, `db_stream` and the worker's
   case gate themselves out on a `Location::Socket`. `tools/db-matrix.py`'s `SOCKET_SUITES` says what
   a case needing a socket would change.
 - A Linux host runs the socket leg natively and has never been tried; `NOVIS_DB_SOCKET_DIR` is the
   one field that has to name the same directory at both ends there.
+- `crates/nvs-stdlib/src/json.rs:128`'s gap 1 (`m8-stdlib-depth`) is now cited from two doors — what
+  an inline shape and an `Instant` are on the wire decides both.
