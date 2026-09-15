@@ -805,6 +805,105 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// ADR 0054's claim, measured rather than asserted
+// ---------------------------------------------------------------------------
+//
+// `decimal` is the arithmetic type whose operators are out-of-line helper calls
+// over a 96-bit mantissa rather than one native instruction, so the guard above
+// says nothing about it: a `decimal` loop is *expected* to carry calls. What it
+// owes instead is a cost class — several helper calls per iteration, not a
+// heap allocation or an arbitrary-precision path per operation.
+
+/// Compiles the `decimal` arithmetic loop `benches/members/` measures as this
+/// feature's figure, and returns the compiled unit.
+///
+/// The guard below and the ledger figure read the **same program**, for the
+/// reason `shared/isolate.rs` is shared above: two loops written to be alike
+/// drift apart, and then the number in `docs/perf/members.ndjson` is no longer
+/// the number this test protects.
+fn compile_decimal_arith() -> nvs_codegen::Unit {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../members/lang/types/numbers-bool-int-uint-float-decimal.nvs"
+    );
+    let text = std::fs::read_to_string(path).expect("the bench program is readable");
+    compile_source("numbers-bool-int-uint-float-decimal.nvs", &text).1
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
+    // Self-relative, per ADR 0026: the bound is a multiple of the
+    // checked-return frame cost this file already measures on *this* machine,
+    // never an absolute figure quoted from another one.
+    //
+    // An iteration is three `decimal` operations — a multiply, an add and a
+    // subtract — plus the `int` compare and increment the `int` loop above pays
+    // too. Each of the three is an out-of-line helper call over a 96-bit
+    // mantissa, so this loop sits tens of frames up rather than under one:
+    // measured on x86_64-pc-windows-msvc, 61 ns per iteration against 1.55 ns
+    // per checked-return frame, a ratio of 39x steady across runs.
+    //
+    // The ceiling is about three times that rather than this file's usual ~10x,
+    // and the tighter bound is the point. What it exists to catch is a change
+    // of *kind* — a `decimal` that starts allocating, or an operator that falls
+    // back to an arbitrary-precision path, against
+    // `crates/nvs-runtime/src/decimal.rs`'s "nothing is allocated and nothing
+    // is refcounted" — and that costs tens of nanoseconds per operator, which a
+    // ceiling ten times a ratio already in the tens would sail straight past.
+    // A ratio of two figures measured in the same run is also the portable
+    // half of ADR 0026's finding, so it carries less machine-to-machine slack
+    // than an absolute figure needs.
+    const MAX_RATIO: f64 = 120.0;
+    const ITERATIONS: i64 = 1_000;
+
+    let mut probe = Probe::new();
+    let shallow = probe.compile_chain(2, Helper::Double);
+    let deep = probe.compile_chain(18, Helper::Double);
+    let mut probe_ctx = Ctx::new();
+    let arg = Value::int(3);
+    let t_shallow = ns_per_op(200_000, 5, || {
+        black_box(call(shallow, &mut probe_ctx, arg));
+    });
+    let t_deep = ns_per_op(200_000, 5, || {
+        black_box(call(deep, &mut probe_ctx, arg));
+    });
+    let per_frame = (t_deep - t_shallow) / 16.0;
+
+    let unit = compile_decimal_arith();
+    // `raw_function` rather than `Unit::call_static`, and argument slot 0 the
+    // implicit `null` receiver, both for the reasons the `int` guard above
+    // gives at the same call.
+    let run = unit
+        .raw_function("Bench::run")
+        .expect("the bench program declares Bench::run");
+    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+    let args = [
+        nvs_runtime::Value::null(),
+        nvs_runtime::Value::int(ITERATIONS),
+    ];
+    let per_call = ns_per_op(2_000, 5, || {
+        black_box(nvs_runtime::call(run, &mut ctx, &args)).expect("the loop ran");
+    });
+    let per_iteration = per_call / ITERATIONS as f64;
+
+    let ratio = per_iteration / per_frame;
+    println!(
+        "typed decimal arithmetic loop: {per_iteration:.2} ns/iteration against \
+         {per_frame:.2} ns/frame, ratio {ratio:.1}x{}",
+        under(ratio, MAX_RATIO)
+    );
+
+    assert!(
+        ratio < MAX_RATIO,
+        "a decimal loop iteration now costs {ratio:.1}x a checked-return frame \
+         ({per_iteration:.2} ns vs {per_frame:.2} ns), over the {MAX_RATIO}x \
+         guard. ADR 0054 § *Consequences* claims a helper call per operator and \
+         no allocation; at this ratio one of those two has stopped being true."
+    );
+}
+
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_refcount_one_array_member_mutates_in_place() {
@@ -967,6 +1066,144 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
              a real regression, that decision needs revisiting rather than this threshold."
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// ADR 0056's claim, measured rather than asserted
+// ---------------------------------------------------------------------------
+//
+// `rule:core-classes/regex-two-tiers` routes a pattern to the linear engine
+// unless that engine cannot express it, and a developer has no way to ask for
+// the other one. That is defensible only if the tier nobody can choose is not
+// the slow one, so the two are measured against each other here rather than
+// asserted in prose.
+
+/// The corpus both tiers scan, once, repeated into a few kilobytes.
+const CORPUS_UNIT: &str = "the quick brown fox jumps over the lazy dog, ";
+
+/// How many copies of [`CORPUS_UNIT`] the scanned subject holds.
+const CORPUS_REPEATS: usize = 64;
+
+/// The pattern the linear engine expresses.
+const LINEAR_PATTERN: &str = r"\b[a-z]+@[a-z]+\.[a-z]{2,4}\b";
+
+/// The same pattern behind a lookahead that is satisfied wherever the pattern
+/// could start, so it matches exactly what [`LINEAR_PATTERN`] matches and
+/// differs only in the engine it can run on — a lookaround is the construct
+/// `rule:core-classes/regex-two-tiers` names as reaching the second tier.
+///
+/// A twin rather than one pattern run twice, because there is no second pattern
+/// here: the tier is a property of the text, so the only way to put the same
+/// work on both engines is to write the same search two ways and check, with
+/// `validate`, that each landed where it was meant to.
+const BACKTRACKING_PATTERN: &str = r"(?=[a-z])\b[a-z]+@[a-z]+\.[a-z]{2,4}\b";
+
+/// Compiles the program that scans [`CORPUS_UNIT`]'s corpus with a pattern,
+/// with both patterns substituted into their own entry point.
+///
+/// Through the real pipeline and `Core\Regex::matches`, not against the two
+/// engine crates directly: what the claim is about is the throughput a *Novis
+/// program* sees, which includes the cache lookup and the argument decoding
+/// each call pays. Both tiers pay them identically, so they cancel in the
+/// ratio and leave the scan itself.
+fn compile_regex_scan() -> nvs_codegen::Unit {
+    let source = r"<?nvs
+class Bench {
+    public static function linear(int $rounds): int {
+        return Bench::scan($rounds, '@LINEAR@');
+    }
+
+    public static function backtracking(int $rounds): int {
+        return Bench::scan($rounds, '@BACKTRACKING@');
+    }
+
+    public static function scan(int $rounds, string $pattern): int {
+        var $subject = Core\Str::repeat('@UNIT@', @REPEATS@);
+        var $found = 0;
+        var $i = 0;
+        while ($i < $rounds) {
+            if (Core\Regex::matches($subject, $pattern)) {
+                $found = $found + 1;
+            }
+            $i = $i + 1;
+        }
+        return $found;
+    }
+}
+"
+    .replace("@LINEAR@", LINEAR_PATTERN)
+    .replace("@BACKTRACKING@", BACKTRACKING_PATTERN)
+    .replace("@UNIT@", CORPUS_UNIT)
+    .replace("@REPEATS@", &CORPUS_REPEATS.to_string());
+    compile_source("regex-tiers.nvs", &source).1
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus() {
+    // Self-relative, per ADR 0026: the two tiers are measured against each
+    // other in the same run, never against a figure quoted from another
+    // machine. Neither pattern matches anywhere in the corpus, so each leg is
+    // a full scan of the same bytes rather than a race to an early hit.
+    //
+    // The bound is a floor of 1.0 — the linear tier must simply be the faster
+    // of the two — because that is the claim exactly, and nothing more than it
+    // is safe to fix: a developer who cannot choose a tier is not being handed
+    // the slower one. Measured on x86_64-pc-windows-msvc the margin is three
+    // orders of magnitude, since the literal `@` gives the linear engine a
+    // prefilter that rejects the whole corpus in one pass and the lookahead
+    // denies the backtracker the same trick; the printed figure is where a
+    // later pass would tighten this from, across several machines.
+    const MIN_SPEEDUP: f64 = 1.0;
+    const ROUNDS: i64 = 50;
+
+    assert_eq!(
+        nvs_stdlib::regex::validate(LINEAR_PATTERN),
+        Ok(nvs_stdlib::regex::Tier::Linear),
+        "the linear leg's pattern no longer routes to the linear engine, so this \
+         guard would be comparing one tier with itself"
+    );
+    assert_eq!(
+        nvs_stdlib::regex::validate(BACKTRACKING_PATTERN),
+        Ok(nvs_stdlib::regex::Tier::Backtracking),
+        "the backtracking leg's pattern no longer routes to the backtracking \
+         engine, so this guard would be comparing one tier with itself"
+    );
+
+    let unit = compile_regex_scan();
+    let bytes = (CORPUS_UNIT.len() * CORPUS_REPEATS) as f64;
+    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+    let args = [nvs_runtime::Value::null(), nvs_runtime::Value::int(ROUNDS)];
+    // Nanoseconds per byte scanned: the corpus size then sits in neither the
+    // printed figure nor the threshold.
+    let mut per_byte = |entry: &str| {
+        let scan = unit
+            .raw_function(entry)
+            .unwrap_or_else(|| panic!("the fixture declares Bench::{entry}"));
+        let per_call = ns_per_op(20, 5, || {
+            black_box(nvs_runtime::call(scan, &mut ctx, &args)).expect("the scan ran");
+        });
+        per_call / ROUNDS as f64 / bytes
+    };
+    let linear = per_byte("Bench::linear");
+    let backtracking = per_byte("Bench::backtracking");
+
+    let speedup = backtracking / linear;
+    println!(
+        "regex tiers over {bytes:.0} bytes: linear {linear:.3} ns/byte against \
+         backtracking {backtracking:.3} ns/byte, {speedup:.1}x{}",
+        over(speedup, MIN_SPEEDUP)
+    );
+
+    assert!(
+        speedup > MIN_SPEEDUP,
+        "the linear tier now runs at {speedup:.2}x the backtracking tier over the \
+         same corpus ({linear:.3} ns/byte against {backtracking:.3} ns/byte), under \
+         the {MIN_SPEEDUP}x floor. `rule:core-classes/regex-two-tiers` gives a \
+         developer no way to ask for the second tier, which rests on the first not \
+         being the slower one; if this is a real regression that argument needs \
+         revisiting."
+    );
 }
 
 // ---------------------------------------------------------------------------
