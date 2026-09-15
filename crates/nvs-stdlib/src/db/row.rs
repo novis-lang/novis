@@ -108,8 +108,9 @@ pub(super) fn row_object(
 /// § 8's `DbError` because this module's known gap 2 is that the latter is not
 /// in spec § 10's tree, and because `issues` is a property only the former
 /// declares. A class carrying no `#[Db\Derive]` is a `LogicError` instead: it
-/// is the program's mistake rather than the row's, and gap 4 owns why it is not
-/// the compile-time diagnostic it should be.
+/// is the program's mistake rather than the row's, and `nvs_types::derive`'s
+/// `check_row_sites` says it as `E0806` while compiling — what stays here is
+/// the backstop for a class built by hand, which no call site named.
 ///
 /// # Safety
 ///
@@ -313,6 +314,22 @@ pub(super) fn converted(
             Some(Tag::Str) => Ok(held),
             _ => Err(wanted("`string`", held)),
         },
+        // § 9 maps `DECIMAL`/`NUMERIC`/`MONEY` to this and nothing else, so a
+        // value reaching here already carries every digit the column held —
+        // [`column_value`] is where a scale the type cannot hold is refused
+        // (`rule:types/decimal`), before any field asks. What is left is the
+        // question the arms above ask: is it what the field declared.
+        CodecTy::Decimal => match held.tag() {
+            Some(Tag::Decimal) => Ok(held),
+            _ => Err(wanted("`decimal`", held)),
+        },
+        // § 9's binary families. A `bytes` and a `string` point at the same
+        // heap shape and are told apart by the tag alone, which is exactly the
+        // distinction § 6 makes when it hands a `BLOB` back tainted.
+        CodecTy::Bytes => match held.tag() {
+            Some(Tag::Bytes) => Ok(held),
+            _ => Err(wanted("`bytes`", held)),
+        },
         // `rule:enums/representation`: a case *is* the integer behind it by the time it is a
         // `Value`, so this is a membership test and not a construction.
         CodecTy::Enum => {
@@ -350,7 +367,9 @@ pub(super) fn converted(
         }
         // A row is a flat list of columns and `nvs_types::derive`'s own
         // `db_reachable` maps none of them to a nested class, so this arm is
-        // § 9's five value types and nothing else. The instance is built long
+        // § 9's own value types and nothing else — the `Instant` that carries a
+        // wire type of its own, and the rest, which the erasure leaves as a
+        // class label. Both are answered the same way. The instance is built long
         // before hydration reads it — [`column_value`] is where a driver's
         // components become a `Core\Time` or a `Core\Uuid`, and
         // [`sqlite_column_value`] is where the one driver that sends no
@@ -364,7 +383,7 @@ pub(super) fn converted(
         // the one `crate::instance` gave the value the driver's components
         // built. `rule:core-api/tier-placement` keeps the `Core\` prefix for Tier 0, so no program
         // can declare a second class answering to one of these five names.
-        CodecTy::Class => {
+        CodecTy::Class | CodecTy::Instant => {
             let Some(declared) = class else {
                 return Err(
                     "this field is a class whose name the derive pass did not record".to_owned(),
@@ -389,11 +408,13 @@ pub(super) fn converted(
                 ))
             }
         }
-        // `nvs_types::derive` erases `decimal`, `bytes` and every inline shape
-        // to this, and its own gap 1 owns the erasure.
+        // `nvs_types::derive` erases an inline shape to this, and its own gap 1
+        // owns the erasure. `check_row_sites` says this as `E0806` while
+        // compiling; what is left here is the backstop for a class built by
+        // hand, which no call site named.
         CodecTy::Opaque => Err(
             "this field's declared type is one the derive pass has no wire \
-                                type for — a `decimal`, a `bytes` or an inline shape"
+                                type for — an inline shape"
                 .to_owned(),
         ),
         // Unreachable: [`hydrated`] takes the list arm before this is called,

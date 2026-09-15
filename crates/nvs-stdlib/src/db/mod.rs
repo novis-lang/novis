@@ -289,26 +289,22 @@
 //!    one field rather than a member — [`COLUMN_NULLABLE_DOC`] states it — and
 //!    it is a property of the PostgreSQL wire and not a gap in this module.
 //!    — owner: m8-db-queue
-//! 4. **`queryAs<T>` and `streamAs<T>` hydrate, and one of their refusals is
-//!    still said per row rather than while compiling.** [`hydrate`] is the walk
-//!    over [`nvs_runtime::ClassDesc::db_codec`] and it lands, reached per result
-//!    set on the first member and per step on the second. Three of the ways a
-//!    call is answered *no* are properties of the call site or of the class,
-//!    and `nvs_types::derive`'s `check_row_sites` says all three as `E0806`
-//!    while compiling, over both members: a list type argument, whose form asks for the
-//!    plural twice; a `T` carrying no `#[Db\Derive]` codec; and a mapping that
-//!    fills fewer parameters than the constructor declares. What is left is a
-//!    property of a *field* — a declared type the derive pass erased to
-//!    [`nvs_runtime::CodecTy::Opaque`], a `decimal`, a `bytes` or an inline
-//!    shape — and [`hydrate`] refuses it per row, because the erasure is
-//!    `nvs_types::derive`'s own gap and there is no wire type behind it to
-//!    decode into. The run-time refusals the compiling pass now covers stay
-//!    under it as the backstop for a class built by hand, and each says so.
-//!    Two smaller ones ride with the erased field: a constructor parameter no
-//!    codec field fills is a fatal rather than `rule:core-classes/derive-field-list`'s default, for
-//!    `crate::json`'s reason, and the refusals carry § 5's `issues` on a
-//!    `ParseError` because `Db\DbError` has no `issues` slot to carry them —
-//!    gap 2's other half.
+//! 4. **A skipped field's constructor default is a fatal, and the refusals ride
+//!    on the wrong class.** [`hydrate`] is the walk over
+//!    [`nvs_runtime::ClassDesc::db_codec`], reached per result set on
+//!    `queryAs<T>` and per step on `streamAs<T>`. Every way a call is answered
+//!    *no* is a property of the call site or of the class, and
+//!    `nvs_types::derive`'s `check_row_sites` says all of them as `E0806` while
+//!    compiling, over both members: a list type argument, whose form asks for
+//!    the plural twice; a `T` carrying no `#[Db\Derive]` codec; a field the
+//!    erasure gave no wire type; and a mapping that fills fewer parameters than
+//!    the constructor declares. The run-time refusals stay under the compiling
+//!    pass as the backstop for a class built by hand, and each says so. What is
+//!    left here is two smaller things: a constructor parameter no codec field
+//!    fills is a fatal rather than `rule:core-classes/derive-field-list`'s
+//!    default, for `crate::json`'s reason, and the refusals carry § 5's
+//!    `issues` on a `ParseError` because `Db\DbError` has no `issues` slot to
+//!    carry them — gap 2's other half.
 //!    — owner: m8-db-queue
 
 use std::net::{SocketAddr, ToSocketAddrs as _};

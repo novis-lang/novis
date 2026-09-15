@@ -613,8 +613,24 @@ pub enum CodecTy {
     Uint,
     /// `float`; a JSON integer widens into one.
     Float,
+    /// `decimal` — `rule:types/decimal`'s exact scalar, and never [`Self::Float`]:
+    /// the two are not assignable to each other in the language, and a decoder
+    /// that reached one through the other would round away the digits the type
+    /// exists to keep.
+    Decimal,
     /// `string`.
     Str,
+    /// `bytes` — `rule:types/bytes`'s octet string. A column type and not a JSON
+    /// one, which is why this is a wire type of its own rather than
+    /// [`Self::Str`]: `rule:core-classes/db-column-types` maps the binary
+    /// families to it, and `nvs_types::derive`'s JSON half never produces it.
+    Bytes,
+    /// `Core\Time\Instant` — a `Core` value type carried as a value rather than
+    /// as a nested object, so it is not [`Self::Class`]: it declares no codec
+    /// for a decoder to run. A driver builds the instance out of the column's
+    /// own components before hydration reads it, and what a decode owes is the
+    /// question every other wire type owes — is this what the field declared.
+    Instant,
     /// `mixed` — whatever the document held, unchecked
     /// (`rule:types/declaration`).
     Mixed,
@@ -646,10 +662,10 @@ pub enum CodecTy {
     /// The roster of accepted values rides on [`CodecField::cases`] for
     /// [`Self::Class`]'s reason: this enum is `Copy` and a case list is not.
     Enum,
-    /// A declared type this decoder has no case for yet — a `decimal`, an
-    /// `Instant`, an inline shape. Encoding one still works; decoding into one
-    /// is `nvs_stdlib::json`'s own known gap, and it faults naming the field
-    /// rather than guessing a value.
+    /// A declared type this decoder has no case for yet — an inline shape
+    /// reached as a field, an `array<array<T>>`. Encoding one still works;
+    /// decoding into one is `nvs_stdlib::json`'s own known gap, and it faults
+    /// naming the field rather than guessing a value.
     Opaque,
 }
 

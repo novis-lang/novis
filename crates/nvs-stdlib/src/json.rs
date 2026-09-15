@@ -128,11 +128,9 @@
 //! 1. **A derived field's type roster is narrower than `rule:core-classes/derive-field-list`'s.**
 //!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
 //!    a `string`, a `mixed`, an enum, another derived class, an `array<T>` of
-//!    any of those, and a `?T` of any of them — the whole of
-//!    [`nvs_runtime::CodecTy`] but its last variant. A `decimal`, an
-//!    `Instant`, an inline shape reached as a *field*, and an `array<T>` of one
-//!    of those are all codec-reachable by that rule and all land on
-//!    `CodecTy::Opaque`, which
+//!    any of those, and a `?T` of any of them. A `decimal`, an `Instant`, an
+//!    inline shape reached as a *field*, and an `array<T>` of one of those are
+//!    all codec-reachable by that rule and are all [`undecoded`] here, which
 //!    [`decode_as`] refuses **before reading the document** for the class it
 //!    was handed, and [`decode_field`] refuses on reaching it inside a nested
 //!    one. Encoding is unaffected: [`Encodable`] walks the value rather than
@@ -1462,11 +1460,14 @@ pub(crate) unsafe fn check_codec(
             ),
         ));
     }
-    // Checked before the document is even read: an `Opaque` field is a decoder
+    // Checked before the document is even read: an undecoded field is a decoder
     // this crate has not written yet (gap 6), not something the input did, so
     // it is an engine fault rather than an issue in a list a program shows a
     // user.
-    if let Some(field) = fields.iter().find(|field| field.ty == CodecTy::Opaque) {
+    if let Some(field) = fields
+        .iter()
+        .find(|field| undecoded(field.ty) || field.element.is_some_and(undecoded))
+    {
         return Err(Fault::fatal(format!(
             "{member}(): `{}`'s `{}` field has a declared type this decoder \
              has no case for yet — `rule:core-classes/derive-field-list`'s wider codec-reachable set is \
@@ -1476,6 +1477,20 @@ pub(crate) unsafe fn check_codec(
         )));
     }
     Ok(())
+}
+
+/// Whether a wire type is one this crate owes a decoder for — gap 1's roster,
+/// written once so [`decode_as`]'s pre-check and [`decode_field`]'s own arm
+/// cannot come to hold different rosters.
+///
+/// A `bytes` is on it only for completeness: `rule:types/bytes` gives it no JSON
+/// spelling, so `nvs_types::derive`'s reachable set refuses the declaration
+/// before a document is ever read.
+const fn undecoded(ty: CodecTy) -> bool {
+    matches!(
+        ty,
+        CodecTy::Opaque | CodecTy::Decimal | CodecTy::Bytes | CodecTy::Instant
+    )
 }
 
 /// One instance of `class` out of a document already read — or, for `list`, one
@@ -2027,10 +2042,11 @@ unsafe fn convert_field(
             }
         }
         // Reachable only through a *nested* class, whose own fields
-        // [`decode_as`]'s pre-check never saw: an `Opaque` is a decoder this
-        // crate has not written yet, so it is an engine fault wherever it is
-        // met and never an issue in a list a program shows a user.
-        CodecTy::Opaque => {
+        // [`decode_as`]'s pre-check never saw: an [`undecoded`] wire type is a
+        // decoder this crate has not written yet, so it is an engine fault
+        // wherever it is met and never an issue in a list a program shows a
+        // user.
+        CodecTy::Opaque | CodecTy::Decimal | CodecTy::Bytes | CodecTy::Instant => {
             return Err(DecodeFailure::Fault(Fault::fatal(format!(
                 "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
                  has no case for yet — `rule:core-classes/derive-field-list`'s wider codec-reachable set is \
@@ -2134,9 +2150,9 @@ unsafe fn decode_nested(
 /// question of every element, and a list whose elements converted by their own
 /// rules would be a second answer to "what is an `int` here".
 ///
-/// A [`CodecTy::Class`], a [`CodecTy::List`] and a [`CodecTy::Opaque`] are not
-/// scalars and answer `None`; each has a caller that handles it before
-/// reaching here.
+/// A [`CodecTy::Class`], a [`CodecTy::List`] and every [`undecoded`] wire type
+/// are not scalars this reads and answer `None`; each has a caller that handles
+/// it before reaching here.
 ///
 /// `cases` is [`nvs_runtime::CodecField::cases`], and is read only for a
 /// [`CodecTy::Enum`] — the one wire type whose accepted values are a property
@@ -2228,7 +2244,12 @@ unsafe fn scalar(
                 Some(Value::int(number))
             };
         }
-        CodecTy::Class | CodecTy::List | CodecTy::Opaque => None,
+        CodecTy::Class
+        | CodecTy::List
+        | CodecTy::Opaque
+        | CodecTy::Decimal
+        | CodecTy::Bytes
+        | CodecTy::Instant => None,
     }?;
     // Every arm reaching here either passed the document's own value through
     // or built an unrefcounted scalar, and a retain on the second is the
@@ -2465,6 +2486,11 @@ const fn wanted(ty: CodecTy) -> &'static str {
         CodecTy::Float => "float",
         CodecTy::Str => "string",
         CodecTy::Mixed => "mixed",
+        // Named for the roster's sake: an [`undecoded`] wire type faults before
+        // a document is read, so no issue message reaches for one of these.
+        CodecTy::Decimal => "decimal",
+        CodecTy::Bytes => "bytes",
+        CodecTy::Instant => "an instant",
         // Never reached through a field: `decode_nested` names the class
         // itself, which is what the reader wrote. Here for the roster.
         CodecTy::Class => "an object",

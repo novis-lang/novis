@@ -44,11 +44,16 @@
 //! 1. **A reachable type whose decoder is not written yet is still
 //!    [`CodecTy::Opaque`].** § 2's compile-time refusal is applied — see
 //!    [`resolve_field_types`] — but it names only the types that can never
-//!    have a wire form. A `decimal`, an `Instant` and an inline shape are all
-//!    *reachable* and all erase to `Opaque` here, so a
-//!    `decodeAs<T>` over one still refuses at run time; the decoders they need
-//!    are `nvs_stdlib::json`'s own gap, and keeping the two apart is why this
-//!    module refuses a type rather than refusing an `Opaque`.
+//!    have a wire form. An inline shape reached as a field is *reachable* and
+//!    erases to `Opaque` here, so a `decodeAs<T>` over one still refuses at run
+//!    time; the decoder it needs is `nvs_stdlib::json`'s own gap, and keeping
+//!    the two apart is why this module refuses a type rather than refusing an
+//!    `Opaque`.
+//!
+//!    **A `decimal`, a `bytes` and an `Instant` are no longer among them.**
+//!    Each erases to a [`CodecTy`] of its own, so both doors can tell it from
+//!    the `Opaque` that means a missing decoder and from the [`CodecTy::Class`]
+//!    that means a nested one.
 //!
 //!    **An enum is no longer one of them either.** It erases to
 //!    [`CodecTy::Enum`] carrying [`DerivedField::cases`], the roster of
@@ -77,11 +82,11 @@
 //!    [`crate::ExprTypeTable::db_codec`]
 //!    holds the answer the driver half reads back. `nvs_stdlib::db::row`'s
 //!    `hydrate` is that reader, and it builds the class one row at a time.
-//!    What it cannot build is a field this pass flattened: the erasure to
-//!    [`CodecTy`] is shared with JSON, so a `bytes` or a `Core\Time\Instant`
-//!    field is *accepted* by the type map above and still lands on
-//!    [`CodecTy::Opaque`], which the decoder refuses per row for gap 1's
-//!    reason.
+//!    What it cannot build is a field this pass flattened to
+//!    [`CodecTy::Opaque`]: an inline shape, and an `array<array<T>>` the type
+//!    map already refuses. A `decimal`, a `bytes` and each of
+//!    [`DB_COLUMN_CLASSES`]'s value types carry a wire type the reader has a
+//!    case for.
 //!    — owner: m8-db-queue
 //! 3. **[`check_row_sites`] has no `Core\Json::decodeAs` half.** The two
 //!    members share [`crate::expr::args::written_class_of`]'s lookup and do
@@ -514,11 +519,13 @@ pub fn shape_class_label(sorted_fields: &[String]) -> String {
 /// `declared`, erased to what a native decoder branches on, with the class
 /// label and the enum roster beside it where the erasure loses one.
 ///
-/// `rule:core-classes/derive-field-list`'s codec-reachable set is wider than this: a `decimal` and
-/// an `Instant` are both reachable and both land on [`CodecTy::Opaque`] today —
-/// `nvs_stdlib::json`'s own gap owns the decoders they still need, and § 2's
-/// compile-time refusal of a genuinely unreachable type is this module's gap 3.
-/// An inline shape is `Opaque` here too, because a shape reached as a derived
+/// `rule:core-classes/derive-field-list`'s codec-reachable set is wider than
+/// this in one place still: the four `Core` value types of
+/// [`DB_COLUMN_CLASSES`] that are not an `Instant` erase to [`CodecTy::Class`]
+/// and are told from a codec-carrying class by their label alone, which is what
+/// `nvs_stdlib::db::row` reads. § 2's compile-time refusal of a genuinely
+/// unreachable type is this module's gap 3.
+/// An inline shape is `Opaque` here, because a shape reached as a derived
 /// class's *field* is a nested decode this row has no room to describe; a shape
 /// written as the whole type argument goes through [`shape_codec`] instead,
 /// which reads its fields rather than erasing them. Nothing here narrows what
@@ -540,14 +547,37 @@ fn codec_ty(
         Ty::Int => (CodecTy::Int, None, None, None),
         Ty::Uint => (CodecTy::Uint, None, None, None),
         Ty::Float => (CodecTy::Float, None, None, None),
+        // `rule:types/decimal`'s own wire type, never `float`'s: the types are
+        // not assignable to each other in the language, so a decoder reaching
+        // one through the other would round away what the type is for.
+        Ty::Decimal => (CodecTy::Decimal, None, None, None),
         // A `tainted` string is still a string on the wire; `rule:security/derived-codec-qualifiers` makes
         // the qualifier a call-site question, not a decoder one.
         Ty::String | Ty::TaintedString => (CodecTy::Str, None, None, None),
+        // `rule:types/bytes`, under the same call-site reading of the
+        // qualifier. It reaches a wire through a column alone — [`db_reachable`]
+        // admits it and [`json_reachable`] does not — so the erasure is shared
+        // and the reachable set is what keeps it out of a JSON document.
+        Ty::Bytes | Ty::TaintedBytes => (CodecTy::Bytes, None, None, None),
         Ty::Mixed => (CodecTy::Mixed, None, None, None),
-        // § 2's "another class that itself has a codec". The label is the one
+        // § 2's "another class that itself has a codec", and the one `Core`
+        // value type that is a wire type instead. The label is what
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
-        // through, so `nvs-codegen` can resolve it to a descriptor.
-        Ty::Class(name, _) => (CodecTy::Class, None, Some(name.to_string()), None),
+        // through, so `nvs-codegen` can resolve it to a descriptor; an
+        // `Instant` keeps it too, because a decoder that only has to ask
+        // whether the column built what the field declared still needs the
+        // name to say so. The rest of [`DB_COLUMN_CLASSES`] is
+        // [`CodecTy::Class`], which `nvs_stdlib::db::row` reads by that same
+        // label.
+        Ty::Class(name, _) => {
+            let label = name.to_string();
+            let wire = if label == nvs_stdlib::time::INSTANT_NAME {
+                CodecTy::Instant
+            } else {
+                CodecTy::Class
+            };
+            (wire, None, Some(label), None)
+        }
         // § 2's enum. What travels is the roster and not the name: `rule:enums/representation` reserves an enum tag that nothing writes, so by the time a case
         // is a value it is the integer behind it, and a decoder has nothing to
         // resolve a name against. The membership test is therefore the whole
@@ -635,10 +665,10 @@ pub struct CodecFieldSite {
 ///
 /// **What it refuses is the unreachable set, not the undecoded one.** § 2
 /// lists a `decimal`, an `Instant`, an enum, an inline shape, an `array<T>`
-/// and a nested codec-carrying class as reachable; several of them still
-/// erase to [`CodecTy::Opaque`] and are refused by `nvs_stdlib::json` when a
-/// `decodeAs<T>` runs, which is that crate's missing decoders and not a
-/// contract error. Refusing an `Opaque` here would report those as if the
+/// and a nested codec-carrying class as reachable; the inline shape still
+/// erases to [`CodecTy::Opaque`] and is refused by `nvs_stdlib::json` when a
+/// `decodeAs<T>` runs, which is that crate's missing decoder and not a
+/// contract error. Refusing an `Opaque` here would report it as if the
 /// program were wrong — so the test is over the declared type, and this
 /// module's gap 2 owns the difference.
 pub(crate) fn resolve_field_types(
@@ -707,14 +737,17 @@ impl RowSite {
 /// Run after the walk, from [`crate::check::check_program`], beside
 /// [`resolve_field_types`] and for the same reason.
 ///
-/// **Three conditions, one code.** They are the three ways one question — can
-/// a row be hydrated into this `T`? — is answered no, and a reader at the call
-/// site is fixing the same thing in each: the type argument. The third is the
-/// one that *cannot* move to the declaration, and it is why this pass exists at
-/// all: `#[Db\Field(skip: true)]` is `rule:core-classes/derive-field-list`'s sanctioned way to take a
-/// property off the mapping, so a class carrying one is well formed and stays
-/// well formed — it is only a hydrating call over it that has a constructor
-/// parameter nothing can fill.
+/// **Every condition, one code.** They are the ways one question — can a row be
+/// hydrated into this `T`? — is answered no, and a reader at the call site is
+/// fixing the same thing in each: the type argument. The two over the class's
+/// *fields* are the ones that cannot move to the declaration, and they are why
+/// this pass exists at all: `#[Db\Field(skip: true)]` is
+/// `rule:core-classes/derive-field-list`'s sanctioned way to take a property off
+/// the mapping, so a class carrying one is well formed and stays well formed,
+/// and a field the erasure gave no wire type is
+/// [`resolve_field_types`]'s undecoded set rather than its unreachable one. It
+/// is only a hydrating call over such a class that has a constructor parameter
+/// nothing can fill.
 pub(crate) fn check_row_sites(
     sites: &[RowSite],
     exprs: &crate::expr_table::ExprTypeTable,
@@ -746,6 +779,33 @@ pub(crate) fn check_row_sites(
             );
             continue;
         };
+        // The condition that was said once per row until now. A field the
+        // erasure could not give a wire type is a property of the *class*, but
+        // the class is not wrong for it — [`resolve_field_types`]'s doc says
+        // why the unreachable set and the undecoded one are different
+        // questions — so the call that asks for a whole row out of it is where
+        // it is answered. `nvs_stdlib::db::row`'s `hydrate` keeps the same
+        // refusal as the backstop for a class built by hand.
+        if let Some(field) = codec
+            .fields
+            .iter()
+            .find(|field| field.ty == CodecTy::Opaque || field.element == Some(CodecTy::Opaque))
+        {
+            let property = &field.property;
+            report_row_site(
+                site,
+                format!(
+                    "`{class}::${property}` is declared a type no column reads back, so \
+                     `{member}` has no value to give it"
+                ),
+                "`rule:core-classes/db-column-types`: a row is a flat list of columns, and an \
+                 inline shape is a nested document rather than one. Declare the property as \
+                 the column's own type, or leave it off the mapping with \
+                 `#[Db\\Field(skip: true)]` and give the constructor a value for it yourself",
+                diags,
+            );
+            continue;
+        }
         let filled: std::collections::BTreeSet<usize> = codec
             .fields
             .iter()
@@ -770,7 +830,7 @@ pub(crate) fn check_row_sites(
     }
 }
 
-/// `E_QUERY_AS_NOT_A_ROW_CLASS`, from all three of [`check_row_sites`]'
+/// `E_QUERY_AS_NOT_A_ROW_CLASS`, from every one of [`check_row_sites`]'
 /// conditions.
 fn report_row_site(site: &RowSite, message: String, help: &str, diags: &mut Diagnostics) {
     diags.report(
