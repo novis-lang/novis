@@ -17,12 +17,27 @@
 //! ([`nvs_runtime::Inbound::set_trace_context`]) exactly as the peer and the
 //! match do.
 //!
-//! **Nothing here decides whether the trace is exported.** § 2's sampling is
+//! **Nothing here decides whether the trace is sampled.** § 2's sampling is
 //! head-based at the root and `[trace] sample` is unbuilt, so what this module
 //! produces for a request that arrived without a usable header is always an
 //! unsampled root — and an inbound *sampled* trace is always continued, which
-//! is the half of § 2 that is fully landed. Which spans a sampled trace then
-//! produces is § 1's exporter and not this crate's.
+//! is the half of § 2 that is fully landed.
+//!
+//! # What a sampled request becomes
+//!
+//! [`spans`] is the other half of this module: the graph a sampled request
+//! hands to an exporter, derived at the end of the request from the events the
+//! timeline already filed. **Exactly four things are in it** — the root, a
+//! `query`, an outbound call and a `spawn` (`rule:observability/four-kinds-become-a-span`) — and a
+//! `call` event never is, because a span per compiled call site is the trace no
+//! backend can store that `rule:observability/four-kinds-become-a-span` opens by ruling out. A `gc` event is not one
+//! either: a collection pause is a histogram in
+//! `rule:observability/default-series`, not a unit of work in a request's
+//! causal graph.
+//!
+//! Derivation, rather than a second set of probes, is the whole shape of it:
+//! `rule:testing/debug-probes`'s sites stay as cheap as they are and a request
+//! that nothing samples does no tracing work at all.
 //!
 //! # What a bad header does
 //!
@@ -34,9 +49,13 @@
 //! way *two* of them can be, below.
 //!
 //! **What it spends:** one walk of the arrived header lines per request, and
-//! the 26 bytes the carrier holds for the answer. Nothing outlives the request.
+//! the bytes the carrier holds for the answer. A sampled request additionally
+//! holds its derived spans, capped at [`SPAN_CEILING`] of them, for as long as
+//! it takes to hand them on. An unsampled one holds none, and nothing outlives
+//! the request either way.
 
-use nvs_runtime::{Inbound, TraceContext};
+use nvs_runtime::{Inbound, TraceContext, TraceEvent, TraceKind};
+use rand::RngExt;
 
 /// The field name § 2 names, lower case because `hyper` normalises a
 /// `HeaderName` on the way in and the carrier keeps what it was given.
@@ -82,11 +101,135 @@ pub fn take(inbound: &mut Inbound) {
     inbound.set_trace_context(decided);
 }
 
+/// The most spans one request contributes, root included.
+///
+/// A request holds its spans until it ends, so an unbounded count would make a
+/// long-running sampled request's memory a function of how many statements it
+/// ran — and a program that queries in a loop would be the one paying for it.
+/// The bound is a fixed count rather than a share of anything so that the worst
+/// case is arithmetic an operator can do: it is per *sampled in-flight*
+/// request, and `rule:programs/memory-priority`'s reading of it is in the
+/// goal's own accounting.
+pub const SPAN_CEILING: usize = 512;
+
+/// Which of `rule:observability/four-kinds-become-a-span`'s four a [`Span`] is.
+///
+/// There is no variant for a `call` or a `gc` event, which is the rule stated
+/// in the type rather than checked at the end of it: a kind that cannot be
+/// named cannot be pushed by a later reader that forgot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpanKind {
+    /// The request or scheduled run the other spans hang off.
+    Root,
+    /// One statement, from a `query` event
+    /// (`rule:observability/a-query-is-a-trace-event`).
+    Query,
+    /// One outbound `Core\Http\Client` call, from an `http` event — **one span
+    /// however many attempts it took**, because the transport files one event
+    /// per call and the attempt count is inside it.
+    Http,
+    /// One isolate spawn, from a `spawn` event
+    /// (`rule:observability/spawn-is-its-own-event`).
+    Spawn,
+}
+
+/// One span of a sampled request's trace, as [`spans`] derives it.
+///
+/// The ids are the export's whole point and are carried as bytes rather than
+/// rendered: a collector wants them as they are, and a hex rendering is the
+/// header's spelling rather than the span's.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Span {
+    /// Which of the four this is.
+    pub kind: SpanKind,
+    /// The trace it belongs to — the same for every span of one request.
+    pub trace_id: [u8; 16],
+    /// Its own id, unique within the trace.
+    pub span_id: [u8; 8],
+    /// What it hangs off: the root's parent is the caller's span, and every
+    /// other span's is the root. `None` only on a root that started its trace.
+    pub parent: Option<[u8; 8]>,
+    /// What the span is *of*: the root's request line, and otherwise the
+    /// payload the event was filed with — a `query`'s rendering from
+    /// `nvs_db::QuerySpan`, an `http`'s from the transport, a `spawn`'s from
+    /// the runtime. It is one string because a [`nvs_runtime::TraceEvent`] is
+    /// one, and that type's own doc comment owns why a per-kind field set
+    /// waits on `rule:testing/debug-probes`'s sink.
+    pub detail: String,
+}
+
+/// The spans `request` contributes to its trace — `rule:observability/four-kinds-become-a-span`'s four kinds and
+/// nothing else, derived from the events the timeline already filed.
+///
+/// **A trace nothing is recording produces nothing**, and that is the
+/// head-based decision being spent rather than an optimisation: `sampled` is
+/// decided once at the root (`rule:observability/an-inbound-traceparent-is-continued`), so a request that is not in a
+/// recorded trace does none of this work and holds none of this memory. The
+/// events themselves are `rule:testing/debug-probes`'s and were filed whether or not anyone
+/// is exporting them.
+///
+/// `request` is what the root span is *of* — the method and path the door
+/// matched, or the schedule entry a run fired for. It is a parameter because
+/// this module reads the carrier's headers and not its request line, and a
+/// second reading of the line here is a second thing to keep in step with the
+/// door.
+#[must_use]
+pub fn spans(request: &str, trace: &TraceContext, events: &[TraceEvent]) -> Vec<Span> {
+    if !trace.sampled() {
+        return Vec::new();
+    }
+    let mut spans = vec![Span {
+        kind: SpanKind::Root,
+        trace_id: trace.trace_id(),
+        span_id: trace.span_id(),
+        parent: trace.parent_span_id(),
+        detail: request.to_owned(),
+    }];
+    for event in events {
+        // The ceiling counts the root, so a request that only ever spans is
+        // still bounded by it; the doc on the constant owns why.
+        if spans.len() >= SPAN_CEILING {
+            break;
+        }
+        let kind = match event.kind {
+            // The two the rule excludes, and the `match` is exhaustive so a
+            // sixth kind arriving is a compile error here rather than a span
+            // nobody decided to create.
+            TraceKind::Call | TraceKind::Gc => continue,
+            TraceKind::Query => SpanKind::Query,
+            TraceKind::Http => SpanKind::Http,
+            TraceKind::Spawn => SpanKind::Spawn,
+        };
+        spans.push(Span {
+            kind,
+            trace_id: trace.trace_id(),
+            span_id: draw_span_id(),
+            // Flat under the root rather than nested: the events are a flat
+            // list in the order they were filed, and only a `spawn`'s child
+            // could nest — which is the export-time join
+            // `rule:observability/spawn-is-its-own-event` gives the shared
+            // timeline epoch for, and not something this list can reconstruct.
+            parent: Some(trace.span_id()),
+            detail: event.callee.clone(),
+        });
+    }
+    spans
+}
+
+/// A span id for a derived span, drawn like the root's: all-zero is the value
+/// the W3C format reserves for "absent", so one bit is forced rather than
+/// redrawn.
+fn draw_span_id() -> [u8; 8] {
+    let mut span_id: [u8; 8] = rand::rng().random();
+    span_id[0] |= 1;
+    span_id
+}
+
 #[cfg(test)]
 mod tests {
-    use super::take;
+    use super::{SPAN_CEILING, SpanKind, spans, take};
     use nvs_render::Level;
-    use nvs_runtime::{Ctx, Inbound, OutputSink, TraceContext, floor};
+    use nvs_runtime::{Ctx, Inbound, OutputSink, TraceContext, TraceEvent, TraceKind, floor};
 
     /// A carrier as the door builds one: the request line, then one field line
     /// per entry in arrival order.
@@ -125,9 +268,17 @@ mod tests {
     fn an_inbound_traceparent_is_continued_and_a_missing_one_is_generated() {
         let continued = decided(&[("host", "localhost"), ("traceparent", INBOUND)]);
         assert_eq!(
-            continued.traceparent(),
-            INBOUND,
-            "the arrived header was not adopted whole"
+            (
+                continued.trace_id_hex(),
+                continued.parent_span_id(),
+                continued.sampled()
+            ),
+            (
+                "4bf92f3577b34da6a3ce929d0e0e4736".to_owned(),
+                Some([0x00, 0xf0, 0x67, 0xaa, 0x0b, 0xa9, 0x02, 0xb7]),
+                true
+            ),
+            "the arrived header was not adopted: trace, parent and flag are all it carries"
         );
 
         let generated = decided(&[("host", "localhost")]);
@@ -288,6 +439,131 @@ mod tests {
             root.trace_id_hex(),
             continued.trace_id_hex(),
             "the root joined the continued request's trace"
+        );
+    }
+
+    /// One trace event of `kind`, carrying `payload` as the routine that files
+    /// it rendered — see [`nvs_runtime::TraceEvent`] for why one field holds
+    /// every kind's facts.
+    fn event(kind: TraceKind, payload: &str) -> TraceEvent {
+        TraceEvent {
+            kind,
+            callee: payload.to_owned(),
+            status: None,
+        }
+    }
+
+    /// `rule:observability/four-kinds-become-a-span`: the root, a `query`, an outbound call and a `spawn` become
+    /// spans, and a `call` never does — nor does a `gc`, which is a histogram
+    /// in `rule:observability/default-series` instead.
+    ///
+    /// The events are built here rather than run out of a served request
+    /// because the rule is a statement about the **kind tag**, and one of the
+    /// five kinds has no emitter anywhere in the tree yet: nothing files a
+    /// `gc` event ([`nvs_runtime::TraceKind::Gc`]'s own doc says so), so a
+    /// fixture that ran a real request could never present the case this most
+    /// needs pinned — that a collection pause does not enter a request's
+    /// causal graph.
+    ///
+    /// Both directions are asserted over one derivation, because the failure
+    /// that matters is a `match` arm rather than a count: a derivation that
+    /// dropped the `spawn` and one that also spanned every call site both
+    /// produce a plausible-looking list, and only the exact set says which
+    /// arms were taken.
+    #[test]
+    fn exactly_four_event_kinds_become_a_span_and_a_call_never_does() {
+        let sampled = decided(&[("traceparent", INBOUND)]);
+        assert!(
+            sampled.sampled(),
+            "the fixture's header is the sampled one, which is what puts spans on this request"
+        );
+
+        let events = [
+            event(TraceKind::Call, "Orders::total"),
+            event(TraceKind::Gc, "gc pause=300us reclaimed=2MiB"),
+            event(TraceKind::Query, "select 1 driver=sqlite rows=1"),
+            event(
+                TraceKind::Http,
+                "GET https://api.example.test/v1/pay status=200 attempt=3 hops=1",
+            ),
+            event(TraceKind::Spawn, "spawn worker started=1ms joined=4ms"),
+        ];
+        let derived = spans("GET /orders/17", &sampled, &events);
+
+        let kinds: Vec<SpanKind> = derived.iter().map(|span| span.kind).collect();
+        assert_eq!(
+            kinds,
+            [
+                SpanKind::Root,
+                SpanKind::Query,
+                SpanKind::Http,
+                SpanKind::Spawn
+            ],
+            "the four kinds are not the four spans: {derived:?}"
+        );
+        for excluded in ["Orders::total", "gc pause"] {
+            assert!(
+                derived.iter().all(|span| !span.detail.contains(excluded)),
+                "`{excluded}` reached a span: {derived:?}"
+            );
+        }
+
+        // A retried outbound call is one span carrying its attempt count, not
+        // one span per attempt — the transport files one event per call and
+        // the count rides inside it, so the derivation must not read it.
+        let outbound: Vec<_> = derived
+            .iter()
+            .filter(|span| span.kind == SpanKind::Http)
+            .collect();
+        assert_eq!(outbound.len(), 1, "an attempt became a span of its own");
+        assert!(outbound[0].detail.contains("attempt=3"));
+
+        // The graph: every span is in the request's trace, hangs off the root,
+        // and has an id of its own. The root's own parent is the caller's
+        // span, which is the edge that joins this trace to the one it
+        // continued.
+        let root = &derived[0];
+        assert_eq!(root.span_id, sampled.span_id());
+        assert_eq!(root.parent, sampled.parent_span_id());
+        for span in &derived[1..] {
+            assert_eq!(span.trace_id, sampled.trace_id());
+            assert_eq!(span.parent, Some(root.span_id), "a span left the root");
+        }
+        let mut ids: Vec<[u8; 8]> = derived.iter().map(|span| span.span_id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(
+            ids.len(),
+            derived.len(),
+            "two spans of one trace share an id"
+        );
+
+        // Counted rather than eyeballed: a hundred call sites are still one
+        // span, which is the per-call trace the rule opens by ruling out.
+        let calls: Vec<TraceEvent> = (0..100)
+            .map(|line| event(TraceKind::Call, &format!("Orders::line{line}")))
+            .collect();
+        assert_eq!(
+            spans("GET /orders/17", &sampled, &calls).len(),
+            1,
+            "a call site became a span"
+        );
+
+        // A trace nobody is recording produces none of this, and the ceiling
+        // holds for one that is — both are memory bounds rather than tidiness,
+        // and `SPAN_CEILING`'s own doc owns why the cap is a fixed count.
+        let unsampled = decided(&[("host", "localhost")]);
+        assert!(
+            spans("GET /orders/17", &unsampled, &events).is_empty(),
+            "an unrecorded trace built spans nobody will ever read"
+        );
+        let many: Vec<TraceEvent> = (0..SPAN_CEILING * 2)
+            .map(|row| event(TraceKind::Query, &format!("select {row}")))
+            .collect();
+        assert_eq!(
+            spans("GET /orders/17", &sampled, &many).len(),
+            SPAN_CEILING,
+            "a request in a loop held an unbounded number of spans"
         );
     }
 }
