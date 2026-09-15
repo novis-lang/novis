@@ -47,6 +47,21 @@ tungstenite.workspace = true
 # `nvs-stdlib` and `nvs-cli` all already draw from it.
 rand.workspace = true
 
+# `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`'s split,
+# declared in the crate the encoder lives in. `exporter` gates `src/prometheus.rs`
+# and nothing else: `src/metrics.rs` is compiled into every build, so a
+# `Core\Metrics` call reaches the same registry whichever build ran it, and what a
+# build without this feature loses is the reader rather than the accumulator.
+#
+# On by default, which is what makes the server distribution the ordinary build and
+# `--no-default-features` the deliberate one. The feature enables no dependency,
+# because the exposition format is written here against its specification
+# (`docs/decisions/0186.md` § *Investigation*) and the transport is the `hyper` this
+# crate already rests on; what it saves a CLI binary is the encoder itself.
+[features]
+default = ["exporter"]
+exporter = []
+
 [dev-dependencies]
 # Test-only, and it stays that way: `src/control.rs`'s reload case builds the two snapshots a swap
 # is between, and a snapshot carries both its typed tree and the `toml::Table` that tree was

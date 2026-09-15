@@ -83,12 +83,12 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Only a scrape reads this.** [`crate::prometheus`] binds `[metrics]
+//! 1. **Only a scrape reads this.** The `prometheus` module binds `[metrics]
 //!    listen` and answers a collector with [`every_core`]; `[metrics] endpoint`
 //!    has no pusher, so a tree naming `exporter = "otlp"` builds a registry
-//!    nothing ships. The exporter is also not behind the cargo feature
-//!    `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`
-//!    asks for, so a CLI build carries the encoder it has no use for.
+//!    nothing ships. This module is in every build either way — the crate doc's
+//!    § *The `exporter` feature* is where the reader's half of that split is,
+//!    and it is why the sentence above names a module it does not link.
 //!    — owner: m7-server-surface
 //!
 //! 2. **`Core\Metrics`'s three members (`rule:observability/metrics-three-members`) have no row yet**, so the only
