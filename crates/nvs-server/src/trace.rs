@@ -17,11 +17,17 @@
 //! ([`nvs_runtime::Inbound::set_trace_context`]) exactly as the peer and the
 //! match do.
 //!
-//! **Nothing here decides whether the trace is sampled.** § 2's sampling is
-//! head-based at the root and `[trace] sample` is unbuilt, so what this module
-//! produces for a request that arrived without a usable header is always an
-//! unsampled root — and an inbound *sampled* trace is always continued, which
-//! is the half of § 2 that is fully landed.
+//! **Whether the trace is sampled is decided here, and only for a trace this
+//! request starts.** Sampling is head-based
+//! (`rule:observability/sampling-is-head-based`): `[trace] sample` is the
+//! fraction a *new* trace is recorded with, and [`take`] is handed it off the
+//! snapshot standing when the request arrived, because that key reloads and a
+//! rate read once at a boot would be the one an operator can no longer change.
+//! A request that continued somebody else's trace carries the flag that
+//! arrived, whatever the local fraction — the root already decided, and half a
+//! distributed trace is worse than none. The draw is
+//! [`nvs_runtime::TraceContext`]'s, made on the one path that roots a trace, so
+//! a continued one costs nothing and a rate of `0.0` costs nothing either.
 //!
 //! # What a sampled request becomes
 //!
@@ -80,7 +86,13 @@ const TRACEPARENT: &str = "traceparent";
 /// Something is always written: a request that carried no header at all is a
 /// root, which is § 2's "an id exists for every request" stated where the
 /// request is.
-pub fn take(inbound: &mut Inbound) {
+///
+/// `sample` is `[trace] sample` off the snapshot this request reads
+/// (`nvs_config::export::head_sample`), and it is consulted only where this
+/// request roots a trace — the module doc owns why that is the whole of head
+/// sampling, and why a caller with no configuration in hand passes `0.0` rather
+/// than a rate of its own.
+pub fn take(inbound: &mut Inbound, sample: f64) {
     // The whole reading is one block, so that the walk and the borrow it holds
     // on the carrier are both over before the answer is written back — the
     // shape [`crate::route::take`] uses for the same reason, and the one that
@@ -96,7 +108,7 @@ pub fn take(inbound: &mut Inbound) {
             // continue", and the doc above owns why the second one is.
             _ => None,
         };
-        TraceContext::continuing(carried)
+        TraceContext::continuing(carried, sample)
     };
     inbound.set_trace_context(decided);
 }
@@ -241,11 +253,18 @@ mod tests {
         inbound
     }
 
-    /// The trace `take` decided, which is never absent — the module doc owns
-    /// why something is always written.
+    /// The trace `take` decided under a head rate nothing is recorded at, which
+    /// is the shipped default and so what every case that is not about sampling
+    /// wants.
     fn decided(headers: &[(&str, &str)]) -> TraceContext {
+        decided_at(headers, 0.0)
+    }
+
+    /// The trace `take` decided for `headers` under `sample`, which is never
+    /// absent — the module doc owns why something is always written.
+    fn decided_at(headers: &[(&str, &str)], sample: f64) -> TraceContext {
         let mut inbound = arrived(headers);
-        take(&mut inbound);
+        take(&mut inbound, sample);
         inbound
             .trace_context()
             .expect("the door wrote no trace for a request it walked")
@@ -329,8 +348,7 @@ mod tests {
                 "traceparent",
                 "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
             )],
-            // No header: a root, which nothing samples until `[trace] sample`
-            // lands.
+            // No header: a root, which the default rate records nothing of.
             &[("host", "localhost")],
             // A header nothing can read: also a root.
             &[("traceparent", "01-4bf92f3577b34da6a3ce929d0e0e4736-x-01")],
@@ -353,6 +371,65 @@ mod tests {
         assert_eq!(sampled, 1, "the sweep asked one question four times");
     }
 
+    /// `rule:observability/sampling-is-head-based`: `[trace] sample` is the
+    /// probability that a request which *started* a trace is recorded, and an
+    /// inbound trace that is already sampled is continued whatever the local
+    /// fraction is.
+    ///
+    /// The case that carries the rule is the *unsampled* header under a rate of
+    /// `1.0`. A door that drew for every request rather than for every root
+    /// would record it, and would be shipping the tail of a trace whose root
+    /// chose not to be recorded — which is the partial trace the rule is written
+    /// to prevent, and the one failure the two ends of the rate cannot see.
+    #[test]
+    fn trace_sample_decides_at_the_root_and_a_sampled_inbound_trace_is_always_continued() {
+        /// The fixture's trace, arriving with its sampled bit clear.
+        const UNSAMPLED: &str = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00";
+
+        assert!(
+            decided_at(&[("host", "localhost")], 1.0).sampled(),
+            "a root under a rate of one was not recorded"
+        );
+        assert!(
+            !decided_at(&[("host", "localhost")], 0.0).sampled(),
+            "a root under a rate of zero was recorded"
+        );
+        assert!(
+            decided_at(&[("traceparent", INBOUND)], 0.0).sampled(),
+            "an arrived sampled trace was dropped by a rate that is not its to answer"
+        );
+        assert!(
+            !decided_at(&[("traceparent", UNSAMPLED)], 1.0).sampled(),
+            "a continued trace was re-decided at this hop"
+        );
+
+        // A header this process cannot read is a new trace (§ 2), so it is the
+        // head draw's to decide and not the header's — asserted over both of the
+        // door's own unusable shapes, each carrying a bit that says *not*
+        // recorded, so continuing one would answer the opposite.
+        for unreadable in [
+            vec![("traceparent", "00-not-a-trace-00")],
+            vec![("traceparent", UNSAMPLED), ("traceparent", UNSAMPLED)],
+        ] {
+            assert!(
+                decided_at(&unreadable, 1.0).sampled(),
+                "an unreadable header started a trace the head rate never saw: {unreadable:?}"
+            );
+        }
+
+        // Between the ends it is a draw and not a threshold, which no single
+        // request can show: over a sweep at one half both answers appear, while
+        // a door that had collapsed the rate to a constant would give one of
+        // them every time. A fair draw fails this with probability 2^-999.
+        let recorded = (0..1_000)
+            .filter(|_| decided_at(&[("host", "localhost")], 0.5).sampled())
+            .count();
+        assert!(
+            (1..1_000).contains(&recorded),
+            "a rate of one half recorded {recorded} of 1000 roots"
+        );
+    }
+
     /// What the door decided for `headers`, and the one diagnostic line a
     /// record written on a context serving that request produced.
     ///
@@ -364,7 +441,7 @@ mod tests {
     /// is this fixture's: the door writes them and the stamp reads them.
     fn reported(headers: &[(&str, &str)], message: &str) -> (TraceContext, String) {
         let mut inbound = arrived(headers);
-        take(&mut inbound);
+        take(&mut inbound, 0.0);
         let carried = inbound
             .trace_context()
             .expect("the door wrote no trace for a request it walked");

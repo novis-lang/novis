@@ -27,21 +27,27 @@
 //! (`rule:observability/four-kinds-become-a-span`), so an outbound call's header names a span that
 //! exists.
 //!
-//! **What is not here yet.** A root's [`sampled`](TraceContext::sampled) flag is always `false` —
-//! head-based `[trace] sample` is the only thing that will ever set it — and nothing pushes a
-//! derived span to a collector (`rule:observability/the-exporters-are-crates`). A continued trace's
-//! flag and parent id come from the header and are already right, which is why an inbound sampled
-//! trace is propagated onward.
+//! **A root's flag is the head draw, and a continued trace's is the header's**
+//! (`rule:observability/sampling-is-head-based`). A request that *starts* a trace is recorded with
+//! probability `[trace] sample`, drawn once in [`TraceContext::rooted`]; a request that continued
+//! somebody else's carries the flag that arrived, whatever the local fraction, because the root
+//! already decided and a partially recorded distributed trace is worse than none. That is also why
+//! an inbound sampled trace is propagated onward unchanged.
 //!
-//! **What it spends:** 34 bytes per request, and at most 24 bytes drawn from the thread's CSPRNG
-//! while the context is built. O(in-flight requests), never O(requests served).
+//! **What is not here yet.** Nothing pushes a derived span to a collector
+//! (`rule:observability/the-exporters-are-crates`).
+//!
+//! **What it spends:** 34 bytes per request, and at most 32 bytes drawn from the thread's CSPRNG
+//! while the context is built — the two ids, and the head draw a written `[trace] sample` adds to a
+//! request that roots a trace. O(in-flight requests), never O(requests served).
 
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 /// One request's place in a distributed trace.
 ///
-/// Built by [`TraceContext::started`] for a request that arrived without a usable `traceparent`, and
-/// by [`TraceContext::continuing`] for one that carried one.
+/// Built by [`TraceContext::continuing`] for a request a door read a header for — which roots a new
+/// trace through [`TraceContext::rooted`] when there was nothing usable to continue — and by
+/// [`TraceContext::started`] for the eager root every context begins with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TraceContext {
     /// The trace this request belongs to. Never all-zero, which the W3C format reserves as "no
@@ -55,8 +61,8 @@ pub struct TraceContext {
     /// read, and `None` for a root. It is the parent edge of the root span and nothing else reads
     /// it.
     parent_span_id: Option<[u8; 8]>,
-    /// Whether this trace is being recorded. Adopted from an inbound header, and otherwise `false`
-    /// until head sampling lands.
+    /// Whether this trace is being recorded. Adopted from an inbound header, and otherwise the one
+    /// head draw against `[trace] sample` that [`TraceContext::rooted`] makes.
     sampled: bool,
 }
 
@@ -68,9 +74,26 @@ const VERSION: &str = "00";
 const SAMPLED: u8 = 0x01;
 
 impl TraceContext {
-    /// A new trace, rooted at this request.
+    /// A new trace, rooted at this request and recorded by nothing.
+    ///
+    /// The eager root [`Ctx::new`](crate::Ctx::new) draws for every context, before any door has
+    /// read a header: a request a door decides for gets [`Self::continuing`]'s answer written over
+    /// this one, and a context no door serves keeps it. Head sampling is the door's question and is
+    /// asked where a header is (`nvs_server::trace::take`), so a context that was never asked
+    /// records nothing.
     #[must_use]
     pub fn started() -> Self {
+        Self::rooted(0.0)
+    }
+
+    /// A new trace, rooted at this request and recorded with probability `sample`.
+    ///
+    /// `sample` is `rule:observability/sampling-is-head-based`'s fraction, and this is where it is
+    /// spent because this is the constructor for a trace that *starts*. The draw is made once and
+    /// every span under the root is exported or not by it — which is what head-based means, and why
+    /// there is no second decision anywhere below.
+    #[must_use]
+    pub fn rooted(sample: f64) -> Self {
         let mut trace_id = [0_u8; 16];
         rand::rng().fill_bytes(&mut trace_id);
         // A CSPRNG draws all-zero with probability 2^-128, and the format reserves that value for
@@ -81,7 +104,7 @@ impl TraceContext {
             trace_id,
             span_id: draw_span_id(),
             parent_span_id: None,
-            sampled: false,
+            sampled: draws(sample),
         }
     }
 
@@ -92,9 +115,20 @@ impl TraceContext {
     /// outside, it is `tainted`, and refusing a request over a bad tracing header would turn an
     /// observability feature into an availability one. That is why this takes an `Option` and
     /// returns a `TraceContext` rather than a `Result`: there is no failure to report.
+    ///
+    /// **`sample` reaches only the trace this starts.** A header this understands brings its own
+    /// sampled flag and that flag stands whatever the local fraction is
+    /// (`rule:observability/sampling-is-head-based`); the fraction is drawn against for the request
+    /// that arrived with no header and for the one whose header could not be read, because both of
+    /// those *are* new traces. Carrying the rate down here rather than deciding above is what makes
+    /// those two cases impossible to tell apart by accident — the malformed one is a new trace by
+    /// § 2, so it is a new trace in the head draw too — and the draw is made only on the path that
+    /// roots one.
     #[must_use]
-    pub fn continuing(inbound: Option<&str>) -> Self {
-        inbound.and_then(Self::parse).unwrap_or_else(Self::started)
+    pub fn continuing(inbound: Option<&str>, sample: f64) -> Self {
+        inbound
+            .and_then(Self::parse)
+            .unwrap_or_else(|| Self::rooted(sample))
     }
 
     /// The trace this request belongs to.
@@ -201,6 +235,20 @@ fn draw_span_id() -> [u8; 8] {
     span_id
 }
 
+/// Head sampling's one draw: `true` with probability `sample`.
+///
+/// `[trace] sample` is refused where it is written (`nvs_config::export`), so what arrives here is
+/// finite and inside `0.0..=1.0`. A value that somehow is not records nothing rather than
+/// everything: every ordering against a `NaN` is false, and of the two readings of a number that
+/// names no fraction, the one that exports less is the one to fail into.
+///
+/// `0.0` is answered without asking the generator, because it is the shipped default and so the
+/// rate almost every request is drawn against — and a uniform `f64` over `0.0..1.0` is never below
+/// it anyway.
+fn draws(sample: f64) -> bool {
+    sample > 0.0 && rand::rng().random::<f64>() < sample
+}
+
 /// `bytes` as lower-case hex, appended.
 fn push_hex(out: &mut String, bytes: &[u8]) {
     for byte in bytes {
@@ -236,11 +284,11 @@ mod tests {
         assert_ne!(root.trace_id(), [0; 16]);
         assert_ne!(root.span_id(), [0; 8]);
         assert_eq!(root.parent_span_id(), None, "a root descends from nothing");
-        assert!(!root.sampled(), "nothing samples a root yet");
+        assert!(!root.sampled(), "`started` is a root nothing drew for");
 
         let rendered = root.traceparent();
         assert_eq!(rendered.len(), 55, "{rendered}");
-        let downstream = TraceContext::continuing(Some(&rendered));
+        let downstream = TraceContext::continuing(Some(&rendered), 0.0);
         assert_eq!(
             (downstream.trace_id(), downstream.parent_span_id()),
             (root.trace_id(), Some(root.span_id())),
@@ -269,7 +317,7 @@ mod tests {
     #[test]
     fn an_inbound_header_is_continued_as_this_requests_parent() {
         let inbound = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-        let continued = TraceContext::continuing(Some(inbound));
+        let continued = TraceContext::continuing(Some(inbound), 0.0);
         assert!(continued.sampled());
         assert_eq!(continued.trace_id_hex(), "4bf92f3577b34da6a3ce929d0e0e4736");
         assert_eq!(
@@ -287,7 +335,7 @@ mod tests {
         );
 
         let unsampled = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00";
-        assert!(!TraceContext::continuing(Some(unsampled)).sampled());
+        assert!(!TraceContext::continuing(Some(unsampled), 0.0).sampled());
     }
 
     /// § 2: a malformed header starts a new trace rather than throwing. Asserted over every way one
@@ -315,11 +363,48 @@ mod tests {
         ];
         // The trace id is what "adopted" means here: a header that was read at all puts this
         // request in the sender's trace, whatever span id the continuation then draws for itself.
-        let joined = TraceContext::continuing(Some(good)).trace_id();
+        let joined = TraceContext::continuing(Some(good), 0.0).trace_id();
         let adopted = unusable
             .iter()
-            .filter(|header| TraceContext::continuing(**header).trace_id() == joined)
+            .filter(|header| TraceContext::continuing(**header, 0.0).trace_id() == joined)
             .count();
         assert_eq!(adopted, 0, "one of {unusable:?} was adopted");
+    }
+
+    /// `rule:observability/sampling-is-head-based`: the fraction is drawn against once, by the
+    /// request that roots the trace, and a request that continued one is recorded by the flag that
+    /// arrived rather than by the local rate.
+    ///
+    /// The two ends are asserted because they are the values an operator writes when they mean off
+    /// and everything, and they are the only two a single draw can assert exactly; the fraction
+    /// between them is arithmetic this has no way to observe in one call.
+    #[test]
+    fn a_root_draws_against_the_rate_and_a_continued_trace_keeps_the_arrived_flag() {
+        assert!(
+            TraceContext::rooted(1.0).sampled(),
+            "`1.0` recorded nothing"
+        );
+        assert!(
+            !TraceContext::rooted(0.0).sampled(),
+            "`0.0` recorded a trace"
+        );
+
+        let sampled = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        let unsampled = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00";
+        assert!(
+            !TraceContext::continuing(Some(unsampled), 1.0).sampled(),
+            "a continued trace was re-decided by the local rate"
+        );
+        assert!(
+            TraceContext::continuing(Some(sampled), 0.0).sampled(),
+            "an inbound sampled trace was dropped by a rate that is not its to answer"
+        );
+
+        // A header nothing can read is a new trace in § 2 and so a new trace in the draw too —
+        // the case a rate carried by the caller rather than by this type would be the one to miss.
+        assert!(
+            TraceContext::continuing(Some("00-not-a-trace-01"), 1.0).sampled(),
+            "an unreadable header started a trace the head rate never saw"
+        );
     }
 }

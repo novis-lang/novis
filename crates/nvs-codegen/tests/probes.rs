@@ -166,9 +166,10 @@ fn no_probe_is_added_to_the_measured_path() {
         let mut ctx = Ctx::buffered();
         if identity {
             let mut inbound = Inbound::new("GET", "/", "");
-            inbound.set_trace_context(TraceContext::continuing(Some(
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-            )));
+            inbound.set_trace_context(TraceContext::continuing(
+                Some("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+                0.0,
+            ));
             ctx.set_inbound(inbound);
         }
         ctx.set_debug_flags(flags);

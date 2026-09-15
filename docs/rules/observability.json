@@ -377,7 +377,7 @@
     {
       "id": "observability/sampling-is-head-based",
       "title": "Sampling is decided once at the root by `[trace] sample`, and an inbound trace that is already sampled is always continued",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0076"
       ],
@@ -386,7 +386,11 @@
         "observability/an-inbound-traceparent-is-continued",
         "observability/metrics-and-trace-blocks-are-system"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-server/src/trace.rs",
+        "crates/nvs-runtime/src/trace_context.rs",
+        "crates/nvs-config/src/export.rs"
+      ]
     },
     {
       "id": "observability/the-exporter-is-a-feature-and-core-metrics-is-not",

@@ -1476,7 +1476,12 @@ fn answer_on_the_wire(
         inbound.push_header(name.as_str(), value.as_bytes());
     }
     inbound.set_peer(origin.client(), origin.scheme());
-    nvs_server::trace::take(&mut inbound);
+    // A rate of zero, which is not a stand-in for a tree this path does not
+    // hold: `nvs test`'s served request has no exporter to push a recorded trace
+    // to, so what head sampling would decide here is a decision with no consumer.
+    // An arrived sampled header is still continued, because that half is the
+    // root's and not this hop's (`rule:observability/sampling-is-head-based`).
+    nvs_server::trace::take(&mut inbound, 0.0);
     // `rule:routing/matched-once-before-the-handler`'s one match, taken here for the reason `crate::serve` takes
     // it here: the request and the unit that will answer it are both in hand,
     // and no application code has run.

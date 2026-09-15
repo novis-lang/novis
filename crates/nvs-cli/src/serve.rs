@@ -755,6 +755,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         let table = Rc::clone(&table);
         let draining = draining.clone();
         let watched = watched.clone();
+        // The holder, not a rate read out of it here: `[trace] sample` reloads
+        // (`rule:config/reloadability-is-its-own-field`), so a fraction resolved
+        // while this closure was being built would be the one an operator can no
+        // longer change. What a request draws against is read below, per request,
+        // exactly as [`Scheduled`] reads a fire's tree per fire.
+        let current = Arc::clone(&current);
         move |request: Request<Incoming>, origin: Origin| {
             // Ahead of the table, because a verb `Core\Http\Method` does not
             // carry names no application on this server rather than none at
@@ -847,8 +853,13 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // root where it did not. `nvs_server::trace` owns why the door
             // reads it and why a bad header is never a refusal; every request
             // has an id either way, because `Ctx::new` drew one before this
-            // carrier existed.
-            nvs_server::trace::take(&mut inbound);
+            // carrier existed. The rate is `rule:observability/sampling-is-head-based`'s,
+            // off the tree standing right now and not the one this core booted
+            // on, and it decides only a trace this request roots.
+            nvs_server::trace::take(
+                &mut inbound,
+                nvs_config::export::head_sample(&current.load().config),
+            );
             // `rule:routing/a-request-reads-its-mount`'s mount, which is the other half of what step 2 did:
             // the prefix taken off the path above, and § 3's captures of the row
             // that took it. `nvs_server::mount::carry` owns why the door writes

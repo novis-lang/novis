@@ -25,9 +25,10 @@
 //! down. What comes out is what a core is asked to build — the protocol in force and § 7's bound —
 //! and `None` where `exporter = false` says to build nothing.
 //!
-//! Cost: one match over a short string per block in the merged tree, at boot and at reload, and
-//! nothing at all per request — a request never reads either block, because neither is its to
-//! change.
+//! Cost: one match over a short string per block in the merged tree, at boot and at reload. Per
+//! request there is one field read, [`head_sample`]'s, and nothing else: the exporters a block names
+//! are resolved into what a core builds, while the head fraction is a number the door draws against
+//! on the request in front of it and so is read where a request is.
 
 use std::collections::BTreeMap;
 
@@ -98,6 +99,30 @@ impl Metering {
             max_series: metrics.max_series.unwrap_or(DEFAULT_MAX_SERIES),
         })
     }
+}
+
+/// § 6's own `sample`, for a tree that writes no fraction: a trace this process starts is recorded
+/// by nothing until an operator says how much of it to record.
+const DEFAULT_SAMPLE: f64 = 0.0;
+
+/// `rule:observability/sampling-is-head-based`'s fraction, resolved: the probability that a request
+/// which *starts* a trace is recorded.
+///
+/// Beside [`Metering`] and for its reason — § 6's written default is part of what `[trace]` means,
+/// and a door that applied `0.0` itself would be a second place for it to be written down.
+///
+/// Read per request rather than once at a boot, because `sample` is one of the keys
+/// `rule:config/reloadability-is-its-own-field` has reloading despite being `System`: a request
+/// draws against what the published snapshot says, and an edit reaches the next request. What comes
+/// back is finite and inside `0.0..=1.0` — [`validate`] refused anything else where it was written,
+/// and a caller holding a [`Config`] holds one that got past that.
+#[must_use]
+pub fn head_sample(config: &Config) -> f64 {
+    config
+        .trace
+        .as_ref()
+        .and_then(|trace| trace.sample)
+        .unwrap_or(DEFAULT_SAMPLE)
 }
 
 /// Which block an `exporter` was written in: its name, and the protocols § 6 gives it.

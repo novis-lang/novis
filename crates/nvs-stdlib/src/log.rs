@@ -562,7 +562,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let mut inbound = Inbound::new("GET", "/orders", "");
         if let Some(header) = traceparent {
-            inbound.set_trace_context(TraceContext::continuing(Some(header)));
+            inbound.set_trace_context(TraceContext::continuing(Some(header), 0.0));
         }
         ctx.set_inbound(inbound);
         ctx

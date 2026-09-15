@@ -3,7 +3,7 @@
 
 # Observability
 
-*12 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -479,7 +479,7 @@ this hop while looking right on the line that sent ours.
 
 <a id="observability-sampling-is-head-based"></a>
 
-## Sampling is decided once at the root by `[trace] sample`, and an inbound trace that is already sampled is always continued  *(designed — not yet in the compiler)*
+## Sampling is decided once at the root by `[trace] sample`, and an inbound trace that is already sampled is always continued
 
 `rule:observability/sampling-is-head-based`
 
