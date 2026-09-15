@@ -49,27 +49,31 @@ pub struct TdsPlan {
 /// **§ 1's cache decides which of two requests goes out.** A hit sends
 /// [`execute_request`] — the handle and the values, no SQL — and files nothing,
 /// since the plan is already recorded. A miss sends [`prepexec_request`] and
-/// hands the stream a [`Filing`], because the handle it will be recorded under
-/// arrives in a `RETURNVALUE` after the rows. An eviction and a rejected hit
-/// both send [`unprepare_request`] *first*, so the server never holds more
+/// hands the walk a [`PendingPlan`], because the handle it will be recorded
+/// under arrives in a `RETURNVALUE` after the rows. An eviction and a rejected
+/// hit both send [`unprepare_request`] *first*, so the server never holds more
 /// plans than `statement_cache` allows, not even for the length of one round
 /// trip — `crate::mysql`'s `cached_statement` ordering, for its reason.
+///
+/// The answer is the read state alone, which is what lets `rule:core-classes/db-streaming`'s
+/// `stream` park it on the connection ([`TdsConn::stream`]);
+/// [`start_statement`] is this with a borrow around it.
 ///
 /// # Errors
 ///
 /// `InvalidInput` for a statement written to a connection that is not idle and
 /// for [`bind`]'s and [`text_param`]'s refusals — none of which touches the
-/// wire, so none poisons the connection; otherwise as [`read_rows`], including
+/// wire, so none poisons the connection; otherwise as [`read_shape`], including
 /// for an eviction's own answer. A write that failed part-way leaves the
 /// connection [`State::Poisoned`], because a half-written packet is not a
 /// boundary anything can be found from.
-pub fn start_statement<'a, S: Read + Write>(
-    wire: &'a mut Wire<S>,
-    state: &'a Cell<State>,
-    cache: &'a mut StatementCache<TdsPlan>,
+pub(crate) fn open_result<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    cache: &mut StatementCache<TdsPlan>,
     sql: &str,
     params: &[Option<&[u8]>],
-) -> io::Result<TdsRows<'a, S>> {
+) -> io::Result<TdsCursor> {
     if !state.get().may_start_statement() {
         return Err(crate::pg::second_statement(state));
     }
@@ -92,7 +96,7 @@ pub fn start_statement<'a, S: Read + Write>(
         Some(plan) if plan.declared == declared => {
             let request = execute_request(plan.handle, &bound, descriptor)?;
             send_request(wire, state, PacketType::Rpc, Status::NORMAL, &request)?;
-            return read_answer(wire, state, span, None);
+            return read_shape(wire, state, None, span, None);
         }
         // A hit whose plan was compiled against a different declaration — see
         // `TdsPlan::declared`. The entry is dropped rather than shadowed so the
@@ -119,17 +123,39 @@ pub fn start_statement<'a, S: Read + Write>(
         drain(wire, state)?;
     }
     send_request(wire, state, PacketType::Rpc, Status::NORMAL, &request)?;
-    read_answer(
+    read_shape(
         wire,
         state,
+        Some(cache),
         span,
-        Some(Filing {
-            cache,
+        Some(PendingPlan {
             sql: sql.to_owned(),
             arity: params.len(),
             declared,
         }),
     )
+}
+
+/// [`open_result`], with the read state lent out beside a borrow of the
+/// connection: `rule:core-classes/db-statement-members`'s buffered members, which is every one of
+/// them but `stream`.
+///
+/// The cache travels into the borrow because the plan is filed when the answer
+/// *ends*, which on this protocol is after the rows — [`PendingPlan`] owns that
+/// whole ordering.
+///
+/// # Errors
+///
+/// As [`open_result`].
+pub fn start_statement<'a, S: Read + Write>(
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    cache: &'a mut StatementCache<TdsPlan>,
+    sql: &str,
+    params: &[Option<&[u8]>],
+) -> io::Result<TdsRows<'a, S>> {
+    let reading = open_result(wire, state, cache, sql, params)?;
+    Ok(TdsRows::over(wire, state, Some(cache), reading))
 }
 
 /// The `@params` a declaration string stands for: `None` where it is empty,
@@ -628,8 +654,9 @@ pub(super) fn send_request<S: Read + Write>(
 ///
 /// As [`read_rows`] and [`TdsRows::next_row`].
 pub(super) fn drain<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io::Result<()> {
-    let mut rows = read_answer(wire, state, QuerySpan::opened(Driver::SqlServer, ""), None)?;
-    while rows.next_row()?.is_some() {}
+    let span = QuerySpan::opened(Driver::SqlServer, "");
+    let mut reading = read_shape(wire, state, None, span, None)?;
+    while next_row_of(wire, state, None, &mut reading)?.is_some() {}
     Ok(())
 }
 
@@ -1258,6 +1285,71 @@ mod tests {
                 DEFAULT_ISOLATION,
                 "BEGIN TRANSACTION",
             ],
+        );
+    }
+
+    /// The parked form of a walk, which is the whole point of splitting the read
+    /// state off the borrow: the cursor is a local of its own, and every row is
+    /// read through a **fresh** borrow of the wire, the state and § 1's cache.
+    ///
+    /// The compiler is half the assertion, as it is in `crate::mysql`'s
+    /// `mysql_stream_parks_its_read_and_answers_one_row_per_step`. A [`TdsRows`]
+    /// cannot express this shape at all — its borrow would have to span the
+    /// calls between the rows — and that is exactly what a `Core\Db\Connection`
+    /// holding a walk across `advance()` calls needs, the connection going back
+    /// to the request in between. The other half is the run: one row per step,
+    /// in order, the connection busy for as long as rows remain, and the `DONE`
+    /// leaving it idle with § 1's plan filed on the way past.
+    #[test]
+    fn tds_stream_parks_its_read_and_answers_one_row_per_step() {
+        const SQL: &str = "select v";
+        let mut answer = col_metadata(&[column(&[TY_INT4], "v", 0)]);
+        answer.extend_from_slice(&row_token(&[7i32.to_le_bytes().to_vec()]));
+        answer.extend_from_slice(&row_token(&[9i32.to_le_bytes().to_vec()]));
+        // The tokens a `sp_prepexec` ends with, the handle among them: a walk
+        // that is nobody's borrow still files § 1's plan, and the step that
+        // reads the `RETURNVALUE` is where.
+        answer.extend_from_slice(&prepexec_answer(3));
+
+        let mut wire = answering_each(&[answer]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(4);
+
+        let mut reading = open_result(&mut wire, &state, &mut cache, SQL, &[])
+            .expect("a result set the server described");
+
+        assert_eq!(state.get(), State::Streaming);
+        assert_eq!(reading.columns().len(), 1);
+
+        let mut seen = Vec::new();
+        while let Some(row) = next_row_of(&mut wire, &state, Some(&mut cache), &mut reading)
+            .expect("the walk advanced")
+        {
+            // Read a step at a time and not drained into a buffer: the rows
+            // still to come are still on the wire, which is what
+            // `rule:core-classes/db-streaming`'s constant memory means and why the connection is
+            // busy between the steps.
+            assert_eq!(state.get(), State::Streaming);
+            seen.push(row.column(0).flatten().map(<[u8]>::to_vec));
+        }
+
+        assert_eq!(
+            seen,
+            [
+                Some(7i32.to_le_bytes().to_vec()),
+                Some(9i32.to_le_bytes().to_vec()),
+            ]
+        );
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "a drained walk left the connection unpoolable"
+        );
+        assert_eq!(reading.affected(), Some(2));
+        assert_eq!(
+            cache.lookup(SQL, 0).map(|plan| plan.handle),
+            Some(3),
+            "the parked walk filed no plan under § 1's key"
         );
     }
 }

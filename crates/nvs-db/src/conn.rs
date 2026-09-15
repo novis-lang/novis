@@ -986,6 +986,17 @@ pub struct TdsConn {
     /// why the flag is set before the `SET` is written rather than after it
     /// lands.
     pub(crate) isolation_moved: Cell<bool>,
+    /// The read state of a statement whose rows a *held cursor* is walking —
+    /// [`MySqlConn::reading`]'s field and all of its reasoning, at this
+    /// protocol's own read state: what `COLMETADATA` described, what the last
+    /// packet carried past the token being parsed, and the counts the `DONE`
+    /// left.
+    ///
+    /// **What it spends:** one result set's column descriptions and about one
+    /// packet of buffer, per connection that has streamed, held until the next
+    /// statement replaces them. That is O(pooled connections) rather than
+    /// O(requests served).
+    pub(crate) reading: Option<crate::tds::TdsCursor>,
 }
 
 /// A SQLite connection: `rusqlite`, a file handle, and no bytes on any wire.

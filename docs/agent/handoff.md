@@ -2,54 +2,59 @@
 
 ## State
 
-**Goal `m8-db-queue`, stages 0, 2 and 3 are done.** The parked read is on the MySQL wire:
-`crates/nvs-db/src/mysql.rs`'s `MySqlCursor` is the read state split off `MySqlRows`' borrow,
-`next_row_of` is the one row reader both paths drive, and `MySqlConn`/`MariaConn` carry
-`stream`/`stream_next_row`/`stream_columns`/`stream_span`/`name_stream_connection`/`end_stream` over
-a `reading: Option<MySqlCursor>` field. Both resets drain the parked walk before
-`COM_RESET_CONNECTION` goes out. Stage 3's three named tests pass against a scripted server.
+**Goal `m8-db-queue`, stages 0, 2 and 3 are done, and stage 4 is half of the way.** Three drivers park
+a read: `crates/nvs-db/src/mysql.rs`'s `MySqlCursor` for MySQL and MariaDB, and now
+`crates/nvs-db/src/tds/rows.rs`'s `TdsCursor` for SQL Server. `TdsRows` is the cursor beside a borrow,
+`next_row_of` is the free reader both paths drive, `Walk` is the per-step group of wire, state, cache
+and cursor, and `TdsConn` carries `stream`/`stream_next_row`/`stream_columns`/`stream_span`/
+`name_stream_connection`/`end_stream` over a `reading: Option<TdsCursor>`. § 13's reset drains the
+parked walk before `sp_reset_connection` goes out.
 
-**`Core\Db\Connection::stream` now answers on three drivers.** `crates/nvs-stdlib/src/db/stream.rs`'s
-`mysql_step` and `stream_over` run the walk over `Framed`, which grew the five stream members;
-`unstreamed` and `registry.rs`'s `RuntimeError` card name SQLite and SQL Server as what is left.
+**§ 1's cache could not travel with a parked cursor**, which is the one thing this protocol cost:
+`PendingPlan` is the key on the cursor and the cache is handed to the step that files it
+(`crates/nvs-db/src/tds/rows.rs` `PendingPlan` owns the reasoning).
 
-**That stdlib half has no runtime proof yet** — no `.nvst` case can reach a MySQL server, and stage 4's
-`db_stream` suite is where it meets one. Nothing is blocked; stage 1 is the carried floor and the
-driver's to run.
+**SQLite is the driver left, and `Core\Db\Connection::stream` still answers on three.** Nothing is
+blocked; stage 1 is the carried floor and the driver's to run.
 
 ## Next group
 
-**Stage 4: the other two drivers park a read** — one file set: `crates/nvs-db/src/tds/rows.rs`,
-`crates/nvs-db/src/tds/mod.rs`, `crates/nvs-db/src/sqlite.rs` and `crates/nvs-db/src/conn.rs`.
-`rule:core-classes/a-stream-parks-its-read-on-the-connection` is what both must satisfy —
-including its SQLite paragraph, which is the user's pinned-thread call — and
-`docs/decisions/0187.md` § 1 is the reasoning. `crates/nvs-db/src/mysql.rs:3239` `MySqlCursor` is the
-shape to copy, with `crates/nvs-db/src/mysql.rs:3390` `next_row_of` as the single row reader.
+**Stage 4: SQLite's pinned walk, then the stdlib runs out of drivers** — one file set:
+`crates/nvs-db/src/sqlite.rs`, `crates/nvs-db/src/conn.rs`, `crates/nvs-host/src/blocking.rs`,
+`crates/nvs-stdlib/src/db/stream.rs` and `crates/nvs-stdlib/src/db/registry.rs`.
+`rule:core-classes/a-stream-parks-its-read-on-the-connection`'s SQLite paragraph is the user's
+pinned-thread call and what both items must satisfy; `docs/decisions/0187.md` § 1 is the reasoning.
 
-- [ ] **TDS parks its read.** `crates/nvs-db/src/tds/rows.rs:39` `TdsRows` holds the wire and the read
-      state together; split the state off and park it on `crates/nvs-db/src/conn.rs:946` `TdsConn`,
-      with `crates/nvs-db/src/tds/rows.rs:177` `next_row` becoming the free reader both paths drive.
-      `COLMETADATA` is what the cursor carries (`rule:core-classes/a-stream-parks-its-read-on-the-connection`).
-      Prove it against the scripted server `crates/nvs-db/src/tds/stream.rs`'s cases already use:
-      `tds_stream_parks_its_read_and_answers_one_row_per_step`.
-- [ ] **SQLite parks a walk on one pinned thread.** `crates/nvs-db/src/sqlite.rs:595` `query` takes the
-      core back with the rows in hand; a walk instead holds one thread from `nvs-host`'s blocking pool
-      for its life, released when the walk is drained, dropped or its task ends
-      (`rule:core-classes/a-stream-parks-its-read-on-the-connection`, the SQLite paragraph, and the
-      goal's standing decision). `crates/nvs-db/src/conn.rs:997` `SqliteConn` is where the handle sits.
-      Test: `sqlite_stream_parks_its_read_or_names_its_recorded_refusal`.
+- [ ] **SQLite parks a walk on one pinned thread.** `crates/nvs-db/src/sqlite.rs:595` `query` hands
+      one closure to the blocking pool and gets the whole result set back, and
+      `crates/nvs-db/src/sqlite.rs:33-40`'s module doc is written around that being the trade. A walk
+      instead holds a pool thread that owns the `rusqlite::Statement` and answers a row per request.
+      The primitive to choose between is `crates/nvs-host/src/blocking.rs:320` `run`, which is
+      one closure and its answer, and `crates/nvs-host/src/blocking.rs:161` `BlockingPool::submit`;
+      `crates/nvs-host/src/blocking.rs:76` `bound` is the cap a walk holding a thread eats into, so
+      say in the module doc what an exhausted pool does. It parks on
+      `crates/nvs-db/src/conn.rs:1008` `SqliteConn`, beside the members `TdsConn` now carries, and
+      is released when the walk ends **or its task does**.
 - [ ] **The two stdlib arms, and `unstreamed` runs out of drivers.**
-      `crates/nvs-stdlib/src/db/stream.rs:134` `stream_step` gains a `Tds` and a `Sqlite` arm beside
-      `mysql_step`, and `crates/nvs-stdlib/src/db/stream.rs:402` `unstreamed` plus
-      `crates/nvs-stdlib/src/db/registry.rs:2322`'s `RuntimeError` card stop naming a driver that has
-      no parked read (`rule:core-classes/db-streaming`).
+      `crates/nvs-stdlib/src/db/stream.rs:291` `stream_over` and
+      `crates/nvs-stdlib/src/db/stream.rs:234` `mysql_step` are the shape a SQL Server and a SQLite
+      step take; `crates/nvs-stdlib/src/db/stream.rs:402` `unstreamed` and `registry.rs`'s
+      `RuntimeError` card name the two that are left and must name none.
 
 ## Backlog
 
 - `crates/nvs-stdlib/tests/db_stream.rs` and `tools/db-matrix.py:115` `SUITES`, plus
   `tests/conformance/core/db-stream-on-sqlite-walks-its-rows-or-refuses-naming-the-driver.nvst` —
   stage 4's second and third checks, due once all five drivers park a read.
-- PostgreSQL's `reset` refuses a busy connection (`crates/nvs-db/src/pg.rs:3236`) where MySQL's now
-  drains the parked walk first; decide whether `PgConn::reset` should drain too, in
+- PostgreSQL's `reset` refuses a busy connection (`crates/nvs-db/src/pg.rs:3236`) where MySQL's and
+  now SQL Server's drain the parked walk first; decide whether `PgConn::reset` should drain too, in
   `rule:core-classes/db-connection-busy-state`'s terms.
 - `crates/nvs-stdlib/src/db/mod.rs` gap 3 still owes `streamAs` and `serverVersion` — stage 5's.
+- `crates/nvs-server/src/schedule.rs:1596`
+  `a_fleet_lease_is_renewed_while_its_run_is_in_flight` failed once beside the other test binaries
+  (1 renewal where it wants 2, over a 130 ms run renewed every 20 ms) and passed alone and on the
+  next full run — the playbook's *failed beside … passed alone* bullet is what it owes, and its
+  remedy is a commit of nvs-server's own.
+- An abandoned `TdsRows` still leaves the connection in `State::Streaming` with no `Drop` to drain
+  it, where `MySqlRows` and `PgRows` drain on drop; `TdsConn::end_stream` covers the parked walk
+  only.

@@ -19,32 +19,56 @@ use super::*;
 /// ended: [`TdsRows::columns`] is empty and [`TdsRows::next_row`] is `None` on
 /// the first call.
 ///
+/// Everything about the answer that is not the borrow is [`TdsCursor`], which
+/// owns why that is a split rather than its fields inlined here.
+pub struct TdsRows<'a, S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    /// § 1's cache, for the one moment reading an answer touches it, and `None`
+    /// for an answer with no plan to file — [`PendingPlan`] owns why the key
+    /// travels on the cursor while the cache is handed to the step that files
+    /// it.
+    cache: Option<&'a mut StatementCache<TdsPlan>>,
+    reading: TdsCursor,
+}
+
+/// A statement's read state: what the answer described, how far this side has
+/// got through it, what ended it, and the event it is being timed by —
+/// everything a row needs that is not the wire.
+///
+/// [`crate::MySqlCursor`]'s twin, and a type of its own for that one's reason:
+/// `rule:core-classes/db-statement-members`'s rows are reached two ways and only one of them can
+/// hold a borrow. The **buffered** members drain their rows inside the call
+/// that started the statement, so [`TdsRows`] keeps this beside a borrow of the
+/// connection and the borrow checker is what refuses a second statement.
+/// **`Core\Db\Connection::stream`** hands a walk back to the program and is
+/// advanced by a *later* call, with nothing of the connection borrowed in
+/// between; a borrow cannot span that, so its copy of this state is parked on
+/// the connection ([`TdsConn::stream`]) and [`State::Streaming`] is what
+/// refuses the second statement there.
+///
+/// Both drive [`next_row_of`], which is the one place in this driver a row
+/// token is read, so the two paths cannot disagree about what ends an answer or
+/// about what the tokens between the rows said on the way past.
+///
 /// # What it holds that the other drivers' do not
 ///
 /// **The remainder.** MySQL and PostgreSQL align a row with a packet, so their
-/// readers own nothing between calls; a TDS row is cut wherever the packet size
+/// cursors own nothing between calls; a TDS row is cut wherever the packet size
 /// lands, so this one buffers what a packet carried past the token it was
 /// parsing and drops what it has read off the front on the next refill. The
 /// buffer is therefore about a packet plus the token in hand, and it is
 /// deliberately *not* the answer: a `PLP` value's chunks are copied into the
 /// row as they arrive rather than accumulated here, so a `varbinary(max)`
 /// column costs its own size and not its size twice.
-///
-/// **A token reader it hands the between-row tokens to.** [`Tokens`] parses
-/// every token in a response but the two row ones, and reusing it is what keeps
-/// `ERROR`, `INFO`, `ENVCHANGE`, `COLMETADATA` and `DONE` written once. It
-/// parses a slice, so it is offered the buffer and asked again with more of it
-/// when the token was not all there — [`TdsRows::token`] owns why that is
-/// cheaper than it looks.
-pub struct TdsRows<'a, S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
-    wire: &'a mut Wire<S>,
-    state: &'a Cell<State>,
+#[derive(Debug)]
+pub(crate) struct TdsCursor {
     /// `COLMETADATA`'s columns, in the order their values arrive, and empty for
     /// a statement that returned no result set.
     columns: Vec<TdsColumn>,
     /// Bytes of the token stream that have arrived and are not parsed yet.
     buffer: Vec<u8>,
-    /// How much of [`TdsRows::buffer`] is behind the reader. The prefix is
+    /// How much of [`TdsCursor::buffer`] is behind the reader. The prefix is
     /// dropped at the next refill rather than at every read, which is what
     /// keeps a row of many small columns from being a `drain` per column.
     at: usize,
@@ -65,79 +89,128 @@ pub struct TdsRows<'a, S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     /// The *last* rather than all of them because a procedure this driver calls
     /// declares one output parameter, and a `Vec` for a list that is one long
     /// would be an allocation on every statement. It arrives near the end of
-    /// the stream, after the rows, so a caller reads it once
-    /// [`TdsRows::next_row`] has answered `None` — see [`TdsRows::returned`].
+    /// the stream, after the rows, so a caller reads it once [`next_row_of`]
+    /// has answered `None` — see [`TdsCursor::returned`].
     returned: Option<ReturnValue>,
-    /// [ADR 0067 § 1](/docs/decisions/0067.md)'s cache and the key
-    /// this answer's handle belongs under, for a `sp_prepexec` whose plan is to
-    /// be kept; `None` for every other answer, which is most of them.
+    /// [ADR 0067 § 1](/docs/decisions/0067.md)'s cache key this
+    /// answer's handle belongs under, for a `sp_prepexec` whose plan is to be
+    /// kept; `None` for every other answer, which is most of them.
     ///
-    /// The stream borrows the cache rather than the caller filing it afterwards
-    /// — [`Filing`] owns why.
-    filing: Option<Filing<'a>>,
+    /// The walk carries it rather than the caller filing it afterwards —
+    /// [`PendingPlan`] owns why.
+    filing: Option<PendingPlan>,
     /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for this
     /// statement, opened when the request went out and ended by whatever ends
-    /// the stream — [`crate::MySqlRows`]' field, for [`crate::span`]'s reasons.
+    /// the stream — [`crate::MySqlCursor`]' field, for [`crate::span`]'s
+    /// reasons.
     span: QuerySpan,
+}
+
+/// One step of a walk: a cursor, and a fresh borrow of everything on the
+/// connection it takes to advance.
+///
+/// The other drivers hand `(wire, state, cursor)` to a single function and are
+/// done, because a row is a packet there and reading one is a call. A TDS row
+/// is cut wherever the packet size lands, so reading one is a dozen small
+/// readers — a byte, a length, a chunk of a `PLP` value — each of which needs
+/// the wire *and* the buffer the last packet overshot into. Grouping them here
+/// is what keeps every one of those from carrying the same three parameters,
+/// and the group is **built per step and dropped with it**, which is what lets
+/// a parked cursor be advanced by a call that borrows the connection afresh.
+///
+/// **A token reader it hands the between-row tokens to.** [`Tokens`] parses
+/// every token in a response but the two row ones, and reusing it is what keeps
+/// `ERROR`, `INFO`, `ENVCHANGE`, `COLMETADATA` and `DONE` written once. It
+/// parses a slice, so it is offered the buffer and asked again with more of it
+/// when the token was not all there — [`Walk::token`] owns why that is cheaper
+/// than it looks.
+struct Walk<'a, S: Read + Write> {
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    /// § 1's cache, where the answer being read is one whose plan is still to
+    /// be filed. `None` for a walk with nothing to file — a cache hit, a drain,
+    /// or a read a test scripted.
+    cache: Option<&'a mut StatementCache<TdsPlan>>,
+    reading: &'a mut TdsCursor,
+}
+
+/// [ADR 0067 § 1](/docs/decisions/0067.md)'s cache key a walk's plan
+/// is filed under, once the `RETURNVALUE` carrying the handle arrives.
+///
+/// **The key travels with the walk and the cache does not**, which is the one
+/// thing parking a read costs this driver: a cursor parked on a connection
+/// outlives every borrow of it, so a `&mut StatementCache` held here would be a
+/// borrow nothing could give it. The cache is handed to the step instead
+/// ([`Walk::cache`]), and [`Walk::end`] is where the two meet.
+///
+/// The walk carries the key at all because `sp_prepexec`'s handle is a
+/// `RETURNVALUE` that arrives *after* the rows, and a statement with no result
+/// set has already ended by the time [`open_result`] returns — so a caller
+/// filing it afterwards would file nothing on exactly the statements a cache is
+/// worth the most on.
+#[derive(Debug)]
+pub(super) struct PendingPlan {
+    /// § 1's key, first half: the statement as written.
+    pub(super) sql: String,
+    /// § 1's key, second half: how many markers § 5's rewrite left in it.
+    pub(super) arity: usize,
+    /// The `@params` the plan is being compiled against — [`TdsPlan::declared`]
+    /// owns why a plan is not usable without it.
+    pub(super) declared: Rc<str>,
 }
 
 impl<S: Read + Write> std::fmt::Debug for TdsRows<'_, S> {
     /// The shape of the result and where the wire is, and nothing that arrived.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TdsRows")
-            .field("columns", &self.columns.len())
+            .field("columns", &self.reading.columns.len())
             .field("state", &self.state.get())
             .finish_non_exhaustive()
     }
 }
 
-impl<S: Read + Write> TdsRows<'_, S> {
-    /// The result set's columns, empty for a statement that returned none.
-    #[must_use]
-    pub fn columns(&self) -> &[TdsColumn] {
+impl TdsCursor {
+    /// The result set's columns, empty for a statement that returned none —
+    /// [`TdsRows::columns`] and [`TdsConn::stream_columns`] are both this.
+    pub(crate) fn columns(&self) -> &[TdsColumn] {
         &self.columns
     }
 
     /// Column `index`'s Novis type, per [`TdsColumn::column_type`], or `None`
     /// where the result set has no such column.
-    #[must_use]
-    pub fn column_type(&self, index: usize) -> Option<ColumnType> {
+    pub(crate) fn column_type(&self, index: usize) -> Option<ColumnType> {
         self.columns.get(index).map(TdsColumn::column_type)
     }
 
-    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for this
-    /// statement.
-    ///
-    /// Borrowed rather than taken, for [`crate::PgRows::span`]'s reason.
-    #[must_use]
-    pub fn span(&self) -> &QuerySpan {
+    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for the
+    /// statement this walks.
+    pub(crate) fn span(&self) -> &QuerySpan {
         &self.span
     }
 
-    /// Names the `[db.<name>]` block this statement ran on, for the layer that
-    /// resolved it — [`QuerySpan::name`] owns why the driver cannot.
-    pub fn name_connection(&mut self, connection: &str) {
+    /// Names the `[db.<name>]` block the statement ran on — [`QuerySpan::name`]
+    /// owns why the driver cannot work it out for itself.
+    pub(crate) fn name_connection(&mut self, connection: &str) {
         self.span.name(connection);
     }
 
     /// [ADR 0067 § 4](/docs/decisions/0067.md)'s affected-row count,
     /// once the stream has ended.
     ///
-    /// [`crate::MySqlRows::affected`]'s two numbers under one name — the rows
-    /// that came back for a statement with a result set, and what the server
-    /// counted for one without — with one difference this backend forces:
-    /// **`None` is two facts here rather than one.** A stream still running has
-    /// no count yet, and a `DONE` that did not set [`Done::counted`] reported
-    /// none at all, which [`Done::counted`]'s own doc explains is not the same
-    /// as zero. The caller that must tell them apart has already been told
-    /// which: [`TdsRows::next_row`] answered `None`.
+    /// [`crate::MySqlCursor`]'s two numbers under one name — the rows that came
+    /// back for a statement with a result set, and what the server counted for
+    /// one without — with one difference this backend forces: **`None` is two
+    /// facts here rather than one.** A stream still running has no count yet,
+    /// and a `DONE` that did not set [`Done::counted`] reported none at all,
+    /// which [`Done::counted`]'s own doc explains is not the same as zero. The
+    /// caller that must tell them apart has already been told which:
+    /// [`next_row_of`] answered `None`.
     ///
     /// There is no `lastId` beside it. SQL Server puts no generated key in the
     /// token stream at all — `SCOPE_IDENTITY()` is a statement a caller writes —
     /// so this driver has nothing to answer with, and PostgreSQL's `RETURNING`
     /// is the same absence.
-    #[must_use]
-    pub fn affected(&self) -> Option<u64> {
+    pub(crate) fn affected(&self) -> Option<u64> {
         if !self.ended {
             return None;
         }
@@ -153,39 +226,176 @@ impl<S: Read + Write> TdsRows<'_, S> {
     ///
     /// For § 1's `sp_prepexec` that is the statement handle, and it arrives
     /// **after** the rows: the server sends `RETURNVALUE` next to the
-    /// `RETURNSTATUS` that ends the procedure, so a caller filing the handle in
-    /// the statement cache does it when the stream has ended and not when it
-    /// opened. A statement that was never a procedure call answers `None`.
+    /// `RETURNSTATUS` that ends the procedure, so the handle is filed when the
+    /// stream has ended and not when it opened.  A statement that was never a
+    /// procedure call answers `None`.
+    pub(crate) fn returned(&self) -> Option<&ReturnValue> {
+        self.returned.as_ref()
+    }
+}
+
+impl<'a, S: Read + Write> TdsRows<'a, S> {
+    /// The buffered shape of an answer already opened: the read state beside a
+    /// borrow of the connection it came off.
+    ///
+    /// `cache` is `Some` for the answer whose plan [`Walk::end`] is still to
+    /// file, and that is the whole of why the borrow is here rather than the
+    /// cursor holding one.
+    pub(super) fn over(
+        wire: &'a mut Wire<S>,
+        state: &'a Cell<State>,
+        cache: Option<&'a mut StatementCache<TdsPlan>>,
+        reading: TdsCursor,
+    ) -> TdsRows<'a, S> {
+        TdsRows {
+            wire,
+            state,
+            cache,
+            reading,
+        }
+    }
+}
+
+impl<S: Read + Write> TdsRows<'_, S> {
+    /// The result set's columns, empty for a statement that returned none.
+    #[must_use]
+    pub fn columns(&self) -> &[TdsColumn] {
+        self.reading.columns()
+    }
+
+    /// Column `index`'s Novis type, per [`TdsColumn::column_type`], or `None`
+    /// where the result set has no such column.
+    #[must_use]
+    pub fn column_type(&self, index: usize) -> Option<ColumnType> {
+        self.reading.column_type(index)
+    }
+
+    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for this
+    /// statement.
+    ///
+    /// Borrowed rather than taken, for [`crate::PgRows::span`]'s reason.
+    #[must_use]
+    pub fn span(&self) -> &QuerySpan {
+        self.reading.span()
+    }
+
+    /// Names the `[db.<name>]` block this statement ran on, for the layer that
+    /// resolved it — [`QuerySpan::name`] owns why the driver cannot.
+    pub fn name_connection(&mut self, connection: &str) {
+        self.reading.name_connection(connection);
+    }
+
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s affected-row count,
+    /// once the stream has ended — [`TdsCursor::affected`], including what its
+    /// `None` means.
+    #[must_use]
+    pub fn affected(&self) -> Option<u64> {
+        self.reading.affected()
+    }
+
+    /// The output parameter the procedure came back with, once the stream has
+    /// reached it — [`TdsCursor::returned`].
     #[must_use]
     pub fn returned(&self) -> Option<&ReturnValue> {
-        self.returned.as_ref()
+        self.reading.returned()
     }
 
     /// The next row, or `None` once the stream has ended.
     ///
     /// Deliberately not `Iterator::next`, for [`crate::PgRows::next_row`]'s
     /// reason: every call can fail, and an `Option` would have to swallow it.
-    /// Ending the stream is what returns the connection to [`State::Idle`].
+    /// The call [`TdsConn::stream_next_row`] advances a parked walk with is the
+    /// same [`next_row_of`] over the same cursor.
     ///
     /// # Errors
     ///
-    /// The server's own error, which still ends the stream cleanly and leaves
-    /// the connection idle; `InvalidData` for a token stream that does not add
-    /// up against the columns, for a second result set, and for an answer that
-    /// ended without a `DONE`, all of which poison the connection; and whatever
-    /// the stream reported.
+    /// As [`next_row_of`].
     pub fn next_row(&mut self) -> io::Result<Option<TdsRow>> {
-        // The state is the only bookkeeping: anything that ended this stream
-        // has already left `State::Streaming`.
-        if self.state.get() != State::Streaming {
-            return Ok(None);
-        }
-        match self.step() {
-            Ok(row) => Ok(row),
-            Err(e) => Err(poison_on_read(self.state, e)),
+        next_row_of(
+            self.wire,
+            self.state,
+            self.cache.as_deref_mut(),
+            &mut self.reading,
+        )
+    }
+}
+
+/// One row of a walk, or `None` once the answer has ended —
+/// [`TdsRows::next_row`] and [`TdsConn::stream_next_row`] are both this.
+///
+/// Free, and generic in the stream, for [`crate::pg::next_row_of`]'s two
+/// reasons: the parked walk has to be advanced through a borrow taken per row,
+/// and a [`TdsConn`]'s own wire is at the default type parameter, so anything
+/// reachable only through an inherent method on it would need a socket and a
+/// certificate to reach at all.
+///
+/// Ending the stream is what returns the connection to [`State::Idle`].
+///
+/// # Errors
+///
+/// The server's own error, which still ends the stream cleanly and leaves the
+/// connection idle; `InvalidData` for a token stream that does not add up
+/// against the columns, for a second result set, and for an answer that ended
+/// without a `DONE`, all of which poison the connection; and whatever the
+/// stream reported.
+pub(crate) fn next_row_of<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    cache: Option<&mut StatementCache<TdsPlan>>,
+    reading: &mut TdsCursor,
+) -> io::Result<Option<TdsRow>> {
+    // The state is the only bookkeeping: anything that ended this stream has
+    // already left `State::Streaming`.
+    if state.get() != State::Streaming {
+        return Ok(None);
+    }
+    let stepped = Walk {
+        wire,
+        state,
+        cache,
+        reading,
+    }
+    .step();
+    match stepped {
+        Ok(row) => Ok(row),
+        Err(e) => Err(poison_on_read(state, e)),
+    }
+}
+
+/// Abandons a parked walk and forgets what it read — [`TdsConn::end_stream`],
+/// and § 13's reset on its way past.
+///
+/// **The walk is drained first**, because the rows are on their way whether or
+/// not anybody reads them and this protocol gives the next request nothing to
+/// resynchronise on: every TDS request has exactly one answer, so an answer
+/// left half-read is one the next statement reads as its own. A read that fails
+/// on the way poisons the connection through the same helper every other read
+/// here uses, and the loop ends because that leaves [`State::Streaming`].
+///
+/// The cache is offered for the same drain's sake: an answer read to its end
+/// carries the `RETURNVALUE` § 1's plan is filed under, and a walk the program
+/// abandoned has compiled a plan on the server that nothing else will ever name
+/// again. Dropping the read state is the other half — a result set's shape and
+/// its counts are one request's, and `rule:security/db-pool-reset-is-a-boundary` is why the next
+/// one must not be able to read them.
+pub(crate) fn end_stream_of<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    cache: Option<&mut StatementCache<TdsPlan>>,
+    reading: &mut Option<TdsCursor>,
+) {
+    let mut cache = cache;
+    if let Some(walk) = reading.as_mut() {
+        while state.get() == State::Streaming {
+            if next_row_of(wire, state, cache.as_deref_mut(), walk).is_err() {
+                break;
+            }
         }
     }
+    *reading = None;
+}
 
+impl<S: Read + Write> Walk<'_, S> {
     /// Reads tokens until a row arrives or the answer ends.
     ///
     /// The refusal is collected rather than returned where it is found: an
@@ -200,13 +410,13 @@ impl<S: Read + Write> TdsRows<'_, S> {
         loop {
             match self.peek()? {
                 Some(kind @ (TOKEN_ROW | TOKEN_NBC_ROW)) => {
-                    self.at += 1;
+                    self.reading.at += 1;
                     let row = self.row(kind == TOKEN_NBC_ROW)?;
                     if refusal.is_some() {
                         continue;
                     }
-                    self.rows += 1;
-                    self.span.row();
+                    self.reading.rows += 1;
+                    self.reading.span.row();
                     return Ok(Some(row));
                 }
                 Some(_) => match self.token()? {
@@ -216,7 +426,9 @@ impl<S: Read + Write> TdsRows<'_, S> {
                     Some(
                         Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_) | Token::Order,
                     ) => {}
-                    Some(Token::ReturnValue(returned)) => self.returned = Some(returned),
+                    Some(Token::ReturnValue(returned)) => {
+                        self.reading.returned = Some(returned);
+                    }
                     Some(Token::Error(message)) => {
                         if refusal.is_none() {
                             refusal = Some(message);
@@ -224,7 +436,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
                     }
                     Some(Token::Done(done)) => {
                         if done.counted() {
-                            self.counted = Some(done.rows);
+                            self.reading.counted = Some(done.rows);
                         }
                         // `DONEINPROC` is never the last token of an answer —
                         // § 1's `sp_prepexec` sends the `RETURNVALUE` carrying
@@ -274,13 +486,17 @@ impl<S: Read + Write> TdsRows<'_, S> {
     /// `InvalidData` where the answer did not end where the `DONE` said it did.
     /// [`TdsRows::next_row`] poisons the connection on it.
     fn end(&mut self, refused: bool) -> io::Result<()> {
-        self.ended = true;
+        self.reading.ended = true;
         // No affected count on a refusal, as `crate::MySqlRows::next_row` does
         // it: § 11 gives a span no success field to lose, so a refused statement
         // reports the rows that did arrive and the error is the caller's own
         // return value.
-        let affected = if refused { None } else { self.affected() };
-        self.span.finished(affected);
+        let affected = if refused {
+            None
+        } else {
+            self.reading.affected()
+        };
+        self.reading.span.finished(affected);
         // § 1's cache is filed here and nowhere else, because here is the first
         // moment the handle exists: `sp_prepexec` writes it into a `RETURNVALUE`
         // that arrives after the rows, so a caller filing it would have to be
@@ -289,20 +505,21 @@ impl<S: Read + Write> TdsRows<'_, S> {
         // neither does a stream that ended any other way, which leaves that plan
         // alive on the server until the connection closes rather than filed
         // under a handle this side never read.
-        let filing = self.filing.take().filter(|_| !refused);
-        if let (Some(filing), Some(handle)) =
-            (filing, self.returned.as_ref().and_then(ReturnValue::as_i32))
+        let handle = self.reading.returned.as_ref().and_then(ReturnValue::as_i32);
+        let filing = self.reading.filing.take().filter(|_| !refused);
+        if let (Some(filing), Some(handle), Some(cache)) =
+            (filing, handle, self.cache.as_deref_mut())
         {
             let plan = TdsPlan {
                 handle,
                 declared: filing.declared,
             };
-            filing.cache.commit(&filing.sql, filing.arity, plan);
+            cache.commit(&filing.sql, filing.arity, plan);
         }
-        if !self.last || self.at < self.buffer.len() {
+        if !self.reading.last || self.reading.at < self.reading.buffer.len() {
             return Err(malformed(format!(
                 "a TDS answer carried {} byte(s) after the DONE that ended it",
-                self.buffer.len() - self.at
+                self.reading.buffer.len() - self.reading.at
             )));
         }
         self.state.set(State::Idle);
@@ -312,13 +529,13 @@ impl<S: Read + Write> TdsRows<'_, S> {
     /// The next token's type byte, without consuming it, or `None` where the
     /// answer has ended.
     fn peek(&mut self) -> io::Result<Option<u8>> {
-        while self.at == self.buffer.len() {
-            if self.last {
+        while self.reading.at == self.reading.buffer.len() {
+            if self.reading.last {
                 return Ok(None);
             }
             self.fill()?;
         }
-        Ok(Some(self.buffer[self.at]))
+        Ok(Some(self.reading.buffer[self.reading.at]))
     }
 
     /// The next token, parsed by [`Tokens`] over the buffer this reader filled.
@@ -339,17 +556,17 @@ impl<S: Read + Write> TdsRows<'_, S> {
     fn token(&mut self) -> io::Result<Option<Token>> {
         loop {
             let (parsed, consumed) = {
-                let mut tokens = Tokens::over(&self.buffer[self.at..]);
+                let mut tokens = Tokens::over(&self.reading.buffer[self.reading.at..]);
                 let parsed = tokens.next_token();
                 (parsed, tokens.consumed())
             };
             match parsed {
                 Ok(Some(token)) => {
-                    self.at += consumed;
+                    self.reading.at += consumed;
                     return Ok(Some(token));
                 }
-                Ok(None) if self.last => return Ok(None),
-                Err(e) if self.last => return Err(e),
+                Ok(None) if self.reading.last => return Ok(None),
+                Err(e) if self.reading.last => return Err(e),
                 _ => self.fill()?,
             }
         }
@@ -366,13 +583,13 @@ impl<S: Read + Write> TdsRows<'_, S> {
     fn row(&mut self, nbc: bool) -> io::Result<TdsRow> {
         let mut nulls = Vec::new();
         if nbc {
-            let bitmap = self.columns.len().div_ceil(8);
+            let bitmap = self.reading.columns.len().div_ceil(8);
             self.copy(bitmap, &mut nulls)?;
         }
 
         let mut bytes = Vec::new();
-        let mut values = Vec::with_capacity(self.columns.len());
-        for index in 0..self.columns.len() {
+        let mut values = Vec::with_capacity(self.reading.columns.len());
+        for index in 0..self.reading.columns.len() {
             if nbc && nulls[index / 8] & (1 << (index % 8)) != 0 {
                 values.push(None);
                 continue;
@@ -380,7 +597,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
             // Copied out because `TypeInfo` is `Copy` and the read below is a
             // `&mut self`: the alternative is a clone of the whole column list
             // per row.
-            let info = self.columns[index].type_info;
+            let info = self.reading.columns[index].type_info;
             let start = bytes.len();
             let present = self.value(index, info, &mut bytes)?;
             values.push(present.then_some(start..bytes.len()));
@@ -527,7 +744,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
     /// message to, and here it bounds one token rather than the answer, since a
     /// row's values leave the buffer as they arrive.
     fn fill(&mut self) -> io::Result<()> {
-        if self.last {
+        if self.reading.last {
             return Err(malformed(String::from(
                 "a TDS answer's last packet ended in the middle of a token",
             )));
@@ -540,17 +757,17 @@ impl<S: Read + Write> TdsRows<'_, S> {
                 packet.kind.byte()
             )));
         }
-        self.last = packet.status.contains(Status::EOM);
-        if self.at > 0 {
-            self.buffer.drain(..self.at);
-            self.at = 0;
+        self.reading.last = packet.status.contains(Status::EOM);
+        if self.reading.at > 0 {
+            self.reading.buffer.drain(..self.reading.at);
+            self.reading.at = 0;
         }
-        if self.buffer.len() + packet.payload.len() > MAX_MESSAGE {
+        if self.reading.buffer.len() + packet.payload.len() > MAX_MESSAGE {
             return Err(malformed(format!(
                 "a TDS token grew past this driver's {MAX_MESSAGE}-byte ceiling"
             )));
         }
-        self.buffer.extend_from_slice(&packet.payload);
+        self.reading.buffer.extend_from_slice(&packet.payload);
         Ok(())
     }
 
@@ -561,7 +778,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
     /// contiguous — a `PLP` chunk is four bytes of length away from being
     /// two gigabytes.
     fn need(&mut self, n: usize) -> io::Result<()> {
-        while self.buffer.len() - self.at < n {
+        while self.reading.buffer.len() - self.reading.at < n {
             self.fill()?;
         }
         Ok(())
@@ -570,40 +787,43 @@ impl<S: Read + Write> TdsRows<'_, S> {
     /// One byte of a token's own fields.
     fn byte(&mut self) -> io::Result<u8> {
         self.need(1)?;
-        let byte = self.buffer[self.at];
-        self.at += 1;
+        let byte = self.reading.buffer[self.reading.at];
+        self.reading.at += 1;
         Ok(byte)
     }
 
     /// Two bytes, little-endian, as everything inside a payload is.
     fn short(&mut self) -> io::Result<u16> {
         self.need(2)?;
-        let short = u16::from_le_bytes([self.buffer[self.at], self.buffer[self.at + 1]]);
-        self.at += 2;
+        let at = self.reading.at;
+        let short = u16::from_le_bytes([self.reading.buffer[at], self.reading.buffer[at + 1]]);
+        self.reading.at += 2;
         Ok(short)
     }
 
     /// Four bytes, little-endian.
     fn long(&mut self) -> io::Result<u32> {
         self.need(4)?;
+        let at = self.reading.at;
         let long = u32::from_le_bytes(
-            self.buffer[self.at..self.at + 4]
+            self.reading.buffer[at..at + 4]
                 .try_into()
                 .expect("four bytes, as asked for"),
         );
-        self.at += 4;
+        self.reading.at += 4;
         Ok(long)
     }
 
     /// Eight bytes, little-endian: a `PLP` value's declared total.
     fn quad(&mut self) -> io::Result<u64> {
         self.need(8)?;
+        let at = self.reading.at;
         let quad = u64::from_le_bytes(
-            self.buffer[self.at..self.at + 8]
+            self.reading.buffer[at..at + 8]
                 .try_into()
                 .expect("eight bytes, as asked for"),
         );
-        self.at += 8;
+        self.reading.at += 8;
         Ok(quad)
     }
 
@@ -611,13 +831,14 @@ impl<S: Read + Write> TdsRows<'_, S> {
     fn copy(&mut self, n: usize, out: &mut Vec<u8>) -> io::Result<()> {
         let mut left = n;
         while left > 0 {
-            if self.at == self.buffer.len() {
+            if self.reading.at == self.reading.buffer.len() {
                 self.fill()?;
                 continue;
             }
-            let take = left.min(self.buffer.len() - self.at);
-            out.extend_from_slice(&self.buffer[self.at..self.at + take]);
-            self.at += take;
+            let take = left.min(self.reading.buffer.len() - self.reading.at);
+            let at = self.reading.at;
+            out.extend_from_slice(&self.reading.buffer[at..at + take]);
+            self.reading.at += take;
             left -= take;
         }
         Ok(())
@@ -627,12 +848,12 @@ impl<S: Read + Write> TdsRows<'_, S> {
     fn skip(&mut self, n: usize) -> io::Result<()> {
         let mut left = n;
         while left > 0 {
-            if self.at == self.buffer.len() {
+            if self.reading.at == self.reading.buffer.len() {
                 self.fill()?;
                 continue;
             }
-            let take = left.min(self.buffer.len() - self.at);
-            self.at += take;
+            let take = left.min(self.reading.buffer.len() - self.reading.at);
+            self.reading.at += take;
             left -= take;
         }
         Ok(())
@@ -648,53 +869,26 @@ impl<S: Read + Write> TdsRows<'_, S> {
 /// of § 1's two ways it was written is the caller's business, and this reads the
 /// same tokens either way.
 ///
+/// **The answer borrows nothing**, which is what makes it serve both halves of
+/// `rule:core-classes/db-statement-members`: [`open_result`] parks the cursor on the connection for
+/// `Core\Db\Connection::stream`, and [`read_rows`] puts it beside a borrow for
+/// every buffered member.
+///
 /// # Errors
 ///
 /// An `Other` carrying a [`ServerError`] for a statement the server refused;
 /// `InvalidData` for an answer that is not a token stream and for one that ends
 /// without either a `COLMETADATA` or a `DONE`; and whatever the stream reported.
 /// Everything but the refusal poisons the connection.
-pub fn read_rows<'a, S: Read + Write>(
-    wire: &'a mut Wire<S>,
-    state: &'a Cell<State>,
+pub(super) fn read_shape<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    cache: Option<&mut StatementCache<TdsPlan>>,
     span: QuerySpan,
-) -> io::Result<TdsRows<'a, S>> {
-    read_answer(wire, state, span, None)
-}
-
-/// The cache entry an answer is about to complete: [ADR 0067
-/// § 1](/docs/decisions/0067.md)'s key, and the cache to file the
-/// handle in once the token carrying it arrives.
-///
-/// **The stream holds this rather than the caller** because `sp_prepexec`'s
-/// handle is a `RETURNVALUE` that arrives *after* the rows, and a statement with
-/// no result set has already ended by the time [`read_rows`] returns — so a
-/// caller filing it afterwards would file nothing on exactly the statements a
-/// cache is worth the most on. [`TdsRows::end`] is the one place it lands.
-#[derive(Debug)]
-pub(super) struct Filing<'a> {
-    /// Where the handle goes.
-    pub(super) cache: &'a mut StatementCache<TdsPlan>,
-    /// § 1's key, first half: the statement as written.
-    pub(super) sql: String,
-    /// § 1's key, second half: how many markers § 5's rewrite left in it.
-    pub(super) arity: usize,
-    /// The `@params` the plan is being compiled against — [`TdsPlan::declared`]
-    /// owns why a plan is not usable without it.
-    pub(super) declared: Rc<str>,
-}
-
-/// [`read_rows`], plus the cache entry a `sp_prepexec` answer completes.
-pub(super) fn read_answer<'a, S: Read + Write>(
-    wire: &'a mut Wire<S>,
-    state: &'a Cell<State>,
-    span: QuerySpan,
-    filing: Option<Filing<'a>>,
-) -> io::Result<TdsRows<'a, S>> {
+    filing: Option<PendingPlan>,
+) -> io::Result<TdsCursor> {
     state.set(State::Streaming);
-    let mut rows = TdsRows {
-        wire,
-        state,
+    let mut reading = TdsCursor {
         columns: Vec::new(),
         buffer: Vec::new(),
         at: 0,
@@ -706,13 +900,37 @@ pub(super) fn read_answer<'a, S: Read + Write>(
         filing,
         span,
     };
-    match rows.shape() {
-        Ok(()) => Ok(rows),
+    let shaped = Walk {
+        wire,
+        state,
+        cache,
+        reading: &mut reading,
+    }
+    .shape();
+    match shaped {
+        Ok(()) => Ok(reading),
         Err(e) => Err(poison_on_read(state, e)),
     }
 }
 
-impl<S: Read + Write> TdsRows<'_, S> {
+/// [`read_shape`] with the read state lent out beside a borrow of the
+/// connection: the shape every buffered member of `rule:core-classes/db-statement-members` wants,
+/// and the one `Core\Db\Connection::stream` is the single caller that cannot
+/// use.
+///
+/// # Errors
+///
+/// As [`read_shape`].
+pub fn read_rows<'a, S: Read + Write>(
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    span: QuerySpan,
+) -> io::Result<TdsRows<'a, S>> {
+    let reading = read_shape(wire, state, None, span, None)?;
+    Ok(TdsRows::over(wire, state, None, reading))
+}
+
+impl<S: Read + Write> Walk<'_, S> {
     /// The tokens up to and including the `COLMETADATA`, or the `DONE` of a
     /// statement that has no result set to describe.
     fn shape(&mut self) -> io::Result<()> {
@@ -720,7 +938,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
         loop {
             match self.token()? {
                 Some(Token::Columns(columns)) => {
-                    self.columns = columns;
+                    self.reading.columns = columns;
                     return Ok(());
                 }
                 // [`TdsRows::step`]'s arm, and this is where a § 7 command's
@@ -728,7 +946,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
                 // so its `ENVCHANGE` arrives before the `DONE` here.
                 Some(Token::Env(EnvChange::Transaction { to })) => self.wire.set_descriptor(to),
                 Some(Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_) | Token::Order) => {}
-                Some(Token::ReturnValue(returned)) => self.returned = Some(returned),
+                Some(Token::ReturnValue(returned)) => self.reading.returned = Some(returned),
                 Some(Token::Error(message)) => {
                     if refusal.is_none() {
                         refusal = Some(message);
@@ -736,7 +954,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
                 }
                 Some(Token::Done(done)) => {
                     if done.counted() {
-                        self.counted = Some(done.rows);
+                        self.reading.counted = Some(done.rows);
                     }
                     // [`TdsRows::step`]'s test, for its reasons.
                     if done.more() || done.in_proc {

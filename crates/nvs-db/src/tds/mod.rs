@@ -420,6 +420,8 @@ impl TdsConn {
             // `DEFAULT_ISOLATION`, so nothing is owed until a `transaction()`
             // asks for a level.
             isolation_moved: Cell::new(false),
+            // Nothing is parked until `stream` parks it — see the field.
+            reading: None,
         })
     }
 
@@ -434,6 +436,17 @@ impl TdsConn {
     ///
     /// As [`reset_session`]. The connection is consumed either way.
     pub fn reset(mut self) -> io::Result<TdsConn> {
+        // A walk the program abandoned is read to its end before the reset goes
+        // out, and then dropped. The reset is a request like any other, and
+        // every TDS request has exactly one answer: written over an answer this
+        // side has not finished reading, its own would be read as the rest of
+        // that one.
+        end_stream_of(
+            &mut self.wire,
+            &self.state,
+            Some(&mut self.cache),
+            &mut self.reading,
+        );
         reset_session(
             &mut self.wire,
             &self.state,
@@ -478,6 +491,88 @@ impl TdsConn {
     /// As [`start_statement`].
     pub fn query(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<TdsRows<'_>> {
         start_statement(&mut self.wire, &self.state, &mut self.cache, sql, params)
+    }
+
+    /// Runs one statement and leaves its answer open, **borrowing nothing**:
+    /// the read state is parked on this connection and the rows come off it one
+    /// [`Self::stream_next_row`] at a time.
+    ///
+    /// The wire half of `rule:core-classes/db-streaming`'s `stream`, costing the round trips
+    /// [`Self::query`] costs and stopping where it stops — [`TdsCursor`] owns
+    /// why the state has to be here rather than inside a borrow. The answer is
+    /// what the result set described, empty for a statement that returned none,
+    /// and [`Self::stream_columns`] hands the same slice back to the later calls
+    /// that decode against it.
+    ///
+    /// A second statement is refused while this one is open, which is
+    /// `rule:core-classes/db-streaming`'s `LogicError` read off [`State::Streaming`] rather than
+    /// off a lifetime. [`Self::end_stream`] is what a program that walks away
+    /// from the rows owes; a walk read to its end needs no call at all.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::query`].
+    pub fn stream(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<&[TdsColumn]> {
+        let reading = open_result(&mut self.wire, &self.state, &mut self.cache, sql, params)?;
+        Ok(self.reading.insert(reading).columns())
+    }
+
+    /// What the parked walk's result set described, or `None` for a connection
+    /// that has not streamed since its last reset.
+    ///
+    /// It outlives the rows on purpose: a value is measured by the column it
+    /// belongs to, and § 9's decode of it happens after the step that produced
+    /// it.
+    #[must_use]
+    pub fn stream_columns(&self) -> Option<&[TdsColumn]> {
+        Some(self.reading.as_ref()?.columns())
+    }
+
+    /// The next row of the parked walk, or `None` once it has ended — and
+    /// `None` too for a connection with no walk parked on it at all.
+    ///
+    /// Ending it returns the connection to [`State::Idle`], exactly as
+    /// [`TdsRows::next_row`] does. The state itself stays parked, holding what
+    /// the statement finished with, until the next [`Self::stream`] replaces it
+    /// or [`Self::end_stream`] drops it.
+    ///
+    /// # Errors
+    ///
+    /// As [`next_row_of`].
+    pub fn stream_next_row(&mut self) -> io::Result<Option<TdsRow>> {
+        let Some(reading) = self.reading.as_mut() else {
+            return Ok(None);
+        };
+        next_row_of(&mut self.wire, &self.state, Some(&mut self.cache), reading)
+    }
+
+    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for the
+    /// parked walk, or `None` where there is none.
+    #[must_use]
+    pub fn stream_span(&self) -> Option<&QuerySpan> {
+        Some(self.reading.as_ref()?.span())
+    }
+
+    /// Names the `[db.<name>]` block the parked walk is running on, and does
+    /// nothing where there is no walk — [`TdsRows::name_connection`] owns why
+    /// the driver cannot work the name out for itself.
+    pub fn name_stream_connection(&mut self, connection: &str) {
+        if let Some(reading) = self.reading.as_mut() {
+            reading.name_connection(connection);
+        }
+    }
+
+    /// Abandons the parked walk: reads what is left of the answer and forgets
+    /// it.
+    ///
+    /// [`end_stream_of`] owns why the drain is not optional on this protocol.
+    pub fn end_stream(&mut self) {
+        end_stream_of(
+            &mut self.wire,
+            &self.state,
+            Some(&mut self.cache),
+            &mut self.reading,
+        );
     }
 
     /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany`: one
