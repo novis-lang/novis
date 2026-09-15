@@ -2142,6 +2142,33 @@ pub const CLASSES: &[CoreClass] = &[
 /// which is what a program that could resolve an ungranted path would be
 /// enumerating.
 pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
+    // `Core\Response::sendFile` is the one member outside `Core\IO` that opens a
+    // file, and it is `fs.read` for the reading below rather than for a weaker
+    // one of its own: the member resolves a name and opens what is at it, which
+    // is what `Core\IO::read` does, and answering with the bytes instead of
+    // returning them changes nothing about the authority that was exercised. A
+    // program that may not read a path may not send it either.
+    (
+        crate::response::NAME,
+        "sendFile",
+        Some(nvs_config::Cap::FsRead),
+    ),
+    // The rest of this class reaches nothing: a body member writes into the
+    // response its own request is answering, and `setStatus`, `setHeader`,
+    // `redirect` and `addCookie` declare a word onto the context that request
+    // ends on. The bytes go to a peer the server already accepted, so there is
+    // no name resolved, no socket opened and no process started — which is why
+    // `sendFile` above is the row worth reading twice, being the one that leaves
+    // the response and reaches the machine.
+    (crate::response::NAME, "html", None),
+    (crate::response::NAME, "json", None),
+    (crate::response::NAME, "text", None),
+    (crate::response::NAME, "bytes", None),
+    (crate::response::NAME, "stream", None),
+    (crate::response::NAME, "setStatus", None),
+    (crate::response::NAME, "setHeader", None),
+    (crate::response::NAME, "redirect", None),
+    (crate::response::NAME, "addCookie", None),
     (crate::io::NAME, "read", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "write", Some(nvs_config::Cap::FsWrite)),
     // Adding to a file is writing it, and the split above has nothing finer to

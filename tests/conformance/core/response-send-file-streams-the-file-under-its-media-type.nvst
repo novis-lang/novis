@@ -1,0 +1,34 @@
+--TEST--
+`Core\Response::sendFile` answers with the file at its path rather than with a copy of it the program holds, and the bytes reach the body verbatim — `rule:security/response-body-is-one-typed-member`, spec § 15
+--FILE--
+<?nvs
+// § 4's file row is the one body member that hands over a *name*. Inside a
+// request it declares the file and the server streams it under the static-file
+// policy's media-type table, which is where the range and the conditional
+// already live, so nothing is ever read whole into memory. Off a request there
+// is no response to declare onto, and then the bytes land in this program's own
+// output instead -- `nvs_stdlib::response`'s gap 1 -- which is what makes them
+// assertable from a case at all. The media type the policy gives them is
+// asserted where the policy is, in `crates/nvs-server`.
+Core\Response::sendFile("page.html");
+
+// Verbatim, byte for byte: sending a file escapes nothing, substitutes nothing
+// and re-frames nothing, which is the whole difference between this member and
+// echoing what `Core\IO::read` answered.
+Core\Response::sendFile("raw.txt");
+
+// One body member called twice is one writer writing its whole body and not two
+// (`rule:security/response-body-is-one-typed-member`), so the second send
+// follows the first in the order the program made them.
+Core\Response::sendFile("page.html");
+--FILE page.html--
+<p>a page &amp; nothing more</p>
+--FILE raw.txt--
+{"held": "<b>&</b>"}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+<p>a page &amp; nothing more</p>
+{"held": "<b>&</b>"}
+<p>a page &amp; nothing more</p>

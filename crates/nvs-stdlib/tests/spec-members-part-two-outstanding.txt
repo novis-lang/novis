@@ -19,15 +19,13 @@
 # directory, metadata and copying members, and both of its `Iterable<string>`s.
 # It keeps no keys here.
 
-# § 15 -- the request-facing half, and nothing else: every member left here is
-# one that needs a request. `Core\Env`, `Core\Cap` and `Core\Cli` are registered
-# whole; `Core\Request` has the request line (`method`, `path`, `query`), the
-# fields that arrived with it, all three readings of the body, the peer's three
-# and ADR 0102 § 1's `route`, and `Core\Session` has registry rows for § 1's
-# seven members, its sealed pair being owed. What is left of ADR 0139 is § 4's
-# write-back at the end of the request, which is a server question rather than a
-# member.
-§15 Response::sendFile  # m7-server-surface
+# § 15 is registered whole -- `Core\Env`, `Core\Cap`, `Core\Cli` and
+# `Core\Server`; `Core\Request`'s request line, the fields that arrived with it,
+# all three readings of the body, the peer's three and ADR 0102 § 1's `route`;
+# `Core\Session`'s roster with its sealed pair; and `Core\Response`'s six body
+# members beside the four that shape a response without writing one. It keeps no
+# keys here. What is left of ADR 0139 is § 4's write-back at the end of the
+# request, which is a server question rather than a member.
 
 # § 18 -- `Core\Db`, whose remaining members each need a driver and a server to
 # talk to. `inList` and `quoteIdentifier` need neither and have landed.

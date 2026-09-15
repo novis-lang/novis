@@ -72,12 +72,10 @@ use crate::{Ctx, Env};
 /// the name a call spells.
 ///
 /// `rule:security/response-body-is-one-typed-member`'s table first, in its own
-/// order. `sendFile` is not in `nvs_stdlib::registry` yet — it waits on a mount
-/// root to resolve a path against — and it is listed anyway: an unregistered
-/// name is reported as `E0405` *beside* this
-/// refusal rather than instead of it, so a row here costs nothing while its
-/// member is being landed, and leaving it out would make landing one a
-/// two-file change with the second file easy to miss.
+/// order, and every row of it is a registered member of
+/// `nvs_stdlib::registry`'s `Core\Response`. A row here costs nothing while a
+/// member is being landed either way: an unregistered name is reported as
+/// `E0405` *beside* this refusal rather than instead of it.
 ///
 /// The two `stream` rows are not that table's: a body written over time is
 /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s

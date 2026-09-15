@@ -389,10 +389,16 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
 /// half:** `php://filter/resource=registry.rs` names no file this crate has, at the launderer and
 /// at the door alike.
 ///
-/// The path-taking classes are *derived*, not listed — every class with an `fs.read`/`fs.write` row
-/// in [`nvs_stdlib::registry::CAPABILITIES`], plus `Core\Path`, which has no row precisely because
-/// it touches nothing. Pure string algebra over paths is where a textual scheme parse would hide,
-/// and no capability row can find it.
+/// What is path-taking is *derived*, not listed, and the **member** is the unit: a member with an
+/// `fs.read`/`fs.write` row in [`nvs_stdlib::registry::CAPABILITIES`], plus all of `Core\Path`'s,
+/// which has no row precisely because it touches nothing. Pure string algebra over paths is where a
+/// textual scheme parse would hide, and no capability row can find it. A class is the unit for the
+/// implementation half alone, where the subject is a module and not a signature.
+///
+/// The member rather than its class, because one class holds both: `Core\Response::sendFile`
+/// reaches the filesystem and `Core\Response::redirect` names a destination the *peer* fetches,
+/// which is a URL by `rule:security/a-path-is-not-a-url`'s own reading and carries the spelling
+/// legitimately. Sweeping the class would refuse the one member on the other one's account.
 ///
 /// The spellings this refuses are legitimate one class over, which is what makes the sweep a claim
 /// about *paths* rather than a ban on a word: `Core\Uri` has a `scheme` member because a URI is its
@@ -403,15 +409,28 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
 fn no_member_dispatches_on_a_uri_scheme() {
     const SPELLINGS: &[&str] = &["scheme", "wrapper", "protocol", "url", "uri"];
 
+    /// Whether this member is one that opens a name — the row it has in the roster, which is the
+    /// only machine-readable statement that a parameter of it is a path.
+    fn opens_a_name(class: &str, member: &str) -> bool {
+        nvs_stdlib::registry::CAPABILITIES
+            .iter()
+            .any(|(name, row, cap)| {
+                *name == class && *row == member && matches!(cap, Some(Cap::FsRead | Cap::FsWrite))
+            })
+    }
+
+    /// Whether this member's signature is swept — `Core\Path`'s whole roster is paths, and
+    /// everywhere else the row is what says so.
+    fn takes_a_path(class: &str, member: &str) -> bool {
+        class == "Core\\Path" || opens_a_name(class, member)
+    }
+
     let path_taking: Vec<_> = nvs_stdlib::registry::CLASSES
         .iter()
         .filter(|class| {
-            class.name == "Core\\Path"
-                || nvs_stdlib::registry::CAPABILITIES
-                    .iter()
-                    .any(|(name, _, cap)| {
-                        *name == class.name && matches!(cap, Some(Cap::FsRead | Cap::FsWrite))
-                    })
+            class
+                .members()
+                .any(|member| takes_a_path(class.name, member.name))
         })
         .collect();
 
@@ -425,8 +444,26 @@ fn no_member_dispatches_on_a_uri_scheme() {
         );
     }
 
+    // And the control on the unit, which is the half a class-wide sweep cannot state: the one class
+    // holding a member of each kind has exactly one of them in the derived set.
+    assert!(
+        opens_a_name("Core\\Response", "sendFile"),
+        "`Core\\Response::sendFile` is the body member that opens a file, so it is swept here; a \
+         run where it is not means its `fs.read` row has gone and the sweep is no longer a claim \
+         about it"
+    );
+    assert!(
+        !opens_a_name("Core\\Response", "redirect"),
+        "`redirect` names a destination the peer fetches and opens nothing, which is why it may \
+         spell a URL; a row granting it the filesystem would make it a path member with a `url` \
+         parameter, which is the shape this test exists to refuse"
+    );
+
     for class in &path_taking {
         for member in class.members() {
+            if !takes_a_path(class.name, member.name) {
+                continue;
+            }
             let names = std::iter::once(member.name).chain(member.names.iter().copied());
             for name in names {
                 let lowered = name.to_ascii_lowercase();

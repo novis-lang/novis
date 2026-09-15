@@ -4,16 +4,14 @@
 //!
 //! # What is here, and what is not
 //!
-//! `rule:security/response-body-is-one-typed-member`
-//! 's body members bar one: `html`, `text`, `json` and `bytes`, plus `stream`,
-//! which that rule's table does not have a row for because a body written over
-//! time is
+//! `rule:security/response-body-is-one-typed-member`'s body members: `html`,
+//! `text`, `json`, `bytes` and `sendFile`, plus `stream`, which that rule's
+//! table does not have a row for because a body written over time is
 //! `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
-//! subject rather than that one's. The one still owed is `sendFile`, whose path
-//! is § 1's sink over a file the server resolves, and it is a known gap of this
-//! module rather than of
-//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 15.
+//! subject rather than that one's. `sendFile` is the one that hands over a
+//! **name**: its path is § 1's sink, the file is opened by whoever answers the
+//! request, and what the bytes are called is the static-file policy's table
+//! rather than anything this module declares.
 //!
 //! Beside them, § 15's `setStatus`, `setHeader`, `redirect` and `addCookie`:
 //! the four members here that shape a response without writing one.
@@ -226,6 +224,15 @@ const HTML_MEDIA_TYPE: &str = "text/html; charset=utf-8";
 /// against § 4.
 const TEXT_MEDIA_TYPE: &str = "text/plain; charset=utf-8";
 
+/// How much of a file one write moves where `sendFile` is the one writing it —
+/// off a request, where there is no connection to hand the name to.
+///
+/// A fixed buffer on the stack rather than the file's own size, so the fallback
+/// holds what it is about to write and never what it is about to read: the
+/// member's promise is that a response of any size costs a bounded amount of
+/// memory, and the path that reads the bytes itself keeps it too.
+const SEND_FILE_CHUNK: usize = 64 * 1024;
+
 /// What `json` declares — § 4's `application/json`, and no `charset`: the
 /// media type's own registration fixes the encoding at UTF-8, so a parameter
 /// saying so again is one more thing two members could disagree about.
@@ -263,8 +270,13 @@ const TOKEN_MARKS: &[u8] = b"!#$%&'*+-.^_`|~";
 
 /// `Core\Response`'s registry rows — § 15's body members, in § 4's own table
 /// order for the ones that exist.
+/// `Core\Response`'s fully-qualified name, written once — [`CLASS`] declares it
+/// and [`crate::registry::CAPABILITIES`] names it on every row of this class, so
+/// the table and the roster cannot drift apart.
+pub(crate) const NAME: &str = r"Core\Response";
+
 pub(crate) const CLASS: CoreClass = CoreClass {
-    name: r"Core\Response",
+    name: NAME,
     methods: &[
         CoreMethod {
             name: "html",
@@ -313,6 +325,22 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_response_bytes",
             doc: Some(&BYTES_DOC),
+        },
+        CoreMethod {
+            name: "sendFile",
+            names: &["path"],
+            // § 1's sink, and the one on this class whose argument reaches the
+            // filesystem: `..` and the separators direct the resolver, so a
+            // path the request chose is the traversal that reads whatever this
+            // program was granted. The bytes at it are data and carry no mark
+            // of their own — nothing here re-parses them, and what they are
+            // called is the static policy's table rather than this member's
+            // argument.
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_response_send_file",
+            doc: Some(&SEND_FILE_DOC),
         },
         CoreMethod {
             name: "stream",
@@ -618,6 +646,40 @@ const BYTES_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Response::sendFile`'s reference card — `rule:core-api/reference-card`.
+const SEND_FILE_DOC: MethodDoc = MethodDoc {
+    short: "Answers with the file at `$path`, streamed by the server under the static-file policy's \
+            media type — the one body member that hands over a name instead of bytes.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "The file to send. A sink: a path component directs the resolver, so a `tainted` \
+               value is refused at compile time, and `fs.read` must cover it like any other path \
+               this program opens. A download name is `Content-Disposition` through `setHeader`, \
+               this member taking the path alone.",
+        shape: &[],
+    }],
+    ret: "Nothing. The response carries the media type the static-file policy's table gives the \
+          file's extension, and answers a range or a conditional request over it; mixing this with \
+          `echo` on one response is a compile error.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`fs.read` does not cover `$path` — the same refusal `Core\\IO::read` gives, from \
+                   the same door, whether or not there is a file there.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "There is nothing at `$path`, or the operating system will not let this process \
+                   read it.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$path` is a directory, or something else that is not a regular file — a \
+                   response body is a file's contents, and there are none to send.",
+        },
+    ],
+};
+
 /// `Core\Response::text`'s reference card — `rule:core-api/reference-card`.
 const TEXT_DOC: MethodDoc = MethodDoc {
     short: "Answers with `$body` as the response body, declaring `text/plain; charset=utf-8` — one \
@@ -886,6 +948,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_response_json" => (nvs_core_response_json as *const ()).cast(),
         "nvs_core_response_text" => (nvs_core_response_text as *const ()).cast(),
         "nvs_core_response_bytes" => (nvs_core_response_bytes as *const ()).cast(),
+        "nvs_core_response_send_file" => (nvs_core_response_send_file as *const ()).cast(),
         STREAM_SYMBOL => (nvs_core_response_stream as *const ()).cast(),
         STREAM_WRITE_SYMBOL => (nvs_core_response_stream_write as *const ()).cast(),
         "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
@@ -1632,6 +1695,93 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Response::sendFile(string $path): void` — § 4's file row, the one
+    /// body member whose bytes do not pass through this call.
+    ///
+    /// **A name is what it leaves**, and that is the whole shape:
+    /// [`nvs_runtime::Ctx::declare_file_body`] records the path, the request's
+    /// finish path lifts it onto a `Completion`, and the server opens the file
+    /// and streams it under the static-file policy — which is where the media
+    /// type, the range and the conditional already live
+    /// ([0186](/docs/decisions/0186.md) § 4). So a response of any size costs a
+    /// request one path and one open handle at the connection, never a copy of
+    /// the file, and nothing here declares a content type: this member cannot
+    /// know what the bytes are called and the policy's table can.
+    ///
+    /// **The three refusals are asked here rather than at the connection**, on
+    /// [`spellable`]'s reasoning: a program learns that the file it named is
+    /// missing, is a directory, or is one the process may not read at the call
+    /// it made, where it can still answer something else, instead of from a
+    /// `500` after its handler returned. The grant is the first of them and
+    /// comes from the door, so a path outside `fs.read` is refused whether or
+    /// not there is a file at it — `nvs_runtime::capability::open_read` owns why
+    /// that order is the one that cannot be used as a probe. What the server
+    /// does with the name afterwards is checked again by the policy, this
+    /// member's answer being about the program's authority and never about the
+    /// request's.
+    ///
+    /// **Off a request there is no response, and then the bytes land here**:
+    /// a CLI program, a `#[Test]` method, a `.nvst` case and a `spawn script`
+    /// child each write the file into their own output, a chunk at a time. That
+    /// is the module doc's gap 1 for the one member whose body is a file — the
+    /// declaration means nothing where nobody frames a response, and the bytes
+    /// still come out in the order the program wrote them.
+    fn nvs_core_response_send_file(ctx, args: [1]) {
+        // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
+        // `E0401` refuses anything that is not a `string` before this runs —
+        // and refuses a `tainted` one besides, that being § 1's sink.
+        let named = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Response::sendFile expected a `string` for the path, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let path = std::path::Path::new(named);
+        let found = nvs_runtime::capability::metadata(ctx, path, "Core\\Response::sendFile")?;
+        if !found.is_file() {
+            // A literal stem before the first hole, which is
+            // `conformance_coverage`'s error-path gate matching a site.
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "Core\\Response::sendFile(): `{named}` is not a regular file — a response \
+                     body is a file's contents, and a directory has none to send"
+                ),
+            ));
+        }
+        if !nvs_runtime::capability::readable(ctx, path, "Core\\Response::sendFile")? {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Io,
+                format!(
+                    "Core\\Response::sendFile(): `{named}` is granted but this process may not \
+                     read it"
+                ),
+            ));
+        }
+        if ctx.declare_file_body(path) {
+            return Ok(Value::null());
+        }
+        let mut file = nvs_runtime::capability::open_read(ctx, path, "Core\\Response::sendFile")?;
+        let mut chunk = [0_u8; SEND_FILE_CHUNK];
+        loop {
+            let read = std::io::Read::read(&mut file, &mut chunk).map_err(|error| {
+                nvs_runtime::capability::io_failure("Core\\Response::sendFile", path, &error)
+            })?;
+            if read == 0 {
+                break;
+            }
+            // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
+            // and `Sink` never fail, and nothing in the language closes a
+            // descriptor the host handed the process.
+            ctx.write_output(&chunk[..read]).map_err(|error| {
+                Fault::fatal(format!("Core\\Response::sendFile could not write: {error}"))
+            })?;
+        }
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Response::stream(string $contentType): Core\Response\Stream` —
     /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
     /// stream that ends with its response, as the member that opens one.
@@ -1815,10 +1965,14 @@ mod tests {
     /// *distinct*, and — for the one member that is told its type — asserted to
     /// carry two different ones rather than a constant that happened to match.
     ///
-    /// `sendFile` is § 4's remaining row and is not here because it has not
-    /// landed; `nvs_stdlib::response`'s module doc owns that gap, and the sweep
-    /// below is over the table rather than over a list of names, so it joins by
-    /// being added to it.
+    /// `sendFile` is § 4's one row that is not here, and not for want of having
+    /// landed: it declares no media type at all, the static-file policy's table
+    /// naming what a file's bytes are, so there is nothing of this claim to ask
+    /// it. What that member leaves instead is a name, asserted from a program
+    /// with the grant in place in
+    /// `tests/conformance/core/response-send-file-streams-the-file-under-its-media-type.nvst`.
+    /// The sweep below is over the table rather than over a list of names, so a
+    /// member that does declare one joins by being added to it.
     #[test]
     fn each_body_member_sets_its_own_content_type() {
         // Nothing else on the path declares one: a context no body member has

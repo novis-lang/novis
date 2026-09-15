@@ -1,0 +1,45 @@
+--TEST--
+`Core\Response::sendFile` refuses at the call what it cannot send — a name that is not there and a directory — and sends the file beside them, each bound named on both sides — `rule:security/response-body-is-one-typed-member`, spec § 15
+--FILE--
+<?nvs
+// Everything here runs with the grant in place, so the door is not what
+// answers and the case is about where the member stops. Each pair is one bound
+// named on both sides -- the thing refused beside the thing sent -- because a
+// member that refused one step too early prints plausibly against either half
+// on its own.
+
+// Absence. The refusal is at the *call*, which is the point of asking here
+// rather than at the connection: the handler learns that the file it named is
+// not there while it can still answer something else, instead of from a `500`
+// after it returned.
+try {
+    Core\Response::sendFile("missing.bin");
+    echo "missing.bin: sent\n";
+} catch (IOError $absent) {
+    echo "missing.bin: no file\n";
+}
+
+// Kind. A directory is granted, resolvable and readable, and it is still not a
+// body: a response carries a file's contents, and a directory has none. The
+// message is printed whole rather than a label of this case's own, because what
+// a refusal says is the part of it a handler's author reads.
+try {
+    Core\Response::sendFile("sub");
+    echo "sub: sent\n";
+} catch (LogicError $wrong) {
+    echo $wrong->message, "\n";
+}
+
+// The other side of both bounds: a regular file inside that same directory,
+// sent whole. Off a request the bytes land in this program's output, which is
+// what makes the accepted half assertable beside the refused ones.
+Core\Response::sendFile("sub/keep.txt");
+--FILE sub/keep.txt--
+kept
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+--EXPECT--
+missing.bin: no file
+Core\Response::sendFile(): `sub` is not a regular file — a response body is a file's contents, and a directory has none to send
+kept

@@ -1,0 +1,25 @@
+--TEST--
+`Core\Response::sendFile`'s path is a sink and refuses a tainted argument, where the same response's `text` body takes one — a path component directs the resolver and a body's octets are framed — `rule:security/sink-predicate`, `rule:security/response-body-is-one-typed-member`, spec § 15
+--FILE--
+<?nvs
+// `rule:security/sink-predicate`'s table puts a filesystem path component on
+// the instruction side -- `..` and the separators direct the resolver -- so a
+// path the request itself chose is the traversal that sends back whatever this
+// program was granted. A `tainted` one is refused before it runs.
+tainted string $chosen = "page.html";
+
+Core\Response::sendFile($chosen);
+
+// And the other side of § 4's table on the same class, so this file asserts a
+// line rather than a member: the text body takes a tainted argument freely,
+// because `nosniff` is on by default and its octets are framed by
+// `Content-Length` rather than becoming an instruction to anything.
+Core\Response::text($chosen);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:8:25
+%A
+error: aborting due to 1 error
