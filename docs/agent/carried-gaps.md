@@ -51,7 +51,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | CLDR's unformattable pattern letters, and a language absent from the ordinal roster answering `Other` silently | `m8-stdlib-depth` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–3 |
 | Spec § 13's `Core\Test` cell states the roster in English, so `request`'s bag is spelled nowhere in the spec | `unowned-closures` | `docs/spec/01-core-library.md:1001`; the bag itself is `crates/nvs-stdlib/src/test.rs`'s `REQUEST_OPTIONS`, and `docs/novis.md` renders the signature |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
-| `array<T>` is invariant in the rulebook and covariant in the checker, and the decision is to widen the rule | `m8-stdlib-depth` | `crates/nvs-stdlib/src/lib.rs` gap 4, `crates/nvs-types/src/expr/assign.rs:172` |
 | `Core\Metrics` has no `registry::CLASSES` row, so no program can read the metrics a core already meters | `m8-stdlib-depth` | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
 | `Core\Process::spawn` — `proc_open`'s and `popen`'s streaming half — is unregistered, and `run` is the whole of what there is | `m8-stdlib-depth` | `crates/nvs-stdlib/tests/migration-members-outstanding.txt` |
 

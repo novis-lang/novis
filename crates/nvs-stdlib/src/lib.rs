@@ -141,18 +141,6 @@
 //!    unwritten row — Every missing member becomes visible and can only shrink; seeding the file is a
 //!    one-time listing job.
 //!    — owner: unowned-closures
-//! 4. **`array<T>` is invariant, so a `array<int|string>` parameter takes only
-//!    that exact spelling.** `Core\Arr::flip` is the first member whose spec
-//!    signature declares one, and `Core\Arr::flip($stringArray)` is refused —
-//!    the caller declares `array<string|int>` instead. `rule:types/arrays` is
-//!    the invariance the tree holds to and `nvs_types::expr::is_assignable` is
-//!    where the check lives, so widening is an edit to that rule as well as to
-//!    the checker.
-//!    Decided: Widen to a covariant read — an Novis array is a copy-on-write
-//!    **value**, so an element-covariant read cannot be aliased into an unsound
-//!    write the way a mutable container's could, and accepting one breaks no
-//!    program that compiles today.
-//!    — owner: m8-stdlib-depth
 
 pub mod arr;
 mod ast;
