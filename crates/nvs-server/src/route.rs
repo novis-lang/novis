@@ -43,18 +43,6 @@
 //!    surface, at the cost of one config key and a crate move.
 //!    — owner: unowned-closures
 //!
-//! 2. **The label has a consumer and no caller.**
-//!    [`crate::metrics::Registry::request`] is what `rule:observability/route-label-is-the-declared-name`'s `route` label
-//!    reaches — the two request series carry it, and that member's doc owns what
-//!    an unmatched request's label is — but no core owns a registry yet, because
-//!    § 8's two exporters are not in this crate's graph and nothing would read
-//!    one. So [`label`] still has no caller, and it is written here for the
-//!    reason it always was: the *value* is the part that rule interlocks with
-//!    `rule:routing/routes-are-compiled-not-registered` over — a name out of the compile-time table and never the
-//!    request's path — and deriving it anywhere else would be the second match
-//!    § 1 removes.
-//!    — owner: unowned
-//!
 //! # Where it sits among the door's other decisions
 //!
 //! Later than the rest of them, and necessarily. The peer walk
@@ -137,6 +125,10 @@ pub fn csrf_required(inbound: &Inbound) -> bool {
 /// is a name the table chose, so a row that chose none has no label — falling
 /// back to the path is the cardinality bomb the rule exists to prevent, and it
 /// is not offered as an option.
+///
+/// [`crate::serve`] is the caller, once per request it ran, off the carrier the
+/// reply is still holding — `nvs_host::Isolate::answering_request` owns why the
+/// door reads it there and not after the isolate has started.
 #[must_use]
 pub fn label(inbound: &Inbound) -> Option<&str> {
     inbound.route()?.name()

@@ -292,6 +292,28 @@ impl Isolate {
         self
     }
 
+    /// The request this isolate will answer, for a door that still owes one
+    /// fact about it after handing the carrier over.
+    ///
+    /// The reader is `nvs_server::serve`, and the fact is
+    /// `rule:observability/route-label-is-the-declared-name`'s `route` label:
+    /// the match rides on the carrier ([`Self::answering`]), the label is read
+    /// off the match, and the *status* it is counted beside does not exist
+    /// until the request has ended — by which time [`Self::start`] has moved
+    /// the carrier into the child's own context and nothing above can reach it.
+    /// So the door takes what it needs here, at the last moment both are in one
+    /// hand.
+    ///
+    /// Borrowed and never handed out by value: a caller that wants the label
+    /// past the start copies the label, not the request.
+    ///
+    /// `None` for every isolate nobody called [`Self::answering`] on, which is
+    /// every CLI program and every `spawn script` child.
+    #[must_use]
+    pub fn answering_request(&self) -> Option<&Inbound> {
+        self.inbound.as_deref()
+    }
+
     /// Gives it the origin absolute links are built from, which the child's own
     /// context then answers `Core\Router::urlAbsolute` with
     /// ([`Ctx::set_origin`](nvs_runtime::Ctx::set_origin)).

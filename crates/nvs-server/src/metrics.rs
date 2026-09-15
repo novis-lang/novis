@@ -11,10 +11,12 @@
 //! are approximate aggregates whose merge across cores is arithmetic rather than
 //! coordination, § 4 forbids any request-derived value from becoming a label,
 //! and the memory is charged to the core and capped. That is the same exception
-//! 0059 § 3 already records for `Core\Cache::local`, and it is why this is a
-//! plain `&mut` on the core's own loop rather than anything shared: a counter
+//! 0059 § 3 already records for `Core\Cache::local`, and it is why a core's
+//! registry is a plain `&mut` on its own cell rather than anything shared: a counter
 //! two cores contend over would be coordination bought for a number that is
-//! defined as approximate.
+//! defined as approximate. [`meter_this_core`] is where a core takes one,
+//! [`count_request`] is what the door reaches it through, and [`on_this_core`]
+//! is the copy that crosses to a scrape.
 //!
 //! # Refuse the new, never evict the old
 //!
@@ -72,6 +74,7 @@
 //!    [`Registry::of`] is the configured half of.
 //!    — owner: m8-stdlib-depth
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::time::Duration;
@@ -634,6 +637,68 @@ impl Registry {
             .or_insert_with(|| empty(kind, buckets));
         Ok(series)
     }
+}
+
+thread_local! {
+    /// The registry of the core this thread is.
+    ///
+    /// A thread-local because that is what "per core" *is* on a runtime which
+    /// never migrates a request: the core that accepted a connection is the
+    /// core that answers every request on it, so a counter reached from this
+    /// cell is reached with no lock and no handle threaded through the
+    /// connection. One process runs [`meter_this_core`] once per listening
+    /// socket per core — `[server] listen` names any number of them — and the
+    /// second of those finds what the first built rather than splitting the
+    /// core's counters between two sockets.
+    ///
+    /// `None` on every thread that is not serving, and on every core of a
+    /// process whose `[metrics]` names no exporter.
+    static CORE: RefCell<Option<Registry>> = const { RefCell::new(None) };
+}
+
+/// Gives this core the registry `config` asks for, unless it already has one.
+///
+/// [`Registry::of`] is what decides, so a tree naming no exporter leaves this
+/// core with nothing and every count below it a no-op — which is § 3's reading
+/// of `exporter = false` and the cheapest one there is.
+///
+/// **Idempotent**, and that is the contract rather than a convenience: the
+/// counters belong to the core and not to the accept loop that happened to
+/// build them, so a second loop on the same core adds to the same series. It
+/// is also what makes a re-entered loop safe, since a registry that was
+/// rebuilt would reset every counter under it and every backend reads that as
+/// a process restart (§ 7's own argument against eviction).
+pub fn meter_this_core(config: &Config) {
+    CORE.with_borrow_mut(|core| {
+        if core.is_none() {
+            *core = Registry::of(config);
+        }
+    });
+}
+
+/// Counts one finished request on this core's registry.
+///
+/// [`Registry::request`] where this core has one, and nothing at all where it
+/// has not: the door calls this for every response it writes, so the absent
+/// case is the ordinary one and is a borrow and a branch.
+pub fn count_request(method: &str, status: u16, route: Option<&str>, took: Duration) {
+    CORE.with_borrow_mut(|core| {
+        if let Some(registry) = core.as_mut() {
+            registry.request(method, status, route, took);
+        }
+    });
+}
+
+/// A copy of this core's series, for a caller that is going to send them
+/// somewhere else.
+///
+/// A copy rather than a borrow because the reader is never this core: a scrape
+/// merges what every core answers with, and what crosses is values rather than
+/// a handle onto a registry that is still being written. `None` where this core
+/// built none.
+#[must_use]
+pub fn on_this_core() -> Option<Registry> {
+    CORE.with_borrow(Clone::clone)
 }
 
 /// A series key: the name, and the labels sorted by name.

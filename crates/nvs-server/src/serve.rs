@@ -957,6 +957,34 @@ where
         // waiting for from here is the body, and then nothing until the answer
         // exists.
         phase.set(Phase::Body);
+        // The two facts `rule:observability/default-series`'s request series are
+        // counted with that are only readable *here*: the verb, off a request
+        // the handler below takes by value, and the instant the door first had
+        // it. Taken whether or not this core is metering, because a standard
+        // verb's clone copies an enum and `Instant::now` is a counter read —
+        // less than the branch that would ask.
+        let verb = request.method().clone();
+        let began = Instant::now();
+        // `rule:observability/route-label-is-the-declared-name`'s label, filled
+        // by the one arm below that can have it and empty for every answer the
+        // door writes for itself. Owned rather than borrowed because the match
+        // it is read off goes down with the request's own context
+        // (`nvs_host::Isolate::answering_request`), while the status it is
+        // counted beside does not exist until that context has ended.
+        let mut labelled: Option<Box<str>> = None;
+        // One place, and every answer below reaches it: a request the forwarded
+        // walk refused, one the ceiling refused, a preflight § 2 answered, and
+        // the one the handler ran. All four are responses this server wrote, so
+        // all four are requests a scrape is owed — a `503` that went uncounted
+        // would hide exactly the overload the series exists to show.
+        let counted = |response: &Response<Answer>, route: Option<&str>| {
+            crate::metrics::count_request(
+                verb.as_str(),
+                response.status().as_u16(),
+                route,
+                began.elapsed(),
+            );
+        };
         // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, and it is asked here rather than once per connection
         // because what asserts it is a *header*: one connection carries many
         // requests and a proxy writes the line on each. Before the valve below,
@@ -976,6 +1004,7 @@ where
                 phase.set(Phase::Write);
                 let mut refused = unusable_forward();
                 serving.secure.fill(refused.headers_mut(), Scheme::Http);
+                counted(&refused, None);
                 return Ok::<_, Infallible>(refused);
             }
         };
@@ -1004,6 +1033,7 @@ where
             phase.set(Phase::Write);
             let mut refused = crate::admit::over_capacity();
             serving.secure.fill(refused.headers_mut(), scheme);
+            counted(&refused, None);
             return Ok::<_, Infallible>(refused);
         };
         // `rule:http-server/cors-is-closed-until-origins-are-named`, asked here for the reason the valve above it is: a
@@ -1021,6 +1051,7 @@ where
             *permitted.status_mut() = preflight.status();
             serving.secure.fill(permitted.headers_mut(), scheme);
             preflight.fill(permitted.headers_mut());
+            counted(&permitted, None);
             return Ok::<_, Infallible>(permitted);
         }
         // § 2's other half, decided here because the handler below takes the
@@ -1122,6 +1153,17 @@ where
             // could not send to the isolate, and one `pump` per poll reads a
             // chunk for a request that is waiting for one.
             Reply::Run(isolate, mut supply) => {
+                // The label, off the match `crate::route::take` already wrote
+                // onto the carrier — a name out of the compile-time table, which
+                // is the whole of why this reads a match rather than a path. The
+                // one arm that can have one: a `Reply::Done` is a mount table's
+                // `404` or a file, neither of which matched a route, and the
+                // three refusals above it answered before a unit was even
+                // selected.
+                labelled = isolate
+                    .answering_request()
+                    .and_then(crate::route::label)
+                    .map(Box::from);
                 // The offer reaches the program through the carrier the handler
                 // built, which is why it is made here and not above: this loop
                 // never holds an `Inbound`, and `Isolate::offering_upgrade` is
@@ -1364,6 +1406,12 @@ where
         // one place where policy reaches it rather than two.
         serving.secure.fill(answered.headers_mut(), scheme);
         crossing.fill(answered.headers_mut());
+        // After the policy and before the answer goes back, so that what is
+        // counted is the response this connection actually writes — including
+        // one the `101` or an event stream replaced the request's own with. A
+        // streamed body's later bytes are not in the duration: what is measured
+        // is the request, and a peer that reads slowly is not one.
+        counted(&answered, labelled.as_deref());
         Ok(answered)
     });
     // **Driven through a borrow rather than moved in**, which is the whole of
@@ -1926,6 +1974,16 @@ where
             "the accept loop must run as a task on a core",
         ));
     };
+    // `rule:observability/a-registry-is-per-core-and-nothing-reads-it`'s
+    // registry, taken here because this is the core that will serve through it
+    // and because the tree naming the exporter is on [`Serving`] already. Read
+    // once at the top rather than per request: `[metrics]` is `Boot`-class, so
+    // a reload that renamed an exporter reaches the next boot and not a core
+    // that is already counting. Nothing is built where no exporter is named,
+    // and every count below is then a branch — `crate::metrics::meter_this_core`
+    // owns why a second listener on this same core adds to what the first built
+    // instead of starting again.
+    crate::metrics::meter_this_core(&serving.current.load().config);
     let outstanding = Rc::new(Cell::new(0_usize));
     let mut backoff = AcceptBackoff::default();
     // One registration for the whole loop rather than one per park: this task
@@ -6411,6 +6469,123 @@ mod tests {
             answer.ends_with("hello /hello"),
             "the response did not carry the handler's body: {answer}"
         );
+    }
+
+    /// A handler over a one-row route table, so that the request it answers
+    /// carries `rule:routing/matched-once-before-the-handler`'s match — which
+    /// is the only thing a declared name can be read off.
+    ///
+    /// The table is built here rather than handed in because it is the door's
+    /// own: [`crate::route::take`] runs where the unit and the request are both
+    /// in hand, which in a server is this closure.
+    fn echo_under_a_named_route() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        let routes = Rc::new(nvs_runtime::routes::Routes::new(vec![
+            nvs_runtime::routes::Route::new(
+                "Get",
+                "/products/{id}",
+                Some("products.show".to_owned()),
+                "App\\Products::show",
+                None,
+                vec![nvs_runtime::routes::Capture {
+                    name: "id".to_owned(),
+                    conv: nvs_runtime::routes::CaptureConv::Uint,
+                }],
+            ),
+        ]));
+        Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            let mut inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                request.uri().query().unwrap_or(""),
+            );
+            crate::route::take(&routes, &mut inbound);
+            let program: Program = Box::new(|child: &mut Ctx, _args| {
+                child.write_output(b"ok").expect("a buffer");
+                Value::null()
+            });
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+        })
+    }
+
+    /// `rule:observability/a-registry-is-per-core-and-nothing-reads-it` on the
+    /// served path: the core that accepts builds the registry `[metrics]` asks
+    /// for, and the request it answers is counted on that registry under
+    /// `rule:observability/route-label-is-the-declared-name`'s declared name.
+    ///
+    /// **Both series and the label together**, because each is a different
+    /// failure: a counter with no histogram beside it is a door that recorded
+    /// half of what `rule:observability/default-series` promises, and a count
+    /// under the empty label is a door that reached the registry without
+    /// reaching the match — the one thing that cannot be re-derived once
+    /// `Isolate::start` has taken the carrier.
+    ///
+    /// The registry is read back on **this** thread and that is the assertion's
+    /// own point rather than a convenience of the fixture: `run_until_idle`
+    /// drives the core on the caller's thread, so the cell the counts landed in
+    /// is the serving core's and no other's.
+    #[test]
+    fn every_serving_core_owns_a_registry_and_counts_each_request_under_its_route_label() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"GET /products/42 HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+                )
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &echo_under_a_named_route(),
+                Waits::default(),
+                &booted_on("[metrics]\nexporter = \"prometheus\"\n"),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let answer = client.join().expect("the client thread panicked");
+        assert!(
+            answer.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the connection did not answer with a response: {answer}"
+        );
+
+        let registry = crate::metrics::on_this_core()
+            .expect("a core serving a tree that names an exporter built a registry");
+        let labels = [
+            ("method", "GET"),
+            ("status", "200"),
+            ("route", "products.show"),
+        ];
+        assert_eq!(
+            registry.read("nvs_requests_total", &labels),
+            Some(&crate::metrics::Value::Counter(1)),
+            "the request was not counted under its route's declared name"
+        );
+        let Some(crate::metrics::Value::Histogram(took)) =
+            registry.read("nvs_request_duration_seconds", &labels)
+        else {
+            panic!("the duration series exists beside the counter");
+        };
+        assert_eq!(took.count, 1);
     }
 
     /// `rule:http-server/a-unix-socket-listener`'s claim that a request over
