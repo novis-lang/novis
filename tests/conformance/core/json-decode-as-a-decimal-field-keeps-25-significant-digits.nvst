@@ -1,0 +1,60 @@
+--TEST--
+`Core\Json::decodeAs` reads a `decimal` field from the JSON string it crosses as, keeping digits a `float` would lose, and `Core\Json::encode` writes that same spelling back — `rule:types/decimal`, `rule:core-classes/derive-field-list`, `rule:core-classes/derive-generates-what-is-missing`
+--FILE--
+<?nvs
+// `rule:types/decimal` is exact to roughly 29 significant digits, and JSON has one
+// number type that every consumer reads as a float. So a `decimal` crosses as
+// a string at both doors, and 25 significant digits are what says so: written
+// as a JSON number they would not survive the trip back.
+#[Core\Json\Derive]
+final class Money {
+    public decimal $amount;
+    public string $currency;
+
+    public function constructor(decimal $amount, string $currency) {
+        $this->amount = $amount;
+        $this->currency = $currency;
+    }
+}
+
+var $order = Core\Json::decodeAs<Money>("{\"amount\":\"1234567890123456789.012345\",\"currency\":\"EUR\"}");
+echo "amount=", $order->amount as string, "\n";
+echo "currency=", $order->currency, "\n";
+
+// The round trip, byte for byte: what the encoder writes is the document the
+// decoder was handed. One spelling, read by both halves.
+echo Core\Json::encode($order), "\n";
+
+// Scale is carried for rendering (`rule:types/decimal`), so a trailing zero crosses
+// rather than being normalised away by the wire form.
+var $priced = Core\Json::decodeAs<Money>("{\"amount\":\"19.90\",\"currency\":\"USD\"}");
+echo Core\Json::encode($priced), "\n";
+
+// The bound on the other side, named where the values are: a JSON *number* is
+// not a decimal's spelling, so it is a reported issue against the field rather
+// than a value quietly rounded through a float. That refusal is the whole
+// reason the string is the wire form.
+try {
+    Core\Json::decodeAs<Money>("{\"amount\":19.99,\"currency\":\"USD\"}");
+    echo "not reached\n";
+} catch (ParseError $number) {
+    echo "issues=", Core\Arr::count($number->issues) as string, "\n";
+    echo "  ", $number->issues["0"]->path, ": ", $number->issues["0"]->message, "\n";
+}
+
+// And a string that is not a decimal literal fails against the same field, so
+// the wire form being right is not on its own enough.
+try {
+    Core\Json::decodeAs<Money>("{\"amount\":\"twelve\",\"currency\":\"USD\"}");
+    echo "not reached\n";
+} catch (ParseError $text) {
+    echo "  ", $text->issues["0"]->path, ": ", $text->issues["0"]->message, "\n";
+}
+--EXPECT--
+amount=1234567890123456789.012345
+currency=EUR
+{"amount":"1234567890123456789.012345","currency":"EUR"}
+{"amount":"19.90","currency":"USD"}
+issues=1
+  amount: expected a decimal as a JSON string, found a number
+  amount: expected a decimal as a JSON string, found a string

@@ -17,7 +17,8 @@ echo Core\Json::encode($decoded), "\n";
 echo Core\Json::encode([1, 2], {pretty: true}), "\n";
 echo Core\Json::encode("caf\u{e9}"), "|", Core\Json::encode("caf\u{e9}", {escapeUnicode: true}), "\n";
 
-// A decimal is written as the exact number it is, never through a float.
+// A decimal is written as a string, digits and scale intact: JSON's one number
+// type is a float in every consumer that reads one.
 decimal $price = 19.99;
 echo Core\Json::encode($price), "\n";
 
@@ -76,7 +77,7 @@ try {
   2
 ]
 "café"|"caf\u00e9"
-19.99
+"19.99"
 yes|no
 malformed rejected
 too deep

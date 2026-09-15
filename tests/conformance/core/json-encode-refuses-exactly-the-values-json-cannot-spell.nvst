@@ -26,8 +26,8 @@ uint $width = Core\Str::length("ab");
 
 // One value per tag JSON has a spelling for, plus both array shapes: spec § 6
 // writes a list as an array and a string-keyed map as an object. A `decimal`
-// is written as the exact number `rule:types/decimal` makes it rather than through a
-// `float`.
+// is written as a string, because `rule:types/decimal` is exact and JSON's one
+// number type is a `float` in every consumer that reads it.
 array<mixed> $writable = [
     null, true, false, 7, $width, 1.5, $exact, "text",
     ["a", "b"], ["k" => "v"], new Row(1),
@@ -128,7 +128,7 @@ wrote=false
 wrote=7
 wrote=2
 wrote=1.5
-wrote=19.99
+wrote="19.99"
 wrote="text"
 wrote=["a","b"]
 wrote={"k":"v"}

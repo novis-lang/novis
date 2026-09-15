@@ -127,20 +127,25 @@
 //!
 //! 1. **A derived field's type roster is narrower than `rule:core-classes/derive-field-list`'s.**
 //!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
-//!    a `string`, a `mixed`, an enum, another derived class, an `array<T>` of
-//!    any of those, and a `?T` of any of them. A `decimal`, an `Instant`, an
+//!    a `string`, a `decimal`, a `mixed`, an enum, another derived class, an
+//!    `array<T>` of any of those, and a `?T` of any of them. An `Instant`, an
 //!    inline shape reached as a *field*, and an `array<T>` of one of those are
-//!    all codec-reachable by that rule and are all [`undecoded`] here, which
+//!    codec-reachable by that rule and are [`undecoded`] here, which
 //!    [`decode_as`] refuses **before reading the document** for the class it
 //!    was handed, and [`decode_field`] refuses on reaching it inside a nested
-//!    one. Encoding is unaffected: [`Encodable`] walks the value rather than
-//!    the declared type, so a field this cannot decode still round-trips out.
-//!    What has to be decided is what each of those types *is* on the wire
-//!    before either end can carry it, and `crate::db`'s gap 4 is the same knot
-//!    at the other door.
-//!    Decided: decimal as a JSON string ("12.50"); Instant as RFC 3339 text — Lossless for every
-//!    consumer, including JavaScript doubles, but a client sees a string rather than a number.
+//!    one. What is left to decide is what each of those is on the wire before
+//!    either end can carry it — an `Instant` is RFC 3339 text — and
+//!    `crate::db`'s gap 4 is the same knot at the other door.
 //!    — owner: m8-stdlib-depth
+//!
+//!    A `decimal` is settled and landed at both ends: it is a JSON **string**,
+//!    `"19.99"`, which is the only spelling that survives the trip. JSON has
+//!    one number type and every consumer reads it as an `f64`, including
+//!    [`Decode`], so a `decimal` written as a number comes back rounded — the
+//!    degradation the integer band above already refuses. The cost is that a
+//!    client sees a string where it may have expected a number, spent under
+//!    [ADR 0004](/docs/decisions/0004.md) to buy exactness, which is the whole
+//!    of what `rule:types/decimal` makes the type for.
 //! 2. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
 //!    two default-bearing rows are unimplemented: an absent key fails whether
 //!    or not the field is optional, and a `#[Json\Field(skip: true)]` property
@@ -677,19 +682,21 @@ impl Serialize for Encodable<'_> {
                 }
                 ser.serialize_f64(number)
             }
-            // `rule:types/decimal`'s scalar is exact, so it is written as the exact number
-            // it is rather than through an `f64` that would round it. A
-            // `RawValue` is the one spelling `serde_json` has for "these bytes
-            // are already a JSON number"; it validates them on the way in.
+            // `rule:types/decimal`'s scalar is exact and JSON's one number type is
+            // an `f64` in every consumer that reads it — this module's own, in
+            // [`Decode`], as much as a browser's — so a `decimal` is written as
+            // a **string**: `"19.99"`, digits and scale intact. That is the
+            // spelling [`scalar`] reads back, so `Core\Json::encode` and
+            // `decodeAs<T>` are one round trip rather than a pair that loses
+            // digits at the seam, which is the same refusal to degrade the
+            // integer band above is written for.
             Some(Tag::Decimal) => {
                 let text = self
                     .value
                     .as_decimal()
                     .ok_or_else(|| S::Error::custom("a `Tag::Decimal` value is always a decimal"))?
                     .to_string();
-                serde_json::value::RawValue::from_string(text)
-                    .map_err(S::Error::custom)?
-                    .serialize(ser)
+                ser.serialize_str(&text)
             }
             Some(Tag::Str) => ser.serialize_str(self.text()?),
             Some(Tag::Array) => self.serialize_array(ser),
@@ -1461,7 +1468,7 @@ pub(crate) unsafe fn check_codec(
         ));
     }
     // Checked before the document is even read: an undecoded field is a decoder
-    // this crate has not written yet (gap 6), not something the input did, so
+    // this crate has not written yet (gap 1), not something the input did, so
     // it is an engine fault rather than an issue in a list a program shows a
     // user.
     if let Some(field) = fields
@@ -1487,10 +1494,7 @@ pub(crate) unsafe fn check_codec(
 /// spelling, so `nvs_types::derive`'s reachable set refuses the declaration
 /// before a document is ever read.
 const fn undecoded(ty: CodecTy) -> bool {
-    matches!(
-        ty,
-        CodecTy::Opaque | CodecTy::Decimal | CodecTy::Bytes | CodecTy::Instant
-    )
+    matches!(ty, CodecTy::Opaque | CodecTy::Bytes | CodecTy::Instant)
 }
 
 /// One instance of `class` out of a document already read — or, for `list`, one
@@ -2019,7 +2023,8 @@ unsafe fn convert_field(
         | CodecTy::Int
         | CodecTy::Uint
         | CodecTy::Float
-        | CodecTy::Str => {
+        | CodecTy::Str
+        | CodecTy::Decimal => {
             #[expect(
                 unsafe_code,
                 reason = "the document owns this value for the length of this call"
@@ -2046,7 +2051,7 @@ unsafe fn convert_field(
         // decoder this crate has not written yet, so it is an engine fault
         // wherever it is met and never an issue in a list a program shows a
         // user.
-        CodecTy::Opaque | CodecTy::Decimal | CodecTy::Bytes | CodecTy::Instant => {
+        CodecTy::Opaque | CodecTy::Bytes | CodecTy::Instant => {
             return Err(DecodeFailure::Fault(Fault::fatal(format!(
                 "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
                  has no case for yet — `rule:core-classes/derive-field-list`'s wider codec-reachable set is \
@@ -2244,12 +2249,25 @@ unsafe fn scalar(
                 Some(Value::int(number))
             };
         }
-        CodecTy::Class
-        | CodecTy::List
-        | CodecTy::Opaque
-        | CodecTy::Decimal
-        | CodecTy::Bytes
-        | CodecTy::Instant => None,
+        // `rule:types/decimal`'s exactness is why the wire form is a **string**:
+        // JSON has one number type, and a document's number is an `f64` by the
+        // time this sees it, so a `decimal` spelled as a number could not be
+        // read back as the value that was written. [`Encodable`] writes the
+        // same spelling, so the two halves are one round trip. A `Values`
+        // reading wants a string too — a form field is text — and a value that
+        // already is a `decimal` passes through, which is the only way
+        // `Core\Arr::shapeAs` meets one here at all.
+        CodecTy::Decimal => match found.tag() {
+            Some(Tag::Decimal) => Some(found),
+            Some(Tag::Str) => found
+                .as_text()
+                .and_then(nvs_runtime::Decimal::parse)
+                .map(Value::decimal),
+            _ => None,
+        },
+        CodecTy::Class | CodecTy::List | CodecTy::Opaque | CodecTy::Bytes | CodecTy::Instant => {
+            None
+        }
     }?;
     // Every arm reaching here either passed the document's own value through
     // or built an unrefcounted scalar, and a retain on the second is the
@@ -2486,9 +2504,13 @@ const fn wanted(ty: CodecTy) -> &'static str {
         CodecTy::Float => "float",
         CodecTy::Str => "string",
         CodecTy::Mixed => "mixed",
+        // The one entry that names its wire form rather than only the declared
+        // type: `rule:types/decimal` is exact and JSON's number is not, so a
+        // reader told "expected decimal" of a document holding `19.99` would
+        // have nothing to act on. [`scalar`]'s own arm owns why.
+        CodecTy::Decimal => "a decimal as a JSON string",
         // Named for the roster's sake: an [`undecoded`] wire type faults before
         // a document is read, so no issue message reaches for one of these.
-        CodecTy::Decimal => "decimal",
         CodecTy::Bytes => "bytes",
         CodecTy::Instant => "an instant",
         // Never reached through a field: `decode_nested` names the class
@@ -2680,6 +2702,113 @@ mod tests {
         table.set_codec(id, codec, fields.len(), classes);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         table.desc(id)
+    }
+
+    /// A class of one field of wire type `ty`, carrying that field twice: as
+    /// the class's own derived codec, which is what [`Encodable`] reads, and
+    /// as the inline-shape contract handed to [`decode_as`].
+    ///
+    /// The contract is what makes the pair testable in one frame. It sends the
+    /// decode through [`build_shape`], which writes slots directly, so nothing
+    /// here needs the compiled constructor the class door would call.
+    ///
+    /// Leaked for [`holder_class`]'s reason: a [`ClassDesc`]'s address is its
+    /// identity, and it has to outlive every instance made from it.
+    fn codec_class(
+        name: &str,
+        key: &str,
+        ty: CodecTy,
+    ) -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+        let field = || CodecField {
+            key: key.to_owned(),
+            slot: 0,
+            param: 0,
+            ty,
+            element: None,
+            class: None,
+            cases: None,
+            nullable: false,
+            required: true,
+        };
+        let mut table = ClassTable::new();
+        let id = table.define(name, &[key], &[]);
+        table.set_codec(id, vec![field()], 1, vec![std::ptr::null()]);
+        // The contract is boxed inside the table, so its address survives the
+        // leak below unchanged — which is what lets it be taken first.
+        let shape = table.define_shape_codec(vec![field()], vec![std::ptr::null()]);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(id), shape)
+    }
+
+    /// `rule:types/decimal`'s exactness reaches roughly 29 significant digits and
+    /// a JSON number is an `f64` in every reader there is, so the wire form is
+    /// a string — asserted at a width the `f64` spelling demonstrably cannot
+    /// hold, decoded into a `decimal` field and written back byte for byte.
+    #[test]
+    fn json_decode_into_a_decimal_field_round_trips_25_significant_digits() {
+        const DIGITS: &str = "1234567890123456789.012345";
+
+        // The bound this spelling exists for, on the other side: these digits
+        // through a `float` are a different number, so a document holding them
+        // as one could not be read back as what was written.
+        assert_ne!(
+            DIGITS
+                .parse::<f64>()
+                .expect("the digits are a float too")
+                .to_string(),
+            DIGITS,
+            "an `f64` that held these digits would make the string spelling pointless"
+        );
+
+        let (class, shape) = codec_class("Money", "amount", CodecTy::Decimal);
+        let document = format!("{{\"amount\":\"{DIGITS}\"}}");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`codec_class` leaks its table, so both addresses outlive \
+                      every object decoded against them"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                &document,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let Ok(value) = decoded else {
+            panic!("a `decimal` field decodes from the string spelling it is written as");
+        };
+
+        let ptr = value
+            .obj_ptr()
+            .expect("a decoded shape is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        let held = object
+            .field(0)
+            .as_decimal()
+            .expect("a `decimal` field holds a decimal");
+        assert_eq!(held.to_string(), DIGITS);
+
+        // Both halves, one spelling: what the encoder writes is the document
+        // the decoder was handed, down to the scale.
+        assert_eq!(
+            encoded(value).expect("a decoded shape re-encodes"),
+            document
+        );
+
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
     }
 
     /// An instance of `class` with every slot null, as the value holding the

@@ -7121,6 +7121,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   everything else as the engine's own refusal. Build a refusal about the *call* — a busy connection,
   a value with no bound form — with `io::ErrorKind::InvalidInput`, and prove it with a `.nvst` case
   catching the class the rule names. [until: gone crates/nvs-stdlib/src/db/bind.rs:ErrorKind::InvalidInput]
+- **A module doc's gap sheet can carry a `Decided:` wire form that the landed encoder contradicts,
+  and two green conformance cases can be pinning the landed one.** `nvs_stdlib::json`'s gap 1 decided
+  a `decimal` crosses as the JSON string `"12.50"` while `Encodable` wrote it as a bare number, so
+  closing the decode half without the encode half would have shipped a codec pair that is not a round
+  trip. Read the gap's own first paragraph before assuming the code wins: where it says the question
+  *was open* when the code was written, the sheet's answer is the later decision and the cases pinning
+  the older spelling are part of the slice. [until: reviewed 2026-09-15]
 
 ## Divergences and refusals already pinned
 
