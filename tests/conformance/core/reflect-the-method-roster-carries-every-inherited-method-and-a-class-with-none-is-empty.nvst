@@ -1,0 +1,66 @@
+--TEST--
+A `Core\Reflect\ClassInfo::methods` roster carries the inherited methods beside the class's own, and a class declaring none answers with an empty one — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// `rule:core-classes/reflect`: a description is of a class, and what a class answers for
+// is its own methods plus every ancestor's — the same set a call site resolves
+// against, which is why the roster is read off the descriptor rather than
+// rebuilt from a declaration.
+class Shape {
+    public function area(): int {
+        return 0;
+    }
+
+    private function seal(): string {
+        return "sealed";
+    }
+
+    public function scaled(int $by, int $floor): int {
+        return $by;
+    }
+}
+
+class Square extends Shape {
+    public function side(): int {
+        return 2;
+    }
+}
+
+var $square = Core\Reflect::forObject(new Square());
+echo $square->name(), "\n";
+// An inherited row keeps the arity the *declaring* class wrote, which is the
+// one a call through the subclass is judged against too.
+foreach ($square->methods() as Core\Reflect\MethodInfo $method) {
+    echo $method->name(), " ", $method->isPublic() ? "public" : "closed", " ",
+         $method->parameterCount(), "\n";
+}
+
+// The parent's own description is the shorter list, so the subclass's roster
+// grew by exactly the method the subclass declared — a roster that answered
+// from the declaration alone would print the same two lines twice.
+var $shape = Core\Reflect::forObject(new Shape());
+echo Core\Arr::count($shape->methods()), " and ", Core\Arr::count($square->methods()), "\n";
+
+// Asked from the subclass, an inherited name is declared. `hasMethod` is the
+// whole roster's question, not the class's own half of it.
+echo $square->hasMethod("area") ? "declared" : "absent", "\n";
+
+// The empty end of the range: a class that declares no method at all has a
+// roster of none, and every name is absent from it. A walk that numbered its
+// rows from a count it did not have would print a row here.
+class Marker {
+    public int $at = 1;
+}
+var $marker = Core\Reflect::forObject(new Marker());
+echo Core\Arr::count($marker->methods()), "\n";
+echo $marker->hasMethod("at") ? "declared" : "absent", "\n";
+--EXPECT--
+Square
+area public 0
+scaled public 2
+seal closed 0
+side public 0
+3 and 4
+declared
+0
+absent

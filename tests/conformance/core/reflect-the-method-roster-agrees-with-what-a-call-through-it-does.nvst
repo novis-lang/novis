@@ -1,0 +1,81 @@
+--TEST--
+Every `Core\Reflect\MethodInfo` row's `isPublic` agrees with whether `Core\Reflect\ClassInfo::call` runs that method, asserted as a count over the whole roster — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// `rule:security/reflection-enforces-visibility`: the roster reads metadata and `call` acts, so the two
+// are answered by different code — the bit comes down from the declaration and
+// the refusal comes from the call path. This asks them the same question about
+// every method at once and counts the agreements, so a roster that grew its own
+// idea of visibility fails here while still printing plausibly row by row.
+class Door {
+    public function open(): string {
+        return "open";
+    }
+
+    public function shut(): string {
+        return "shut";
+    }
+
+    protected function frame(): string {
+        return "frame";
+    }
+
+    private function hinge(): string {
+        return "hinge";
+    }
+}
+
+var $door = new Door();
+var $info = Core\Reflect::forObject($door);
+
+int $total = 0;
+int $agree = 0;
+int $ran = 0;
+int $nullary = 0;
+foreach ($info->methods() as Core\Reflect\MethodInfo $method) {
+    $total = $total + 1;
+    if ($method->parameterCount() == 0) {
+        $nullary = $nullary + 1;
+    }
+    bool $called = false;
+    try {
+        var $answer = $info->call($door, $method->name(), []);
+        $called = true;
+    } catch (LogicError $refused) {
+        $called = false;
+    }
+    if ($called) {
+        $ran = $ran + 1;
+    }
+    if ($called == $method->isPublic()) {
+        $agree = $agree + 1;
+    }
+}
+
+// Four rows, four agreements, and two of them ran: the count of agreements
+// alone would be met by a roster that called nothing and reported nothing
+// public, so the number that ran is named beside it.
+echo $total, " rows\n";
+echo $agree, " agree\n";
+echo $ran, " ran\n";
+
+// Every empty argument list above was legitimate, which the roster is what
+// says: `call` judges a list against the callee's own arity, so a row claiming
+// a parameter this loop did not pass would have refused for the wrong reason
+// and still counted as an agreement with a `private` bit.
+echo $nullary, " nullary\n";
+
+// And `hasMethod` answers for the whole roster the same way — including the
+// two rows no call site outside the class may reach, which is what tells a
+// closed method from one that was never declared.
+echo $info->hasMethod("hinge") ? "declared" : "absent", "\n";
+echo $info->hasMethod("frame") ? "declared" : "absent", "\n";
+echo $info->hasMethod("hindge") ? "declared" : "absent", "\n";
+--EXPECT--
+4 rows
+4 agree
+2 ran
+4 nullary
+declared
+declared
+absent

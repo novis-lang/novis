@@ -1,0 +1,55 @@
+--TEST--
+`Core\Reflect\ClassInfo::methods` names every method a class declares and `Core\Reflect\MethodInfo` carries the visibility of each — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// `rule:core-classes/reflect`: reading a member's *shape* — that it exists,
+// what it is called, what it may be called from — is introspection and is
+// always available. Acting on one is the other half, and it is
+// `Core\Reflect\ClassInfo::call`'s, not this roster's.
+class Ledger {
+    public int $balance = 0;
+
+    public function deposit(int $amount): int {
+        return $this->balance + $amount;
+    }
+
+    public function label(): string {
+        return "ledger";
+    }
+
+    private function audit(string $who, int $at): string {
+        return $who;
+    }
+}
+
+var $described = Core\Reflect::forObject(new Ledger());
+var $roster = $described->methods();
+
+// All three, name order, each row a `Core\Reflect\MethodInfo`. The count is
+// asserted beside the names because a roster that dropped the `private` one
+// still prints two plausible lines.
+echo Core\Arr::count($roster), "\n";
+foreach ($roster as Core\Reflect\MethodInfo $method) {
+    echo $method->name(), " ", $method->isPublic() ? "public" : "closed", " ",
+         $method->parameterCount(), "\n";
+}
+
+// `rule:security/reflection-enforces-visibility`: the `private` method is named and its bit says
+// so — the visibility travels with the row rather than deciding whether there
+// is a row. Nothing here reaches a value: a name, a bit and a count are what
+// the declaration already published.
+echo $described->hasMethod("audit") ? "declared" : "absent", "\n";
+echo $described->hasMethod("deposit") ? "declared" : "absent", "\n";
+
+// And a name the class declares nothing of. `rule:core-classes/reflect` asks that a
+// refusal be distinguishable from a misspelling, which is exactly the
+// difference between the two lines above and this one.
+echo $described->hasMethod("withdraw") ? "declared" : "absent", "\n";
+--EXPECT--
+3
+audit closed 2
+deposit public 1
+label public 0
+declared
+declared
+absent
