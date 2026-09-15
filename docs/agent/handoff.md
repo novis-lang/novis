@@ -2,59 +2,46 @@
 
 ## State
 
-**Goal 58 — every Core\\Db and Core\\Queue member answers on all five drivers — has just started; nothing of it has landed yet.** Goal `m7-server-surface`'s whole list is this goal's Stage 1 floor.
+**Goal `m8-db-queue`, stage 0 (the catch-up) is done; no stage-2-and-later work has started.** Every
+`— owner:` tag on a gap this goal will close now reads `m8-db-queue`, and the three gaps the goal's
+§ *Standing decisions* reserves for goal `unowned-closures` are untouched.
 
-Settled before the first session, and not re-decided (the goal's § *Standing decisions*):
-- Stage 2's record is the design, and it is one new record with no number named in advance.
-- A driver that cannot park a cursor gets a **recorded refusal naming the driver**, never a buffer.
-  SQLite is the likely one, because its rows are materialized through an `Arc<Mutex<Connection>>`
-  (`crates/nvs-db/src/sqlite.rs:33-40`).
-- `serverVersion` is what the handshake already sent, stored on the connection with no round trip.
-- A unique key reads nulls as distinct on every backend, and SQL Server spells it as a filtered index.
-- `queryAs<T>`'s remaining refusal becomes `E0806`; no new code is spent.
+Stage 0 item 4 needed no edit: `crates/nvs-stdlib/src/queue.rs` gap 1 already claims only `limits` and
+`grants`, with no secret refusal left in it. The goal file's stage 0 anchors are one to three lines off
+throughout and two of its tags had already been corrected — re-grep rather than trusting them.
 
-Already closed, and not re-worked:
-- `queryAs`'s list, no-derive and unfilled-constructor refusals are already `E0806`
-  (`crates/nvs-types/src/derive.rs:713`).
-- The queue's secret refusal is pinned (`tests/conformance/reject/queue-push-refuses-a-secret.nvst`).
-- The worker's SQLite arm exists (`crates/nvs-cli/src/worker.rs:331`).
+Stage 1 is goal `m7-server-surface`'s carried floor and is the driver's to run, not a session's.
 
 ## Next group
 
-**Stage 0: the catch-up** — one file set: the module docs of `db/mod.rs`, `queue.rs`, `derive.rs` and `worker.rs`, the part-two outstanding list, and one playbook bullet.
+**Stage 2: the record** — one file set: a new record under `docs/decisions/`, three new fragments and
+four edited ones under `docs/rules/`, then `python tools/rules.py --render`. The record's body is
+`docs/agent/loop-goal.md:66`'s four decisions argued from § *Standing decisions*; no code is touched.
 
-- [ ] **Owner tags that name retired goals become `m8-db-queue`**:
-      - `crates/nvs-stdlib/src/db/mod.rs:290` and `:307`, and `crates/nvs-stdlib/src/queue.rs:109`
-        (`gap-zero`);
-      - `crates/nvs-stdlib/src/queue.rs:85` (`unowned-sweep`);
-      - `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:35` (`carried-gaps`).
-
-      The M8-tagged gaps at `crates/nvs-types/src/derive.rs:71` and `:83`, and at
-      `crates/nvs-cli/src/worker.rs:101`, take the same tag. `rule:core-api/tier-roster` governs the
-      owner column.
-- [ ] **Rewrite the stale gaps whole** (AGENTS.md rule 6):
-      - `crates/nvs-stdlib/src/queue.rs:101` gap 4 still says the worker has no SQLite arm, but it
-        has one at `crates/nvs-cli/src/worker.rs:455`;
-      - `crates/nvs-stdlib/src/db/mod.rs:291` gap 4: only the `Opaque`-field refusal is still per row;
-      - `crates/nvs-stdlib/src/queue.rs:64` gap 1: only `limits` and `grants` are left;
-      - `crates/nvs-types/src/derive.rs:72` gap 2: `Core\Db\Row` exists, and
-        `crates/nvs-stdlib/src/db/row.rs:122` is the walk.
-- [ ] **`docs/agent/playbook.md:3880`** says queue statements exist "for PostgreSQL and MySQL only".
-      Correct it to four backends, per `crates/nvs-stdlib/src/queue.rs:2368`.
+- [ ] **Write the record, claiming the next free number**, which was `0187` when this session read
+      `docs/decisions/` — re-derive it immediately before creating the file, because the chain's other
+      sessions derive the same answer from the same directory. Its four decisions are listed at
+      `docs/agent/loop-goal.md:71` and argued at `docs/agent/loop-goal.md:251`
+      (`rule:core-classes/db-streaming` is the one it reaches past).
+- [ ] **Create the three `designed` rules** the table at `docs/agent/loop-goal.md:85` names —
+      `core-classes/a-stream-parks-its-read-on-the-connection`,
+      `core-classes/server-version-is-what-the-server-said` and
+      `core-classes/a-unique-key-reads-nulls-as-distinct` — as fragments under
+      `docs/rules/core-classes/`, each citing the new record as its `because`, then render.
+      `docs/rules/core-classes/db-streaming.md:11` is the shape a `designed` fragment reads as.
+- [ ] **Edit the four existing fragments** `docs/agent/loop-goal.md:93` lists:
+      `docs/rules/core-classes/db-streaming.md:11`'s *Not shipped whole* paragraph goes,
+      `docs/rules/core-classes/queue-storage-is-a-table.md:16`'s SQL Server paragraph becomes a
+      statement of fact, `docs/rules/core-classes/schema-plan.md:1`'s v1 exclusions admit the filtered
+      index, and `docs/rules/concurrency/attempts-are-finite-and-a-dead-letter-is-kept.md:1` gains the
+      column that carries `errors`. A fragment is edited in place, never overlaid
+      (`docs/agent/doc-style.md` § *Edit the rule, never overlay it*).
 
 ## Backlog
 
-- Stage 2, the record, which is prose only: `docs/decisions/`, and `docs/rules/core-classes/` for
-  `db-streaming`, `schema-plan` and `queue-storage-is-a-table`.
-- Stages 3–4, `stream` on four drivers: `crates/nvs-db/src/{mysql,maria,sqlite}.rs`,
-  `crates/nvs-db/src/tds/rows.rs` and `crates/nvs-stdlib/src/db/stream.rs`, plus a new
-  `crates/nvs-stdlib/tests/db_stream.rs` joining `tools/db-matrix.py` `SUITES`.
-- Stage 5, `streamAs` and `serverVersion`: `crates/nvs-stdlib/src/db/registry.rs`,
-  `crates/nvs-stdlib/tests/spec_registry_coverage.rs:951`, and each driver's handshake.
-- Stage 6, the row decoders: `crates/nvs-types/src/derive.rs`, `crates/nvs-stdlib/src/db/row.rs`,
-  `crates/nvs-stdlib/src/db/column.rs` and `crates/nvs-stdlib/src/json.rs`.
-- Stages 7–8, the queue: `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-cli/src/worker.rs`,
-  `crates/nvs-db/src/ddl.rs`, `crates/nvs-db/src/catalog.rs` and `crates/nvs-types/src/expr/isolate.rs`.
-  Stage 9, the socket and CI legs: `tests/db/compose.yaml`, `tools/db-matrix.py`,
-  `.github/workflows/ci.yml` and `tools/ci-changes.py`.
-- When this goal's last check goes green, the driver takes goal `m8-stdlib-depth`.
+- `crates/nvs-stdlib/src/db/row.rs:137` and `:206` both cite "`nvs_stdlib::db`'s own known gap 8", but
+  that module doc carries four gaps — a stale cross-reference for stage 10's rewrite of `db/mod.rs`.
+- `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:5` still uses `# gap-zero` as the
+  illustrative owner in its format example; harmless, but it is now the file's only mention of it.
+- `docs/agent/loop-goal.md` stage 0's anchors and two of its tag claims are stale as written; nothing
+  reads that file mechanically, so this is a note rather than an edit.

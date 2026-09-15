@@ -4108,10 +4108,10 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   drafted name finds nothing and the claim reads as open work forever. Search the goal file's other
   checks before the corpus: `grep -n` the drafted name's distinctive words with the underscores
   swapped in. [until: reviewed 2026-09-06]
-- **No `.nvst` case can reach a live queue, but a `.nvst` case can reach a live SQLite database.**
-  `Core\Queue`'s statements exist for PostgreSQL and MySQL only, so a runtime claim about a queue
-  belongs in a `-p nvs-stdlib` `#[test]`, and a `queue-*.nvst` calling `push` ends in
-  `--EXPECTF-ERROR--`. A `[db.main]` with `driver = "sqlite"` and `path = ":memory:"` opens inside a
+- **No `.nvst` case can reach a live queue server, but a `.nvst` case can reach a live SQLite
+  database.** `Core\Queue`'s statements exist for every driver but SQL Server
+  (`nvs_stdlib::queue::runs`), so a runtime claim about a queue on a wire driver belongs in a
+  `-p nvs-stdlib` `#[test]`, and a `queue-*.nvst` pushing to one ends in `--EXPECTF-ERROR--`. A `[db.main]` with `driver = "sqlite"` and `path = ":memory:"` opens inside a
   case, and a per-connection `:memory:` shows whether two calls shared one.
   [until: reviewed 2026-09-06]
 - **A rule's own example can contradict the section that owns the key set, and a test written from
