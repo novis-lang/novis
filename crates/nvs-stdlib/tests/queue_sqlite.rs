@@ -481,6 +481,7 @@ fn dead_letter(conn: &SqliteConn, id: i64, lease: i64) {
         vec![
             SqliteValue::Int(lease),
             SqliteValue::Text(queue::dead_errors(
+                None,
                 lease,
                 "LogicError",
                 "the last attempt threw",
@@ -1008,6 +1009,7 @@ fn a_sqlite_dead_letter_move_carries_the_row_whole_into_the_other_table() {
             SqliteValue::Int(NOW),
             SqliteValue::Int(NOW),
             SqliteValue::Text(queue::dead_errors(
+                None,
                 NOW,
                 "LogicError",
                 "the last attempt threw",
@@ -1069,6 +1071,12 @@ fn a_sqlite_retry_puts_the_dedupe_key_back_on_the_row_it_released() {
             queue::RETRY_SQLITE,
             vec![
                 SqliteValue::Int(due_again),
+                SqliteValue::Text(queue::dead_errors(
+                    None,
+                    NOW,
+                    "LogicError",
+                    "the attempt threw",
+                )),
                 SqliteValue::Int(id),
                 SqliteValue::Int(NOW),
             ],
@@ -1191,6 +1199,12 @@ fn a_sqlite_worker_that_overran_its_visibility_window_reports_nothing() {
             queue::RETRY_SQLITE,
             vec![
                 SqliteValue::Int(retaken + 250),
+                SqliteValue::Text(queue::dead_errors(
+                    None,
+                    NOW,
+                    "LogicError",
+                    "the attempt threw",
+                )),
                 SqliteValue::Int(id),
                 SqliteValue::Int(NOW),
             ],

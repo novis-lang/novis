@@ -43,6 +43,7 @@ create table nvs_jobs (
     dedupe_pending varchar(255),
     created_at bigint not null,
     claimed_at bigint,
+    errors text,
     constraint nvs_jobs_dedupe unique (dedupe_pending)
 )
 SQL;

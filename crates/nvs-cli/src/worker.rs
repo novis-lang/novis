@@ -90,15 +90,13 @@
 //! under 10ms`. [`Workers`] is therefore created before either task and read here before
 //! [`open`], not only at the top of a turn.
 //!
-//! ## Known gap
-//!
-//! **A dead-lettered row carries the last attempt's error and no earlier one's.** [`report`] writes
+//! **Every attempt's error reaches the dead-letter row through the row itself.** [`report`] writes
 //! every attempt back — `Succeeded`, back to `Pending` on § 6's ladder, or out of `nvs_jobs` and
-//! into `nvs_dead_jobs` where the job has used its last attempt — but § 2's jobs table has nowhere
-//! to keep what an earlier attempt threw, so the `errors` array § 6 asks for is one entry deep and
-//! every attempt before the last is visible only on this worker's standard error.
-//! [`nvs_stdlib::queue::schema`]'s own doc owns that decision and what a deeper array would cost.
-//! — owner: m8-db-queue
+//! into `nvs_dead_jobs` where the job has used its last attempt — and each of the two failing
+//! endings binds what [`nvs_stdlib::queue::dead_errors`] appends to the `errors` column the claim
+//! answered with. A worker therefore keeps no history of its own, which is what makes the fleet
+//! interchangeable: the array lives on the row between attempts, so the worker that dead-letters a
+//! job is under no obligation to be one that saw it fail before.
 //!
 
 use std::cell::Cell;
@@ -459,6 +457,11 @@ struct Job {
     /// [`nvs_db::PgScalar::Int`], which is one variant for `smallint`, `integer` and `bigint`
     /// alike, so narrowing here would be a conversion this crate has no use for.
     backoff_ms: i64,
+    /// The `errors` column as it is stored: what the attempts before this one threw, or `None` for a
+    /// job that has not failed yet. Never parsed here — it is handed back to
+    /// [`nvs_stdlib::queue::dead_errors`], which is the one place an entry is appended, so this
+    /// crate carries the array as the text the column holds.
+    errors: Option<String>,
 }
 
 /// One claim against one queue, answering with the row it took.
@@ -507,7 +510,9 @@ fn postgres_claim(conn: &mut nvs_db::PgConn, bound: &[Option<&[u8]>]) -> io::Res
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
     let mut took = None;
     while let Some(row) = answered.next_row()? {
-        let (Some(script), Some(args)) = (columns.get(SCRIPT), columns.get(ARGS)) else {
+        let (Some(script), Some(args), Some(errors)) =
+            (columns.get(SCRIPT), columns.get(ARGS), columns.get(ERRORS))
+        else {
             continue;
         };
         let nvs_db::PgScalar::Text(script) = script.scalar(row.column(SCRIPT)?)? else {
@@ -517,6 +522,12 @@ fn postgres_claim(conn: &mut nvs_db::PgConn, bound: &[Option<&[u8]>]) -> io::Res
         // a job that needs none — not a malformed row, so it is `None` rather than a skip.
         let args = match args.scalar(row.column(ARGS)?)? {
             nvs_db::PgScalar::Text(args) => Some(args.into_owned()),
+            _ => None,
+        };
+        // Null here is the ordinary shape too — a job none of whose attempts has failed — and
+        // `dead_errors` reads that as an array to start rather than one to append to.
+        let errors = match errors.scalar(row.column(ERRORS)?)? {
+            nvs_db::PgScalar::Text(errors) => Some(errors.into_owned()),
             _ => None,
         };
         // The columns the write-back judges against, and every one of them is `not null` in the
@@ -549,6 +560,7 @@ fn postgres_claim(conn: &mut nvs_db::PgConn, bound: &[Option<&[u8]>]) -> io::Res
             attempts,
             max_attempts,
             backoff_ms,
+            errors,
         });
     }
     Ok(took)
@@ -570,8 +582,12 @@ const ATTEMPTS: usize = 3;
 /// `max_attempts`'s position in the same list.
 const MAX_ATTEMPTS: usize = 4;
 
-/// `backoff_ms`'s position in the same list, and the last of them.
+/// `backoff_ms`'s position in the same list.
 const BACKOFF: usize = 5;
+
+/// `errors`'s position in the same list, and the last of them — where a column a claim answers with
+/// arrives, for the reason [`nvs_stdlib::queue::schema`]'s own column list gives.
+const ERRORS: usize = 6;
 
 /// [`claim`] as one statement in T-SQL: [`nvs_stdlib::queue::CLAIM_SQLSERVER`]'s updating CTE,
 /// which takes the row and answers with it in one round trip as PostgreSQL's does.
@@ -587,10 +603,14 @@ fn tds_claim(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<O
     let columns: Vec<nvs_db::tds::TdsColumn> = answered.columns().to_vec();
     let mut took = None;
     while let Some(row) = answered.next_row()? {
-        let (Some(script), Some(args)) = (columns.get(SCRIPT), columns.get(ARGS)) else {
+        let (Some(script), Some(args), Some(errors)) =
+            (columns.get(SCRIPT), columns.get(ARGS), columns.get(ERRORS))
+        else {
             continue;
         };
-        let (Some(script_body), Some(args_body)) = (row.column(SCRIPT), row.column(ARGS)) else {
+        let (Some(script_body), Some(args_body), Some(errors_body)) =
+            (row.column(SCRIPT), row.column(ARGS), row.column(ERRORS))
+        else {
             continue;
         };
         let nvs_db::tds::TdsScalar::Text(script) = nvs_db::tds::scalar(script, script_body)? else {
@@ -600,6 +620,12 @@ fn tds_claim(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<O
         // the same way and for the same reason: it is the ordinary shape of a job that needs none.
         let args = match nvs_db::tds::scalar(args, args_body)? {
             nvs_db::tds::TdsScalar::Text(args) => Some(args.into_owned()),
+            _ => None,
+        };
+        // Null is the ordinary shape here too, for [`postgres_claim`]'s reason: a job none of whose
+        // attempts has failed.
+        let errors = match nvs_db::tds::scalar(errors, errors_body)? {
+            nvs_db::tds::TdsScalar::Text(errors) => Some(errors.into_owned()),
             _ => None,
         };
         // The columns the write-back judges against, every one of them `not null` in the migration
@@ -639,6 +665,7 @@ fn tds_claim(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<O
             attempts,
             max_attempts,
             backoff_ms,
+            errors,
         });
     }
     Ok(took)
@@ -706,7 +733,7 @@ fn claimed_in_two(
         // A row narrower than § 4's list is one no `Core\Queue::push` wrote, and [`postgres_claim`]
         // drops such a row for the reason its own guards give: it stays claimed until § 4's
         // visibility timeout, which is where a row this worker cannot make sense of belongs.
-        if read.len() <= BACKOFF {
+        if read.len() <= ERRORS {
             continue;
         }
         let nvs_db::MySqlScalar::Text(script) = &read[SCRIPT] else {
@@ -716,6 +743,11 @@ fn claimed_in_two(
         // that needs none, so it is `None` rather than a skip.
         let args = match &read[ARGS] {
             nvs_db::MySqlScalar::Text(args) => Some(args.to_string()),
+            _ => None,
+        };
+        // And null `errors` is a job none of whose attempts has failed, read the same way.
+        let errors = match &read[ERRORS] {
+            nvs_db::MySqlScalar::Text(errors) => Some(errors.to_string()),
             _ => None,
         };
         let [
@@ -734,6 +766,7 @@ fn claimed_in_two(
             attempts,
             max_attempts,
             backoff_ms,
+            errors,
         });
     }
     // The rows have to have let the connection go before the `update` on it starts, which is the
@@ -831,7 +864,7 @@ fn sqlite_claimed_in_two(
         // A row narrower than § 4's list is one no `Core\Queue::push` wrote, and it is dropped for
         // [`postgres_claim`]'s reason: it stays claimed until § 4's visibility timeout, which is
         // where a row this worker cannot make sense of belongs.
-        if row.len() <= BACKOFF {
+        if row.len() <= ERRORS {
             continue;
         }
         let nvs_db::SqliteValue::Text(script) = &row[SCRIPT] else {
@@ -841,6 +874,11 @@ fn sqlite_claimed_in_two(
         // that needs none, so it is `None` rather than a skip.
         let args = match &row[ARGS] {
             nvs_db::SqliteValue::Text(args) => Some(args.clone()),
+            _ => None,
+        };
+        // And a null `errors` cell is a job none of whose attempts has failed, read the same way.
+        let errors = match &row[ERRORS] {
+            nvs_db::SqliteValue::Text(errors) => Some(errors.clone()),
             _ => None,
         };
         let [
@@ -859,6 +897,7 @@ fn sqlite_claimed_in_two(
             attempts,
             max_attempts,
             backoff_ms,
+            errors,
         });
     }
     // The rows have to have let the connection go before the `update` on it starts: a result set
@@ -955,9 +994,10 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
             let failure = completion.error.unwrap_or_else(|| {
                 refusal("the attempt ended without returning and named no failure".to_string())
             });
-            // Only the *last* attempt's error reaches the dead-letter row, so for every attempt
-            // before it this line is the only place the failure is visible at all — and a queue
-            // whose failures are silent is the one thing § 6 exists to prevent.
+            // Every attempt's failure reaches the row's `errors` array as well, and this line is
+            // still where one becomes visible without a query: a job that recovers on a later
+            // attempt is never dead-lettered, so nothing but the log ever reports the attempts it
+            // spent — and a queue whose failures are silent is the one thing § 6 exists to prevent.
             eprintln!(
                 "warning: the queued job `{}` threw {}: {}",
                 job.script, failure.class, failure.message
@@ -987,6 +1027,24 @@ fn refusal(message: String) -> nvs_host::Failure {
         class: "Error".to_string(),
         message,
     }
+}
+
+/// The `errors` array an attempt leaves behind, whichever of [`report`]'s two failing endings writes
+/// it.
+///
+/// **One function because the two endings owe the same value**, and because that is this crate's
+/// whole half of `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s promise:
+/// [`nvs_stdlib::queue::dead_errors`] appends an entry to an array it is *handed*, so what a worker
+/// owes is handing it the column the claim answered with rather than starting a fresh one. A retry
+/// that bound a fresh array would keep the count and lose the history, and the job would reach
+/// `nvs_dead_jobs` carrying its last failure alone.
+fn errors_after(job: &Job, held_at: i64, failure: &nvs_host::Failure) -> String {
+    nvs_stdlib::queue::dead_errors(
+        job.errors.as_deref(),
+        held_at,
+        &failure.class,
+        &failure.message,
+    )
 }
 
 /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s write-back: the row the claim took, told what the attempt did.
@@ -1047,7 +1105,7 @@ fn report(
         // runtime" is actually kept. `>=` and not `==` because `[queue] max_attempts` is
         // configuration an operator can lower under a job that has already used more than the new
         // bound, and such a row is exhausted rather than owed an attempt it can no longer have.
-        let errors = nvs_stdlib::queue::dead_errors(held_at, &failure.class, &failure.message);
+        let errors = errors_after(job, held_at, failure);
         // The instant the attempt *ended*, read here rather than taken from the claim, for the
         // reason the retry's own `run_at` is: the attempt has just spent however long it spent.
         let failed_at = nvs_stdlib::queue::now_millis();
@@ -1085,6 +1143,10 @@ fn report(
         job.id,
     );
     let due = millis(due_at);
+    // The array this attempt leaves on the row, which is what makes the dead-letter row that
+    // eventually carries it carry every attempt: the write-back that arms a job again is the only
+    // place an attempt's failure becomes durable, since the next claim may be another worker's.
+    let errors = errors_after(job, held_at, failure);
     match conn.dialect() {
         Dialect::Postgres(postgres) => apply(
             postgres,
@@ -1093,18 +1155,21 @@ fn report(
                 Some(id.as_slice()),
                 Some(held.as_slice()),
                 Some(due.as_slice()),
+                Some(errors.as_bytes()),
             ],
         ),
         // **The one place the two dialects part on what is sent**, and this is the site
         // [`nvs_stdlib::queue::RETRY_MYSQL`]'s doc means when it says the caller is where the two
-        // orders are reconciled: the `run_at` it writes is in the `set` clause, which is left of
-        // the `where`, and a `?` is bound by the position it occupies. A worker sending
-        // PostgreSQL's order into that text would push every job's next attempt out to its own id.
+        // orders are reconciled: the `run_at` and the `errors` array it writes are in the `set`
+        // clause, which is left of the `where`, and a `?` is bound by the position it occupies. A
+        // worker sending PostgreSQL's order into that text would push every job's next attempt out
+        // to its own id.
         Dialect::Framed(mut framed) => apply_framed(
             &mut framed,
             nvs_stdlib::queue::RETRY_MYSQL,
             &[
                 Some(due.as_slice()),
+                Some(errors.as_bytes()),
                 Some(id.as_slice()),
                 Some(held.as_slice()),
             ],
@@ -1119,15 +1184,18 @@ fn report(
                 Some(id.as_slice()),
                 Some(held.as_slice()),
                 Some(due.as_slice()),
+                Some(errors.as_bytes()),
             ],
         ),
-        // The same three in the same order, and the order is forced by the same `set` clause: this
-        // is that constant's own text rather than a transcription of it.
+        // The same values in the same order, forced by the same `set` clause: this is that
+        // constant's own text rather than a transcription of it. The array crosses as text here,
+        // where the two instants cross as the integers this driver binds.
         Dialect::Sqlite(sqlite) => sqlite_apply(
             sqlite,
             nvs_stdlib::queue::RETRY_SQLITE,
             vec![
                 nvs_db::SqliteValue::Int(due_at),
+                nvs_db::SqliteValue::Text(errors),
                 nvs_db::SqliteValue::Int(job.id),
                 nvs_db::SqliteValue::Int(held_at),
             ],
@@ -1613,12 +1681,12 @@ mod tests {
             .collect()
     }
 
-    /// The six positions above are a claim's column list written down twice, and this is the
-    /// second copy asserted against the first.
+    /// The positions above are a claim's column list written down twice, and this is the second
+    /// copy asserted against the first.
     ///
     /// Nothing else would notice them disagreeing: every column of the list is text or an integer,
     /// so a job whose `script` was read out of the `args` slot runs a file named by its own
-    /// payload — and it type-checks, and the claim still answers six values. Asked of every
+    /// payload — and it type-checks, and the claim still answers as many values. Asked of every
     /// dialect, since [`nvs_stdlib::queue::CLAIM_MYSQL`] and [`nvs_stdlib::queue::CLAIM_SQLITE`]
     /// each carry the same list as a `select` and one of its entries is computed rather than named.
     #[test]
@@ -1629,27 +1697,99 @@ mod tests {
             .1;
         let mysql = selected(nvs_stdlib::queue::CLAIM_MYSQL.first);
         let sqlite = selected(nvs_stdlib::queue::CLAIM_SQLITE.first);
+        let read_at = [
+            (super::ID, "id"),
+            (super::SCRIPT, "script"),
+            (super::ARGS, "args"),
+            (super::ATTEMPTS, "attempts"),
+            (super::MAX_ATTEMPTS, "max_attempts"),
+            (super::BACKOFF, "backoff_ms"),
+            (super::ERRORS, "errors"),
+        ];
         for (dialect, list) in [("postgres", postgres), ("mysql", mysql), ("sqlite", sqlite)] {
             let columns = answered(list);
             assert_eq!(
                 columns.len(),
-                6,
-                "{dialect}: the claim answers {columns:?}, and this file reads six positions"
+                read_at.len(),
+                "{dialect}: the claim answers {columns:?}, and this file reads {} positions",
+                read_at.len()
             );
-            for (at, name) in [
-                (super::ID, "id"),
-                (super::SCRIPT, "script"),
-                (super::ARGS, "args"),
-                (super::ATTEMPTS, "attempts"),
-                (super::MAX_ATTEMPTS, "max_attempts"),
-                (super::BACKOFF, "backoff_ms"),
-            ] {
+            for (at, name) in read_at {
                 assert_eq!(
                     columns[at], name,
                     "{dialect}: position {at} answers `{}` where this file reads `{name}`",
                     columns[at]
                 );
             }
+        }
+    }
+
+    /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`: the row that exhausts its
+    /// attempts reaches the dead-letter table carrying what **every** attempt threw, and not the
+    /// last one's failure alone.
+    ///
+    /// **Asserted over the whole ladder rather than over one call**, because this crate's half of
+    /// that promise is the threading and not the appending — [`super::errors_after`]'s own doc owns
+    /// the division. A case that called it once would pass equally well against a retry that bound
+    /// a fresh array, which is precisely the shape that loses every attempt before the exhausting
+    /// one.
+    ///
+    /// The array is threaded through a fresh [`super::Job`] each round, which is what a claim does
+    /// to it in earnest: the value crosses the database between attempts, so each round reads the
+    /// column the round before wrote and the last round's answer is what `report` hands to the
+    /// dead-letter move.
+    #[test]
+    fn a_dead_lettered_row_carries_every_attempts_error() {
+        let thrown = [
+            (1_i64, "RuntimeError", "the endpoint refused"),
+            (2, "Error", "it refused again"),
+            (3, "LogicError", "and the third time the fault was ours"),
+        ];
+        let mut carried: Option<String> = None;
+        for (attempt, class, message) in thrown {
+            let job = super::Job {
+                id: 7,
+                script: "queue/failing.nvs".to_string(),
+                args: None,
+                attempts: attempt,
+                max_attempts: 3,
+                backoff_ms: 100,
+                errors: carried,
+            };
+            carried = Some(super::errors_after(
+                &job,
+                1_700_000_000_000 + attempt,
+                &nvs_host::Failure {
+                    class: class.to_string(),
+                    message: message.to_string(),
+                },
+            ));
+        }
+        let written = carried.expect("every attempt failed, so every round wrote the array");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&written).expect("the column holds a JSON document");
+        let entries = parsed
+            .as_array()
+            .expect("§ 6's `errors` is an array of entries");
+        assert_eq!(
+            entries.len(),
+            thrown.len(),
+            "the dead-letter row carries one entry per attempt, and this one carries {written}"
+        );
+        for (at, (attempt, class, message)) in thrown.into_iter().enumerate() {
+            assert_eq!(
+                (&entries[at]["class"], &entries[at]["message"]),
+                (
+                    &serde_json::Value::from(class),
+                    &serde_json::Value::from(message)
+                ),
+                "the entries read in the order the attempts ran"
+            );
+            assert_eq!(
+                entries[at]["at"],
+                1_700_000_000_000_i64 + attempt,
+                "an entry says when its own attempt started, which is the lease it was keyed on"
+            );
         }
     }
 

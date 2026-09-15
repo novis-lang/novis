@@ -1333,7 +1333,12 @@ fn an_exhausted_job_reaches_the_dead_letter_table_and_is_not_discarded() {
     );
 
     let failed = now + 5;
-    let errors = queue::dead_errors(now, "IOError", "the receipt service refused the order");
+    let errors = queue::dead_errors(
+        None,
+        now,
+        "IOError",
+        "the receipt service refused the order",
+    );
     let moved = apply(
         &mut conn,
         queue::DEAD_LETTER_POSTGRES,
@@ -1761,6 +1766,11 @@ fn retries_are_bounded_and_backoff_is_jittered() {
                     // is keyed on.
                     Some(millis(now).as_slice()),
                     Some(millis(at).as_slice()),
+                    // The attempt that just failed, appended to the array the
+                    // claim answered with — here `null`, this being the first.
+                    Some(
+                        queue::dead_errors(None, now, "IOError", "the endpoint is down").as_bytes(),
+                    ),
                 ],
             ),
             1,
@@ -1849,7 +1859,7 @@ fn retries_are_bounded_and_backoff_is_jittered() {
                     Some(millis(latest).as_slice()),
                     Some(millis(latest + 1).as_slice()),
                     Some(
-                        queue::dead_errors(latest, "IOError", "the endpoint is still down")
+                        queue::dead_errors(None, latest, "IOError", "the endpoint is still down")
                             .as_bytes()
                     ),
                 ],
@@ -2139,7 +2149,8 @@ fn purge_removes_what_has_finished_within_its_filters_and_stops_at_its_limit() {
                 Some(millis(LEASE).as_slice()),
                 Some(millis(FAILED).as_slice()),
                 Some(
-                    queue::dead_errors(LEASE, "IOError", "the receipt service refused").as_bytes()
+                    queue::dead_errors(None, LEASE, "IOError", "the receipt service refused")
+                        .as_bytes()
                 ),
             ],
         ),
@@ -2329,9 +2340,10 @@ fn a_framed_push_is_claimed_once_and_answers_the_columns_postgresql_does() {
 /// attempt that replaced it. Asserted from both sides — a stale lease affects
 /// no row, the real one affects exactly its own.
 ///
-/// **`RETRY_MYSQL` binds `run_at`, `id`, `claimed_at`** where its PostgreSQL
-/// twin binds `id`, `claimed_at`, `run_at`, a `?` being bound by the position
-/// it occupies and the `set` clause standing left of the `where`. That constant
+/// **`RETRY_MYSQL` binds `run_at`, `errors`, `id`, `claimed_at`** where its
+/// PostgreSQL twin binds `id`, `claimed_at`, `run_at`, `errors`, a `?` being
+/// bound by the position it occupies and the `set` clause standing left of the
+/// `where`. That constant
 /// owns why; this is where the order meets a server, and a caller that reused
 /// PostgreSQL's would arm the row at an instant of the job's own id.
 #[test]
@@ -2380,6 +2392,7 @@ fn a_framed_write_back_reaches_the_lease_it_was_claimed_with_and_no_other() {
             queue::RETRY_MYSQL,
             &[
                 Some(millis(ARMED).as_slice()),
+                Some(queue::dead_errors(None, TAKEN, "IOError", "the endpoint is down").as_bytes(),),
                 Some(retried.as_bytes()),
                 Some(millis(TAKEN).as_slice()),
             ],
@@ -2453,7 +2466,12 @@ fn a_framed_exhausted_job_moves_to_the_dead_letter_table_in_one_transaction() {
         "the claim spent the job's last attempt, which is what makes the move the legal one"
     );
 
-    let errors = queue::dead_errors(TAKEN, "IOError", "the receipt service refused the order");
+    let errors = queue::dead_errors(
+        None,
+        TAKEN,
+        "IOError",
+        "the receipt service refused the order",
+    );
     let lease = millis(TAKEN);
     let split = queue::DEAD_LETTER_MYSQL;
     conn.begin(None, false)
@@ -2842,7 +2860,12 @@ fn a_framed_status_walks_a_job_through_both_of_the_tables_it_can_be_in() {
 
     // § 6's move, run as `a_framed_exhausted_job_moves_to_the_dead_letter_table_in_one_transaction`
     // runs it: what this case adds is the reader that has to follow the row.
-    let errors = queue::dead_errors(TAKEN, "IOError", "the receipt service refused the order");
+    let errors = queue::dead_errors(
+        None,
+        TAKEN,
+        "IOError",
+        "the receipt service refused the order",
+    );
     let lease = millis(TAKEN);
     let split = queue::DEAD_LETTER_MYSQL;
     conn.begin(None, false)
@@ -3313,7 +3336,12 @@ fn delete_finds_a_receipt_in_the_dead_letter_table_the_way_status_already_does()
         "the oldest due job is the one claimed, and it is the one this case exhausts"
     );
     let lease = millis(TAKEN);
-    let errors = queue::dead_errors(TAKEN, "IOError", "the receipt service refused the order");
+    let errors = queue::dead_errors(
+        None,
+        TAKEN,
+        "IOError",
+        "the receipt service refused the order",
+    );
     let split = queue::DEAD_LETTER_MYSQL;
     conn.begin(None, false)
         .expect("the server opened the transaction");
@@ -3451,7 +3479,7 @@ fn a_framed_purge_is_bounded_and_reaches_the_dead_letter_table_only_when_asked()
     set_state(&mut conn, &gone, "4", None);
     set_state(&mut conn, &held, "1", None);
     set_state(&mut conn, &buried, "1", Some(LEASE));
-    let errors = queue::dead_errors(LEASE, "IOError", "the receipt service refused");
+    let errors = queue::dead_errors(None, LEASE, "IOError", "the receipt service refused");
     let lease = millis(LEASE);
     let split = queue::DEAD_LETTER_MYSQL;
     conn.begin(None, false)
@@ -3587,7 +3615,12 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
 
     // § 6's move, run as `a_framed_status_walks_a_job_through_both_of_the_tables_it_can_be_in`
     // runs it: what this case adds is the counters that have to follow the row.
-    let errors = queue::dead_errors(TAKEN, "IOError", "the receipt service refused the order");
+    let errors = queue::dead_errors(
+        None,
+        TAKEN,
+        "IOError",
+        "the receipt service refused the order",
+    );
     let lease = millis(TAKEN);
     let split = queue::DEAD_LETTER_MYSQL;
     conn.begin(None, false)

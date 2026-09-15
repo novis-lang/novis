@@ -271,16 +271,19 @@ const KEY_WIDTH: u32 = 255;
 ///   `[queue] visibility` measured from it, so the bound stays in configuration where
 ///   `rule:config/the-config-is-an-immutable-snapshot`'s reload can move
 ///   it; a stored deadline would freeze the superseded bound onto every job already claimed.
-/// - **The dead-letter row is the job's own columns plus `failed_at` and `errors`**, where `errors`
-///   is the JSON array § 6 asks for — an entry carrying when an attempt ran and what it threw.
-///   **It is one entry deep, and that entry is the attempt that exhausted the job**, because the
-///   jobs table has nowhere to keep what an earlier attempt threw: [`RETRY_POSTGRES`] arms a row
-///   for the next attempt and keeps the count and nothing else. Recording all of them would be a
-///   text column on `nvs_jobs` appended to on every failure — a row rewritten once per attempt,
-///   carrying a value only the exhausted job ever reads, on the table § 4's claim contends over —
-///   so the array is § 6's shape at the depth this schema pays for, and [`dead_errors`] is where
-///   that trade is written down. There is no `state`: a row is `Dead` by being in that table, which
-///   is exactly what [`STATUS_POSTGRES`]'s second arm asserts by answering the ordinal as a literal.
+/// - **`errors` is on both tables, and the jobs row is where the array accumulates.** It is the
+///   JSON array `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` asks for — one
+///   entry per failed attempt, carrying when the attempt ran and what it threw — and
+///   [`dead_errors`] is the one place an entry is appended. [`RETRY_POSTGRES`] writes the grown
+///   array back beside the count and the dead-letter move copies what is already on the row, so a
+///   job arrives in [`DEAD_TABLE`] carrying every attempt rather than its last. That costs a row
+///   rewritten once per attempt on the table § 4's claim contends over, which is the rule's promise
+///   being paid for rather than a depth this schema chose; `docs/decisions/0187.md` § 4 owns it,
+///   together with the bound — attempts are finite and an entry's message is capped at
+///   [`MESSAGE_CAP`], so the column holds at most attempts × that cap. The dead-letter row is
+///   otherwise the job's own columns plus `failed_at`, and has no `state`: a row is `Dead` by being
+///   in that table, which is exactly what [`STATUS_POSTGRES`]'s second arm asserts by answering the
+///   ordinal as a literal.
 ///
 /// **`tag` is a second column and never a second meaning for `dedupe_key`.**
 /// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them` is why: a key admits at most one
@@ -343,6 +346,10 @@ pub fn schema() -> nvs_db::Schema {
             named("dedupe_pending", short()).null(),
             named("created_at", big()),
             named("claimed_at", big()).null(),
+            // Last, which is where a column a claim answers with has to arrive:
+            // `crates/nvs-cli/src/worker.rs` reads the claim's columns by position, so this list and
+            // [`CLAIM_POSTGRES`]'s `returning` gain their newest column at the same end.
+            named("errors", long()).null(),
         ],
     )
     .and_then(|table| table.primary_key(&["id"]))
@@ -477,7 +484,7 @@ pub const CLAIM_POSTGRES: &str = "with due as (\
  ) update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = $2::bigint, \
    dedupe_pending = null \
    where id in (select id from due) \
-   returning id, script, args, attempts, max_attempts, backoff_ms";
+   returning id, script, args, attempts, max_attempts, backoff_ms, errors";
 
 /// `rule:core-classes/queue-storage-is-a-table`'s unanswered question — *which* queues a worker asks about — answered by the table
 /// rather than by a key.
@@ -549,10 +556,17 @@ pub const SUCCEEDED_POSTGRES: &str = "update nvs_jobs set state = 2, claimed_at 
 /// [`insert_refused`] — which is the same answer the partial index gave when the row went back to
 /// `state = 0` underneath it.
 ///
-/// **PostgreSQL's dialect, and [`RETRY_MYSQL`] is the other one** — the same three values, in an
-/// order that dialect's placeholders force rather than choose, which that constant's doc owns.
+/// **`errors` is written back with the count**, because this is the statement that survives an
+/// attempt: `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` has the array gaining
+/// one entry per failure, and a row armed for the next attempt without it would reach [`DEAD_TABLE`]
+/// carrying its last failure alone. The whole array is bound rather than appended to in SQL —
+/// [`dead_errors`] builds it from what the claim answered with, so no dialect needs a JSON function
+/// and every dialect writes the same text.
+///
+/// **PostgreSQL's dialect, and [`RETRY_MYSQL`] is the other one** — the same values, in an order
+/// that dialect's placeholders force rather than choose, which that constant's doc owns.
 pub const RETRY_POSTGRES: &str = "update nvs_jobs set state = 0, run_at = $3::bigint, \
-    claimed_at = null, dedupe_pending = dedupe_key \
+    errors = $4::text, claimed_at = null, dedupe_pending = dedupe_key \
     where id = $1::bigint and claimed_at = $2::bigint";
 
 /// § 6's third write-back and the floor under the other two: the attempt was the job's last, so the
@@ -570,8 +584,12 @@ pub const RETRY_POSTGRES: &str = "update nvs_jobs set state = 0, run_at = $3::bi
 ///
 /// The columns are listed rather than `select *`-ed because the two tables are deliberately not one
 /// shape: the job keeps its `id` and its `queue` ([`DEAD_TABLE`]'s doc says why), leaves `state` and
-/// `claimed_at` behind — a row is `Dead` by being here and nothing holds it — and gains `failed_at`
-/// and the `errors` array [`dead_errors`] builds.
+/// `claimed_at` behind — a row is `Dead` by being here and nothing holds it — and gains `failed_at`.
+///
+/// **`errors` is bound and not carried across**, even though both tables hold the column: the value
+/// this row wants is the array plus the attempt that has just exhausted it, and [`dead_errors`] is
+/// what appends that entry to what the claim answered with. Copying the column and appending in SQL
+/// would need a JSON function in four dialects to say what one bound text says in all of them.
 ///
 /// **PostgreSQL's dialect, and [`DEAD_LETTER_MYSQL`] is § 6's move where a `delete … returning`
 /// cannot be had** — the same two tables and the same lease, copied and then removed inside one
@@ -740,7 +758,7 @@ pub const INSERT_SQLSERVER: Split = Split {
 /// named the row and holds its lock: PostgreSQL's `where id in (select id from due)` exists to
 /// reach its own CTE, and there is no CTE here to reach.
 pub const CLAIM_MYSQL: Split = Split {
-    first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms \
+    first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms, errors \
             from nvs_jobs \
             where queue = ? \
             and ((state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)) \
@@ -771,7 +789,7 @@ pub const CLAIM_MYSQL: Split = Split {
 /// The `update` is keyed by `id` for [`CLAIM_MYSQL`]'s reason as well: [`Split::first`] has named
 /// the row, and there is no CTE to reach back into.
 pub const CLAIM_SQLITE: Split = Split {
-    first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms \
+    first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms, errors \
             from nvs_jobs \
             where queue = ? \
             and ((state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)) \
@@ -804,7 +822,7 @@ pub const CLAIM_SQLITE: Split = Split {
 /// carries that CTE's columns and no others.
 pub const CLAIM_SQLSERVER: &str = "with due as (\
      select top 1 id, script, args, state, attempts, max_attempts, backoff_ms, run_at, claimed_at, \
-     dedupe_pending from nvs_jobs with (updlock, readpast, rowlock) \
+     dedupe_pending, errors from nvs_jobs with (updlock, readpast, rowlock) \
      where queue = @p1 \
      and ((state = 0 and run_at <= cast(@p2 as bigint)) \
      or (state = 1 and claimed_at <= cast(@p3 as bigint))) \
@@ -812,7 +830,7 @@ pub const CLAIM_SQLSERVER: &str = "with due as (\
  ) update due set state = 1, attempts = attempts + 1, claimed_at = cast(@p2 as bigint), \
    dedupe_pending = null \
    output inserted.id, inserted.script, inserted.args, inserted.attempts, \
-   inserted.max_attempts, inserted.backoff_ms";
+   inserted.max_attempts, inserted.backoff_ms, inserted.errors";
 
 /// [`DEAD_LETTER_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
@@ -931,25 +949,26 @@ pub const SUCCEEDED_SQLSERVER: &str = "update nvs_jobs set state = 2, claimed_at
 
 /// [`RETRY_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
-/// **Its three values go out in a different order from [`RETRY_POSTGRES`]'s, and that is forced
-/// rather than chosen.** A `$n` is named where its value is wanted and may be named anywhere; a `?`
-/// is bound by the position it occupies in the text. The `run_at` this writes is in the `set`
-/// clause, which is left of the `where`, so this binds `run_at`, `id`, `claimed_at` where
-/// PostgreSQL binds `id`, `claimed_at`, `run_at`. Reordering PostgreSQL's `$n`s to match would be
-/// editing a landed text to make a new one resemble it, and the caller is where the two orders are
-/// reconciled anyway — once, beside the connection it already had to branch on.
+/// **Its values go out in a different order from [`RETRY_POSTGRES`]'s, and that is forced rather
+/// than chosen.** A `$n` is named where its value is wanted and may be named anywhere; a `?` is
+/// bound by the position it occupies in the text. The `run_at` and the `errors` array this writes
+/// are in the `set` clause, which is left of the `where`, so this binds `run_at`, `errors`, `id`,
+/// `claimed_at` where PostgreSQL binds `id`, `claimed_at`, `run_at`, `errors`. Reordering
+/// PostgreSQL's `$n`s to match would be editing a landed text to make a new one resemble it, and
+/// the caller is where the two orders are reconciled anyway — once, beside the connection it
+/// already had to branch on.
 ///
 /// The delay stays a bound value for [`RETRY_POSTGRES`]'s reason: § 6's ladder is exponential and
 /// jittered, and neither is something SQL should be deciding on a row it is already updating. The
 /// `0` is `Core\Queue\State::Pending`'s ordinal, held to the enum beside its twin by
 /// `queue_statements_agree_with_the_state_enum`.
-pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, claimed_at = null, \
-    dedupe_pending = dedupe_key \
+pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, errors = ?, \
+    claimed_at = null, dedupe_pending = dedupe_key \
     where id = ? and claimed_at = ?";
 
-/// [`RETRY_MYSQL`], which SQLite runs unchanged — including its binding order, `run_at`, `id`,
-/// `claimed_at`, which the `set` clause standing left of the `where` forces in any dialect binding
-/// by position. [`DEAD_LETTER_SQLITE`] owns why an alias and not a copy.
+/// [`RETRY_MYSQL`], which SQLite runs unchanged — including its binding order, `run_at`, `errors`,
+/// `id`, `claimed_at`, which the `set` clause standing left of the `where` forces in any dialect
+/// binding by position. [`DEAD_LETTER_SQLITE`] owns why an alias and not a copy.
 ///
 /// The `0` is `Core\Queue\State::Pending`'s ordinal here as well, and it is the same literal, so
 /// `queue_statements_agree_with_the_state_enum` holds it against the enum without a third list to
@@ -958,28 +977,64 @@ pub const RETRY_SQLITE: &str = RETRY_MYSQL;
 
 /// The same re-arming in T-SQL, and it takes [`RETRY_POSTGRES`]'s numbering rather than
 /// [`RETRY_MYSQL`]'s: a marker here carries its own number, so the values go out in the order the
-/// keyed dialect sends them and the new `run_at` is the third of them rather than the first.
+/// keyed dialect sends them — the new `run_at` third rather than first, and the `errors` array after
+/// it. `@p4` takes no `cast`, being the text the column already is.
 pub const RETRY_SQLSERVER: &str = "update nvs_jobs set state = 0, run_at = cast(@p3 as bigint), \
-    claimed_at = null, dedupe_pending = dedupe_key \
+    errors = @p4, claimed_at = null, dedupe_pending = dedupe_key \
     where id = cast(@p1 as bigint) and claimed_at = cast(@p2 as bigint)";
 
-/// § 6's `errors` array, as [`DEAD_LETTER_POSTGRES`] binds it: one entry, the attempt that exhausted the job.
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s `errors` array, grown by the attempt that just failed.
 ///
-/// [`schema`]'s own doc owns *why* the array is this deep and not deeper, and it is the one home
-/// for that trade. What is decided here is the entry's shape: `at` is when the attempt started,
-/// which is the lease the move is keyed on, so the row says how long the last attempt ran for
-/// against `failed_at` beside it, and `class` and `message` are what the isolate answered with —
-/// data rather than an exception object, per
-/// `rule:security/isolate-shares-nothing`.
+/// **The one place an entry is appended**, and both write-backs go through it: [`RETRY_POSTGRES`]
+/// binds the answer onto the row that is being armed again and [`DEAD_LETTER_POSTGRES`] binds it
+/// onto the row leaving [`JOBS_TABLE`], so a job that exhausts its attempts carries every one of
+/// them without either statement knowing how the array is built. `prior` is the column as the claim
+/// answered with it — `None` for a job that has not failed yet.
+///
+/// The entry's shape: `at` is when the attempt started, which is the lease the write-back is keyed
+/// on, so the row says how long that attempt ran for against the `failed_at` beside it, and `class`
+/// and `message` are what the isolate answered with — data rather than an exception object, per
+/// `rule:security/isolate-shares-nothing`. `message` is truncated at [`MESSAGE_CAP`], which is what
+/// bounds the column: a thrown message is arbitrary text under the program's control, and attempts
+/// are finite, so the array is at most attempts × a capped entry.
+///
+/// **A `prior` that is not an array is replaced rather than parsed around.** Nothing but this
+/// function writes the column, so a value that does not read back as one is a hand edit or
+/// corruption — and the alternative to starting a fresh array is dropping the attempt that just
+/// failed, which is the one entry a reader is certain to want.
 ///
 /// Built through `serde_json` rather than formatted, because a thrown message is arbitrary text and
 /// a hand-rolled array is one unescaped quote away from a column no reader can parse.
-pub fn dead_errors(at: i64, class: &str, message: &str) -> String {
+pub fn dead_errors(prior: Option<&str>, at: i64, class: &str, message: &str) -> String {
     let mut entry = serde_json::Map::new();
     entry.insert("at".to_string(), at.into());
     entry.insert("class".to_string(), class.into());
-    entry.insert("message".to_string(), message.into());
-    serde_json::Value::Array(vec![serde_json::Value::Object(entry)]).to_string()
+    entry.insert("message".to_string(), capped(message).into());
+    let mut entries = prior
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok())
+        .and_then(|parsed| match parsed {
+            serde_json::Value::Array(entries) => Some(entries),
+            _ => None,
+        })
+        .unwrap_or_default();
+    entries.push(serde_json::Value::Object(entry));
+    serde_json::Value::Array(entries).to_string()
+}
+
+/// How much of a thrown message an [`dead_errors`] entry keeps.
+///
+/// Counted in characters and cut on a character boundary, because the column is `utf8mb4` text a
+/// reader parses and half a code point is not text. `docs/decisions/0187.md` § 4 owns why there is a
+/// cap at all; the number is the width at which a message still says what went wrong — a stack of
+/// frames or a rendered document does not, and a job row is not where either belongs.
+pub const MESSAGE_CAP: usize = 1_024;
+
+/// [`MESSAGE_CAP`] applied, borrowing when the message already fits.
+fn capped(message: &str) -> std::borrow::Cow<'_, str> {
+    match message.char_indices().nth(MESSAGE_CAP) {
+        Some((at, _)) => std::borrow::Cow::Owned(message[..at].to_string()),
+        None => std::borrow::Cow::Borrowed(message),
+    }
 }
 
 /// The ceiling `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` asks for and names no number for.
@@ -4550,7 +4605,7 @@ mod tests {
         CLAIM_POSTGRES, CLAIM_SQLITE, CLAIM_SQLSERVER, CLASS, COUNTS_MYSQL, COUNTS_POSTGRES,
         COUNTS_SQLITE, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_LETTER_SQLSERVER, DEAD_TABLE,
         DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES, DELETE_SQLITE, Fault, INSERT_MYSQL,
-        INSERT_POSTGRES, INSERT_SQLSERVER, JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL,
+        INSERT_POSTGRES, INSERT_SQLSERVER, JOBS_TABLE, MESSAGE_CAP, PENDING, PURGE_DEAD_MYSQL,
         PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE, PURGE_MYSQL, PURGE_POSTGRES, PURGE_SQLITE,
         PURGE_STATE_ARG, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES,
         RETRY_SQLSERVER, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
@@ -4619,6 +4674,7 @@ mod tests {
     #[test]
     fn a_dead_letter_row_carries_the_exhausting_attempts_error() {
         let written = dead_errors(
+            None,
             1_700_000_000_123,
             "RuntimeError",
             "the \"endpoint\" \\ refused",
@@ -4629,13 +4685,68 @@ mod tests {
         assert_eq!(
             entries.len(),
             1,
-            "one entry, which is `schema`'s doc's decision and the depth `nvs_jobs` pays for"
+            "a job with no prior failure carries the attempt that exhausted it and nothing else"
         );
         assert_eq!(entries[0]["at"], 1_700_000_000_123_i64);
         assert_eq!(entries[0]["class"], "RuntimeError");
         assert_eq!(
             entries[0]["message"], "the \"endpoint\" \\ refused",
             "the message crosses the column unchanged, quotes and all"
+        );
+    }
+
+    /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` has the array gaining an
+    /// entry per failed attempt, so what this owes is the growth and the bound that makes it safe:
+    /// an entry is appended to what the claim answered with, in the order the attempts ran, and a
+    /// message past [`MESSAGE_CAP`] is cut on a character boundary rather than by byte.
+    ///
+    /// The cap is asserted with a multi-byte character, because a byte-wise cut inside one is the
+    /// failure that would produce a column no reader can parse — and that is the whole reason
+    /// `docs/decisions/0187.md` § 4 says *character boundary*.
+    #[test]
+    fn the_errors_array_gains_an_entry_per_attempt_and_caps_each_message() {
+        let first = dead_errors(None, 1, "RuntimeError", "the first");
+        let second = dead_errors(Some(&first), 2, "LogicError", "the second");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&second).expect("`dead_errors` writes a JSON document");
+        let entries = parsed.as_array().expect("§ 6's `errors` is an array");
+        assert_eq!(
+            entries.len(),
+            2,
+            "the attempt that just failed is appended to the attempts before it, not written over \
+             them"
+        );
+        assert_eq!(
+            (&entries[0]["message"], &entries[1]["message"]),
+            (
+                &serde_json::Value::from("the first"),
+                &serde_json::Value::from("the second")
+            ),
+            "the array reads in the order the attempts ran"
+        );
+        let long = dead_errors(None, 3, "RuntimeError", &"é".repeat(MESSAGE_CAP + 8));
+        let parsed: serde_json::Value =
+            serde_json::from_str(&long).expect("a capped message is still a JSON document");
+        let kept = parsed[0]["message"]
+            .as_str()
+            .expect("the entry keeps its message as text");
+        assert_eq!(
+            kept.chars().count(),
+            MESSAGE_CAP,
+            "an over-long message is cut at the cap, counted in characters"
+        );
+        assert!(
+            kept.chars().all(|one| one == 'é'),
+            "the cut lands on a character boundary, so no entry carries half a code point"
+        );
+        let over_junk = dead_errors(Some("not an array"), 4, "RuntimeError", "kept");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&over_junk).expect("`dead_errors` writes a JSON document");
+        assert_eq!(
+            parsed,
+            serde_json::json!([{"at": 4, "class": "RuntimeError", "message": "kept"}]),
+            "a column that does not read back as an array is replaced, so the attempt that just \
+             failed is recorded rather than dropped"
         );
     }
 
@@ -4959,8 +5070,8 @@ mod tests {
 
     /// A worker reads a claimed job's columns **by ordinal**, so the dialects owe each other more
     /// than a column set here: the same names in the same order. Nothing else would notice them
-    /// diverging — a claim that swapped `attempts` and `max_attempts` still runs, still answers six
-    /// values, and puts § 6's ladder on the wrong number.
+    /// diverging — a claim that swapped `attempts` and `max_attempts` still runs, still answers as
+    /// many values, and puts § 6's ladder on the wrong number.
     ///
     /// The alias is stripped rather than matched, because `attempts + 1 as attempts` is exactly the
     /// difference the split forces ([`CLAIM_MYSQL`]'s doc owns why) and it is not a difference in
