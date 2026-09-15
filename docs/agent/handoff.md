@@ -2,44 +2,49 @@
 
 ## State
 
-**Goal `m8-db-queue`, stage 8 is complete: recording, applying and the call site all land.**
-`push` declares the job's narrowing as five options at the end of its one trailing bag — `grants`
-and the four `[limits]` ceilings of `LIMIT_OPTIONS` (`crates/nvs-stdlib/src/queue.rs:1782`) — and
-`grants_of`/`limits_of` (`crates/nvs-stdlib/src/queue.rs:2735`) turn what a call site wrote into the
-two columns the row already carried, before the connection is reached.
+**Goal `m8-db-queue`, stage 9 is complete: the socket leg and the CI leg both land**, and all three
+of that stage's checks pass locally — `python tools/db-matrix.py --all` prints the five TCP legs and
+then `mysql`, `mariadb` and `postgres` `over a socket: ok`.
 
-A written `grants:` is checked name by name against `nvs_runtime::capability::granted` asked
-unscoped, so a name the enqueuing request does not hold is a `RuntimeError` where it stands and a
-name no capability has is a `LogicError`. A written ceiling is set on a clone of the request's own
-`nvs_config::Request` and read back by `limits_recorded`, which makes `Request::set` the one reader
-that judges it — see the playbook bullet for what that does and does not prove.
+`tests/db/compose.yaml` bind-mounts each of those three servers' *own* default socket directory onto
+the host under `${NOVIS_DB_SOCKET_DIR:-/mnt/host/wsl/novis-db}/<service>`, and the `certs` service
+makes each one writable by the uid 999 all three images drop to. Nothing moved a server off its
+default socket path, so every image's own healthcheck still reaches it. On Windows the leg's `cargo
+test` runs inside WSL over `/var/tmp/nvs-target-wsl`, because a Windows build has no `AF_UNIX`
+transport and the socket a Linux container publishes is the distro's to reach;
+`tools/db-matrix.py` § *The socket leg* is the home for all of that, and `SOCKET_SUITES` for why the
+leg runs `-p nvs-db` alone.
 
-`crates/nvs-stdlib/src/queue.rs`'s gap 1 is retired and the two below it renumbered; the goal's
-*Not this goal* list now says gaps 1–2. Stage 9 is untouched and all three of its checks are red.
+`crates/nvs-db/src/matrix.rs` gap 1 is retired. `.github/workflows/ci.yml` gained a `database` job
+running `python tools/db-matrix.py --all` on `ubuntu-latest`, gated by a new `db` lane in
+`tools/ci-changes.py`; CI itself is still not running, so that leg is proved by reading those two
+files, as the goal's standing decisions say.
 
 ## Next group
 
-**Stage 9: the socket leg, then the CI leg** — one file set: `tools/db-matrix.py`,
-`crates/nvs-db/src/matrix.rs`, `.github/workflows/ci.yml` and `tools/ci-changes.py`.
-`rule:core-classes/db-unix-socket-path` owns the transport; the stage's three `[[check]]` blocks are
-`docs/agent/loop-goal.toml:10720-10748` and none of them passes today.
+**Stage 10: the rulebook and the module docs** — one file set: `docs/rules/core-classes.json`,
+`crates/nvs-stdlib/src/db/mod.rs` and `crates/nvs-types/src/derive.rs`. This is the last stage of the
+goal; the owner gates are met once no `— owner: m8-db-queue` tag is left, and four are.
 
-- [ ] **`tools/db-matrix.py` publishes an `AF_UNIX` endpoint for MySQL, MariaDB and PostgreSQL, and
-      runs the TCP case list again over it.** The socket directory is bind-mounted out of each
-      container and handed to the leg as `NVS_DB_MATRIX_SOCKET`
-      (`crates/nvs-db/src/matrix.rs:73`), whose absence is the whole of the choice between the two
-      transports; `tests/handshake.rs` already dials whichever `Location` it is handed. The check
-      wants the three `… over a socket: ok` lines after the five TCP ones.
-- [ ] **Retire `crates/nvs-db/src/matrix.rs:43` gap 1**, which is that leg being asked for and never
-      published — it is `m8-db-queue`-owned and its *Decided:* line is the whole case list again
-      over the socket.
-- [ ] **`.github/workflows/ci.yml:106` runs `python tools/db-matrix.py --all`, and the `LANES`
-      table at `tools/ci-changes.py:34` gains the `db` lane it prints as `db=true`.** CI is not
-      running (goal § *Standing decisions*), so both are proven by reading the workflow file and
-      the lane tool, never by a remote run.
+- [ ] **Flip stage 2's three rules from `designed` to `shipped`**, with `guardedBy` filled from this
+      goal's own cases and tests, then `python tools/rules.py --render`:
+      `docs/rules/core-classes.json:487` (`rule:core-classes/a-stream-parks-its-read-on-the-connection`),
+      `docs/rules/core-classes.json:405` (`rule:core-classes/server-version-is-what-the-server-said`)
+      and `docs/rules/core-classes.json:549` (`rule:core-classes/a-unique-key-reads-nulls-as-distinct`).
+- [ ] **Rewrite `crates/nvs-stdlib/src/db/mod.rs:212`'s `# Known gaps` as a whole** — gaps 3–4 are
+      built, and their owner tags are `crates/nvs-stdlib/src/db/mod.rs:291` and `:308`. Gaps 1–2 are
+      `unowned` and stay, so the section shrinks rather than going.
+      `rule:core-classes/db-streaming` and `rule:core-classes/db-one-api` are what it now describes.
+- [ ] **Rewrite `crates/nvs-types/src/derive.rs:42`'s `# Known gaps` the same way** — gaps 1–2 are
+      built, tags at `crates/nvs-types/src/derive.rs:76` and `:98`; gap 3 is
+      `rule:core-classes/derive-attribute`'s and `unowned`, so it stays and is renumbered.
 
 ## Backlog
 
-- Stage 10's rulebook sweep: `core-classes/a-stream-parks-its-read-on-the-connection` still reads
-  `designed`, and `docs/agent/loop-goal.toml:10754` is the check.
-- `crates/nvs-stdlib/src/queue.rs` gaps 1–2 are `unowned-closures`', not this goal's.
+- `crates/nvs-stdlib/src/queue.rs` gaps 1–2 and `crates/nvs-stdlib/src/db/mod.rs` gaps 1–2 are goal
+  `unowned-closures`'s — `docs/agent/loop-goal.md` § *Standing decisions*, *Not this goal*.
+- The socket leg asserts `crates/nvs-db`'s case list alone: `queue`, `db_stream` and the worker's
+  case gate themselves out on a `Location::Socket`. `tools/db-matrix.py`'s `SOCKET_SUITES` says what
+  a case needing a socket would change.
+- A Linux host runs the socket leg natively and has never been tried; `NOVIS_DB_SOCKET_DIR` is the
+  one field that has to name the same directory at both ends there.

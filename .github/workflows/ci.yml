@@ -74,6 +74,7 @@ jobs:
       editor: ${{ steps.lanes.outputs.editor }}
       deps: ${{ steps.lanes.outputs.deps }}
       refdoc: ${{ steps.lanes.outputs.refdoc }}
+      db: ${{ steps.lanes.outputs.db }}
       deep: ${{ steps.lanes.outputs.deep }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -161,6 +162,56 @@ jobs:
       - name: Architecture invariants and cost guards
         if: needs.changes.outputs.native == 'true'
         run: cargo test --release -p nvs-abi-probe
+
+  # ---------------------------------------------------------------------------
+  # The database matrix, against real servers rather than mocks, which is what
+  # `rule:core-classes/db-one-api`'s *Verification* section asks for.
+  # `tests/db/compose.yaml` holds the servers, `tools/db-matrix.py` brings them
+  # up and reads their ports and credentials back out of that file, and one
+  # `cargo test` process per driver makes "which server failed" that process's
+  # exit status. The three drivers with a Unix-domain transport then answer the
+  # same case list again over it.
+  #
+  # Linux alone, and deliberately not a row in the platform matrix above: the
+  # servers are Linux containers, a hosted Windows or macOS runner has no daemon
+  # to run them on, and what this job questions is a wire protocol rather than
+  # the code generation those platforms differ in.
+  # ---------------------------------------------------------------------------
+  database:
+    name: five-driver matrix
+    needs: changes
+    if: needs.changes.outputs.db == 'true'
+    runs-on: ubuntu-latest
+    # Every image pulled, five first-boot databases and a workspace build, then the drivers twice
+    # over for the three with a second transport.
+    timeout-minutes: 45
+    env:
+      # Where the compose file publishes the three Unix sockets, and where the legs dial them: one
+      # directory, because the runner is the Docker host. `tools/db-matrix.py` reads this same field
+      # for the client end, and its header owns why the two spellings differ on Docker Desktop.
+      NOVIS_DB_SOCKET_DIR: /tmp/novis-db
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: database
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.x'
+
+      # The harness brings the servers up itself -- `up -d --wait`, so "up" means healthy -- and
+      # takes them down again whatever the verdict, because a runner that leaks containers is a
+      # runner the next job on it inherits.
+      - name: The five drivers, and the three that answer over a socket too
+        run: python tools/db-matrix.py --all
+      - name: Stop the servers
+        if: always()
+        run: python tools/db-matrix.py --down
 
   # ---------------------------------------------------------------------------
   # Separated because it pulls in Wasmtime, which is minutes of build time that

@@ -69,6 +69,15 @@ LANES = {
         "crates/", "docs/reference/", "docs/novis.md", "tools/reference.py",
         ".github/workflows/",
     ),
+    # The five-driver matrix against real servers: the drivers, the harness that points them at a
+    # container each, the compose file those containers come from, and the suites outside `nvs-db`
+    # that `tools/db-matrix.py` runs on every leg -- `nvs-stdlib`'s queue and stream cases, and the
+    # worker `nvs-cli` opens a queue block from. Gates `database`, the one job that needs a daemon.
+    "db": (
+        "crates/nvs-db/", "crates/nvs-stdlib/", "crates/nvs-cli/", "crates/nvs-config/",
+        "tests/db/", "tools/db-matrix.py", "Cargo.lock",
+        ".github/workflows/",
+    ),
 }
 
 ZERO = "0" * 40
