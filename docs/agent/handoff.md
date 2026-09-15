@@ -2,38 +2,56 @@
 
 ## State
 
-Goal `m8-stdlib-depth`, **stage 0 — the catch-up — is done**, and nothing of stages 1–15 has
-started. Doc and comment edits only: no member, no behaviour, one test's assert message.
+Goal `m8-stdlib-depth`. **Stage 0 and stage 2 are done**; stages 3–15 have not started. Stage 2's
+three checks are green on disk: `rule:types/arrays` states the covariant read, `cargo test -p
+nvs-types` holds its three named tests, and both conformance cases run.
 
-`python tools/owners.py` puts 12 items under this goal and none under `gap-zero`; `untagged`,
-`broken-tag` and `retired-owner` are all 0, and `past-milestone` is 16 (§ *Backlog*).
+`array<T>`'s covariance was already in the checker (`crates/nvs-types/src/expr/assign.rs:172`) and is
+now pinned by tests rather than by a comment. `Core\Arr::flip($stringArray)` compiles — confirmed by
+running it, not by reading the relation.
 
-Two of stage 0's nine anchors were already correct on disk (`crates/nvs-stdlib/src/ast.rs:64`,
-`crates/nvs-stdlib/src/json.rs:143`). `docs/agent/carried-gaps.md:62` resolved to the `array<T>`
-row rather than a CLDR one — the file had lost rows since the goal was written — so that row and
-`crates/nvs-stdlib/src/lib.rs` gap 4, which are one fact, both name this goal now. That is also the
-right owner: stage 2's text hands the rulebook amendment to goal `plan-truth`, which is retired
-(`docs/agent/goals/52-plan-truth.md` has no sibling `.toml`), and § *Standing decisions* gives this
-goal a record for it.
+The gap is struck from both its homes: `crates/nvs-stdlib/src/lib.rs`'s known-gaps list is three
+items, and `docs/agent/carried-gaps.md` no longer carries the row.
+
+**ADR 0188 is this goal's only record, and the goal's § *Standing decisions* is not contradicted.**
+"ADR slots: none" is about design calls, and nothing here was decided this session — 0188 writes down
+the call the user's decision sheet already made, because `python tools/rules.py --check` refuses a
+rule whose `because` names anything but a record. Its `changes.modifies` carries one rule the pack did
+not name: `rule:ide/narrowing-is-a-diff-never-a-save-time-fix` rested its whole argument on the
+invariance, so it is re-argued on the write side, retitled, and `docs/plan/m10.md`'s bullet now points
+at it instead of restating the premise.
+
+The pack's `[context] shapes` has no *A `.nvst` case* entry, so writing the two cases meant opening a
+sibling case to learn the file's sections.
 
 ## Next group
 
-**Stage 2: `array<T>` is covariant in the checker and invariant in the rulebook** — one file set:
-`crates/nvs-types/src/expr/assign.rs`, `rule:types/arrays`' fragment, and the two homes of the gap
-that closes when they agree.
+**Stage 3: `Core\Decimal`'s roster — `allocate`, `pow`, and the four rounding members** — one file
+set: `crates/nvs-stdlib/src/decimal.rs`, the spec row each member needs, and three new cases under
+`tests/conformance/core/`. The roster is two rows today (`divExact`, `divRound`) at
+`crates/nvs-stdlib/src/decimal.rs:56`, and every item below adds to that one array plus its
+`nvs_core_decimal_*` symbol. `crates/nvs-stdlib/src/decimal.rs:38` is a `# Known gaps` item tagged
+with a passed milestone (§ *Backlog*) and is worth reading before the first row lands.
 
-- [ ] **Confirm the covariance and pin it with a case** —
-      `crates/nvs-types/src/expr/assign.rs:159-175` recurses element to element, with the
-      copy-on-write soundness argument in its own comment (the goal's anchor, not re-checked this
-      session). `rule:types/arrays`. The goal asks a session to confirm `Core\Arr::flip($stringArray)`
-      compiles; if it does not, that is a gap in the code and is built here rather than recorded.
-- [ ] **Amend `rule:types/arrays` to the covariant read, and open the record** —
-      `crates/nvs-types/src/expr/assign.rs:228` still speaks of invariance as live, and the fragment
-      carries records 0007, 0069, 0114, 0002 and 0159 asserting it. The reasoning to cite is the
-      `Decided:` sentence at `crates/nvs-stdlib/src/lib.rs:151`. The next free record number was 0188
-      at this commit; re-derive it before claiming one.
-- [ ] **Strike the gap from both its homes** — `crates/nvs-stdlib/src/lib.rs:144` gap 4, and the
-      `array<T>` row at `docs/agent/carried-gaps.md:54`.
+- [ ] **`allocate(decimal $amount, array<…> $ratios): array<decimal>`** —
+      `crates/nvs-stdlib/src/decimal.rs:56`. Each part is its ratio's share rounded down and the
+      remainder goes one smallest unit at a time to the earliest parts, so the answer is
+      deterministic and sums exactly; an empty, all-zero or negative ratio list throws. The wording is
+      the goal's § *Standing decisions*, `rule:types/arithmetic` is the rule, and the checks name
+      `decimal_allocate_parts_add_back_to_the_amount_exactly`,
+      `decimal_allocate_refuses_an_empty_zero_or_negative_ratio_list` and
+      `tests/conformance/core/decimal-allocate-splits-a-sum-into-parts-that-add-back.nvst`.
+- [ ] **The four rounding members, and `Core\RoundMode` beside them** —
+      `crates/nvs-stdlib/src/decimal.rs:56`. `floor`, `ceil`, `truncate` and `round` each take a
+      target scale defaulting to 0 and answer `decimal`; `round` takes `Core\RoundMode` with **no**
+      default, naming the mode being the point. `rule:types/arithmetic`. The checks name
+      `decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked` and
+      `tests/conformance/core/decimal-rounding-members-answer-decimal-and-name-their-mode.nvst`.
+- [ ] **`pow`, exact or throwing** — `crates/nvs-stdlib/src/decimal.rs:56`. It takes a `uint`
+      exponent and is exact or throws at the mantissa or scale bound; a negative power is written
+      `divRound(1, pow(…))`, which says the rounding out loud. `rule:types/arithmetic`. The checks
+      name `decimal_pow_is_exact_or_throws_at_the_mantissa_or_scale_bound` and
+      `tests/conformance/core/decimal-pow-is-what-a-decimal-base-uses-instead-of-star-star.nvst`.
 
 ## Backlog
 
@@ -47,4 +65,7 @@ that closes when they agree.
   `docs/agent/goals/59-m8-stdlib-depth.toml:4328` names it as a guard, so a rename is a two-file edit.
 - Stage 4 and stage 13's guard share `benches/abi-probe/tests/perf_guards.rs`, so a session holding
   that file can take both guards once `spawn` exists. Stages 3 and 4 share nothing else.
+- Two retired goal files still describe striking `crates/nvs-stdlib/src/lib.rs` gap 4 as open work —
+  `docs/agent/goals/31-unowned-sweep.md:23`/`:79` and `docs/agent/goals/52-plan-truth.md:116`/`:123`.
+  Retired goals are frozen, so this is a note rather than an edit.
 - When this goal's last check goes green the driver takes goal `unowned-closures`.

@@ -2170,6 +2170,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Date the anchor rather than guessing which one: `git log --diff-filter=A --format=%H -1 --
   <the file that wrote the anchor>` names the commit it was written at, and `git show <sha>:<doc> |
   sed -n '<NN-14>,<NN+2>p'` prints the line it meant. [until: reviewed 2026-09-15]
+- **Renaming a Rust test can turn a carried floor check red, because a `cargo-named` check names its
+  tests as strings.** Stage 2 wanted three test names that `crates/nvs-types/tests/arrays.rs` almost
+  had, and renaming the near-misses into them would have broken the `stage = "1 floor"` block in
+  `docs/agent/loop-goal.toml` that names the old three verbatim. Before renaming or deleting a test,
+  grep `docs/agent/loop-goal.toml` for its name — a hit means the name is an interface, and the new
+  test is written *beside* the old one with a claim of its own rather than over it.
+  [until: gone docs/agent/loop-goal.toml:kind = "cargo-named"]
 
 ## Running things
 
