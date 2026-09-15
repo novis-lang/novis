@@ -4,67 +4,55 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
-and stages 3 to 9 are complete. Stage 10, the metrics export, is the earliest red stage and is the
-next group. Nothing is blocked.
+and stages 3 to 9 are complete. Stage 10, the metrics export, is the earliest red stage: its first
+check is green and its second is the next group. Nothing is blocked.
 
-**A fire runs under the deployment's tree, and under the one a reload published.** `Scheduled` holds
-the `Arc<nvs_config::Current>` its core was handed and `isolate` takes a clone off it per fire,
-before the resolve (`crates/nvs-cli/src/serve.rs:1246`), so `rule:config/a-scheduled-run-is-a-root-isolate`'s
-two halves are live: `[limits]` is the run's budget and `[capabilities]` are its grants — the grant
-half is what lets the resolve past `script.spawn` at all. Per fire and not per boot for the reason
-the accept loop reads the holder per request, so an edited tree reaches the next fire.
+**A serving core counts every response it writes.** `crates/nvs-server/src/metrics.rs:671`'s
+`meter_this_core` gives the core the registry `[metrics]` asks for — a thread-local, because that is
+what "per core" is when one core runs one accept loop per listening socket and they share its
+counters — and `crates/nvs-server/src/serve.rs`'s service closure reaches it through
+`count_request` at all four of its answers, including the forwarded refusal, the ceiling's `503` and
+a preflight. `rule:observability/route-label-is-the-declared-name`'s label is taken off the reply's
+own carrier before `Isolate::start` moves it (`nvs_host::Isolate::answering_request`), which closes
+`route.rs`'s old gap 2.
 
-**What a reload still does not reach is the roster.** `nvs_server::arm` is called once off the boot
-tree (`crates/nvs-cli/src/serve.rs:906`) and every `[[schedule]]` key is `System`-class, so a reload
-applies an entry this ticker will not fire until a restart. `Scheduled`'s own `# Known gaps` owns
-it; closing it is either re-arming inside the ticker or `rule:config/a-reload-names-what-it-could-not-apply`
-naming the roster, and the second is a rule edit rather than a code one.
+**The encoder is written and has no gatherer.** `crates/nvs-server/src/prometheus.rs:63`'s `scrape`
+takes every core's registry, adds them up and writes the Prometheus text exposition format — by
+hand against the specification, which is `rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`'s
+finding that neither candidate crate is takeable. What it has no caller for is the slice below:
+nothing binds `[metrics] listen` and nothing carries another core's `on_this_core()` copy across.
 
 ## Next group
 
-**Stage 10: the metrics export** — one file set: `crates/nvs-server/src/metrics.rs` with
-`crates/nvs-server/src/serve.rs` for the call site, and `crates/nvs-cli/src/serve.rs` for the
-listener.
+**Stage 10: the exporter's listener** — one file set: `crates/nvs-cli/src/serve.rs` for the boot and
+the per-core arming, with `crates/nvs-server/src/metrics.rs` and
+`crates/nvs-server/src/prometheus.rs` for the two halves it joins.
 
-- [ ] **Every serving core owns a registry and counts each request under its route label** —
-      `crates/nvs-server/src/metrics.rs:532`'s `Registry::request` is the consumer with no caller,
-      and `crates/nvs-server/src/metrics.rs:392`'s `Registry::of` is what builds one from `[metrics]`
-      (`None` when no exporter is named, which is the second half of the stage's other check). The
-      call site is where a response is finished under `crates/nvs-server/src/serve.rs:885`'s
-      `serve_connection`, and the label is `crates/nvs-server/src/route.rs:46`'s, which says it has
-      a consumer and no caller today. `rule:observability/a-registry-is-per-core-and-nothing-reads-it`
-      is why it is per core and never shared. Test:
-      `every_serving_core_owns_a_registry_and_counts_each_request_under_its_route_label`,
-      `-p nvs-server`.
-- [ ] **A scrape merges every core's series into the text exposition format** —
-      `crates/nvs-server/src/metrics.rs:425`'s `Registry::series` already promises the stable order
-      the format needs, and `crates/nvs-server/src/metrics.rs:437` and `:444` are the kind and the
-      label names a `# TYPE` line is written from. The merge is arithmetic and never coordination —
-      the rule above states that — so what crosses a thread is a snapshot of series and not the
-      registry. Test: `a_scrape_merges_every_cores_series_into_the_text_exposition_format`,
-      `-p nvs-server`.
+- [ ] **A scrape reaches every core's registry** — `crates/nvs-server/src/metrics.rs:700`'s
+      `on_this_core` is the per-core copy, and `crates/nvs-server/src/prometheus.rs:63`'s `scrape`
+      is the consumer that wants all of them. The goal's stage 10 prose decides the shape: a message
+      over the cross-core channel, gathered on the scraping core, never a shared store
+      (`rule:observability/a-registry-is-per-core-and-nothing-reads-it`). **No such channel was found
+      under that name** — `nvs-host` has `Worker` and `wake_at_drain` and nothing else obvious — so
+      the first thing this slice owes is to name what it is or to build it.
 - [ ] **`serve` answers a scrape at `[metrics] listen`, and a tree whose exporter is `false` binds
-      nothing** — the key is `crates/nvs-config/src/tree.rs:1050`, carrying an `[unread:]` marker
-      this slice strikes. `crates/nvs-cli/src/serve.rs:275`'s control endpoint is the shape for a
-      second listener the goal's § *Standing decisions* puts on a thread of its own, and
-      `crates/nvs-cli/src/serve.rs:194`'s `listen_on` is where the server's own addresses are
-      resolved. Test: `serve_answers_a_scrape_at_the_metrics_listen_address`,
+      nothing** — the key is `crates/nvs-config/src/tree.rs:1050`, still carrying its `[unread:]`
+      marker, and the arming goes beside the per-core listener loop at
+      `crates/nvs-cli/src/serve.rs:984`. One more listening socket on this server's own accept loop
+      and never a second HTTP server, per the rule above. Tests:
+      `serve_answers_a_scrape_at_the_metrics_listen_address`,
       `a_tree_whose_metrics_exporter_is_false_binds_nothing_and_builds_no_registry`, `-p nvs-cli`.
+- [ ] **The exporter goes behind a cargo feature, on by default** —
+      `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`, whose fragment is still
+      marked *designed, not yet shipped*. `crates/nvs-server/src/prometheus.rs:1` is the module the
+      gate wraps; `crates/nvs-server/src/metrics.rs:1` is the half that is Tier 0 in every build and
+      stays ungated. A build without it refuses any `exporter` other than `false` at boot, naming the
+      feature.
 
 ## Backlog
 
-- The schedule roster is armed once off the boot tree, so a reload applies a `[[schedule]]` change
-  nothing honours — `crates/nvs-cli/src/serve.rs`'s `Scheduled` § *Known gaps*.
-- A fleet entry whose fire is held by `queue` or started by `kill` runs under no lease at all —
-  `crates/nvs-server/src/schedule.rs`'s tick walk answers § 6 before § 3 asks, so this host had
-  already lost the interval. If it should take the key instead, that is § 3's reading and belongs
-  in the rule.
-- A fleet lease's key is `nvs:lease:` and the ticker's key with no application binding, so two
-  deployments sharing one store share the lease for an entry they both name the same —
-  `crates/nvs-stdlib/src/cache.rs`'s `LEASE_PREFIX` doc.
-- Stage 8's "the check re-runs on reload" is vacuous while `[server]` is `Boot`-class: a reload
-  cannot change a mount or its origin, which the rule fragment now says.
-- The `unowned` gaps at `crates/nvs-server/src/route.rs:30`, `crates/nvs-server/src/bounds.rs:62`,
-  `crates/nvs-types/src/response.rs:29` and `crates/nvs-stdlib/src/cli.rs:130` — goal
-  `unowned-closures`.
-- `Core\Metrics`'s three rows — goal `m8-stdlib-depth`.
+- No `# HELP` line is written for any family: `Family` (`crates/nvs-server/src/metrics.rs:135`) holds
+  no help text, and adding one changes what `rule:observability/default-series`'s roster carries.
+- `Core\Metrics`'s three rows are goal `m8-stdlib-depth`'s — `crates/nvs-server/src/metrics.rs`'s
+  known gap 2 owns it.
+- Stage 11's spans and the OTLP push are still ahead of this stage's `otlp` half.

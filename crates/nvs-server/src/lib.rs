@@ -120,6 +120,7 @@ pub mod forwarded;
 pub mod io;
 pub mod metrics;
 pub mod mount;
+pub mod prometheus;
 pub mod route;
 pub mod schedule;
 pub mod secure;

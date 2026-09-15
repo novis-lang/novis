@@ -2094,6 +2094,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   anywhere (`crates/nvs-cli/src/serve.rs`'s `FleetLease` and `Scheduled` were one, repaired here).
   Anchor an insertion on the blank line *above* a doc comment rather than on the item, and read the
   `///` lines on both sides of the seam back afterwards. [until: reviewed 2026-10-15]
+- **`peek.py --locate Type::member` finds a call site or nothing, never the definition, when the
+  member is on an inherent `impl`.** A member is written `fn of(` under `impl Registry`, so the
+  qualified spelling only exists where somebody *calls* it: `--locate Registry::of` answered with a
+  line inside that file's own tests and `Registry::request` with `NOT FOUND`, while both were defined
+  and public three hundred lines above. Locate the type instead, or take the file's outline with
+  `grep -n '^\s*pub fn ' <file>` and read the region. [until: reviewed 2026-09-15]
 
 ## Running things
 
