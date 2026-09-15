@@ -17,7 +17,12 @@
 //! * **"split this sum and lose none of it"** — `allocate`, where no rounding
 //!   is named at all because there is none to name: the parts add back to the
 //!   amount exactly, which is the one answer dividing each share separately
-//!   cannot give.
+//!   cannot give;
+//! * **"cut it to this many places, this way"** — `floor`, `ceil`, `truncate`
+//!   and `round`, the four a value goes through when something wants fewer
+//!   digits than it carries: a conversion to `int`, which
+//!   `rule:types/conversion` refuses to round on its own, or a display at a
+//!   fixed number of places.
 //!
 //! `pow` is here for a different reason. `**` has no row for a `decimal` base
 //! at all (`rule:types/arithmetic`), because a power that does not come out
@@ -37,6 +42,14 @@
 //! second time — a quotient rounded at scale 28 and then again at scale 2
 //! carries a tie into the second decision that the exact value never had.
 //!
+//! **The four rounding members are that same division, against `1`.** What a
+//! value truncated at a scale threw away is what `checked_div_at_scale` hands
+//! back beside it, so `round` reaches the same [`rounds_away`] `divRound` does
+//! and the two agree on every mode by construction rather than by two rules
+//! kept in step. `floor` and `ceil` are the two answers no `Core\RoundMode`
+//! names: `Up` and `Down` are directions away from and towards zero, and these
+//! are directions along the line.
+//!
 //! **`divRound` refuses at a scale the answer cannot hold rather than narrowing
 //! to one it can.** That is the refusal `rule:types/arithmetic`'s `decimal ⊕ decimal` row
 //! already states for a product whose scale would exceed 28, and the same
@@ -52,29 +65,22 @@
 //! arithmetic that overflowed — it is a call that cannot mean anything, which
 //! is the bad-argument shape `LogicError` is for. What `allocate` throws
 //! `ArithmeticError` for is the same bound the operators have, a share wider
-//! than a `decimal` holds.
-//!
-//! # Known gaps
-//!
-//! * **`floor`, `ceil`, `truncate` and `round` are not here yet.** ADR 0054
-//!   § 4 names them as where a `decimal → int` conversion says its rounding
-//!   out loud, and `crate::math`'s own gap note explains why they land on this
-//!   class rather than widening `Core\Math`'s `float` ones. Each takes a
-//!   target scale defaulting to 0, and `round` takes a `Core\RoundMode` with
-//!   no default, naming the mode being the point.
-//!   — owner: M8
+//! than a `decimal` holds. The rounding members throw it for that bound alone:
+//! a scale past 28, and a value whose mantissa will not reach the scale asked
+//! for.
 
 use nvs_runtime::decimal::Discard;
 use nvs_runtime::{Decimal, Fault, NvsArray, ThrownClass, Value};
 
 use crate::math::{RoundMode, round_mode};
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 
 /// `rule:types/decimal`'s named members in that rule's own order — the two
 /// divisions that say their rounding out loud, then the split that has no
 /// rounding left to name because its parts add back to the amount exactly —
 /// and then the power `rule:types/arithmetic` sends a `decimal` base to
-/// instead of `**`.
+/// instead of `**`, and the four cuts `rule:types/conversion` sends a
+/// narrowing to.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Decimal",
     methods: &[
@@ -118,6 +124,46 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Decimal,
             symbol: "nvs_core_decimal_pow",
             doc: Some(&POW_DOC),
+        },
+        CoreMethod {
+            name: "floor",
+            names: &["value", "scale"],
+            params: &[CoreTy::Decimal, CoreTy::Uint],
+            defaults: &[Const::Uint(0)],
+            return_ty: CoreTy::Decimal,
+            symbol: "nvs_core_decimal_floor",
+            doc: Some(&FLOOR_DOC),
+        },
+        CoreMethod {
+            name: "ceil",
+            names: &["value", "scale"],
+            params: &[CoreTy::Decimal, CoreTy::Uint],
+            defaults: &[Const::Uint(0)],
+            return_ty: CoreTy::Decimal,
+            symbol: "nvs_core_decimal_ceil",
+            doc: Some(&CEIL_DOC),
+        },
+        CoreMethod {
+            name: "truncate",
+            names: &["value", "scale"],
+            params: &[CoreTy::Decimal, CoreTy::Uint],
+            defaults: &[Const::Uint(0)],
+            return_ty: CoreTy::Decimal,
+            symbol: "nvs_core_decimal_truncate",
+            doc: Some(&TRUNCATE_DOC),
+        },
+        CoreMethod {
+            name: "round",
+            names: &["value", "mode", "scale"],
+            params: &[
+                CoreTy::Decimal,
+                CoreTy::Enum(r"Core\RoundMode"),
+                CoreTy::Uint,
+            ],
+            defaults: &[Const::Uint(0)],
+            return_ty: CoreTy::Decimal,
+            symbol: "nvs_core_decimal_round",
+            doc: Some(&ROUND_DOC),
         },
     ],
     instance: &[],
@@ -254,6 +300,121 @@ const POW_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Decimal::floor`'s reference card — `rule:core-api/reference-card`.
+const FLOOR_DOC: MethodDoc = MethodDoc {
+    short: "`$value` cut to `$scale` places towards negative infinity — the direction PHP's \
+            `floor` goes, kept exact and answering a `decimal` rather than a `float`.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The value to cut.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "scale",
+            desc: "How many digits after the point the answer keeps, at most 28, and none at all \
+                   where it is left out. The answer carries exactly this scale, so it pads a \
+                   narrower value as well as cutting a wider one.",
+            shape: &[],
+        },
+    ],
+    ret: "The largest `decimal` at `$scale` places that is not above `$value`: `floor(-1.5)` is \
+          `-2`, and `floor(1.005, 2)` is `1.00`.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When `$scale` is past 28, and when `$value` has too many digits before the point \
+               to carry that many after it.",
+    }],
+};
+
+/// `Core\Decimal::ceil`'s reference card — `rule:core-api/reference-card`.
+const CEIL_DOC: MethodDoc = MethodDoc {
+    short: "`$value` cut to `$scale` places towards positive infinity — the direction PHP's \
+            `ceil` goes, kept exact and answering a `decimal` rather than a `float`.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The value to cut.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "scale",
+            desc: "How many digits after the point the answer keeps, at most 28, and none at all \
+                   where it is left out. The answer carries exactly this scale, so it pads a \
+                   narrower value as well as cutting a wider one.",
+            shape: &[],
+        },
+    ],
+    ret: "The smallest `decimal` at `$scale` places that is not below `$value`: `ceil(-1.5)` is \
+          `-1`, and `ceil(1.001, 2)` is `1.01`.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When `$scale` is past 28, and when `$value` has too many digits before the point \
+               to carry that many after it.",
+    }],
+};
+
+/// `Core\Decimal::truncate`'s reference card — `rule:core-api/reference-card`.
+const TRUNCATE_DOC: MethodDoc = MethodDoc {
+    short: "`$value` cut to `$scale` places towards zero, which drops digits and never moves the \
+            ones it keeps — the cut a fixed-width column or a display wants.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The value to cut.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "scale",
+            desc: "How many digits after the point the answer keeps, at most 28, and none at all \
+                   where it is left out. The answer carries exactly this scale, so it pads a \
+                   narrower value as well as cutting a wider one.",
+            shape: &[],
+        },
+    ],
+    ret: "`$value` with everything past `$scale` places dropped: `truncate(-1.9)` is `-1`, and \
+          `truncate(1.999, 2)` is `1.99`.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When `$scale` is past 28, and when `$value` has too many digits before the point \
+               to carry that many after it.",
+    }],
+};
+
+/// `Core\Decimal::round`'s reference card — `rule:core-api/reference-card`.
+const ROUND_DOC: MethodDoc = MethodDoc {
+    short: "`$value` at `$scale` places under `$mode`, which is the one rounding that settles a \
+            value between two neighbours and so the one that has to be named at the call.",
+    params: &[
+        ParamDoc {
+            name: "value",
+            desc: "The value to round.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "mode",
+            desc: "How a value between two neighbours settles — the same `Core\\RoundMode` \
+                   `Core\\Decimal::divRound` and `Core\\Math::round` take, and the reason it \
+                   comes before the optional scale rather than after it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "scale",
+            desc: "How many digits after the point the answer keeps, at most 28, and none at all \
+                   where it is left out. The answer carries exactly this scale, so it pads a \
+                   narrower value as well as cutting a wider one.",
+            shape: &[],
+        },
+    ],
+    ret: "The neighbour at `$scale` places `$mode` names: `round(0.125, Core\\RoundMode::HalfEven, \
+          2)` is `0.12` and `round(0.125, Core\\RoundMode::HalfUp, 2)` is `0.13`.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When `$scale` is past 28, and when `$value` has too many digits before the point \
+               to carry that many after it.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -262,6 +423,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_decimal_div_round" => (nvs_core_decimal_div_round as *const ()).cast(),
         "nvs_core_decimal_allocate" => (nvs_core_decimal_allocate as *const ()).cast(),
         "nvs_core_decimal_pow" => (nvs_core_decimal_pow as *const ()).cast(),
+        "nvs_core_decimal_floor" => (nvs_core_decimal_floor as *const ()).cast(),
+        "nvs_core_decimal_ceil" => (nvs_core_decimal_ceil as *const ()).cast(),
+        "nvs_core_decimal_truncate" => (nvs_core_decimal_truncate as *const ()).cast(),
+        "nvs_core_decimal_round" => (nvs_core_decimal_round as *const ()).cast(),
         _ => return None,
     })
 }
@@ -613,6 +778,171 @@ nvs_runtime::nvs_helper! {
             }
         }
         Ok(Value::decimal(power))
+    }
+}
+
+/// The `scale` argument at `index`, which all four cuts read the same way.
+///
+/// Unreachable from source at anything but a `uint`: the parameter is declared
+/// `CoreTy::Uint`, so anything else is `E0401: expected `uint`, found …` at the
+/// argument. A value that is somehow not one takes `u8::MAX`, which every
+/// caller below then refuses as a scale no `decimal` holds — the answer
+/// `divRound` gives it too, and not a `FATAL` outranking a throw the program
+/// could have caught.
+fn scale_at(args: &[Value], index: usize) -> u64 {
+    args[index].as_uint().unwrap_or(u64::from(u8::MAX))
+}
+
+/// One of the four cuts: `value` truncated to `scale` places, moved one unit
+/// away from zero where `away` says the dropped digits call for it.
+///
+/// The truncation is `checked_div_at_scale` against `1` — the same long
+/// division `divRound` reads, which is what makes a mode mean one thing across
+/// both members rather than two rules kept in step. `refused` is the caller's
+/// own sentence, which every bound this can meet reaches: a scale past 28, a
+/// value with too many digits before the point to carry that many after it,
+/// and a move that takes the mantissa past 96 bits.
+fn cut(
+    value: Decimal,
+    scale: u64,
+    away: impl Fn(Discard, u128) -> bool,
+    refused: impl Fn() -> Fault,
+) -> Result<Value, Fault> {
+    let places = u8::try_from(scale).map_err(|_| refused())?;
+    let (truncated, discard) = value
+        .checked_div_at_scale(Decimal::from_u64(1), places)
+        .ok_or_else(&refused)?;
+    if !away(discard, truncated.mantissa()) {
+        return Ok(Value::decimal(truncated));
+    }
+    // The sign is the value's rather than the truncated value's, whose own is
+    // dropped where the mantissa is zero: `-0.4` cut to a whole number is `0`
+    // with no sign left on it, and the move below has to reach `-1`.
+    let moved = truncated
+        .mantissa()
+        .checked_add(1)
+        .and_then(|mantissa| Decimal::new(value.is_negative(), mantissa, truncated.scale()))
+        .ok_or_else(&refused)?;
+    Ok(Value::decimal(moved))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Decimal::floor(decimal $value, uint $scale = 0): decimal` —
+    /// `rule:types/conversion`'s "rounding is said out loud", in the direction
+    /// PHP's `floor` goes.
+    ///
+    /// It answers a `decimal` and not an `int`, which is what makes the scale
+    /// worth having at all: `floor($x, 2)` is a value at two places that
+    /// renders with both of them, and the conversion PHP's `floor` half-does
+    /// is written `Core\Decimal::floor($x) as int`. The default is `0`
+    /// because that is the cut a conversion wants, and it is a `defaults:`
+    /// entry rather than a second member.
+    ///
+    /// Towards negative infinity is not `Core\RoundMode::Down`: that one is
+    /// towards zero, and the two part on every negative value.
+    fn nvs_core_decimal_floor(_ctx, args: [2]) {
+        let value = decimal_at(args, 0, "floor")?;
+        let scale = scale_at(args, 1);
+        let refused = || {
+            Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                format!(
+                    "Core\\Decimal::floor cannot answer {value} at scale {scale}: a `decimal` \
+                     holds 28 fractional digits and a 96-bit mantissa"
+                ),
+            )
+        };
+        cut(
+            value,
+            scale,
+            |discard, _| discard != Discard::Nothing && value.is_negative(),
+            refused,
+        )
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Decimal::ceil(decimal $value, uint $scale = 0): decimal` — the
+    /// other direction along the line, and [`nvs_core_decimal_floor`]'s
+    /// shape in every other respect.
+    fn nvs_core_decimal_ceil(_ctx, args: [2]) {
+        let value = decimal_at(args, 0, "ceil")?;
+        let scale = scale_at(args, 1);
+        let refused = || {
+            Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                format!(
+                    "Core\\Decimal::ceil cannot answer {value} at scale {scale}: a `decimal` \
+                     holds 28 fractional digits and a 96-bit mantissa"
+                ),
+            )
+        };
+        cut(
+            value,
+            scale,
+            |discard, _| discard != Discard::Nothing && !value.is_negative(),
+            refused,
+        )
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Decimal::truncate(decimal $value, uint $scale = 0): decimal` —
+    /// the cut that drops digits and moves none of the ones it keeps.
+    ///
+    /// It is the truncation [`cut`] starts from, so its decision is the
+    /// constant `false`: what the division discarded is exactly what the
+    /// caller asked to lose.
+    fn nvs_core_decimal_truncate(_ctx, args: [2]) {
+        let value = decimal_at(args, 0, "truncate")?;
+        let scale = scale_at(args, 1);
+        let refused = || {
+            Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                format!(
+                    "Core\\Decimal::truncate cannot answer {value} at scale {scale}: a `decimal` \
+                     holds 28 fractional digits and a 96-bit mantissa"
+                ),
+            )
+        };
+        cut(value, scale, |_, _| false, refused)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Decimal::round(decimal $value, Core\RoundMode $mode, uint $scale
+    /// = 0): decimal` — the cut with a decision to make, which therefore
+    /// names the rule it makes it by.
+    ///
+    /// **The mode is written before the scale**, which is the one place this
+    /// parts from `divRound`'s `$scale, $mode` order: a default is aligned to
+    /// the end of the parameter list, so a required mode and an optional
+    /// scale can sit in no other order. The mode is required for `divRound`'s
+    /// own reason — a default for it would be the ambient rounding policy
+    /// `rule:types/decimal` refuses, moved from a global into a signature.
+    ///
+    /// The decision is [`rounds_away`], the one `divRound` applies, over the
+    /// same division: `round($x, $mode, $s)` is `divRound($x, 1, $s, $mode)`
+    /// to the digit, at every mode and every scale.
+    fn nvs_core_decimal_round(_ctx, args: [3]) {
+        let value = decimal_at(args, 0, "round")?;
+        let mode = round_mode(args, 1, "Core\\Decimal::round")?;
+        let scale = scale_at(args, 2);
+        let refused = || {
+            Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                format!(
+                    "Core\\Decimal::round cannot answer {value} at scale {scale}: a `decimal` \
+                     holds 28 fractional digits and a 96-bit mantissa"
+                ),
+            )
+        };
+        cut(
+            value,
+            scale,
+            |discard, mantissa| rounds_away(mode, discard, mantissa),
+            refused,
+        )
     }
 }
 
@@ -1003,6 +1333,145 @@ mod tests {
             rounded(&mut ctx, "-1", "1000", 2, DOWN).as_deref(),
             Ok("0.00"),
             "a zero has no sign to keep — `rule:types/decimal` has no `-0`"
+        );
+    }
+
+    /// One of the three cuts that need no mode, at a named scale.
+    fn cut_at(
+        ctx: &mut Ctx,
+        function: nvs_runtime::NvsFn,
+        value: &str,
+        scale: u64,
+    ) -> Result<String, String> {
+        answer(ctx, function, &[decimal(value), Value::uint(scale)])
+    }
+
+    /// `Core\Decimal::round($value, $mode, $scale)` — the mode before the
+    /// scale, which is the order a default aligned to the end forces.
+    fn cut_round(ctx: &mut Ctx, value: &str, mode: i64, scale: u64) -> Result<String, String> {
+        answer(
+            ctx,
+            nvs_core_decimal_round,
+            &[decimal(value), Value::int(mode), Value::uint(scale)],
+        )
+    }
+
+    /// `rule:types/conversion`'s four named cuts: each answers a `decimal` at
+    /// exactly the scale it was asked for, the three directions part where a
+    /// value is negative, and `round` is `divRound` against `1`.
+    #[test]
+    fn decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked() {
+        let mut ctx = Ctx::buffered();
+
+        // The scale is the answer's, which is the whole reason these answer a
+        // `decimal` rather than an `int`: it pads a narrower value as well as
+        // cutting a wider one, and `rule:types/conversion` makes that
+        // observable.
+        assert_eq!(
+            cut_at(&mut ctx, nvs_core_decimal_floor, "1.005", 2),
+            Ok("1.00".to_owned())
+        );
+        assert_eq!(
+            cut_at(&mut ctx, nvs_core_decimal_ceil, "1.001", 2),
+            Ok("1.01".to_owned())
+        );
+        assert_eq!(
+            cut_at(&mut ctx, nvs_core_decimal_truncate, "1.999", 2),
+            Ok("1.99".to_owned())
+        );
+        assert_eq!(
+            cut_at(&mut ctx, nvs_core_decimal_truncate, "1.5", 3),
+            Ok("1.500".to_owned()),
+            "a scale wider than the value's pads rather than reduces"
+        );
+
+        // The default scale is zero, which is the cut a conversion wants — a
+        // whole number, still a `decimal`.
+        for (value, floor, ceil, truncate) in [
+            ("1.5", "1", "2", "1"),
+            ("-1.5", "-2", "-1", "-1"),
+            ("-1.9", "-2", "-1", "-1"),
+            ("2", "2", "2", "2"),
+            // The one no truncated value can answer for itself: `-0.4` cuts
+            // to a zero with no sign left on it, and `floor` still has to
+            // reach `-1`.
+            ("-0.4", "-1", "0", "0"),
+        ] {
+            assert_eq!(
+                cut_at(&mut ctx, nvs_core_decimal_floor, value, 0).as_deref(),
+                Ok(floor),
+                "floor({value})"
+            );
+            assert_eq!(
+                cut_at(&mut ctx, nvs_core_decimal_ceil, value, 0).as_deref(),
+                Ok(ceil),
+                "ceil({value})"
+            );
+            assert_eq!(
+                cut_at(&mut ctx, nvs_core_decimal_truncate, value, 0).as_deref(),
+                Ok(truncate),
+                "truncate({value})"
+            );
+        }
+
+        // `truncate` is towards zero and `floor` towards negative infinity,
+        // so `Core\RoundMode::Down` is the first of those and not the second.
+        assert_eq!(
+            cut_round(&mut ctx, "-1.5", DOWN, 0).as_deref(),
+            Ok("-1"),
+            "`Down` is towards zero, which is `truncate` and not `floor`"
+        );
+
+        // The tie the `Half*` modes are named for, and the agreement that
+        // makes `round` one rule rather than a second copy of `divRound`'s:
+        // dividing by `1` is what both do.
+        for value in ["0.125", "-0.125", "1.005", "19.99", "0", "-0.005"] {
+            for mode in [HALF_UP, HALF_DOWN, HALF_EVEN, HALF_ODD, UP, DOWN] {
+                for scale in [0, 2, 4] {
+                    assert_eq!(
+                        cut_round(&mut ctx, value, mode, scale),
+                        rounded(&mut ctx, value, "1", scale, mode),
+                        "round({value}, {mode}, {scale}) is divRound({value}, 1, {scale}, {mode})"
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            cut_round(&mut ctx, "0.125", HALF_EVEN, 2).as_deref(),
+            Ok("0.12")
+        );
+        assert_eq!(
+            cut_round(&mut ctx, "0.125", HALF_UP, 2).as_deref(),
+            Ok("0.13")
+        );
+
+        // Both of `rule:types/decimal`'s bounds, at every member: a scale
+        // past 28, and a value with too many digits before the point to
+        // carry that many after it.
+        for (function, name) in [
+            (nvs_core_decimal_floor as nvs_runtime::NvsFn, "floor"),
+            (nvs_core_decimal_ceil, "ceil"),
+            (nvs_core_decimal_truncate, "truncate"),
+        ] {
+            let scale = cut_at(&mut ctx, function, "1.5", 29).expect_err("28 is the bound");
+            assert!(
+                scale.contains(&format!(
+                    "Core\\Decimal::{name} cannot answer 1.5 at scale 29"
+                )),
+                "{name} names the scale it was asked for: {scale}"
+            );
+            let wide = cut_at(&mut ctx, function, "10000000000", 28)
+                .expect_err("96 bits is the other bound");
+            assert!(
+                wide.contains(&format!("Core\\Decimal::{name} cannot answer 10000000000")),
+                "{name} names the value it could not cut: {wide}"
+            );
+        }
+        let scale = cut_round(&mut ctx, "1.5", HALF_UP, 29).expect_err("28 is the bound");
+        assert_eq!(
+            scale,
+            "Core\\Decimal::round cannot answer 1.5 at scale 29: a `decimal` holds 28 fractional \
+             digits and a 96-bit mantissa"
         );
     }
 }

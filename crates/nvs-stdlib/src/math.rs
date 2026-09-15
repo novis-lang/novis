@@ -29,17 +29,19 @@
 //!   a member whose whole name is the IEEE answer rather than a division that
 //!   changed its mind.
 //!
-//! # Known gap: `decimal` at the four rounding members
+//! # The four rounding members are `float`'s, and `decimal` has its own
 //!
 //! The spec writes `int|float|decimal` at seven rows. Three of them — `abs`,
 //! `sign` and `format` — take it: [`NUMBER`] is that union, and [`Number`] is
 //! how a member reads one back. The other four are `ceil`, `floor`,
-//! `truncate` and `round`, each registered at `float` alone and each returning
-//! one, so widening them is a change of *result* type rather than one more
-//! decode arm: an exact rounding has to answer `decimal` to be worth anything.
-//! `Core\Decimal`'s own roster (`rule:types/arithmetic`) is where the four naturally
-//! land, which is why they wait rather than growing a `float` answer here.
-//! — owner: M8
+//! `truncate` and `round`, and they are registered at `float` alone because
+//! widening them would be a change of *result* type rather than one more
+//! decode arm: an exact rounding has to answer a `decimal` to be worth
+//! anything, and a `float` answer would throw away the very scale the cut was
+//! asked for. So `Core\Decimal` carries its own four
+//! (`rule:types/conversion`), answering a `decimal` at the scale named, and
+//! [`round_mode`] is the one reader both classes' `mode` argument goes
+//! through.
 
 use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
 
