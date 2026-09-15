@@ -101,6 +101,45 @@ impl Metering {
     }
 }
 
+/// `rule:observability/metrics-and-trace-blocks-are-system`'s `[trace]` block, resolved into what a
+/// process is asked to push: the protocol § 6 named, and the collector it ships to.
+///
+/// Beside [`Metering`] and read the same way, with one difference the asymmetry in § 6 forces: a
+/// trace has only a push, so the address is not the exporter's own to bind but the thing it dials,
+/// and a block naming a protocol with nowhere to send it has asked for silence. `endpoint` is
+/// therefore carried here — borrowed rather than copied, so this stays a reading of the block and
+/// not a second place the URL is stored — and what a *reachable* endpoint is remains the pusher's
+/// question (`nvs_server::otlp::Endpoint`), which is where a URL is parsed and an address resolved.
+///
+/// The fraction is not here. [`head_sample`] is read per request off the snapshot standing at the
+/// door, and folding it into a value resolved at a boot is exactly the reload that key is written
+/// to have.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Tracing<'a> {
+    /// The protocol § 6 named, already checked by [`validate`] against [`Block::Trace`].
+    pub exporter: Exporter,
+    /// `[trace] endpoint`, as written, or `None` where the block names no collector.
+    pub endpoint: Option<&'a str>,
+}
+
+impl<'a> Tracing<'a> {
+    /// What the merged tree asks this process to push, or `None` where nothing does.
+    ///
+    /// `None` covers the same three ways of writing `exporter = false` [`Metering::of`] covers, and
+    /// for its reason. A word naming no protocol cannot be reached: [`validate`] refused it at boot.
+    #[must_use]
+    pub fn of(config: &'a Config) -> Option<Self> {
+        let trace = config.trace.as_ref()?;
+        let Setting::Text(written) = trace.exporter.as_ref()? else {
+            return None;
+        };
+        Some(Self {
+            exporter: Exporter::of(written)?,
+            endpoint: trace.endpoint.as_deref(),
+        })
+    }
+}
+
 /// § 6's own `sample`, for a tree that writes no fraction: a trace this process starts is recorded
 /// by nothing until an operator says how much of it to record.
 const DEFAULT_SAMPLE: f64 = 0.0;

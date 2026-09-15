@@ -88,7 +88,7 @@ pub mod value;
 
 pub use capability::{Cap, Scope};
 pub use directive::{Apply, Class, DIRECTIVES, Directive};
-pub use export::{Exporter, Metering};
+pub use export::{Exporter, Metering, Tracing};
 pub use request::Request;
 pub use resolve::{Origin, Override, Resolved, Roots};
 pub use server::{Capacity, Waits};

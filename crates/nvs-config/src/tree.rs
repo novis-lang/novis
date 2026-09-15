@@ -1062,9 +1062,8 @@ pub struct Metrics {
 pub struct Trace {
     /// `false` or `otlp`.
     pub exporter: Option<Setting>,
-    /// The OTLP collector URL.
-    ///
-    /// [unread: no exporter is built, so no span leaves the process; the wiring from the runtime's event kinds to spans is ours and the transport is not. owner: rule:observability/the-exporters-are-crates]
+    /// The OTLP collector URL, read by `nvs_server::otlp::Endpoint` — where it is parsed, resolved
+    /// and dialled — through [`crate::export::Tracing`].
     pub endpoint: Option<String>,
     /// Head-based, 0.0–1.0. An inbound sampled trace is always continued regardless.
     pub sample: Option<f64>,
