@@ -61,30 +61,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`limits` and `grants` stay undeclared until an isolate enforces them**, and that is a
-//!    narrower gap than the spelling it used to be. **The spelling is settled.** An option's type is
-//!    never a [`CoreTy::Shape`] — `rule:core-api/shape-parameter`, held over every registered row by
-//!    `a_shape_is_only_ever_a_whole_parameter` — and `rule:concurrency/queue-four-members` puts both
-//!    of these inside the one trailing bag, so neither is ever the whole parameter `Core\Db::open`'s
-//!    settings literal is; that is the answer to "may an option carry a `{…}`", and it is no. What is
-//!    left is two ordinary options: `grants` a list of capability names in the spelling `nvs.toml`
-//!    grants them under, and `limits` its sub-caps one option each, which is what ADR 0084 § 1's
-//!    `{…}` was standing in for.
-//!
-//!    **What they wait on is the check at the call site.** The isolate half applies what the row
-//!    carries: [`narrowing`] reads the two columns back and `crates/nvs-cli/src/worker.rs`'s `run`
-//!    hands them to the same spawn door a `spawn script … with(…)` goes through, so a declared
-//!    option would no longer be `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
-//!    accepted-and-dropped narrowing. What is still missing is the refusal a written `grants:` owes
-//!    where it stands — a name the enqueuing request does not itself hold has to be rejected at the
-//!    call site rather than recorded, because a row is narrowed *from* that request and never
-//!    widened. Undeclared is that refusal meanwhile: a bag reports a key it does not declare
-//!    (`rule:core-api/shape-reuses-the-option-diagnostics`), so `{grants: …}` is a diagnostic
-//!    today. What the row carries without either option is the enqueuing context's own narrowing
-//!    ([`grants_recorded`], [`limits_recorded`]) — a fact about the request rather than a request
-//!    from the call site, so it widens nothing.
-//!    — owner: m8-db-queue
-//! 2. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
+//! 1. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
 //!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
 //!    inside the same statement that writes it, which is correct against every other `push` on a
 //!    *serialized* transaction and racy against a concurrent one at `read committed`. [`schema`]
@@ -95,7 +72,7 @@
 //!    Decided: Refuse to serve a queue whose schema is behind, checked at boot — Never racy and costs
 //!    no request time; a deployment that skipped migrate fails to start.
 //!    — owner: unowned-closures
-//! 3. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
+//! 2. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
 //!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
 //!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
@@ -253,7 +230,7 @@ const KEY_WIDTH: u32 = 255;
 /// nothing on any of the five: four read a unique key's nulls as distinct outright, and SQL Server
 /// reads two nulls as equal but never sees this key as a constraint at all —
 /// `rule:core-classes/a-unique-key-reads-nulls-as-distinct` is the filtered index `nvs_db::ddl`
-/// writes in the constraint's place there. So the guarantee gap 3 names is the same one on every
+/// writes in the constraint's place there. So the guarantee gap 2 names is the same one on every
 /// backend `Core\Queue` runs a statement against, and it is one sentence rather than four.
 ///
 /// **A nullable column rather than a `not null` one with a sentinel**, which is what SQL Server
@@ -1775,6 +1752,29 @@ const KEY_ARG: usize = 6;
 /// `{tag: …}`'s. See [`ARGS_ARG`].
 const TAG_ARG: usize = 7;
 
+/// `push`'s `{grants: …}`.
+const GRANTS_ARG: usize = 8;
+
+/// `push`'s first `[limits]` option: [`LIMIT_OPTIONS`]' order is the slot order from here.
+const LIMITS_ARG: usize = 9;
+
+/// The `[limits]` sub-caps `push` writes one option each — the option's name, and the directive
+/// `nvs_config::Request::set` writes it under.
+///
+/// One option each rather than one `limits:` shape, because `rule:core-api/shape-parameter` has a
+/// shape only ever a whole parameter and `rule:concurrency/queue-four-members` gives `push` one
+/// trailing bag: a `{…}` here would have to be the bag itself. The directives are
+/// [`RECORDED_LIMITS`]', which is what the row records and what the worker sets back, and the
+/// option names are `rule:core-api/identifier-casing`'s camelCase of them —
+/// `push_refuses_a_grant_the_enqueuing_request_does_not_hold` holds the two lists to the same four
+/// in the same order, since a slot here is read by position.
+const LIMIT_OPTIONS: [(&str, &str); 4] = [
+    ("memory", "memory"),
+    ("cpuTime", "cpu_time"),
+    ("wallTime", "wall_time"),
+    ("maxOutput", "max_output"),
+];
+
 /// `purge`'s queue name, which is the whole of its positional half.
 const PURGE_QUEUE_ARG: usize = 0;
 
@@ -1873,6 +1873,52 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                         // and read by nothing else, and the commonest one there is — a tenant or a
                         // batch named by the request that created the work — is the one a `string`
                         // would have refused.
+                        ty: CoreTy::Text(Qual::Neutral),
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "grants",
+                        // A **sink**, for the `script` parameter's reason one line up rather than
+                        // `rule:security/tainted-qualifier`'s usual one: these names select the
+                        // authorities the job's isolate may reach, so a `tainted` one would let a
+                        // request's own input choose what its background work can do. The spelling
+                        // is the one `nvs.toml` grants them under, which is what the door already
+                        // asks against (`rule:security/capability-check-at-the-door`) and what a
+                        // `spawn script … with(grants: …)` writes.
+                        ty: CoreTy::Array(&CoreTy::Text(Qual::Sink)),
+                        // Not given is not the empty list. `null` records the narrowing the
+                        // enqueuing context is already under, and `[]` is a job that may ask for
+                        // nothing — [`grants_of`] reads the pair.
+                        default: Const::Null,
+                    },
+                    // [`LIMIT_OPTIONS`]' four sub-caps, one option each and each the text
+                    // `nvs.toml` writes the same directive as, because `nvs_config::Request::set`
+                    // is the one reader that parses a ceiling and the one that bounds it by
+                    // `[limits.hard]`.
+                    //
+                    // Neutral for `queue`'s reason: a ceiling is a quantity and not an
+                    // instruction, the answer carries none of it, and what a request's own input
+                    // could choose by writing one is bounded above by `[limits.hard]` — a block
+                    // only an operator may write and no request may move. `grants` is the option
+                    // beside these that is a sink, and it is one because an authority is not a
+                    // quantity.
+                    CoreOption {
+                        name: "memory",
+                        ty: CoreTy::Text(Qual::Neutral),
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "cpuTime",
+                        ty: CoreTy::Text(Qual::Neutral),
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "wallTime",
+                        ty: CoreTy::Text(Qual::Neutral),
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "maxOutput",
                         ty: CoreTy::Text(Qual::Neutral),
                         default: Const::Null,
                     },
@@ -2058,6 +2104,37 @@ const PUSH_DOC: MethodDoc = MethodDoc {
                    enqueue, because nothing can later group rows that were never grouped.",
             shape: &[],
         },
+        ParamDoc {
+            name: "grants",
+            desc: "The capabilities the job's isolate may ask for, named as `nvs.toml` grants \
+                   them. Narrowed from what this request holds and never widened, so a name this \
+                   request does not hold itself is refused at the call site. Left out, the job \
+                   inherits whatever narrowing this request is already under; `[]` is a job that \
+                   may ask for nothing.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "memory",
+            desc: "The memory ceiling the job's isolate runs under, written as `[limits] memory` \
+                   is written and bounded by `[limits.hard]` like every ceiling a request sets. \
+                   Left out, the one this request is under.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "cpuTime",
+            desc: "The CPU ceiling, `[limits] cpu_time`'s, on `memory`'s terms.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "wallTime",
+            desc: "The wall-clock ceiling, `[limits] wall_time`'s, on `memory`'s terms.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxOutput",
+            desc: "The captured-output ceiling, `[limits] max_output`'s, on `memory`'s terms.",
+            shape: &[],
+        },
     ],
     ret: "A `Core\\Queue\\Id` naming the row, which `cancel` and `status` are asked about. For a \
           push deduped by `key`, the id of the job already pending under it.",
@@ -2065,13 +2142,15 @@ const PUSH_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "RuntimeError",
             desc: "This deployment writes no `[queue]` block, so nothing says which database a job \
-                   would live in; or the queue's connection names a driver that cannot yet run a \
-                   statement.",
+                   would live in; the queue's connection names a driver that cannot yet run a \
+                   statement; or `grants` names a capability this request does not hold, which is \
+                   a job asking for more authority than the request that enqueued it.",
         },
         ErrorDoc {
             error: "LogicError",
             desc: "`maxAttempts` is `0`, which asks for a job that is dead-lettered by the enqueue \
-                   that created it; or `backoff` is negative.",
+                   that created it; `backoff` is negative; `grants` names something that is no \
+                   capability at all; or a written ceiling is not one this request may set.",
         },
         ErrorDoc {
             error: "IOError",
@@ -2334,8 +2413,9 @@ pub(crate) const ID: CoreClass = CoreClass {
 /// § 1's originally unannotated `::stats(string $queue)` and has to: a `Core`-owned instance has no
 /// property a program can reach ([`CoreTy::Instance`] is the home of that rule), so `$stats->pending`
 /// would resolve a class, find no member, and reach `nvs-ir` with nothing to call. The other answer
-/// — a shape returned by value — needs a spelling this registry has not got, which is gap 1's
-/// blocker and not a thing worth waiting for. `Core\Db\Write` is the same shape for the same
+/// — a shape returned by value — needs a spelling this registry has not got, and
+/// `rule:core-api/shape-parameter` is why that is not worth waiting for: a shape is only ever a
+/// whole parameter. `Core\Db\Write` is the same shape for the same
 /// reason, and `rule:concurrency/queue-four-members` now carries the annotation so there is one home for it.
 ///
 /// **Four counters, because § 6 names four things to watch**: what is waiting, what is held, how
@@ -2602,6 +2682,185 @@ fn grants_recorded(kept: Option<&[nvs_config::capability::Cap]>) -> Option<Strin
         .map(|cap| serde_json::Value::from(cap.name()))
         .collect();
     Some(serde_json::Value::Array(names).to_string())
+}
+
+/// Why a written `grants:` stopped [`grants_written`], and the name that stopped it.
+///
+/// Two answers rather than one, because they are two different mistakes and the caller throws them
+/// as two classes. A name no capability has is a misspelling — the narrowing the program asked for
+/// and did not get, which is what `nvs_types::expr::isolate` refuses a misspelled `limits:` key
+/// for — and a name this request does not hold is the widening
+/// `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` exists to refuse.
+#[derive(Debug, PartialEq, Eq)]
+enum GrantRefused<'a> {
+    /// A name no [`nvs_config::Cap`] spells.
+    Unknown(&'a str),
+    /// A capability the enqueuing request does not itself hold.
+    NotHeld(&'a str),
+}
+
+/// A written `grants:` as the JSON the row's `grants` column holds, or the name that must be
+/// refused instead of recorded.
+///
+/// **Every name is checked against what the request itself holds**, which is
+/// `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` read in the one direction it
+/// goes: a job's grants come *from* the enqueuing request, so a name that request cannot ask for is
+/// not a narrowing of anything and the row never carries it. `held` is
+/// [`nvs_runtime::capability::granted`]'s own question, which is the door
+/// `rule:security/capability-check-at-the-door` names rather than a second reading of the same
+/// configuration.
+///
+/// **It is asked unscoped**, because the scopes a job will use are not known here and a request
+/// holding a capability for no scope at all has none of it to pass on. The narrowing the worker
+/// applies is a name list over its own configuration ([`grants_recorded`] says why it cannot be
+/// anything else), so a scope recorded here would be a scope applied against the wrong tree.
+///
+/// What comes back replaces [`grants_recorded`]'s reading rather than joining it, and is still a
+/// narrowing: every name in it has just been shown to be one the request holds, so the list is a
+/// subset of what that reading would have carried.
+fn grants_written<'a>(
+    names: &[&'a str],
+    held: &dyn Fn(nvs_config::Cap) -> bool,
+) -> Result<String, GrantRefused<'a>> {
+    let mut kept = Vec::with_capacity(names.len());
+    for &name in names {
+        let cap = nvs_config::Cap::parse(name).ok_or(GrantRefused::Unknown(name))?;
+        if !held(cap) {
+            return Err(GrantRefused::NotHeld(name));
+        }
+        kept.push(serde_json::Value::from(name));
+    }
+    Ok(serde_json::Value::Array(kept).to_string())
+}
+
+/// `{grants: …}` as the row's column: the call site's list where it wrote one, the enqueuing
+/// context's own narrowing ([`grants_recorded`]) where it did not.
+///
+/// The names are copied out of their slots before they are judged, because a `Value` read off the
+/// array borrows for one step of the walk — one short `Vec` of names per push that wrote the
+/// option, released when the column is built.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a capability this request does not hold, which is a denial and
+/// catchable for `rule:security/denial-is-a-runtime-error`'s reason; and a `LogicError` for a name
+/// no capability has, which is a mistake in the program rather than a verdict on the world.
+fn grants_of(ctx: &nvs_runtime::Ctx, args: &[Value]) -> Result<Option<String>, Fault> {
+    if matches!(args[GRANTS_ARG].tag(), Some(Tag::Null)) {
+        return Ok(grants_recorded(ctx.grant_filter()));
+    }
+    // Unreachable from source: the row types this option `array<string>`, so anything else is
+    // refused at `E0401` first — [`max_attempts_of`]'s guard states the same judgement.
+    let written = args[GRANTS_ARG].array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{PUSH}: expected an `array<string>` for `grants`, got tag {}",
+            args[GRANTS_ARG].tag_byte()
+        ))
+    })?;
+    let mut names = Vec::new();
+    for value in crate::str::Elements::of(written) {
+        let name = value.as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PUSH}: expected a `string` capability name in `grants`, got tag {}",
+                value.tag_byte()
+            ))
+        })?;
+        names.push(name.to_owned());
+    }
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    grants_written(&names, &|cap| {
+        nvs_runtime::capability::granted(ctx, cap, nvs_config::capability::Scope::Unscoped)
+    })
+    .map(Some)
+    .map_err(|refused| match refused {
+        GrantRefused::Unknown(name) => Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{PUSH}: `grants` names `{name}`, which is no capability — the spelling is the one \
+                 `nvs.toml` grants it under, and a name nothing grants narrows nothing"
+            ),
+        ),
+        GrantRefused::NotHeld(name) => Fault::thrown(format!(
+            "{PUSH}: `grants` names `{name}`, which this request does not hold — a job's grants \
+             are narrowed from the request that enqueued it and never widened\nhelp: grant it in \
+             nvs.toml under `[capabilities.{}]`, or drop it from `grants`",
+            nvs_config::Cap::parse(name).map_or(name, |cap| cap.family())
+        )),
+    })
+}
+
+/// The `limits` column for a call site that wrote at least one ceiling: the enqueuing request's own
+/// configuration with each written value set on a copy of it, read back by [`limits_recorded`].
+///
+/// **`nvs_config::Request::set` is the check, and no second one is written here.** It is what
+/// parses the quantity and bounds it by `[limits.hard]` — the block an operator alone may write —
+/// so a ceiling written at a call site is judged by the same reader that judges `Core\Config::set`
+/// and the same one the worker sets the column back through; its own module doc is the whole list
+/// of what it refuses. A comparison of this value against the one in force would be a second parser
+/// for sizes and durations, which is what recording the written words rather than the resolved
+/// numbers exists to avoid — and it would refuse a job the request could have run itself, since
+/// `[limits]` is `Runtime` and a request may already set its own ceilings either way under the hard
+/// bound.
+///
+/// Each entry is the option's name, the directive it writes and the text the call site wrote. The
+/// answer for a value `set` refuses is that option and that text, which is the whole of what the
+/// refusal prints.
+///
+/// **What it spends:** one [`nvs_config::Request`] clone per push that wrote a ceiling — an `Arc`
+/// bump and a copy of whatever this request had set for itself — released once the column is built.
+fn limits_narrowed<'a>(
+    config: &nvs_config::Request,
+    written: &[(&'a str, &'a str, &'a str)],
+) -> Result<Option<String>, (&'a str, &'a str)> {
+    let mut narrowed = config.clone();
+    for &(option, key, value) in written {
+        if !narrowed.set(key, value) {
+            return Err((option, value));
+        }
+    }
+    Ok(limits_recorded(Some(&narrowed)))
+}
+
+/// The four [`LIMIT_OPTIONS`] as the row's `limits` column: the request's own ceilings narrowed by
+/// what the call site wrote, [`limits_recorded`]'s plain reading of them where it wrote nothing.
+///
+/// # Errors
+///
+/// A thrown `LogicError` for a value [`limits_narrowed`] could not set, and for a written ceiling
+/// on a context carrying no configuration at all — which is the same refusal with nothing to set it
+/// on.
+fn limits_of(ctx: &nvs_runtime::Ctx, args: &[Value]) -> Result<Option<String>, Fault> {
+    let written: Vec<(&str, &str, &str)> = LIMIT_OPTIONS
+        .iter()
+        .enumerate()
+        .filter_map(|(at, (option, key))| {
+            args[LIMITS_ARG + at]
+                .as_text()
+                .map(|value| (*option, *key, value))
+        })
+        .collect();
+    if written.is_empty() {
+        return Ok(limits_recorded(ctx.config()));
+    }
+    let Some(config) = ctx.config() else {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{PUSH}: `{}` sets a ceiling, and this context carries no configuration to set one \
+                 on",
+                written[0].0
+            ),
+        ));
+    };
+    limits_narrowed(config, &written).map_err(|(option, value)| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{PUSH}: `{option}` of `{value}` is not a ceiling this request may set, so it is \
+                 not one it may hand a job\nhelp: `[limits.hard]` is what bounds it"
+            ),
+        )
+    })
 }
 
 /// The `[limits]` keys in force on the enqueuing context and the text each is written as, as the
@@ -2928,7 +3187,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** one statement, plus the connection if the request had not already opened
     /// one — which is then held for the rest of the request like any other, and pooled after it.
-    fn nvs_core_queue_push(ctx, args: [8]) {
+    fn nvs_core_queue_push(ctx, args: [13]) {
         // Unreachable from source: the row types this parameter `string`, so a non-text argument is
         // refused at `E0401` first — `Core\Db::connect`'s guard states the same judgement.
         let script = args[SCRIPT_ARG]
@@ -2960,9 +3219,11 @@ nvs_runtime::nvs_helper! {
         // `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`'s two facts, read off
         // the enqueuing context beside its arguments and before anything is opened: what the job
         // may ask for is a property of the request that enqueued it, so the reading belongs at the
-        // one instant that request is certainly still the one running.
-        let granted = grants_recorded(ctx.grant_filter());
-        let limited = limits_recorded(ctx.config());
+        // one instant that request is certainly still the one running. A call site that wrote
+        // either option narrows that reading — and is refused here, still before the connection,
+        // where what it wrote would widen it instead.
+        let granted = grants_of(ctx, args)?;
+        let limited = limits_of(ctx, args)?;
 
         // Shared, and that is § 3 rather than an economy: `{shared: false}` would open a second
         // connection, outside whatever transaction the request has open on the first, and the
@@ -5023,7 +5284,7 @@ mod tests {
                 jobs.contains("UNIQUE")
                     && jobs.contains("nvs_jobs_dedupe")
                     && jobs.contains("dedupe_pending"),
-                "{dialect}: gap 3's constraint is unique over `dedupe_pending`, which is the column \
+                "{dialect}: gap 2's constraint is unique over `dedupe_pending`, which is the column \
                  `INSERT_POSTGRES` writes the key into while the job is pending"
             );
 
@@ -6167,7 +6428,7 @@ mod tests {
     /// **one** spelling, and every dialect emits that one key over that one column.
     ///
     /// This is the retirement's own open question asserted rather than argued. The two lists reach
-    /// gap 3's guarantee by two constructs the vocabulary refuses — a partial index and a stored
+    /// gap 2's guarantee by two constructs the vocabulary refuses — a partial index and a stored
     /// generated column — so the assertion that matters is not that the constraint exists but that
     /// what carries it is a plain column and a plain unique key, asked for once and emitted by
     /// exactly one statement per dialect. A queue that grew its own spelling again fails here.
@@ -6216,7 +6477,7 @@ mod tests {
             );
             assert!(
                 !key[0].contains("where state") && !key[0].contains("GENERATED ALWAYS AS ("),
-                "{} reached gap 3's guarantee by a construct the vocabulary does not hold",
+                "{} reached gap 2's guarantee by a construct the vocabulary does not hold",
                 driver.display_name()
             );
         }
@@ -6651,47 +6912,107 @@ mod tests {
         }
     }
 
-    /// The module doc's gap 1, asserted as the absence it now is.
+    /// `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`'s call-site half: what a
+    /// `push` may write for a job is what the request enqueuing it already holds.
     ///
-    /// A declared option that `push` recorded in the row and no isolate applied is
-    /// `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s accepted-and-dropped narrowing:
-    /// the job keeps the authority the enqueuing request meant to give up, which is a priority-1
-    /// failure rather than a missing feature. The isolate half applies what the row carries
-    /// ([`super::narrowing`]), so what holds the options undeclared is the other end: a written
-    /// `grants:` naming a capability the enqueuing request does not hold has to be refused where it
-    /// stands. Undeclared is that refusal meanwhile — a bag reports a key it does not declare
-    /// (`rule:core-api/shape-reuses-the-option-diagnostics`), and this reads the rows a call site
-    /// resolves that diagnostic off.
+    /// **Over the two deciders rather than through a call**, because a `push` that got this far
+    /// needs a request with a configuration and a grant filter behind it, and what is being decided
+    /// is a property of neither the database nor the row.
+    /// `tests/conformance/core/queue-push-refuses-a-grant-the-request-does-not-hold.nvst` is the
+    /// end-to-end half and carries the ordering claim with it: it pushes at a port nothing is
+    /// listening on, so a refusal that reached the connection first would say something else.
     ///
-    /// The bag count rides along because it is where both land once the narrowing is applied:
-    /// `rule:concurrency/queue-four-members` gives `push` one trailing options shape and no second
-    /// place to put a knob.
+    /// The options ride along because the refusal is what they were waiting on. A declared `grants`
+    /// the enqueue recorded unchecked would be
+    /// `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s accepted-and-dropped narrowing
+    /// with the sign flipped — the job keeping authority the request had given up — and their
+    /// order is load-bearing twice over, since [`super::LIMITS_ARG`] reads a ceiling by position
+    /// and [`super::narrowing`] sets one back by name.
     #[test]
-    fn limits_and_grants_are_refused_by_name_until_an_isolate_enforces_them() {
+    fn push_refuses_a_grant_the_enqueuing_request_does_not_hold() {
+        use nvs_config::Cap;
+
         let push = super::CLASS
             .methods
             .iter()
             .find(|method| method.name == "push")
             .expect("`Core\\Queue` declares `push`");
-        let mut bags = 0;
-        for param in push.params {
-            let crate::registry::CoreTy::Options(options) = param else {
-                continue;
-            };
-            bags += 1;
-            for option in *options {
-                assert!(
-                    !matches!(option.name, "limits" | "grants"),
-                    "`push` declares `{}`, so a narrowing written at the call site is accepted and \
-                     dropped — the isolate the worker starts applies neither",
-                    option.name
-                );
-            }
-        }
+        let bags: Vec<&[crate::registry::CoreOption]> = push
+            .params
+            .iter()
+            .filter_map(|param| match param {
+                crate::registry::CoreTy::Options(options) => Some(*options),
+                _ => None,
+            })
+            .collect();
         assert_eq!(
-            bags, 1,
+            bags.len(),
+            1,
             "`push` carries the one trailing bag `rule:concurrency/queue-four-members` gives it, \
-             which is where both options land once an isolate applies them"
+             which is where both halves of the narrowing land"
+        );
+        let declared: Vec<&str> = bags[0].iter().map(|option| option.name).collect();
+        let narrowing: Vec<&str> = std::iter::once("grants")
+            .chain(super::LIMIT_OPTIONS.iter().map(|(option, _)| *option))
+            .collect();
+        assert_eq!(
+            declared[declared.len() - narrowing.len()..],
+            narrowing[..],
+            "the narrowing is the end of the bag, in the order its slots are read by"
+        );
+        assert_eq!(
+            super::LIMIT_OPTIONS
+                .iter()
+                .map(|(_, key)| *key)
+                .collect::<Vec<&str>>(),
+            super::RECORDED_LIMITS,
+            "a written ceiling and a recorded one are the same four directives, in one order"
+        );
+
+        // Held is the whole of the question, and what comes back is the list as written: every
+        // name in it has been shown to be one this request could have asked for itself.
+        let held = |cap: Cap| matches!(cap, Cap::FsRead | Cap::QueuePurge);
+        assert_eq!(
+            super::grants_written(&["fs.read"], &held),
+            Ok(r#"["fs.read"]"#.to_owned()),
+            "a name the request holds is a narrowing of what it holds, which is what the row takes"
+        );
+        assert_eq!(
+            super::grants_written(&[], &held),
+            Ok("[]".to_owned()),
+            "an empty list is a job that may ask for nothing, which every request can narrow to"
+        );
+        assert_eq!(
+            super::grants_written(&["fs.read", "net.connect"], &held),
+            Err(super::GrantRefused::NotHeld("net.connect")),
+            "a capability the request cannot ask for itself is not a narrowing of anything, so the \
+             row never records it"
+        );
+        assert_eq!(
+            super::grants_written(&["fs.reed"], &held),
+            Err(super::GrantRefused::Unknown("fs.reed")),
+            "a name no capability has is the narrowing the program asked for and did not get"
+        );
+
+        let capped = nvs_config::Request::new(crate::tests::granting(
+            "[limits]\nmemory = \"64m\"\n\n[limits.hard]\nmemory = \"128m\"\n",
+        ));
+        assert_eq!(
+            super::limits_narrowed(&capped, &[("memory", "memory", "16m")]),
+            Ok(Some(r#"{"memory":"16m"}"#.to_owned())),
+            "a written ceiling is what the row records, in the words the worker sets it back with"
+        );
+        assert_eq!(
+            super::limits_narrowed(&capped, &[("memory", "memory", "1g")]),
+            Err(("memory", "1g")),
+            "`[limits.hard]` is the bound, and a ceiling this request may not set is not one it \
+             may hand a job"
+        );
+        assert_eq!(
+            super::limits_narrowed(&capped, &[("cpuTime", "cpu_time", "2s")]),
+            Ok(Some(r#"{"cpu_time":"2s","memory":"64m"}"#.to_owned())),
+            "a ceiling the call site did not write is the one the request is under, which is what \
+             makes a written one a narrowing of this context rather than a replacement of it"
         );
     }
 

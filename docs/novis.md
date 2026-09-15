@@ -23246,7 +23246,7 @@ Keywords: push, status, cancel, stats, delete, purge
 
 | Member | Signature |
 |---|---|
-| [`Core\Queue::push`](#core-core-queue-push) | `push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string, tag?: string}): Core\Queue\Id` |
+| [`Core\Queue::push`](#core-core-queue-push) | `push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string, tag?: string, grants?: array<string>, memory?: string, cpuTime?: string, wallTime?: string, maxOutput?: string}): Core\Queue\Id` |
 | [`Core\Queue::status`](#core-core-queue-status) | `status(Core\Queue\Id $job): Core\Queue\State` |
 | [`Core\Queue::cancel`](#core-core-queue-cancel) | `cancel(Core\Queue\Id $job): bool` |
 | [`Core\Queue::stats`](#core-core-queue-stats) | `stats(string $queue): Core\Queue\Stats` |
@@ -23257,7 +23257,7 @@ Keywords: push, status, cancel, stats, delete, purge
 #### `Core\Queue::push`
 
 ```nvs skip
-Core\Queue::push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string, tag?: string}): Core\Queue\Id
+Core\Queue::push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string, tag?: string, grants?: array<string>, memory?: string, cpuTime?: string, wallTime?: string, maxOutput?: string}): Core\Queue\Id
 ```
 
 Enqueues `$script` to run in the background, as a row in the database `[queue] connection` names. Inside a transaction on that same connection the enqueue commits with the write that caused it, or with neither — which is the whole reason a job is a table row and not a message to a broker.
@@ -23272,10 +23272,15 @@ Enqueues `$script` to run in the background, as a row in the database `[queue] c
 | `{backoff: …}` | `Core\Time\Duration` (default `null`) | The base delay for the exponential backoff between attempts, jittered by the worker. Left out, one second — the row records a delay either way, since there is no spelling of a job that retries at once. |
 | `{key: …}` | `string` (default `null`, neutral) | A dedupe key: while a job with this key is still pending, a second push with it enqueues nothing and answers the pending job's own id. |
 | `{tag: …}` | `string` (default `null`, neutral) | A group name: any number of jobs may carry one, nothing dedupes on it, and `purge` is the only thing that reads it. Grouping is decided here, at the enqueue, because nothing can later group rows that were never grouped. |
+| `{grants: …}` | `array<string>` (default `null`) | The capabilities the job's isolate may ask for, named as `nvs.toml` grants them. Narrowed from what this request holds and never widened, so a name this request does not hold itself is refused at the call site. Left out, the job inherits whatever narrowing this request is already under; `[]` is a job that may ask for nothing. |
+| `{memory: …}` | `string` (default `null`, neutral) | The memory ceiling the job's isolate runs under, written as `[limits] memory` is written and bounded by `[limits.hard]` like every ceiling a request sets. Left out, the one this request is under. |
+| `{cpuTime: …}` | `string` (default `null`, neutral) | The CPU ceiling, `[limits] cpu_time`'s, on `memory`'s terms. |
+| `{wallTime: …}` | `string` (default `null`, neutral) | The wall-clock ceiling, `[limits] wall_time`'s, on `memory`'s terms. |
+| `{maxOutput: …}` | `string` (default `null`, neutral) | The captured-output ceiling, `[limits] max_output`'s, on `memory`'s terms. |
 
 **Returns** `Core\Queue\Id` — A `Core\Queue\Id` naming the row, which `cancel` and `status` are asked about. For a push deduped by `key`, the id of the job already pending under it.
 
-**Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database a job would live in; or the queue's connection names a driver that cannot yet run a statement.; `LogicError` — `maxAttempts` is `0`, which asks for a job that is dead-lettered by the enqueue that created it; or `backoff` is negative.; `IOError` — The queue's connection did not open, or the insert was refused by the server — most often because `nvs queue migrate` has not created the table.
+**Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database a job would live in; the queue's connection names a driver that cannot yet run a statement; or `grants` names a capability this request does not hold, which is a job asking for more authority than the request that enqueued it.; `LogicError` — `maxAttempts` is `0`, which asks for a job that is dead-lettered by the enqueue that created it; `backoff` is negative; `grants` names something that is no capability at all; or a written ceiling is not one this request may set.; `IOError` — The queue's connection did not open, or the insert was refused by the server — most often because `nvs queue migrate` has not created the table.
 
 <a id="core-core-queue-status"></a>
 #### `Core\Queue::status`

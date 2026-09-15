@@ -306,7 +306,7 @@ are satisfied once no `— owner: m8-db-queue` tag is left on the tree.
 - **ADR slots**: the one record of stage 2.
 - **Not this goal**:
   - the `unowned`-tagged gaps in these files (`crates/nvs-stdlib/src/db/mod.rs` gaps 1–2,
-    `crates/nvs-stdlib/src/queue.rs` gaps 2–3, and `nvs-db`'s `catalog.rs`, `ddl.rs` and `schema.rs`),
+    `crates/nvs-stdlib/src/queue.rs` gaps 1–2, and `nvs-db`'s `catalog.rs`, `ddl.rs` and `schema.rs`),
     which are goal `unowned-closures`'s, after its decision sheet;
   - `crates/nvs-types/src/derive.rs` gap 3, `unowned` and `rule:core-classes/derive-attribute`'s to
     answer;
