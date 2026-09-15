@@ -5947,7 +5947,11 @@ tests = [
   "every_entry_of_server_listen_is_bound_rather_than_the_first",
   "one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle",
   "a_server_workers_key_bounds_the_count_and_defaults_to_available_parallelism",
-  "a_unix_domain_entry_is_refused_once_rather_than_once_per_core",
+  # The carried claim -- one refusal for the whole set, taken in `addresses`
+  # before any socket exists -- is the `#[cfg(windows)]` leg of the test this
+  # goal's stage 4 grew it into, which is why that name is here and in the
+  # stage 4 check both.
+  "a_unix_socket_listen_entry_binds_with_its_mode_on_unix_and_is_refused_once_elsewhere",
   "listen_and_port_flags_still_override_the_file_and_still_conflict",
 ]
 
