@@ -98,7 +98,7 @@
 //! to keep what an earlier attempt threw, so the `errors` array § 6 asks for is one entry deep and
 //! every attempt before the last is visible only on this worker's standard error.
 //! [`nvs_stdlib::queue::schema`]'s own doc owns that decision and what a deeper array would cost.
-//! — owner: M8
+//! — owner: m8-db-queue
 //!
 
 use std::cell::Cell;

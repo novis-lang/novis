@@ -68,19 +68,21 @@
 //!    document; the document is untrusted and the checker has already named
 //!    the class, so asking it again would let the input choose which
 //!    constructor runs.
-//!    — owner: M8
-//! 2. **A [`Format::Db`] codec is recorded and nothing generates `fromRow`
-//!    from it yet.** The checking half is whole — the roster, the nominal
-//!    match, §§ 2, 3, 5 and 7's rules and `rule:core-classes/db-column-types`'s type map are all
+//!    — owner: m8-db-queue
+//! 2. **A [`Format::Db`] codec is recorded, and the decoder behind it cannot
+//!    read the types gap 1 erases.** The checking half is whole — the roster,
+//!    the nominal match, §§ 2, 3, 5 and 7's rules and `rule:core-classes/db-column-types`'s type map are all
 //!    asked of a `#[Db\Derive]` class, and [`check_row_sites`] asks the last
 //!    of them again of the class a `queryAs<T>` *wrote* — and
 //!    [`crate::ExprTypeTable::db_codec`]
-//!    holds the answer for the driver work to read back. What is missing is
-//!    the generated decoder itself, which needs `Core\Db\Row` to exist; the
-//!    erasure to [`CodecTy`] is shared with JSON meanwhile, so a `bytes` or a
-//!    `Core\Time\Instant` field is *accepted* by the type map above and still
-//!    lands on [`CodecTy::Opaque`] for gap 1's reason.
-//!    — owner: M8
+//!    holds the answer the driver half reads back. `nvs_stdlib::db::row`'s
+//!    `hydrate` is that reader, and it builds the class one row at a time.
+//!    What it cannot build is a field this pass flattened: the erasure to
+//!    [`CodecTy`] is shared with JSON, so a `bytes` or a `Core\Time\Instant`
+//!    field is *accepted* by the type map above and still lands on
+//!    [`CodecTy::Opaque`], which the decoder refuses per row for gap 1's
+//!    reason.
+//!    — owner: m8-db-queue
 //! 3. **[`check_row_sites`] has no `Core\Json::decodeAs` half.** The two
 //!    members share [`crate::expr::args::written_class_of`]'s lookup and do
 //!    not share a rule: `decodeAs<array<T>>` is a JSON array document and is

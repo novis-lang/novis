@@ -83,7 +83,7 @@
 //!    and stays one until the narrowing
 //!    `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` asks for is applied to the
 //!    isolate the worker starts.
-//!    — owner: gap-zero
+//!    — owner: m8-db-queue
 //! 2. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
 //!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
 //!    inside the same statement that writes it, which is correct against every other `push` on a
@@ -106,12 +106,12 @@
 //! 4. **SQL Server opens a connection this module will not send a statement over**, and the text
 //!    is this module's to write rather than [`crate::db`]'s: `Core\Db` reaches all five. It has no
 //!    dialect here and cannot have one yet, because `rule:core-classes/queue-storage-is-a-table`
-//!    orders the filtered index its nulls need before a fourth dialect is written, and
-//!    [`no_dialect`] is where an operator reads that. SQLite is [`Queued`]'s third arm and every
-//!    member above it sends over it; what does not reach it yet is the worker, whose own `Wire` in
-//!    `crates/nvs-cli/src/worker.rs` has no arm for it, so a job pushed onto a SQLite queue is
-//!    enqueued and never claimed.
-//!    — owner: gap-zero
+//!    orders the filtered index its nulls need before this dialect is written, and [`no_dialect`]
+//!    is where an operator reads that. It is the one driver [`runs`] answers `false` for: every
+//!    other driver has its statements here and an arm in `crates/nvs-cli/src/worker.rs`'s `Wire`
+//!    behind them, so a job pushed onto one of those is claimed and reported, and a job cannot be
+//!    pushed onto this one at all.
+//!    — owner: m8-db-queue
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};

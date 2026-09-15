@@ -29,4 +29,4 @@
 
 # § 18 -- `Core\Db`, whose remaining members each need a driver and a server to
 # talk to. `inList` and `quoteIdentifier` need neither and have landed.
-§18 streamAs            # gap-zero
+§18 streamAs            # m8-db-queue
