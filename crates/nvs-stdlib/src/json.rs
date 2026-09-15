@@ -136,7 +136,6 @@
 //!    one. What is left to decide is what each of those is on the wire before
 //!    either end can carry it — an `Instant` is RFC 3339 text — and
 //!    `crate::db`'s gap 3 is the same knot at the other door.
-//!    — owner: m8-stdlib-depth
 //!
 //!    A `decimal` is settled and landed at both ends: it is a JSON **string**,
 //!    `"19.99"`, which is the only spelling that survives the trip. JSON has
@@ -146,6 +145,7 @@
 //!    client sees a string where it may have expected a number, spent under
 //!    [ADR 0004](/docs/decisions/0004.md) to buy exactness, which is the whole
 //!    of what `rule:types/decimal` makes the type for.
+//!    — owner: m8-stdlib-depth
 //! 2. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
 //!    two default-bearing rows are unimplemented: an absent key fails whether
 //!    or not the field is optional, and a `#[Json\Field(skip: true)]` property
