@@ -38,22 +38,16 @@
 //! them together — skipping there would report green for a run that never
 //! happened, which is the one outcome a verification matrix must not produce.
 //!
-//! # Known gaps
-//!
-//! 1. **The socket leg is asked for and never published.** [`Location`] has
-//!    its third arm and `tests/handshake.rs` dials whichever one it is handed,
-//!    so the case list is already the one that would run over the transport
-//!    `rule:core-classes/db-unix-socket-path` gives MySQL, MariaDB and
-//!    PostgreSQL — but `tools/db-matrix.py` sets no [`SOCKET_VAR`], so nothing
-//!    hands it one, and that transport is asserted against listeners this crate
-//!    binds itself and against no real server. The property a second transport
-//!    has to have is that the driver agrees across both, which is what running
-//!    the TCP legs' own case list over `AF_UNIX` would say. It needs a
-//!    container's socket directory bind-mounted onto the host by
-//!    `tools/db-matrix.py`.
-//!    Decided: The whole TCP case list again over the socket — Proves the driver behaves identically on
-//!    both transports; roughly doubles those three legs' run time.
-//!    — owner: m8-db-queue
+//! **A socket leg is this crate's own case list, run a second time.**
+//! `tests/db/compose.yaml` publishes MySQL's, MariaDB's and PostgreSQL's own
+//! socket directory out of the container, and `tools/db-matrix.py` runs those
+//! three drivers again with [`SOCKET_VAR`] set instead of a host — so every
+//! case that asked a published server asks the same server over `AF_UNIX`, and
+//! the driver is held to one answer across both. That is the whole property a
+//! second transport has: a case reached only over the socket would say nothing
+//! about it. What a *published* server alone can be asked — that the session is
+//! TLS, against the anchor that vouches for it — gates itself on the leg having
+//! a [`Server::ca`], because a socket carries no session to upgrade.
 
 use std::path::PathBuf;
 
