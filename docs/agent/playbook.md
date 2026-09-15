@@ -6992,6 +6992,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   drives `Recording` instead. Spell the marker `#[cfg_attr(all(test, windows), expect(dead_code,
   reason = "…"))]`, which is what `Systemd` and `systemctl` already carry.
   [until: reviewed 2026-09-15]
+- **Giving a class its first `fs.read`/`fs.write` row widens a sweep that had been reading the
+  capability table as a list of path-taking *classes*.** `crates/nvs-stdlib/tests/capability.rs`'s
+  `no_member_dispatches_on_a_uri_scheme` derived its subject per class, so `Core\Response::sendFile`'s
+  row pulled `redirect` in with it and the sweep refused that member's `url` parameter, which names a
+  URL legitimately. The derivation is per member now — `takes_a_path` in that file is where it is
+  decided — so a new fs row sweeps the member holding it and nothing beside it.
+  [until: reviewed 2026-09-15]
 
 ## Divergences and refusals already pinned
 

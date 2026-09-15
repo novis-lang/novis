@@ -17455,7 +17455,7 @@ no request here
 <a id="core-core-response"></a>
 ### `Core\Response`
 
-Keywords: html, json, text, bytes, stream, setStatus, setHeader, redirect, addCookie
+Keywords: html, json, text, bytes, sendFile, stream, setStatus, setHeader, redirect, addCookie
 
 | Member | Signature |
 |---|---|
@@ -17463,6 +17463,7 @@ Keywords: html, json, text, bytes, stream, setStatus, setHeader, redirect, addCo
 | [`Core\Response::json`](#core-core-response-json) | `json(mixed $value): void` |
 | [`Core\Response::text`](#core-core-response-text) | `text(string $body): void` |
 | [`Core\Response::bytes`](#core-core-response-bytes) | `bytes(bytes $body, string $contentType): void` |
+| [`Core\Response::sendFile`](#core-core-response-sendfile) | `sendFile(string $path): void` |
 | [`Core\Response::stream`](#core-core-response-stream) | `stream(string $contentType): Core\Response\Stream` |
 | [`Core\Response::setStatus`](#core-core-response-setstatus) | `setStatus(uint $code): void` |
 | [`Core\Response::setHeader`](#core-core-response-setheader) | `setHeader(string $name, string $value): void` |
@@ -17533,6 +17534,23 @@ Answers with `$body` verbatim, declaring `$contentType` — the one body member 
 **Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error.
 
 **Throws** `LogicError` — `$contentType` is empty or holds a byte outside a header field value — a control character, a newline, or anything above ASCII.
+
+<a id="core-core-response-sendfile"></a>
+#### `Core\Response::sendFile`
+
+```nvs skip
+Core\Response::sendFile(string $path): void
+```
+
+Answers with the file at `$path`, streamed by the server under the static-file policy's media type — the one body member that hands over a name instead of bytes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The file to send. A sink: a path component directs the resolver, so a `tainted` value is refused at compile time, and `fs.read` must cover it like any other path this program opens. A download name is `Content-Disposition` through `setHeader`, this member taking the path alone. |
+
+**Returns** `void` — Nothing. The response carries the media type the static-file policy's table gives the file's extension, and answers a range or a conditional request over it; mixing this with `echo` on one response is a compile error.
+
+**Throws** `RuntimeError` — `fs.read` does not cover `$path` — the same refusal `Core\IO::read` gives, from the same door, whether or not there is a file there.; `IOError` — There is nothing at `$path`, or the operating system will not let this process read it.; `LogicError` — `$path` is a directory, or something else that is not a regular file — a response body is a file's contents, and there are none to send.
 
 <a id="core-core-response-stream"></a>
 #### `Core\Response::stream`

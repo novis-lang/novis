@@ -1,0 +1,35 @@
+--TEST--
+`echo` inside an HTTP request escapes a string and writes a `Core\Html\Markup` as it is, where the same string echoed off a request comes back as it was written — `rule:core-classes/html-auto-escape`, `rule:tooling/echo-always-has-a-sink`
+--FILE--
+<?nvs
+// `rule:tooling/echo-always-has-a-sink`'s table in one run. Row one is an HTTP
+// request, whose sink is the response body and whose carrier is
+// `Core\Html\Markup`; row two is this program, whose sink is the terminal and
+// whose carrier is `Cli\Text`. The same bytes go into both, so what is asserted
+// is the **sink** deciding the transform — a value carrying a mark of its own
+// would answer the same in either.
+//
+// The child is the `catch`, as in every in-process request case: a request made
+// from inside one is refused, so the block handling that refusal is the handler
+// the request ran.
+try {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/echoed");
+    // A bound named on both sides, and the two operands differ only in type:
+    // the string is escaped and the carrier spelling the same bytes is written
+    // as it is. A sink that escaped everything would lose the markup and one
+    // that escaped nothing would hand back the string, and either failure
+    // prints plausibly against one half alone.
+    echo "request: ", $answered->body(), "\n";
+
+    // Row two, over the operand row one escaped: the string is written as it
+    // was, because the escape belongs to the request's sink and never to the
+    // value.
+    echo "program: ", "<b>bold</b>", "\n";
+} catch (RuntimeError $refused) {
+    echo "<b>bold</b>";
+    echo " ";
+    echo "<b>bold</b>" as Core\Html\Markup;
+}
+--EXPECT--
+request: &lt;b&gt;bold&lt;/b&gt; <b>bold</b>
+program: <b>bold</b>
