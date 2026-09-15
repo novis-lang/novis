@@ -3207,13 +3207,18 @@ argv = ["{nvs}", "queue", "migrate", "--connection", "main", "--dry-run"]
 want = ["jobs", "dead_letter"]
 
 # The applying half, and it has to run before the fixture below: `examples/queue.nvs` pushes a row into
-# `nvs_jobs`, and nothing else in this sweep creates that table. Order here is run order (a `0`-prefixed
-# stage is the only thing that jumps the queue), so this block staying above that one is load-bearing.
+# `nvs_jobs` and claims it back by every column the schema declares, and nothing else in this sweep
+# creates or widens that table. `setup = true` is what orders it -- a `command` otherwise runs behind
+# every program leg, whatever it sits above in this file, so a column added to
+# `rule:core-classes/queue-storage-is-a-table`'s schema left the fixture claiming nothing until a
+# later sweep. `memoize = false` beside it because what it converges is a server rather than the tree.
 # It is also the assertion that the command is idempotent, since the sweep runs it against a server the
 # previous iteration already migrated -- every statement carries `if not exists`.
 [[check]]
 kind = "command"
 stage = "1 floor"
+setup = true
+memoize = false
 name = "nvs queue migrate creates both tables"
 argv = ["{nvs}", "queue", "migrate", "--connection", "main"]
 want = ["jobs: applied", "dead_letter: applied"]
@@ -5975,6 +5980,20 @@ tests = [
   "ten_thousand_concurrent_cold_requests_for_one_file_compile_it_exactly_once",
 ]
 
+# The CLI's own two cost margins, out of the debug run for the reason the guards above are: a margin
+# measured beside every other test binary in the workspace is not the margin. Each carries
+# `#[cfg_attr(debug_assertions, ignore)]`, so the package's debug checks skip exactly these two.
+# `--bin nvs` and the filter, so two tests do not relink the package's other targets under thin LTO.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-cli (cost margins)"
+args = ["test", "--release", "-p", "nvs-cli", "--bin", "nvs", "by_the_margin_this_test_names"]
+tests = [
+  "a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names",
+  "serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names",
+]
+
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- `Core\Net`, over the reactor and nothing else.
 # ---------------------------------------------------------------------------------------------------
@@ -7132,10 +7151,10 @@ cases = [
 
 # The database the fixture's jobs live in, converged before it runs. `examples/queue.nvs`'s own
 # pair says why a block like this exists at all -- nothing else in the sweep creates `nvs_jobs` --
-# but the ordering argument is a different one: this is a `command` check and the fixture below is
-# a program check, so the sweep runs every one of these before any of those and position in this
-# file decides nothing. `--config` names the tree `examples/queue-sqlite.toml` holds, whose own
-# comments own where the `[db.jobs]` path resolves to.
+# and `setup = true` is what puts it ahead of the fixture below: a `command` check runs behind every
+# program leg, so position in this file decides nothing and the key is the only thing that does.
+# `--config` names the tree `examples/queue-sqlite.toml` holds, whose own comments own where the
+# `[db.jobs]` path resolves to; `memoize = false` because the file it converges is not in the tree.
 #
 # Idempotent for the reason the PostgreSQL pair is, and this is the assertion of it: the sweep runs
 # it against the file the last iteration already converged. It touches no port and starts no
@@ -7143,6 +7162,8 @@ cases = [
 [[check]]
 kind = "command"
 stage = "1 floor"
+setup = true
+memoize = false
 name = "nvs queue migrate converges the fixture's SQLite file"
 argv = ["{nvs}", "queue", "migrate", "--config", "examples/queue-sqlite.toml"]
 want = ["jobs: applied", "dead_letter: applied"]
