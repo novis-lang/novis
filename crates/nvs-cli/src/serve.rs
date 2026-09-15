@@ -486,6 +486,38 @@ pub(crate) fn run(
     if let Some(socket) = &scrapes {
         println!("scrapes answered on {}", socket.named());
     }
+    // The other exporter, resolved here for the same reason and with the same
+    // shape of refusal: an endpoint this build cannot dial, or one it cannot
+    // read, is a start that fails rather than a collector that quietly never
+    // fills. A tree naming no `otlp` exporter resolves nothing at all.
+    let collector = match trace_collector(&current.load().config) {
+        Ok(collector) => collector,
+        Err(refusal) => {
+            eprintln!("error: {refusal}");
+            return ExitCode::FAILURE;
+        }
+    };
+    // A build without the feature reaches here with nothing, exactly as the
+    // scrape socket does: `trace_collector` refused the tree that would have
+    // named a collector.
+    #[cfg(not(feature = "exporter"))]
+    let _ = collector;
+    #[cfg(feature = "exporter")]
+    let mut traces = match collector
+        .as_deref()
+        .map(nvs_server::Endpoint::of)
+        .transpose()
+    {
+        Ok(endpoint) => endpoint,
+        Err(refusal) => {
+            eprintln!("error: {refusal}");
+            return ExitCode::FAILURE;
+        }
+    };
+    #[cfg(feature = "exporter")]
+    if let Some(endpoint) = &traces {
+        println!("traces pushed to {endpoint}");
+    }
     listening(&bound, path, &told);
 
     // The fan-out itself: one worker per core, each taking its own handle on
@@ -527,6 +559,8 @@ pub(crate) fn run(
         let core = Core {
             listeners: rows.swap_remove(0),
             scrapes: scrapes.take(),
+            #[cfg(feature = "exporter")]
+            traces: traces.take(),
             compiler,
             mounts,
             snapshot,
@@ -585,6 +619,11 @@ pub(crate) fn run(
             // `nvs_server::metrics::every_core` is what a scrape gathers
             // through, and the listener's core is not the only one it reads.
             scrapes: if index == 0 { scrapes.take() } else { None },
+            // One queue and so one pusher, on the same worker the ticker and
+            // the scrape listener went to: what it drains is every core's
+            // spans, because the queue is the process's and not this core's.
+            #[cfg(feature = "exporter")]
+            traces: if index == 0 { traces.take() } else { None },
             // One roster and so one ticker, on the first worker: a schedule
             // armed per core would fire every entry once per core.
             ticks: index == 0,
@@ -636,6 +675,16 @@ struct Core {
     /// share it with. `None` on every other core, and on every core of a
     /// process whose `[metrics]` names no Prometheus exporter.
     scrapes: Option<Socket>,
+    /// `[trace] endpoint`, on exactly one worker: the span queue is
+    /// process-wide, so a second core's drain would be a second connection
+    /// sending the same spans in an order neither could state.
+    ///
+    /// `None` on every other core, and on every core of a process whose
+    /// `[trace]` names no collector. Behind the feature because the resolved
+    /// endpoint is — the crate doc of `nvs_server` § *The `exporter` feature*
+    /// is that split.
+    #[cfg(feature = "exporter")]
+    traces: Option<nvs_server::Endpoint>,
     /// The fleet's one compiled-unit cache, so a source compiles once for the
     /// process rather than once per core.
     compiler: Arc<Compiler>,
@@ -682,6 +731,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     let Core {
         listeners,
         scrapes,
+        #[cfg(feature = "exporter")]
+        traces,
         compiler,
         mounts,
         snapshot,
@@ -1100,6 +1151,24 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                     eprintln!("error: the scrape loop on {named} stopped: {error}");
                     stopped.set(true);
                 }
+            }
+        });
+    }
+
+    // The push exporter's drain, on the one core the boot handed the endpoint
+    // to. A task beside the accept loops for the scrape loop's reason
+    // (`rule:concurrency/one-scheduler`), and it is the only thing in this
+    // process that dials the collector: a request hands its spans to the queue
+    // and is done with them, which is what keeps a collector's latency off
+    // every response. It ends with the drain, having pushed what was waiting.
+    #[cfg(feature = "exporter")]
+    if let Some(endpoint) = traces {
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let draining = draining.clone();
+            move |_ctx| {
+                nvs_server::push_queued_on_this_core(&endpoint, waits, &draining, |note| {
+                    eprintln!("note: {note}");
+                });
             }
         });
     }
@@ -1975,7 +2044,9 @@ fn scrape_socket(config: &nvs_config::Config) -> Result<Option<Socket>, String> 
     let Some(metering) = nvs_config::Metering::of(config) else {
         return Ok(None);
     };
-    if let Some(refusal) = exporter_not_built(metering.exporter, cfg!(feature = "exporter")) {
+    if let Some(refusal) =
+        exporter_not_built(metering.exporter, "[metrics]", cfg!(feature = "exporter"))
+    {
         return Err(refusal);
     }
     if metering.exporter != nvs_config::Exporter::Prometheus {
@@ -2009,11 +2080,58 @@ fn scrape_socket(config: &nvs_config::Config) -> Result<Option<Socket>, String> 
     ))
 }
 
+/// The collector `[trace]` asks this process to push to, as written, or `None`
+/// where it asks for nothing.
+///
+/// The sibling of [`scrape_socket`] on the other block, and the asymmetry
+/// between them is § 6's: a scrape is answered at an address this process binds,
+/// while a trace is pushed to one it dials, so what comes back here is a URL and
+/// not a socket. Parsing and resolving it is `nvs_server::otlp::Endpoint`'s,
+/// which is why this returns the written text — the type that holds a resolved
+/// endpoint is behind the `exporter` feature and the refusals below are owed by
+/// every build.
+///
+/// **An `otlp` exporter with no `endpoint` is refused rather than defaulted**,
+/// for the reason a `prometheus` exporter with no `listen` is: a default here
+/// would be an address nobody wrote down, and the failure it produces is silence
+/// rather than an error
+/// (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
+///
+/// # Errors
+///
+/// The refusal as one line: an exporter this build cannot run, or one with
+/// nowhere to push to.
+fn trace_collector(config: &nvs_config::Config) -> Result<Option<String>, String> {
+    let Some(tracing) = nvs_config::Tracing::of(config) else {
+        return Ok(None);
+    };
+    if let Some(refusal) =
+        exporter_not_built(tracing.exporter, "[trace]", cfg!(feature = "exporter"))
+    {
+        return Err(refusal);
+    }
+    // § 6 gives `[trace]` only a push, so there is no second protocol to fall
+    // through to here — but the roster is the config crate's and this match is
+    // what keeps a word it adds later from being read as `otlp`.
+    if tracing.exporter != nvs_config::Exporter::Otlp {
+        return Ok(None);
+    }
+    let written = tracing.endpoint.ok_or_else(|| {
+        "`[trace] exporter` is `otlp` and `[trace] endpoint` names no collector, so a span would \
+         have nowhere to go: write one, as `http://127.0.0.1:4318`, or `exporter = false`"
+            .to_owned()
+    })?;
+    Ok(Some(written.to_owned()))
+}
+
 /// What a build carrying no exporter owes a tree that configured one, or `None`.
 ///
-/// `built` is `cfg!(feature = "exporter")` at the one call site, and a parameter
+/// `built` is `cfg!(feature = "exporter")` at both call sites, and a parameter
 /// rather than a `#[cfg]` in this body so that the sentence an operator reads is
 /// written once and asserted in the same build everything else here is tested in.
+/// `block` is the one written it — `[metrics]` or `[trace]` — because the two
+/// blocks share this refusal and an operator is owed the name of the one they
+/// wrote.
 ///
 /// `None` is every build that has the feature, and — because
 /// `nvs_config::Metering::of` already answers `None` for all three ways of writing
@@ -2021,7 +2139,7 @@ fn scrape_socket(config: &nvs_config::Config) -> Result<Option<Socket>, String> 
 /// exactly where an operator wrote a protocol that this binary cannot speak, which
 /// is what `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`
 /// asks a featureless build to say rather than start quietly without it.
-fn exporter_not_built(asked: nvs_config::Exporter, built: bool) -> Option<String> {
+fn exporter_not_built(asked: nvs_config::Exporter, block: &str, built: bool) -> Option<String> {
     if built {
         return None;
     }
@@ -2030,7 +2148,7 @@ fn exporter_not_built(asked: nvs_config::Exporter, built: bool) -> Option<String
         nvs_config::Exporter::Otlp => "otlp",
     };
     Some(format!(
-        "`[metrics] exporter` is `{protocol}` and this `nvs` was built without the `exporter` \
+        "`{block} exporter` is `{protocol}` and this `nvs` was built without the `exporter` \
          feature, so it can neither serve a scrape nor push to a collector: run a build that has \
          the feature, or write `exporter = false`"
     ))
@@ -2050,7 +2168,7 @@ mod tests {
         Address, Compiler, Ctx, Inbound, Isolate, Listen, Mounted, Notify, Output, OutputSink,
         Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all, bind_sockets,
         compiled_under, exporter_not_built, fall_back_to, handles_for, listening, one_mount,
-        scrape_socket, sweep_orphans, workers_for,
+        scrape_socket, sweep_orphans, trace_collector, workers_for,
     };
     use std::cell::Cell;
     use std::collections::BTreeMap;
@@ -3667,6 +3785,43 @@ echo Core\Router::{member}("Docs::here", []);
         );
     }
 
+    /// `[trace]`'s half of the same boot: a block naming a collector is read as
+    /// one, an `otlp` exporter with nowhere to push is refused where it was
+    /// written, and every way of asking for nothing resolves nothing.
+    ///
+    /// The refusal is the load-bearing half. An exporter with no endpoint that
+    /// started anyway would produce a collector that never fills, which is the
+    /// failure `rule:observability/metrics-and-trace-blocks-are-system` says is
+    /// indistinguishable from a deployment with nothing to say.
+    #[test]
+    fn a_trace_block_naming_otlp_is_read_with_an_endpoint_and_refused_without_one() {
+        let named = trace_collector(&config_of(
+            "[trace]\nexporter = \"otlp\"\nendpoint = \"http://127.0.0.1:4318\"\n",
+        ))
+        .expect("a tree naming a collector is not a refusal");
+        assert_eq!(named.as_deref(), Some("http://127.0.0.1:4318"));
+
+        let refusal = trace_collector(&config_of("[trace]\nexporter = \"otlp\"\n"))
+            .expect_err("an exporter with nowhere to push was accepted");
+        assert!(
+            refusal.contains("`[trace] endpoint`"),
+            "the refusal did not name the key that is missing: {refusal}"
+        );
+
+        for written in [
+            "[server]\nworkers = 1\n",
+            "[trace]\nexporter = false\n",
+            "[trace]\nsample = 1.0\n",
+        ] {
+            assert!(
+                trace_collector(&config_of(written))
+                    .expect("a tree asking for no exporter is not a refusal")
+                    .is_none(),
+                "a collector was resolved for `{written}`"
+            );
+        }
+    }
+
     /// A tree whose `[metrics]` asks for nothing opens no port and builds no
     /// registry, which is the cheapest reading of `exporter = false` and the one
     /// `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`
@@ -3730,20 +3885,26 @@ echo Core\Router::{member}("Docs::here", []);
     #[test]
     fn a_build_without_the_exporter_feature_refuses_every_protocol_but_false() {
         for asked in [nvs_config::Exporter::Prometheus, nvs_config::Exporter::Otlp] {
-            let refusal = exporter_not_built(asked, false)
-                .expect("a build with no exporter accepted a tree that configured one");
-            assert!(
-                refusal.contains("`exporter` feature"),
-                "the refusal did not name the feature that is missing: {refusal}"
-            );
-            assert!(
-                refusal.contains("`exporter = false`"),
-                "the refusal did not say what to write instead: {refusal}"
-            );
-            assert!(
-                exporter_not_built(asked, true).is_none(),
-                "a build carrying the exporter refused `{asked:?}`"
-            );
+            for block in ["[metrics]", "[trace]"] {
+                let refusal = exporter_not_built(asked, block, false)
+                    .expect("a build with no exporter accepted a tree that configured one");
+                assert!(
+                    refusal.contains("`exporter` feature"),
+                    "the refusal did not name the feature that is missing: {refusal}"
+                );
+                assert!(
+                    refusal.contains("`exporter = false`"),
+                    "the refusal did not say what to write instead: {refusal}"
+                );
+                assert!(
+                    refusal.contains(block),
+                    "the refusal did not name the block it was written in: {refusal}"
+                );
+                assert!(
+                    exporter_not_built(asked, block, true).is_none(),
+                    "a build carrying the exporter refused `{asked:?}`"
+                );
+            }
         }
         assert!(
             scrape_socket(&config_of("[metrics]\nexporter = false\n"))
