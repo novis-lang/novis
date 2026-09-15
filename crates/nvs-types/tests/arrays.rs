@@ -262,3 +262,122 @@ fn a_write_through_the_widened_parameter_does_not_reach_the_callers_array() {
     );
     assert_eq!(diags.error_count(), 1, "{diags:?}");
 }
+
+#[test]
+fn an_array_of_a_narrower_element_type_is_accepted_where_a_wider_one_is_read() {
+    // The relation is applied at three positions and the covariance belongs to
+    // the relation, not to the call: the parameter is the test above, and
+    // these are the other two `nvs_types::expr::assign` names — an assignment
+    // to a wider binding, and a return into a wider declared type.
+    let src = "<?nvs\nclass T {\n  public static function widened(): array<int|string> {\n    array<int> $a = [1, 2];\n    array<int|string> $b = $a;\n    return $b;\n  }\n  public static function returned(): array<int|string> {\n    array<int> $a = [1];\n    return $a;\n  }\n}\n";
+    let diags = check_src(src);
+    assert!(
+        !diags.has_errors(),
+        "an assignment and a return widen for the same reason a parameter does: {diags:?}"
+    );
+
+    // Each position refuses the narrowing on its own, so neither is accepting
+    // everything. One mismatch apiece, never zero, and each reported by the
+    // code belonging to the position rather than by a shared catch-all.
+    let narrowings = [
+        (
+            "array<int|string> $a = [1];\n    array<int> $b = $a;\n    return [1];",
+            code::E_TYPE_MISMATCH,
+        ),
+        (
+            "array<int|string> $a = [1];\n    return $a;",
+            code::E_BAD_RETURN_TYPE,
+        ),
+    ];
+    for (body, expected) in narrowings {
+        let src = format!(
+            "<?nvs\nclass T {{\n  public static function m(): array<int> {{\n    {body}\n  }}\n}}\n"
+        );
+        let diags = check_src(&src);
+        assert_eq!(
+            diags.iter().filter(|d| d.code == Some(expected)).count(),
+            1,
+            "a widening is not a narrowing, in either position: {diags:?}"
+        );
+        assert_eq!(diags.error_count(), 1, "{diags:?}");
+    }
+}
+
+#[test]
+fn a_covariant_array_argument_is_not_restamped_at_the_call() {
+    // `rule:types/conversion` prices `array<T> as array<U>` at an O(n)
+    // restamp, one tag test per element. The covariant read is not that
+    // conversion spelled implicitly, and what a checker can see of the
+    // difference is both ends of the call: the callee is called at the type it
+    // declared, and the caller's local keeps the type *it* declared, so there
+    // is no third, widened array for `nvs_ir::lower` to have had to build.
+    let src = "<?nvs\nclass T {\n  public static function m(array<int|string> $items): void {}\n  public static function go(): void {\n    array<int> $a = [1, 2];\n    T::m($a);\n  }\n}\n";
+    let (diags, declared) = check_src_declared(src);
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let narrow = declared.of("array<int>", "$a");
+    let wide = declared.of("array<int|string>", "$items");
+    assert_ne!(
+        narrow, wide,
+        "the two element types intern distinctly, or nothing below says anything"
+    );
+
+    let Some(nvs_types::expr_table::ExprInfo::Call(call)) = declared.folded_at("T::m($a)") else {
+        panic!("the call resolved to no entry at all");
+    };
+    assert_eq!(
+        call.param_tys[0], wide,
+        "the callee is called at its own declared element type"
+    );
+
+    let a = declared
+        .exprs()
+        .local_scopes()
+        .flat_map(|(_, locals)| locals)
+        .find(|local| local.name == "a")
+        .expect("the caller declares `$a`");
+    assert_eq!(
+        a.ty, narrow,
+        "being read through a wider view leaves the caller's array stamped as it was declared"
+    );
+}
+
+#[test]
+fn a_write_through_a_widened_array_view_is_checked_against_its_element_type() {
+    // The widened view is not a hole: a write through it is checked against
+    // the element type *it* declares, which is the half of the soundness
+    // argument that does not depend on copy-on-write. Both spellings of a
+    // write are checked, and both members of the union are admitted.
+    let accepted = [
+        "$items[0] = \"x\";",
+        "$items[0] = 7;",
+        "$items[] = \"x\";",
+        "$items[] = 7;",
+    ];
+    for write in accepted {
+        let src = format!(
+            "<?nvs\nclass T {{\n  public static function m(array<int|string> $items): void {{\n    {write}\n  }}\n}}\n"
+        );
+        let diags = check_src(&src);
+        assert!(
+            !diags.has_errors(),
+            "`{write}` writes a member of the view's own element type: {diags:?}"
+        );
+    }
+
+    let refused = ["$items[0] = 1.5;", "$items[] = 1.5;"];
+    for write in refused {
+        let src = format!(
+            "<?nvs\nclass T {{\n  public static function m(array<int|string> $items): void {{\n    {write}\n  }}\n}}\n"
+        );
+        let diags = check_src(&src);
+        assert_eq!(
+            diags
+                .iter()
+                .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+                .count(),
+            1,
+            "`{write}` is checked against `int|string`, not against what the caller happened to hold: {diags:?}"
+        );
+    }
+}

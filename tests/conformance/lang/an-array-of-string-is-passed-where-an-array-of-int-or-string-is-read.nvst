@@ -1,0 +1,32 @@
+--TEST--
+An `array<string>` reaches an `array<int|string>` parameter, and the callee's write through that widened view lands in its own copy — `rule:types/arrays`
+--FILE--
+<?nvs
+class Widening {
+    // The parameter declares the union and the caller below holds one member
+    // of it, which is `rule:types/arrays`' covariant read. It is sound here
+    // for the reason the rule gives: an array is a copy-on-write **value**,
+    // so the append on the next line is a write to this function's own array
+    // and there is no aliased storage for the caller to read it back out of.
+    public static function joined(array<int|string> $items): string {
+        $items[] = "added";
+        string $out = "";
+        foreach ($items as int|string $value) {
+            $out = $out . ($value as string) . ";";
+        }
+        return $out;
+    }
+}
+
+array<string> $names = ["ada", "grace"];
+echo Widening::joined($names), "\n";
+
+// The caller's array kept both its length and its element type: being read
+// through a wider view is not a restamp of the array that was read.
+echo Core\Arr::count($names), "\n";
+string $first = $names[0];
+echo $first, "\n";
+--EXPECT--
+ada;grace;added;
+2
+ada
