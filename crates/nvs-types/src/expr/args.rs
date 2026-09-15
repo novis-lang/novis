@@ -1656,7 +1656,12 @@ pub(crate) fn written_class_of(
                 span,
             ));
         }
-        if method == "queryAs" {
+        // Both of § 18's hydrating members, because the question is the class's
+        // and not the statement's: `rule:core-classes/db-column-types`'s map is
+        // read over the same `#[Db\Derive]` mapping whether the rows were
+        // buffered or walked, so a `streamAs<T>` that recorded no site would
+        // take at run time the refusal its sibling takes while compiling.
+        if method == "queryAs" || method == "streamAs" {
             env.row_sites.push(crate::derive::RowSite::new(
                 format!("{owner}::{method}"),
                 qname.clone(),

@@ -668,8 +668,8 @@ pub(crate) fn resolve_field_types(
     }
 }
 
-/// One `Core\Db\…::queryAs<T>` call site, held until every deriving class in
-/// the program has recorded its mapping.
+/// One `Core\Db\…::queryAs<T>` or `::streamAs<T>` call site, held until every
+/// deriving class in the program has recorded its mapping.
 ///
 /// [`CodecFieldSite`]'s reason, one layer out: the row class a call names is
 /// routinely declared in a file the walk has not reached, so answering where
@@ -700,8 +700,9 @@ impl RowSite {
     }
 }
 
-/// `rule:core-classes/db-column-types`'s map, asked of the class a `queryAs<T>` wrote, once every
-/// deriving class in the program has recorded its mapping.
+/// `rule:core-classes/db-column-types`'s map, asked of the class a hydrating
+/// member wrote, once every deriving class in the program has recorded its
+/// mapping.
 ///
 /// Run after the walk, from [`crate::check::check_program`], beside
 /// [`resolve_field_types`] and for the same reason.
@@ -712,7 +713,7 @@ impl RowSite {
 /// one that *cannot* move to the declaration, and it is why this pass exists at
 /// all: `#[Db\Field(skip: true)]` is `rule:core-classes/derive-field-list`'s sanctioned way to take a
 /// property off the mapping, so a class carrying one is well formed and stays
-/// well formed — it is only a `queryAs` over it that has a constructor
+/// well formed — it is only a hydrating call over it that has a constructor
 /// parameter nothing can fill.
 pub(crate) fn check_row_sites(
     sites: &[RowSite],
@@ -726,8 +727,9 @@ pub(crate) fn check_row_sites(
             report_row_site(
                 site,
                 format!("`{member}` builds one class per row, and `array<{class}>` is a list"),
-                "`rule:core-classes/db-statement-members`: the member already answers `Core\\Db\\Rows` of what it was asked \
-                 for, so a list form asks for the plural twice — write the row class alone",
+                "`rule:core-classes/db-statement-members`: the member already answers one row per row — a \
+                 `Core\\Db\\Rows` to read or a walk to step — so a list form asks for the plural \
+                 twice. Write the row class alone",
                 diags,
             );
             continue;

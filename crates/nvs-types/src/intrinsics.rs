@@ -228,11 +228,11 @@ const INTRINSICS: &[Intrinsic] = &[
         field: None,
         grammar: Grammar::Template,
     },
-    // `rule:core-classes/db-literal-query-checking`'s four members, on both classes that declare them: § 7's
+    // `rule:core-classes/db-literal-query-checking`'s members, on both classes that declare them: § 7's
     // `Core\Db\Transaction` forwards the interface to its connection, so the
     // same statement written inside a transaction is the same check. The rows
     // are nominal against the *declaring* class, so the receiver is not counted
-    // and `at: 0` is the `sql` parameter on all eight.
+    // and `at: 0` is the `sql` parameter on every one of them.
     //
     // `executeMany` is deliberately absent: its second argument is `sets`, a
     // list of parameter *sets* rather than one, so the count this pass makes is
@@ -260,10 +260,18 @@ const INTRINSICS: &[Intrinsic] = &[
     },
     // `stream` binds the same one statement `query` does — § 4 gives them one
     // signature and one binding rule, and where the rows are when the member
-    // answers is nothing this pass can see.
+    // answers is nothing this pass can see. `streamAs` is that member at a
+    // written type, and what a row becomes is not a binding either.
     Intrinsic {
         owner: r"Core\Db\Connection",
         member: "stream",
+        at: 0,
+        field: None,
+        grammar: Grammar::Sql,
+    },
+    Intrinsic {
+        owner: r"Core\Db\Connection",
+        member: "streamAs",
         at: 0,
         field: None,
         grammar: Grammar::Sql,
@@ -292,6 +300,13 @@ const INTRINSICS: &[Intrinsic] = &[
     Intrinsic {
         owner: r"Core\Db\Transaction",
         member: "stream",
+        at: 0,
+        field: None,
+        grammar: Grammar::Sql,
+    },
+    Intrinsic {
+        owner: r"Core\Db\Transaction",
+        member: "streamAs",
         at: 0,
         field: None,
         grammar: Grammar::Sql,
