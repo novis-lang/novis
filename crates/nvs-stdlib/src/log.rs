@@ -648,10 +648,14 @@ mod tests {
     /// and makes every line claim a span no backend was ever sent, which is
     /// exactly the thing § 6's "omitted rather than empty" is protecting.
     ///
-    /// The ids are compared against the *header* and not against the context,
-    /// so this pins the continuation too: § 2 adopts an inbound trace's id and
-    /// parent span, and a line naming a freshly drawn one could not be joined
-    /// to the caller's trace at all.
+    /// The trace id is compared against the *header* and not against the
+    /// context, so this pins the continuation too: § 2 adopts an inbound
+    /// trace's id, and a line naming a freshly drawn one could not be joined to
+    /// the caller's trace at all. The span goes the other way — a record names
+    /// the span it was **written in**, which is this request's own root and
+    /// never the caller's, the two being kept apart by
+    /// `nvs_runtime::TraceContext` — so what is asserted of it is both halves:
+    /// this request's, and not the one that arrived.
     #[test]
     fn a_record_written_while_a_trace_is_active_carries_trace_id_and_span_id() {
         let header = format!("00-{TRACE}-{SPAN}-01");
@@ -662,7 +666,17 @@ mod tests {
             Some(TRACE),
             "§ 2 continues the trace the request arrived carrying"
         );
-        assert_eq!(doc["span_id"].as_str(), Some(SPAN), "and its parent span");
+        let own = sampled.trace_context().span_id_hex();
+        assert_eq!(
+            doc["span_id"].as_str(),
+            Some(own.as_str()),
+            "and the span the record was written in"
+        );
+        assert_ne!(
+            doc["span_id"].as_str(),
+            Some(SPAN),
+            "the record claimed the caller's span as its own"
+        );
         assert_eq!(
             doc["request_id"].as_str(),
             Some(TRACE),

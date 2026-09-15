@@ -19,15 +19,22 @@
 //! — rather than by whichever subsystem asks for it first, which is what would let two of them
 //! disagree.
 //!
-//! **What is not here yet.** Nothing exports a span (`rule:observability/the-exporters-are-crates`'s
-//! exporters are unbuilt) and nothing creates one, so a root's [`sampled`](TraceContext::sampled) flag
-//! is always `false` — head-based `[trace] sample` is the only thing that will ever set it — and
-//! [`TraceContext::span_id`] is a bare drawn id rather than a span's. A continued trace's flag and
-//! parent id come from the header and are already right, which is why an inbound sampled trace is
-//! propagated onward.
+//! **The span id is this request's own root span, and never the caller's.** A `traceparent` names
+//! the span the *sender* was in, so a server that adopted that id as its own would put two spans
+//! with one id in a trace — which is why the arrived id is kept apart, as
+//! [`parent_span_id`](TraceContext::parent_span_id), and the id this context renders onward is
+//! drawn here. `nvs_server::trace::spans` builds the root span that id belongs to
+//! (`rule:observability/four-kinds-become-a-span`), so an outbound call's header names a span that
+//! exists.
 //!
-//! **What it spends:** 25 bytes per request, and one 24-byte draw from the thread's CSPRNG when the
-//! context is built. O(in-flight requests), never O(requests served).
+//! **What is not here yet.** A root's [`sampled`](TraceContext::sampled) flag is always `false` —
+//! head-based `[trace] sample` is the only thing that will ever set it — and nothing pushes a
+//! derived span to a collector (`rule:observability/the-exporters-are-crates`). A continued trace's
+//! flag and parent id come from the header and are already right, which is why an inbound sampled
+//! trace is propagated onward.
+//!
+//! **What it spends:** 34 bytes per request, and at most 24 bytes drawn from the thread's CSPRNG
+//! while the context is built. O(in-flight requests), never O(requests served).
 
 use rand::Rng;
 
@@ -40,12 +47,14 @@ pub struct TraceContext {
     /// The trace this request belongs to. Never all-zero, which the W3C format reserves as "no
     /// trace".
     trace_id: [u8; 16],
-    /// The span an outbound call names as its parent.
-    ///
-    /// For a continued trace this is the caller's own span, adopted from the header per § 2. For a
-    /// root it is drawn, because the request root span that would mint one does not exist yet — see
-    /// the module doc's *What is not here yet*.
+    /// This request's own root span, which is what an outbound call names as its parent and what
+    /// `nvs_server::trace::spans` gives the root span it derives. Always drawn here, continued
+    /// trace or not — the module doc owns why the arrived id is not reused for it.
     span_id: [u8; 8],
+    /// The span the caller was in, for a request that arrived with a header this process could
+    /// read, and `None` for a root. It is the parent edge of the root span and nothing else reads
+    /// it.
+    parent_span_id: Option<[u8; 8]>,
     /// Whether this trace is being recorded. Adopted from an inbound header, and otherwise `false`
     /// until head sampling lands.
     sampled: bool,
@@ -62,20 +71,16 @@ impl TraceContext {
     /// A new trace, rooted at this request.
     #[must_use]
     pub fn started() -> Self {
-        let mut bytes = [0_u8; 24];
-        rand::rng().fill_bytes(&mut bytes);
         let mut trace_id = [0_u8; 16];
-        let mut span_id = [0_u8; 8];
-        trace_id.copy_from_slice(&bytes[..16]);
-        span_id.copy_from_slice(&bytes[16..]);
+        rand::rng().fill_bytes(&mut trace_id);
         // A CSPRNG draws all-zero with probability 2^-128, and the format reserves that value for
         // "absent". Forcing one bit is cheaper than a redraw loop and is the same distribution
         // everywhere it matters.
         trace_id[0] |= 1;
-        span_id[0] |= 1;
         Self {
             trace_id,
-            span_id,
+            span_id: draw_span_id(),
+            parent_span_id: None,
             sampled: false,
         }
     }
@@ -102,6 +107,13 @@ impl TraceContext {
     #[must_use]
     pub fn span_id(&self) -> [u8; 8] {
         self.span_id
+    }
+
+    /// The caller's span, for a request that continued somebody else's trace — the parent edge of
+    /// the root span, and `None` for a request that started one.
+    #[must_use]
+    pub fn parent_span_id(&self) -> Option<[u8; 8]> {
+        self.parent_span_id
     }
 
     /// Whether this trace is being recorded.
@@ -171,10 +183,22 @@ impl TraceContext {
         let flags: [u8; 1] = from_hex(flags)?;
         Some(Self {
             trace_id,
-            span_id,
+            // The arrived id is the caller's span and becomes this request's parent edge; the id
+            // this request *is* gets drawn, which the module doc argues.
+            span_id: draw_span_id(),
+            parent_span_id: Some(span_id),
             sampled: flags[0] & SAMPLED != 0,
         })
     }
+}
+
+/// A span id, drawn from the thread's CSPRNG with [`TraceContext::started`]'s one bit forced so the
+/// all-zero value the format reserves for "absent" is never the answer.
+fn draw_span_id() -> [u8; 8] {
+    let mut span_id = [0_u8; 8];
+    rand::rng().fill_bytes(&mut span_id);
+    span_id[0] |= 1;
+    span_id
 }
 
 /// `bytes` as lower-case hex, appended.
@@ -211,14 +235,21 @@ mod tests {
         let root = TraceContext::started();
         assert_ne!(root.trace_id(), [0; 16]);
         assert_ne!(root.span_id(), [0; 8]);
+        assert_eq!(root.parent_span_id(), None, "a root descends from nothing");
         assert!(!root.sampled(), "nothing samples a root yet");
 
         let rendered = root.traceparent();
         assert_eq!(rendered.len(), 55, "{rendered}");
+        let downstream = TraceContext::continuing(Some(&rendered));
         assert_eq!(
-            TraceContext::continuing(Some(&rendered)),
-            root,
+            (downstream.trace_id(), downstream.parent_span_id()),
+            (root.trace_id(), Some(root.span_id())),
             "a rendering this process cannot read back is not a header anyone else can"
+        );
+        assert_ne!(
+            downstream.span_id(),
+            root.span_id(),
+            "the next hop called itself the span it was answering"
         );
     }
 
@@ -230,12 +261,30 @@ mod tests {
 
     /// § 2: an inbound header's trace id and parent span id are adopted, and its sampled flag is
     /// honoured — an inbound sampled trace is always continued.
+    ///
+    /// The arrived span id is adopted **as the parent** and not as this request's own, which is
+    /// the one way the three fields differ in where they end up; the module doc owns why. So the
+    /// header this request renders onward keeps the trace and the flag and carries a span id of
+    /// its own.
     #[test]
-    fn an_inbound_header_is_adopted_whole() {
+    fn an_inbound_header_is_continued_as_this_requests_parent() {
         let inbound = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
         let continued = TraceContext::continuing(Some(inbound));
         assert!(continued.sampled());
-        assert_eq!(continued.traceparent(), inbound);
+        assert_eq!(continued.trace_id_hex(), "4bf92f3577b34da6a3ce929d0e0e4736");
+        assert_eq!(
+            continued.parent_span_id(),
+            Some([0x00, 0xf0, 0x67, 0xaa, 0x0b, 0xa9, 0x02, 0xb7]),
+            "the caller's span is not this request's parent"
+        );
+        assert_ne!(continued.span_id_hex(), "00f067aa0ba902b7");
+        assert_eq!(
+            continued.traceparent(),
+            format!(
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-{}-01",
+                continued.span_id_hex()
+            )
+        );
 
         let unsampled = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00";
         assert!(!TraceContext::continuing(Some(unsampled)).sampled());
@@ -264,9 +313,12 @@ mod tests {
             Some("00-00000000000000000000000000000000-00f067aa0ba902b7-01"),
             Some("00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01"),
         ];
+        // The trace id is what "adopted" means here: a header that was read at all puts this
+        // request in the sender's trace, whatever span id the continuation then draws for itself.
+        let joined = TraceContext::continuing(Some(good)).trace_id();
         let adopted = unusable
             .iter()
-            .filter(|header| TraceContext::continuing(**header).traceparent() == good)
+            .filter(|header| TraceContext::continuing(**header).trace_id() == joined)
             .count();
         assert_eq!(adopted, 0, "one of {unusable:?} was adopted");
     }
