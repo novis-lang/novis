@@ -376,6 +376,12 @@ def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
     lines = [ln for ln in (r.stdout + r.stderr).splitlines() if ln.strip()]
     failed = [ln.strip() for ln in lines if ln.strip().startswith("---- ") or " FAILED" in ln]
     detail = failed[0] if failed else (lines[-1].strip() if lines else "no output")
+    # The test's name says which assertion fired and never what the server answered, and a leg runs
+    # captured, so the line under the panic is carried out with it or it is lost with the process.
+    # One line, because this is a ledger entry: whoever needs the whole failure reruns the leg.
+    panicked = next((i for i, ln in enumerate(lines) if "panicked at" in ln), None)
+    if panicked is not None and panicked + 1 < len(lines):
+        detail = f"{detail} -- {lines[panicked + 1].strip()}"
     return "FAILED", detail
 
 

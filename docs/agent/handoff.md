@@ -2,50 +2,45 @@
 
 ## State
 
-**Goal `m8-db-queue`, stage 7. The SQL Server leg of the queue is closed at both ends.** A case can
-open one: `Conn::SqlServer` (`crates/nvs-stdlib/tests/queue.rs:249`) holds a `TdsConn`, `Dialect`
-has a third arm, and `rows` renders a T-SQL column through `nvs_db::tds::scalar`. And a worker can
-claim one back: `Wire::SqlServer` (`crates/nvs-cli/src/worker.rs:1473`) with `tds_claim`,
-`tds_roster`, `tds_apply` and `tds_dead_letter_in_two` beside the framed ones, so `open` takes the
-`open_as!` arm every other socket driver takes and `sql_server_gap` is deleted rather than narrowed.
-`tools/db-matrix.py`'s `SUITES` gained `["--bin", "nvs", "worker::"]` for the worker's own case.
+**Goal `m8-db-queue`. Stage 4 is green: `python tools/db-matrix.py --all` answers `5/5 drivers ok`.**
+MariaDB's catalog read-back was the last thing red on it —
+`an_applied_schema_introspects_back_to_an_empty_plan_on_mariadb` gave every nullable column a text
+default of the four characters `NULL`, because that server prints the keyword in `COLUMN_DEFAULT`
+where MySQL prints null itself. `catalog::column_default`'s own doc owns the reading and the one
+spelling it costs.
 
-**Stage 4's matrix check is red on MariaDB alone, and not on anything this goal has left to
-build.** `python tools/db-matrix.py --all --no-up` answers `4/5 drivers ok`: mysql, postgres, mssql
-and sqlite pass and `catalog::tests::an_applied_schema_introspects_back_to_an_empty_plan_on_mariadb`
-fails, deterministically, with *the schema this server was given is not the schema it answers* over
-one step — `ALTER TABLE wide MODIFY COLUMN slug VARCHAR(64)`. The older ledger entries for that
-check are a different failure: it ran without `--no-up` on a cold tree and never reached a driver.
-`docker compose … up -d --wait` over the four services answers `0` today.
+**Stages 0–7 pass; stage 8 is unbuilt.** None of `push_records_its_grants_and_limits_on_the_row`,
+`push_refuses_a_grant_the_enqueuing_request_does_not_hold` or
+`a_job_runs_under_the_grants_and_limits_recorded_at_enqueue` exists in the tree, and the row has no
+column for either fact. Stage 9's socket leg is unbuilt beside it — `tools/db-matrix.py` has no
+`AF_UNIX` endpoint at all, so `mysql over a socket: ok` and its two siblings cannot be answered yet.
+
+A failing matrix leg now carries the line under its panic into the ledger, so the next red one says
+what the server answered rather than only which test fired.
 
 ## Next group
 
-**Stage 4: the MariaDB catalog read-back** — one file set: `crates/nvs-db/src/catalog.rs` and
-`crates/nvs-db/src/ddl.rs`. This is what stage 4's `[[check]]`
-(`docs/agent/loop-goal.toml:10544`) is red on, and it outranks stage 7's remaining work.
-`rule:core-classes/schema-plan` owns what a plan step is and `rule:core-classes/schema-introspection`
-what a catalog reader owes.
+**Stage 8: a job's budget and grants, recorded at enqueue and applied to the isolate that runs it** —
+one file set: `crates/nvs-stdlib/src/queue.rs` and `crates/nvs-cli/src/worker.rs`.
+`rule:core-classes/queue-storage-is-a-table` owns what a job row may hold and
+`rule:concurrency/a-job-runs-as-a-root-isolate` what the run is given, which
+`crates/nvs-cli/src/worker.rs:44` § *Why the grants are the run's own* already states as the narrower
+rule the schema has no column for yet.
 
-- [ ] **A `varchar(64)` this emitter applied reads back as a column that plans a `MODIFY` to
-      `VARCHAR(64)` again**, so an applied schema does not introspect to an empty plan on this
-      driver. The assertion is `crates/nvs-db/src/catalog.rs:2275`, inside the shared
-      `introspects_back_to_an_empty_plan`, and the case that hands it this connection is
-      `crates/nvs-db/src/catalog.rs:2332`. MySQL's own leg passes that same shared body, so what
-      differs is one server's `information_schema` answer rather than the shape of the reader.
-- [ ] **Re-run the whole matrix before calling it closed** — `python tools/db-matrix.py --all
-      --no-up` with the containers already healthy, which is the check's own argv minus the
-      bring-up. Its `want` list is the five `<driver>: ok` lines at
-      `docs/agent/loop-goal.toml:10551`.
+- [ ] **The row carries the grants and the limits the enqueuing request held**, so a claim reads them
+      back rather than inferring them. The columns go in `crates/nvs-stdlib/src/queue.rs:308` and the
+      insert that fills them is `crates/nvs-stdlib/src/queue.rs:416`; the test is
+      `push_records_its_grants_and_limits_on_the_row`.
+- [ ] **`push` refuses a grant the enqueuing request does not hold**, which is the widening the
+      module doc's § *Why the grants are the run's own* refuses, at
+      `crates/nvs-stdlib/src/queue.rs:416`. The test is
+      `push_refuses_a_grant_the_enqueuing_request_does_not_hold`.
+- [ ] **The job runs under what the row recorded**, narrowed and never widened, where the worker
+      builds the root isolate — `crates/nvs-cli/src/worker.rs:897`. The test is
+      `a_job_runs_under_the_grants_and_limits_recorded_at_enqueue`.
 
 ## Backlog
 
-- Stage 7's remainder is the `errors` array: no `RETRY_*` text writes that column
-  (`crates/nvs-stdlib/src/queue.rs:554`, `:946`, `:962`), so a retry appends nothing.
-- `dead_errors` (`crates/nvs-stdlib/src/queue.rs:977`) answers the exhausting attempt alone, and
-  `report` (`crates/nvs-cli/src/worker.rs:1044`) binds it into a move that never reads the column.
-- `a_dead_lettered_row_carries_every_attempts_error` exists nowhere; it is `-p nvs-cli`'s
-  (`docs/agent/loop-goal.toml:10669`), beside `crates/nvs-cli/src/worker.rs:1771`.
-- The `unowned`-tagged gaps in `crates/nvs-stdlib/src/queue.rs` and `crates/nvs-stdlib/src/db/mod.rs`
-  are goal `unowned-closures`', per this goal's § *Standing decisions*.
-- `crates/nvs-db/src/tds/rows.rs` has no `last_id`; nothing needs one while `output inserted.id`
-  answers, and `push_in_tds`'s doc is the one home for why.
+- Stage 9's `AF_UNIX` legs: `tools/db-matrix.py` publishes TCP endpoints only (that tool's module doc).
+- `crates/nvs-db/src/catalog.rs` gaps 1–3 — the two-sided normalisation and the opaque read-only
+  default case, owner `unowned-closures`.
