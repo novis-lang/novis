@@ -3925,4 +3925,242 @@ echo Core\Router::{member}("Docs::here", []);
             "`exporter = false` reached the feature's refusal"
         );
     }
+
+    /// The two entries a runaway case serves: the one that does not end on its
+    /// own, and the one the same core answers afterwards.
+    ///
+    /// Beside each other in a directory of this case's own, because the handler
+    /// below resolves a path per request exactly as the door does — what
+    /// separates the two requests is the entry the path selected, and nothing
+    /// else about how either one is run.
+    fn a_runaway_beside_an_answer(case: &str, runaway: &str) -> (PathBuf, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("nvs-serve-{case}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a directory to write the two entries in");
+        let spins = dir.join("runaway.nvs");
+        std::fs::write(&spins, runaway).expect("the runaway entry is writable");
+        let answers = dir.join("answers.nvs");
+        std::fs::write(&answers, "<?nvs\necho \"answered\";\n")
+            .expect("the answering entry is writable");
+        (spins, answers)
+    }
+
+    /// Begins the drain the accept loop below ends on, when the client is done
+    /// with its connection however it is done.
+    ///
+    /// A `Drop` rather than a call at the end of the client's body, because the
+    /// failure these cases are written against is a first request that is *not*
+    /// stopped: the client then gives up on its read and panics, and a drain
+    /// only the passing path begins would leave the accept loop parked and the
+    /// test binary running for ever. A failure the suite reports is worth more
+    /// than a binary that hangs on it.
+    struct EndsTheServer(nvs_server::Draining);
+
+    impl Drop for EndsTheServer {
+        fn drop(&mut self) {
+            self.0.begin();
+        }
+    }
+
+    /// What one core answers two requests with, the first of them running
+    /// `runaway` under the `[limits]` block `capped` writes: the status line of
+    /// each, and the body of the second.
+    ///
+    /// **This is [`super::serve_on_worker`]'s own path rather than a stand-in
+    /// for it.** `nvs_server::serve_on_this_core` is the accept loop, the
+    /// handler is the door's two halves — a unit off the compiler, and an
+    /// isolate carrying
+    /// `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s
+    /// registration exactly as the handler at [`super::serve_on_worker`] hands
+    /// it over — and the ceiling reaches the request the one way a deployment's
+    /// does, through the snapshot on [`nvs_server::Serving`] that the loop
+    /// writes onto a connection's context before it starts anything.
+    ///
+    /// **Both requests go over one connection on one core**, which is the whole
+    /// of "the core answers the next request": the second is served by the same
+    /// accept loop, on the same thread, out of the same scheduler the first was
+    /// stopped on. The drain is [`nvs_server::Draining::detached`], so a case
+    /// here neither reads nor writes the process's bit.
+    ///
+    /// The waits are the deployment's own defaults, and that is load-bearing:
+    /// every one of them is an idle wait and none bounds a connection that is
+    /// working (`nvs_config::server::Waits`), so nothing in the `[server]`
+    /// block can be what ends the request. The watchdog is the process's own
+    /// type under a margin nothing reaches, for the same reason — it is here to
+    /// be the registration the door hands every isolate over with, and a stall
+    /// sink that fired would only be reporting the request this case is about.
+    fn a_runaway_then_an_answer(
+        case: &str,
+        runaway: &str,
+        capped: &str,
+    ) -> (String, String, String) {
+        let (spins, answers) = a_runaway_beside_an_answer(case, runaway);
+        let mut listener =
+            nvs_host::NvsListener::bind(a_free_address()).expect("the loopback refused a listener");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener knows its own address");
+        let draining = nvs_server::Draining::detached();
+
+        // The client is a thread because this one is about to be the server.
+        // Both requests go down one socket: the first is the runaway, and the
+        // second says `Connection: close` because the close is what leaves the
+        // accept loop with nothing but its own park to end on.
+        let drained = draining.clone();
+        let client = std::thread::spawn(move || {
+            let _ends = EndsTheServer(drained);
+            let mut socket =
+                std::net::TcpStream::connect(addr).expect("the loopback refused a socket");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(b"GET /runaway HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .expect("the first request could not be written");
+            let first = head_from(&mut socket);
+            socket
+                .write_all(b"GET /answers HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the second request could not be written");
+            let second = head_from(&mut socket);
+            let mut body = Vec::new();
+            socket
+                .read_to_end(&mut body)
+                .expect("the second response's body could not be read");
+            (first, second, String::from_utf8_lossy(&body).into_owned())
+        });
+
+        let compiler = Arc::new(Compiler::default());
+        let serving = nvs_server::Serving::new(
+            Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
+                &nvs_config::server::Capacity {
+                    configured: u64::MAX,
+                    per_request: None,
+                    budget: None,
+                },
+            ))),
+            Arc::new(nvs_server::Secure::of(None)),
+            Arc::new(nvs_server::Trusted::of(&[]).0),
+            Arc::new(nvs_server::Cors::of(None)),
+            Arc::new(tree_of(capped)),
+        );
+        let watchdog = nvs_host::Watchdog::with(
+            Duration::from_secs(3600),
+            Duration::from_millis(5),
+            |_stall| {},
+        );
+        let mut sched = nvs_host::Scheduler::new();
+        let installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        // Taken here for the reason [`super::serve_on_worker`] takes its own
+        // here: this is the thread every request below runs on, and the clock a
+        // ceiling is charged from is the one `register` reads on the thread
+        // that calls it. A host that enumerates no CPU has no core to name a
+        // stall against and registers the request half alone, which is the same
+        // division that command makes.
+        let watched = Rc::new(
+            nvs_host::cpus()
+                .first()
+                .copied()
+                .zip(nvs_host::reactor::with_current(|reactor| {
+                    reactor.deadline_view()
+                }))
+                .map_or_else(
+                    || watchdog.register_requests(),
+                    |(cpu, view)| watchdog.register(cpu, view),
+                ),
+        );
+        let handler = Rc::new({
+            let compiler = Arc::clone(&compiler);
+            let watched = Rc::clone(&watched);
+            move |request: nvs_server::Request<nvs_server::Incoming>,
+                  _origin: nvs_server::Origin| {
+                let file = if request.uri().path() == "/runaway" {
+                    &spins
+                } else {
+                    &answers
+                };
+                let (program, _routes) = compiler
+                    .compiled(&file.to_string_lossy())
+                    .expect("the entries this case wrote compile");
+                let inbound = Inbound::new(request.method().as_str(), request.uri().path(), "");
+                nvs_server::Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture)
+                        .answering(inbound)
+                        .watched_by(Rc::clone(&watched)),
+                    None,
+                )
+            }
+        });
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let draining = draining.clone();
+            move |_ctx| {
+                nvs_server::serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    nvs_config::server::Waits::default(),
+                    &serving,
+                    &draining,
+                    |_note| {},
+                    || ControlFlow::Continue(()),
+                )
+                .expect("the accept loop failed");
+            }
+        });
+        // The same loop the drain case above turns, and for its reason: the
+        // accept loop is a parked task for as long as it is serving.
+        loop {
+            match nvs_host::run_until_idle(&mut sched) {
+                Ok(report) if report.parked > 0 => {}
+                Ok(_) => break,
+                Err(error) => panic!("the scheduler stopped: {error}"),
+            }
+        }
+        drop(installed);
+
+        client.join().expect("the client thread panicked")
+    }
+
+    /// `rule:errors/on-limit`'s other ceiling on the same path: a request that
+    /// grows a string past `[limits] memory` is ended as a `FATAL`, and the
+    /// core that ran it answers the next request.
+    ///
+    /// **The loop is bounded, which is what makes the `500` an assertion.** A
+    /// doubling that the ceiling never stopped would run its twenty-four turns
+    /// and answer `200` carrying the length it grew to, so the status alone
+    /// separates a request stopped inside the loop from one that ran to its
+    /// end. It is written bounded rather than as `while (true)` for the reason
+    /// the corpus case gives: an unbounded doubling is an attack on the machine
+    /// running the suite as much as on the request, and a failing case must
+    /// fail rather than take the host's memory with it.
+    ///
+    /// Unlike the CPU ceiling above this one needs no clock and no watchdog —
+    /// the allocator raises it at the crossing and the loop's back edge is the
+    /// safepoint that reads it — so there is no host this is skipped on.
+    #[test]
+    fn a_served_allocation_loop_is_ended_as_a_fatal_and_the_core_answers_the_next_request() {
+        let (first, second, body) = a_runaway_then_an_answer(
+            "memory-runaway",
+            // `tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst`'s
+            // program: `$a .= $a` reaches no member, so nothing between two
+            // doublings asks whether the request is still inside its ceiling
+            // and the doubling itself is what has to be stopped. Twenty-four
+            // doublings of five bytes is five times the ceiling below, so the
+            // bound is past the point the request must already be over.
+            "<?nvs\nstring $a = \"novis\";\nint $doublings = 0;\nwhile ($doublings < 24) {\n    $a \
+             .= $a;\n    $doublings = $doublings + 1;\n}\necho Core\\Str::length($a);\n",
+            "[limits]\nmemory = \"16M\"\n",
+        );
+
+        assert!(
+            first.starts_with("HTTP/1.1 500 "),
+            "a request that grew past `[limits] memory` was not answered as a failed one: {first}"
+        );
+        assert!(
+            second.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the core that stopped an allocating request did not answer the one after it: {second}"
+        );
+        assert_eq!(
+            body, "answered",
+            "the request after the runaway was answered by something other than the entry it named"
+        );
+    }
 }
