@@ -265,40 +265,37 @@
 //!    Decided: Split stands: a shape mismatch is a ParseError, as for Json::decodeAs — One class for
 //!    'data does not fit the type' across Json and Db, and no spec change.
 //!    — owner: unowned-closures
-//! 3. **`query`, `queryAs`, `execute`, `executeMany`, `stream` and
-//!    `transaction` are what has landed of `Core\Db\Queryable`** (gap 4 is what
-//!    `queryAs` still owes). **`stream` lands on all five drivers**: each parks
-//!    its own read state off the borrow that opened it —
-//!    `nvs_db::PgCursor`, `nvs_db::MySqlCursor` for the two drivers that share
-//!    one row loop, `nvs_db::TdsCursor`, and `nvs_db::SqliteCursor`, which is a
-//!    pool thread holding the statement because a `rusqlite` cursor cannot be
-//!    parked in a field. No driver substitutes a buffer, which would be the
-//!    worse answer twice over: it
+//! 3. **§ 18's roster is registered whole, and the four wire drivers' walks
+//!    are asserted only where a server is reachable.** `crates/nvs-stdlib/tests/db_stream.rs`
+//!    is that home and `python tools/db-matrix.py --all` is what runs it, so an
+//!    ordinary `python tools/verify.py` proves the member against SQLite alone
+//!    — the one backend a `.nvst` case can reach. **`stream` and `streamAs`
+//!    land on all five drivers**: each parks its own read state off the borrow
+//!    that opened it — `nvs_db::PgCursor`, `nvs_db::MySqlCursor` for the two
+//!    drivers that share one row loop, `nvs_db::TdsCursor`, and
+//!    `nvs_db::SqliteCursor`, which is a pool thread holding the statement
+//!    because a `rusqlite` cursor cannot be parked in a field. No driver
+//!    substitutes a buffer, which would be the worse answer twice over: it
 //!    breaks the member's one promise, constant memory, and it breaks § 4's
 //!    *uniform* connection-busy rule, which is there so that a program written
-//!    against one driver runs on all five. `streamAs` is owed whole and is that
-//!    class at a written type, exactly as `queryAs` is `query`'s. Of § 18's four
-//!    rows beyond the
-//!    interface, `close`, `driver` and `isOpen` land — the first over
-//!    [`nvs_runtime::Ctx::close_open_connection`], which is § 13's release
-//!    reached early for one connection — and **`serverVersion` is owed for a
-//!    reason that is not this crate's**: no driver keeps the server's own
-//!    version string. `nvs_db::mysql` parses one into a `(u16, u16, u16)` for
-//!    its own capability decisions and the other four keep nothing, so the
-//!    member cannot be written until PostgreSQL's `server_version`
-//!    `ParameterStatus`, MariaDB's greeting, TDS's `LOGINACK` and SQLite's
-//!    library version are each held on the connection. On
-//!    the result side [`ROWS`] owes nothing: all six of § 18's members are
+//!    against one driver runs on all five. The two members differ in one slot,
+//!    [`STREAM_CLASS_SLOT`], exactly as `query` and `queryAs` differ in
+//!    [`ROWS_CLASS_SLOT`]. Of § 18's rows beyond the interface, `close` goes
+//!    over [`nvs_runtime::Ctx::close_open_connection`], which is § 13's release
+//!    reached early for one connection, and `serverVersion` answers the string
+//!    each driver kept from its own handshake and costs no round trip. On the
+//!    result side [`ROWS`] owes nothing: all six of § 18's members are
 //!    registered, `columns()` among them. What that member cannot answer is
 //!    one field rather than a member — [`COLUMN_NULLABLE_DOC`] states it — and
 //!    it is a property of the PostgreSQL wire and not a gap in this module.
 //!    — owner: m8-db-queue
-//! 4. **`queryAs<T>` hydrates, and one of its refusals is still said per row
-//!    rather than while compiling.** [`hydrate`] is the walk over
-//!    [`nvs_runtime::ClassDesc::db_codec`] and it lands. Three of the ways the
+//! 4. **`queryAs<T>` and `streamAs<T>` hydrate, and one of their refusals is
+//!    still said per row rather than while compiling.** [`hydrate`] is the walk
+//!    over [`nvs_runtime::ClassDesc::db_codec`] and it lands, reached per result
+//!    set on the first member and per step on the second. Three of the ways a
 //!    call is answered *no* are properties of the call site or of the class,
 //!    and `nvs_types::derive`'s `check_row_sites` says all three as `E0806`
-//!    while compiling: a `queryAs<array<C>>`, whose list form asks for the
+//!    while compiling, over both members: a list type argument, whose form asks for the
 //!    plural twice; a `T` carrying no `#[Db\Derive]` codec; and a mapping that
 //!    fills fewer parameters than the constructor declares. What is left is a
 //!    property of a *field* — a declared type the derive pass erased to
@@ -571,6 +568,21 @@ const STREAM_ROW_SLOT: &str = "row";
 /// Where [`STREAM_ROW_SLOT`] sits. See [`HANDLE_AT`].
 const STREAM_ROW_AT: usize = 2;
 
+/// A [`STREAM`]'s fourth slot: the class each row is built into, or `null`
+/// where the rows stay `Core\Db\Row`s — [`ROWS_CLASS_SLOT`]'s twin, written by
+/// [`nvs_core_db_connection_stream_as`] out of what its call site named.
+///
+/// **It is read on every step where the [`ROWS`] one is read per row handed
+/// out**, and the difference is the members': a walk hands every row it reads
+/// to the loop that asked for it, so there is no step whose construction a
+/// lazier reading could save. A descriptor rides in the payload half of an
+/// otherwise-`null` value, so this slot sweeps as the `null` it is and holds no
+/// reference either way.
+const STREAM_CLASS_SLOT: &str = "class";
+
+/// Where [`STREAM_CLASS_SLOT`] sits. See [`HANDLE_AT`].
+const STREAM_CLASS_AT: usize = 3;
+
 /// `Core\Db\Write`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
 const WRITE_NAME: &str = r"Core\Db\Write";
 
@@ -647,8 +659,12 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_db_connection_transaction as *const ()).cast()
         }
         // One arm for both classes' rows again, for the transaction arm's
-        // reason: § 18 puts `stream` on `Core\Db\Queryable`.
+        // reason: § 18 puts `stream` and `streamAs` alike on
+        // `Core\Db\Queryable`.
         "nvs_core_db_connection_stream" => (nvs_core_db_connection_stream as *const ()).cast(),
+        "nvs_core_db_connection_stream_as" => {
+            (nvs_core_db_connection_stream_as as *const ()).cast()
+        }
         STREAM_ITERATE_SYMBOL => (nvs_core_db_stream_iterate as *const ()).cast(),
         STREAM_ADVANCE_SYMBOL => (nvs_core_db_stream_advance as *const ()).cast(),
         STREAM_CURRENT_SYMBOL => (nvs_core_db_stream_current as *const ()).cast(),

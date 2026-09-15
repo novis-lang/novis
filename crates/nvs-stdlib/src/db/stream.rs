@@ -56,18 +56,32 @@ use super::*;
 /// `Core\Db\Transaction` names the connection's member here too.
 pub(super) const STREAM_MEMBER: &str = r"Core\Db\Connection::stream";
 
-/// Spec § 18's `Iterable<Db\Row>`, as a class a return type can name.
+/// `Core\Db\Connection::streamAs`, as its own refusals spell it —
+/// [`STREAM_MEMBER`]'s reason, and a second name because the two members are
+/// told apart by what a row becomes rather than by the walk under it. A refusal
+/// raised *between* two rows names that walk and so spells [`STREAM_MEMBER`]
+/// whichever member opened it.
+pub(super) const STREAM_AS_MEMBER: &str = r"Core\Db\Connection::streamAs";
+
+/// Spec § 18's `Iterable<Db\Row>` and `Iterable<T>`, as a class a return type
+/// can name.
 ///
 /// A named class because [`CoreTy::Iterated`] is parameter position only, which
 /// is `Core\IO\Lines`' reason for existing as well; [`crate::registry`]'s
-/// `ITERABLES` is where the element type is declared, and
+/// `ITERABLES` is where the element is declared — this class's own `T`, since
+/// `stream` and `streamAs` are one walk at two arguments — and
 /// [`crate::instance`]'s dispatch roster is what gives it the three names a
 /// `foreach` reaches.
 pub(crate) const STREAM: CoreClass = CoreClass {
     name: STREAM_NAME,
     methods: &[],
     instance: &[],
-    slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT, STREAM_ROW_SLOT],
+    slots: &[
+        HANDLE_SLOT,
+        CONNECTION_NAME_SLOT,
+        STREAM_ROW_SLOT,
+        STREAM_CLASS_SLOT,
+    ],
     constants: &[],
 };
 
@@ -87,9 +101,9 @@ fn stream_row(value: Value, member: &str) -> Result<Value, Fault> {
     Ok(held)
 }
 
-/// Parks `row` as the one row this walk is holding, and answers what
-/// `advance()` answers: `true` for a row, `false` for the end of the result
-/// set.
+/// Parks `row` as the one row this walk is holding — a [`ROW`], or an instance
+/// of the class [`STREAM_CLASS_AT`] names — and answers what `advance()`
+/// answers: `true` for a row, `false` for the end of the result set.
 ///
 /// [`stream_step`]'s tail, split out because this is where § 4's promise is
 /// *kept* rather than merely stated — a member that held its result set would
@@ -103,17 +117,47 @@ fn stream_row(value: Value, member: &str) -> Result<Value, Fault> {
 /// The `None` arm clears the slot rather than leaving the last row in it, on
 /// `Core\Request\BodyStream`'s reasoning: the loop is over, so keeping it would
 /// hold one row's columns for as long as the program held the walk.
-fn park_row(receiver: *mut nvs_runtime::ObjHeader, row: Option<NvsArray>) -> Value {
+///
+/// **A `streamAs<T>` builds its `T` here and parks that**, where
+/// [`nvs_core_db_connection_query_as`] builds one per row handed out: a walk
+/// hands out every row it reads, so there is nothing a later construction could
+/// save, and parking the class rather than the columns is what keeps the
+/// member's footprint one object instead of one object and the array it came
+/// from.
+///
+/// # Errors
+///
+/// [`hydrate`]'s, for a row that does not match that class.
+fn park_row(
+    ctx: &mut nvs_runtime::Ctx,
+    receiver: *mut nvs_runtime::ObjHeader,
+    row: Option<NvsArray>,
+    class: Option<*const nvs_runtime::ClassDesc>,
+) -> Result<Value, Fault> {
     let Some(row) = row else {
         crate::instance::set_slot(receiver, STREAM_ROW_AT, Value::null());
-        return Value::bool(false);
+        return Ok(Value::bool(false));
     };
-    crate::instance::set_slot(
-        receiver,
-        STREAM_ROW_AT,
-        crate::instance::build(&ROW, [Value::array(row)]),
-    );
-    Value::bool(true)
+    let built = match class {
+        None => crate::instance::build(&ROW, [Value::array(row)]),
+        Some(class) => {
+            #[expect(
+                unsafe_code,
+                reason = "the descriptor came out of a `ClassDescConst` the compiled \
+                          unit owns, written into this receiver's own slot by \
+                          `nvs_core_db_connection_stream_as`, so it outlives this call"
+            )]
+            // The columns are read and never kept — [`hydrate`] takes its own
+            // reference to each value it holds on to — so the array this step
+            // built is released when it goes out of scope here, whichever way
+            // the construction went.
+            unsafe {
+                hydrate(ctx, class, &row)?
+            }
+        }
+    };
+    crate::instance::set_slot(receiver, STREAM_ROW_AT, built);
+    Ok(Value::bool(true))
 }
 
 /// One step of the walk: the next row parked into [`STREAM_ROW_AT`], and
@@ -128,10 +172,11 @@ fn park_row(receiver: *mut nvs_runtime::ObjHeader, row: Option<NvsArray>) -> Val
 ///
 /// [`filed_connection`]'s `LogicError` for a connection spec § 18's `close` has
 /// released, [`statement_failure`]'s for anything the server refused mid-walk
-/// or a wire that failed under it, and [`column_value`]'s for a column with no
-/// Novis representation. A [`Fault::fatal`] for a receiver whose slots hold the
-/// wrong shape, or for a connection that is not the driver [`STREAM`] was built
-/// over — both this crate's paste errors.
+/// or a wire that failed under it, [`column_value`]'s for a column with no
+/// Novis representation, and — on a `streamAs<T>` walk — [`park_row`]'s
+/// `ParseError` for a row that does not match `T`. A [`Fault::fatal`] for a
+/// receiver whose slots hold the wrong shape, or for a connection that is not
+/// the driver [`STREAM`] was built over — both this crate's paste errors.
 fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault> {
     let member = nvs_runtime::sequence::ADVANCE;
     let receiver = crate::instance::receiver(value, &STREAM, member)?;
@@ -145,6 +190,11 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
             ))
         })?;
     let block = crate::instance::slot(receiver, BLOCK_AT);
+    // The class a `streamAs<T>` wrote, or `None` for the walk that answers
+    // `Core\Db\Row`s — read here rather than at the park below because the
+    // borrow the driver arms take is the receiver's connection and this is the
+    // receiver's own slot.
+    let class = crate::instance::slot(receiver, STREAM_CLASS_AT).as_class_desc();
     // Read before the connection is borrowed, for [`QueryWatch`]'s reason: the
     // arm below holds the thing the span is filed on.
     let watch = QueryWatch::of(ctx, &block);
@@ -195,7 +245,7 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
         nvs_db::Connection::Sqlite(sqlite) => sqlite_step(sqlite, &block, &watch)?,
     };
     watch.file(ctx, taken);
-    Ok(park_row(receiver, row))
+    park_row(ctx, receiver, row, class)
 }
 
 /// What one step of a walk produced: the row where there was one, and
@@ -389,14 +439,118 @@ fn stream_over(
     statement: &Statement,
     sending: &[Option<&[u8]>],
     source: Option<&str>,
+    named: &str,
 ) -> Result<(), Fault> {
     framed
         .stream(&statement.sql, sending)
-        .map_err(|refused| statement_failure(STREAM_MEMBER, &statement.block, source, &refused))?;
+        .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
     if let Some(name) = statement.block.as_text() {
         framed.name_stream_connection(name);
     }
     Ok(())
+}
+
+/// Opens the walk both of § 18's streaming members are: the portal left parked
+/// on the connection, and a [`STREAM`] over it carrying `class` — a descriptor
+/// for `streamAs<T>`, `null` for `stream`.
+///
+/// A function over the two rather than two bodies, for [`queried_rows`]'
+/// reason: § 4 gives `stream` and `streamAs` one statement, one binding rule
+/// and one deadline, so the only thing that can differ between them is what a
+/// row becomes, and that is one slot.
+///
+/// # Errors
+///
+/// [`statement_of`]'s refusals, [`filed_connection`]'s `LogicError` for a
+/// closed connection, and [`statement_failure`] for anything the server
+/// refused, which for a connection that is already streaming is § 4's
+/// `LogicError`. **No driver is refused**: every one of the five parks a read,
+/// which is what `rule:core-classes/db-streaming` requires of both members.
+fn open_stream(
+    ctx: &mut nvs_runtime::Ctx,
+    args: &[Value],
+    member: &str,
+    named: &str,
+    class: Value,
+) -> Result<Value, Fault> {
+    let statement = statement_of(ctx, args, member, named)?;
+    // § 4's `timeout` bounds the *walk* on this member and not the call that
+    // opens it: the deadline stays filed on the connection while the portal
+    // is open, so it is every `advance()` up to the last row that is bounded
+    // — which is the wait a streaming caller actually has to survive. The
+    // release lifts it, as it does for a buffered statement.
+    let deadline = statement_deadline(args, named)?;
+    // The caller's own text and not [`Statement::sql`], for
+    // [`queried_rows`]' reason: a refusal names what the program wrote.
+    let source = args[1].as_text();
+    let sending: Vec<Option<&[u8]>> = statement.binds.wire();
+    match bound_connection(ctx, statement.key, named, deadline)? {
+        nvs_db::Connection::Postgres(postgres) => {
+            // The description is answered here and read again per row off
+            // the connection, so nothing about it is copied into this
+            // object: it belongs to the statement rather than to the walk.
+            postgres
+                .stream(&statement.sql, &sending)
+                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            if let Some(name) = statement.block.as_text() {
+                postgres.name_stream_connection(name);
+            }
+        }
+        nvs_db::Connection::MySql(mysql) => {
+            stream_over(Framed::MySql(mysql), &statement, &sending, source, named)?;
+        }
+        nvs_db::Connection::MariaDb(maria) => {
+            stream_over(Framed::MariaDb(maria), &statement, &sending, source, named)?;
+        }
+        nvs_db::Connection::SqlServer(tds) => {
+            tds.stream(&statement.sql, &sending)
+                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            if let Some(name) = statement.block.as_text() {
+                tds.name_stream_connection(name);
+            }
+        }
+        nvs_db::Connection::Sqlite(sqlite) => {
+            // The one driver whose parameters arrive owned, exactly as
+            // [`sqlite_rows`] sends them: there is no wire to encode for, so
+            // `nvs_db` takes the values themselves.
+            sqlite
+                .stream(&statement.sql, statement.binds.sqlite())
+                .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
+            if let Some(name) = statement.block.as_text() {
+                sqlite.name_stream_connection(name);
+            }
+        }
+    }
+    // The block name is the *connection's*, read out of its slot by
+    // [`handle_of`] and borrowed for the length of the call like every value
+    // this crate reads out of an argument — and [`crate::instance::build`]
+    // takes a reference over rather than making one. So the walk retains it
+    // here, where it stops being the caller's and becomes this object's.
+    // Without this the stream's release frees the connection's own name a
+    // second time, which is a heap corruption the program never sees: the
+    // right answer is printed and the process exits 127 with nothing on
+    // stderr.
+    #[expect(
+        unsafe_code,
+        reason = "the receiver's slot keeps its own reference for as long as \
+                  the connection is alive, so the copy parked in this object \
+                  needs one of its own"
+    )]
+    unsafe {
+        statement.block.retain();
+    }
+    // `class` carries no reference — a descriptor rides in the payload half of
+    // an otherwise-`null` value — so the slot takes it as it is, exactly as
+    // [`nvs_core_db_connection_query_as`]'s does.
+    Ok(crate::instance::build(
+        &STREAM,
+        [
+            Value::uint(statement.key),
+            statement.block,
+            Value::null(),
+            class,
+        ],
+    ))
 }
 
 nvs_runtime::nvs_helper! {
@@ -418,91 +572,66 @@ nvs_runtime::nvs_helper! {
     ///
     /// # Errors
     ///
-    /// [`statement_of`]'s refusals, [`filed_connection`]'s `LogicError` for a
-    /// closed connection, and [`statement_failure`] for anything the server
-    /// refused, which for a connection that is already streaming is § 4's
-    /// `LogicError`. **No driver is refused**: every one of the five parks a
-    /// read, which is what `rule:core-classes/db-streaming` requires of the member.
+    /// [`open_stream`]'s, which are this member's whole refusal set.
     fn nvs_core_db_connection_stream(ctx, args: [4]) {
-        let statement = statement_of(ctx, args, "stream", STREAM_MEMBER)?;
-        // § 4's `timeout` bounds the *walk* on this member and not the call that
-        // opens it: the deadline stays filed on the connection while the portal
-        // is open, so it is every `advance()` up to the last row that is bounded
-        // — which is the wait a streaming caller actually has to survive. The
-        // release lifts it, as it does for a buffered statement.
-        let deadline = statement_deadline(args, STREAM_MEMBER)?;
-        // The caller's own text and not [`Statement::sql`], for
-        // [`queried_rows`]' reason: a refusal names what the program wrote.
-        let source = args[1].as_text();
-        let sending: Vec<Option<&[u8]>> = statement.binds.wire();
-        match bound_connection(ctx, statement.key, STREAM_MEMBER, deadline)? {
-            nvs_db::Connection::Postgres(postgres) => {
-                // The description is answered here and read again per row off
-                // the connection, so nothing about it is copied into this
-                // object: it belongs to the statement rather than to the walk.
-                postgres
-                    .stream(&statement.sql, &sending)
-                    .map_err(|refused| {
-                        statement_failure(STREAM_MEMBER, &statement.block, source, &refused)
-                    })?;
-                if let Some(name) = statement.block.as_text() {
-                    postgres.name_stream_connection(name);
-                }
-            }
-            nvs_db::Connection::MySql(mysql) => {
-                stream_over(Framed::MySql(mysql), &statement, &sending, source)?;
-            }
-            nvs_db::Connection::MariaDb(maria) => {
-                stream_over(Framed::MariaDb(maria), &statement, &sending, source)?;
-            }
-            nvs_db::Connection::SqlServer(tds) => {
-                tds.stream(&statement.sql, &sending).map_err(|refused| {
-                    statement_failure(STREAM_MEMBER, &statement.block, source, &refused)
-                })?;
-                if let Some(name) = statement.block.as_text() {
-                    tds.name_stream_connection(name);
-                }
-            }
-            nvs_db::Connection::Sqlite(sqlite) => {
-                // The one driver whose parameters arrive owned, exactly as
-                // [`sqlite_rows`] sends them: there is no wire to encode for, so
-                // `nvs_db` takes the values themselves.
-                sqlite
-                    .stream(&statement.sql, statement.binds.sqlite())
-                    .map_err(|refused| {
-                        statement_failure(STREAM_MEMBER, &statement.block, source, &refused)
-                    })?;
-                if let Some(name) = statement.block.as_text() {
-                    sqlite.name_stream_connection(name);
-                }
-            }
+        open_stream(ctx, args, "stream", STREAM_MEMBER, Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$c->streamAs<T>(string $sql, array<mixed> $params): Iterable<T>` — the
+    /// walk above at the class its call site wrote, which is `queryAs`'s
+    /// hydration over the one member that does not buffer.
+    ///
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
+    /// and the receiver is argument 3:
+    /// [`nvs_core_db_connection_query_as`] owns that ABI, and this is the
+    /// second instance member on
+    /// [`crate::registry::WRITTEN_CLASS_MEMBERS`]. So the arity is three more
+    /// than `stream`'s, which is otherwise the same call.
+    ///
+    /// **Nothing about the statement differs**, down to the deadline and the
+    /// parked portal: [`open_stream`] is the whole of it, and the descriptor
+    /// goes into the walk's own slot to be read a row at a time. The refusals
+    /// that are the *call site's* — a list type argument, a `T` carrying no
+    /// `#[Db\Derive]`, a constructor no mapping fills — are
+    /// `nvs_types::derive`'s `check_row_sites` while compiling, and the two
+    /// below are what is left for a class built where no diagnostic could see
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// [`open_stream`]'s, and a `LogicError` for an `array<...>` type argument.
+    /// Per row, [`park_row`]'s `ParseError` for a row that does not match `T`
+    /// and its `LogicError` for a `T` carrying no mapping at all.
+    fn nvs_core_db_connection_stream_as(ctx, args: [7]) {
+        // Unreachable from source, exactly as
+        // [`nvs_core_db_connection_query_as`]'s reading of the same two slots
+        // is: `nvs_ir::lower` writes the descriptor and the flag out of the
+        // type argument at the call site, and a call naming none is `E0442`
+        // before any of this runs.
+        if args[0].as_class_desc().is_none() {
+            return Err(Fault::fatal(format!(
+                "internal error: `{STREAM_AS_MEMBER}` was called with no class in argument 0"
+            )));
         }
-        // The block name is the *connection's*, read out of its slot by
-        // [`handle_of`] and borrowed for the length of the call like every value
-        // this crate reads out of an argument — and [`crate::instance::build`]
-        // takes a reference over rather than making one. So the walk retains it
-        // here, where it stops being the caller's and becomes this object's.
-        // Without this the stream's release frees the connection's own name a
-        // second time, which is a heap corruption the program never sees: the
-        // right answer is printed and the process exits 127 with nothing on
-        // stderr.
-        #[expect(
-            unsafe_code,
-            reason = "the receiver's slot keeps its own reference for as long as \
-                      the connection is alive, so the copy parked in this object \
-                      needs one of its own"
-        )]
-        unsafe {
-            statement.block.retain();
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(format!(
+            "internal error: `{STREAM_AS_MEMBER}` was called with no list flag in argument 1"
+        )))?;
+        // A walk is already one `T` per row, so a list form asks for the plural
+        // twice — `queryAs`'s refusal over a result set, said of the member
+        // that never holds one.
+        if list {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{STREAM_AS_MEMBER}: `array<...>` is not a type argument this member takes \
+                     — a walk answers one row at a time, so write `streamAs<Person>(…)` and \
+                     collect the rows yourself if a list is what you want"
+                ),
+            ));
         }
-        Ok(crate::instance::build(
-            &STREAM,
-            [
-                Value::uint(statement.key),
-                statement.block,
-                Value::null(),
-            ],
-        ))
+        open_stream(ctx, &args[3..], "streamAs", STREAM_AS_MEMBER, args[0])
     }
 }
 
@@ -596,9 +725,15 @@ mod tests {
     fn stream_answers_rows_without_holding_the_result_set() {
         const ROWS: u64 = 1_000;
 
-        let stream =
-            crate::instance::build(&STREAM, [Value::uint(0), Value::null(), Value::null()]);
+        // The fourth slot is the class a `streamAs<T>` would have written, and
+        // this walk is `stream`'s: the rows stay `Db\Row`s, which is what makes
+        // the count below one about the parking and not about a constructor.
+        let stream = crate::instance::build(
+            &STREAM,
+            [Value::uint(0), Value::null(), Value::null(), Value::null()],
+        );
         let receiver = stream.obj_ptr().expect("`build` answers an object");
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
 
         // One reference of the test's own per row, so that a row the walk has
         // let go of is still live enough to be counted.
@@ -607,7 +742,9 @@ mod tests {
             let mut one = NvsArray::new();
             one.set(NvsStr::new(b"n"), Value::uint(n));
             assert_eq!(
-                park_row(receiver, Some(one)).as_bool(),
+                park_row(&mut ctx, receiver, Some(one), None)
+                    .expect("a row that stays a `Db\\Row` is built from nothing")
+                    .as_bool(),
                 Some(true),
                 "a row parked is an `advance()` that answers `true`"
             );
@@ -663,7 +800,9 @@ mod tests {
         );
 
         assert_eq!(
-            park_row(receiver, None).as_bool(),
+            park_row(&mut ctx, receiver, None, None)
+                .expect("the end of a walk builds nothing")
+                .as_bool(),
             Some(false),
             "the end of the result set is an `advance()` that answers `false`"
         );
