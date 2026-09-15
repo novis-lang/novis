@@ -2110,8 +2110,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   |impl ` came back as 88 hits and 173 KB, spilled to a persisted file, and answered nothing the
   question had asked. Write the pattern so it can only match the construct you want — `re:fn
   over_socket|enum Charge` — or use `--outline <file>` and `--locate <symbol>`, which return seams
-  and `file:line` anchors rather than bodies. [until: gone tools/peek.py:re: targets bound their
-  own output]
+  and `file:line` anchors rather than bodies. [until: reviewed 2026-09-15]
 - **A doc link to a `#[cfg(test)]` item, or to another module's private `fn`, builds clean, passes
   clippy and fails only `verify.py --doc`.** `verify.py`'s default gate does not include the doc leg
   and only a `DONE` claim runs it, so every unresolvable link a goal writes is inherited by the goal's
@@ -5056,7 +5055,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **A `.nvst` case cannot carry a body that is not UTF-8.** `--POST_RAW--` crosses to
   `nvs run --request` as a `String` (`crates/nvs-test/src/request.rs:100`), so nothing in that path
   spells one. Build the octets in the program instead — `Core\Encoding::fromHex` into
-  `Core\Test::request`'s `body` key. [until: `--BODY--` crosses as octets]
+  `Core\Test::request`'s `body` key. [until: gone crates/nvs-test/src/request.rs:pub body: Option<String>]
 
 - **`echo` inside an in-process request escapes its string**, so a `--EXPECT--` quoting a throw's
   message sees `&quot;` and `&#39;`. Write the message with no `"` and no `'` in it, or expect the
