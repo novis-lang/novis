@@ -280,8 +280,9 @@ const ANSWER: &[CoreOption] = &[
 /// describe the request that pins either of them.
 const SENT_BODY: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::Neutral)];
 
-/// `Core\Test::request`'s `{headers?: array<string>, body?: string|bytes}` — the
-/// two halves of a request a verb and a path do not describe.
+/// `Core\Test::request`'s `{headers?: array<string>, body?: string|bytes,
+/// mount?: string}` — the halves of a request a verb and a path do not
+/// describe.
 ///
 /// A bag rather than two more parameters, on [`ANSWER`]'s reading of
 /// `rule:core-api/shape-rules` R2: every request has a verb and a path, and
@@ -296,6 +297,14 @@ const SENT_BODY: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::N
 /// that carries no body and one that carries an empty body are different facts
 /// (RFC 9110 § 8.6) that reach a program differently, so "not given" cannot be
 /// spelled by a value the option's own type admits.
+///
+/// **`mount` defaults to `""` and not to [`Const::Null`]**, for the opposite
+/// reason: a request that reached no mount and one whose door stripped nothing
+/// are the same fact, which is what `rule:routing/a-request-reads-its-mount`
+/// makes `Core\Request::mount()` never-`null` for. The key is the prefix alone
+/// and not the mount's glob captures — a synthetic request describes the door
+/// a link is written under, and a capture is a second fact with a reader of its
+/// own.
 const REQUEST_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "headers",
@@ -306,6 +315,11 @@ const REQUEST_OPTIONS: &[CoreOption] = &[
         name: "body",
         ty: CoreTy::Union(SENT_BODY),
         default: Const::Null,
+    },
+    CoreOption {
+        name: "mount",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Str(""),
     },
 ];
 
@@ -763,6 +777,14 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
                    `Core\\Request::bytes` exists for — goes as `bytes`. A call naming no body \
                    describes a request carrying none, which is not a request carrying an empty \
                    one.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "mount",
+            desc: "The prefix the door is to have stripped off `path` before the program saw it — \
+                   what `Core\\Request::mount()` answers, and what `Core\\Router::url` writes in \
+                   front of every link the request builds. A call naming none describes a request \
+                   served at the root, which is what a program run off the command line is too.",
             shape: &[],
         },
     ],
@@ -1929,11 +1951,17 @@ fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::In
         spec.set_body(nvs_runtime::SpecBody::Raw(octets.to_vec()))
             .expect("this bag spells a body one way, so there is no second spelling to refuse");
     }
+    // The door the request is to have come through, and the root for a bag
+    // naming none. Unreachable as anything but text — the option declares
+    // `string` and defaults to `""`, so `E0401` refuses the rest a phase
+    // earlier — and the path is the mount-stripped one either way, which is
+    // what a `#[Route]` is declared against.
+    spec.set_mount(args[4].as_text().unwrap_or(""), &[]);
     Ok(spec)
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes}): Core\Test\Response`
+    /// `Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string}): Core\Test\Response`
     /// — `rule:testing/in-process-request`'s in-process request.
     ///
     /// **Neither the match nor the dispatch happens here.** `rule:routing/matched-once-before-the-handler`'s
@@ -1954,7 +1982,7 @@ nvs_runtime::nvs_helper! {
     /// every request alike. So a handler that forgets to launder a header fails
     /// its test rather than production, and the test that pins it says nothing
     /// about being synthetic.
-    fn nvs_core_test_request(ctx, args: [4]) {
+    fn nvs_core_test_request(ctx, args: [5]) {
         let ordinal = args[0].as_int().unwrap_or(-1);
         let Some(verb) = verb_of(ordinal) else {
             // Unreachable from source — the parameter is `CoreTy::Enum`, so
@@ -3061,14 +3089,17 @@ mod tests {
             nvs_runtime::NvsStr::new(b"X-Signature"),
             Value::str(nvs_runtime::NvsStr::new(b"t=1,v1=deadbeef")),
         );
-        // The four slots the ABI hands a member, of which this reading uses the
-        // bag's two: the verb is the caller's `verb_of` and the target is a
-        // parameter rather than a slot.
+        // The slots the ABI hands a member, of which this reading uses the bag's
+        // alone: the verb is the caller's `verb_of` and the target is a
+        // parameter rather than a slot. The last is `mount`, written as the
+        // default an omitting call site passes, which describes a request served
+        // at the root.
         let args = [
             Value::int(0),
             Value::str(nvs_runtime::NvsStr::new(b"/hooks?since=2")),
             Value::array(headers),
             Value::bytes(nvs_runtime::NvsStr::new(BODY)),
+            Value::str(nvs_runtime::NvsStr::new(b"")),
         ];
         let described =
             described("POST", "/hooks?since=2", &args).expect("this bag is what the row declares");

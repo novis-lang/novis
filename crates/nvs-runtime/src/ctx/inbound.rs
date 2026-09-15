@@ -640,8 +640,10 @@ impl Inbound {
     /// from.
     ///
     /// Called at most once, beside [`Self::set_peer`] and before the program
-    /// runs — `nvs_server::mount::carry` is the one caller and the home of that
-    /// direction. Both facts arrive in one call for [`Self::set_peer`]'s
+    /// runs — `nvs_server::mount::carry` is the served caller and the home of
+    /// that direction, and [`InboundSpec::build`] is the synthetic one, which
+    /// carries whatever mount a test described. Both facts arrive in one call
+    /// for [`Self::set_peer`]'s
     /// reason: they are two fields of one row, and a carrier holding half of a
     /// mount would answer `Core\Request::mount()` with a prefix and somebody
     /// else's captures.
@@ -1090,6 +1092,16 @@ pub struct InboundSpec {
     /// The authority the request names, written as the `host` field line every
     /// HTTP/1.1 request carries it in, and `None` for a spec that named none.
     host: Option<String>,
+    /// The prefix a door is to have stripped off [`Self::path`] before the
+    /// program saw it, and `""` for a request that reached no mount — the two
+    /// states [`Inbound::mount_prefix`] does not distinguish either, which is
+    /// why this is a `String` where the peer above it is an [`Option`].
+    mount_prefix: String,
+    /// The mount's glob captures, in order, and empty for a prefix that has
+    /// none. One field beside the one above rather than a pair, for
+    /// [`Inbound::set_mount`]'s reason: they are two halves of one row and
+    /// [`Self::build`] hands them over together.
+    mount_captures: Vec<String>,
 }
 
 /// One of the four spellings a spec's body is written in, three of which encode
@@ -1210,6 +1222,8 @@ impl InboundSpec {
             client: None,
             scheme: Scheme::Http,
             host: None,
+            mount_prefix: String::new(),
+            mount_captures: Vec::new(),
         }
     }
 
@@ -1278,6 +1292,20 @@ impl InboundSpec {
         self.host = Some(host.to_owned());
     }
 
+    /// Records the mount the request is to have come through, on
+    /// [`Inbound::set_mount`]'s terms: the prefix a door stripped and the
+    /// captures that selected it are two fields of one row, so a spec states
+    /// both or neither.
+    ///
+    /// The path is the mount-stripped one either way — that is what a
+    /// `#[Route]` is declared against — so describing a mount adds the prefix
+    /// a program reads back through `Core\Request::mount()` and changes
+    /// nothing about what the table is matched on.
+    pub fn set_mount(&mut self, prefix: &str, captures: &[String]) {
+        self.mount_prefix = prefix.to_owned();
+        self.mount_captures = captures.to_vec();
+    }
+
     /// Builds the carrier this spec describes.
     ///
     /// The order is the one a peer would have written: the spec's own field
@@ -1296,6 +1324,8 @@ impl InboundSpec {
             client,
             scheme,
             host,
+            mount_prefix,
+            mount_captures,
         } = self;
         let mut inbound = Inbound::new(&method, &path, &query);
         for (name, value) in &headers {
@@ -1326,6 +1356,7 @@ impl InboundSpec {
             inbound.set_buffered_body(octets);
         }
         inbound.set_peer(client, scheme);
+        inbound.set_mount(&mount_prefix, &mount_captures);
         inbound
     }
 }

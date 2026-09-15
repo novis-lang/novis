@@ -1,0 +1,41 @@
+--TEST--
+`Core\Router::url` writes a link under the prefix the door stripped, and under nothing where no request was answered — `rule:routing/link-carries-the-mount-prefix`, `rule:routing/a-request-reads-its-mount`
+--FILE--
+<?nvs
+// One declaration, three doors. The path a `#[Route]` is declared against is
+// the mount-stripped one, so nothing here says where the module is served from
+// and a link built out of the declaration alone would read the same under every
+// one of them.
+class Docs {
+    // `rule:attributes/access-is-a-required-sibling`: `#[Access]` is a required
+    // sibling, and `Core\Audience::Public` is the case for a route that is open.
+    #[Core\Route(path: "/page/{slug}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(string $slug): string { return $slug; }
+}
+
+try {
+    // Two synthetic requests describing the same path through two doors: one
+    // whose mount stripped nothing, and one served under `/ModuleA`. The target
+    // is the same string in both, because a prefix is what the door took off
+    // before the program saw it.
+    var $rooted = Core\Test::request(Core\Http\Method::Get, "/page/intro");
+    var $mounted = Core\Test::request(Core\Http\Method::Get, "/page/intro", {mount: "/ModuleA"});
+    // The parent is a program run off the command line: it is mounted nowhere,
+    // and having no request at all answers the same link as a request whose
+    // mount stripped nothing.
+    echo "run ", Core\Router::url("Docs::page", ["slug" => "intro"]), "\n";
+    echo "rooted ", $rooted->body(), "\n";
+    echo "mounted ", $mounted->body(), "\n";
+} catch (RuntimeError $inside) {
+    // The child, which is this same program run from the top for each request
+    // above (`rule:testing/in-process-request`), so the first call is refused
+    // from inside the request it would answer. What it echoes is the response
+    // body the parent prints — one link, written under whichever mount the
+    // request arrived through.
+    echo Core\Router::url("Docs::page", ["slug" => "intro"]);
+}
+--EXPECT--
+run /page/intro
+rooted /page/intro
+mounted /ModuleA/page/intro

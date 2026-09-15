@@ -62,18 +62,6 @@
 //!    Decided: The fold grows a named-argument case (the checker already holds the route's typed
 //!    parameters) — Errors at compile time with a precise message; more checker code.
 //!    — owner: unowned-closures
-//! 2. **The mount prefix reaches a served request and no member here reads
-//!    it.** [`substitute`] percent-encodes every value it puts in a segment,
-//!    which is § 4's launder and is real; what it does not put in front of
-//!    one is (`rule:http-server/a-mount-table-expands-at-boot`
-//!    )'s prefix. An inbound request carries that prefix — `Ctx::inbound`'s
-//!    `mount_prefix` — and nothing here asks for it, so a link is written
-//!    from the mount root out rather than from the prefix the entry is served
-//!    under. A program run off the command line is mounted nowhere and has
-//!    none to read at all. `urlAbsolute` is the half that does reach for its
-//!    context: it reads [`Ctx::origin`](nvs_runtime::Ctx::origin) and throws
-//!    when a unit has resolved none, rather than answering an empty authority.
-//!    — owner: m7-server-surface
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
@@ -965,17 +953,38 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
     Ok(out)
 }
 
+/// [`substitute`]'s answer under the mount the request came through —
+/// `rule:routing/link-carries-the-mount-prefix`'s prefix in front of the path
+/// every member here writes.
+///
+/// **One function for the three of them**, because a link, a signed link and an
+/// absolute link are one path with different things attached, and a prefix
+/// joined at two of the three sites is how they would come to disagree about
+/// where the module is mounted.
+///
+/// The prefix is the door's, read off the carrier
+/// (`rule:routing/a-request-reads-its-mount`) rather than derived from the
+/// request target, and it is `""` twice over: for a request whose mount
+/// stripped nothing, and for a program run off the command line, which is
+/// mounted nowhere and carries no request at all. Those are one answer here
+/// for `Inbound::mount_prefix`'s own reason, so neither has a branch.
+fn mounted(ctx: &nvs_runtime::Ctx, path: &str) -> String {
+    match ctx.inbound() {
+        Some(inbound) => format!("{}{path}", inbound.mount_prefix()),
+        None => path.to_owned(),
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Router::url` over a name the compiler resolved — see [`link`].
     ///
-    /// The mount prefix `rule:http-server/a-mount-table-expands-at-boot` has this member prepend is empty here and
-    /// only here: a program run off the command line is mounted nowhere, and
-    /// there is no server yet to be mounted by. The prefix joins in front of
-    /// [`substitute`]'s answer when one exists, which is why the substitution
-    /// is its own function rather than this body.
-    fn nvs_core_router_link(_ctx, args: [2]) {
+    /// [`mounted`] is what puts the request's mount prefix in front of the
+    /// substituted path, which is why the substitution is its own function
+    /// rather than this body.
+    fn nvs_core_router_link(ctx, args: [2]) {
         let template = link_template(args, "url")?;
-        produced(&substitute(template, &args[1], "url")?)
+        let path = substitute(template, &args[1], "url")?;
+        produced(&mounted(ctx, &path))
     }
 }
 
@@ -994,7 +1003,7 @@ nvs_runtime::nvs_helper! {
     /// line to expand.
     fn nvs_core_router_link_absolute(ctx, args: [2]) {
         let template = link_template(args, "urlAbsolute")?;
-        let path = substitute(template, &args[1], "urlAbsolute")?;
+        let path = mounted(ctx, &substitute(template, &args[1], "urlAbsolute")?);
         let Some(origin) = ctx.origin() else {
             return Err(Fault::thrown(format!(
                 "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `{path}` \
@@ -1134,7 +1143,7 @@ nvs_runtime::nvs_helper! {
     /// carries the signed document as well as the tag — about
     /// `4/3 × (name + params + 40)` characters — buying one wire format for
     /// all three doors rather than a second, shorter one here.
-    fn nvs_core_router_link_signed(_ctx, args: [5]) {
+    fn nvs_core_router_link_signed(ctx, args: [5]) {
         const MEMBER: &str = "urlSigned";
 
         let template = link_template(args, MEMBER)?;
@@ -1173,7 +1182,11 @@ nvs_runtime::nvs_helper! {
         discard(payload);
         let token = minted?;
 
-        let mut out = substitute(template, &args[2], MEMBER)?;
+        // The prefix joins here as it does in [`nvs_core_router_link`], and the
+        // payload never sees it: what is signed is the route's name and its
+        // `$params`, so a link minted under one mount verifies under another
+        // ([`signed_payload`]).
+        let mut out = mounted(ctx, &substitute(template, &args[2], MEMBER)?);
         out.push(if out.contains('?') { '&' } else { '?' });
         out.push_str(SIG_NAME);
         out.push('=');
