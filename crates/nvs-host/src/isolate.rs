@@ -619,11 +619,12 @@ impl Isolate {
         // nothing, writes nothing and calls nothing only if a thread that is not
         // this one is charging it, and what such a thread charges is the
         // **tree's** handle and the tree's ceiling. Both are read off this
-        // context rather than off the child below, and they have to be:
-        // `Ctx::isolate` carries no ceiling across, precisely so that the budget
-        // stays the root's, and the word it does carry across is the same word
-        // this one hands out. Published before the child is built, so a runaway
-        // is published ahead of the code that runs away.
+        // context rather than off the child below, and they have to be: the CPU
+        // ceiling stays the root's and `Ctx::isolate` carries none of it down,
+        // where the memory half crosses as what remains of the same number. The
+        // word is the child's either way, `Ctx::share_safepoint_with` being what
+        // hands it over. Published before the child is built, so a runaway is
+        // published ahead of the code that runs away.
         //
         // [`Unpublished`] is what clears it, and the two are deliberately not
         // symmetrical: the publication is one store made here, and the guard
