@@ -13,8 +13,9 @@
 //! and for the same reason: naming the walk is not reading it.
 //!
 //! **What it holds is the connection's key and one row.** The rows live on the
-//! connection — `nvs_db`'s `PgCursor` and `MySqlCursor` are the read state § 4
-//! parks there, one per driver that has a parked read — so
+//! connection — `nvs_db`'s `PgCursor`, `MySqlCursor`, `TdsCursor` and
+//! `SqliteCursor` are `rule:core-classes/a-stream-parks-its-read-on-the-connection`'s read state, one per
+//! driver and every driver — so
 //! this object owns nothing a request teardown does not already own, and an
 //! escaped `$stream` keeps no portal alive past the request that opened it. The
 //! one slot that holds a value is [`STREAM_ROW_SLOT`], overwritten by every
@@ -190,15 +191,8 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
         }
         nvs_db::Connection::MySql(mysql) => mysql_step(Framed::MySql(mysql), &block, &watch)?,
         nvs_db::Connection::MariaDb(maria) => mysql_step(Framed::MariaDb(maria), &block, &watch)?,
-        // Unreachable: [`nvs_core_db_connection_stream`] refuses every other
-        // driver before it builds one of these, and a connection cannot change
-        // driver under a walk.
-        other => {
-            return Err(Fault::fatal(format!(
-                "{STREAM_NAME}::{member} found a `{}` connection under a stream",
-                other.driver().matrix_name()
-            )));
-        }
+        nvs_db::Connection::SqlServer(tds) => tds_step(tds, &block, &watch)?,
+        nvs_db::Connection::Sqlite(sqlite) => sqlite_step(sqlite, &block, &watch)?,
     };
     watch.file(ctx, taken);
     Ok(park_row(receiver, row))
@@ -279,6 +273,108 @@ fn mysql_step(mut framed: Framed<'_>, block: &Value, watch: &QueryWatch) -> Resu
     Ok((Some(one), None))
 }
 
+/// One step of a walk over SQL Server, for [`stream_step`]'s arm.
+///
+/// [`mysql_step`]'s shape, over `nvs_db::TdsCursor`'s parked read: the row comes
+/// back owned, the description is borrowed off the connection after it, and the
+/// per-row work is [`tds_rows`]' rather than this function's.
+///
+/// # Errors
+///
+/// [`statement_failure`]'s for anything the server refused mid-walk or a wire
+/// that failed under it, and [`tds_column_value`]'s for a column with no Novis
+/// representation. A [`Fault::fatal`] for a row narrower than the description it
+/// was decoded against, which is a `nvs-db` bug rather than a program's.
+fn tds_step(
+    tds: &mut nvs_db::TdsConn,
+    block: &Value,
+    watch: &QueryWatch,
+) -> Result<Stepped, Fault> {
+    let read = tds
+        .stream_next_row()
+        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+    let Some(read) = read else {
+        let taken = tds.stream_span().and_then(|span| watch.taken(span));
+        // The answer is already read to its `DONE` — that is what ended the
+        // walk — so this drops the parked state rather than draining anything.
+        tds.end_stream();
+        return Ok((None, taken));
+    };
+
+    let zone = tds.time_zone();
+    let columns = tds.stream_columns().unwrap_or(&[]);
+    // Built whole before it is parked, on [`park_row`]'s reasoning.
+    let mut one = NvsArray::new();
+    for (index, column) in columns.iter().enumerate() {
+        // Unreachable and fatal for [`tds_rows`]' reason: `nvs-db` reads one
+        // value per described column, so a row is exactly as wide as this loop.
+        let body = read.column(index).ok_or_else(|| {
+            Fault::fatal(format!(
+                "{STREAM_MEMBER}: the row has no column {index}, where the result set described {}",
+                columns.len()
+            ))
+        })?;
+        let scalar = nvs_db::tds::scalar(column, body)
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+        let value = tds_column_value(scalar, zone, STREAM_MEMBER, &column.name)?;
+        one.set(NvsStr::new(column.name.as_bytes()), value);
+    }
+    Ok((Some(one), None))
+}
+
+/// One step of a walk over SQLite, for [`stream_step`]'s arm.
+///
+/// The parked read here is a pool thread rather than a message boundary
+/// (`nvs_db::SqliteCursor`), which changes nothing this side of the call: one
+/// owned row per step, decoded against a description that outlives it.
+///
+/// **The cells are moved and not copied**, exactly as [`sqlite_rows`] moves
+/// them: the buffer a `TEXT` or `BLOB` crossed the thread in becomes the Novis
+/// value's, so a walk pays one copy per cell and not two.
+///
+/// # Errors
+///
+/// [`statement_failure`]'s for anything SQLite refused mid-walk, and
+/// [`sqlite_column_value`]'s for a cell the column's declaration does not
+/// describe. A [`Fault::fatal`] for a row that is not as wide as the
+/// description, which is a `nvs-db` bug rather than a program's.
+fn sqlite_step(
+    sqlite: &mut nvs_db::SqliteConn,
+    block: &Value,
+    watch: &QueryWatch,
+) -> Result<Stepped, Fault> {
+    let read = sqlite
+        .stream_next_row()
+        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+    let Some(cells) = read else {
+        let taken = sqlite.stream_span().and_then(|span| watch.taken(span));
+        // The thread let go of the statement and the connection before it
+        // answered this step, so this drops the description and the span alone.
+        sqlite.end_stream();
+        return Ok((None, taken));
+    };
+
+    let zone = sqlite.time_zone();
+    let columns = sqlite.stream_columns().unwrap_or(&[]);
+    if cells.len() != columns.len() {
+        return Err(Fault::fatal(format!(
+            "{STREAM_MEMBER}: the row holds {} column(s), where the result set described {}",
+            cells.len(),
+            columns.len()
+        )));
+    }
+
+    // Built whole before it is parked, on [`park_row`]'s reasoning.
+    let mut one = NvsArray::new();
+    for (column, cell) in columns.iter().zip(cells) {
+        one.set(
+            NvsStr::new(column.name.as_bytes()),
+            sqlite_column_value(column, cell, zone, STREAM_MEMBER)?,
+        );
+    }
+    Ok((Some(one), None))
+}
+
 /// Opens the walk on either of the two drivers [`Framed`] covers, for
 /// [`nvs_core_db_connection_stream`]'s arms.
 ///
@@ -323,10 +419,10 @@ nvs_runtime::nvs_helper! {
     /// # Errors
     ///
     /// [`statement_of`]'s refusals, [`filed_connection`]'s `LogicError` for a
-    /// closed connection, a thrown `RuntimeError` for a driver with no parked
-    /// cursor yet — [`crate::db`]'s known gap 3 — and [`statement_failure`] for
-    /// anything the server refused, which for a connection that is already
-    /// streaming is § 4's `LogicError`.
+    /// closed connection, and [`statement_failure`] for anything the server
+    /// refused, which for a connection that is already streaming is § 4's
+    /// `LogicError`. **No driver is refused**: every one of the five parks a
+    /// read, which is what `rule:core-classes/db-streaming` requires of the member.
     fn nvs_core_db_connection_stream(ctx, args: [4]) {
         let statement = statement_of(ctx, args, "stream", STREAM_MEMBER)?;
         // § 4's `timeout` bounds the *walk* on this member and not the call that
@@ -359,8 +455,26 @@ nvs_runtime::nvs_helper! {
             nvs_db::Connection::MariaDb(maria) => {
                 stream_over(Framed::MariaDb(maria), &statement, &sending, source)?;
             }
-            other => {
-                return Err(unstreamed(other.driver()));
+            nvs_db::Connection::SqlServer(tds) => {
+                tds.stream(&statement.sql, &sending).map_err(|refused| {
+                    statement_failure(STREAM_MEMBER, &statement.block, source, &refused)
+                })?;
+                if let Some(name) = statement.block.as_text() {
+                    tds.name_stream_connection(name);
+                }
+            }
+            nvs_db::Connection::Sqlite(sqlite) => {
+                // The one driver whose parameters arrive owned, exactly as
+                // [`sqlite_rows`] sends them: there is no wire to encode for, so
+                // `nvs_db` takes the values themselves.
+                sqlite
+                    .stream(&statement.sql, statement.binds.sqlite())
+                    .map_err(|refused| {
+                        statement_failure(STREAM_MEMBER, &statement.block, source, &refused)
+                    })?;
+                if let Some(name) = statement.block.as_text() {
+                    sqlite.name_stream_connection(name);
+                }
             }
         }
         // The block name is the *connection's*, read out of its slot by
@@ -390,22 +504,6 @@ nvs_runtime::nvs_helper! {
             ],
         ))
     }
-}
-
-/// The refusal for a driver whose wire half has no parked read yet.
-///
-/// A `RuntimeError` and not a `LogicError`: the call is well formed and the same
-/// call is answered on the drivers that do park one, so it is this runtime that
-/// is short and not the program. It names `query` because that is the member
-/// every driver answers with the same rows, which is the whole of what a caller
-/// can do about it today.
-fn unstreamed(driver: nvs_db::Driver) -> Fault {
-    Fault::thrown(format!(
-        "{STREAM_MEMBER}: this connection's driver has no streaming read yet — PostgreSQL, MySQL \
-         and MariaDB park one, so read this statement with `query` here, or open the block on one \
-         of those (`{}` is what it names today)",
-        driver.matrix_name()
-    ))
 }
 
 nvs_runtime::nvs_helper! {

@@ -2318,11 +2318,6 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
                    already streaming on it.",
         },
         ErrorDoc {
-            error: "RuntimeError",
-            desc: "The connection's driver has no streaming read yet — PostgreSQL, MySQL and \
-                   MariaDB park one today, and `query` answers the same rows on every driver.",
-        },
-        ErrorDoc {
             error: "Core\\Db\\DbError",
             desc: "The server refused the statement, or refused it part way through the walk, \
                    carrying its own `SQLSTATE` and message — or a column came back in a type this \
