@@ -2,50 +2,44 @@
 
 ## State
 
-**Goal `m8-db-queue`, stage 8. Recording and applying both land; only the call-site half is left.**
-`nvs_jobs` carries `grants` and `limits`, every dialect's enqueue writes them, and every dialect's
-claim now answers them at the end of its own list — `crates/nvs-stdlib/src/queue.rs:498` and the
-three texts beside it, held together by `all_three_dialects_answer_a_claim_with_the_same_columns`.
-A worker reads them by ordinal at `crates/nvs-cli/src/worker.rs:637`.
+**Goal `m8-db-queue`, stage 8 is complete: recording, applying and the call site all land.**
+`push` declares the job's narrowing as five options at the end of its one trailing bag — `grants`
+and the four `[limits]` ceilings of `LIMIT_OPTIONS` (`crates/nvs-stdlib/src/queue.rs:1782`) — and
+`grants_of`/`limits_of` (`crates/nvs-stdlib/src/queue.rs:2735`) turn what a call site wrote into the
+two columns the row already carried, before the connection is reached.
 
-`nvs_stdlib::queue::narrowing` (`crates/nvs-stdlib/src/queue.rs:2653`) reads the pair back into the
-`nvs_runtime::host::Narrowing` a `spawn script … with(…)` already carries, and `run`
-(`crates/nvs-cli/src/worker.rs:1055`) hands it to `Isolate::narrowed_by`, so what applies it is
-`nvs_config::Request::set` — the one reader that refuses a widening. A pair it cannot read is a
-refused attempt, never a job run at the deployment's own ceiling.
+A written `grants:` is checked name by name against `nvs_runtime::capability::granted` asked
+unscoped, so a name the enqueuing request does not hold is a `RuntimeError` where it stands and a
+name no capability has is a `LogicError`. A written ceiling is set on a clone of the request's own
+`nvs_config::Request` and read back by `limits_recorded`, which makes `Request::set` the one reader
+that judges it — see the playbook bullet for what that does and does not prove.
 
-**What that unblocks is the option pair on `push`.** Gap 1
-(`crates/nvs-stdlib/src/queue.rs:64`) now says what is still owed: a written `grants:` naming a
-capability the enqueuing request does not hold has to be refused where it stands, since a row is
-narrowed *from* that request and never widened. Stage 9's socket leg is untouched beside it —
-`tools/db-matrix.py` has no `AF_UNIX` endpoint.
+`crates/nvs-stdlib/src/queue.rs`'s gap 1 is retired and the two below it renumbered; the goal's
+*Not this goal* list now says gaps 1–2. Stage 9 is untouched and all three of its checks are red.
 
 ## Next group
 
-**Stage 8: `push` declares the narrowing and refuses a widening** — one file set:
-`crates/nvs-stdlib/src/queue.rs` and the goal file
-`docs/agent/goals/58-m8-db-queue.toml`. `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`
-owns what may be written and what may not.
+**Stage 9: the socket leg, then the CI leg** — one file set: `tools/db-matrix.py`,
+`crates/nvs-db/src/matrix.rs`, `.github/workflows/ci.yml` and `tools/ci-changes.py`.
+`rule:core-classes/db-unix-socket-path` owns the transport; the stage's three `[[check]]` blocks are
+`docs/agent/loop-goal.toml:10720-10748` and none of them passes today.
 
-- [ ] **`push` declares `limits` and `grants`, and refuses a grant the enqueuing request does not
-      hold.** The rows go beside `tag` in the one trailing bag, at
-      `crates/nvs-stdlib/src/queue.rs:1870`; the refusal goes in `nvs_core_queue_push`
-      (`crates/nvs-stdlib/src/queue.rs:2931`) *before* the connection is reached, which is that
-      member's own stated ordering, and it narrows what
-      `crates/nvs-stdlib/src/queue.rs:2964` records rather than replacing it. The check names
-      `push_refuses_a_grant_the_enqueuing_request_does_not_hold`; `grants` is a list of capability
-      names in the spelling `nvs.toml` grants them under, and `limits` its sub-caps one option each
-      (gap 1, `crates/nvs-stdlib/src/queue.rs:64`).
-- [ ] **Retire gap 1 and the test that stands in for it.**
-      `limits_and_grants_are_refused_by_name_until_an_isolate_enforces_them`
-      (`crates/nvs-stdlib/src/queue.rs:6670`) asserts the two options are *absent*, so it inverts
-      the moment the item above lands — and its name is one a `[[check]]` names, at
-      `docs/agent/goals/58-m8-db-queue.toml:6597`, so the rename happens in both places in the same
-      slice. Gap 1's whole entry goes with it.
+- [ ] **`tools/db-matrix.py` publishes an `AF_UNIX` endpoint for MySQL, MariaDB and PostgreSQL, and
+      runs the TCP case list again over it.** The socket directory is bind-mounted out of each
+      container and handed to the leg as `NVS_DB_MATRIX_SOCKET`
+      (`crates/nvs-db/src/matrix.rs:73`), whose absence is the whole of the choice between the two
+      transports; `tests/handshake.rs` already dials whichever `Location` it is handed. The check
+      wants the three `… over a socket: ok` lines after the five TCP ones.
+- [ ] **Retire `crates/nvs-db/src/matrix.rs:43` gap 1**, which is that leg being asked for and never
+      published — it is `m8-db-queue`-owned and its *Decided:* line is the whole case list again
+      over the socket.
+- [ ] **`.github/workflows/ci.yml:106` runs `python tools/db-matrix.py --all`, and the `LANES`
+      table at `tools/ci-changes.py:34` gains the `db` lane it prints as `db=true`.** CI is not
+      running (goal § *Standing decisions*), so both are proven by reading the workflow file and
+      the lane tool, never by a remote run.
 
 ## Backlog
 
-- Stage 9's socket leg: `tools/db-matrix.py` has no `AF_UNIX` endpoint (the goal's stage 9).
-- `crates/nvs-stdlib/src/queue.rs` gaps 2–3 are goal `unowned-closures`'s, per the goal's
-  § *Standing decisions* — not this one's.
-- No end-to-end `nvs serve` runaway test for the resource ceilings (`docs/agent/carried-gaps.md`).
+- Stage 10's rulebook sweep: `core-classes/a-stream-parks-its-read-on-the-connection` still reads
+  `designed`, and `docs/agent/loop-goal.toml:10754` is the check.
+- `crates/nvs-stdlib/src/queue.rs` gaps 1–2 are `unowned-closures`', not this goal's.
