@@ -116,6 +116,10 @@ pub struct Isolate {
     /// response in the other — stays a value a handler can return without one
     /// arm dwarfing the other.
     inbound: Option<Box<Inbound>>,
+    /// The origin the door that accepted this request resolved for it —
+    /// [`Isolate::at_origin`], and `None` for every isolate whose context takes
+    /// its parent's answer.
+    origin: Option<Box<str>>,
     peer: Option<Box<dyn PeerSocket>>,
     /// The writing half of the response this isolate's events are the body of —
     /// [`Isolate::over_event_stream`], and `None` for every isolate that is not
@@ -191,6 +195,7 @@ impl Isolate {
             charge: Charge::Tree,
             entry: Form::Path,
             inbound: None,
+            origin: None,
             peer: None,
             event_stream: None,
             watch: None,
@@ -284,6 +289,29 @@ impl Isolate {
     #[must_use]
     pub fn answering(mut self, inbound: Inbound) -> Self {
         self.inbound = Some(Box::new(inbound));
+        self
+    }
+
+    /// Gives it the origin absolute links are built from, which the child's own
+    /// context then answers `Core\Router::urlAbsolute` with
+    /// ([`Ctx::set_origin`](nvs_runtime::Ctx::set_origin)).
+    ///
+    /// **Beside [`Self::answering`] rather than on the carrier**, because an
+    /// origin is a fact about the deployment the request came through and not
+    /// about the request: nothing a peer wrote can reach it, which is
+    /// `rule:routing/an-absolute-link-takes-a-configured-origin`'s "configured,
+    /// never sniffed" holding as a property of the shape.
+    ///
+    /// It arrives through the isolate for the reason
+    /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot` gives: the
+    /// origin is **per mount**, so a server's accept loop cannot hold one — one
+    /// process serves many mounts and each resolves its own. `Ctx::isolate`
+    /// carries a parent's origin across on its own, so a `spawn script` inside
+    /// a request already links like the request that spawned it and this is
+    /// written only where a door resolved an origin of its own.
+    #[must_use]
+    pub fn at_origin(mut self, origin: &str) -> Self {
+        self.origin = Some(origin.into());
         self
     }
 
@@ -474,6 +502,7 @@ impl Isolate {
             charge,
             entry,
             inbound,
+            origin,
             peer,
             event_stream,
             watch,
@@ -588,6 +617,16 @@ impl Isolate {
         // once and never cleared.
         if let Some(inbound) = inbound {
             isolate_ctx.set_inbound(inbound);
+        }
+        // The origin its absolute links are built from, on the same context and
+        // at the same point, because it is the same kind of fact: resolved
+        // before the request runs and never during it. [`Isolate::at_origin`]
+        // owns why a server's origin arrives here rather than on the accept
+        // loop's own context, and the write is after `Ctx::isolate` copied the
+        // parent's across, so a door that resolved one has the last word and a
+        // door that resolved none leaves the parent's answer standing.
+        if let Some(origin) = origin {
+            isolate_ctx.set_origin(&origin);
         }
         // `rule:concurrency/a-connection-is-a-root-isolate`'s socket, on the same context and for the same reason:
         // it is what this isolate *is*, so it is there before the program's

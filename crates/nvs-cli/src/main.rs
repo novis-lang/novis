@@ -1820,8 +1820,9 @@ fn runtime_commands(
 /// `TypeInterner::describe` rendered it, and `nvs_runtime::routes::CaptureConv`
 /// is the closed set a matcher needs instead. That enum's `Unconverted` doc
 /// owns what is left under it.
-pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::routes::Routes {
-    nvs_runtime::routes::Routes::new(
+pub(crate) fn runtime_routes(exprs: &nvs_types::ExprTypeTable) -> nvs_runtime::routes::Routes {
+    let table = exprs.routes();
+    let crossed = nvs_runtime::routes::Routes::new(
         table
             .rows()
             .iter()
@@ -1855,7 +1856,18 @@ pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::rout
                 }
             })
             .collect(),
-    )
+    );
+    // The link half of the same crossing, off the call sites the checker
+    // resolved rather than off the rows above: a mount's boot check asks
+    // whether the unit *builds* an absolute link, which no declaration says.
+    // Taken here so that every program this binary runs carries the same
+    // answer, since a table marked in one builder and not in another is a
+    // check that passes on which path compiled it.
+    if exprs.links_absolutely() {
+        crossed.linking_absolutely()
+    } else {
+        crossed
+    }
 }
 
 /// Which conversion § 5's declared type is, as the matcher spells it.
@@ -2168,7 +2180,7 @@ fn run_run(
     // program runs rather than only where a server is answering.
     let routes = checked.exprs.routes();
     if !routes.rows().is_empty() {
-        ctx.set_routes(std::sync::Arc::new(runtime_routes(routes)));
+        ctx.set_routes(std::sync::Arc::new(runtime_routes(&checked.exprs)));
     }
     // The words past the file are the program's own, and `Core\Command::run`
     // matches them against the table above. Written here rather than read from

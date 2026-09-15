@@ -3,7 +3,7 @@
 
 # Routing
 
-*3 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="routing-routes-are-compiled-not-registered"></a>
 
@@ -623,7 +623,7 @@ one binary serves several hosts is [`routing/an-origin-is-per-mount-and-checked-
 
 <a id="routing-an-origin-is-per-mount-and-checked-at-boot"></a>
 
-## An origin is declared per mount with `[app] origin` as the fallback, a request cannot set it, and a mount that calls `urlAbsolute` without one is a boot error  *(designed — not yet in the compiler)*
+## An origin is declared per mount with `[app] origin` as the fallback, a request cannot set it, and a mount that calls `urlAbsolute` without one is a boot error
 
 `rule:routing/an-origin-is-per-mount-and-checked-at-boot`
 
@@ -641,11 +641,16 @@ restart. **The check that an origin resolves runs at mount expansion**, per reso
 on reload: a mount whose unit contains a literal `urlAbsolute` call and resolves no origin is a boot
 error, so the failure is at deploy time rather than in a sent message.
 
-**Not shipped.** The configuration reader parses a mount's `origin` and substitutes its captures, but a
-served request never receives it — only a command-line run installs an origin, from `[[app]]` — and the
-boot check is recorded as not yet built beside the mount expander.
+**The check is asked at the boot compile**, which is the first point at which both halves are in hand:
+`nvs serve` compiles every mounted entry before it binds anything, and asks of each resolved row whether
+the unit it just compiled builds an absolute link. One entry serves every tenant a `scan` glob
+enumerated, so the same unit is a refusal under a row that resolved no origin and a start under the row
+beside it. A served request then receives its mount's origin on the isolate that answers it, because a
+process serving many mounts has no one origin its accept loop could hold. A mount and its origin cannot
+change under a running process — `[server]` is `Boot`-class as a whole
+([`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class)) — so the boot is the only place the question arises.
 
-<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md), [0078](../decisions/0078.md).</sub>
+<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md), [0078](../decisions/0078.md).</sub>
 
 <a id="routing-table-is-opt-in"></a>
 

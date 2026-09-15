@@ -496,7 +496,7 @@
     {
       "id": "routing/an-origin-is-per-mount-and-checked-at-boot",
       "title": "An origin is declared per mount with `[app] origin` as the fallback, a request cannot set it, and a mount that calls `urlAbsolute` without one is a boot error",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0102",
         "0097",
@@ -506,9 +506,12 @@
       "divergesFromPhp": "a multi-tenant deployment configures one origin line with a capture in it rather than computing a base URL per request",
       "seeAlso": [
         "routing/an-absolute-link-takes-a-configured-origin",
-        "routing/a-request-reads-its-mount"
+        "routing/a-request-reads-its-mount",
+        "http-server/the-server-block-is-boot-class"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/src/serve.rs"
+      ]
     },
     {
       "id": "routing/table-is-opt-in",

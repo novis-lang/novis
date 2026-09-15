@@ -584,6 +584,10 @@ impl Match {
 #[derive(Clone, Debug, Default)]
 pub struct Routes {
     rows: Vec<Arc<Route>>,
+    /// Whether the unit that declared these rows also **links** to one
+    /// absolutely — [`Self::absolute_links`], and the one fact here that is
+    /// about the calls rather than about the declarations.
+    absolute_links: bool,
 }
 
 impl Routes {
@@ -592,13 +596,39 @@ impl Routes {
     pub fn new(rows: Vec<Route>) -> Self {
         Self {
             rows: rows.into_iter().map(Arc::new).collect(),
+            absolute_links: false,
         }
+    }
+
+    /// The same table, declared by a unit that builds an absolute link.
+    ///
+    /// A builder rather than an argument, because it is the one fact here a
+    /// route declaration does not carry: the compiler reads it off the call
+    /// sites it resolved (`nvs_types::ExprTypeTable::links_absolutely`), and it
+    /// rides on the table because a link resolves against exactly this table
+    /// and crosses by exactly this channel.
+    #[must_use]
+    pub fn linking_absolutely(mut self) -> Self {
+        self.absolute_links = true;
+        self
     }
 
     /// Every row, in load order.
     #[must_use]
     pub fn rows(&self) -> &[Arc<Route>] {
         &self.rows
+    }
+
+    /// Whether the unit that declared this table builds an absolute link over a
+    /// literal route name.
+    ///
+    /// Read at boot and never per request: it is
+    /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s question,
+    /// and the whole point of asking it at a mount's expansion is that nothing
+    /// asks it while a request is being answered.
+    #[must_use]
+    pub fn absolute_links(&self) -> bool {
+        self.absolute_links
     }
 
     /// § 1's match: this method and this path against the whole table, once.

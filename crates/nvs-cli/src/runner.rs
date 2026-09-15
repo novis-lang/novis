@@ -565,7 +565,7 @@ impl UnderTest {
     pub(crate) fn new(unit: &Rc<nvs_codegen::Unit>, checked: &crate::Checked) -> Self {
         Self {
             unit: Rc::clone(unit),
-            routes: std::sync::Arc::new(crate::runtime_routes(checked.exprs.routes())),
+            routes: std::sync::Arc::new(crate::runtime_routes(&checked.exprs)),
         }
     }
 }
@@ -682,7 +682,7 @@ fn run_suite(
     // no `server:` pays one walk of the program's `#[Route]` rows and nothing
     // else. `UnderTest` builds its own for § 18's first mechanism, which is
     // installed a call above this one and holds it for the whole run.
-    let routes = std::sync::Arc::new(crate::runtime_routes(checked.exprs.routes()));
+    let routes = std::sync::Arc::new(crate::runtime_routes(&checked.exprs));
     for class in checked.exprs.test_classes() {
         let tests = checked.exprs.tests(class).unwrap_or_default();
         // The selection is made **before** the class is announced or its

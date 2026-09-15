@@ -127,7 +127,7 @@ use nvs_config::mount::Mounted;
 use nvs_config::server::{Listen, capacity_for, listen_on, waits_for, workers_for};
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
-use nvs_runtime::script::{Program, Resolver as _};
+use nvs_runtime::script::Program;
 use nvs_runtime::{Ctx, Inbound, OutputSink, TaskRoot, Value};
 use nvs_server::control::{Address, Endpoint};
 use nvs_server::{
@@ -348,7 +348,7 @@ pub(crate) fn run(
         .server
         .as_ref()
         .is_some_and(|server| !server.mount.is_empty());
-    let mounts = if deployed {
+    let mut mounts = if deployed {
         match nvs_config::mount::expand(&snapshot.config, &origins, &crate::config::LocalFiles) {
             Ok(mounts) => mounts,
             Err(diagnostic) => return report(diagnostic, &sources),
@@ -362,6 +362,11 @@ pub(crate) fn run(
             }
         }
     };
+    // `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s fallback,
+    // folded into the rows once and here, so that every reader below — the boot
+    // check and the door alike — has one field to read and cannot disagree
+    // about which of the two keys applied.
+    fall_back_to(&mut mounts, snapshot.origin.as_deref());
     // A file this table cannot reach is a request nobody could make: the command
     // was told to serve it, so a table that does not mount it is a refusal
     // rather than a server quietly answering with somebody else's application.
@@ -396,7 +401,7 @@ pub(crate) fn run(
     // bound, and handed to every accept loop by clone.
     let compiler = Arc::new(Compiler::new(&snapshot.config));
     for mounted in table.mounts() {
-        if let Err(message) = compiler.resolve(&mounted.entry.to_string_lossy()) {
+        if let Err(message) = compiled_under(&compiler, mounted) {
             eprintln!("error: {message}");
             return ExitCode::FAILURE;
         }
@@ -840,7 +845,14 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                     Some(supply)
                 }
             };
-            let isolate = Isolate::new(program, Value::null(), Output::Capture).answering(inbound);
+            // And the other half of the row step 1 chose: the origin this
+            // mount resolved, which is what the program's absolute links are
+            // built from. [`at_mount_origin`] owns why it goes onto the
+            // isolate and not onto the carrier beside the prefix above.
+            let isolate = at_mount_origin(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                mount,
+            );
             // `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s
             // other half, on the one type that can carry it to a context that
             // does not exist yet: what the request is charged through is its own
@@ -1225,6 +1237,91 @@ fn one_mount(path: &Path) -> Result<Mounted, String> {
         origin: None,
         captures: Vec::new(),
     })
+}
+
+/// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s fallback: a row
+/// that wrote no `origin` of its own takes `[app] origin`, and a row that wrote
+/// one keeps it.
+///
+/// **Folded into the rows rather than read beside them**, because a fallback
+/// consulted at each reader is a fallback two readers can apply differently —
+/// and the two here are a boot refusal and a served link, which is the pair
+/// that must not disagree. From here down, `Mounted::origin` is *the* origin
+/// this mount resolved, whichever key wrote it.
+///
+/// The `[app]` half is the boot snapshot's, which is the one this command
+/// resolved for the entry it was told to serve — the same value `nvs run`
+/// installs for that file. A mount whose entry matches a different `[[app]]`
+/// block than the served one does not get that block's origin yet, which is
+/// this command's per-application gap and not this key's.
+fn fall_back_to(mounts: &mut [Mounted], app: Option<&str>) {
+    for mount in mounts {
+        if mount.origin.is_none() {
+            mount.origin = app.map(str::to_owned);
+        }
+    }
+}
+
+/// One mount's entry compiled, and
+/// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s boot check asked
+/// of what came back: a unit that builds an absolute link under a mount that
+/// resolved no origin refuses the start.
+///
+/// **Per resolved mount, and here rather than at the expansion**, because the
+/// question needs the compiled unit and § 3 needs it per row: one entry serves
+/// every tenant a `scan` glob enumerated, and each of those rows resolves its
+/// own origin, so the same unit is a refusal under one and a start under
+/// another. `nvs_config::mount`'s expander owns the substitution that decides
+/// which, and this is the first point at which both halves are in hand.
+///
+/// **The failure is at deploy time rather than in a sent message**, which is
+/// the whole of what the check buys: the alternative is a program that throws
+/// out of `Core\Router::urlAbsolute` on whichever request first builds a link,
+/// long after an operator stopped reading the start. It re-runs on reload for
+/// the same reason a mount is expanded again there.
+///
+/// # Errors
+///
+/// The front end's own summary for an entry that does not compile — it renders
+/// its diagnostics itself (`crate::script`) — and a sentence naming the mount,
+/// the entry and the two keys that resolve an origin for it.
+fn compiled_under(compiler: &Compiler, mount: &Mounted) -> Result<(), String> {
+    let entry = mount.entry.to_string_lossy().into_owned();
+    let (_program, routes) = compiler.compiled(&entry)?;
+    if routes.absolute_links() && mount.origin.is_none() {
+        return Err(format!(
+            "the mount at `{}` serves `{entry}`, which builds an absolute link, and no origin \
+             resolves for it. `rule:routing/an-origin-is-per-mount-and-checked-at-boot`: give \
+             this mount's `[[server.mount]]` block an `origin`, or `[[app]] origin` for every \
+             mount that has none of its own",
+            mount.prefix
+        ));
+    }
+    Ok(())
+}
+
+/// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s origin, from the
+/// row § 4 step 1 chose onto the isolate that is about to answer the request.
+///
+/// **Nothing here resolves anything.** `Mounted::origin` is already
+/// substituted — `{1}` is gone by the time a mount exists — so a request that
+/// selected a host mount gets that tenant's origin and no other, which is the
+/// whole of why the origin is per mount rather than per process.
+///
+/// It goes onto the isolate rather than onto the carrier beside
+/// `nvs_server::mount::carry`'s prefix because it is not a fact about the
+/// request: `nvs_host::Isolate::at_origin` owns that reading, and
+/// `nvs_runtime::Ctx::set_origin` is where the child's context takes it.
+///
+/// **A mount that resolved no origin leaves the isolate as it was**, which is
+/// the fail-closed direction: `Core\Router::urlAbsolute` throws in a program
+/// with no origin rather than linking to an authority somebody guessed, and
+/// § 3's boot check is what turns that throw into a start that fails instead.
+fn at_mount_origin(isolate: Isolate, mount: &Mounted) -> Isolate {
+    match &mount.origin {
+        Some(origin) => isolate.at_origin(origin),
+        None => isolate,
+    }
 }
 
 /// One resolved `listen` entry, as the operator wrote it.
@@ -1626,8 +1723,9 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 #[cfg(test)]
 mod tests {
     use super::{
-        Address, Compiler, Ctx, Isolate, Listen, Notify, Output, OutputSink, Socket, SocketAddr,
-        TaskRoot, Value, addresses, bind_all, bind_sockets, handles_for, listening, sweep_orphans,
+        Address, Compiler, Ctx, Inbound, Isolate, Listen, Mounted, Notify, Output, OutputSink,
+        Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all, bind_sockets,
+        compiled_under, fall_back_to, handles_for, listening, one_mount, sweep_orphans,
         workers_for,
     };
     use std::cell::Cell;
@@ -2694,6 +2792,201 @@ mod tests {
             ["READY=1", "RELOADING=1", "READY=1", "STOPPING=1"],
             "the states this process reported are not the ones a `Type=notify` unit is owed, in \
              the order a served life sends them"
+        );
+    }
+
+    /// An entry declaring one route and linking to it with `member`, in a
+    /// scratch directory of its own so that [`one_mount`] resolves a row off a
+    /// real file rather than a struct literal pointing at nothing.
+    ///
+    /// The link is a *route's*, because that is the only kind there is: a name
+    /// is resolved against the unit's own table while it compiles, so the entry
+    /// has to declare the route it links to.
+    fn an_entry_linking_with(member: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("nvs-serve-origin-{}-{member}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a directory to write the entry in");
+        let path = dir.join("app.nvs");
+        std::fs::write(
+            &path,
+            format!(
+                r#"<?nvs
+class Docs {{
+    #[Core\Route(path: "/here", method: Core\Http\Method::Get, name: "Docs::here")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function here(): string {{ return "here"; }}
+}}
+
+echo Core\Router::{member}("Docs::here", []);
+"#
+            ),
+        )
+        .expect("the entry is writable");
+        path
+    }
+
+    /// What the entry above writes when the door hands its isolate the row
+    /// `mount` is — [`super::serve_on_worker`]'s handler with `hyper` and the
+    /// accept loop left out, which is the unit off the compiler, the carrier
+    /// the door built, and the mount's two crossings onto it.
+    ///
+    /// Both crossings, because the link is where they meet:
+    /// `nvs_server::mount::carry` puts the prefix on the carrier and
+    /// [`at_mount_origin`] puts the origin on the isolate, and a served
+    /// absolute link is the origin, the prefix and the path in that order.
+    fn served_under(compiler: &Compiler, mount: &Mounted) -> (bool, String) {
+        let (program, _routes) = compiler
+            .compiled(&mount.entry.to_string_lossy())
+            .expect("the entry this case wrote compiles");
+        let mut inbound = Inbound::new("GET", "/here", "");
+        nvs_server::mount::carry(mount, &mut inbound);
+        let isolate = at_mount_origin(
+            Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+            mount,
+        );
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        let done = isolate
+            .run(&mut ctx)
+            .expect("a null argument crosses into an isolate");
+        (
+            done.ok,
+            String::from_utf8(done.output).expect("a link is text"),
+        )
+    }
+
+    /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot` at the door:
+    /// the mount a request selected is what decides the origin its program
+    /// links from, and the process serving it has none of its own.
+    ///
+    /// **One entry, three mounts**, because the origin is a property of the row
+    /// rather than of the unit: the same compiled program is run under each,
+    /// so a build that read an origin off the snapshot, off the request or off
+    /// the parent context answers all three the same way and fails here.
+    ///
+    /// The three are the ways the join can be wrong. A tenant mount is the
+    /// whole answer — origin, prefix, path — and is the one a host-mounted
+    /// deployment depends on. The root mount is the same request under the
+    /// prefix that strips nothing, where a prefix written as `/` would double
+    /// the separator. A mount with no origin is the fail-closed direction:
+    /// `Core\Router::urlAbsolute` throws rather than linking to an authority
+    /// somebody guessed, and nothing is written at all.
+    #[test]
+    fn a_served_request_receives_its_mounts_resolved_origin() {
+        let entry = an_entry_linking_with("urlAbsolute");
+        let compiler = Compiler::default();
+        let mut mount =
+            one_mount(&entry).expect("the entry this case wrote is a file in a directory");
+        mount.prefix = "/tenant".to_string();
+        mount.origin = Some("https://tenant.example.test/".to_string());
+        assert_eq!(
+            served_under(&compiler, &mount),
+            (true, "https://tenant.example.test/tenant/here".to_owned()),
+            "a request served through a mount did not link from that mount's origin"
+        );
+
+        mount.prefix = "/".to_string();
+        assert_eq!(
+            served_under(&compiler, &mount),
+            (true, "https://tenant.example.test/here".to_owned()),
+            "the mount at the root stripped nothing, so nothing belongs between its origin and \
+             the path"
+        );
+
+        mount.origin = None;
+        let (ok, wrote) = served_under(&compiler, &mount);
+        assert!(
+            !ok && wrote.is_empty(),
+            "a mount that resolved no origin answered `{wrote}` instead of refusing the link"
+        );
+    }
+
+    /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s last
+    /// paragraph: the throw the case above pins is a *deploy-time* failure, so
+    /// the start refuses rather than the request.
+    ///
+    /// **Three mounts over two entries**, which is the whole predicate: the
+    /// check fires on a unit that links absolutely with no origin, is silent
+    /// the moment that mount resolves one, and is silent for a unit that links
+    /// only relatively — which is the half that decides whether this is a
+    /// check or a rule against `#[Route]`. The refusal names the mount, since
+    /// one scanned glob is many rows and an operator has to know which.
+    ///
+    /// The same entry under two mounts is also the reason this is asked per
+    /// resolved row rather than per unit: one compiled program is a refusal
+    /// under the first mount here and a start under the second.
+    #[test]
+    fn a_mount_whose_unit_calls_url_absolute_and_resolves_no_origin_refuses_the_boot() {
+        let compiler = Compiler::default();
+        let absolute = an_entry_linking_with("urlAbsolute");
+        let mut mount =
+            one_mount(&absolute).expect("the entry this case wrote is a file in a directory");
+        mount.prefix = "/tenant".to_string();
+
+        let refusal = compiled_under(&compiler, &mount)
+            .expect_err("a unit that links absolutely under a mount with no origin starts");
+        assert!(
+            refusal.contains("/tenant") && refusal.contains("origin"),
+            "the refusal names neither the mount it applies to nor what resolves an origin for \
+             it: {refusal}"
+        );
+
+        mount.origin = Some("https://tenant.example.test".to_string());
+        assert!(
+            compiled_under(&compiler, &mount).is_ok(),
+            "the mount resolved an origin, so there is nothing left for the check to refuse"
+        );
+
+        let relative = an_entry_linking_with("url");
+        let mut linking_relatively =
+            one_mount(&relative).expect("the entry this case wrote is a file in a directory");
+        linking_relatively.prefix = "/tenant".to_string();
+        assert!(
+            compiled_under(&compiler, &linking_relatively).is_ok(),
+            "a unit that builds no absolute link needs no origin, and this start was refused one"
+        );
+    }
+
+    /// `[app] origin` is the fallback, and it is folded into the row before
+    /// anything reads one — so a tree that names its origin there boots, and
+    /// its served links carry it.
+    ///
+    /// **The mount's own key still wins**, which is the half a fold can get
+    /// wrong: a fallback applied over a row that wrote its own origin puts one
+    /// tenant's authority in another's links, which is the failure
+    /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot` exists to
+    /// stop.
+    #[test]
+    fn an_app_origin_is_the_fallback_for_a_mount_that_wrote_none() {
+        let entry = an_entry_linking_with("urlAbsolute");
+        let compiler = Compiler::default();
+        let mut mounts = vec![
+            one_mount(&entry).expect("the entry this case wrote is a file in a directory"),
+            one_mount(&entry).expect("the entry this case wrote is a file in a directory"),
+        ];
+        mounts[0].prefix = "/tenant".to_string();
+        mounts[1].prefix = "/other".to_string();
+        mounts[1].origin = Some("https://other.example.test".to_string());
+
+        fall_back_to(&mut mounts, Some("https://app.example.test"));
+
+        assert_eq!(
+            mounts[0].origin.as_deref(),
+            Some("https://app.example.test"),
+            "a mount that wrote no origin did not take `[app] origin`"
+        );
+        assert_eq!(
+            mounts[1].origin.as_deref(),
+            Some("https://other.example.test"),
+            "the fallback overwrote an origin the mount wrote for itself"
+        );
+        assert!(
+            compiled_under(&compiler, &mounts[0]).is_ok(),
+            "the tree resolved an origin for this mount, so the boot check has nothing to refuse"
+        );
+        assert_eq!(
+            served_under(&compiler, &mounts[0]),
+            (true, "https://app.example.test/tenant/here".to_owned()),
+            "a request served through a mount that took the fallback did not link from it"
         );
     }
 }

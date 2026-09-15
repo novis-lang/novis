@@ -1588,6 +1588,27 @@ impl ExprTypeTable {
         &self.routes
     }
 
+    /// Whether this program builds an absolute link at all — `true` exactly
+    /// when some `Core\Router::urlAbsolute` over a **literal** route name
+    /// resolved against the table above.
+    ///
+    /// The question is `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s,
+    /// asked of a mount's unit before the server binds anything: a program that
+    /// links absolutely under a mount that resolves no origin would throw at
+    /// the call, and a deployment learns that from a start that fails rather
+    /// than from a sent message.
+    ///
+    /// A **computed** name is not one of these, and cannot be: it records no
+    /// [`ExprInfo::RouteLink`] at all (that variant's doc owns why), so its
+    /// origin is still a throw at the call. Which is § 3's own wording — the
+    /// check is over a literal call — rather than a limit of this walk.
+    #[must_use]
+    pub fn links_absolutely(&self) -> bool {
+        self.entries
+            .iter()
+            .any(|info| matches!(info, ExprInfo::RouteLink { absolute: true, .. }))
+    }
+
     /// Records `rule:tooling/commands-are-compiled`'s finished command table — every `#[Command]` in
     /// the program, collected across its files and already held to § 6's
     /// duplicate-name error by [`crate::commands::check_table`].

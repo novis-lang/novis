@@ -668,7 +668,7 @@ impl Compiler {
         .map_err(|error| format!("`{path}`: {error}"))?;
         Ok(Arc::new(Compiled {
             unit: Arc::new(unit),
-            routes: Arc::new(crate::runtime_routes(checked.exprs.routes())),
+            routes: Arc::new(crate::runtime_routes(&checked.exprs)),
         }))
     }
 }

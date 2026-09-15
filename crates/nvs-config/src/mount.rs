@@ -24,9 +24,11 @@
 //! module directory named `CON` that *does* hold one is a boot refusal rather than a mount silently
 //! missing from the table, which is `rule:errors/ambiguous-input-refused`'s headline applied to the thing § 2 enumerates.
 //!
-//! **What is not here yet.** § 3's last paragraph makes a mount whose unit contains a literal
-//! `Core\Router::urlAbsolute` call and resolves no `origin` a boot error; that question needs the
-//! compiled unit, so it belongs beside whatever compiles a mount's entry rather than here.
+//! **Where the origin check is.** `rule:routing/an-origin-is-per-mount-and-checked-at-boot` makes a
+//! mount whose unit contains a literal `Core\Router::urlAbsolute` call and resolves no `origin` a boot
+//! error. That question needs the compiled unit, so it is asked beside whatever compiles a mount's
+//! entry — `nvs serve`'s boot loop, over the rows this module resolved — and not here. What is here is
+//! the half it reads: [`Mounted::origin`], already substituted.
 //!
 //! Cost: one directory listing per `*` per scanned segment, at boot and at reload, and one
 //! [`Mounted`] per resolved mount held per configuration generation. Nothing here runs per request.
