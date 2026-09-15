@@ -148,7 +148,7 @@
     {
       "id": "routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name",
       "title": "An enum capture is spelled by a written backing value, and by its case name when the value was counted",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0186"
       ],
@@ -163,7 +163,9 @@
       ],
       "guardedBy": [
         "tests/conformance/core/router-an-enum-capture-matches-its-backing-value-and-hands-over-the-case.nvst",
+        "tests/conformance/core/router-url-writes-an-enum-cases-spelling-in-a-link.nvst",
         "tests/conformance/reject/a-route-capture-refuses-two-enum-cases-at-one-written-value.nvst",
+        "tests/conformance/reject/router-url-refuses-an-enum-case-outside-the-captured-subset.nvst",
         "crates/nvs-types/src/routes.rs"
       ]
     },

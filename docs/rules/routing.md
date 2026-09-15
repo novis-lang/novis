@@ -3,7 +3,7 @@
 
 # Routing
 
-*5 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="routing-routes-are-compiled-not-registered"></a>
 
@@ -177,7 +177,7 @@ a segment, in a link and in the generated document alike — is
 
 <a id="routing-an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"></a>
 
-## An enum capture is spelled by a written backing value, and by its case name when the value was counted  *(designed — not yet in the compiler)*
+## An enum capture is spelled by a written backing value, and by its case name when the value was counted
 
 `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
 
@@ -214,11 +214,12 @@ into a link and refuses outside the set ([`routing/link-name-and-params-are-chec
 the generated document lists in `enum: [...]`, so a route, its links and its document cannot
 disagree.
 
-**The match half is built and the link half is not.** The spelling is decided while compiling
-(`nvs_types::routes`' `enum_capture`) and a segment reaches the handler as its case, in a path
-segment; `Core\Router::url` still writes an enum argument as the bare backing integer and checks it
-against no set, so a link into a name-spelled subset is not yet the segment the match would claim,
-and a `#[Query]` value still arrives as its text.
+The spelling is decided once while compiling (`nvs_types::routes`' `enum_capture`) and every position
+reads that one answer: the match converts on it, the link is refused against it and renders through
+the spelling rows the prepared template carries, and the document lists it. The one position still
+short of it is a `#[Query]` value's **arrival**, and not for a reason of this rule's: no query value
+of any declared type is bound to its parameter yet, which is
+[`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400)'s own unshipped half.
 
 <sub>See also [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0186](../decisions/0186.md).</sub>
 

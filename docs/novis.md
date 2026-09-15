@@ -5985,8 +5985,8 @@ echo Core\Router::url("docs", ["lang" => Lang::En, "page" => 3, "q" => "a b"]), 
 echo Core\Router::url("file", ["path" => "a/b c.txt"]), "\n";
 ```
 ```output
-/1/docs
-/0/docs/3?q=a+b
+/De/docs
+/En/docs/3?q=a+b
 /files/a/b%20c.txt
 ```
 
@@ -5998,7 +5998,10 @@ echo Core\Router::url("file", ["path" => "a/b c.txt"]), "\n";
   and, in this build, throws a `RuntimeError` for every name.
 - Each capture value is percent-encoded into its own segment; `{name...}` keeps its `/`s; an
   omitted `{name?}` drops its segment; `#[Query]` keys become the query string; a `null` value is
-  dropped. An enum value substitutes its backing integer (a pure enum's case index).
+  dropped. An enum value substitutes the text its cases are spelled by: the written backing value
+  where every case the capture admits wrote one, and the case name where any of them counted on
+  from the case before — the same spelling the route matches on, so a link is never a path the
+  router would not claim. A value outside the capture's set is a compile error.
 - `urlAbsolute` puts the configured origin in front — `[[app]] origin` in `nvs.toml` — and throws
   a `RuntimeError` when none is configured. The origin is never read from a request header.
 

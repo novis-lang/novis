@@ -31,8 +31,9 @@ into a link and refuses outside the set (`rule:routing/link-name-and-params-are-
 the generated document lists in `enum: [...]`, so a route, its links and its document cannot
 disagree.
 
-**The match half is built and the link half is not.** The spelling is decided while compiling
-(`nvs_types::routes`' `enum_capture`) and a segment reaches the handler as its case, in a path
-segment; `Core\Router::url` still writes an enum argument as the bare backing integer and checks it
-against no set, so a link into a name-spelled subset is not yet the segment the match would claim,
-and a `#[Query]` value still arrives as its text.
+The spelling is decided once while compiling (`nvs_types::routes`' `enum_capture`) and every position
+reads that one answer: the match converts on it, the link is refused against it and renders through
+the spelling rows the prepared template carries, and the document lists it. The one position still
+short of it is a `#[Query]` value's **arrival**, and not for a reason of this rule's: no query value
+of any declared type is bound to its parameter yet, which is
+`rule:routing/a-bad-query-value-is-a-400`'s own unshipped half.
