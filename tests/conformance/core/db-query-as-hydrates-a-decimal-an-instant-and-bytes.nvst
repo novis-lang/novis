@@ -1,0 +1,98 @@
+--TEST--
+`queryAs<T>` fills a `decimal` field and a `bytes` field from the columns § 9 maps to them, and an `Instant` field over a column that read back as a `DateTime` is a `ParseError` naming both classes — `rule:core-classes/db-column-types`, `rule:core-classes/derive-generates-what-is-missing`, spec § 18
+--FILE--
+<?nvs
+// `nvs_stdlib::db::row`'s `converted` answers a field the same way § 6's
+// readers answer a `Core\Db\Row`, and these are the three wire types the
+// derive's erasure gives a codec type of its own: a `decimal`, a `bytes` and
+// an `Instant`. The first two are asked of a live SQLite database here; the
+// third is a type SQLite cannot produce at all, and what it pins is the other
+// half of the same arm.
+//
+// SQLite is the backend a case can reach: a `:memory:` block needs no server.
+// The four drivers with a wire send a `TIMESTAMPTZ` and are asserted from
+// `crates/nvs-stdlib/tests/db_stream.rs` against a real server.
+use Core\Db\Derive;
+
+#[Derive]
+class Payment {
+    public uint $id;
+
+    // § 9 maps `DECIMAL`/`NUMERIC`/`MONEY` to `decimal` and nothing else, so
+    // the field and the column agree and the value crosses unconverted. It is
+    // not `tainted`, a scalar having nowhere to carry the qualifier.
+    public decimal $owed;
+
+    // § 9's binary families are `tainted bytes`, and a field receiving one
+    // says so (`rule:security/derived-codec-qualifiers`). The hydration tells
+    // it from a `string` by the tag alone, which is the same distinction § 6
+    // makes handing a `BLOB` back.
+    public tainted bytes $photo;
+
+    public function constructor(uint $id, decimal $owed, tainted bytes $photo)
+    {
+        $this->id = $id;
+        $this->owed = $owed;
+        $this->photo = $photo;
+    }
+}
+
+// The same row read as a class that declares an `Instant`. SQLite describes a
+// column declared `datetime` as a `DateTime` — it has no zone to read one
+// against, which is why § 9 gives this backend a declared zone at all — so the
+// column really does come back as the wrong class here, and the refusal is a
+// row's rather than the program's: `queryAs<T>` over an `Instant` field is
+// well typed, and `nvs_types::derive`'s `check_row_sites` admits it.
+#[Derive]
+class Reading {
+    public Core\Time\Instant $at;
+
+    public function constructor(Core\Time\Instant $at)
+    {
+        $this->at = $at;
+    }
+}
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table t (id integer primary key, owed decimal(10,2), photo blob, at datetime)",
+    []
+);
+$db->execute(
+    "insert into t (owed, photo, at) values (?, ?, ?)",
+    ["1.25", "PNG" as bytes, "2026-09-03 09:30:00"]
+);
+
+foreach ($db->queryAs<Payment>("select id, owed, photo from t", [])->all() as Payment $paid) {
+    echo "id ", $paid->id, "\n";
+    echo "owed ", $paid->owed, "\n";
+    // `rule:types/bytes` gives octets no text form, so the field is compared
+    // rather than printed.
+    var $stored = "PNG" as bytes;
+    echo "photo ", $paid->photo == $stored ? "yes" : "no", "\n";
+}
+
+// One issue per column that did not match, so the refusal names the column and
+// both class names: what the row held, and what the field declared.
+try {
+    var $readings = $db->queryAs<Reading>("select at from t", [])->all();
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo $bad->message, "\n";
+    echo "  ", $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+id 1
+owed 1.25
+photo yes
+Core\Db\Connection::queryAs: 1 column(s) of `Reading` did not match the row
+  at: the column came back as a `Core\Time\DateTime` and this field declares `Core\Time\Instant` — ADR 0067 § 9's type map is what each column reads back as
