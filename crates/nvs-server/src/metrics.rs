@@ -12,11 +12,35 @@
 //! coordination, § 4 forbids any request-derived value from becoming a label,
 //! and the memory is charged to the core and capped. That is the same exception
 //! 0059 § 3 already records for `Core\Cache::local`, and it is why a core's
-//! registry is a plain `&mut` on its own cell rather than anything shared: a counter
-//! two cores contend over would be coordination bought for a number that is
+//! registry is its own rather than a store every core writes into: a counter two
+//! cores contended over would be coordination bought for a number that is
 //! defined as approximate. [`meter_this_core`] is where a core takes one,
-//! [`count_request`] is what the door reaches it through, and [`on_this_core`]
-//! is the copy that crosses to a scrape.
+//! [`count_request`] is what the door reaches it through, and [`every_core`] is
+//! the copy of each of them that a scrape merges.
+//!
+//! # How a scrape reaches a core it is not running on
+//!
+//! The reader is never the core that wrote the series. One process binds one
+//! `[metrics] listen`, so the core answering a scrape has to come by every
+//! other core's counters somehow, and it comes by them through a **handle**:
+//! each core's registry lives behind a lock of its own, the process keeps a
+//! weak handle onto each, and [`every_core`] copies what is behind them.
+//!
+//! One lock **per core**, which is the whole of why this is not the shared
+//! store § 5 refuses. A core takes only its own — uncontended on every count
+//! except during the moment a scrape is copying it — and no two cores ever
+//! touch the same word. The alternative considered was a message, the scraping
+//! core poking each of the others and waiting for it to publish, and
+//! `docs/decisions/0004.md`'s ordering refused it: the two cost the same per
+//! request, nothing either of them does being measurable against the map lookup
+//! a count already makes, and the message needs a wake, a reply and a timeout
+//! for the core that is idle or is deep inside one long request, where a lock
+//! held for the length of a copy needs none of them. Simplicity decides where
+//! latency cannot tell two designs apart.
+//!
+//! A handle is **weak**, so the roster is O(cores serving) rather than O(threads
+//! this process has ever started): a core that ended has already released its
+//! registry, and the next gather drops the empty handle.
 //!
 //! # Refuse the new, never evict the old
 //!
@@ -59,12 +83,12 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Nothing scrapes or pushes this.** `rule:observability/the-exporters-are-crates`'s exporters are
-//!    feature-gated dependencies this crate does not carry yet, so what a core
-//!    builds accumulates and is read only by a test. The registry is the half
-//!    that could not be a crate — § 8 says so — and it is deliberately whole
-//!    without them: an exporter reads [`Registry::series`] in order and formats
-//!    it, and adding one changes nothing above.
+//! 1. **Only a scrape reads this.** [`crate::prometheus`] binds `[metrics]
+//!    listen` and answers a collector with [`every_core`]; `[metrics] endpoint`
+//!    has no pusher, so a tree naming `exporter = "otlp"` builds a registry
+//!    nothing ships. The exporter is also not behind the cargo feature
+//!    `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`
+//!    asks for, so a CLI build carries the encoder it has no use for.
 //!    — owner: m7-server-surface
 //!
 //! 2. **`Core\Metrics`'s three members (`rule:observability/metrics-three-members`) have no row yet**, so the only
@@ -77,6 +101,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 use std::time::Duration;
 
 use nvs_config::{Config, Exporter, Metering};
@@ -639,21 +664,43 @@ impl Registry {
     }
 }
 
+/// Every serving core's registry, as the weak handle that core filed when it
+/// took one.
+///
+/// The one process-wide thing in this module, and it holds no series: what is
+/// behind a handle belongs to one core and is written by that core alone. The
+/// module doc § *How a scrape reaches a core it is not running on* owns why the
+/// handles are weak and why there is one lock per core rather than one here.
+static CORES: Mutex<Vec<Weak<Mutex<Registry>>>> = Mutex::new(Vec::new());
+
 thread_local! {
     /// The registry of the core this thread is.
     ///
     /// A thread-local because that is what "per core" *is* on a runtime which
     /// never migrates a request: the core that accepted a connection is the
     /// core that answers every request on it, so a counter reached from this
-    /// cell is reached with no lock and no handle threaded through the
-    /// connection. One process runs [`meter_this_core`] once per listening
+    /// cell is reached without going looking for it and without contending with
+    /// any other core. One process runs [`meter_this_core`] once per listening
     /// socket per core — `[server] listen` names any number of them — and the
     /// second of those finds what the first built rather than splitting the
     /// core's counters between two sockets.
     ///
+    /// This is the **strong** handle, so dropping this cell at thread exit is
+    /// what takes a core out of [`CORES`].
+    ///
     /// `None` on every thread that is not serving, and on every core of a
     /// process whose `[metrics]` names no exporter.
-    static CORE: RefCell<Option<Registry>> = const { RefCell::new(None) };
+    static CORE: RefCell<Option<Arc<Mutex<Registry>>>> = const { RefCell::new(None) };
+}
+
+/// A lock taken past a poisoning.
+///
+/// What a panic can leave behind here is a counter one increment out, which is
+/// a value and not a broken invariant, so a poisoning is recovered from rather
+/// than propagated: refusing every later count because one request panicked
+/// would turn a bug in an application into a process with no metrics at all.
+fn held<T>(lock: &Mutex<T>) -> MutexGuard<'_, T> {
+    lock.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// Gives this core the registry `config` asks for, unless it already has one.
@@ -668,11 +715,20 @@ thread_local! {
 /// is also what makes a re-entered loop safe, since a registry that was
 /// rebuilt would reset every counter under it and every backend reads that as
 /// a process restart (§ 7's own argument against eviction).
+///
+/// A registry is filed in the roster as it is built, which is the whole of how
+/// [`every_core`] reaches a core that is not the one scraping.
 pub fn meter_this_core(config: &Config) {
     CORE.with_borrow_mut(|core| {
-        if core.is_none() {
-            *core = Registry::of(config);
+        if core.is_some() {
+            return;
         }
+        let Some(registry) = Registry::of(config) else {
+            return;
+        };
+        let registry = Arc::new(Mutex::new(registry));
+        held(&CORES).push(Arc::downgrade(&registry));
+        *core = Some(registry);
     });
 }
 
@@ -682,9 +738,9 @@ pub fn meter_this_core(config: &Config) {
 /// has not: the door calls this for every response it writes, so the absent
 /// case is the ordinary one and is a borrow and a branch.
 pub fn count_request(method: &str, status: u16, route: Option<&str>, took: Duration) {
-    CORE.with_borrow_mut(|core| {
-        if let Some(registry) = core.as_mut() {
-            registry.request(method, status, route, took);
+    CORE.with_borrow(|core| {
+        if let Some(registry) = core.as_ref() {
+            held(registry).request(method, status, route, took);
         }
     });
 }
@@ -698,7 +754,30 @@ pub fn count_request(method: &str, status: u16, route: Option<&str>, took: Durat
 /// built none.
 #[must_use]
 pub fn on_this_core() -> Option<Registry> {
-    CORE.with_borrow(Clone::clone)
+    CORE.with_borrow(|core| core.as_ref().map(|registry| held(registry).clone()))
+}
+
+/// A copy of every serving core's series, in no particular order — the one
+/// gather a scrape or a push is made of.
+///
+/// Each core's handle is upgraded under the roster's lock and copied outside
+/// it, so a core that is counting never waits behind the roster and the roster
+/// never waits behind a copy. A handle whose core has ended is dropped on the
+/// way past, which is the only thing that ever shortens the roster.
+///
+/// Empty in a process whose `[metrics]` names no exporter, because no core
+/// there built a registry to file.
+#[must_use]
+pub fn every_core() -> Vec<Registry> {
+    let serving: Vec<Arc<Mutex<Registry>>> = {
+        let mut roster = held(&CORES);
+        roster.retain(|core| core.strong_count() > 0);
+        roster.iter().filter_map(Weak::upgrade).collect()
+    };
+    serving
+        .iter()
+        .map(|registry| held(registry).clone())
+        .collect()
 }
 
 /// A series key: the name, and the labels sorted by name.
@@ -742,12 +821,17 @@ fn digits(status: u16) -> [u8; 3] {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Barrier};
+    use std::thread;
     use std::time::Duration;
 
     use nvs_config::tree::Metrics;
     use nvs_config::{Config, Exporter, Setting};
 
-    use super::{DEFAULT, Kind, LATENCY_BUCKETS, PAUSE_BUCKETS, Refused, Registry, Value};
+    use super::{
+        DEFAULT, Kind, LATENCY_BUCKETS, PAUSE_BUCKETS, Refused, Registry, Value, count_request,
+        every_core, meter_this_core,
+    };
 
     /// A merged tree whose `[metrics]` block writes an exporter and a bound.
     fn configured(exporter: Setting, max_series: Option<u64>) -> Config {
@@ -1050,5 +1134,70 @@ mod tests {
             "nothing reaches the +Inf slot"
         );
         assert!(PAUSE_BUCKETS[0] < LATENCY_BUCKETS[0]);
+    }
+
+    /// A gather reaches a core it is not running on, and stops reaching one
+    /// that ended.
+    ///
+    /// The two halves are one test because they are one roster: what proves the
+    /// gather works is two cores' distinct series arriving on a third thread,
+    /// and what proves the roster does not grow with threads started is the same
+    /// two being gone once those threads are joined.
+    ///
+    /// **Asserted by label and never by count**, because every other test in
+    /// this binary that serves a request is a core in the same roster, and a
+    /// length is therefore whatever the harness happened to be running
+    /// alongside. The barrier is what holds both cores alive across the gather:
+    /// a thread that had already exited would be indistinguishable from one the
+    /// roster never reached.
+    #[test]
+    fn a_gather_reaches_every_serving_core_and_drops_one_that_ended() {
+        const ROUTES: [&str; 2] = ["gather.one", "gather.two"];
+        fn counted(route: &str) -> [(&str, &str); 3] {
+            [("method", "GET"), ("status", "200"), ("route", route)]
+        }
+
+        let gate = Arc::new(Barrier::new(ROUTES.len() + 1));
+        let cores: Vec<_> = ROUTES
+            .into_iter()
+            .map(|route| {
+                let gate = Arc::clone(&gate);
+                thread::spawn(move || {
+                    meter_this_core(&configured(Setting::Text("prometheus".to_owned()), None));
+                    count_request("GET", 200, Some(route), Duration::from_millis(5));
+                    gate.wait();
+                    gate.wait();
+                })
+            })
+            .collect();
+
+        gate.wait();
+        let serving = every_core();
+        for route in ROUTES {
+            let labels = counted(route);
+            assert_eq!(
+                serving
+                    .iter()
+                    .filter_map(|registry| registry.read("nvs_requests_total", &labels))
+                    .collect::<Vec<_>>(),
+                vec![&Value::Counter(1)],
+                "a core's series did not reach a gather running on another"
+            );
+        }
+
+        gate.wait();
+        for core in cores {
+            core.join().expect("a metering thread panicked");
+        }
+        let ended = every_core();
+        for route in ROUTES {
+            let labels = counted(route);
+            assert!(
+                ended
+                    .iter()
+                    .all(|registry| registry.read("nvs_requests_total", &labels).is_none()),
+                "a core that ended was still gathered from"
+            );
+        }
     }
 }
