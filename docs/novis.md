@@ -14932,7 +14932,7 @@ final class CartTest {
 | [`Core\Test::advance`](#core-core-test-advance) | `advance(Core\Time\Duration $by): void` |
 | [`Core\Test::serverUrl`](#core-core-test-serverurl) | `serverUrl(): ?string` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
-| [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string\|bytes}): Core\Test\Response` |
+| [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string\|bytes, mount?: string}): Core\Test\Response` |
 | [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, {json?: mixed, body?: string\|bytes, headers?: array<string\|array<string>>}): void` |
 | [`Core\Test::sentHttp`](#core-core-test-senthttp) | `sentHttp(): array<Core\Test\SentRequest>` |
 | [`Core\Test::answerSocket`](#core-core-test-answersocket) | `answerSocket(string $url, array<string\|bytes> $frames, {protocol?: string}): void` |
@@ -15189,7 +15189,7 @@ Writes down what the next `Core\Cli` prompts will be answered with, so an intera
 #### `Core\Test::request`
 
 ```nvs skip
-Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes}): Core\Test\Response
+Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string}): Core\Test\Response
 ```
 
 Runs one request through the program under test in this process — the compiled route table and the real handler chain, with no socket and no port — and answers with what the program wrote.
@@ -15200,6 +15200,7 @@ Runs one request through the program under test in this process — the compiled
 | `$path` | `string` (neutral) | The path to ask for, mount prefix already stripped — what a handler's `#[Route]` is declared against. A `?` and everything after it is the query. |
 | `{headers: …}` | `array<string>` (default `[]`) | The field lines the request carries, keyed by name and spelled as the program under test will read them back. A `content-type` or a `content-length` written here stands; one written for neither is derived from `body`. |
 | `{body: …}` | `string\|bytes` (default `null`) | The octets the request carries, framed by nothing and typed by nothing. Text goes as it is written, and a body that is not text at all — the kind `Core\Request::bytes` exists for — goes as `bytes`. A call naming no body describes a request carrying none, which is not a request carrying an empty one. |
+| `{mount: …}` | `string` (default `""`, neutral) | The prefix the door is to have stripped off `path` before the program saw it — what `Core\Request::mount()` answers, and what `Core\Router::url` writes in front of every link the request builds. A call naming none describes a request served at the root, which is what a program run off the command line is too. |
 
 **Returns** `Core\Test\Response` — The status the program declared and the bytes it wrote. A path the table does not claim is still answered: nothing here dispatches, so the program decides what a miss means.
 

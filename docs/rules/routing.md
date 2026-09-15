@@ -3,7 +3,7 @@
 
 # Routing
 
-*4 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="routing-routes-are-compiled-not-registered"></a>
 
@@ -552,7 +552,7 @@ the mount-relative one ([`routing/link-carries-the-mount-prefix`](routing.md#rou
 
 <a id="routing-link-carries-the-mount-prefix"></a>
 
-## A link carries the mount prefix the request arrived under, so one table serves at any mount  *(designed — not yet in the compiler)*
+## A link carries the mount prefix the request arrived under, so one table serves at any mount
 
 `rule:routing/link-carries-the-mount-prefix`
 
@@ -567,11 +567,13 @@ A program run off the command line is mounted nowhere and the prefix is empty; n
 link changes ([`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked)). `urlAbsolute`'s configured origin
 is the other half of an absolute link, and is read from the resolved unit rather than from any header.
 
-**Not shipped.** `crates/nvs-stdlib/src/router.rs` substitutes and percent-encodes but joins no
-prefix in front, and the server hands it none: the prefix `crates/nvs-server/src/mount.rs` strips
-from the request path does not reach the link.
+The prefix is read off the request the door already wrote it on
+([`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount)), never derived from the request target, and all three of
+`url`, `urlAbsolute` and `urlSigned` join it — a signed link survives a remount because what is
+signed is the route's name and its parameters, not the path. A test describes its door with
+`Core\Test::request`'s `mount` key, so what a mounted deployment writes is pinned without a server.
 
-<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0077](../decisions/0077.md), [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0077](../decisions/0077.md), [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-a-leftover-link-key-is-a-query-string"></a>
 

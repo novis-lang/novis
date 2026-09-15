@@ -9,6 +9,8 @@ A program run off the command line is mounted nowhere and the prefix is empty; n
 link changes (`rule:routing/link-name-and-params-are-checked`). `urlAbsolute`'s configured origin
 is the other half of an absolute link, and is read from the resolved unit rather than from any header.
 
-**Not shipped.** `crates/nvs-stdlib/src/router.rs` substitutes and percent-encodes but joins no
-prefix in front, and the server hands it none: the prefix `crates/nvs-server/src/mount.rs` strips
-from the request path does not reach the link.
+The prefix is read off the request the door already wrote it on
+(`rule:routing/a-request-reads-its-mount`), never derived from the request target, and all three of
+`url`, `urlAbsolute` and `urlSigned` join it — a signed link survives a remount because what is
+signed is the route's name and its parameters, not the path. A test describes its door with
+`Core\Test::request`'s `mount` key, so what a mounted deployment writes is pinned without a server.
