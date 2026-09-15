@@ -546,12 +546,19 @@ enum Command {
     /// A namespace of its own because every other subcommand acts on files with
     /// no server involved, and these do not.
     // `rule:packaging/a-service-is-one-stored-argv`, matching `nvs ctl`'s
-    // precedent; see [`service`], whose module doc owns which half of § 1 is on
-    // disk and why the other half is not.
+    // precedent; see [`service`], whose module doc owns how a verb reaches this
+    // machine's own service manager.
     Service {
         #[command(subcommand)]
         command: ServiceCommand,
     },
+    /// `nvs service install`, under the spelling `mysqld --install` and
+    /// `httpd -k install` built the muscle memory for.
+    ///
+    /// Hidden: § 1 names it an accepted alias rather than a second way to
+    /// write the command, and a help listing both would be advertising two.
+    #[command(hide = true)]
+    InstallService(ServiceInstall),
     /// Rewrite Novis files into the one canonical layout.
     ///
     /// Takes no configuration and has no style flag: the output is a pure
@@ -943,7 +950,8 @@ enum CtlCommand {
     Status,
 }
 
-/// `nvs service`'s own subcommands.
+/// `nvs service`'s own subcommands, which are
+/// `rule:packaging/a-service-is-one-stored-argv`'s list.
 ///
 /// `unit` is the one `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` makes the default on Linux:
 /// generate the unit and **print** it, because the operator's configuration
@@ -952,13 +960,48 @@ enum CtlCommand {
 /// Windows it emits § 5's equivalent `New-Service` invocation, carrying § 3's
 /// encoded `ImagePath` for review rather than execution.
 ///
-/// Every § 2 refusal runs in front of it, so `unit` is also how an operator
-/// finds out that the argv they were about to install would have been refused —
-/// without an elevated shell, and without having installed anything.
-/// [`service`]'s module doc owns why `install`, `uninstall`, `start`, `stop`,
-/// `status` and `run` are not here yet.
+/// Every § 2 refusal runs in front of both it and `install`, so `unit` is also
+/// how an operator finds out that the argv they were about to install would
+/// have been refused — without an elevated shell, and without having installed
+/// anything. Which manager a verb reaches is [`service::at_host`]'s answer, and
+/// [`service`]'s module doc owns why `run` is not here yet.
 #[derive(Subcommand)]
 enum ServiceCommand {
+    /// Store this argv with the platform's service manager, and grant the
+    /// account it runs as what § 4's closed list allows.
+    Install(ServiceInstall),
+    /// Take the registration away, leaving no key, no event-log source, no
+    /// unit and no granted access behind.
+    Uninstall {
+        /// The service's name, as it was installed.
+        name: String,
+        /// Print the steps this would perform, and touch nothing.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Ask the service manager to start the installed service.
+    Start {
+        /// The service's name.
+        name: String,
+    },
+    /// Ask it to stop, which a hosted server answers with a drain.
+    Stop {
+        /// The service's name.
+        name: String,
+    },
+    /// Report the state the manager holds it in, and — over the control
+    /// socket its own configuration names — how many requests are in flight
+    /// and whether it is draining.
+    Status {
+        /// The service's name.
+        name: String,
+    },
+    /// Run the argv stored under this name in the foreground, as the service
+    /// manager would have started it.
+    Run {
+        /// The service's name.
+        name: String,
+    },
     /// Print the service definition this argv would be installed as, and
     /// install nothing.
     Unit {
@@ -997,6 +1040,134 @@ enum ServiceCommand {
         )]
         argv: Vec<String>,
     },
+}
+
+/// What `nvs service install` takes, which is also what the hidden
+/// `nvs install-service` takes: one struct, because two spellings of one
+/// command that drifted apart in their options would be two commands.
+#[derive(clap::Args)]
+struct ServiceInstall {
+    /// The service's name — the identity `sc create` and systemd use, and the
+    /// one `nvs ctl --socket` addresses one of several servers by.
+    name: String,
+    /// Where the service writes diagnostics, if the named configuration does
+    /// not say. Its directory is granted read/write.
+    // `docs/decisions/0093.md` § 2.
+    #[arg(long, value_name = "PATH")]
+    log_file: Option<PathBuf>,
+    /// The account the service runs as. The default is a per-service virtual
+    /// account, which has no password to rotate or leak.
+    // `docs/decisions/0093.md` § 4.
+    #[arg(long, value_name = "ACCOUNT")]
+    account: Option<String>,
+    /// Refused (`E0633`). It exists so the refusal can name it: a command line
+    /// is readable by other users on the box, so an account password is
+    /// prompted for instead.
+    #[arg(long, value_name = "PASSWORD")]
+    password: Option<String>,
+    /// When the manager starts it after a boot. The default is with the rest
+    /// of the automatic services.
+    // `docs/decisions/0093.md` § 4.
+    #[arg(long, value_enum, value_name = "MODE")]
+    start: Option<service::registration::StartMode>,
+    /// What the manager does after a failure. The default starts it again.
+    #[arg(long, value_enum, value_name = "POLICY")]
+    restart: Option<service::registration::Restart>,
+    /// A service that must come up first — a database, typically. Repeat it
+    /// for each one.
+    #[arg(long, value_name = "SERVICE")]
+    depends_on: Vec<String>,
+    /// What an administrator reads beside the name. The service's own name,
+    /// where nothing is written here.
+    #[arg(long, value_name = "TEXT")]
+    description: Option<String>,
+    /// Print the steps this would perform, and touch nothing.
+    #[arg(long)]
+    dry_run: bool,
+    /// The `nvs` arguments to store, verbatim.
+    ///
+    /// `--` is mandatory, and it is what makes every parameter passable:
+    /// everything to its left is the installer's own, everything to its right
+    /// is stored untouched and never interpreted. Without it a `--start` would
+    /// be ambiguous between the installer and the hosted program — a defect
+    /// `mysqld --install` has and one Novis does not inherit.
+    // `docs/decisions/0093.md` § 1.
+    #[arg(
+        last = true,
+        required = true,
+        allow_hyphen_values = true,
+        value_name = "ARGS"
+    )]
+    argv: Vec<String>,
+}
+
+/// The stored argv, run in this process.
+///
+/// A service manager starts `nvs serve …` itself, so this is not how one is
+/// hosted — it is how an operator sees the line the manager runs, on a
+/// terminal. § 2's allowlist is two subcommands, which is why two arms here
+/// are the whole of it, and anything else is a stored argv this binary no
+/// longer accepts.
+fn run_hosted(argv: &[String]) -> ExitCode {
+    let cli =
+        match Cli::try_parse_from(std::iter::once("nvs").chain(argv.iter().map(String::as_str))) {
+            Ok(cli) => cli,
+            Err(error) => {
+                eprintln!("error: the stored argv is not one this binary accepts: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+    let no_init = std::env::var_os(config::NO_INIT);
+    let init = config::init_gate(
+        cli.command.as_ref().is_some_and(initializes),
+        cli.no_init,
+        no_init.as_deref(),
+    );
+    match cli.command {
+        Some(Command::Serve { file, listen, port }) => {
+            serve::run(&file, listen.as_deref(), port, &cli.config, init)
+        }
+        Some(Command::Run {
+            file,
+            dump_ir,
+            dump_asm,
+            fault_inject,
+            request,
+            arguments,
+        }) => run_run(
+            &file,
+            dump_ir,
+            dump_asm,
+            fault_inject,
+            request.as_deref(),
+            &cli.config,
+            arguments,
+            init,
+        ),
+        _ => {
+            eprintln!("error: only `serve` and `run` may be stored as a service");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `nvs service install` and `nvs install-service`, which are one command.
+fn install_service(config: &[PathBuf], args: &ServiceInstall) -> ExitCode {
+    service::install(
+        config,
+        &args.name,
+        &args.argv,
+        &service::InstallOptions {
+            log_file: args.log_file.as_deref(),
+            account: args.account.as_deref(),
+            password: args.password.as_deref(),
+            start: args.start.unwrap_or_default(),
+            restart: args.restart.unwrap_or_default(),
+            depends_on: &args.depends_on,
+            description: args.description.as_deref(),
+            dry_run: args.dry_run,
+        },
+    )
 }
 
 /// The closed set of sites `--fault-inject` accepts, one per
@@ -1172,23 +1343,34 @@ fn main() -> ExitCode {
                 CtlCommand::Status => ctl::status(&cli.config, socket),
             }
         }
-        Command::Service {
-            command:
-                ServiceCommand::Unit {
-                    name,
-                    log_file,
-                    account,
-                    password,
-                    argv,
-                },
-        } => service::print_unit(
-            &cli.config,
-            &name,
-            &argv,
-            log_file.as_deref(),
-            account.as_deref(),
-            password.as_deref(),
-        ),
+        Command::InstallService(args) => install_service(&cli.config, &args),
+        Command::Service { command } => match command {
+            ServiceCommand::Install(args) => install_service(&cli.config, &args),
+            ServiceCommand::Uninstall { name, dry_run } => {
+                service::uninstall(&cli.config, &name, dry_run)
+            }
+            ServiceCommand::Start { name } => service::start(&name),
+            ServiceCommand::Stop { name } => service::stop(&name),
+            ServiceCommand::Status { name } => service::status(&cli.config, &name),
+            ServiceCommand::Run { name } => match service::stored_argv(&name) {
+                Ok(argv) => run_hosted(&argv),
+                Err(reported) => reported,
+            },
+            ServiceCommand::Unit {
+                name,
+                log_file,
+                account,
+                password,
+                argv,
+            } => service::print_unit(
+                &cli.config,
+                &name,
+                &argv,
+                log_file.as_deref(),
+                account.as_deref(),
+                password.as_deref(),
+            ),
+        },
         // `stdio` names the transport the client chose and there is no other
         // one to choose, so it selects nothing here.
         Command::Fmt {

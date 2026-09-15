@@ -63,8 +63,24 @@
 //! administrator rights on a machine somebody chose. That is why 0093's own
 //! *Verification* lists one among the end-to-end checks rather than here.
 //! [`registration::Systemd`] applies the Linux half and is compiled everywhere,
-//! for the reason [`registration::Platform`] is a parameter. What is still not
-//! on disk is the `ServiceCommand` variants beside `unit`.
+//! for the reason [`registration::Platform`] is a parameter.
+//!
+//! **[`at_host`] is the one `cfg` in the surface.** A list of actions is the
+//! same value on either machine, which is what makes every verb assertable
+//! from either one — but the manager that *performs* one is this machine's real
+//! SCM or its real `systemctl`, and only one of those exists to be named here.
+//!
+//! **An uninstall reads what it is undoing back from the platform**
+//! ([`registration::Manager::stored`]): the argv out of § 3's `ImagePath` or
+//! the unit's `ExecStart`, and the account beside it. § 4's closing property is
+//! about the install that happened, and a second command line describes the one
+//! the operator believes happened. The two directories § 4 grants read/write on
+//! are the residue — neither manager holds them, so they are derived again from
+//! the configuration the stored argv names, which is where the install derived
+//! them from. An install given the installer's own `--log-file` over a
+//! configuration that names no `file:` destination is the case that derivation
+//! cannot reach, and it is `run`'s to close: that binding needs the same value
+//! recoverable from what the platform stores.
 //!
 //! # The manager is told what state this process is in
 //!
@@ -166,6 +182,14 @@ pub(crate) struct Host {
     /// Whether `[server] listen` includes a privileged port, which is the only
     /// condition under which § 5 emits `AmbientCapabilities` at all.
     pub(crate) privileged_port: bool,
+    /// The file a `[log] target` of `file:<path>` names, whose **directory** is
+    /// one of § 4's grants. The installer's own `--log-file` is the other
+    /// answer to the same row, and the one an uninstall cannot read back.
+    pub(crate) log_file: Option<PathBuf>,
+    /// `[opcache] file_cache_dir`, the artifact cache § 4 grants read/write on.
+    /// Derived rather than asked for, so an uninstall names the same directory
+    /// the install granted.
+    pub(crate) cache_directory: Option<PathBuf>,
 }
 
 /// A checked request: every § 2 refusal has already been made against it.
@@ -197,12 +221,8 @@ pub(crate) enum Delivery {
     Print,
     /// Write it into the system unit directory.
     ///
-    /// [`registration::install_actions`] builds that write out of it, and the
-    /// applier that performs one is the half the module doc names as absent.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "§ 5's applier is what performs the write")
-    )]
+    /// [`registration::install_actions`] builds that write out of it, and
+    /// [`at_host`] names the applier that performs one.
     Install,
 }
 
@@ -465,8 +485,11 @@ fn quote(argument: &str, force: bool) -> String {
 /// and a decoder that is exact for everything this module produces is what the
 /// property needs.
 #[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the round-trip property's half")
+    all(not(test), not(windows)),
+    expect(
+        dead_code,
+        reason = "the round-trip property's half, and the SCM read-back's on Windows"
+    )
 )]
 pub(crate) fn decode(line: &str) -> Vec<String> {
     let mut out = Vec::new();
@@ -582,6 +605,57 @@ fn shell_word(word: &str) -> String {
     } else {
         word.to_owned()
     }
+}
+
+/// An `ExecStart` line read back into the words [`shell_word`] wrote it from,
+/// which is how a Linux uninstall learns what it is undoing.
+///
+/// [`decode`] is the same half of the Windows round trip, and the two are
+/// separate because the encodings are: `CommandLineToArgvW`'s backslash rule
+/// has nothing to do with systemd's, and one function serving both would be a
+/// third encoding neither platform reads.
+#[cfg_attr(
+    all(test, windows),
+    expect(
+        dead_code,
+        reason = "the applier that reads a unit back is `Systemd`, which on Windows only a case \
+                  could reach and a case drives the recording manager"
+    )
+)]
+fn shell_words(line: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    let mut quoted = false;
+    let mut escaped = false;
+    let mut started = false;
+    for character in line.chars() {
+        if escaped {
+            current.push(character);
+            escaped = false;
+            continue;
+        }
+        match character {
+            '\\' if quoted => escaped = true,
+            '"' => {
+                quoted = !quoted;
+                started = true;
+            }
+            ' ' | '\t' if !quoted => {
+                if started {
+                    out.push(std::mem::take(&mut current));
+                    started = false;
+                }
+            }
+            _ => {
+                current.push(character);
+                started = true;
+            }
+        }
+    }
+    if started {
+        out.push(current);
+    }
+    out
 }
 
 /// What a service manager is told this process is doing, and the whole set.
@@ -1055,7 +1129,7 @@ pub(crate) fn deliver(text: &str, destination: Option<&Path>) -> std::io::Result
         reason = "the subcommands that reach this seam are the slice after it"
     )
 )]
-mod registration {
+pub(crate) mod registration {
     use super::*;
 
     /// How long § 4's `PRESHUTDOWN` asks the machine to wait for this process.
@@ -1101,7 +1175,7 @@ mod registration {
     }
 
     /// § 4's failure actions, as the one decision they carry.
-    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, clap::ValueEnum)]
     pub(crate) enum Restart {
         /// The manager starts the service again after a failure, which is what
         /// `--restart on-failure` asks for and what an installer that was told
@@ -1123,7 +1197,7 @@ mod registration {
     }
 
     /// When the manager starts the service after a boot (§ 4).
-    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, clap::ValueEnum)]
     pub(crate) enum StartMode {
         /// At boot, with the rest of the automatic services.
         #[default]
@@ -1297,6 +1371,29 @@ mod registration {
         /// The platform's own failure, unchanged: nothing above this can
         /// anticipate what a service manager refuses.
         fn apply(&self, action: &Action) -> std::io::Result<Option<String>>;
+
+        /// What the platform still holds under `name`: the argv it was
+        /// registered with, and the account its grants were made to.
+        ///
+        /// Read back rather than asked for a second time, because § 4's
+        /// closing property is about the install that happened and a second
+        /// command line describes the one an operator believes happened. The
+        /// two directories § 4 grants read/write on are left empty: neither
+        /// manager holds them, and the caller derives them from the
+        /// configuration the stored argv names.
+        ///
+        /// # Errors
+        ///
+        /// The platform's own failure, and `Unsupported` from a manager
+        /// holding no registration to read — which is the recording one a case
+        /// drives, where the [`Stored`] is the case's own value.
+        fn stored(&self, name: &str, unit_root: &Path) -> std::io::Result<Stored> {
+            let _ = (name, unit_root);
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "this service manager holds no registration to read back",
+            ))
+        }
     }
 
     /// Where a verb is being performed.
@@ -1666,10 +1763,11 @@ mod registration {
     /// on the machine somebody happens to be working on. [`scm::Scm`] has no
     /// such choice — `windows-sys` is a dependency only where it exists.
     #[cfg_attr(
-        test,
+        all(test, windows),
         expect(
             dead_code,
-            reason = "the `ServiceCommand` variants that choose an applier are the slice after it"
+            reason = "on Windows the applier `at_host` names is `scm::Scm`, and a case drives the \
+                      recording manager"
         )
     )]
     #[derive(Debug)]
@@ -1707,6 +1805,32 @@ mod registration {
                 )),
             }
         }
+
+        fn stored(&self, name: &str, unit_root: &Path) -> std::io::Result<Stored> {
+            let path = destination(Delivery::Install, name, unit_root)
+                .expect("an installing delivery names a unit file");
+            let text = std::fs::read_to_string(path)?;
+            let mut argv = Vec::new();
+            // A unit with no `User=` runs as root, which is what the grants
+            // were made to.
+            let mut account = "root".to_owned();
+            for line in text.lines() {
+                if let Some(command) = line.strip_prefix("ExecStart=") {
+                    // Past the first word, which is the binary the unit names
+                    // and the stored argv does not.
+                    argv = shell_words(command).into_iter().skip(1).collect();
+                } else if let Some(user) = line.strip_prefix("User=") {
+                    account = user.trim().to_owned();
+                }
+            }
+            Ok(Stored {
+                name: name.to_owned(),
+                argv,
+                account,
+                log_file: None,
+                cache_directory: None,
+            })
+        }
     }
 
     /// One `systemctl` run, by argv and with no shell, answering what it wrote
@@ -1718,10 +1842,11 @@ mod registration {
     /// other verb here means what its status says, and a failing one carries
     /// whatever systemd wrote to standard error.
     #[cfg_attr(
-        test,
+        all(test, windows),
         expect(
             dead_code,
-            reason = "the `ServiceCommand` variants that choose an applier are the slice after it"
+            reason = "on Windows the applier `at_host` names is `scm::Scm`, and a case drives the \
+                      recording manager"
         )
     )]
     fn systemctl(argv: &[String]) -> std::io::Result<Option<String>> {
@@ -1800,19 +1925,19 @@ mod registration {
         };
         use windows_sys::Win32::System::Services::{
             ChangeServiceConfig2W, CloseServiceHandle, ControlService, CreateServiceW,
-            DeleteService, OpenSCManagerW, OpenServiceW, QueryServiceStatusEx, SC_ACTION,
-            SC_ACTION_NONE, SC_ACTION_RESTART, SC_HANDLE, SC_MANAGER_CONNECT,
-            SC_MANAGER_CREATE_SERVICE, SC_STATUS_PROCESS_INFO, SERVICE_AUTO_START,
-            SERVICE_CHANGE_CONFIG, SERVICE_CONFIG_DELAYED_AUTO_START_INFO,
-            SERVICE_CONFIG_DESCRIPTION, SERVICE_CONFIG_FAILURE_ACTIONS,
-            SERVICE_CONFIG_FAILURE_ACTIONS_FLAG, SERVICE_CONFIG_PRESHUTDOWN_INFO,
-            SERVICE_CONTINUE_PENDING, SERVICE_CONTROL_STOP, SERVICE_DELAYED_AUTO_START_INFO,
-            SERVICE_DEMAND_START, SERVICE_DESCRIPTIONW, SERVICE_ERROR_NORMAL,
-            SERVICE_FAILURE_ACTIONS_FLAG, SERVICE_FAILURE_ACTIONSW, SERVICE_PAUSE_PENDING,
-            SERVICE_PAUSED, SERVICE_PRESHUTDOWN_INFO, SERVICE_QUERY_STATUS, SERVICE_RUNNING,
-            SERVICE_START, SERVICE_START_PENDING, SERVICE_STATUS, SERVICE_STATUS_PROCESS,
-            SERVICE_STOP, SERVICE_STOP_PENDING, SERVICE_STOPPED, SERVICE_WIN32_OWN_PROCESS,
-            StartServiceW,
+            DeleteService, OpenSCManagerW, OpenServiceW, QUERY_SERVICE_CONFIGW,
+            QueryServiceConfigW, QueryServiceStatusEx, SC_ACTION, SC_ACTION_NONE,
+            SC_ACTION_RESTART, SC_HANDLE, SC_MANAGER_CONNECT, SC_MANAGER_CREATE_SERVICE,
+            SC_STATUS_PROCESS_INFO, SERVICE_AUTO_START, SERVICE_CHANGE_CONFIG,
+            SERVICE_CONFIG_DELAYED_AUTO_START_INFO, SERVICE_CONFIG_DESCRIPTION,
+            SERVICE_CONFIG_FAILURE_ACTIONS, SERVICE_CONFIG_FAILURE_ACTIONS_FLAG,
+            SERVICE_CONFIG_PRESHUTDOWN_INFO, SERVICE_CONTINUE_PENDING, SERVICE_CONTROL_STOP,
+            SERVICE_DELAYED_AUTO_START_INFO, SERVICE_DEMAND_START, SERVICE_DESCRIPTIONW,
+            SERVICE_ERROR_NORMAL, SERVICE_FAILURE_ACTIONS_FLAG, SERVICE_FAILURE_ACTIONSW,
+            SERVICE_PAUSE_PENDING, SERVICE_PAUSED, SERVICE_PRESHUTDOWN_INFO, SERVICE_QUERY_CONFIG,
+            SERVICE_QUERY_STATUS, SERVICE_RUNNING, SERVICE_START, SERVICE_START_PENDING,
+            SERVICE_STATUS, SERVICE_STATUS_PROCESS, SERVICE_STOP, SERVICE_STOP_PENDING,
+            SERVICE_STOPPED, SERVICE_WIN32_OWN_PROCESS, StartServiceW,
         };
         use windows_sys::core::BOOL;
 
@@ -1878,6 +2003,71 @@ mod registration {
                     )),
                 }
             }
+
+            fn stored(&self, name: &str, _unit_root: &Path) -> std::io::Result<super::Stored> {
+                let (image_path, account) = configured(name)?;
+                let argv = crate::service::decode(&image_path);
+                Ok(super::Stored {
+                    name: name.to_owned(),
+                    // Past the first word: § 3 encodes this binary ahead of
+                    // the stored argv, and the argv is what was stored.
+                    argv: argv.into_iter().skip(1).collect(),
+                    account,
+                    log_file: None,
+                    cache_directory: None,
+                })
+            }
+        }
+
+        /// § 3's `ImagePath` and the account the SCM holds under `name`, which
+        /// together are everything a Windows uninstall undoes.
+        ///
+        /// `QueryServiceConfigW` is asked its size first and then answered
+        /// with exactly that, which is the only way it is willing to be
+        /// called: the structure it writes ends in the strings its own fields
+        /// point at.
+        fn configured(name: &str) -> std::io::Result<(String, String)> {
+            let (_database, handle) = service(name, SERVICE_QUERY_CONFIG)?;
+            let mut needed = 0u32;
+            // SAFETY: a null buffer of length zero, which is how this call is
+            // asked for the size it wants rather than given one.
+            unsafe { QueryServiceConfigW(handle.0, std::ptr::null_mut(), 0, &mut needed) };
+            // A `u64` buffer rather than a `u8` one: the structure holds
+            // pointers, and the cast below has to land on their alignment.
+            let mut buffer = vec![0u64; (needed as usize).div_ceil(8).max(1)];
+            let config = buffer.as_mut_ptr().cast::<QUERY_SERVICE_CONFIGW>();
+            // SAFETY: a buffer of exactly the size the call just asked for,
+            // aligned for the structure it writes into it.
+            ok(unsafe { QueryServiceConfigW(handle.0, config, needed, &mut needed) })?;
+            // SAFETY: the call above filled the structure, and both strings
+            // it points at live in the buffer that is still borrowed here.
+            let (image_path, account) = unsafe {
+                (
+                    text((*config).lpBinaryPathName),
+                    text((*config).lpServiceStartName),
+                )
+            };
+            Ok((image_path, account))
+        }
+
+        /// A NUL-terminated UTF-16 string the SCM wrote, as a `String`.
+        ///
+        /// # Safety
+        ///
+        /// `start` is null, or points at a NUL-terminated run of `u16` that
+        /// outlives the call.
+        unsafe fn text(start: *const u16) -> String {
+            if start.is_null() {
+                return String::new();
+            }
+            let mut length = 0;
+            // SAFETY: the caller's run is NUL-terminated, so this walk stops
+            // inside it.
+            while unsafe { *start.add(length) } != 0 {
+                length += 1;
+            }
+            // SAFETY: `length` units from `start` is the run it just walked.
+            String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(start, length) })
         }
 
         /// A NUL-terminated UTF-16 copy, which is what every `…W` call takes.
@@ -2481,6 +2671,224 @@ pub(crate) fn print_unit(
     ExitCode::SUCCESS
 }
 
+/// The site this installer acts in: the platform it is running on, that
+/// platform's real manager, and the directory § 5 writes a unit into.
+///
+/// The one `cfg` in the surface, and it is here rather than in a verb because
+/// every verb is the same list of actions on either machine — what differs is
+/// only which manager performs one, and only this machine's exists.
+fn at_host<T>(body: impl FnOnce(&registration::Site<'_>) -> T) -> T {
+    #[cfg(windows)]
+    let manager = registration::scm::Scm;
+    #[cfg(not(windows))]
+    let manager = registration::Systemd;
+    body(&registration::Site {
+        platform: registration::Platform::host(),
+        unit_root: Path::new(UNIT_DIRECTORY),
+        manager: &manager,
+    })
+}
+
+/// A refusal, rendered as whichever of the two it is: § 2's diagnostic, or the
+/// platform's own failure at the step the verb stopped on.
+fn report(refused: registration::Refused, sources: &mut SourceMap) -> ExitCode {
+    match refused {
+        registration::Refused::Installer(diagnostic) => refuse(diagnostic, sources),
+        registration::Refused::Manager(error) => {
+            eprintln!("error: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// What the platform holds under `name`, with the name in the failure.
+///
+/// The service manager's own error is "the specified service is not an
+/// installed service" and nothing else, which in an operator's locale and with
+/// no name in it is a sentence about no particular service.
+fn held(
+    site: &registration::Site<'_>,
+    name: &str,
+) -> Result<registration::Stored, registration::Refused> {
+    site.manager.stored(name, site.unit_root).map_err(|error| {
+        registration::Refused::Manager(std::io::Error::new(
+            error.kind(),
+            format!("this machine's service manager holds no `{name}`: {error}"),
+        ))
+    })
+}
+
+/// The installer's own options — everything `nvs service install` was given to
+/// the left of `--`, where the argv to its right is the request itself.
+pub(crate) struct InstallOptions<'a> {
+    /// Where the service writes diagnostics, if the named configuration does
+    /// not say (§ 2's fourth row).
+    pub(crate) log_file: Option<&'a Path>,
+    /// § 4's `--account`, replacing the per-service virtual account.
+    pub(crate) account: Option<&'a str>,
+    /// § 2 refuses it and exists to name it (`E0633`).
+    pub(crate) password: Option<&'a str>,
+    /// § 4's `--start`.
+    pub(crate) start: registration::StartMode,
+    /// § 4's `--restart`.
+    pub(crate) restart: registration::Restart,
+    /// § 4's `--depends-on`.
+    pub(crate) depends_on: &'a [String],
+    /// What an administrator reads beside the name.
+    pub(crate) description: Option<&'a str>,
+    /// Print the actions and touch nothing.
+    pub(crate) dry_run: bool,
+}
+
+/// `nvs service install <name> [options] -- <argv…>` — § 2's refusals, then
+/// this platform's own steps.
+///
+/// The grants are derived here rather than passed in: the log destination is
+/// the installer's `--log-file` or the `file:` target the named configuration
+/// carries, and the artifact cache is that configuration's
+/// `[opcache] file_cache_dir`. An uninstall re-derives both from the same
+/// configuration, which is what makes § 4's closing property hold against the
+/// install that granted them.
+pub(crate) fn install(
+    config: &[PathBuf],
+    name: &str,
+    argv: &[String],
+    options: &InstallOptions<'_>,
+) -> ExitCode {
+    let request = Request {
+        name,
+        argv,
+        log_file: options.log_file,
+        account: options.account,
+        password: options.password,
+    };
+    let mut sources = SourceMap::new();
+    let host = match describe_host(config, argv, &mut sources) {
+        Ok(host) => host,
+        Err(diagnostic) => return refuse(diagnostic, &mut sources),
+    };
+    let registration = registration::Registration {
+        start: options.start,
+        restart: options.restart,
+        depends_on: options.depends_on.to_vec(),
+        description: options.description.map(str::to_owned),
+        log_file: options
+            .log_file
+            .map(Path::to_path_buf)
+            .or_else(|| host.log_file.clone()),
+        cache_directory: host.cache_directory.clone(),
+    };
+    let performed = at_host(|site| {
+        registration::install(
+            &request,
+            &host,
+            &registration,
+            site,
+            options.dry_run,
+            &mut std::io::stdout(),
+        )
+    });
+    match performed {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(refused) => report(refused, &mut sources),
+    }
+}
+
+/// `nvs service uninstall <name>` — the install's steps undone, from what the
+/// platform still holds.
+pub(crate) fn uninstall(config: &[PathBuf], name: &str, dry_run: bool) -> ExitCode {
+    let mut sources = SourceMap::new();
+    let performed = at_host(|site| {
+        let mut stored = held(site, name)?;
+        let host = describe_host(config, &stored.argv, &mut sources)
+            .map_err(registration::Refused::Installer)?;
+        // The two the platform does not hold, back from where the install
+        // read them. An install given the installer's own `--log-file` over a
+        // configuration naming no destination is the one case this misses, and
+        // the module doc owns it.
+        stored.log_file = host.log_file;
+        stored.cache_directory = host.cache_directory;
+        registration::uninstall(&stored, site, dry_run, &mut std::io::stdout())
+    });
+    match performed {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(refused) => report(refused, &mut sources),
+    }
+}
+
+/// `nvs service start <name>`.
+pub(crate) fn start(name: &str) -> ExitCode {
+    answered(name, registration::Control::Start)
+}
+
+/// `nvs service stop <name>`, which a hosted server answers with a drain
+/// (`rule:packaging/a-service-answers-its-manager`).
+pub(crate) fn stop(name: &str) -> ExitCode {
+    answered(name, registration::Control::Stop)
+}
+
+/// `nvs service status <name>` — the manager's own answer, and then the one
+/// § 1 gives the verb its second spelling for: what no service manager knows,
+/// asked over the control socket the service's own configuration names.
+///
+/// That configuration is read out of the stored argv rather than out of this
+/// shell's `--config`, for the reason [`describe_host`] reads its three
+/// questions there: the tree this command is pointed at answers for this
+/// shell, and the question is about the service.
+pub(crate) fn status(config: &[PathBuf], name: &str) -> ExitCode {
+    let mut sources = SourceMap::new();
+    let asked = at_host(|site| {
+        let stored = held(site, name)?;
+        let answers = registration::control(registration::Control::Status, name, site)?;
+        Ok((stored, answers))
+    });
+    let (stored, answers) = match asked {
+        Ok(answered) => answered,
+        Err(refused) => return report(refused, &mut sources),
+    };
+    for answer in answers {
+        println!("{answer}");
+    }
+    let named: Vec<PathBuf> = values_of(&stored.argv, "--config")
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
+    crate::ctl::status(if named.is_empty() { config } else { &named }, None)
+}
+
+/// `nvs service run <name>` — the argv the platform holds under `name`, so
+/// this process can run the line a service manager would have started.
+///
+/// A manager never invokes this verb: § 3's `ImagePath` and § 5's `ExecStart`
+/// both carry the stored argv directly, so what the manager starts is
+/// `nvs serve …` itself. What this is for is running that same line in the
+/// foreground, where its output is on a terminal — which is how an operator
+/// watches a boot that fails under the manager with nothing in the log.
+///
+/// # Errors
+///
+/// The platform's own failure to say what it holds, already reported.
+pub(crate) fn stored_argv(name: &str) -> Result<Vec<String>, ExitCode> {
+    let mut sources = SourceMap::new();
+    at_host(|site| held(site, name))
+        .map(|stored| stored.argv)
+        .map_err(|refused| report(refused, &mut sources))
+}
+
+/// One control verb, and whatever the manager answered.
+fn answered(name: &str, control: registration::Control) -> ExitCode {
+    let mut sources = SourceMap::new();
+    match at_host(|site| registration::control(control, name, site)) {
+        Ok(answers) => {
+            for answer in answers {
+                println!("{answer}");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(refused) => report(refused, &mut sources),
+    }
+}
+
 /// What this process and the named configuration answer about themselves.
 ///
 /// The configuration questions are read off the merged table rather than the
@@ -2540,6 +2948,12 @@ fn describe_host(
         .get("server")
         .and_then(toml::Value::as_table)
         .and_then(|server| server.get("listen"));
+    let cache_directory = table
+        .get("opcache")
+        .and_then(toml::Value::as_table)
+        .and_then(|opcache| opcache.get("file_cache_dir"))
+        .and_then(toml::Value::as_str)
+        .map(PathBuf::from);
 
     Ok(Host {
         exe,
@@ -2549,6 +2963,10 @@ fn describe_host(
         control_socket,
         memory_max,
         privileged_port: listen.is_some_and(privileged),
+        log_file: target
+            .and_then(|target| target.strip_prefix("file:"))
+            .map(PathBuf::from),
+        cache_directory,
     })
 }
 
@@ -2608,6 +3026,8 @@ mod tests {
             control_socket: Some(absolute("run/control.sock")),
             memory_max: Some("512M".to_owned()),
             privileged_port: false,
+            log_file: None,
+            cache_directory: None,
         }
     }
 
