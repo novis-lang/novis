@@ -1034,6 +1034,20 @@ pub struct SqliteConn {
     /// through, and — as on SQL Server — sent nowhere, because there is no
     /// session to send it to. It governs decoding alone.
     pub(crate) time_zone: i32,
+    /// `rule:core-classes/a-stream-parks-its-read-on-the-connection`'s parked read, which on this driver is a
+    /// thread rather than a buffer.
+    ///
+    /// [`crate::sqlite::SqliteCursor`] owns why: the statement cannot leave the
+    /// thread that prepared it, so the walk is a pool thread holding the
+    /// statement and answering a row per step. What is held here is the handle
+    /// to it, the description the statement gave and the walk's span.
+    ///
+    /// **What it spends**: one pooled thread and one row per open walk, plus
+    /// that description, for as long as the walk is open — released when it ends
+    /// or when the task that opened it does. That is O(open walks) rather than
+    /// O(requests served), and it is what replaces [`SqliteRows`](crate::SqliteRows)'
+    /// whole result set.
+    pub(crate) reading: Option<crate::sqlite::SqliteCursor>,
 }
 
 /// One open connection to one database, whichever backend it is.
@@ -1222,6 +1236,7 @@ mod tests {
             state: Cell::new(State::Idle),
             depth: Cell::new(0),
             time_zone: 0,
+            reading: None,
         }))
     }
 

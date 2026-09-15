@@ -344,6 +344,7 @@ mod tests {
             state: Cell::new(State::Idle),
             depth: Cell::new(0),
             time_zone: 0,
+            reading: None,
         })
     }
 

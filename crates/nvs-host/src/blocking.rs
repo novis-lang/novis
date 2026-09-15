@@ -24,6 +24,20 @@
 //! the same answer [`crate::timer::park_until`] gives a sleep, for the same
 //! reason.
 //!
+//! # A thread held for a walk
+//!
+//! [`pin`] is the same handoff kept open. Where [`run`] hands over one closure
+//! and takes its answer back, `pin` hands over a closure that *stays* on the
+//! thread, holding state the core cannot be given — a cursor that borrows the
+//! thing it is walking — and answers one [`Pinned::ask`] at a time. The park is
+//! per question and identical: a [`RemoteWake`](reactor::RemoteWake) out with
+//! the question, the answer read off a channel, the wake only ending the wait.
+//!
+//! A pinned thread is one of [`bound`]'s, so it is the one way a caller can
+//! spend this pool's threads for longer than a call. [`pin`]'s own docs say what
+//! an exhausted pool does with the next walk, and the property that keeps it
+//! bounded is that a handle dies with the task that opened it.
+//!
 //! # The bound, and what the pool spends
 //!
 //! [`bound`] threads, lazily: a thread is started only when work arrives and
@@ -33,7 +47,9 @@
 //! and resident only in what a job touches, plus one boxed closure per job in
 //! flight. That is O(cores) and O(in-flight); nothing here grows with requests
 //! served, which is the property that makes an unbounded pool the wrong default
-//! rather than a generous one.
+//! rather than a generous one. A [`pin`]ned thread is one of the same [`bound`]
+//! and spends nothing beyond it: it is held for the life of one walk instead of
+//! one call, which is O(walks open at once) and so still O(in-flight).
 //!
 //! A pool is **per worker** and its threads are its own. That is the ADR's word,
 //! and it is also what keeps this crate shared-nothing: a queue shared between
@@ -54,6 +70,7 @@
 
 use std::collections::VecDeque;
 use std::panic::AssertUnwindSafe;
+use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 
@@ -362,6 +379,173 @@ where
             std::thread::yield_now();
         }
     }
+}
+
+/// One question for a pinned thread, the channel its answer travels back down,
+/// and the wake that ends the asker's park.
+///
+/// **The field order is the protocol.** A dropped request delivers the closed
+/// channel before it delivers the wake, so an asker woken by a thread that went
+/// away finds the disconnection rather than parking again on an answer that has
+/// stopped coming — the same ordering [`run`] writes by hand when it fills its
+/// slot before dropping its handle.
+pub struct Request<Q, A> {
+    question: Q,
+    reply: mpsc::Sender<A>,
+    #[expect(
+        dead_code,
+        reason = "held for its `Drop`, which is what ends the asker's park — \
+                  nothing reads it, and taking it out early would deliver the \
+                  wake before the answer"
+    )]
+    wake: Option<reactor::RemoteWake>,
+}
+
+impl<Q, A> std::fmt::Debug for Request<Q, A> {
+    /// Without a bound on the question, which is the whole point of one: a
+    /// pinned walk's questions carry what it is walking, and a `Debug` bound
+    /// here would be this module dictating that.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Request").finish_non_exhaustive()
+    }
+}
+
+impl<Q, A> Request<Q, A> {
+    /// What is being asked.
+    pub fn question(&self) -> &Q {
+        &self.question
+    }
+
+    /// Answers it, waking the task that is parked on it.
+    ///
+    /// The answer is in the channel before this returns and before the wake
+    /// fires. A request dropped without one is not an error here: the asker
+    /// reads the closed channel as [`Pinned::ask`]'s `None`, which is what a
+    /// thread that ended mid-walk looks like from the core.
+    pub fn answer(self, answer: A) {
+        let _ = self.reply.send(answer);
+    }
+}
+
+/// The questions a pinned thread has been asked, in the order they were asked.
+///
+/// Held by the closure [`pin`] handed to the pool, which owns everything the
+/// walk is made of and blocks here between steps.
+pub struct Asked<Q, A> {
+    asked: mpsc::Receiver<Request<Q, A>>,
+}
+
+impl<Q, A> std::fmt::Debug for Asked<Q, A> {
+    /// [`Request`]'s reason for writing this by hand.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Asked").finish_non_exhaustive()
+    }
+}
+
+impl<Q, A> Asked<Q, A> {
+    /// Blocks this pool thread until the next question arrives, and answers
+    /// `None` once the [`Pinned`] handle is gone.
+    ///
+    /// That `None` is how a walk ends when nobody ended it: the task that owned
+    /// the handle died, its connection was dropped, and the closure returns —
+    /// releasing whatever it was holding and giving the thread back to the pool.
+    pub fn next_question(&mut self) -> Option<Request<Q, A>> {
+        self.asked.recv().ok()
+    }
+}
+
+/// A pool thread held for the life of a walk, answering one question at a time.
+///
+/// [`run`] is the shape to reach for first and this is the one it cannot cover:
+/// state that **cannot leave the thread it was built on**. A `rusqlite`
+/// statement borrows its connection, so the rows it steps cannot be carried back
+/// to the core the way `run`'s answer is — either the whole result set is
+/// materialized before the closure returns, or the thread keeps the statement
+/// and answers a row per question. This is the second.
+///
+/// Dropping it closes the channel, which is what ends the walk: the closure's
+/// next [`Asked::next_question`] answers `None`, it returns, and the thread goes
+/// back to the pool. Nothing has to remember to release it.
+pub struct Pinned<Q, A> {
+    asking: mpsc::Sender<Request<Q, A>>,
+}
+
+impl<Q, A> std::fmt::Debug for Pinned<Q, A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Pinned").finish_non_exhaustive()
+    }
+}
+
+impl<Q, A> Pinned<Q, A> {
+    /// Asks one question and hands the core back until the answer lands.
+    ///
+    /// [`run`]'s park, per question rather than per call: a fresh
+    /// [`RemoteWake`](reactor::RemoteWake) goes out with each one, the channel is
+    /// the record and the wake only ends the wait. Off a core there is no core
+    /// to give back and this blocks on the channel instead, which is the same
+    /// answer [`run`] gives by calling its function inline.
+    ///
+    /// `None` where the thread ended without answering — a closure that
+    /// returned, a panic the pool swallowed, or a pool shutting down. It is the
+    /// caller's to turn into whatever a half-read walk means to it.
+    pub fn ask(&self, question: Q) -> Option<A> {
+        let (reply, answer) = mpsc::channel();
+        let wake = current_task().and_then(|me| reactor::with_current(|r| r.remote_wake(me)));
+        let parked = wake.is_some();
+        self.asking
+            .send(Request {
+                question,
+                reply,
+                wake,
+            })
+            .ok()?;
+
+        if !parked {
+            return answer.recv().ok();
+        }
+
+        loop {
+            match answer.try_recv() {
+                Ok(answer) => return Some(answer),
+                Err(mpsc::TryRecvError::Disconnected) => return None,
+                // A wake is always a hint, so the channel is what is read and
+                // the park is what is repeated — [`run`]'s loop exactly.
+                Err(mpsc::TryRecvError::Empty) => {}
+            }
+            if !suspend_current(Waiting::Parked).suspended() {
+                std::thread::yield_now();
+            }
+        }
+    }
+}
+
+/// Hands `serve` a thread of this thread's pool and keeps it until the answer
+/// handle is dropped.
+///
+/// The closure owns the walk: it takes its questions off [`Asked`], holds
+/// whatever it is walking on its own stack, and returns when the handle goes
+/// away. Everything it holds is released by that return, so a task that dies
+/// mid-walk releases the thread at the same moment it releases everything else.
+///
+/// # What an exhausted pool does
+///
+/// It waits, and nothing here fails or falls back. A pinned thread is one of
+/// [`bound`]'s, so walks open at once eat into the same count ordinary blocking
+/// calls draw on, and a walk opened with every thread busy queues behind them
+/// exactly as [`BlockingPool::submit`] queues any other job — the alternative,
+/// refusing the work, is the "the machine is busy" error that method's own doc
+/// rejects. What keeps the queue draining is that a walk is bounded by the
+/// request that opened it: the handle dies with the task, so the longest a
+/// thread can be pinned is the life of one request.
+pub fn pin<Q, A, F>(serve: F) -> Pinned<Q, A>
+where
+    Q: Send + 'static,
+    A: Send + 'static,
+    F: FnOnce(Asked<Q, A>) + Send + 'static,
+{
+    let (asking, asked) = mpsc::channel();
+    with_pool(|pool| pool.submit(move || serve(Asked { asked })));
+    Pinned { asking }
 }
 
 /// The lock, with a poisoned one taken anyway.

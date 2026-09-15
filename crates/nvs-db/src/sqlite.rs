@@ -30,14 +30,26 @@
 //!   be `'static`, and copying one per statement to satisfy the bound would be a
 //!   copy nobody asked for: `nvs-stdlib` builds this vector out of the call's own
 //!   values, so taking it by value costs nothing at all.
-//! - **The rows come back materialized.** `rusqlite`'s `Rows` borrows the
-//!   statement, which borrows the connection, so it cannot outlive the closure
-//!   that produced it. [`SqliteRows`] therefore holds the whole result set. That
-//!   is memory spent — the priority ordering's last item, bought here for
-//!   priority 1: the alternative is pinning the connection to a pool thread for
-//!   the life of a cursor, which is a second lifetime rule for one backend and a
-//!   thread one request can hold indefinitely. § 4's `stream` is where that bound
-//!   has to become a chunk size, and it is not this module's yet.
+//! - **A buffered statement's rows come back materialized.** `rusqlite`'s `Rows`
+//!   borrows the statement, which borrows the connection, so it cannot outlive
+//!   the closure that produced it. [`SqliteRows`] therefore holds the whole
+//!   result set, which is memory spent — the priority ordering's last item —
+//!   to keep every other member one handoff and one answer.
+//!
+//! # The walk, which is the other side of that bound
+//!
+//! `rule:core-classes/db-streaming`'s `stream` is the member that may not buffer, so it does the
+//! thing the bullet above declined to do for `query`: [`SqliteCursor`] keeps a
+//! pool thread for the life of the walk, holding the statement and the cursor
+//! stepping it, and answers one owned row per [`SqliteConn::stream_next_row`].
+//! Constant memory, on the one backend whose cursor cannot be parked in a field.
+//!
+//! What that costs is a thread of [`nvs_host::blocking::bound`]'s pool per open
+//! walk — `pin`'s own docs own what an exhausted pool does with the next one —
+//! and it is released when the last row is read, when the walk is ended, or when
+//! the task holding the connection dies. The lock on the connection is held for
+//! the same span, which is why filing a deadline mid-walk goes through the
+//! thread ([`set_busy_timeout`]) rather than taking it.
 //!
 //! # What is still § 4's rule and not the file's
 //!
@@ -514,6 +526,94 @@ impl Drop for SqliteRows<'_> {
     }
 }
 
+/// One question for the thread a parked walk is holding.
+#[derive(Debug, Clone, Copy)]
+enum Step {
+    /// Prepare, bind and describe. Asked once, by [`SqliteConn::stream`].
+    Open,
+    /// Step the cursor once.
+    Next,
+    /// File `rule:core-classes/db-statement-members`'s deadline as `sqlite3_busy_timeout`, which on a
+    /// connection a walk is holding only this thread can do —
+    /// [`set_busy_timeout`] owns why.
+    Bound(std::time::Duration),
+    /// Release the statement and the connection, walk unfinished.
+    End,
+}
+
+/// What the thread answers a [`Step`] with.
+#[derive(Debug)]
+enum Answered {
+    /// The description, in answer to [`Step::Open`].
+    Opened(Vec<SqliteColumn>),
+    /// One row.
+    Row(Vec<SqliteValue>),
+    /// The deadline is filed, and the walk goes on.
+    Bound,
+    /// The walk is over and the thread has already let go of everything: the
+    /// last row has been read, or [`Step::End`] asked it to stop.
+    Done,
+    /// SQLite refused, and the walk is over on the same terms as [`Self::Done`].
+    Failed(io::Error),
+}
+
+/// `rule:core-classes/a-stream-parks-its-read-on-the-connection`'s read state for this driver: the thread walking the
+/// statement, and what the statement described.
+///
+/// **The read state is a thread because it cannot be anything else.** A
+/// `rusqlite::Statement` borrows the connection and its `Rows` borrows the
+/// statement, so neither can be parked in a field the way the wire drivers park
+/// a half-read message — this module's own doc has the lifetimes. What crosses
+/// back to the core is one owned row per step, and what stays on the thread is
+/// everything that borrows: [`nvs_host::blocking::pin`] is the primitive that
+/// allows it, and its docs own what an exhausted pool does with the next walk.
+///
+/// The thread is released when the last row is read, when [`SqliteConn::end_stream`]
+/// asks it to stop, and — because the handle lives in this struct — when the
+/// task that opened the walk dies with the connection still holding it. There is
+/// no fourth path and nothing to remember.
+#[derive(Debug)]
+pub(crate) struct SqliteCursor {
+    /// The thread, until the walk ends. `None` for a walk read to its end or
+    /// abandoned, whose description and span are still worth reading.
+    walk: Option<nvs_host::blocking::Pinned<Step, Answered>>,
+    /// What the statement described, answered to [`Step::Open`] and handed back
+    /// to every later call that decodes a row against it.
+    columns: Vec<SqliteColumn>,
+    /// `rule:observability/a-query-is-a-trace-event`'s event for the walk.
+    span: QuerySpan,
+}
+
+impl SqliteCursor {
+    /// What the statement described.
+    pub(crate) fn columns(&self) -> &[SqliteColumn] {
+        &self.columns
+    }
+
+    /// The walk's trace event.
+    pub(crate) fn span(&self) -> &QuerySpan {
+        &self.span
+    }
+
+    /// Names the `[db.<name>]` block this walk is running on.
+    pub(crate) fn name_connection(&mut self, connection: &str) {
+        self.span.name(connection);
+    }
+}
+
+/// The thread ended without answering, which is a pool shutting down or a job
+/// that unwound where nothing here can.
+///
+/// It is not a server error and carries no `rule:core-classes/db-error-kinds` kind: SQLite said
+/// nothing, and a caller reading a kind off this would be reading one this
+/// runtime invented.
+fn lost_walk() -> io::Error {
+    io::Error::other(
+        "the SQLite walk's thread ended without answering: the statement is gone and the rows \
+         cannot be read, so re-run it — with `query`, if this request must not meet it again",
+    )
+}
+
 /// Opens the file, and answers the connection `rule:core-classes/db-statement-members`'s statements run on.
 ///
 /// The open itself goes off the core: creating or reading a database header is
@@ -562,6 +662,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
         state: Cell::new(State::Idle),
         depth: Cell::new(0),
         time_zone: target.time_zone,
+        reading: None,
     })
 }
 
@@ -621,6 +722,167 @@ impl SqliteConn {
                 self.state.set(State::Idle);
                 Err(e)
             }
+        }
+    }
+
+    /// Runs one statement and leaves its answer open, **borrowing nothing**:
+    /// the walk is parked on this connection and the rows come off it one
+    /// [`Self::stream_next_row`] at a time.
+    ///
+    /// The driver half of `rule:core-classes/db-streaming`'s `stream`, and the one driver where
+    /// it is a thread rather than a message boundary — [`SqliteCursor`] owns why
+    /// the statement cannot be parked in a field, and what the thread costs. The
+    /// answer is what the result set described, empty for a statement that
+    /// described none, and [`Self::stream_columns`] hands the same slice back to
+    /// the later calls that decode against it.
+    ///
+    /// **Constant memory, which is what `query` on this driver cannot offer.**
+    /// One row crosses back per step and nothing accumulates, so a walk over a
+    /// large table holds a row where [`SqliteRows`] holds the table.
+    ///
+    /// A second statement is refused while this one is open, which is
+    /// `rule:core-classes/db-streaming`'s `LogicError` read off [`State::Streaming`] rather than
+    /// off a lifetime. [`Self::end_stream`] is what a program that walks away
+    /// from the rows owes; a walk read to its end needs no call at all, and a
+    /// connection dropped mid-walk releases the thread with everything else.
+    ///
+    /// # Errors
+    ///
+    /// As [`SqliteConn::query`], plus the walk whose thread ended without
+    /// answering — a pool shutting down under a request, which is not a server
+    /// error and carries no § 8 kind.
+    pub fn stream(&mut self, sql: &str, params: Vec<SqliteValue>) -> io::Result<&[SqliteColumn]> {
+        if !self.state.get().may_start_statement() {
+            return Err(busy(self.state.get()));
+        }
+        let span = QuerySpan::opened(Driver::Sqlite, sql);
+        self.state.set(State::Executing);
+
+        let handle = Arc::clone(&self.handle);
+        let owned = sql.to_owned();
+        let walking = nvs_host::blocking::pin(move |asked| walk(&handle, &owned, &params, asked));
+
+        match walking.ask(Step::Open) {
+            Some(Answered::Opened(columns)) => {
+                self.state.set(State::Streaming);
+                let reading = self.reading.insert(SqliteCursor {
+                    walk: Some(walking),
+                    columns,
+                    span,
+                });
+                Ok(reading.columns())
+            }
+            // The failing paths all drop the handle on the way out, which is what
+            // releases the thread: a statement SQLite refused never reached a
+            // row, so there is nothing to drain and nothing to park. This
+            // driver's failure path returns to `Idle` for [`SqliteConn::query`]'s
+            // reason.
+            Some(Answered::Failed(refused)) => {
+                self.state.set(State::Idle);
+                Err(refused)
+            }
+            Some(_) | None => {
+                self.state.set(State::Idle);
+                Err(lost_walk())
+            }
+        }
+    }
+
+    /// What the parked walk's statement described, or `None` for a connection
+    /// that has not streamed since its last reset.
+    ///
+    /// It outlives the rows on purpose: a value is measured by the column it
+    /// belongs to, and § 9's decode of it happens after the step that produced
+    /// it.
+    #[must_use]
+    pub fn stream_columns(&self) -> Option<&[SqliteColumn]> {
+        Some(self.reading.as_ref()?.columns())
+    }
+
+    /// The next row of the parked walk, or `None` once it has ended — and `None`
+    /// too for a connection with no walk parked on it at all.
+    ///
+    /// Ending it releases the thread and returns the connection to
+    /// [`State::Idle`], exactly as dropping [`SqliteRows`] does. The description
+    /// and the span stay parked until the next [`Self::stream`] replaces them or
+    /// [`Self::end_stream`] drops them.
+    ///
+    /// # Errors
+    ///
+    /// [`server_error`] for anything SQLite refused mid-walk, `InvalidData` for
+    /// a `TEXT` cell that is not UTF-8 ([`SqliteValue::read`]), and
+    /// [`lost_walk`] for a thread that ended without answering. Every one of them
+    /// ends the walk: the thread has already let go of the statement by the time
+    /// the refusal arrives.
+    pub fn stream_next_row(&mut self) -> io::Result<Option<Vec<SqliteValue>>> {
+        let Some(reading) = self.reading.as_mut() else {
+            return Ok(None);
+        };
+        let answer = match reading.walk.as_ref() {
+            Some(walk) => walk.ask(Step::Next),
+            None => return Ok(None),
+        };
+
+        match answer {
+            Some(Answered::Row(cells)) => {
+                reading.span.row();
+                Ok(Some(cells))
+            }
+            Some(Answered::Done) => {
+                reading.walk = None;
+                reading.span.finished(None);
+                self.state.set(State::Idle);
+                Ok(None)
+            }
+            Some(Answered::Failed(refused)) => {
+                reading.walk = None;
+                reading.span.finished(None);
+                self.state.set(State::Idle);
+                Err(refused)
+            }
+            Some(Answered::Opened(_) | Answered::Bound) | None => {
+                reading.walk = None;
+                reading.span.finished(None);
+                self.state.set(State::Idle);
+                Err(lost_walk())
+            }
+        }
+    }
+
+    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for the
+    /// parked walk, or `None` where there is none.
+    #[must_use]
+    pub fn stream_span(&self) -> Option<&QuerySpan> {
+        Some(self.reading.as_ref()?.span())
+    }
+
+    /// Names the `[db.<name>]` block the parked walk is running on, and does
+    /// nothing where there is no walk — [`crate::MySqlRows::name_connection`]
+    /// owns why the driver cannot work the name out for itself.
+    pub fn name_stream_connection(&mut self, connection: &str) {
+        if let Some(reading) = self.reading.as_mut() {
+            reading.name_connection(connection);
+        }
+    }
+
+    /// Abandons the parked walk: tells the thread to let go, waits for it to say
+    /// it has, and forgets the walk.
+    ///
+    /// **The wait is the point.** The thread holds the statement and the lock on
+    /// the connection, so a call that only dropped the handle would leave § 13's
+    /// reset — or the next statement — racing a release that has not happened
+    /// yet. [`Step::End`] is answered *after* the thread has let go of both, so
+    /// a connection is free the instant this returns.
+    pub fn end_stream(&mut self) {
+        if let Some(reading) = self.reading.as_mut()
+            && let Some(walk) = reading.walk.take()
+        {
+            let _ = walk.ask(Step::End);
+            reading.span.finished(None);
+        }
+        self.reading = None;
+        if self.state.get() == State::Streaming {
+            self.state.set(State::Idle);
         }
     }
 
@@ -877,7 +1139,7 @@ impl SqliteConn {
     /// still lent out, and a reset is only meaningful between statements — or
     /// [`server_error`] for a rollback SQLite refused. The connection is
     /// dropped either way.
-    pub fn reset(self) -> io::Result<SqliteConn> {
+    pub fn reset(mut self) -> io::Result<SqliteConn> {
         if !self.state.get().is_poolable() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -888,6 +1150,13 @@ impl SqliteConn {
                 ),
             ));
         }
+
+        // Before the rollback, which takes the lock a walk would still be
+        // holding: a connection that streamed carries its description and its
+        // span until something drops them, and a reset is where a request's
+        // leavings stop being the next request's. A walk still open cannot reach
+        // here — `is_poolable` refused it above — so this is the finished one.
+        self.end_stream();
 
         let handle = Arc::clone(&self.handle);
         nvs_host::blocking::run(move || {
@@ -968,31 +1237,13 @@ fn step(
     let guard = lock(handle);
     let mut statement = guard.prepare_cached(sql).map_err(server_error)?;
 
-    // Before the step, because `query` borrows the statement mutably for as
-    // long as the rows live. `sqlite3_column_count` and the declared types are
-    // available the moment the statement is prepared, so nothing is lost by
-    // reading them here.
-    let columns: Vec<SqliteColumn> = statement
-        .columns()
-        .iter()
-        .map(|column| SqliteColumn {
-            name: column.name().to_owned(),
-            declared: column.decl_type().map(str::to_owned),
-        })
-        .collect();
-
+    let columns = describe(&statement);
     let width = columns.len();
     let mut rows = Vec::new();
     let mut cursor = statement
         .query(rusqlite::params_from_iter(params))
         .map_err(server_error)?;
-    while let Some(row) = cursor.next().map_err(server_error)? {
-        let mut cells = Vec::with_capacity(width);
-        for index in 0..width {
-            cells.push(SqliteValue::read(
-                row.get_ref(index).map_err(server_error)?,
-            )?);
-        }
+    while let Some(cells) = read_row(&mut cursor, width)? {
         rows.push(cells);
     }
     drop(cursor);
@@ -1004,6 +1255,129 @@ fn step(
         affected: guard.changes(),
         last_insert_id: guard.last_insert_rowid(),
     })
+}
+
+/// One walk, from the thread that owns it: prepare, describe, and then a row per
+/// question until the handle goes away.
+///
+/// Everything that borrows lives in this frame — the lock on the connection, the
+/// statement it prepared, the cursor stepping it — which is the whole reason a
+/// walk is a thread on this driver and a field on every other one
+/// ([`SqliteCursor`]).
+///
+/// **It lets go before it answers the last question.** The cursor, the statement
+/// and the lock are dropped and only then is [`Answered::Done`] sent, so the
+/// step that ends a walk returns to a caller whose connection is already free —
+/// which is what lets § 13's reset run straight after one. Ending because the
+/// handle was dropped has nothing to answer and lets go on the way out.
+fn walk(
+    handle: &Mutex<rusqlite::Connection>,
+    sql: &str,
+    params: &[SqliteValue],
+    mut asked: nvs_host::blocking::Asked<Step, Answered>,
+) {
+    // The lock is taken only once a question has arrived, so a handle dropped
+    // before the first step never touches the connection at all.
+    let Some(open) = asked.next_question() else {
+        return;
+    };
+    let guard = lock(handle);
+    let mut statement = match guard.prepare_cached(sql) {
+        Ok(statement) => statement,
+        Err(refused) => {
+            open.answer(Answered::Failed(server_error(refused)));
+            return;
+        }
+    };
+    let columns = describe(&statement);
+    let width = columns.len();
+    let mut cursor = match statement.query(rusqlite::params_from_iter(params)) {
+        Ok(cursor) => cursor,
+        Err(refused) => {
+            open.answer(Answered::Failed(server_error(refused)));
+            return;
+        }
+    };
+    open.answer(Answered::Opened(columns));
+
+    let ending = loop {
+        let Some(step) = asked.next_question() else {
+            break None;
+        };
+        // Copied out first: the arms below consume the request to answer it, and
+        // a question read through a borrow of it would still be borrowing it.
+        let question = *step.question();
+        match question {
+            Step::Next => match read_row(&mut cursor, width) {
+                Ok(Some(cells)) => step.answer(Answered::Row(cells)),
+                Ok(None) => break Some((step, Answered::Done)),
+                Err(refused) => break Some((step, Answered::Failed(refused))),
+            },
+            Step::Bound(waiting) => match guard.busy_timeout(waiting) {
+                Ok(()) => step.answer(Answered::Bound),
+                Err(refused) => break Some((step, Answered::Failed(server_error(refused)))),
+            },
+            Step::End => break Some((step, Answered::Done)),
+            // One walk is opened once, by [`SqliteConn::stream`], and it is the
+            // question that got this frame running. A second is this crate's
+            // paste error rather than anything a program can reach.
+            Step::Open => {
+                break Some((
+                    step,
+                    Answered::Failed(io::Error::other(
+                        "a SQLite walk that is already open was asked to open again",
+                    )),
+                ));
+            }
+        }
+    };
+
+    drop(cursor);
+    drop(statement);
+    drop(guard);
+    if let Some((step, answer)) = ending {
+        step.answer(answer);
+    }
+}
+
+/// What a prepared statement says its result set is, one entry per column.
+///
+/// Read before the first step, because stepping borrows the statement mutably
+/// for as long as the rows live. `sqlite3_column_count` and the declared types
+/// are available the moment the statement is prepared, so nothing is lost by
+/// reading them here.
+fn describe(statement: &rusqlite::Statement<'_>) -> Vec<SqliteColumn> {
+    statement
+        .columns()
+        .iter()
+        .map(|column| SqliteColumn {
+            name: column.name().to_owned(),
+            declared: column.decl_type().map(str::to_owned),
+        })
+        .collect()
+}
+
+/// One stepped row as owned values, or `None` at the end of the set.
+///
+/// The one place a cell crosses from `rusqlite`'s borrowed `ValueRef` into
+/// something that can leave the thread, which is what both readers here need:
+/// [`step`] to fill its `Vec`, and [`walk`] to answer one question.
+///
+/// # Errors
+///
+/// [`server_error`] for anything SQLite refused mid-set, and `InvalidData` for a
+/// `TEXT` cell that is not UTF-8 ([`SqliteValue::read`]).
+fn read_row(cursor: &mut rusqlite::Rows<'_>, width: usize) -> io::Result<Option<Vec<SqliteValue>>> {
+    let Some(row) = cursor.next().map_err(server_error)? else {
+        return Ok(None);
+    };
+    let mut cells = Vec::with_capacity(width);
+    for index in 0..width {
+        cells.push(SqliteValue::read(
+            row.get_ref(index).map_err(server_error)?,
+        )?);
+    }
+    Ok(Some(cells))
 }
 
 /// `rule:core-classes/db-statement-members`'s statement deadline, spelled as the only wait this backend
@@ -1032,6 +1406,24 @@ pub(crate) fn set_busy_timeout(
     let waiting = at.map_or(std::time::Duration::ZERO, |deadline| {
         deadline.saturating_duration_since(std::time::Instant::now())
     });
+
+    // A walk holds the lock on the connection for its whole life, so this is the
+    // one call on this driver that cannot simply take it: a core waiting here
+    // for a thread that is waiting for this core to ask it for the next row is a
+    // wedge, not a wait. The walk's own thread files it instead, which is also
+    // the only way the bound reaches the steps it is meant to bound.
+    if let Some(walk) = conn
+        .reading
+        .as_ref()
+        .and_then(|reading| reading.walk.as_ref())
+    {
+        return match walk.ask(Step::Bound(waiting)) {
+            Some(Answered::Bound) => Ok(()),
+            Some(Answered::Failed(refused)) => Err(refused),
+            Some(_) | None => Err(lost_walk()),
+        };
+    }
+
     lock(&conn.handle)
         .busy_timeout(waiting)
         .map_err(server_error)
@@ -2090,5 +2482,142 @@ mod tests {
                  double and has no literal to want"
             );
         }
+    }
+
+    /// The parked form of a walk on the driver with no wire, which the user's
+    /// pinned-thread call is what it is: the statement stays on a pool thread
+    /// and one owned row crosses back per step.
+    ///
+    /// The lock is half the assertion and the only one that can tell a walk from
+    /// a buffer: a statement that had been stepped to exhaustion would have let
+    /// go of the connection before the first row was read, so a `try_lock` that
+    /// fails mid-walk is the result set still being *in* SQLite. The other half
+    /// is the run — one row per step, in order, the connection busy for as long
+    /// as rows remain and idle the moment the last one is read, with the
+    /// description and the span outliving the rows for the decode that reads
+    /// them.
+    #[test]
+    fn sqlite_stream_parks_its_read_or_names_its_recorded_refusal() {
+        let mut conn = connect();
+        conn.query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+        conn.query("insert into t (v) values (7), (9)", Vec::new())
+            .expect("the rows go in");
+
+        let described = conn
+            .stream("select v from t order by v", Vec::new())
+            .expect("the walk opens")
+            .len();
+        assert_eq!(described, 1);
+        assert_eq!(conn.state.get(), State::Streaming);
+        assert!(
+            conn.handle.try_lock().is_err(),
+            "the walk's thread is not holding the connection, so the rows were read into memory"
+        );
+
+        let refused = conn
+            .query("select 1", Vec::new())
+            .expect_err("a second statement is refused while a walk is open");
+        assert!(
+            refused.to_string().contains("open a second connection"),
+            "§ 4's refusal names both fixes: {refused}"
+        );
+
+        let mut seen = Vec::new();
+        while let Some(row) = conn.stream_next_row().expect("the walk advanced") {
+            assert_eq!(
+                conn.state.get(),
+                State::Streaming,
+                "a walk with rows left to read freed the connection"
+            );
+            seen.push(row);
+        }
+
+        assert_eq!(seen, [vec![SqliteValue::Int(7)], vec![SqliteValue::Int(9)]]);
+        assert_eq!(
+            conn.state.get(),
+            State::Idle,
+            "a drained walk left the connection unpoolable"
+        );
+        assert!(
+            conn.handle.try_lock().is_ok(),
+            "the last step answered before its thread let go of the connection"
+        );
+        assert_eq!(
+            conn.stream_columns().map(<[_]>::len),
+            Some(1),
+            "the description is what a row is decoded against, so it outlives the rows"
+        );
+        assert_eq!(conn.stream_span().map(super::QuerySpan::rows), Some(2));
+
+        conn.end_stream();
+        assert!(conn.stream_columns().is_none());
+        conn.query("select 1", Vec::new())
+            .expect("the connection is free once the walk has ended");
+    }
+
+    /// A walk nobody drained: the thread is released by [`super::SqliteConn::end_stream`],
+    /// and the connection is usable the instant it returns.
+    ///
+    /// The abandoned half of `rule:core-classes/db-streaming` — a program that reads two rows of a
+    /// million and returns. Nothing here has to be drained, which is this
+    /// driver's one advantage over the four with a wire.
+    #[test]
+    fn an_abandoned_walk_releases_its_thread_and_the_connection() {
+        let mut conn = connect();
+        conn.query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+        conn.query("insert into t (v) values (1), (2), (3)", Vec::new())
+            .expect("the rows go in");
+
+        conn.stream("select v from t order by v", Vec::new())
+            .expect("the walk opens");
+        assert_eq!(
+            conn.stream_next_row().expect("the walk advanced"),
+            Some(vec![SqliteValue::Int(1)])
+        );
+
+        conn.end_stream();
+        assert_eq!(conn.state.get(), State::Idle);
+        assert!(
+            conn.handle.try_lock().is_ok(),
+            "`end_stream` returned before its thread let go of the connection"
+        );
+        let rows = conn
+            .query("select count(*) from t", Vec::new())
+            .expect("the connection took a statement straight after the walk");
+        drop(rows);
+
+        conn.reset()
+            .expect("an ended walk leaves a resettable connection");
+    }
+
+    /// § 4's deadline, filed on a connection a walk is holding.
+    ///
+    /// It cannot take the lock — the walk's thread has it for the walk's whole
+    /// life — so [`super::set_busy_timeout`] goes through the thread instead.
+    /// This is the case that wedges the core if that ever stops being true.
+    #[test]
+    fn a_deadline_filed_mid_walk_goes_through_the_walks_own_thread() {
+        let mut conn = connect();
+        conn.query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+        conn.query("insert into t (v) values (4)", Vec::new())
+            .expect("the row goes in");
+
+        conn.stream("select v from t", Vec::new())
+            .expect("the walk opens");
+        super::set_busy_timeout(
+            &conn,
+            Some(std::time::Instant::now() + std::time::Duration::from_millis(50)),
+        )
+        .expect("the walk's thread filed it");
+
+        assert_eq!(
+            conn.stream_next_row().expect("the walk advanced"),
+            Some(vec![SqliteValue::Int(4)])
+        );
+        assert_eq!(conn.stream_next_row().expect("the walk ended"), None);
+        super::set_busy_timeout(&conn, None).expect("the lock is free once the walk has ended");
     }
 }
