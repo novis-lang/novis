@@ -332,8 +332,10 @@ impl<'a> Resolved<'a> {
 pub struct Selection<'a> {
     /// The row step 1 chose. Its `prefix` and `captures` are `rule:routing/a-request-reads-its-mount`'s
     /// answer and cross onto the request through [`carry`]; its `origin` is what
-    /// `Core\Router::urlAbsolute` prepends, which is still the request-context
-    /// slice's to read off it.
+    /// `Core\Router::urlAbsolute` prepends, and crosses onto the isolate that
+    /// answers the request rather than onto its carrier, because an origin is a
+    /// fact about the deployment and not about the request
+    /// (`rule:routing/an-origin-is-per-mount-and-checked-at-boot`).
     pub mount: &'a Mounted,
     /// Steps 3, 4 and 5's outcome.
     pub what: What,
@@ -516,7 +518,19 @@ fn is_nvs(path: &Path) -> bool {
 /// ever claims it and no carrier is built for it.
 ///
 pub fn carry(mount: &Mounted, inbound: &mut Inbound) {
-    inbound.set_mount(&mount.prefix, &mount.captures);
+    // **The prefix as step 2 stripped it, not as the block wrote it.** `/` is
+    // the one prefix that comes off nothing — [`strip`]'s first branch hands
+    // the path straight back — so the mount at the root answers `""`, which is
+    // the same answer a request whose door stripped nothing gives. Writing the
+    // literal `/` instead would put it in front of every link a default
+    // deployment builds, since `Core\Router::url` prepends this field to a path
+    // that already begins with one.
+    let stripped = if mount.prefix == "/" {
+        ""
+    } else {
+        &mount.prefix
+    };
+    inbound.set_mount(stripped, &mount.captures);
 }
 
 #[cfg(test)]
