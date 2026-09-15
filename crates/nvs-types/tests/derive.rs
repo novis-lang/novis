@@ -835,22 +835,25 @@ class Rowsource {{
     );
 }
 
-/// `rule:core-classes/db-column-types`'s three types that a decoder used to have
-/// no wire type for: each erases to a `CodecTy` of its own, so neither door has
-/// to tell them from the `Opaque` that means a decoder is missing or from the
-/// `Class` that means a nested one.
+/// The declared types a decoder used to have no wire type for: each erases to a
+/// `CodecTy` of its own, so neither door has to tell them from the `Opaque`
+/// that means a decoder is missing or from the `Class` that means a nested one.
 ///
 /// Asked of every column-mapped `Core` value type at once rather than of the
-/// `Instant` alone: the four that are still a class label are only correct
-/// while `nvs_stdlib::db::row` reads that label, so a fifth one quietly
-/// erasing to `Instant` — or the `Instant` quietly going back to `Class` —
-/// fails here rather than one row at a time against a live server.
+/// `Instant` alone: the ones that are still a class label are only correct
+/// while `nvs_stdlib::db::row` reads that label, so one more quietly erasing to
+/// `Instant` — or the `Instant` quietly going back to `Class` — fails here
+/// rather than one row at a time against a live server.
 ///
 /// `bytes` is written both ways for `rule:security/derived-codec-qualifiers`:
 /// the qualifier is a call-site question, so a `tainted bytes` column and a
 /// `bytes` one are one wire type, exactly as the two spellings of `string` are.
+///
+/// The inline shape is asked of the JSON door, because it is not a column type
+/// at all (`rule:core-classes/db-column-types`) and a `#[Db\Derive]` refuses one
+/// at the declaration.
 #[test]
-fn a_decimal_an_instant_and_bytes_field_erase_to_their_own_codec_type() {
+fn a_decimal_instant_or_shape_field_erases_to_a_codec_it_can_decode() {
     let (diags, exprs) = check_src_table(
         "<?nvs
 #[Core\\Db\\Derive]
@@ -920,10 +923,63 @@ class Row {
         assert_eq!(value.class.as_deref(), Some(class), "`${property}`");
     }
 
-    // None of them is the erasure that means "no decoder": that is now an
-    // inline shape reached as a field, and nothing else a row can declare.
+    // None of them is the erasure that means "no decoder": for a row that is an
+    // `array<array<T>>` and nothing else, every other reachable column type
+    // having a wire type of its own.
     assert!(
         codec.fields.iter().all(|field| field.ty != CodecTy::Opaque),
         "{codec:?}"
     );
+
+    // The JSON door's own third: an inline shape reached as a *field*. It
+    // erases to a wire type carrying **both** resolved pointers a decode needs
+    // — the class a literal of those same field names builds, and the per-field
+    // list that class's label cannot carry, since a shape class is keyed on
+    // field names alone (`rule:core-classes/derive-field-list`).
+    let (diags, exprs) = check_src_table(
+        "<?nvs
+#[Core\\Json\\Derive]
+class Order {
+    public {total: decimal, note?: string} $meta;
+    public function constructor({total: decimal, note?: string} $meta)
+    {
+        $this->meta = $meta;
+    }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let codec = exprs.codec("Order").expect("the class derives a codec");
+    let meta = codec
+        .fields
+        .iter()
+        .find(|field| field.property == "meta")
+        .expect("no `$meta` field");
+    assert_eq!(meta.ty, CodecTy::Shape);
+    // Sorted, because that is the order the interner lays a shape's fields out
+    // in and therefore the order its class lays its slots out in.
+    assert_eq!(meta.class.as_deref(), Some("$shape{note,total}"));
+    let nested = meta
+        .shape
+        .as_deref()
+        .expect("a shape field carries its own contract");
+    // `rule:types/shape-type`'s `?` is the *optional* column and says nothing
+    // about `null`, so it rides down as `required` exactly as a constructor
+    // parameter's default does on a class.
+    let erased: Vec<(&str, CodecTy, bool)> = nested
+        .fields
+        .iter()
+        .map(|field| (field.property.as_str(), field.ty, field.required))
+        .collect();
+    assert_eq!(
+        erased,
+        vec![
+            ("note", CodecTy::Str, false),
+            ("total", CodecTy::Decimal, true),
+        ],
+        "{nested:?}"
+    );
+    // A shape declares no constructor, so what a decode fills is every slot it
+    // has — which is what makes the field's index its parameter and its slot.
+    assert_eq!(nested.ctor_arity, nested.fields.len());
 }
