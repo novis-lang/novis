@@ -2,46 +2,51 @@
 
 ## State
 
-**Goal `m8-db-queue`, stage 0 (the catch-up) is done; no stage-2-and-later work has started.** Every
-`— owner:` tag on a gap this goal will close now reads `m8-db-queue`, and the three gaps the goal's
-§ *Standing decisions* reserves for goal `unowned-closures` are untouched.
+**Goal `m8-db-queue`, stages 0 and 2 are done.** `docs/decisions/0187.md` is on disk and accepted: it
+decides the parked read per driver, what `serverVersion` answers, null-distinct unique keys on all
+five backends, and where a job's earlier errors live. Its three `designed` rules exist and
+`python tools/rules.py --render` has run, so stage 2's three acceptance checks pass.
 
-Stage 0 item 4 needed no edit: `crates/nvs-stdlib/src/queue.rs` gap 1 already claims only `limits` and
-`grants`, with no secret refusal left in it. The goal file's stage 0 anchors are one to three lines off
-throughout and two of its tags had already been corrected — re-grep rather than trusting them.
+**It modifies five fragments, not the four the goal's table names.**
+`rule:core-classes/schema-vocabulary-is-closed` is the fifth, because the v1 exclusion of a partial
+index lives there rather than in `rule:core-classes/schema-plan` — which is what
+`rule:core-classes/queue-storage-is-a-table` had been citing for it, now corrected. `schema-plan` is
+still modified, for the grade the filtered index carries.
 
-Stage 1 is goal `m7-server-surface`'s carried floor and is the driver's to run, not a session's.
+No code is touched yet. Stage 1 is goal `m7-server-surface`'s carried floor and is the driver's to
+run. `python tools/records.py --check` was red before this session on `docs/decisions/0186.md` alone —
+two rules whose `because` named it were missing from its `changes:` block — and is now clean.
 
 ## Next group
 
-**Stage 2: the record** — one file set: a new record under `docs/decisions/`, three new fragments and
-four edited ones under `docs/rules/`, then `python tools/rules.py --render`. The record's body is
-`docs/agent/loop-goal.md:66`'s four decisions argued from § *Standing decisions*; no code is touched.
+**Stage 3: the keystone — a parked read on the MySQL wire** — one file set:
+`crates/nvs-db/src/mysql.rs`, `crates/nvs-db/src/conn.rs`, `crates/nvs-db/src/maria.rs` and
+`crates/nvs-stdlib/src/db/stream.rs`. MySQL and MariaDB share one row loop, so one parked state covers
+both. `rule:core-classes/a-stream-parks-its-read-on-the-connection` is what it must satisfy, and
+`docs/decisions/0187.md` § 1 is the reasoning.
 
-- [ ] **Write the record, claiming the next free number**, which was `0187` when this session read
-      `docs/decisions/` — re-derive it immediately before creating the file, because the chain's other
-      sessions derive the same answer from the same directory. Its four decisions are listed at
-      `docs/agent/loop-goal.md:71` and argued at `docs/agent/loop-goal.md:251`
-      (`rule:core-classes/db-streaming` is the one it reaches past).
-- [ ] **Create the three `designed` rules** the table at `docs/agent/loop-goal.md:85` names —
-      `core-classes/a-stream-parks-its-read-on-the-connection`,
-      `core-classes/server-version-is-what-the-server-said` and
-      `core-classes/a-unique-key-reads-nulls-as-distinct` — as fragments under
-      `docs/rules/core-classes/`, each citing the new record as its `because`, then render.
-      `docs/rules/core-classes/db-streaming.md:11` is the shape a `designed` fragment reads as.
-- [ ] **Edit the four existing fragments** `docs/agent/loop-goal.md:93` lists:
-      `docs/rules/core-classes/db-streaming.md:11`'s *Not shipped whole* paragraph goes,
-      `docs/rules/core-classes/queue-storage-is-a-table.md:16`'s SQL Server paragraph becomes a
-      statement of fact, `docs/rules/core-classes/schema-plan.md:1`'s v1 exclusions admit the filtered
-      index, and `docs/rules/concurrency/attempts-are-finite-and-a-dead-letter-is-kept.md:1` gains the
-      column that carries `errors`. A fragment is edited in place, never overlaid
-      (`docs/agent/doc-style.md` § *Edit the rule, never overlay it*).
+- [ ] **Split the MySQL read state from the borrow.** `crates/nvs-db/src/mysql.rs:3087` `MySqlRows`
+      holds the wire and the read state together; park the read half on `crates/nvs-db/src/conn.rs:832`
+      `MySqlConn` the way `crates/nvs-db/src/pg.rs:2555` `PgCursor` is parked on `PgConn`, with one row
+      reader serving both paths as `crates/nvs-db/src/pg.rs:2773` `next_row_of` does.
+      `crates/nvs-db/src/conn.rs:439` `State::Streaming` is the refusal
+      (`rule:core-classes/db-connection-busy-state`). Prove it against a scripted server, the way
+      `pg.rs`'s generic `Wire` is proved.
+- [ ] **`stream_step` grows the arm.** `crates/nvs-stdlib/src/db/stream.rs:133` `stream_step` gains a
+      `Connection::MySql`/`MariaDb` arm beside the PostgreSQL one, and
+      `crates/nvs-stdlib/src/db/stream.rs:294` `unstreamed` stops naming PostgreSQL as the only driver
+      that streams.
+- [ ] **The real-server half joins the matrix.** New `crates/nvs-stdlib/tests/db_stream.rs`, gated on
+      `NVS_DB_MATRIX_DRIVER` the way `crates/nvs-stdlib/tests/queue.rs` is, listed in
+      `tools/db-matrix.py:115` `SUITES` — the matrix runs only `nvs-db` and `--test queue` today, so
+      nothing checks a stdlib stream against a server.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/db/row.rs:137` and `:206` both cite "`nvs_stdlib::db`'s own known gap 8", but
-  that module doc carries four gaps — a stale cross-reference for stage 10's rewrite of `db/mod.rs`.
-- `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:5` still uses `# gap-zero` as the
-  illustrative owner in its format example; harmless, but it is now the file's only mention of it.
-- `docs/agent/loop-goal.md` stage 0's anchors and two of its tag claims are stale as written; nothing
-  reads that file mechanically, so this is a note rather than an edit.
+- Stage 4 (SQL Server's token walk and SQLite's pinned thread) is the group after this one —
+  `docs/agent/loop-goal.md` § *Stage 4*.
+- The `errors` entry's message cap that `docs/decisions/0187.md` § 4 requires has no constant yet;
+  stage 7 picks the number beside `crates/nvs-stdlib/src/queue.rs:882` `dead_errors`.
+- Every `— owner: m8-db-queue` tag is still on the tree; stage 10 is what removes them.
+- `docs/agent/loop-goal.md`'s stage anchors run one to three lines off throughout — re-grep rather
+  than trusting them.
