@@ -12,7 +12,11 @@
 //! # What is here
 //!
 //! The model, the plaintext rendering ([`plain`]), § 5's four transformations,
-//! and the JSON one ([`json`]) that a log target emits. `Core\Debug::dump` and
+//! and the JSON one ([`json`]) that a log target emits. Beside them, the two
+//! sink transforms — [`text::substitute`] and [`html::escape`] — which are
+//! peers rather than part of the model: each is what one of
+//! `rule:tooling/echo-always-has-a-sink`'s sinks does to text on the way in,
+//! and they live here because the record's own transformations already do. `Core\Debug::dump` and
 //! `Core\Log::write` are the producers that exist, and both live in
 //! `nvs-stdlib` for the reason § *Where this sits* gives. The rendering and
 //! the three producers that do not exist are the block below.
@@ -101,6 +105,7 @@
 //! path at all.
 
 pub mod bidi;
+pub mod html;
 pub mod json;
 pub mod plain;
 pub mod text;

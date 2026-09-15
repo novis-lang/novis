@@ -2412,8 +2412,14 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::EchoStr` — the terminal sink, which neutralizes every
-    /// control byte on the way in.
+    /// `nvs_ir::Helper::EchoStr` — an operand that cannot be a carrier, so the
+    /// sink in force transforms it whatever it holds.
+    ///
+    /// **Which transform that is belongs to [`write_rendered`]**, which reads
+    /// it off `rule:tooling/echo-always-has-a-sink`'s table: inside an HTTP
+    /// request a `Tag::Str` is data interpolated into a page and takes
+    /// `rule:core-classes/html-auto-escape`'s escape, and everywhere else it
+    /// takes the terminal's substitution, which is the rest of this comment.
     ///
     /// `rule:tooling/terminal-output-is-a-sink` is
     /// the rule and [`nvs_render::text::substitute`] is the table, called rather
@@ -2434,9 +2440,9 @@ crate::nvs_helper! {
     /// The table is idempotent — a Control Picture is not a control byte — so
     /// output that has already passed a sink, `Core\Out::capture`'s buffer most
     /// of all, is unchanged by a second write. A **carrier** does not arrive
-    /// here at all: `echo` of one takes [`nvs_echo_value`], which is § 1's one
-    /// raw path and the reason this helper never has to ask what its operand
-    /// used to be.
+    /// here at all: `echo` of one takes [`nvs_echo_value`], which is the one
+    /// raw path either sink has and the reason this helper never has to ask
+    /// what its operand used to be.
     ///
     /// **Ill-formed UTF-8 goes through `from_utf8_lossy` first.** A `Tag::Str`
     /// is UTF-8 by `rule:types/bytes`, so
@@ -2461,9 +2467,9 @@ crate::nvs_helper! {
 /// that gets flipped by a refactor without anyone noticing.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Raw {
-    /// Ordinary text: [`nvs_render::text::substitute`] runs over it.
+    /// Ordinary text: the sink's own transform runs over it.
     No,
-    /// Bytes that came out of a sink carrier, written through unchanged.
+    /// Bytes that came out of this sink's carrier, written through unchanged.
     Yes,
 }
 
@@ -2476,6 +2482,15 @@ enum Raw {
 /// pass, and that is decided from the operand's *class* rather than from its
 /// bytes. `who` names the caller so a wrong-tag refusal still says which helper
 /// was handed what.
+///
+/// **Which transform runs is the sink's, not the operand's.**
+/// `rule:tooling/echo-always-has-a-sink`'s table is a column of carriers and a
+/// column of renderings, and [`crate::Ctx::carrier`] is already the first of
+/// them — so the second is read off the same answer rather than off a second
+/// switch that could come to disagree with it. An HTTP request's sink escapes
+/// (`rule:core-classes/html-auto-escape`), every other sink substitutes
+/// (`rule:tooling/terminal-output-is-a-sink`), and neither is a rule any call
+/// site states.
 fn write_rendered(
     ctx: &mut crate::Ctx,
     who: &'static str,
@@ -2485,18 +2500,52 @@ fn write_rendered(
     let bytes = rendered
         .as_str_bytes()
         .ok_or_else(|| wrong_tag(who, Tag::Str, rendered))?;
+    let carrier = ctx.carrier();
     match raw {
         Raw::Yes => ctx.write_output(bytes),
         Raw::No => {
             let text = String::from_utf8_lossy(bytes);
-            ctx.write_output(nvs_render::text::substitute(&text).as_bytes())
+            let written = if carrier == crate::CARRIER_HTML_MARKUP {
+                nvs_render::html::escape(&text)
+            } else {
+                nvs_render::text::substitute(&text)
+            };
+            ctx.write_output(written.as_bytes())
         }
     }
     .map_err(|error| Fault::fatal(format!("could not write output: {error}")))
 }
 
-/// Whether `value` is a **sink carrier** — the one shape the terminal sink
-/// must not substitute over.
+/// Whether `value` is the carrier **of the sink it is about to be written
+/// to**, which is the one shape that sink must leave alone.
+///
+/// [`is_carrier_value`] asks whether a value is a carrier at all; this asks
+/// whether it is *this* one's, and the difference is the whole of what keeps a
+/// sink's raw path its own. A `Cli\Text` echoed inside an HTTP request holds
+/// terminal escapes that mean nothing to a browser and everything to whoever
+/// reads the log the page ends up in, so it takes
+/// `rule:core-classes/html-auto-escape`'s escape like any other non-`Markup`
+/// value; a `Markup` echoed from a CLI program is the mirror case and takes
+/// the terminal's substitution. Neither is a special case in the table — each
+/// is what "the sink decides the carrier" says when the two disagree.
+fn writes_raw(ctx: &crate::Ctx, value: Value) -> bool {
+    let Some(ptr) = value.obj_ptr() else {
+        return false;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Object value's payload is a live allocation the caller \
+                  owns a reference to, so its class is readable for the length \
+                  of this call"
+    )]
+    unsafe {
+        (*crate::object::NvsObj::class_of(ptr)).name() == ctx.carrier()
+    }
+}
+
+/// Whether `value` is a **sink carrier** at all — [`writes_raw`]'s question
+/// asked of the roster instead of of one sink, which is what a member deciding
+/// whether it was handed one needs.
 ///
 /// `rule:tooling/terminal-output-is-a-sink` puts
 /// exactly one raw path in the language and § 2 makes it a *type*,
@@ -2534,15 +2583,18 @@ crate::nvs_helper! {
     /// conversion earlier, so that it can recognise its own carrier before
     /// anything has turned the operand into bytes.
     ///
-    /// **The sink substitutes everything except its own carrier.** That is
-    /// `rule:tooling/terminal-output-is-a-sink`'s
-    /// "exactly one raw path, `Cli\Text`" read literally: the raw path is a
+    /// **A sink transforms everything except its own carrier.** That is
+    /// `rule:tooling/terminal-output-is-a-sink`'s "exactly one raw path,
+    /// `Cli\Text`" and `rule:core-classes/html-auto-escape`'s "`Markup` is the
+    /// only raw-write bypass" read literally, and they are one sentence
+    /// because the table pairs each sink with one carrier: the raw path is a
     /// *type*, so it has to be recognised while the operand still has one.
     /// `nvs-ir` sends every `Ty::Object` and `Ty::Tagged` operand here for that
     /// reason — those are the static types a carrier can arrive under, and
     /// a scalar or a `Ty::Str` still takes [`nvs_echo_str`] and one helper call
-    /// less. [`is_carrier_value`] owns why the question is asked of the class
-    /// rather than of a bit travelling with the bytes.
+    /// less. [`writes_raw`] owns why the question is asked of the class rather
+    /// than of a bit travelling with the bytes, and why it is asked against
+    /// *this* sink's carrier rather than against the roster.
     ///
     /// Without this, `echo Cli\Text::styled("…", $warn)` would print `␛` where
     /// the style belongs: the carrier would lower through [`value_to_string`]
@@ -2557,7 +2609,7 @@ crate::nvs_helper! {
     /// throws with the same sentence. What that answers is a fresh reference
     /// this helper owns and releases, exactly as `nvs-ir` would have.
     fn nvs_echo_value(ctx, args: [1]) {
-        let raw = if is_carrier_value(args[0]) { Raw::Yes } else { Raw::No };
+        let raw = if writes_raw(ctx, args[0]) { Raw::Yes } else { Raw::No };
         let rendered = stringify(ctx, args[0])?;
         let written = write_rendered(ctx, "nvs_echo_value", rendered, raw);
         #[expect(
@@ -3170,6 +3222,130 @@ mod tests {
                 value.release();
             }
         }
+    }
+
+    /// A table defining both of `rule:tooling/echo-always-has-a-sink`'s
+    /// carriers, so a test can hand either one to either sink. That crossing is
+    /// the only way to ask whether the raw path belongs to the **sink** or to
+    /// the roster, and the two tests below are that question asked from each
+    /// end.
+    fn carriers() -> crate::ClassTable {
+        let mut classes = crate::ClassTable::new();
+        classes.define(crate::CARRIER_CLI_TEXT, &["text"], &[]);
+        classes.define(crate::CARRIER_HTML_MARKUP, &["text"], &[]);
+        classes
+    }
+
+    /// One instance of `class` holding `text` in [`crate::CARRIER_TEXT_SLOT`],
+    /// which is where both carriers keep their bytes.
+    fn carried(classes: &crate::ClassTable, class: &str, text: &[u8]) -> Value {
+        let id = classes
+            .id_of(class)
+            .expect("the table defines both carriers");
+        #[expect(
+            unsafe_code,
+            reason = "the table outlives every object this builds from it"
+        )]
+        let object = unsafe { crate::NvsObj::new(classes.desc(id)) };
+        object.set_field(crate::CARRIER_TEXT_SLOT, Value::str(NvsStr::new(text)));
+        Value::object(object)
+    }
+
+    /// Releases a reference this module built and the helper it was handed to
+    /// did not take.
+    fn dropped(value: Value) {
+        #[expect(unsafe_code, reason = "this test owns the reference it built")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// `rule:core-classes/html-auto-escape` at the sink that applies it: inside
+    /// an HTTP request `echo` escapes everything it is handed and writes a
+    /// `Core\Html\Markup` as it is.
+    ///
+    /// The two halves are asked over the **same bytes**, so neither passes on
+    /// its own: a sink that escaped the carrier too would corrupt the page it
+    /// was built for, and one that wrote the string as it is would be the
+    /// missing-escape bug the rule exists to make unwritable. The third line is
+    /// the crossing — a `Cli\Text` is a carrier, but not this sink's, so it is
+    /// data like any other value and takes the escape.
+    #[test]
+    fn echo_into_a_body_sink_escapes_a_string_and_writes_a_markup_carrier_as_it_is() {
+        let classes = carriers();
+        let mut ctx = Ctx::new(crate::OutputSink::Body(Vec::new()));
+
+        let text = Value::str(NvsStr::new(b"<b>ada & co</b>"));
+        call(nvs_echo_str, &mut ctx, &[text]).expect("the helper succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(&b"&lt;b&gt;ada &amp; co&lt;/b&gt;"[..]),
+            "a string interpolated into a page is data, so the sink escapes it"
+        );
+
+        let markup = carried(&classes, crate::CARRIER_HTML_MARKUP, b"<b>ada & co</b>");
+        call(nvs_echo_value, &mut ctx, &[markup]).expect("the helper succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(&b"<b>ada & co</b>"[..]),
+            "the carrier already passed whichever rule made it markup"
+        );
+
+        let styled = carried(&classes, crate::CARRIER_CLI_TEXT, b"<b>ada & co</b>");
+        call(nvs_echo_value, &mut ctx, &[styled]).expect("the helper succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(&b"&lt;b&gt;ada &amp; co&lt;/b&gt;"[..]),
+            "the raw path is this sink's carrier and not the roster"
+        );
+
+        dropped(text);
+        dropped(markup);
+        dropped(styled);
+    }
+
+    /// The other row of the same table: every sink but an HTTP request's keeps
+    /// `rule:tooling/terminal-output-is-a-sink`'s substitution, and its raw
+    /// path is its own carrier.
+    ///
+    /// The operands carry an `ESC` **and** the markup characters together, so
+    /// the two renderings are told apart on one write rather than assumed: a
+    /// terminal sink neutralizes the control byte and leaves `<` and `&`
+    /// alone, which is the exact opposite of the sink above. The `Markup`
+    /// line is the crossing from the other end — it is a carrier, and the
+    /// terminal sink substitutes it anyway, because it is not this sink's.
+    #[test]
+    fn echo_into_every_other_sink_writes_the_terminals_rendering() {
+        let classes = carriers();
+        let mut ctx = Ctx::buffered();
+
+        let text = Value::str(NvsStr::new(b"<b>&\x1b"));
+        call(nvs_echo_str, &mut ctx, &[text]).expect("the helper succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some("<b>&␛".as_bytes()),
+            "a terminal sink neutralizes the control byte and escapes nothing"
+        );
+
+        let styled = carried(&classes, crate::CARRIER_CLI_TEXT, b"<b>&\x1b");
+        call(nvs_echo_value, &mut ctx, &[styled]).expect("the helper succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(&b"<b>&\x1b"[..]),
+            "`Cli\\Text` is this sink's carrier, so its escapes are what it is for"
+        );
+
+        let markup = carried(&classes, crate::CARRIER_HTML_MARKUP, b"<b>&\x1b");
+        call(nvs_echo_value, &mut ctx, &[markup]).expect("the helper succeeded");
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some("<b>&␛".as_bytes()),
+            "a `Markup` off a request is not this sink's carrier and is substituted"
+        );
+
+        dropped(text);
+        dropped(styled);
+        dropped(markup);
     }
 
     #[test]

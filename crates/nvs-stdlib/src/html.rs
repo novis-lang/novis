@@ -429,24 +429,6 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// What each of the five characters is written as.
-///
-/// A `match` rather than a table because it is the whole of the transformation
-/// and the compiler turns it into one: five arms over an ASCII byte.
-fn escaped(c: char) -> Option<&'static str> {
-    match c {
-        // First, and the only one whose escape is not about a delimiter: an
-        // unescaped `&` makes every other reference in the output ambiguous.
-        '&' => Some("&amp;"),
-        '<' => Some("&lt;"),
-        '>' => Some("&gt;"),
-        '"' => Some("&quot;"),
-        // Not `&apos;` — that name is XML's and HTML 4 never defined it.
-        '\'' => Some("&#39;"),
-        _ => None,
-    }
-}
-
 /// A `string`, or the fault a non-`string` tag produces. `subject` names what
 /// was expected to be text and heads the message.
 ///
@@ -469,10 +451,16 @@ fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
     })
 }
 
-/// The escape itself, as bytes: `&`, `<`, `>`, `"` and `'` written as
-/// character references and every unterminated bidirectional control replaced,
-/// which is the whole of `rule:security/launderers-are-sink-named`'s transform
-/// for the HTML sink.
+/// [`nvs_render::html::escape`] over a `Value`, which is the whole of
+/// `rule:security/launderers-are-sink-named`'s transform for the HTML sink:
+/// `&`, `<`, `>`, `"` and `'` written as character references and every
+/// unterminated bidirectional control replaced.
+///
+/// **The table is not here.** The HTML sink applies the same transform to
+/// every non-carrier value `echo` writes into a response, and a copy of it in
+/// this module would be a second answer to what an `&` becomes — so the
+/// launderer calls the sink's own, exactly as
+/// [`nvs_core_html_escape_text`] and `nvs_runtime`'s `echo` do.
 ///
 /// `value` is borrowed, as a `CoreCall`'s argument always is, and the answer
 /// carries **one reference of its own** for whoever called to hand on — the
@@ -493,12 +481,10 @@ fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
 /// sink over.
 fn escaped_text(value: Value, subject: &str) -> Result<Value, Fault> {
     let text = text(&value, subject)?;
-
-    // Both halves are a scan and neither fires on ordinary text, so they are
-    // asked before anything is allocated.
-    let mut unterminated = Vec::new();
-    nvs_render::bidi::for_each_unterminated(text, |offset, _| unterminated.push(offset));
-    if unterminated.is_empty() && !text.chars().any(|c| escaped(c).is_some()) {
+    // The borrow the escape answers *is* the "nothing to escape" answer, so
+    // the unchanged case is recognised here rather than scanned for a second
+    // time.
+    let std::borrow::Cow::Owned(escaped) = nvs_render::html::escape(text) else {
         #[expect(
             unsafe_code,
             reason = "the argument slot holds a live reference for the length of \
@@ -508,24 +494,8 @@ fn escaped_text(value: Value, subject: &str) -> Result<Value, Fault> {
             value.retain();
         }
         return Ok(value);
-    }
-
-    // Every escape is longer than what it replaces, so the input's length is a
-    // floor and never a wasted reservation.
-    let mut out = String::with_capacity(text.len());
-    let mut cuts = unterminated.into_iter().peekable();
-    for (offset, c) in text.char_indices() {
-        if cuts.peek() == Some(&offset) {
-            cuts.next();
-            out.push(REPLACEMENT);
-            continue;
-        }
-        match escaped(c) {
-            Some(reference) => out.push_str(reference),
-            None => out.push(c),
-        }
-    }
-    Ok(Value::str(NvsStr::new(out.as_bytes())))
+    };
+    Ok(Value::str(NvsStr::new(escaped.as_bytes())))
 }
 
 nvs_runtime::nvs_helper! {
@@ -647,7 +617,7 @@ nvs_runtime::nvs_helper! {
 /// Returned as a [`Value`] rather than as a `&str` because the borrow has to
 /// outlive this call: the slot's own `Value` is what owns the reference the
 /// text is read through.
-fn markup_slot(value: Value, position: &str) -> Result<Value, Fault> {
+pub(crate) fn markup_slot(value: Value, position: &str) -> Result<Value, Fault> {
     let object = crate::instance::receiver(value, &MARKUP, position)?;
     Ok(crate::instance::slot(
         object,
@@ -785,15 +755,6 @@ nvs_runtime::nvs_helper! {
         Ok(source)
     }
 }
-
-/// What an unterminated directional control becomes — `rule:core-classes/html-auto-escape`'s last
-/// bullet, which writes the character out.
-///
-/// The same replacement `nvs_render::text` uses for it, and deliberately not a
-/// character reference: the control is being *removed*, not shown, and
-/// `&#8235;` in the output would be an escaped payload rather than a neutral
-/// one.
-const REPLACEMENT: char = '\u{FFFD}';
 
 // ============================================================================
 // The WHATWG parse
@@ -2162,21 +2123,6 @@ mod tests {
             "neither argument has a default — a reason nobody had to write is a \
              reason nobody wrote"
         );
-    }
-
-    /// The transformation, over the boundary each of the five characters sits
-    /// on: a character reference is produced for every one of them and for
-    /// nothing else in ASCII.
-    ///
-    /// Counted rather than read off five lines, so a member that escaped a
-    /// sixth character — `/`, which several PHP escapers add — fails here.
-    #[test]
-    fn exactly_five_ascii_characters_are_escaped() {
-        let escaped_set: Vec<char> = (0u8..128)
-            .map(char::from)
-            .filter(|c| escaped(*c).is_some())
-            .collect();
-        assert_eq!(escaped_set, vec!['"', '&', '\'', '<', '>']);
     }
 
     /// Every node of `tree`, in document order, as `(depth, kind, name)`.
