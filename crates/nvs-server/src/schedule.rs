@@ -77,11 +77,17 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The per-entry `limits` and `grants` sub-caps (§ 5) are not applied.**
-//!    They narrow a run's budget and its capabilities, and nothing in this tree
-//!    narrows either one *per isolate*. Like `overlap`, they are the ticker's
-//!    question rather than the caller's, and they belong to this module when
-//!    they land.
+//! 1. **A fire's context carries no configuration, so its `limits` sub-cap has
+//!    no ceiling to narrow and its `script` is refused at the door.** [`fire`]
+//!    builds the run's root on a bare [`Ctx`], and every question either half
+//!    asks of a context with none answers the closed way:
+//!    `nvs_runtime::Ctx::narrow_under` takes no sub-cap where there is no
+//!    configuration to set it in, and `nvs_runtime::capability::granted` denies
+//!    `script.spawn` to a context holding none, which is the refusal
+//!    `nvs_cli::serve`'s [`Fires::isolate`] reports. The grant half of a
+//!    narrowing lands regardless — it subtracts from a list rather than setting
+//!    a directive — so what is missing here is the deployment's own snapshot on
+//!    that context and not the narrowing over it.
 //!    — owner: m7-server-surface
 
 use std::cell::Cell;
@@ -92,10 +98,11 @@ use std::time::{Duration, Instant};
 
 use jiff::Zoned;
 use jiff::tz::TimeZone;
+use nvs_config::capability::Cap;
 use nvs_config::schedule::{Cron, zone_of};
-use nvs_config::tree::Schedule;
+use nvs_config::tree::{Capabilities, LimitSet, Schedule};
 use nvs_host::{Completion, Isolate, TaskId, Waiting, Wake, spawn_child, suspend_current};
-use nvs_runtime::host::Woken;
+use nvs_runtime::host::{Narrowing, Woken};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
 
 /// One entry of the roster, with the expression the boot accepted and the instant it next fires.
@@ -127,6 +134,19 @@ pub struct Armed {
     running: Rc<Cell<usize>>,
     /// § 6's `overlap`, read once at boot: what this entry does when it is due and still running.
     overlap: Overlap,
+    /// § 5's `limits` and `grants`, read at boot into the one shape a spawn site hands a child.
+    ///
+    /// The ticker's question rather than the implementor's, for `overlap`'s reason: what a run may
+    /// spend and which capabilities it may ask for is the entry's configuration, and a [`Fires`]
+    /// that built this would be a second place a `[[schedule]]` block is read. Carried on the entry
+    /// and cloned onto each fire, because the isolate it is applied to exists only on the fire's
+    /// own task.
+    ///
+    /// Applying it can only ever take room away — `nvs_runtime::Ctx::narrow` leaves the inherited
+    /// ceiling standing where an entry asked for a wider one, and the grant list it installs is
+    /// asked beside the deployment's `[capabilities]` rather than instead of it — which is why
+    /// `rule:config/a-schedule-entry-narrows-only`'s *narrowing only* needs no check here.
+    narrowing: Narrowing,
     /// § 3's `scope`, as the one question the ticker asks of it: whether each fire of this entry
     /// has to take a lease before it runs.
     ///
@@ -409,12 +429,67 @@ pub fn arm(
             next: Some(next),
             running: Rc::new(Cell::new(0)),
             overlap,
+            narrowing: Narrowing {
+                limits: entry.limits.as_ref().map(sub_cap).unwrap_or_default(),
+                grants: entry.grants.as_ref().map(grant_names),
+            },
             fleet,
             held: Cell::new(false),
             fired_as: Cell::new(None),
         });
     }
     armed
+}
+
+/// § 5's `limits` table as the pairs a [`Narrowing`] carries: the bare directive name, and the
+/// value **as the operator wrote it**.
+///
+/// The text and not a parsed quantity, because `nvs_config::value::as_written` is then the one
+/// reader for both sides of the comparison the child makes — the `512M` a ceiling refuses and the
+/// `512M` an entry narrows with are the same string — and a parse here would be a second idea of
+/// what `M` means.
+///
+/// The table is destructured rather than read field by field, so a key added to
+/// [`LimitSet`] is a compile error here instead of a sub-cap that silently does not cross.
+fn sub_cap(limits: &LimitSet) -> Vec<(String, String)> {
+    let LimitSet {
+        memory,
+        cpu_time,
+        wall_time,
+        max_tasks,
+        max_output,
+    } = limits;
+    [
+        ("memory", memory),
+        ("cpu_time", cpu_time),
+        ("wall_time", wall_time),
+        ("max_tasks", max_tasks),
+        ("max_output", max_output),
+    ]
+    .into_iter()
+    .filter_map(|(key, written)| {
+        Some((
+            key.to_owned(),
+            nvs_config::value::as_written(written.as_ref()?),
+        ))
+    })
+    .collect()
+}
+
+/// § 5's `grants` table as the capability names a [`Narrowing`] carries.
+///
+/// Presence is the whole question — [`Cap::grant`] answers [`None`] for a row the entry did not
+/// write — because this list only ever subtracts: a name here buys the right to *ask*, and the
+/// deployment's own `[capabilities]` is still asked underneath it
+/// (`nvs_runtime::capability::granted`). So a scope written beside the name narrows nothing, and
+/// `rule:config/a-schedule-entry-narrows-only` is where that reading lives.
+fn grant_names(grants: &Capabilities) -> Vec<String> {
+    Cap::ALL
+        .iter()
+        .copied()
+        .filter(|cap| cap.grant(grants).is_some())
+        .map(|cap| cap.name().to_owned())
+        .collect()
 }
 
 /// § 5's ticker, on the core this is called from: sleep until the soonest fire, fire everything the
@@ -689,7 +764,11 @@ where
         let Some(isolate) = fires.isolate(&entry, ctx) else {
             return;
         };
-        match isolate.run(ctx) {
+        // § 5's sub-caps, on the isolate and not on the context the implementor was handed: what a
+        // narrowing means is *tighter than what remains of the parent*, and the parent is this
+        // task's own root. `Isolate::start` applies it to the child's context before its first
+        // statement, which is the only point at which that context exists.
+        match isolate.narrowed_by(entry.narrowing.clone()).run(ctx) {
             Ok(mut done) => {
                 fires.ran(&entry, &done);
                 // Nothing is waiting for a scheduled run (§ 5), so this frame is where the answer
@@ -833,9 +912,11 @@ fn soonest(entries: &[Armed], now: &Zoned) -> Option<Duration> {
 mod tests {
     use super::*;
     use jiff::Timestamp;
+    use nvs_config::capability::Scope;
     use nvs_host::{Output, Program, TaskId};
     use nvs_runtime::Value;
     use std::cell::{Cell, RefCell};
+    use std::sync::Arc;
 
     /// One `[[schedule]]` block, as a boot that accepted it hands it over.
     fn entry(name: &str, cron: &str, scope: &str) -> Schedule {
@@ -846,6 +927,43 @@ mod tests {
             scope: Some(scope.to_owned()),
             ..Schedule::default()
         }
+    }
+
+    /// One `[[schedule]]` block carrying § 5's two optional tables, written the way an operator
+    /// writes them.
+    ///
+    /// Through TOML rather than through the struct, because the dotted key in
+    /// `grants = {net.connect = [...]}` is § 5's own spelling and the deserializer is the one thing
+    /// that turns it into the `[capabilities.net] connect` the rest of this tree reads. A case
+    /// building `Capabilities` by hand would be asserting against its own idea of that mapping.
+    fn sub_capped(name: &str, tables: &str) -> Schedule {
+        format!(
+            "name = \"{name}\"\ncron = \"* * * * *\"\nscript = \"jobs/report.nvs\"\n\
+             scope = \"host\"\n{tables}"
+        )
+        .parse::<toml::Table>()
+        .expect("the case writes valid TOML")
+        .try_into()
+        .expect("the case writes a `[[schedule]]` block this tree has")
+    }
+
+    /// The deployment those entries narrow: a ceiling on the heap, one host an outbound call may
+    /// reach, and every endpoint a bind may name.
+    ///
+    /// `process.exec` is absent on purpose — it is what an entry below asks for and must not get.
+    fn deployment() -> Arc<nvs_config::Snapshot> {
+        let table: toml::Table = "[limits]\nmemory = \"64M\"\n\n\
+             [capabilities.net]\nconnect = [\"reports.internal\"]\nlisten = true\n"
+            .parse()
+            .expect("the case writes valid TOML");
+        Arc::new(nvs_config::Snapshot {
+            config: table
+                .clone()
+                .try_into()
+                .expect("the case writes blocks this tree has"),
+            table,
+            ..nvs_config::Snapshot::default()
+        })
     }
 
     /// An instant written as RFC 3339, in UTC — the spelling `nvs-config`'s own schedule cases use.
@@ -876,6 +994,43 @@ mod tests {
         logged: RefCell<Vec<String>>,
         /// [`Fires::note`]'s lines — a retired entry, and a fire `skip` dropped.
         noted: RefCell<Vec<String>>,
+        /// The deployment every fire runs under, put on the fire's own context before its isolate
+        /// is built. [`None`] for a case whose subject is not § 5's sub-caps, which is every case
+        /// but one: a context holding no configuration has no ceiling for a `limits` table to
+        /// narrow and grants nothing at all, so a fake that always installed one would be answering
+        /// a question those cases do not ask.
+        configured: Option<Arc<nvs_config::Snapshot>>,
+        /// The ceiling the fire's **own** context resolved out of that deployment — the number a
+        /// sub-cap is tighter than, read where the parent is still reachable.
+        ceiling: Cell<usize>,
+        /// What each fire's own context said about § 5's two tables, in the order the fires ran.
+        narrowed: Rc<RefCell<Vec<(String, Narrowed)>>>,
+    }
+
+    /// What a fire's context answers about § 5's sub-caps, read inside the run itself.
+    ///
+    /// Read from the child rather than from the [`Armed`] it came off, because the claim is about
+    /// what the run *spends and may ask for* and not about what the ticker carried: a narrowing
+    /// built correctly and applied to nothing looks identical from the entry's side.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct Narrowed {
+        /// The ceiling this run is held to, and `0` for a child that took none of its own and
+        /// spends the tree's budget instead (`rule:security/isolate-budget-is-the-trees`) — which
+        /// is what a fire writing no `limits` does.
+        memory: usize,
+        /// `net.connect` for a host the deployment names — the one capability an entry below asks
+        /// to keep.
+        connect: bool,
+        /// `net.listen`, which the deployment grants and no entry names, so it is what a narrowing
+        /// takes away.
+        listen: bool,
+        /// `process.exec`, which the deployment grants nobody and an entry below asks for anyway.
+        exec: bool,
+    }
+
+    /// One capability by the name `nvs.toml` grants it under.
+    fn cap(name: &str) -> Cap {
+        Cap::parse(name).expect("`nvs.toml` grants a capability under this name")
     }
 
     impl Watcher {
@@ -888,21 +1043,56 @@ mod tests {
                 ran_on: Rc::new(Cell::new(None)),
                 logged: RefCell::new(Vec::new()),
                 noted: RefCell::new(Vec::new()),
+                configured: None,
+                ceiling: Cell::new(0),
+                narrowed: Rc::new(RefCell::new(Vec::new())),
             }
         }
     }
 
     impl Fires for Watcher {
-        fn isolate(&self, entry: &Armed, _ctx: &mut Ctx) -> Option<Isolate> {
+        fn isolate(&self, entry: &Armed, ctx: &mut Ctx) -> Option<Isolate> {
             self.asked_on.set(nvs_host::current_task());
             self.started.set(self.started.get() + 1);
+            // On the fire's own context, which is the parent a sub-cap is measured against: the
+            // isolate below inherits it, and `Ctx::narrow` then asks what remains of *this* budget.
+            if let Some(snapshot) = &self.configured {
+                ctx.set_config(Arc::clone(snapshot));
+                self.ceiling.set(ctx.memory_limit());
+            }
             let answering = Rc::clone(&self.answering);
             let ran_on = Rc::clone(&self.ran_on);
+            let narrowed = Rc::clone(&self.narrowed);
             let name = entry.name().to_owned();
             let holds = self.holds;
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 answering.set(Some(child.inbound().is_some()));
                 ran_on.set(nvs_host::current_task());
+                narrowed.borrow_mut().push((
+                    name.clone(),
+                    Narrowed {
+                        memory: child.memory_limit(),
+                        connect: nvs_runtime::capability::granted(
+                            child,
+                            cap("net.connect"),
+                            Scope::Host("reports.internal"),
+                        ),
+                        listen: nvs_runtime::capability::granted(
+                            child,
+                            cap("net.listen"),
+                            Scope::Endpoint(
+                                "127.0.0.1:8080"
+                                    .parse()
+                                    .expect("the case names an endpoint"),
+                            ),
+                        ),
+                        exec: nvs_runtime::capability::granted(
+                            child,
+                            cap("process.exec"),
+                            Scope::Unscoped,
+                        ),
+                    },
+                ));
                 if !holds.is_zero() {
                     // The core is handed back, so the tick beside this one keeps its own intervals
                     // while this run is outstanding — which is the state § 6 is about.
@@ -1024,6 +1214,124 @@ mod tests {
             Some("2026-01-01T00:02:00Z".to_owned()),
             "§ 6: the next fire is asked from the clock, so the minute that passed \
              while the host was busy is skipped rather than replayed"
+        );
+    }
+
+    /// `rule:config/a-schedule-entry-narrows-only`: an entry's `limits` and `grants` narrow the run
+    /// they fire and can never widen it.
+    ///
+    /// Three entries under one deployment, in one pass, because *narrowing only* is a claim about
+    /// the pair and each half alone passes on a plausible bug: an entry that asked for less, one
+    /// that asked for more, and one that asked for nothing, which is the baseline the other two are
+    /// read against — a ticker that applied nothing and one that applied everything both look right
+    /// against a single entry.
+    ///
+    /// What the run is asked is what it may spend and what it may ask a capability for, read inside
+    /// the fire's own child context through the same door a program reaches
+    /// (`nvs_runtime::capability::granted`), and never the [`Narrowing`] the entry carries. The
+    /// sub-cap is asserted against the unnarrowed fire rather than against a byte count, for the
+    /// reason `crates/nvs-runtime/tests/tree_budget.rs`'s crossing case gives: what a ceiling
+    /// resolves to is the configuration's arithmetic, and what this case is about is that the
+    /// narrowing arrived at all.
+    #[test]
+    fn a_schedule_entrys_limits_and_grants_narrow_its_run_and_never_widen_it() {
+        let base = instant("2026-01-01T00:00:59.9Z");
+        let later = instant("2026-01-01T00:01:59.9Z");
+        let roster = Rc::new(RefCell::new(arm(
+            &[
+                sub_capped("plain", ""),
+                sub_capped(
+                    "narrowed",
+                    "limits = {memory = \"1M\"}\ngrants = {net.connect = [\"reports.internal\"]}\n",
+                ),
+                sub_capped(
+                    "widened",
+                    "limits = {memory = \"512M\"}\ngrants = {process.exec = true}\n",
+                ),
+            ],
+            &base,
+            None,
+            |note| panic!("nothing to report at boot, and it said: {note}"),
+        )));
+        let watcher = Rc::new(Watcher {
+            configured: Some(deployment()),
+            ..Watcher::new()
+        });
+        let reads = Rc::new(Cell::new(0_usize));
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let roster = Rc::clone(&roster);
+            let watcher = Rc::clone(&watcher);
+            move |_ctx| {
+                tick_on_this_core(
+                    &mut roster.borrow_mut(),
+                    &watcher,
+                    None,
+                    move || {
+                        let read = reads.get();
+                        reads.set(read + 1);
+                        if read == 0 {
+                            base.clone()
+                        } else {
+                            later.clone()
+                        }
+                    },
+                    || ControlFlow::Break(()),
+                )
+                .expect("the ticker ran as a task");
+            }
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let ran = watcher.narrowed.borrow();
+        assert_eq!(ran.len(), 3, "every entry fired: {ran:?}");
+        let fired = |name: &str| {
+            ran.iter()
+                .find(|(entry, _)| entry == name)
+                .map(|(_, seen)| *seen)
+                .expect("the entry fired")
+        };
+        let (plain, narrowed, widened) = (fired("plain"), fired("narrowed"), fired("widened"));
+
+        assert_eq!(
+            (plain.connect, plain.listen, plain.exec),
+            (true, true, false),
+            "an entry writing neither table runs under the deployment's own grants, whole"
+        );
+        assert_eq!(
+            (narrowed.connect, narrowed.listen),
+            (true, false),
+            "`grants` holds the run to the capabilities it named and drops the rest"
+        );
+        let ceiling = watcher.ceiling.get();
+        assert!(
+            ceiling > 0,
+            "the deployment's own `[limits] memory` is in force on the fire these narrow: {ceiling}"
+        );
+        assert_eq!(
+            plain.memory, 0,
+            "an entry writing neither table takes no ceiling of its own either, and spends the \
+             tree's budget (`rule:security/isolate-budget-is-the-trees`)"
+        );
+        assert!(
+            narrowed.memory > 0 && narrowed.memory < ceiling,
+            "`limits` holds the same run to a ceiling of its own, tighter than the deployment's: \
+             {} against {ceiling}",
+            narrowed.memory
+        );
+        assert_eq!(
+            (widened.connect, widened.listen, widened.exec),
+            (false, false, false),
+            "and neither table widens anything: a capability the deployment withheld is not \
+             granted by an entry naming it, and naming it dropped the two the deployment did grant"
+        );
+        assert!(
+            widened.memory <= ceiling && widened.memory > narrowed.memory,
+            "a `limits` above the deployment's ceiling leaves that ceiling standing — what remains \
+             of it at the fire, and never the `512M` the entry asked for: {} against {ceiling}",
+            widened.memory
         );
     }
 
