@@ -33,13 +33,14 @@
 //!
 //! # Known gap
 //!
-//! 1. **`{through:}` has nothing useful to do yet.** Its closure takes and
-//!    answers a `Core\Cli\Text`, and that class carries no member until M8
-//!    builds the rest of `Core\Cli` — so today a `through` can only be the
-//!    identity, or drop what it was given and fail to answer a carrier. The
-//!    plumbing is complete and tested; what is missing is on the other side of
-//!    [`crate::cli`]'s own gap 2.
-//!    — owner: M8
+//! 1. **`{through:}` cannot read the carrier it is handed.** Its closure takes
+//!    and answers a `Core\Cli\Text`, and that class does construct one —
+//!    `plain` and `styled`, on [`crate::cli`]'s `TEXT` — but declares no
+//!    instance member at all (`instance: &[]`), so a `through` can answer a
+//!    freshly built carrier and cannot look at the captured one it was given.
+//!    The plumbing here is complete and tested; what is missing is the read
+//!    half of `Core\Cli\Text`, which [`crate::cli`]'s own gap 2 waits on too.
+//!    — owner: m8-stdlib-depth
 
 use nvs_runtime::{Fault, NvsObj, NvsStr, Tag, Value};
 
