@@ -1252,17 +1252,23 @@ fn open(name: &str, block: &Database) -> Option<Wire> {
     }
 }
 
-/// [`open`]'s answer for the one driver `nvs_stdlib::queue` has no statements for, as a value.
+/// [`open`]'s answer for the one driver this command starts no worker over, as a value.
 ///
 /// A sentence built here rather than printed inside the arm, because what an operator is told is
 /// itself asserted: that it names the block, names the driver as its vendor spells it, and puts the
 /// gap where it is. Nothing parses it — [`nvs_db::Driver::display_name`]'s own doc is why that
 /// stays true of every sentence that method appears in.
+///
+/// **Where the gap is, is the half that has moved.** `nvs_stdlib::queue` has § 4's statements in
+/// this dialect and sends them (`nvs_stdlib::queue::runs`), so an enqueue against the same block is
+/// accepted and kept; what no arm of [`Wire`] does yet is claim one back, and an operator told
+/// otherwise would go looking in the wrong crate.
 fn sql_server_gap(name: &str) -> String {
     format!(
-        "`[db.{name}]` names the {} driver, and `Core\\Queue` has no worker statements for it yet \
-         — the gap is that roster and not the connection, and a `Core\\Queue::push` against the \
-         same block refuses with the sentence naming what this driver still needs",
+        "`[db.{name}]` names the {} driver, and `nvs queue work` has no send path for it yet — the \
+         gap is this command and not `Core\\Queue`'s statements, which are written in this \
+         dialect, so a `Core\\Queue::push` against the same block is accepted and its job kept \
+         until a worker can claim it",
         nvs_db::Driver::SqlServer.display_name()
     )
 }
@@ -1596,7 +1602,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// The driver `nvs_stdlib::queue` still has no statements for opens no worker, and the line an
+    /// The driver this command still has no send path for opens no worker, and the line an
     /// operator reads names it.
     ///
     /// **Both halves, because neither is the assertion on its own**: a `None` is also what a block
@@ -1614,8 +1620,8 @@ mod tests {
         };
         assert!(
             super::open("jobs", &block).is_none(),
-            "a SQL Server block opened a worker, and no statement that worker sends is written for \
-             it"
+            "a SQL Server block opened a worker, and this command has no arm that could send one a \
+             statement"
         );
         let said = super::sql_server_gap("jobs");
         assert!(

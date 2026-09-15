@@ -74,13 +74,16 @@ struct Leg {
 
 /// This process's leg, when it names a driver [`queue::runs`] answers for.
 ///
-/// Three shapes of `None` and none of them is a failure: no harness at all; a
-/// leg reached by path rather than over a socket, which is SQLite, whose own
-/// statements are executed by `queue_sqlite.rs` beside this file; and a leg
-/// naming a driver the queue has § 2's schema for but no statements — which is
-/// SQL Server, and is what [`queue::runs`] is asked. The per-case gates below
-/// narrow it once more, because a case is written against one dialect's
-/// spelling even where both have one.
+/// Two shapes of `None` and neither is a failure: no harness at all, and a leg
+/// reached by path rather than over a socket, which is SQLite, whose own
+/// statements are executed by `queue_sqlite.rs` beside this file. The third
+/// used to be a driver the queue had § 2's schema for and no statements for,
+/// and [`queue::runs`] is still what is asked rather than that being dropped:
+/// the roster is the seam, `queue_runs_on_every_driver` is what holds it to
+/// `true`, and a driver falling out of it should move this gate rather than
+/// fail every case under it. The per-case gates below narrow it once more,
+/// because a case is written against one dialect's spelling even where several
+/// have one.
 fn endpoint() -> Option<Leg> {
     let endpoint = matrix::endpoint()?;
     let Location::Server(server) = endpoint.location else {
@@ -204,11 +207,13 @@ fn open(leg: &Leg) -> Conn {
         Driver::MySql => connect_as!(MySqlTarget, MySqlConn, Conn::MySql),
         Driver::MariaDb => connect_as!(MariaTarget, MariaConn, Conn::MariaDb),
         // Spelled rather than left to a `_`, exactly as `crate::worker`'s own
-        // opener spells them: [`endpoint`] skips both before anything is
-        // connected, so a driver *gaining* a schema arrives here as a build
-        // failure rather than as a refusal that has stopped being true.
+        // opener spells them: [`endpoint`] skips SQLite before anything is
+        // connected, and no gate above hands this function a SQL Server leg
+        // until [`Conn`] has an arm to hold one — so a sixth driver arrives
+        // here as a build failure rather than as a refusal that has stopped
+        // being true.
         Driver::SqlServer | Driver::Sqlite => {
-            unreachable!("`endpoint` skips a driver `nvs_stdlib::queue` has no schema for")
+            unreachable!("no gate above opens a leg this file has no connection arm for")
         }
     }
 }
@@ -1094,8 +1099,9 @@ const MAX_ATTEMPTS: usize = 4;
 /// is where a text that was never written would otherwise go unnoticed until a
 /// matrix run.
 ///
-/// Three properties, in the order a wrong text fails them. The members are the
-/// same set the first dialect has, which is what *every statement* means. Each
+/// Two properties, in the order a wrong text fails them, and the third — that
+/// the roster is the *same set of members* the other dialects have — is
+/// [`queue_runs_on_every_driver`]'s, which asks it of all five at once. Each
 /// text names `@p1`, which is this driver's marker and the one spelling
 /// `sp_prepexec`'s parameter declaration writes, and none of them names another
 /// dialect's — a `$1` or a `?` reaches the server as a syntax error naming a
@@ -1105,21 +1111,6 @@ const MAX_ATTEMPTS: usize = 4;
 /// server accepts and answers wrongly.
 #[test]
 fn every_statement_the_queue_sends_has_a_sql_server_text() {
-    fn members(driver: Driver) -> Vec<&'static str> {
-        let mut named: Vec<&'static str> = queue::texts(driver)
-            .into_iter()
-            .map(|(member, _)| member)
-            .collect();
-        named.sort_unstable();
-        named.dedup();
-        named
-    }
-    assert_eq!(
-        members(Driver::SqlServer),
-        members(Driver::Postgres),
-        "a member the queue sends a statement for has one in every dialect or the roster is not \
-         whole"
-    );
     for (member, sql) in queue::texts(Driver::SqlServer) {
         for absent in ["$1", "?", "::", "returning", "for update", "limit "] {
             assert!(
@@ -1149,6 +1140,51 @@ fn every_statement_the_queue_sends_has_a_sql_server_text() {
             (1..=markers.len()).collect::<Vec<usize>>(),
             "{member}'s SQL Server text numbers its markers `1..n` with no gap, because the \
              driver declares one parameter per number: {sql}"
+        );
+    }
+}
+
+/// `Core\Queue` sends its statements over every driver `Core\Db` opens, which
+/// is what `rule:core-classes/queue-storage-is-a-table`'s one schema is for.
+///
+/// **The predicate and the roster are asserted together, because separately
+/// neither is a fact.** [`queue::runs`] is a `match` a session can widen with
+/// one arm, and a roster is a list of texts nothing obliges a member to be in;
+/// what makes the answer true is that every driver's roster names the same
+/// members, so a driver the predicate claims for cannot be one the texts
+/// skipped. Every other reader takes the predicate as an oracle — [`endpoint`]
+/// above is one — so this is where it is held to something.
+///
+/// **The one case here that asks no server**, as the SQL Server texts' own case
+/// is and for its reason: a roster that had lost a member would otherwise go
+/// unnoticed until a matrix run.
+#[test]
+fn queue_runs_on_every_driver() {
+    fn members(driver: Driver) -> Vec<&'static str> {
+        let mut named: Vec<&'static str> = queue::texts(driver)
+            .into_iter()
+            .map(|(member, _)| member)
+            .collect();
+        named.sort_unstable();
+        named.dedup();
+        named
+    }
+    let roster = members(Driver::Postgres);
+    assert!(
+        !roster.is_empty(),
+        "the dialect every other one is compared against has statements of its own"
+    );
+    for driver in Driver::ALL {
+        assert!(
+            queue::runs(driver),
+            "{driver:?}: `Core\\Queue` opens a connection to every driver `Core\\Db` does, so \
+             there is none it may then refuse to send a statement over"
+        );
+        assert_eq!(
+            members(driver),
+            roster,
+            "{driver:?}: a member the queue sends a statement for has one in every dialect, or \
+             the roster `queue::runs` answers for is not whole"
         );
     }
 }
