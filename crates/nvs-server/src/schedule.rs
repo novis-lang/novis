@@ -42,11 +42,14 @@
 //! being its only implementor, because `nvs-cli` is the one crate in this tree
 //! that names both this one and `nvs-stdlib`.
 //!
-//! The ticker therefore holds no store, no client and no backend. It asks one
-//! question — take this key for this long, yes or no — and the answer decides
-//! whether this host runs the fire. § 3's key is the entry's `name` plus the
-//! fire's *scheduled* instant rather than the instant it was noticed, so two
-//! hosts whose clocks differ by a second still ask for the same key.
+//! The ticker therefore holds no store, no client and no backend. It asks two
+//! questions about one key — take it for this long, and hold it that long
+//! again — and the first one's answer decides whether this host runs the fire.
+//! § 3's key is the entry's `name` plus the fire's *scheduled* instant rather
+//! than the instant it was noticed, so two hosts whose clocks differ by a second
+//! still ask for the same key. The second question is asked on the fire's own
+//! task for as long as that run is in flight, which is what keeps the key this
+//! host's through a run that outlives the interval it was scheduled for.
 //!
 //! # The fallback, when there is no lease to take
 //!
@@ -79,16 +82,6 @@
 //!    narrows either one *per isolate*. Like `overlap`, they are the ticker's
 //!    question rather than the caller's, and they belong to this module when
 //!    they land.
-//!    — owner: m7-server-surface
-//! 2. **A lease is never renewed while its run is in flight**, which § 3 names
-//!    beside the TTL. What is here is the TTL alone — [`Armed::lease_ttl`], the
-//!    gap to this entry's next fire — so a run that outlives its own interval
-//!    can have the lease expire under it and a second host take the next one
-//!    while it is still going. That is inside § 3's stated bound (`"fleet"` is
-//!    at-most-once per interval, not exactly-once, and a lease expiring under a
-//!    live run is the example it gives), so it is a sharpening rather than a
-//!    hole; it costs a timer on the fire's own task, which is where it will
-//!    live.
 //!    — owner: m7-server-surface
 
 use std::cell::Cell;
@@ -230,7 +223,7 @@ impl Armed {
     /// arithmetic and there is no constant for a deployment to be surprised by. A key that outlived
     /// its interval would leave the following fire unrunnable by anyone; one that expired well
     /// inside it would let a second host take the same fire while the first is still in it, which
-    /// is the failure the module doc's *Not here yet* names renewal against.
+    /// is what [`Renewal`] holds the key against for as long as the run is in flight.
     ///
     /// [`Duration::ZERO`] when this entry has no next fire — it is retiring, so there is no
     /// interval to hold and nothing after this to protect.
@@ -317,6 +310,21 @@ pub trait Leases {
     /// A failure to reach the store at all is a `false`: not running this interval is the safe
     /// answer, and § 3 already says a partition can leave one unrun.
     fn take(&self, key: &str, ttl: Duration) -> bool;
+
+    /// Hold the lease named `key` for another `ttl`, and report whether it is **still** this
+    /// host's.
+    ///
+    /// Asked on a fire's own task while that run is in flight, so a run outliving the interval it
+    /// was scheduled for keeps its key rather than having the store expire it underneath. The
+    /// implementation extends the key **only while this host is what holds it** — extending one
+    /// that has already passed to another host would hand one interval to two of them, which is
+    /// the failure § 3's `scope` exists to prevent.
+    ///
+    /// A `false` is not an error: § 3 bounds `"fleet"` at at-most-once per interval, and a lease
+    /// lost under a live run is the example it gives. The ticker stops asking and says so, and the
+    /// run is left alone — ending work that is halfway through is not something a lease answers. A
+    /// failure to reach the store is a `false` for [`Leases::take`]'s reason.
+    fn renew(&self, key: &str, ttl: Duration) -> bool;
 }
 
 /// The roster this process arms, from the entries the boot accepted.
@@ -417,10 +425,12 @@ pub fn arm(
 /// global directly can only be tested by waiting for it. `nvs serve` passes `Zoned::now`.
 ///
 /// `leases` is the same value [`arm`] was given and is asked once per fire of a `fleet` entry — the
-/// key § 3 names, held for the interval, and a `false` means another host has this one. It is asked
+/// key § 3 names, held for the interval, and a refusal means another host has this one. It is asked
 /// *after* § 6's overlap question and never before it: an entry still running its own previous fire
 /// has already lost this interval on this host, and taking the lease only to drop the fire under
-/// `skip` would leave the interval unrun by the whole deployment rather than by one machine.
+/// `skip` would leave the interval unrun by the whole deployment rather than by one machine. An
+/// [`Rc`] rather than a borrow because the renewal the key is then held under outlives this call's
+/// frame — it runs on the fire's own task.
 ///
 /// Returns as soon as the roster has no fire left — an empty roster, or one where every entry has
 /// retired — because a task that can never do anything again is one the process should not be kept
@@ -434,7 +444,7 @@ pub fn arm(
 pub fn tick_on_this_core<F>(
     entries: &mut [Armed],
     fires: &Rc<F>,
-    leases: Option<&dyn Leases>,
+    leases: Option<&Rc<dyn Leases>>,
     now: impl Fn() -> Zoned,
     mut keep_ticking: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
@@ -527,22 +537,27 @@ where
                                 entry.name()
                             ));
                         } else {
-                            start(entry, fires, &outstanding, &parent)?;
+                            start(entry, fires, &outstanding, &parent, None)?;
                         }
                     }
                 }
-            } else if entry.fleet && !took_the_lease(entry, leases) {
-                // § 3: another host holds this interval's lease, so this one does not run it. Noted
-                // rather than silent, because "the nightly did not run here" is a thing an operator
+            } else if entry.fleet {
+                // § 3, and the key travels with the fire: what this host took is what that run
+                // holds for as long as it is in flight. A lease another host has is noted rather
+                // than silent, because "the nightly did not run here" is a thing an operator
                 // reading one host's log has to be able to tell from a failure — and on a fleet of
                 // twenty this is the ordinary line that nineteen of them write.
-                fires.note(&format!(
-                    "`{}` is held by another host for this interval and is not run here (§ 3's \
-                     lease)",
-                    entry.name()
-                ));
+                if let Some(held) = took_the_lease(entry, leases) {
+                    start(entry, fires, &outstanding, &parent, Some(held))?;
+                } else {
+                    fires.note(&format!(
+                        "`{}` is held by another host for this interval and is not run here (§ 3's \
+                         lease)",
+                        entry.name()
+                    ));
+                }
             } else {
-                start(entry, fires, &outstanding, &parent)?;
+                start(entry, fires, &outstanding, &parent, None)?;
             }
             if !entries[index].rearm(&clock) {
                 fires.note(&format!(
@@ -557,11 +572,12 @@ where
         // first look after every ending rather than a poll. After the due walk rather than before
         // it, so that a pass finding the entry both free and due answers the clock: the held fire
         // is not lost by that, it starts when *that* run ends, and either order keeps § 6's bound
-        // of one held fire per entry.
+        // of one held fire per entry. It carries no lease: the pass that held it answered § 6
+        // before § 3 was asked, so this host never took a key for the interval it was held from.
         for entry in entries.iter() {
             if entry.held() && !entry.busy() {
                 entry.held.set(false);
-                start(entry, fires, &outstanding, &parent)?;
+                start(entry, fires, &outstanding, &parent, None)?;
             }
         }
         if keep_ticking().is_break() {
@@ -597,6 +613,7 @@ fn start<F>(
     fires: &Rc<F>,
     outstanding: &Rc<Cell<usize>>,
     parent: &Rc<Wake>,
+    renewal: Option<Renewal>,
 ) -> io::Result<()>
 where
     F: Fires + 'static,
@@ -608,7 +625,9 @@ where
         mine: Rc::clone(&entry.running),
         parent: Rc::clone(parent),
     };
-    entry.fired_as.set(Some(fire(entry, fires, running)?));
+    entry
+        .fired_as
+        .set(Some(fire(entry, fires, running, renewal)?));
     Ok(())
 }
 
@@ -647,7 +666,16 @@ impl Drop for Ran {
 ///
 /// The isolate is run to completion **on that task and not on the tick's**, which is what keeps a
 /// run that takes an hour from being the reason the next minute's entry is late.
-fn fire<F>(entry: &Armed, fires: &Rc<F>, running: Ran) -> io::Result<TaskId>
+///
+/// `renewal` is the key a `fleet` entry's fire took, and is [`None`] for every other fire. It is
+/// started here rather than by the caller because this is the task § 3's renewal is held for: the
+/// timer is a child of it, so the run ending is what stops the key being extended.
+fn fire<F>(
+    entry: &Armed,
+    fires: &Rc<F>,
+    running: Ran,
+    renewal: Option<Renewal>,
+) -> io::Result<TaskId>
 where
     F: Fires + 'static,
 {
@@ -655,6 +683,9 @@ where
     let entry = entry.clone();
     let spawned = spawn_child(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |ctx| {
         let _running = running;
+        if let Some(renewal) = renewal {
+            renewal.keep(&fires, entry.name());
+        }
         let Some(isolate) = fires.isolate(&entry, ctx) else {
             return;
         };
@@ -684,27 +715,102 @@ where
     spawned.ok_or_else(|| io::Error::other("the ticker must run as a task on a core"))
 }
 
-/// How long until the soonest fire in the roster, or [`None`] when there is none.
-///
-/// Saturating at zero rather than answering a negative: an entry the clock has already passed is due
-/// now, which is the same answer a wait of zero produces and one fewer state for the loop to hold.
-/// § 3's lease for the fire this entry is due for: whether **this** host runs it.
+/// § 3's lease for the fire this entry is due for: the key this host took, or [`None`] when the
+/// interval is another host's.
 ///
 /// The whole of the fleet decision, in one place the tick reaches and a test can reach without a
 /// core — which is why it is a function rather than four lines inside the due walk. The two hosts a
 /// fleet is are two rosters over one store, and that is exactly what asking this twice is.
 ///
-/// Both [`None`]s are unreachable and both are a `false`, which is the safe direction: a `fleet`
-/// entry is only armed when [`arm`] was given a [`Leases`], and an entry with no next fire is never
-/// due. A `false` costs an unrun interval; a `true` reached by accident costs a run on every host,
-/// which is the failure the key exists to prevent.
-fn took_the_lease(entry: &Armed, leases: Option<&dyn Leases>) -> bool {
+/// Both [`None`]s above the question are unreachable and both refuse the fire, which is the safe
+/// direction: a `fleet` entry is only armed when [`arm`] was given a [`Leases`], and an entry with
+/// no next fire is never due. A refusal costs an unrun interval; a key handed back by accident
+/// costs a run on every host, which is the failure the key exists to prevent.
+fn took_the_lease(entry: &Armed, leases: Option<&Rc<dyn Leases>>) -> Option<Renewal> {
     let (Some(leases), Some(scheduled)) = (leases, entry.next.as_ref()) else {
-        return false;
+        return None;
     };
-    leases.take(&entry.lease_key(scheduled), entry.lease_ttl(scheduled))
+    let held = Renewal {
+        key: entry.lease_key(scheduled),
+        ttl: entry.lease_ttl(scheduled),
+        leases: Rc::clone(leases),
+    };
+    leases.take(&held.key, held.ttl).then_some(held)
 }
 
+/// § 3's renewal: the key one fire took, and what it takes to go on holding it.
+///
+/// Built by [`took_the_lease`] and carried onto the fire's own task, because that is the task whose
+/// life the key is held for — the ticker's own would hold it long past the run, and a task of its
+/// own would outlive a run that was cancelled. `nvs_host`'s task tree is what makes that exact:
+/// [`Renewal::keep`] spawns a child of the fire, and a task that ends cancels its children, so the
+/// run ending is the whole of what stops the timer.
+struct Renewal {
+    /// The key [`Armed::lease_key`] derived for this fire, and the one the renewals name.
+    key: String,
+    /// [`Armed::lease_ttl`]'s interval, asked for again at each renewal, so the key is always held
+    /// one whole interval from now. A host that dies mid-run therefore releases it by expiry
+    /// inside the bound § 3 states rather than blocking a later interval forever.
+    ttl: Duration,
+    /// The store the question goes to, as an [`Rc`] because this outlives the frame [`arm`] and
+    /// the tick were called from.
+    leases: Rc<dyn Leases>,
+}
+
+impl Renewal {
+    /// How often the key is extended: half of what it is held for.
+    ///
+    /// A fraction rather than a constant, for [`Armed::lease_ttl`]'s reason — the interval is the
+    /// only number § 3 has, and a second one here would be a thing a deployment could be surprised
+    /// by. Half of it leaves a whole renewal's worth of slack for a store that answers slowly,
+    /// which asking at the expiry itself would not.
+    fn every(&self) -> Duration {
+        self.ttl / 2
+    }
+
+    /// Hold the key for as long as this fire runs, on a task of the fire's own.
+    ///
+    /// Spawned as a child of the caller, which is the fire's task: the run ending cancels it, and
+    /// so does the cancellation § 6's `kill` sends, so there is no state to give back and no guard
+    /// to write. A key this host no longer holds stops the timer and is one line an operator sees;
+    /// the run itself is left alone, because § 3 bounds `fleet` at at-most-once and ending work
+    /// that is halfway through is not what a lease answers.
+    fn keep<F>(self, fires: &Rc<F>, name: &str)
+    where
+        F: Fires + 'static,
+    {
+        let every = self.every();
+        if every.is_zero() {
+            // [`Armed::lease_ttl`] answers zero for an entry with no next fire: it is retiring, so
+            // there is no interval to hold and nothing after this run to protect.
+            return;
+        }
+        let fires = Rc::clone(fires);
+        let name = name.to_owned();
+        // `TaskRoot::Request` for the fire's own reason: this is one run's housekeeping, and a
+        // fault in it belongs to that run rather than retiring the core serving beside it. The
+        // [`None`] this answers off a task is unreachable — the caller is a task by construction.
+        let _timer = spawn_child(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            loop {
+                if matches!(nvs_host::sleep(every), Woken::Cancelled) {
+                    return;
+                }
+                if !self.leases.renew(&self.key, self.ttl) {
+                    fires.note(&format!(
+                        "`{name}` is still running here, but its lease is no longer this host's \
+                         and was not renewed (§ 3's at-most-once bound)"
+                    ));
+                    return;
+                }
+            }
+        });
+    }
+}
+
+/// How long until the soonest fire in the roster, or [`None`] when there is none.
+///
+/// Saturating at zero rather than answering a negative: an entry the clock has already passed is due
+/// now, which is the same answer a wait of zero produces and one fewer state for the loop to hold.
 fn soonest(entries: &[Armed], now: &Zoned) -> Option<Duration> {
     entries
         .iter()
@@ -941,6 +1047,9 @@ mod tests {
         /// two hosts asked for *one* key, which is the half a fake could otherwise pass by handing
         /// out `true` once per key.
         asked: RefCell<Vec<(String, Duration)>>,
+        /// Every `renew`, in order, read the same way. A renewal names the key it extends, so this
+        /// is what says a fire went on holding the key it took rather than some other one.
+        renewed: RefCell<Vec<(String, Duration)>>,
     }
 
     impl Store {
@@ -949,6 +1058,7 @@ mod tests {
                 held: RefCell::new(Vec::new()),
                 now: Cell::new(0),
                 asked: RefCell::new(Vec::new()),
+                renewed: RefCell::new(Vec::new()),
             }
         }
     }
@@ -974,6 +1084,25 @@ mod tests {
                 }
             }
         }
+
+        /// Extend a key this store still holds, and refuse one it does not.
+        ///
+        /// Presence rather than a token, because this fake has no second holder to be confused
+        /// with: the token half of § 3's renewal is the store's own question and is asserted where
+        /// the wire is, in `nvs-stdlib`'s lease cases. What this answers is the half the ticker
+        /// asks — is the key still there to go on holding.
+        fn renew(&self, key: &str, ttl: Duration) -> bool {
+            self.renewed.borrow_mut().push((key.to_owned(), ttl));
+            let until = self.now.get() + ttl.as_secs();
+            let mut held = self.held.borrow_mut();
+            match held.iter_mut().find(|(name, _)| name == key) {
+                Some(entry) => {
+                    entry.1 = until;
+                    true
+                }
+                None => false,
+            }
+        }
     }
 
     /// One second short of a day, and a day: the two sides of the lease's bound.
@@ -989,13 +1118,14 @@ mod tests {
     /// never wake in the same millisecond.
     #[test]
     fn a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease() {
-        let store = Store::new();
+        let store = Rc::new(Store::new());
+        let leases: Rc<dyn Leases> = Rc::clone(&store) as Rc<dyn Leases>;
         let entries = [entry("invoices", "@daily", "fleet")];
         let boot = instant("2026-01-01T12:00:00Z");
-        let one = arm(&entries, &boot, Some(&store), |note| {
+        let one = arm(&entries, &boot, Some(&*leases), |note| {
             panic!("nothing to report at boot, and it said: {note}")
         });
-        let two = arm(&entries, &boot, Some(&store), |note| {
+        let two = arm(&entries, &boot, Some(&*leases), |note| {
             panic!("nothing to report at boot, and it said: {note}")
         });
 
@@ -1006,8 +1136,8 @@ mod tests {
         );
         assert_eq!(
             [
-                took_the_lease(&one[0], Some(&store)),
-                took_the_lease(&two[0], Some(&store)),
+                took_the_lease(&one[0], Some(&leases)).is_some(),
+                took_the_lease(&two[0], Some(&leases)).is_some(),
             ],
             [true, false],
             "and exactly one of them runs the fire"
@@ -1038,22 +1168,23 @@ mod tests {
     /// the pair of assertions separates those; either alone passes on a plausible-looking bug.
     #[test]
     fn a_fleet_scoped_entry_whose_lease_expired_is_taken_by_another_host() {
-        let store = Store::new();
+        let store = Rc::new(Store::new());
+        let leases: Rc<dyn Leases> = Rc::clone(&store) as Rc<dyn Leases>;
         let entries = [entry("invoices", "@daily", "fleet")];
         let boot = instant("2026-01-01T12:00:00Z");
-        let one = arm(&entries, &boot, Some(&store), |note| {
+        let one = arm(&entries, &boot, Some(&*leases), |note| {
             panic!("nothing to report at boot, and it said: {note}")
         });
-        let two = arm(&entries, &boot, Some(&store), |note| {
+        let two = arm(&entries, &boot, Some(&*leases), |note| {
             panic!("nothing to report at boot, and it said: {note}")
         });
 
         assert!(
-            took_the_lease(&one[0], Some(&store)),
+            took_the_lease(&one[0], Some(&leases)).is_some(),
             "the first host takes the lease"
         );
         assert!(
-            !took_the_lease(&two[0], Some(&store)),
+            took_the_lease(&two[0], Some(&leases)).is_none(),
             "and while it is held the second host does not run the fire"
         );
 
@@ -1061,22 +1192,118 @@ mod tests {
         // ends it.
         store.now.set(DAY - 1);
         assert!(
-            !took_the_lease(&two[0], Some(&store)),
+            took_the_lease(&two[0], Some(&leases)).is_none(),
             "a second short of the interval it is still the first host's"
         );
         store.now.set(DAY);
         assert!(
-            took_the_lease(&two[0], Some(&store)),
+            took_the_lease(&two[0], Some(&leases)).is_some(),
             "and once it has expired the other host takes it"
+        );
+    }
+
+    /// § 3's renewal: the key a fire took stays this host's for as long as that run is in flight,
+    /// and stops being extended the moment it ends.
+    ///
+    /// Both halves, because either one alone passes on a bug that ships. A renewal that never
+    /// fired would let the store expire the key under a run that outlives the interval it was
+    /// scheduled for; one that outlived the run would hold the key against a deployment that no
+    /// longer has anything running under it. The keys are read back off the store rather than
+    /// asserted from the case, which is what proves the timer extends *the key this fire took* —
+    /// a renewal naming anything else holds nothing and would still count.
+    ///
+    /// The interval is shortened after [`took_the_lease`] answered, so this costs a tenth of a
+    /// second rather than the day a `@daily` entry's lease is really held for. Nothing else is a
+    /// stand-in: it is [`fire`] itself on a real core, and what stops the timer is the run's task
+    /// ending, exactly as in a server.
+    #[test]
+    fn a_fleet_lease_is_renewed_while_its_run_is_in_flight() {
+        let store = Rc::new(Store::new());
+        let leases: Rc<dyn Leases> = Rc::clone(&store) as Rc<dyn Leases>;
+        let armed = arm(
+            &[entry("invoices", "@daily", "fleet")],
+            &instant("2026-01-01T12:00:00Z"),
+            Some(&*leases),
+            |note| panic!("nothing to report at boot, and it said: {note}"),
+        );
+        let mut renewal =
+            took_the_lease(&armed[0], Some(&leases)).expect("this host took the lease");
+        renewal.ttl = Duration::from_millis(40);
+        let watcher = Rc::new(Watcher {
+            holds: Duration::from_millis(130),
+            ..Watcher::new()
+        });
+        let during = Rc::new(Cell::new(0_usize));
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let store = Rc::clone(&store);
+            let watcher = Rc::clone(&watcher);
+            let during = Rc::clone(&during);
+            move |_ctx| {
+                // What `start` counts before it hands a fire over, done here because this case
+                // reaches past it: `Ran`'s `Drop` gives both of them back.
+                let outstanding = Rc::new(Cell::new(1_usize));
+                armed[0].running.set(1);
+                let running = Ran {
+                    outstanding: Rc::clone(&outstanding),
+                    mine: Rc::clone(&armed[0].running),
+                    parent: Rc::new(Wake::current().expect("the case runs as a task")),
+                };
+                fire(&armed[0], &watcher, running, Some(renewal)).expect("the fire is a task");
+                // The fire is this task's child, so this one outlives it — the same park the
+                // ticker's own tail makes, woken by that guard on the way out.
+                while outstanding.get() > 0 {
+                    let resumed = suspend_current(Waiting::Parked);
+                    if resumed.cancelled() || !resumed.suspended() {
+                        break;
+                    }
+                }
+                during.set(store.renewed.borrow().len());
+                // Three more of the shortened interval, with the run over: whatever the store sees
+                // now is what a timer outliving its own fire would have written.
+                nvs_host::sleep(Duration::from_millis(60));
+            }
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let renewed = store.renewed.borrow();
+        assert!(
+            during.get() >= 2,
+            "the key was held again while the run was in flight, and it was asked {} time(s)",
+            during.get()
+        );
+        assert_eq!(
+            renewed.len(),
+            during.get(),
+            "and the run ending is what stops it: nothing was renewed after the fire's task went"
+        );
+        assert!(
+            renewed
+                .iter()
+                .all(|(key, _)| key == "nvs.schedule.invoices@2026-01-02T00:00:00Z"),
+            "every renewal named the key this fire took: {renewed:?}"
+        );
+        assert_eq!(
+            renewed[0].1,
+            Duration::from_millis(40),
+            "held for one whole interval again, so the key is never nearer expiry than that"
+        );
+        assert!(
+            watcher.noted.borrow().is_empty(),
+            "a lease that stayed this host's is not reported to anyone: {:?}",
+            watcher.noted.borrow()
         );
     }
 
     /// § 3's fallback: with no lease to take, a `fleet` entry is not armed and the boot says so.
     ///
-    /// The refusal and not the omission is the point. `Core\Cache`'s shared tier is `put` and `get`
-    /// (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`) and neither is a compare-and-set, so this is what `nvs serve` does today —
-    /// and firing a fleet-scoped interval on each host's own clock instead is the exact failure the
-    /// key exists to prevent. A ticker that armed it anyway would look correct on one host.
+    /// The refusal and not the omission is the point. A tree naming no shared store and a store
+    /// that will not answer the boot both arrive here as the same absence — and firing a
+    /// fleet-scoped interval on each host's own clock instead is the exact failure the key exists
+    /// to prevent. A ticker that armed it anyway would look correct on one host.
     #[test]
     fn a_shared_store_with_no_compare_and_set_leaves_the_entry_unarmed_and_says_so() {
         let mut notes = Vec::new();

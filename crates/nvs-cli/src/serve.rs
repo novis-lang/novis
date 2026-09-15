@@ -896,8 +896,10 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             .schedule
             .iter()
             .any(|entry| entry.scope.as_deref().map(str::trim) == Some("fleet"));
-    let lease = if fleet {
-        fleet_lease(&snapshot.config)
+    // An `Rc` rather than the value: § 3's renewal runs on each fire's own task, so the store is
+    // reached from frames that outlive both this one and the tick's.
+    let lease: Option<Rc<dyn nvs_server::Leases>> = if fleet {
+        fleet_lease(&snapshot.config).map(|held| Rc::new(held) as Rc<dyn nvs_server::Leases>)
     } else {
         None
     };
@@ -905,7 +907,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         nvs_server::arm(
             &snapshot.config.schedule,
             &Zoned::now(),
-            lease.as_ref().map(|held| held as &dyn nvs_server::Leases),
+            lease.as_deref(),
             |note| {
                 eprintln!("note: {note}");
             },
@@ -934,7 +936,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             let ticked = nvs_server::tick_on_this_core(
                 &mut armed,
                 &fires,
-                lease.as_ref().map(|held| held as &dyn nvs_server::Leases),
+                lease.as_ref(),
                 Zoned::now,
                 || {
                     // The same drain the accept loop reads, so a stop ends the
@@ -1103,16 +1105,6 @@ fn arm_queue_workers(
     bounds.workers
 }
 
-/// `rule:config/a-scheduled-run-is-a-root-isolate`'s fire, from the side only this binary can answer.
-///
-/// The ticker in `nvs-server` owns *when* a `[[schedule]]` entry runs and *where* —
-/// a task of its own, with its own context, so that a run taking an hour is not
-/// why the next minute's entry is late. What is left is what needs a compiler
-/// and a logger: which isolate the entry's `script` is, and what its result
-/// says. Both are this crate's, for the reason the module doc gives for the
-/// handler.
-///
-/// Nothing is carried on it: the resolver is installed for the whole run
 /// `nvs_server::Leases` over the shared tier — § 3's lease, which this binary is
 /// the only crate that can supply and `nvs_server::schedule`'s module doc §
 /// *Where a `fleet` entry's lease comes from* is the whole reason for.
@@ -1139,6 +1131,10 @@ struct FleetLease {
 impl nvs_server::Leases for FleetLease {
     fn take(&self, key: &str, ttl: std::time::Duration) -> bool {
         self.asked(key, "taken", |store, token| store.take(key, token, ttl))
+    }
+
+    fn renew(&self, key: &str, ttl: std::time::Duration) -> bool {
+        self.asked(key, "renewed", |store, token| store.renew(key, token, ttl))
     }
 }
 
@@ -1203,6 +1199,16 @@ fn fleet_lease(config: &nvs_config::Config) -> Option<FleetLease> {
     }
 }
 
+/// `rule:config/a-scheduled-run-is-a-root-isolate`'s fire, from the side only this binary can answer.
+///
+/// The ticker in `nvs-server` owns *when* a `[[schedule]]` entry runs and *where* —
+/// a task of its own, with its own context, so that a run taking an hour is not
+/// why the next minute's entry is late. What is left is what needs a compiler
+/// and a logger: which isolate the entry's `script` is, and what its result
+/// says. Both are this crate's, for the reason the module doc gives for the
+/// handler.
+///
+/// Nothing is carried on it: the resolver is installed for the whole run
 /// (`nvs_runtime::script::scoped` below), so a fire reaches the same compiler and
 /// the same compiled-unit cache a request does, and a scheduled script that is
 /// also a mounted entry is a cache hit rather than a second compile.
@@ -1942,6 +1948,10 @@ mod tests {
         assert!(
             !nvs_server::Leases::take(&lease, &key, held),
             "and the store, not this process, is what refuses the second asker"
+        );
+        assert!(
+            nvs_server::Leases::renew(&lease, &key, held),
+            "and the renewal a fire runs on its own task holds the key this process took"
         );
     }
 
