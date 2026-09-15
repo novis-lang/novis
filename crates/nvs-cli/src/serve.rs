@@ -4119,6 +4119,62 @@ echo Core\Router::{member}("Docs::here", []);
         client.join().expect("the client thread panicked")
     }
 
+    /// `rule:errors/on-limit`'s CPU ceiling on the served path: a request that
+    /// spins past `[limits] cpu_time` is ended as a `FATAL`, and the core that
+    /// ran it answers the next request down the same connection.
+    ///
+    /// **The second `200` is the assertion here, not the first `500`.** A CPU
+    /// stop is made through both of the words a request tree is stopped by —
+    /// the flag `nvs_host::watchdog` raises and the deadline it expires beside
+    /// it — and neither can be lowered by the request they stopped. A tree held
+    /// for the socket rather than for the request therefore answers this case
+    /// `500` and then `500`, which is what `nvs_runtime::Ctx::reroot` in front
+    /// of every served request is for.
+    ///
+    /// **A ceiling that fails to stop this one hangs the case rather than
+    /// failing it**, which is the opposite trade from the bounded loop below
+    /// and made for the same reason: a spin takes a core and gives it back,
+    /// where an unbounded doubling takes the host's memory and does not. The
+    /// runaway a `nvs serve` deployment has to survive is the unbounded one, so
+    /// it is the one written here.
+    ///
+    /// Skipped where the platform offers no per-thread clock a stranger may
+    /// read: a core on one publishes nothing and enforces no CPU ceiling at all
+    /// (`nvs_host::cpuclock`), and that crate's own cases take the same return.
+    #[test]
+    fn a_served_while_true_is_ended_as_a_fatal_and_the_core_answers_the_next_request() {
+        if nvs_host::ThreadClock::current().is_none() {
+            return;
+        }
+        let (first, second, body) = a_runaway_then_an_answer(
+            "cpu-runaway",
+            // Allocating nothing and calling nothing, so the loop's own back
+            // edge is the only poll in the program and the watchdog's flag is
+            // the only thing that can be read at it. That is the request a CPU
+            // ceiling exists for: every other ceiling on the list is reached by
+            // a request that asks the runtime for something.
+            "<?nvs\nint $turns = 0;\nwhile (true) {\n    $turns = $turns + 1;\n}\necho $turns;\n",
+            // Short enough that the case costs a tenth of a second, and still
+            // whole milliseconds above the interval the watchdog above sweeps
+            // on, so what stops the request is the ceiling and not the
+            // granularity of the sampler that reads it.
+            "[limits]\ncpu_time = \"100ms\"\n",
+        );
+
+        assert!(
+            first.starts_with("HTTP/1.1 500 "),
+            "a request that spun past `[limits] cpu_time` was not answered as a failed one: {first}"
+        );
+        assert!(
+            second.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the core that stopped a spinning request did not answer the one after it: {second}"
+        );
+        assert_eq!(
+            body, "answered",
+            "the request after the runaway was answered by something other than the entry it named"
+        );
+    }
+
     /// `rule:errors/on-limit`'s other ceiling on the same path: a request that
     /// grows a string past `[limits] memory` is ended as a `FATAL`, and the
     /// core that ran it answers the next request.
