@@ -710,6 +710,15 @@ fn sqlserver_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
 ///   `hi`, not `'hi'`, so an unquoted value is read as the literal it is
 ///   rather than refused — which is also why this reader is type-directed and
 ///   not shape-directed.
+/// - **`NULL` is the keyword and never a value**, so a column defaulting to it
+///   is the column with no default at all — which is what SQL means by the two
+///   as well. MariaDB is where that is load-bearing: its `information_schema`
+///   prints this keyword for every nullable column that was never given a
+///   default, where MySQL prints null itself. The one spelling it costs is a
+///   MySQL text default of the four characters `NULL`, which arrives unquoted
+///   and so cannot be told from the keyword; MariaDB quotes a text default and
+///   is unambiguous, and the alternative is every nullable column on that
+///   server reading back as a default no apply converges on.
 ///
 /// # What is refused, and why refusing is the safe direction
 ///
@@ -724,6 +733,9 @@ fn sqlserver_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
 #[must_use]
 pub fn column_default(spelling: &str, ty: &ScalarType, dialect: Dialect) -> Option<ColumnDefault> {
     let bare = strip_cast(unwrap_parens(spelling.trim()));
+    if bare.eq_ignore_ascii_case("null") {
+        return None;
+    }
     if matches!(ty, ScalarType::DateTime | ScalarType::Instant) && is_now(bare) {
         return Some(ColumnDefault::Now);
     }
@@ -1692,6 +1704,35 @@ mod tests {
                 column_default(spelling, &ty, dialect),
                 None,
                 "`{spelling}` read as a {dialect:?} default on {ty:?}"
+            );
+        }
+    }
+
+    /// The `NULL` keyword is no default on every dialect, and MariaDB is the
+    /// server that makes it matter.
+    ///
+    /// That server prints the keyword in `COLUMN_DEFAULT` for every nullable
+    /// column nobody gave a default, so reading it as a value gave each one a
+    /// four-character text default the emitter never wrote — a plan that
+    /// rewrote the column on every apply and never converged. The quoted
+    /// spelling beside it is the value, and it still reads as one: MariaDB
+    /// quotes a text default, which is what leaves the keyword unambiguous
+    /// there.
+    #[test]
+    fn the_null_keyword_is_no_default_and_a_quoted_null_is_the_text() {
+        let text20 = ScalarType::Text { max: Some(20) };
+        for dialect in DIALECTS {
+            for spelling in ["NULL", "null", "(NULL)"] {
+                assert_eq!(
+                    column_default(spelling, &text20, dialect),
+                    None,
+                    "{dialect:?} read `{spelling}` as a value"
+                );
+            }
+            assert_eq!(
+                column_default("'NULL'", &text20, dialect),
+                Some(ColumnDefault::Text("NULL".to_owned())),
+                "{dialect:?} lost a quoted `NULL`"
             );
         }
     }
