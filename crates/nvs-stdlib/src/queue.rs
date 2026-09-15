@@ -5435,31 +5435,59 @@ mod tests {
         }
     }
 
-    /// `rule:core-classes/queue-storage-is-a-table`: the dedupe constraint has **one** spelling, and
-    /// it is the same one in all four dialects.
+    /// `rule:core-classes/queue-storage-is-a-table`: the dedupe constraint the queue asks for has
+    /// **one** spelling, and every dialect emits that one key over that one column.
     ///
     /// This is the retirement's own open question asserted rather than argued. The two lists reach
     /// gap 3's guarantee by two constructs the vocabulary refuses — a partial index and a stored
     /// generated column — so the assertion that matters is not that the constraint exists but that
-    /// what carries it is a plain column and a plain unique key, present in the `CREATE TABLE`
-    /// itself on every backend. A dialect that grew its own spelling again fails here.
+    /// what carries it is a plain column and a plain unique key, asked for once and emitted by
+    /// exactly one statement per dialect. A queue that grew its own spelling again fails here.
+    ///
+    /// **SQL Server's statement is a filtered `CREATE UNIQUE INDEX` and the other three write a
+    /// clause inside the `CREATE TABLE`**, which is `nvs_db::ddl` reading
+    /// `rule:core-classes/a-unique-key-reads-nulls-as-distinct` for every schema on that backend
+    /// and not this one asking for anything. It is the difference between a queue that works around
+    /// a dialect and a dialect brought into line: a `UNIQUE` constraint there would read this
+    /// column's nulls as equal and cap the whole queue at one released job, so the predicate is
+    /// what makes `dedupe_pending` mean the same thing on all five.
     #[test]
     fn the_queues_dedupe_constraint_is_one_column_in_every_dialect() {
         let schema = super::schema();
         for driver in nvs_db::Driver::ALL.iter().copied() {
-            let jobs = nvs_db::ddl::create_schema(&schema, nvs_db::Dialect::of(driver))
-                .into_iter()
+            let dialect = nvs_db::Dialect::of(driver);
+            let statements = nvs_db::ddl::create_schema(&schema, dialect);
+            let jobs = statements
+                .iter()
                 .find(|statement| statement.contains(JOBS_TABLE))
                 .expect("the jobs table is created in every dialect");
-            for construct in ["dedupe_key", "dedupe_pending", "nvs_jobs_dedupe"] {
+            for construct in ["dedupe_key", "dedupe_pending"] {
                 assert!(
                     jobs.contains(construct),
                     "{}'s `{JOBS_TABLE}` does not declare `{construct}`",
                     driver.display_name()
                 );
             }
+
+            let key: Vec<&String> = statements
+                .iter()
+                .filter(|statement| statement.contains("nvs_jobs_dedupe"))
+                .collect();
+            assert_eq!(
+                key.len(),
+                1,
+                "{} emits `nvs_jobs_dedupe` other than once",
+                driver.display_name()
+            );
+            assert_eq!(
+                key[0].starts_with("CREATE UNIQUE INDEX"),
+                dialect == nvs_db::Dialect::SqlServer,
+                "{} spells the dedupe key as `{}`",
+                driver.display_name(),
+                key[0]
+            );
             assert!(
-                !jobs.contains("where state") && !jobs.contains("GENERATED ALWAYS AS ("),
+                !key[0].contains("where state") && !key[0].contains("GENERATED ALWAYS AS ("),
                 "{} reached gap 3's guarantee by a construct the vocabulary does not hold",
                 driver.display_name()
             );

@@ -53,6 +53,13 @@
 //!   `MAX` type is not a key column there. The statement is still emitted,
 //!   because § 8 says a step is shown in full even when it will not run, and
 //!   § 5's grading is where it becomes a refusal rather than a failure.
+//! - **A SQL Server unique key over a nullable column is a filtered index**,
+//!   because its `UNIQUE` constraint is the one spelling of the four that reads
+//!   that column's nulls as equal and refuses the second of them.
+//!   `rule:core-classes/a-unique-key-reads-nulls-as-distinct` is the guarantee
+//!   the vocabulary makes, so the dialect is brought into line here rather than
+//!   worked around by every schema that needs one. [`filtered_unique_index`] is
+//!   both doors: inside a `CREATE TABLE` and after the fact.
 //! - **SQLite's identity is the rowid or nothing.** `AUTOINCREMENT` is legal
 //!   only in the exact `INTEGER PRIMARY KEY AUTOINCREMENT` form, so an
 //!   identity column that is one of several primary-key columns is emitted
@@ -123,13 +130,19 @@ pub fn create_schema(schema: &Schema, dialect: Dialect) -> Vec<String> {
 
 /// The statements that create `table`: its columns, its keys and its indexes.
 ///
-/// One statement on MySQL and one plus an index on the other three, which is
-/// the departure `mysql_declares_an_index_inside_its_create_table_having_no_if_not_exists`
+/// MySQL declares its indexes inside the `CREATE TABLE` and the other three
+/// declare them beside it, which is the departure
+/// `mysql_declares_an_index_inside_its_create_table_having_no_if_not_exists`
 /// pins. MySQL has no `CREATE INDEX IF NOT EXISTS` and no transactional DDL, so
 /// a table created by one statement and indexed by a second has a half-built
 /// state that no re-run can complete; declaring the index inside the
 /// `CREATE TABLE` means the table and its indexes arrive together or not at
 /// all. The other three either have the guard or roll the pair back.
+///
+/// SQL Server leaves the table for a second reason: a unique key over a
+/// nullable column is [`filtered_unique_index`]'s statement of its own there
+/// rather than a clause, because the constraint form reads that column's nulls
+/// as equal.
 #[must_use]
 pub fn create_table(table: &Table, dialect: Dialect) -> Vec<String> {
     let mut statements = vec![create_table_statement(
@@ -137,6 +150,12 @@ pub fn create_table(table: &Table, dialect: Dialect) -> Vec<String> {
         table,
         dialect,
     )];
+    statements.extend(
+        table
+            .unique_keys()
+            .iter()
+            .filter_map(|key| filtered_unique_index(table, key, dialect)),
+    );
     if dialect != Dialect::MySql {
         statements.extend(
             table
@@ -170,11 +189,15 @@ fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String
         ));
     }
     for key in table.unique_keys() {
-        clauses.push(format!(
-            "CONSTRAINT {} UNIQUE ({})",
-            key.name(),
-            key_columns(table, key.columns(), dialect)
-        ));
+        // SQL Server's spelling of a nullable unique key is an index, which
+        // [`create_table`] writes beside the table rather than inside it.
+        if null_filter(table, key, dialect).is_none() {
+            clauses.push(format!(
+                "CONSTRAINT {} UNIQUE ({})",
+                key.name(),
+                key_columns(table, key.columns(), dialect)
+            ));
+        }
     }
     if dialect == Dialect::MySql {
         for key in table.indexes() {
@@ -187,6 +210,50 @@ fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String
     }
 
     format!("CREATE TABLE {name} (\n    {}\n);", clauses.join(",\n    "))
+}
+
+/// SQL Server's spelling of a unique key over a nullable column, or `None`
+/// where the `UNIQUE` constraint form already says the same thing.
+///
+/// A unique key's nulls are distinct on every backend
+/// (`rule:core-classes/a-unique-key-reads-nulls-as-distinct`), and SQL Server's
+/// constraint is the one spelling that reads them as equal: it admits one null
+/// row and refuses the second. A unique index over the same columns, filtered
+/// to the rows whose nullable members are present, is that key with the null
+/// rows outside it — which is what the standard says and what the other three
+/// give directly. The key keeps the name the schema gave it, so
+/// [`crate::catalog`] reads it back as the same key and a second `plan`
+/// converges.
+fn filtered_unique_index(table: &Table, key: &Key, dialect: Dialect) -> Option<String> {
+    let predicate = null_filter(table, key, dialect)?;
+    Some(format!(
+        "CREATE UNIQUE INDEX {} ON {} ({}) WHERE {predicate};",
+        key.name(),
+        table.name(),
+        key_columns(table, key.columns(), dialect)
+    ))
+}
+
+/// The `WHERE` that index carries: its nullable key columns, each present.
+///
+/// A `NOT NULL` column excludes no row and is left out, so the predicate is
+/// empty exactly when the constraint form is correct as written — which is
+/// every key on the other three dialects, and a key over columns SQL Server
+/// already knows are present.
+fn null_filter(table: &Table, key: &Key, dialect: Dialect) -> Option<String> {
+    if dialect != Dialect::SqlServer {
+        return None;
+    }
+    let terms: Vec<String> = key
+        .columns()
+        .iter()
+        .filter(|name| table.column(name).is_some_and(Column::is_nullable))
+        .map(|name| format!("{name} IS NOT NULL"))
+        .collect();
+    if terms.is_empty() {
+        return None;
+    }
+    Some(terms.join(" AND "))
 }
 
 /// One `CREATE INDEX`, for the three dialects that declare one outside the
@@ -644,10 +711,13 @@ fn change_column(table: &Table, from: &Column, to: &Column, dialect: Dialect) ->
 
 /// One `CREATE INDEX` or one `ADD CONSTRAINT … UNIQUE`.
 ///
-/// SQLite is the departure and it is not a rebuild: it cannot add a constraint
-/// to an existing table, but a unique *index* is the same refusal by another
-/// name, and it keeps the name the schema gave it where the constraint form
-/// would leave an `sqlite_autoindex_…` the introspector cannot match back.
+/// Two dialects say a unique key as an index instead, for two unrelated
+/// reasons, and both keep the name the schema gave it so the introspector
+/// matches it back. SQLite cannot add a constraint to an existing table at all,
+/// and a unique index is the same refusal by another name where the constraint
+/// form would leave an `sqlite_autoindex_…`. SQL Server can, but the constraint
+/// reads a nullable column's nulls as equal, so a key over one is
+/// [`filtered_unique_index`]'s filtered index.
 fn add_key(table: &Table, key: &Key, kind: KeyKind, dialect: Dialect) -> String {
     match (kind, dialect) {
         (KeyKind::Index, _) => create_index(table, key, dialect),
@@ -657,12 +727,14 @@ fn add_key(table: &Table, key: &Key, kind: KeyKind, dialect: Dialect) -> String 
             table.name(),
             key_columns(table, key.columns(), dialect)
         ),
-        (KeyKind::Unique, _) => format!(
-            "ALTER TABLE {} ADD CONSTRAINT {} UNIQUE ({});",
-            table.name(),
-            key.name(),
-            key_columns(table, key.columns(), dialect)
-        ),
+        (KeyKind::Unique, _) => filtered_unique_index(table, key, dialect).unwrap_or_else(|| {
+            format!(
+                "ALTER TABLE {} ADD CONSTRAINT {} UNIQUE ({});",
+                table.name(),
+                key.name(),
+                key_columns(table, key.columns(), dialect)
+            )
+        }),
     }
 }
 
@@ -1279,6 +1351,108 @@ mod tests {
                     .iter()
                     .any(|statement| statement.contains("body(")),
                 "{dialect:?} indexes a text column whole"
+            );
+        }
+    }
+
+    /// A table carrying both spellings of a unique key: one over a nullable
+    /// column and one over a column that is `not null`.
+    ///
+    /// The queue's `dedupe_pending` is the first of them
+    /// (`rule:core-classes/queue-storage-is-a-table`), and the second is what
+    /// makes every assertion below a bound on both sides: an emitter that
+    /// filtered *every* unique key would satisfy each one that named only the
+    /// nullable column.
+    fn both_unique_spellings() -> Table {
+        Table::new(
+            "jobs",
+            vec![
+                Column::new("id", ScalarType::Int(IntWidth::Big))
+                    .unwrap()
+                    .identity()
+                    .unwrap(),
+                Column::new("dedupe_pending", ScalarType::Text { max: Some(255) })
+                    .unwrap()
+                    .null(),
+                Column::new("token", ScalarType::Uuid).unwrap(),
+            ],
+        )
+        .unwrap()
+        .primary_key(&["id"])
+        .unwrap()
+        .unique("jobs_dedupe", &["dedupe_pending"])
+        .unwrap()
+        .unique("jobs_token", &["token"])
+        .unwrap()
+    }
+
+    /// The step that adds one of that table's unique keys after the fact.
+    fn add_unique(table: &Table, at: usize, dialect: Dialect) -> Step {
+        step(
+            Change::AddKey {
+                table: table.clone(),
+                key: table.unique_keys()[at].clone(),
+                kind: KeyKind::Unique,
+            },
+            dialect,
+        )
+    }
+
+    /// `rule:core-classes/a-unique-key-reads-nulls-as-distinct`: SQL Server's unique key over a
+    /// nullable column is a filtered index, at both doors.
+    ///
+    /// The constraint form is the one spelling of the four that reads that
+    /// column's nulls as equal, so a second null row is refused where the
+    /// standard and the other three admit it. Both doors are asserted because
+    /// the two are written apart — a clause inside [`create_table_statement`]
+    /// and a statement in [`add_key`] — and a key that converged one way and
+    /// not the other would be a database whose plan never empties.
+    #[test]
+    fn a_unique_key_over_a_nullable_column_is_a_filtered_index_on_sql_server() {
+        let table = both_unique_spellings();
+        const FILTERED: &str = "CREATE UNIQUE INDEX jobs_dedupe ON jobs (dedupe_pending) \
+                                WHERE dedupe_pending IS NOT NULL;";
+
+        let statements = create_table(&table, Dialect::SqlServer);
+        assert!(
+            !statements[0].contains("jobs_dedupe"),
+            "the nullable key is not a clause of the table: {}",
+            statements[0]
+        );
+        assert!(
+            statements[0].contains("CONSTRAINT jobs_token UNIQUE (token)"),
+            "a NOT NULL column keeps the constraint form: {}",
+            statements[0]
+        );
+        assert!(
+            statements.iter().any(|statement| statement == FILTERED),
+            "{statements:?}"
+        );
+
+        let filtered = add_unique(&table, 0, Dialect::SqlServer);
+        assert_eq!(filtered.sql(), [FILTERED]);
+        // § 6 grades the dialect's spelling as the construct: an index built
+        // over a table that already holds rows is what a constraint costs
+        // there, and no more.
+        assert_eq!(filtered.grade(), Grade::Locking);
+        assert_eq!(
+            add_unique(&table, 1, Dialect::SqlServer).sql(),
+            ["ALTER TABLE jobs ADD CONSTRAINT jobs_token UNIQUE (token);"]
+        );
+
+        for dialect in [Dialect::PostgreSql, Dialect::MySql, Dialect::Sqlite] {
+            let written = create_table(&table, dialect);
+            assert!(
+                written[0].contains("CONSTRAINT jobs_dedupe UNIQUE (dedupe_pending)"),
+                "{dialect:?} needs no filter for a nullable unique key: {}",
+                written[0]
+            );
+            assert!(
+                !written
+                    .iter()
+                    .chain(add_unique(&table, 0, dialect).sql())
+                    .any(|statement| statement.contains("IS NOT NULL")),
+                "{dialect:?} wrote a predicate it does not need"
             );
         }
     }
