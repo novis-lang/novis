@@ -2163,6 +2163,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   not run since. Write the tag under the item's final paragraph, and run `python tools/owners.py
   --check --untagged-is-an-error` in the same session as any edit to a `# Known gaps` block.
   [until: reviewed 2026-09-15]
+- **A `file:NN` anchor into a prose doc cannot be re-derived from a symbol, and `carried-gaps.md`
+  loses rows every time an owner goes green.** Stage 0's "`docs/agent/carried-gaps.md:62`'s owner
+  cell" landed in the middle of § *Unowned*'s prose, because rows had been struck from the § *Owned*
+  table since the goal was written, and three of the rows still there were plausible candidates.
+  Date the anchor rather than guessing which one: `git log --diff-filter=A --format=%H -1 --
+  <the file that wrote the anchor>` names the commit it was written at, and `git show <sha>:<doc> |
+  sed -n '<NN-14>,<NN+2>p'` prints the line it meant. [until: reviewed 2026-09-15]
 
 ## Running things
 
