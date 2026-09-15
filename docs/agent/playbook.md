@@ -5031,6 +5031,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Keep a comment rewrite the same number of lines when the case pins a diagnostic, or update the
   expectation in the same edit — and read the failure's `-->` before looking at the message, since
   the message is what you did not touch. [until: reviewed 2026-09-15]
+- **A child's ceiling is what *remains* of its parent's budget, so a sub-cap case asserting an exact
+  byte count fails by a few kilobytes.** `Ctx::narrow_under` resolves a narrowing against `Remains`
+  (`crates/nvs-runtime/src/ctx/isolate.rs:590`), and the shortfall is whatever the run has spent by
+  then, which is not a constant. Assert the direction — tighter than the parent's ceiling for a
+  narrowing, no wider for a refused widening — reading the parent's own number while it is still
+  reachable. [until: gone crates/nvs-runtime/src/ctx/isolate.rs:Remains]
 
 ## Splitting a file that got too big
 

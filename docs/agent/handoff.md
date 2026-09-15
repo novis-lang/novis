@@ -4,65 +4,56 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
-stages 3 to 8 are complete, and stage 9 has one item left. Nothing is blocked.
+stages 3 to 8 are complete, and stage 9's three checks are green. Nothing is blocked.
 
-**A `fleet` fire now holds its lease for as long as it runs.** `Leases` has a `renew` beside `take`;
-`took_the_lease` hands the fire the key it took, and `Renewal::keep` spawns a timer on the **fire's
-own task** that asks for the interval again at half of it. That timer is a child of the fire, so the
-run ending — or § 6's `kill` cancelling it — is the whole of what stops it, and there is no guard to
-write. A key this host has lost stops the timer and is one line an operator sees; the run is left
-alone, which is § 3's at-most-once bound rather than a hole in it.
+**A `[[schedule]]` entry's `limits` and `grants` narrow the run it fires.** `Armed` carries an
+`nvs_runtime::host::Narrowing` built beside `overlap` when the entry is armed, and `fire` applies it
+with `Isolate::narrowed_by`, so a sub-cap is the ticker's question exactly as `overlap` is. Nothing is
+checked against the deployment first, because applying it *is* the check: a `limits` above the
+deployment's ceiling leaves that ceiling standing, and a capability the deployment withheld is still
+refused at the door. `rule:config/a-schedule-entry-narrows-only` is `shipped`, and now states the
+decision this slice reached — a `grants` entry narrows by capability **name**, the scope written
+beside it narrows nothing, and a second channel carrying scopes is refused rather than deferred.
 
-**`nvs serve` answers it over `nvs_stdlib::Lease::renew`**, through the same `FleetLease::asked`
-funnel as `take`, so an unreachable store or a socket already answering another fire is a logged
-`false`. The store is an `Rc<dyn Leases>` from the boot down, because the renewal outlives both the
-`arm` frame and the tick's.
-
-**`rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` is `shipped`** — the renewal was its
-last unbuilt half. `crates/nvs-server/src/schedule.rs`'s `# Known gaps` is back to one entry.
+**A fire's context carries no configuration, which is the module's one known gap**
+(`crates/nvs-server/src/schedule.rs:78`). Read, not run: `fire` builds the run's root as
+`Ctx::new(OutputSink::Sink)` (`crates/nvs-server/src/schedule.rs:759`),
+`nvs_runtime::capability::granted` answers `false` for a context holding none
+(`crates/nvs-runtime/src/capability.rs:133`), and `nvs_runtime::script::resolve` asks it for
+`script.spawn` before compiling anything (`crates/nvs-runtime/src/script.rs:287`) — so under
+`nvs serve` a fire is denied at the door, and the `limits` half of a sub-cap has no ceiling to
+narrow. The grant half lands regardless: it subtracts from a list rather than setting a directive.
 
 ## Next group
 
-**Stage 9: the schedule — each entry's sub-caps** — one file set: `crates/nvs-server/src/schedule.rs`,
-with `crates/nvs-config/src/value.rs` for the one spelling it needs.
+**Stage 9: the schedule — the configuration a fire runs under** — one file set:
+`crates/nvs-cli/src/serve.rs`, with `crates/nvs-server/src/schedule.rs` for the root it is put on.
 
-- [ ] **An entry's `limits` and `grants` narrow its run and never widen it** —
-      `crates/nvs-server/src/schedule.rs:80`, the module's one known gap. `Armed` carries an
-      `nvs_runtime::host::Narrowing` built beside `overlap` in `arm`
-      (`crates/nvs-server/src/schedule.rs:404`), and `fire` at
-      `crates/nvs-server/src/schedule.rs:673` applies it with `nvs_host::Isolate::narrowed_by`
-      (`crates/nvs-host/src/isolate.rs:221`) — the ticker's question like `overlap`, not the
-      implementor's. `Narrowing` is `crates/nvs-runtime/src/host.rs:371`: `limits` is the bare
-      directive name paired with the value **as written** — `("memory", "1M")` — and `grants` is
-      `Cap::name()` spellings, which `Cap::ALL` filtered by `Cap::grant`
-      (`crates/nvs-config/src/capability.rs:428`) answers off the entry's block.
-      `crates/nvs-runtime/tests/tree_budget.rs:259` is the shape a case reads the result back in,
-      down to `Ctx::memory_limit` and `Ctx::grants_allow`; note that
-      `crates/nvs-runtime/src/ctx/isolate.rs:591` applies a sub-cap only where the child's context
-      carries a configuration, so a fire built on a bare `Ctx` narrows grants and nothing else.
-      `rule:config/a-schedule-entry-narrows-only`. Test:
-      `a_schedule_entrys_limits_and_grants_narrow_its_run_and_never_widen_it`, `-p nvs-server`.
-- [ ] **`Setting` has no public rendering to the spelling a sub-cap is carried in** —
-      `crates/nvs-config/src/value.rs:398`'s `as_written` is exactly it and is `pub(crate)`. Widen
-      it rather than growing a second renderer in the ticker, for the reason
-      `crates/nvs-runtime/src/host.rs:355` gives for carrying text at all: one reader for the number
-      a file writes and the number a sub-cap writes.
-- [ ] **The scope half of `grants` has nowhere to go, and the rule's fragment still says so** —
-      `docs/rules/config/a-schedule-entry-narrows-only.md:8`. `Narrowing`'s grant list is capability
-      *names* and carries no scopes (`crates/nvs-runtime/src/ctx/isolate.rs:624`), so
-      `grants = {net.connect = ["reports.internal"]}` narrows the run to `net.connect` and leaves
-      the deployment's host list standing — inside the rule and short of it. Decide it with the
-      slice above: the fragment's last paragraph and one known gap, or a second channel.
+- [ ] **A fire runs under the deployment's configuration** — `crates/nvs-cli/src/serve.rs:1218`'s
+      `Scheduled::isolate` is handed the fire's own `&mut Ctx` and is the only side holding a
+      snapshot, so it is the seam; `crates/nvs-cli/src/worker.rs:227` is the shape
+      (`ctx.set_config(Arc::clone(&snapshot))`), and `crates/nvs-cli/src/serve.rs:930` is where
+      `Scheduled` is built and would take one. The root it lands on is
+      `crates/nvs-server/src/schedule.rs:759`, and the ticker's fake does the same thing in
+      `crates/nvs-server/src/schedule.rs:1060` if a case there wants a second reading.
+      `rule:config/a-scheduled-run-is-a-root-isolate` is what says a scheduled run gets the
+      deployment's `[limits]` and its `[capabilities]`; that is the half that is missing. Test:
+      `a_scheduled_fire_runs_under_the_deployments_configuration`, `-p nvs-cli`.
+- [ ] **The snapshot a fire reads is the current one and not the boot's** — the ticker holds its
+      `Rc<Scheduled>` for as long as the process runs (`crates/nvs-cli/src/serve.rs:930`), so a
+      snapshot cloned into it at boot would outlive every reload, where a request resolves one per
+      request. `rule:config/an-edit-reaches-the-next-request-without-a-restart` is the reading to
+      apply to a fire, and `rule:config/a-reload-names-what-it-could-not-apply` is where a
+      `[[schedule]]` key that cannot change says so. Decide it with the slice above.
 
 ## Backlog
 
+- Stage 9 names no check for a fire's configuration — `docs/agent/loop-goal.toml:10322` covers the
+  lease and the sub-cap only, which is why the gap above passed a green stage.
 - A fleet entry whose fire is held by `queue` or started by `kill` runs under no lease at all —
-  `crates/nvs-server/src/schedule.rs:534`'s walk answers § 6 before § 3 asks, so this host had
+  `crates/nvs-server/src/schedule.rs`'s tick walk answers § 6 before § 3 asks, so this host had
   already lost the interval. If it should take the key instead, that is § 3's reading and belongs
   in the rule.
-- A mount whose entry matches a different `[[app]]` block than the served entry takes the served
-  block's `origin`, not its own — `crates/nvs-cli/src/serve.rs`'s `fall_back_to` doc names it; the
-  general per-application gap is `crates/nvs-cli/src/serve.rs:79-90`, owned by goal `plan-truth`.
 - A fleet lease's key is `nvs:lease:` and the ticker's key with no application binding, so two
   deployments sharing one store share the lease for an entry they both name the same —
   `crates/nvs-stdlib/src/cache.rs`'s `LEASE_PREFIX` doc.

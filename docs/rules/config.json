@@ -1055,7 +1055,7 @@
     {
       "id": "config/a-schedule-entry-narrows-only",
       "title": "An entry's `limits` and `grants` narrow the deployment's, and can never widen them",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0073",
         "0005"
@@ -1065,7 +1065,9 @@
         "security/no-runtime-grant",
         "config/ceilings-are-their-own-directives"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-server/src/schedule.rs"
+      ]
     },
     {
       "id": "config/a-scheduled-run-is-a-root-isolate",
