@@ -255,17 +255,27 @@ fn claim_until_stopped(
     // every job's claim eligible again immediately, which is a busy worker, where the wrap would
     // make it eligible never.
     let window = i64::try_from(visibility.as_millis()).unwrap_or(i64::MAX);
-    take_turns(workers, || turn(ctx, &mut conn, window));
+    // A worker that stops on a failed statement says so, on the stream [`open`]'s own refusals use.
+    // The failure this is written for is a claim naming a column the table has not got, which is
+    // every deployment between a schema gaining one and `nvs queue migrate` being run: the worker
+    // ends, the queue silently never drains, and a program polling `stats` sees a counter that
+    // stays at zero with nothing anywhere to say why. Warning rather than fatal for
+    // `rule:errors/escalation-ladder`'s reason — the run's own script is not this task's to end.
+    if let Err(refused) = take_turns(workers, || turn(ctx, &mut conn, window)) {
+        eprintln!("warning: the queue worker on `[db.{name}]` stopped: {refused}");
+    }
 }
 
 /// The loop itself: a turn while [`Workers`] admits one, a nap after a turn that found nothing, and
-/// an end after a turn that failed.
+/// an end after a turn that failed, answering with what that turn refused with.
 ///
 /// Split from the connection above it because *when* the stop condition is read is the property
 /// this has to keep — a drain arriving mid-claim must not cut the write-back short — and a turn a
 /// case writes is what asserts an ordering over, where the whole of [`claim_until_stopped`] would
-/// need a database standing up before it could be asked anything at all.
-fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) {
+/// need a database standing up before it could be asked anything at all. The failure is handed back
+/// rather than reported here for the same reason: this function is what a case drives, and a case
+/// asserting that a refusal is not swallowed must be able to read it.
+fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) -> io::Result<()> {
     while !workers.stopping() {
         match turn() {
             // Something was claimed, so the roster may still hold more: turn again without
@@ -274,12 +284,13 @@ fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) {
             Ok(true) => {}
             Ok(false) => {
                 if nap() == Woken::Cancelled {
-                    return;
+                    return Ok(());
                 }
             }
-            Err(_) => return,
+            Err(refused) => return Err(refused),
         }
     }
+    Ok(())
 }
 
 /// One turn: which queues have due work, then one claim against each.
@@ -1951,7 +1962,8 @@ mod tests {
             // The shutdown, arriving while this worker is holding the core.
             drain.begin();
             Ok(true)
-        });
+        })
+        .expect("a turn that claims answers with what it claimed");
         assert_eq!(
             turns, 1,
             "the worker took {turns} turns against a drain begun during the first, so what it \
@@ -1980,7 +1992,8 @@ mod tests {
             steps.push("ran");
             steps.push("reported");
             Ok(true)
-        });
+        })
+        .expect("a turn that claims answers with what it claimed");
         assert_eq!(
             steps,
             ["claimed", "ran", "reported"],
@@ -2004,10 +2017,39 @@ mod tests {
                 workers.stop();
             }
             Ok(true)
-        });
+        })
+        .expect("a turn that claims answers with what it claimed");
         assert_eq!(
             turns, 3,
             "a run's worker took {turns} turns where the script's exit ends the third"
+        );
+    }
+
+    /// A turn that failed is handed back, so [`super::claim_until_stopped`] has something to say on
+    /// its way out.
+    ///
+    /// The failure this guards is the one that costs the most to diagnose: a claim naming a column
+    /// the table has not got — a deployment whose `nvs queue migrate` has not been run since the
+    /// schema grew — ends the worker, and a worker that ended without a word leaves a queue that
+    /// never drains and a `stats` counter stuck at zero with nothing anywhere pointing at the
+    /// database. Asserted here rather than on the message, because the loop is the half a case can
+    /// drive without a server.
+    #[test]
+    fn a_turn_that_fails_is_handed_back_rather_than_swallowed() {
+        let workers = super::Workers::new();
+        let mut turns = 0_u32;
+        let stopped = super::take_turns(&workers, || {
+            turns += 1;
+            Err(std::io::Error::other(
+                "column \"errors\" does not exist at character 8",
+            ))
+        });
+        let refused = stopped.expect_err("a worker stops on a failed turn and says what failed");
+        assert_eq!(
+            (turns, refused.to_string().contains("\"errors\"")),
+            (1, true),
+            "the worker ended on the first failing turn, and the refusal it ended on is the one the \
+             server sent"
         );
     }
 
