@@ -1,7 +1,9 @@
-//! `rule:core-classes/db-streaming`'s three promises, run against a real server
-//! rather than read: a walk that answers on the driver the harness named,
-//! constant memory over a result set whose size the answer must not depend on,
-//! and the second statement refused.
+//! What only a real server proves about a connection, run rather than read:
+//! `rule:core-classes/db-streaming`'s promises — a walk that answers on the
+//! driver the harness named, constant memory over a result set whose size the
+//! answer must not depend on, and the second statement refused — and the
+//! version the handshake delivered, which `Core\Db\Connection::serverVersion`
+//! answers out of the connection with no statement of its own.
 //!
 //! **These cases live in this crate because the promise is the member's, not a
 //! driver's.** `crates/nvs-stdlib/src/db/stream.rs` is where
@@ -377,6 +379,121 @@ fn recorded_refusal(driver: Driver, refused: &io::Error) {
     );
 }
 
+/// The statement that asks `driver` what it calls itself, in its own spelling.
+///
+/// Each one is the narrowest question the backend answers, so what comes back
+/// is the version and not a banner around it: PostgreSQL's own
+/// `server_version` setting, which is the string its startup already sent;
+/// MySQL's and MariaDB's `version()`; SQL Server's `ProductVersion`, which
+/// carries a fourth component `LOGINACK` has no room for
+/// ([ADR 0187 § 2](/docs/decisions/0187.md)); and the library version SQLite
+/// links against, which is a property of this binary either way.
+fn asking_for_the_version(driver: Driver) -> &'static str {
+    match driver {
+        Driver::Postgres => "select current_setting('server_version') as v",
+        Driver::MySql | Driver::MariaDb => "select version() as v",
+        Driver::SqlServer => "select cast(serverproperty('ProductVersion') as nvarchar(128)) as v",
+        Driver::Sqlite => "select sqlite_version() as v",
+    }
+}
+
+/// What this server answers when asked for its version.
+///
+/// Read through a walk because [`next`]'s ladder is already written for one:
+/// the cell is decoded against the description the connection is holding, at
+/// the text row of § 9's type table rather than the integer one. The walk is
+/// abandoned rather than drained, which is what leaves the connection idle for
+/// whatever a case does next.
+///
+/// # Errors
+///
+/// Whatever the driver answered to the statement or the step.
+fn reported_version(conn: &mut Connection) -> io::Result<String> {
+    let asked = asking_for_the_version(conn.driver());
+    stream(conn, asked)?;
+
+    let reported = match conn {
+        Connection::Postgres(pg) => {
+            let row = pg
+                .stream_next_row()?
+                .expect("the version statement answers a row");
+            let columns = pg
+                .stream_columns()
+                .expect("an open walk describes its columns");
+            text(columns[0].decode(row.column(0)?)?)
+        }
+        Connection::MySql(mysql) => {
+            let row = mysql
+                .stream_next_row()?
+                .expect("the version statement answers a row");
+            let columns = mysql
+                .stream_columns()
+                .expect("an open walk describes its columns");
+            let cell = row.value(0).expect("the row has the column it selected");
+            text(nvs_db::mysql::decode(&columns[0], cell)?)
+        }
+        Connection::MariaDb(maria) => {
+            let row = maria
+                .stream_next_row()?
+                .expect("the version statement answers a row");
+            let columns = maria
+                .stream_columns()
+                .expect("an open walk describes its columns");
+            let cell = row.value(0).expect("the row has the column it selected");
+            text(nvs_db::mysql::decode(&columns[0], cell)?)
+        }
+        Connection::SqlServer(tds) => {
+            let row = tds
+                .stream_next_row()?
+                .expect("the version statement answers a row");
+            let columns = tds
+                .stream_columns()
+                .expect("an open walk describes its columns");
+            let cell = row.column(0).expect("the row has the column it selected");
+            text(nvs_db::tds::decode_column(&columns[0], cell)?)
+        }
+        Connection::Sqlite(sqlite) => {
+            let cells = sqlite
+                .stream_next_row()?
+                .expect("the version statement answers a row");
+            match cells.first().expect("the row has the column it selected") {
+                SqliteValue::Text(reported) => reported.clone(),
+                other => panic!("the version statement selected text: {other:?}"),
+            }
+        }
+    };
+
+    end_stream(conn);
+    Ok(reported)
+}
+
+/// A decoded cell as § 9's `tainted string`.
+fn text(cell: Option<Value>) -> String {
+    let cell = cell.expect("the version statement's column is never NULL");
+    String::from(
+        cell.as_text()
+            .expect("a version column is one of § 9's text families"),
+    )
+}
+
+/// Whether the version the connection kept is the one this server reports.
+///
+/// **Not one comparison, because the handshake and the statement do not always
+/// hand over the same string** — and where they differ,
+/// [ADR 0187 § 2](/docs/decisions/0187.md) makes the handshake's word the
+/// answer, so the difference is what this has to know rather than work around.
+/// A MariaDB greeting prefixes the version with `5.5.5-`, which is how a server
+/// too new for MySQL's version field says so, and the statement answers the
+/// same string without it. SQL Server's `ProductVersion` spells a fourth
+/// component onto the triple `LOGINACK` sent. Everywhere else the two are the
+/// same string, and containment is then equality.
+fn kept_is_the_reported_one(driver: Driver, kept: &str, reported: &str) -> bool {
+    match driver {
+        Driver::MariaDb => kept.ends_with(reported),
+        _ => reported.contains(kept),
+    }
+}
+
 /// `rule:core-classes/db-streaming`'s *both members answer on all five drivers*, asserted on
 /// whichever one this process was pointed at.
 ///
@@ -521,4 +638,45 @@ fn a_second_statement_on_a_streaming_connection_is_a_logic_error_on_every_driver
         "an abandoned walk left the connection unpoolable"
     );
     probe(&mut conn).expect("an ended walk left the connection able to run a statement");
+}
+
+/// [ADR 0187 § 2](/docs/decisions/0187.md)'s member, asserted where the string
+/// can be wrong: against the server that produced it.
+///
+/// **Both halves of the sentence are the assertion**, and the in-crate tests
+/// beside each driver's handshake can only reach the first. That a field holds
+/// what a recorded byte string put there is what those prove; that the field
+/// holds what *this* server said is what only a leg can, because a driver
+/// reading the wrong field of a real greeting — a protocol version, a build
+/// number, the empty string — passes a recorded case written from the same
+/// misreading.
+///
+/// **The connection is idle throughout**, which is the other half of § 2: a
+/// member that answered by asking would leave a statement's worth of state
+/// behind it, and one that answers from memory cannot.
+#[test]
+fn server_version_answers_what_the_connection_kept() {
+    let Some(mut conn) = leg() else {
+        return;
+    };
+    let driver = conn.driver();
+
+    let kept = String::from(conn.server_version());
+    assert!(
+        !kept.is_empty(),
+        "every driver answers a version, and {} answered nothing",
+        driver.display_name()
+    );
+    assert_eq!(
+        conn.state(),
+        State::Idle,
+        "reading the version ran a statement"
+    );
+
+    let reported = reported_version(&mut conn).expect("the server answers what it calls itself");
+    assert!(
+        kept_is_the_reported_one(driver, &kept, &reported),
+        "the connection kept `{kept}`, and {} reports `{reported}`",
+        driver.display_name()
+    );
 }
