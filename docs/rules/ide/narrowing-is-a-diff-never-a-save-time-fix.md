@@ -1,7 +1,9 @@
-`array<T>` is invariant (`rule:types/arrays`), so narrowing a declaration is not a local edit: a binding
-that was an `array<mixed>` and is now an `array<array<int>>` no longer satisfies a parameter typed
-`array<mixed>`, and that call site needs an explicit `as array<mixed>` (`rule:types/conversion`) and its
-O(n) restamp. Two rules follow.
+Narrowing a declaration is not a local edit, because `rule:types/arrays`' element type is enforced on
+every **write**: a binding that was an `array<mixed>` and is now an `array<array<int>>` refuses the
+`$a[] = "x"` and the `$a = $wider;` that the wider annotation admitted, each of them a line the action
+did not touch. Reading it is what stays safe — the narrowed array still satisfies every wider parameter
+it reached before, that being the covariant direction — so what the action can break is exactly the
+writes, and it cannot see them from the declaration. Two rules follow.
 
 **The action is never registered under `source.fixAll.nvs`.** The casing fix and the legacy-cast fix
 compose with format-on-save because their edit cannot break another line. This one can, so it is invoked,

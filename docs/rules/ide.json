@@ -448,11 +448,12 @@
     },
     {
       "id": "ide/narrowing-is-a-diff-never-a-save-time-fix",
-      "title": "Because `array<T>` is invariant, the narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects",
+      "title": "The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see",
       "status": "designed",
       "because": [
         "0114",
-        "0007"
+        "0007",
+        "0188"
       ],
       "seeAlso": [
         "ide/narrow-an-annotation-to-its-literal",

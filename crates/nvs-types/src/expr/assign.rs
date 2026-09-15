@@ -225,9 +225,10 @@ pub(crate) fn is_assignable(
     // return type covariant, each refusing the one unsound direction: the slot
     // may be handed any `User`, and its caller was promised a `string`.
     //
-    // This is the first non-invariant relation in the checker, and `rule:types/arrays`'s invariance does not reach it: that invariance was bought to
-    // stop an O(n) restamp hiding inside an assignment, and a callable
-    // conversion restamps nothing, copies nothing and emits nothing.
+    // The variance here is free for a reason `rule:types/arrays`' covariance
+    // has to argue for: the widening that costs an O(n) restamp is `as
+    // array<U>`, and a callable conversion restamps nothing, copies nothing
+    // and emits nothing at all.
     if let (
         Ty::CallableSig {
             params: from_params,

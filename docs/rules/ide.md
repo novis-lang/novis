@@ -634,14 +634,16 @@ honest.
 
 <a id="ide-narrowing-is-a-diff-never-a-save-time-fix"></a>
 
-## Because `array<T>` is invariant, the narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects  *(designed — not yet in the compiler)*
+## The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see  *(designed — not yet in the compiler)*
 
 `rule:ide/narrowing-is-a-diff-never-a-save-time-fix`
 
-`array<T>` is invariant ([`types/arrays`](types.md#types-arrays)), so narrowing a declaration is not a local edit: a binding
-that was an `array<mixed>` and is now an `array<array<int>>` no longer satisfies a parameter typed
-`array<mixed>`, and that call site needs an explicit `as array<mixed>` ([`types/conversion`](types.md#types-conversion)) and its
-O(n) restamp. Two rules follow.
+Narrowing a declaration is not a local edit, because [`types/arrays`](types.md#types-arrays)' element type is enforced on
+every **write**: a binding that was an `array<mixed>` and is now an `array<array<int>>` refuses the
+`$a[] = "x"` and the `$a = $wider;` that the wider annotation admitted, each of them a line the action
+did not touch. Reading it is what stays safe — the narrowed array still satisfies every wider parameter
+it reached before, that being the covariant direction — so what the action can break is exactly the
+writes, and it cannot see them from the declaration. Two rules follow.
 
 **The action is never registered under `source.fixAll.nvs`.** The casing fix and the legacy-cast fix
 compose with format-on-save because their edit cannot break another line. This one can, so it is invoked,
@@ -657,7 +659,7 @@ generic helper path for the typed one, and its element writes become compile err
 throws. Nothing is spent per request, and no memory beyond one more interned descriptor where the program
 did not already have that type.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md), [0188](../decisions/0188.md).</sub>
 
 <a id="ide-highlighting-is-two-layers"></a>
 

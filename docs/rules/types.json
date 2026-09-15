@@ -217,8 +217,8 @@
       "id": "types/arrays",
       "title": "An array is PHP's ordered hash with `string` keys and a declared element type",
       "status": "shipped",
-      "because": ["0007", "0069", "0114", "0002", "0159"],
-      "divergesFromPhp": "there is no integer key — `Core\\Arr::keys()` returns `array<string>` and a `foreach` key binds as a `string` — and `array<T>` is invariant, enforced on every write",
+      "because": ["0007", "0069", "0114", "0002", "0159", "0188"],
+      "divergesFromPhp": "there is no integer key — `Core\\Arr::keys()` returns `array<string>` and a `foreach` key binds as a `string` — and an element type is declared and enforced on every write, reading covariantly",
       "seeAlso": ["types/mixed-subscript", "types/array-combination", "types/preserve-keys", "types/conversion", "types/shape-type"],
       "guardedBy": [
         "tests/conformance/array/a-numeric-string-key-normalises-to-an-int.nvst",
@@ -226,6 +226,8 @@
         "tests/conformance/lang/an-array-converts-element-by-element-and-its-nullable-twin-agrees.nvst",
         "tests/conformance/lang/a-spread-array-element-is-checked-against-the-literals-element-type.nvst",
         "tests/conformance/core/arr-a-callback-key-is-a-string-on-a-list-too.nvst",
+        "tests/conformance/core/arr-flip-takes-an-array-of-string-without-a-conversion.nvst",
+        "tests/conformance/lang/an-array-of-string-is-passed-where-an-array-of-int-or-string-is-read.nvst",
         "crates/nvs-types/tests/arrays.rs"
       ]
     },
@@ -572,7 +574,7 @@
       "id": "types/class-reference-variance",
       "title": "`class<T>` widens wherever `T` widens, and never narrows without an `as`",
       "status": "shipped",
-      "because": ["0125", "0007"],
+      "because": ["0125", "0007", "0188"],
       "seeAlso": ["types/class-reference", "types/property-key-variance", "types/arrays"],
       "guardedBy": [
         "crates/nvs-types/tests/subtyping.rs",

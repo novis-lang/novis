@@ -538,9 +538,21 @@ things change.
   builds an array. Where the value's static type satisfies the element type the check is compile-time
   and free; through `mixed` it is a runtime check, and a failure is a throw like any other
   ([`errors/propagation`](errors.md#errors-propagation)).
-- **Invariant.** `array<int>` is not an `array<int|string>`; converting is `as array<int|string>` and
-  costs an O(n) restamp ([`types/conversion`](types.md#types-conversion)). What it does not cost is a copy — the two views
-  share one copy-on-write buffer.
+- **Covariant in its element type, and the only generic name in the language that is.** An
+  `array<int>` satisfies an `array<int|string>` wherever one is *read* — a parameter, a return, an
+  assignment to a wider binding — and never the reverse, a narrowing still being written
+  `as array<int>`. The usual objection does not reach it: covariance is unsound where the wider view
+  *aliases* the narrower one, because a write through the wide view lands in storage the narrow one
+  still reads, and an array here is a copy-on-write **value** instead. The widened binding is a
+  separate array the moment anything writes to it, so the narrow one can never observe the write, and
+  a write through the wide view is checked against the wide view's own element type. What the
+  covariance buys is every signature written over a union — `Core\Arr::sum`'s
+  `array<int|float|decimal>` takes the `array<int>` a caller means by it, and `Core\Arr::flip`'s
+  `array<int|string>` takes an `array<string>`.
+- **The read is free; the conversion is not.** `as array<int|string>` is still the spelling that
+  *restamps*, at O(n), one tag test per element ([`types/conversion`](types.md#types-conversion)) — it is what converts an
+  array, where the covariant read only passes one along. Neither costs a copy: the two views share
+  one copy-on-write buffer.
 - The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`.
 - **Array literals are checked against the target type, never inferred and then compared.** Because
   every binding is annotated, a literal always has a target — which is why `var` refuses a bare one
@@ -557,7 +569,7 @@ things change.
   anything else is refused where it is written. User-written generic functions and classes are not
   part of this.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md), [0159](../decisions/0159.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md).</sub>
 
 <a id="types-array-combination"></a>
 
@@ -1457,12 +1469,13 @@ assignment to a wider binding — and **never back**. A narrowing is written lik
 
 This is covariance, and it is sound here for the reason it is unsound for a mutable container: a
 descriptor has no write side. There is nothing to put into a `class<T>`, so the argument's position is
-purely an output and the usual variance trap has nothing to catch. That is the opposite of
-`array<T>`, which is invariant because widening it costs an O(n) restamp
-([`types/arrays`](types.md#types-arrays)), and the opposite of `property<T>`, whose argument bounds a receiver instead
+purely an output and the usual variance trap has nothing to catch. `array<T>` reaches the same answer
+by the other road — it has a write side, and copy-on-write value semantics keep a write through the
+widened view out of the narrow one's storage ([`types/arrays`](types.md#types-arrays)) — which leaves `property<T>` the
+one that widens on neither argument, because its argument bounds a receiver instead
 ([`types/property-key-variance`](types.md#types-property-key-variance)).
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/arrays`](types.md#types-arrays). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/arrays`](types.md#types-arrays). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0188](../decisions/0188.md).</sub>
 
 <a id="types-class-reference-sites"></a>
 
