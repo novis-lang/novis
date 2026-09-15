@@ -521,7 +521,7 @@ pub(crate) fn infer_static_call(
         && crate::links::is_link(qname, name)
     {
         let name = name.clone();
-        crate::links::record_site(expr, &name, args, env);
+        crate::links::record_site(expr, &name, args, ctx, env);
     }
     // The static-call half of the same substitution the instance-call arm
     // above documents — see `MethodSig::returns_static`.

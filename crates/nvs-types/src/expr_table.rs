@@ -306,6 +306,30 @@ pub enum UrlPiece {
     Rest(String),
 }
 
+/// One enum-spelled capture's conversion table: what run time writes for a case
+/// that arrives as its backing integer.
+///
+/// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
+/// decides the spelling while compiling, and a **name**-spelled subset is the
+/// half that leaves work over. A case is indistinguishable from its integer by
+/// the time it is a value, so a link would otherwise build `/s/1` for a route
+/// whose segment is `/s/Sale`. A value-spelled subset gets no entry at all: the
+/// decimal `nvs_runtime::value_to_string` already writes *is* its segment.
+///
+/// Not a check, and that is what makes it affordable at all — the set a link is
+/// refused against is `crate::links`' and stays there, and these rows answer
+/// only what a segment *is*. `nvs_stdlib::router`'s `substitute` owns the other
+/// half of that distinction.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnumSpelling {
+    /// The capture's name, as the piece that substitutes it names it.
+    pub capture: String,
+    /// Every admitted case: its backing value in decimal — the text a `$params`
+    /// entry holding the case arrives as — and the segment spelling it is
+    /// written into the link as.
+    pub cases: Vec<(String, String)>,
+}
+
 impl UrlPiece {
     /// A resolved link written out in the one format
     /// [`nvs_stdlib::router::link`] reads, which is that module's to define —
@@ -316,9 +340,28 @@ impl UrlPiece {
     /// [`nvs_ir::InstKind::ConstStr`](../nvs_ir/ir/enum.InstKind.html) argument
     /// into the same `CoreCall` any other `Core` member takes, so the prepared
     /// artifact costs the instruction a literal would have cost anyway.
+    ///
+    /// **Every spelling row is written in front of the first path piece**, and
+    /// the reader is why: `substitute` builds its answer as it walks, so a
+    /// conversion table arriving after the capture it converts would arrive too
+    /// late. One row per admitted case, each holding the capture it belongs to,
+    /// so reading a row back stays a `split` of a fixed three fields.
     #[must_use]
-    pub fn prepared(pieces: &[Self]) -> String {
+    pub fn prepared(pieces: &[Self], spellings: &[EnumSpelling]) -> String {
         let mut out = String::new();
+        for spelling in spellings {
+            for (value, segment) in &spelling.cases {
+                if !out.is_empty() {
+                    out.push(nvs_stdlib::router::link::PIECE_SEPARATOR);
+                }
+                out.push(char::from(nvs_stdlib::router::link::SPELLING));
+                out.push_str(&spelling.capture);
+                out.push(nvs_stdlib::router::link::FIELD_SEPARATOR);
+                out.push_str(value);
+                out.push(nvs_stdlib::router::link::FIELD_SEPARATOR);
+                out.push_str(segment);
+            }
+        }
         for piece in pieces {
             if !out.is_empty() {
                 out.push(nvs_stdlib::router::link::PIECE_SEPARATOR);
@@ -995,6 +1038,16 @@ pub enum ExprInfo {
         /// than the path beside it, since one compiled table serves at more
         /// than one mount and the path is the half a remount changes.
         signed: Option<String>,
+        /// Every capture whose parameter narrows to a **name**-spelled enum
+        /// subset, as the table run time converts its value with — empty for
+        /// every other link, which is most of them.
+        ///
+        /// Here rather than inside a [`UrlPiece`] because it is not a property
+        /// of the *path*: [`crate::routes::link_pieces`] reads § 2's grammar and
+        /// the spelling comes off the handler's signature, so joining the two in
+        /// one variant would make the only reading of that grammar answer a
+        /// second question. [`crate::links`]' `spellings` is where they meet.
+        spellings: Vec<EnumSpelling>,
     },
     /// An `rule:types/closure-literal`
     /// `fn` closure literal, keyed by the literal's own span.

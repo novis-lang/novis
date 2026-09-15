@@ -50,26 +50,15 @@
 //!    Decided: Hand these passes the slot mapping check_args_typed already builds — Named arguments are
 //!    checked like positional ones, and three passes take a new input.
 //!    — owner: unowned-closures
-//! 2. **An enum capture's set reaches the matcher and not this pass**, so
-//!    [`within_set`] passes every value written for one.
-//!    `crate::routes::enum_capture` decides the spelling
-//!    (`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`)
-//!    and `crate::routes::RouteParam::cases` carries it to the door, but
-//!    `RouteParam::allowed` — the field this pass reads — is still filled from
-//!    `closed_set` alone, and [`segment_text`] folds a case argument to its
-//!    backing integer, which is the admitted spelling for a value-spelled subset
-//!    and not for a name-spelled one. Both halves move together or a correct
-//!    link is refused.
-//!    — owner: m7-server-surface
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{CallArgs, Expr, ExprKind};
 
-use crate::Env;
 use crate::defaults::ConstArg;
-use crate::expr_table::{ExprInfo, ExprTypeTable, UrlPiece};
+use crate::expr_table::{EnumSpelling, ExprInfo, ExprTypeTable, UrlPiece};
 use crate::routes::RouteTable;
+use crate::{Ctx, Env};
 
 /// The one class this pass answers for.
 const OWNER: &str = r"Core\Router";
@@ -124,6 +113,27 @@ struct LinkArg {
     /// spellings `rule:routing/a-capture-narrows-to-a-closed-set`'s closed sets are written in. `None` for
     /// everything else, and a `None` is checked against nothing.
     value: Option<String>,
+    /// The enum case written here, where the value is one — the entry with
+    /// **two** spellings rather than one, and so the entry that cannot be
+    /// folded to a segment until the parameter it supplies says which
+    /// (`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`).
+    case: Option<CaseArg>,
+}
+
+/// An enum case written as a `$params` value: the case, and both texts the rule
+/// above could spell it as.
+struct CaseArg {
+    /// The enum's declared name, fully qualified. Quoted in the refusal, so it
+    /// names the case the call wrote rather than the integer it folds to.
+    class: String,
+    /// The case's own name, which is the segment a **name**-spelled subset
+    /// admits.
+    name: String,
+    /// The case's backing value in decimal, which is the segment a
+    /// **value**-spelled subset admits — and the text the value arrives as at
+    /// run time under either, since a case is indistinguishable from its
+    /// integer by then (`rule:enums/no-class-machinery`).
+    value: String,
 }
 
 /// Whether `owner::member` is one of § 4's link builders — the same nominal
@@ -138,7 +148,13 @@ pub(crate) fn is_link(owner: &QName, member: &str) -> bool {
 /// Reports nothing: every refusal this pass makes is a question about the table
 /// and is made in [`resolve`], and everything decided here — a computed name, a
 /// named argument, a `$params` that is not a literal — is legal.
-pub(crate) fn record_site(call: &Expr, member: &str, args: &CallArgs, env: &mut Env<'_>) {
+pub(crate) fn record_site(
+    call: &Expr,
+    member: &str,
+    args: &CallArgs,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
     let CallArgs::List(list) = args else {
         return;
     };
@@ -154,7 +170,9 @@ pub(crate) fn record_site(call: &Expr, member: &str, args: &CallArgs, env: &mut 
     let Some(ConstArg::Str(name)) = folded_as(name_arg, crate::ty::Ty::String, env) else {
         return;
     };
-    let args = list.get(1).and_then(|arg| literal_args(&arg.value, env));
+    let args = list
+        .get(1)
+        .and_then(|arg| literal_args(&arg.value, ctx, env));
     env.links.push(LinkSite {
         span: call.span,
         member: member.to_owned(),
@@ -175,7 +193,7 @@ pub(crate) fn record_site(call: &Expr, member: &str, args: &CallArgs, env: &mut 
 /// this reads entries and not keys: the key is still a key § 6 has a question
 /// about, and only the § 5 question below is the one a computed value has no
 /// answer to.
-fn literal_args(expr: &Expr, env: &mut Env<'_>) -> Option<Vec<LinkArg>> {
+fn literal_args(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<Vec<LinkArg>> {
     let ExprKind::ArrayLiteral(items) = &expr.kind else {
         return None;
     };
@@ -195,6 +213,7 @@ fn literal_args(expr: &Expr, env: &mut Env<'_>) -> Option<Vec<LinkArg>> {
         args.push(LinkArg {
             key: text,
             value: segment_text(&item.value, env),
+            case: case_arg(&item.value, ctx, env),
         });
     }
     Some(args)
@@ -204,6 +223,11 @@ fn literal_args(expr: &Expr, env: &mut Env<'_>) -> Option<Vec<LinkArg>> {
 /// literal — `nvs_stdlib::router`'s `segment_text` reaching the same two tags
 /// through `value_to_string`, which is why an `int` is its decimal spelling
 /// here as it is there.
+///
+/// An enum case is [`case_arg`]'s and not this decoder's. It folds at neither
+/// of the two types asked here, and it could not be read at one anyway: the
+/// segment it builds is its backing value under one spelling and its case name
+/// under the other, and nothing at the call site says which.
 fn segment_text(expr: &Expr, env: &mut Env<'_>) -> Option<String> {
     match folded_as(expr, crate::ty::Ty::String, env) {
         Some(ConstArg::Str(text)) => Some(text),
@@ -211,6 +235,38 @@ fn segment_text(expr: &Expr, env: &mut Env<'_>) -> Option<String> {
             Some(ConstArg::Int(value)) => Some(value.to_string()),
             _ => None,
         },
+    }
+}
+
+/// The enum case one `$params` value names, where it names one.
+///
+/// A **written** case and nothing else: a variable holding one is a computed
+/// value, which this pass reads as little as it reads a computed string. The
+/// fold is [`crate::defaults::const_reference_default`]'s enum arm with no
+/// declared type to place against, because the position gives it none —
+/// `$params` is `array<string, mixed>`, so what decides the spelling is the
+/// parameter the key supplies and never the slot the case was written in.
+fn case_arg(expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<CaseArg> {
+    let ExprKind::ClassConstAccess { class, name } = &expr.kind else {
+        return None;
+    };
+    let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
+    let case = crate::span_text(env.src, *name).to_owned();
+    let value = env.enums.case(&qname, &case)?;
+    Some(CaseArg {
+        class: qname.to_string(),
+        name: case,
+        value: decimal(value),
+    })
+}
+
+/// One case's backing value as the decimal a `$params` entry carries it as —
+/// [`crate::enums::EnumValue`]'s two arms, which print the same way and are
+/// kept apart only by what they can hold.
+fn decimal(value: crate::enums::EnumValue) -> String {
+    match value {
+        crate::enums::EnumValue::Int(number) => number.to_string(),
+        crate::enums::EnumValue::Uint(number) => number.to_string(),
     }
 }
 
@@ -273,6 +329,7 @@ pub(crate) fn resolve(
         exprs.record(
             site.span,
             ExprInfo::RouteLink {
+                spellings: spellings(&pieces, row),
                 pieces,
                 absolute: site.member == ABSOLUTE,
                 // The name the lookup succeeded on, not the one the call
@@ -283,6 +340,44 @@ pub(crate) fn resolve(
             },
         );
     }
+}
+
+/// Every capture of `pieces` whose parameter narrows to a **name**-spelled enum
+/// subset, as the table `nvs_stdlib::router`'s `substitute` converts the
+/// arriving value with.
+///
+/// A value-spelled subset contributes nothing, and that is why this is a table
+/// and not a flag: a case reaches run time as its backing integer, whose
+/// decimal is already the segment such a subset admits, so only the name-spelled
+/// half has a conversion left to make
+/// (`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`).
+/// A `#[Query]` parameter contributes nothing either — its value is not a piece,
+/// and a key the path does not consume becomes
+/// `rule:routing/a-leftover-link-key-is-a-query-string`'s query string.
+fn spellings(pieces: &[UrlPiece], row: &crate::routes::Route) -> Vec<EnumSpelling> {
+    pieces
+        .iter()
+        .filter_map(|piece| match piece {
+            UrlPiece::Required(name) | UrlPiece::Optional(name) | UrlPiece::Rest(name) => {
+                Some(name)
+            }
+            UrlPiece::Literal(_) => None,
+        })
+        .filter_map(|name| {
+            let param = row.params.iter().find(|param| {
+                param.source == crate::routes::ParamIn::Path && param.name == *name
+            })?;
+            let narrowed = param.cases.as_ref()?;
+            (!narrowed.by_value).then(|| EnumSpelling {
+                capture: name.clone(),
+                cases: narrowed
+                    .cases
+                    .iter()
+                    .map(|(spelling, value)| (decimal(*value), spelling.clone()))
+                    .collect(),
+            })
+        })
+        .collect()
 }
 
 /// `rule:routing/a-leftover-link-key-is-a-query-string`'s compile error, which is [`covered`] read the other way round:
@@ -419,9 +514,17 @@ fn covered(
 /// § 3 gives a query value the same type list a capture has: a value outside it
 /// is the handler's own `400` rather than a `404`, which is a different answer
 /// to the same dead link. What is *not* checked is a value that did not fold
-/// ([`LinkArg::value`]) and a parameter whose type names no set at all
-/// ([`crate::routes::RouteParam::allowed`]) — in both cases there is nothing to
-/// compare, exactly as [`declared`] reads only literal keys.
+/// ([`LinkArg::value`], [`LinkArg::case`]) and a parameter whose type names no
+/// set at all ([`crate::routes::RouteParam::admits`]) — in both cases there is
+/// nothing to compare, exactly as [`declared`] reads only literal keys.
+///
+/// **An enum subset is one of the sets**, and the entry against it is read
+/// under the subset's own spelling: a case written for a value-spelled subset
+/// is its backing value and one written for a name-spelled subset is its name,
+/// which is [`supplied`]'s whole job. So a link into either half is checked
+/// against exactly the segments the match would claim, and the one written
+/// `Lang::Fr` for a subset admitting neither spelling of it is a link to a
+/// `404`.
 ///
 /// The **first** offending value is reported and the walk stops, as the pair
 /// above stops: one refusal per call, because a `$params` written against the
@@ -434,28 +537,25 @@ fn within_set(
     diags: &mut Diagnostics,
 ) -> bool {
     for arg in args {
-        let (Some(value), Some(param)) = (
-            arg.value.as_deref(),
-            row.params.iter().find(|param| param.name == arg.key),
-        ) else {
+        let Some(param) = row.params.iter().find(|param| param.name == arg.key) else {
             continue;
         };
-        let Some(allowed) = &param.allowed else {
+        let (Some(set), Some((segment, written))) = (param.admits(), supplied(arg, param)) else {
             continue;
         };
-        if allowed.iter().any(|admitted| admitted == value) {
+        if set.contains(&segment) {
             continue;
         }
-        let named = allowed
+        let named = set
             .iter()
-            .map(|admitted| format!("`{admitted}`"))
+            .map(|spelling| format!("`{spelling}`"))
             .collect::<Vec<_>>()
             .join(", ");
         diags.report(
             Diagnostic::error(
                 code::E_ROUTE_LINK_VALUE_NOT_IN_SET,
                 format!(
-                    "`{}` admits {named} for `{}`, and this link supplies `{value}`",
+                    "`{}` admits {named} for `{}`, and this link supplies `{written}`",
                     row.handler, arg.key
                 ),
             )
@@ -470,4 +570,25 @@ fn within_set(
         return false;
     }
     true
+}
+
+/// The segment one entry would build, and the text a refusal quotes it as.
+///
+/// Two answers rather than one because an enum case is written one way and
+/// substituted another: the comparison is against the segment, and the message
+/// names `Lang::Fr` rather than the integer nobody wrote. The parameter decides
+/// which segment a case is — its written backing value under a value-spelled
+/// subset, its name under a name-spelled one, and, for a parameter that narrows
+/// to no enum at all, the integer it folds to, which is what both `substitute`
+/// and the match would make of it.
+fn supplied<'a>(arg: &'a LinkArg, param: &crate::routes::RouteParam) -> Option<(&'a str, String)> {
+    if let Some(case) = &arg.case {
+        let segment = match &param.cases {
+            Some(narrowed) if !narrowed.by_value => case.name.as_str(),
+            _ => case.value.as_str(),
+        };
+        return Some((segment, format!("{}::{}", case.class, case.name)));
+    }
+    let value = arg.value.as_deref()?;
+    Some((value, value.to_owned()))
 }

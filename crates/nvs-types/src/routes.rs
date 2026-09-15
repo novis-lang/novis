@@ -501,7 +501,9 @@ pub struct RouteParam {
     ///
     /// Computed here, where the interner is still alive, for [`Self::ty`]'s
     /// reason exactly. An enum-case member contributes nothing and takes the
-    /// whole set with it — see [`closed_set`], which owns why.
+    /// whole set with it — see [`closed_set`], which owns why, and
+    /// [`Self::admits`], which is how a reader asking for the whole set gets
+    /// the enum half too.
     pub allowed: Option<Vec<String>>,
     /// `true` where the declared type is a class a segment reaches through its
     /// own `parse` — `rule:expressions/try-parse`'s pair read as `Parses`, which
@@ -525,6 +527,35 @@ pub struct RouteParam {
     pub cases: Option<EnumCapture>,
 }
 
+impl RouteParam {
+    /// Every segment this parameter admits, in the order the declaration gives
+    /// them, or `None` where its declared type names no set at all.
+    ///
+    /// [`Self::allowed`]'s literal union and [`Self::cases`]' enum subset are
+    /// never both filled ([`closed_set`] owns why), and this is the one question
+    /// every reader of either asks: `crate::links`' refusal of a link outside
+    /// the set, and `nvs_cli::openapi`'s `enum:` row. One function rather than
+    /// two readings, because
+    /// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
+    /// has a route, its links and its generated document spelled the same way,
+    /// and two readers each deriving that from one field is how they would stop
+    /// being.
+    #[must_use]
+    pub fn admits(&self) -> Option<Vec<&str>> {
+        if let Some(allowed) = &self.allowed {
+            return Some(allowed.iter().map(String::as_str).collect());
+        }
+        Some(
+            self.cases
+                .as_ref()?
+                .cases
+                .iter()
+                .map(|(spelling, _)| spelling.as_str())
+                .collect(),
+        )
+    }
+}
+
 /// The enum a capture or a `#[Query]` value narrows to: the enum's own name,
 /// and every admitted case as the text that matches it beside the constant that
 /// text becomes.
@@ -545,6 +576,17 @@ pub struct EnumCapture {
     /// map has no declaration order to take, which is the same reason
     /// `nvs_types::commands`' twin sorts.
     pub cases: Vec<(String, crate::enums::EnumValue)>,
+    /// `true` where [`Self::cases`]' spellings are the written backing values,
+    /// and `false` where they are the case names — the rule's two halves, taken
+    /// per subset by [`enum_capture`].
+    ///
+    /// Carried because a **link** asks a question of that choice the match does
+    /// not. A `$params` entry written `Lang::Fr` is a case by name and an
+    /// integer by value at once, so only this field says which of the two the
+    /// segment it would build is — `crate::links`' `within_set` reads it to
+    /// refuse a case outside the subset, and its `spellings` reads it to decide
+    /// whether run time has a conversion left to make at all.
+    pub by_value: bool,
 }
 
 /// Every route the program declares, in the order they were walked — file by
@@ -1880,7 +1922,11 @@ fn enum_capture(ty: crate::ty::TypeId, span: Span, env: &mut Env<'_>) -> Option<
             return None;
         }
     }
-    Some(EnumCapture { class, cases })
+    Some(EnumCapture {
+        class,
+        cases,
+        by_value: spell_by_value,
+    })
 }
 
 /// Every case `ty` admits, and the enum they are cases of — a whole enum, one

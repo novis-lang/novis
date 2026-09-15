@@ -254,9 +254,10 @@ impl<'a> Lowering<'a> {
                     pieces,
                     absolute,
                     signed,
+                    spellings,
                 }) = self.exprs.lookup(expr.span)
                 {
-                    let prepared = nvs_types::UrlPiece::prepared(pieces);
+                    let prepared = nvs_types::UrlPiece::prepared(pieces, spellings);
                     let absolute = *absolute;
                     let signed = signed.clone();
                     return self.lower_route_link(&prepared, absolute, signed, args, env, cur);

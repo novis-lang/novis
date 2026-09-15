@@ -693,9 +693,11 @@ const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
 /// **Argument 0 is the route's path, already split.** `nvs_types::routes`'
 /// `link_pieces` reads § 2's grammar — the only reading of it anywhere — and
 /// `nvs_types::UrlPiece::prepared` writes its answer out in this format:
-/// pieces separated by [`link::PIECE_SEPARATOR`], each one a tag byte from the four
+/// pieces separated by [`link::PIECE_SEPARATOR`], each one a tag byte from the
 /// constants below followed by its text. Reading it back is a `split` and a
 /// byte test, so no second parser of a path exists to disagree with the first.
+/// A [`link::SPELLING`] row is the one piece that is not part of the path, and
+/// every one of them is written in front of the first piece that is.
 pub mod link {
     /// `nvs_core_router_link` — `Core\Router::url` with the lookup already
     /// made.
@@ -725,6 +727,23 @@ pub mod link {
     pub const OPTIONAL: u8 = b'O';
     /// `{name...}`: [`REQUIRED`] with the value's own `/`s left alone.
     pub const REST: u8 = b'*';
+    /// One row of a capture's enum spelling table, and never a piece of the
+    /// path: `E`, the capture's name, and then its backing value and the
+    /// segment it is written as, each behind a [`FIELD_SEPARATOR`].
+    ///
+    /// A name-spelled enum subset is the one capture whose value is not already
+    /// its own segment
+    /// (`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`):
+    /// a case reaches run time as its backing integer, and the segment the match
+    /// claims is the case *name*. So the compiler writes the pair down and
+    /// [`super::substitute`] looks the arriving text up in it. Rows come before
+    /// every path piece, which is what lets that walk substitute as it goes.
+    pub const SPELLING: u8 = b'E';
+    /// What separates a spelling row's three fields, for
+    /// [`PIECE_SEPARATOR`]'s reason one control byte along: a capture name is an
+    /// identifier, a backing value is a decimal, and a segment spelling is one
+    /// of the two.
+    pub const FIELD_SEPARATOR: char = '\u{2}';
 
     /// Every symbol here, for [`crate::symbols`], which builds the JIT's
     /// roster out of the member rows and so would never reach an
@@ -785,6 +804,44 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
     Ok(owned)
 }
 
+/// One [`link::SPELLING`] row, split into the capture it belongs to, the
+/// backing value and the segment that value is written as.
+///
+/// # Errors
+///
+/// A row that is not three fields, which nothing can reach — the comment at the
+/// binding below is why.
+fn spelling_row(row: &str) -> Result<(&str, &str, &str), Fault> {
+    let mut fields = row.split(link::FIELD_SEPARATOR);
+    // Unreachable from source, and not through a diagnostic refusing an
+    // argument: the row is `nvs_types::UrlPiece::prepared`'s output carried as
+    // the `ConstStr` `nvs_ir::lower` writes, never a program's value, and that
+    // writer pushes both separators for every row it writes — so a row is three
+    // fields for the reason a piece is a tag byte and its text.
+    let (Some(capture), Some(value), Some(segment), None) =
+        (fields.next(), fields.next(), fields.next(), fields.next())
+    else {
+        return Err(Fault::fatal(
+            "a prepared route link's spelling row is a capture, a value and a segment",
+        ));
+    };
+    Ok((capture, value, segment))
+}
+
+/// One capture's value as the segment it is written into the link as, through
+/// the prepared template's spelling rows.
+///
+/// The rows are keyed by the case's **backing value**, so text that is not one
+/// of those decimals is already a segment and is handed back as it stands: a
+/// program writing `Shelf::Sale` and one writing `"Sale"` build the same link,
+/// and a value the subset does not admit builds the dead link [`substitute`]
+/// says a value outside the set builds.
+fn spelled(rows: &[(&str, &str, &str)], key: &str, text: String) -> String {
+    rows.iter()
+        .find(|(capture, value, _)| *capture == key && text == *value)
+        .map_or(text, |(_, _, segment)| (*segment).to_owned())
+}
+
 /// The prepared path with every capture substituted — the whole of both link
 /// helpers below, since they differ only in what stands in front of it.
 ///
@@ -831,6 +888,12 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
 /// and never an escape from one. This is § 6's rule for a computed key, applied
 /// to a computed value for the same reason — the two halves of one entry answer
 /// the same way.
+///
+/// The [`link::SPELLING`] rows that *do* cross are the other question and not
+/// this one. They say what segment a name-spelled enum case is — the one value
+/// whose own text is not the segment the match claims — and never whether it is
+/// admitted, so a value they do not name passes through and the refusal still
+/// happens once, at the only place the set is knowable.
 fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fault> {
     let raw = params.array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
@@ -844,6 +907,9 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
     // Every key the path consumed, in the order the pieces name them — what
     // the query string below is the complement of.
     let mut captures: Vec<&str> = Vec::new();
+    // Read before the first capture is substituted, which the writer guarantees
+    // by putting every row in front of every path piece — see [`link::SPELLING`].
+    let mut spellings: Vec<(&str, &str, &str)> = Vec::new();
     for piece in template.split(link::PIECE_SEPARATOR) {
         // Unreachable from source, and not through a diagnostic refusing an
         // argument: `template` is never a program's value. It is
@@ -865,6 +931,10 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
             out.push_str(key);
             continue;
         }
+        if *tag == link::SPELLING {
+            spellings.push(spelling_row(key)?);
+            continue;
+        }
         captures.push(key);
         let Some(value) = params.get(key.as_bytes()) else {
             if *tag == link::OPTIONAL {
@@ -875,7 +945,7 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
                  captures"
             )));
         };
-        let text = segment_text(value, member, key)?;
+        let text = spelled(&spellings, key, segment_text(value, member, key)?);
         out.push('/');
         if *tag == link::REST {
             let encoded: Vec<String> = text
@@ -958,7 +1028,11 @@ const URL_SIGNED: &str = r"Core\Router::urlSigned";
 /// could not agree on whether it arrived as an `int` or as a `string`. A
 /// nested array stays an array, so the bracket convention a query parameter
 /// carries survives into the signed bytes rather than being flattened into
-/// text whose parse would be a second grammar.
+/// text whose parse would be a second grammar. An enum case is its backing
+/// value's text on both sides under either spelling, for that same reason — the
+/// verifying half holds a match whose capture was converted to that value, and
+/// the segment spelling [`substitute`] writes is a property of the link rather
+/// than of the route's identity.
 fn signed_payload(name: &str, params: &Value, member: &str) -> Result<Value, Fault> {
     let mut payload = NvsArray::new();
     payload.set(

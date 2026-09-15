@@ -205,7 +205,8 @@ pub use defaults::ConstArg;
 pub use derive::{DerivedCodec, DerivedField};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{
-    Delegation, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, LocalBinding, ResolvedCall, UrlPiece,
+    Delegation, EnumSpelling, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, LocalBinding,
+    ResolvedCall, UrlPiece,
 };
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
 /// The class `Core\Script::finish()` raises, for `nvs-ir` to build an instance

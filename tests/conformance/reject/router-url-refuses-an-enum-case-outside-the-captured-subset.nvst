@@ -1,0 +1,52 @@
+--TEST--
+`Core\Router::url` refuses an enum case the capture's subset does not admit, and refuses the spelling that subset did not take — `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`, `rule:routing/link-name-and-params-are-checked`
+--FILE--
+<?nvs
+// One enum per half of the rule: `Lang` wrote every value, so its subsets are
+// spelled by those integers, and `Shelf` counts, so its subsets are spelled by
+// case name. Each declares a third case the captures below leave out, which is
+// what gives this file a value inside the enum and outside the set.
+enum Lang: uint { De = 7, En = 9, Fr = 11 }
+enum Shelf { New, Sale, Clearance }
+
+class Docs {
+    // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`.
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "docs.page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(Lang::De|Lang::En $lang): string { return "page"; }
+
+    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get, name: "docs.shelf")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function shelf(Shelf::New|Shelf::Sale $shelf): string { return "shelf"; }
+}
+
+// The accepted half of the bound, one call per spelling, and the reason the
+// refusals below are about the *set* rather than about writing a case at all.
+// What each of these builds is
+// `core/router-url-writes-an-enum-cases-spelling-in-a-link.nvst`, which is the
+// half a program that does not compile cannot show.
+echo Core\Router::url("docs.page", ["lang" => Lang::En]), "\n";
+echo Core\Router::url("docs.shelf", ["shelf" => Shelf::Sale]), "\n";
+
+// The first refused: a case of the same enum the subset leaves out. The segment
+// it would build names no admitted case, so the request would fall through to a
+// `404` and the link is dead before the program runs.
+echo Core\Router::url("docs.page", ["lang" => Lang::Fr]), "\n";
+echo Core\Router::url("docs.shelf", ["shelf" => Shelf::Clearance]), "\n";
+
+// The other half of the bound: an admitted case, written as the spelling its
+// own subset did not take. `De` is admitted and `/p/De` still matches nothing,
+// because that subset is spelled by value; `1` is `Shelf::Sale`'s value and
+// `/s/1` matches nothing, because that one is spelled by name.
+echo Core\Router::url("docs.page", ["lang" => "De"]), "\n";
+echo Core\Router::url("docs.shelf", ["shelf" => 1]), "\n";
+--EXPECTF-ERROR--
+error[E0772]: `Docs::page` admits `7`, `9` for `lang`, and this link supplies `Lang::Fr`
+%A
+error[E0772]: `Docs::shelf` admits `New`, `Sale` for `shelf`, and this link supplies `Shelf::Clearance`
+%A
+error[E0772]: `Docs::page` admits `7`, `9` for `lang`, and this link supplies `De`
+%A
+error[E0772]: `Docs::shelf` admits `New`, `Sale` for `shelf`, and this link supplies `1`
+%A
+error: aborting due to 4 errors

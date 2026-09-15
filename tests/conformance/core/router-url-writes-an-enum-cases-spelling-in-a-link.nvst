@@ -1,0 +1,65 @@
+--TEST--
+`Core\Router::url` writes an enum case as the segment the match claims — the written backing value where every admitted case wrote one, and the case name where any counted — `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`, `rule:routing/link-name-and-params-are-checked`
+--FILE--
+<?nvs
+// Both halves of the rule in one file, because the spelling is decided per
+// subset and each half only reads as a choice against the other. `Lang` wrote
+// both values, so a segment is that integer. `Shelf` counts its cases on from
+// zero, so a segment is the case name: a counted value is a position, and a
+// link built out of `/s/0` would name a different case the day a case is
+// inserted ahead of `New`.
+enum Lang: uint { De = 7, En = 9 }
+enum Shelf { New, Sale }
+
+class Docs {
+    // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`.
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "docs.page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(Lang $lang): string { return "page"; }
+
+    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get, name: "docs.shelf")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function shelf(Shelf $shelf): string { return "shelf"; }
+}
+
+// A case written at the call site, under each of the two spellings.
+echo "written=", Core\Router::url("docs.page", ["lang" => Lang::De]), "\n";
+echo "counted=", Core\Router::url("docs.shelf", ["shelf" => Shelf::Sale]), "\n";
+
+// A case the compile-time pass never read, because it is held in a variable.
+// The conversion is the link's own rather than the call site's, so a computed
+// case builds the segment a written one builds — which is what makes the
+// spelling a property of the route and not of how the program reached it.
+var $held = Shelf::New;
+echo "computed=", Core\Router::url("docs.shelf", ["shelf" => $held]), "\n";
+
+// A case is its backing integer by the time it is a value
+// (`rule:enums/no-class-machinery`), so a program writing the segment itself
+// reaches the same link: the rows the link carries convert a value and leave a
+// segment alone.
+echo "spelled=", Core\Router::url("docs.shelf", ["shelf" => "Sale"]), "\n";
+
+// The agreement the spelling exists for, counted rather than read off a line:
+// every admitted case has exactly one link, and it is the segment this route's
+// own matcher claims. A link that wrote the backing integer under the counted
+// spelling moves this number without moving any single expectation above.
+array<string> $segments = ["New", "Sale"];
+array<string> $built = [
+    Core\Router::url("docs.shelf", ["shelf" => Shelf::New]),
+    Core\Router::url("docs.shelf", ["shelf" => Shelf::Sale]),
+];
+var $agree = 0;
+foreach ($segments as string $segment) {
+    foreach ($built as string $link) {
+        if ($link == "/s/" . $segment) {
+            $agree = $agree + 1;
+        }
+    }
+}
+echo "agree=", $agree as string, "/", Core\Arr::count($segments) as string, "\n";
+--EXPECT--
+written=/p/7
+counted=/s/Sale
+computed=/s/New
+spelled=/s/Sale
+agree=2/2
