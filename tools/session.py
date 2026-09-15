@@ -584,18 +584,33 @@ def validate(sections: list[Section]) -> list[str]:
             if not s.body.lstrip().startswith("-"):
                 errors.append(f"`## playbook: {s.arg}` -- a playbook entry is a `- ` bullet")
             else:
-                if playbookmod.declaration(s.body) is None:
-                    errors.append(
-                        f"`## playbook: {s.arg}` -- the bullet declares nothing that retires it. "
-                        f"End it with `[until: <kind> <arg>]`; the five kinds are in "
-                        f"tools/playbook.py's module doc.")
-                weight = len(s.body.strip().encode("utf-8"))
-                if weight > PLAYBOOK_BULLET_MAX:
-                    errors.append(
-                        f"`## playbook: {s.arg}` -- {weight} B is past the {PLAYBOOK_BULLET_MAX} B "
-                        f"a bullet may weigh. A bullet is the trap, why, and what to do instead -- "
-                        f"three sentences, docs/agent/conventions.md § *A playbook bullet*. The "
-                        f"session's story (which stage, what was tried first) is git log's.")
+                # A section may carry more than one bullet, so every one of them is asked
+                # separately: a trailer is a property of a bullet, and checking the section as a
+                # whole reads only the last one's, which lets a malformed trailer in front of a
+                # good one land and fail `playbook.py --check` in the next session's floor.
+                found = playbookmod.blocks(s.body)
+                if not found:
+                    errors.append(f"`## playbook: {s.arg}` -- a bullet starts with `- ` at column "
+                                  f"0; this one is indented, and the file's own parsers skip it")
+                for b in found:
+                    which = f"`## playbook: {s.arg}` -- {b['lead'].strip()!r}"
+                    if playbookmod.wrapped(b["body"]):
+                        errors.append(
+                            f"{which} ends with a trailer broken across two lines. Its argument "
+                            f"would hold a newline no path, needle, name or date can, so nothing "
+                            f"ever retires the bullet. Keep the whole `[until: ...]` on one line.")
+                    elif playbookmod.declaration(b["body"]) is None:
+                        errors.append(
+                            f"{which} declares nothing that retires it. End it with "
+                            f"`[until: <kind> <arg>]`; the five kinds are in tools/playbook.py's "
+                            f"module doc.")
+                    weight = len(b["body"].strip().encode("utf-8"))
+                    if weight > PLAYBOOK_BULLET_MAX:
+                        errors.append(
+                            f"{which} is {weight} B, past the {PLAYBOOK_BULLET_MAX} B a bullet may "
+                            f"weigh. A bullet is the trap, why, and what to do instead -- three "
+                            f"sentences, docs/agent/conventions.md § *A playbook bullet*. The "
+                            f"session's story (which stage, what was tried first) is git log's.")
                 for sel in playbook_collisions(s.arg, s.body):
                     errors.append(
                         f"`## playbook: {s.arg}` -- appending this bullet leaves "

@@ -45,7 +45,10 @@ deletes the bullets whose condition holds -- and the fifth is the one for everyt
                                       than REVIEW_DAYS old as owed a re-read; re-reading it and
                                       finding it true bumps the date, finding it false deletes it
 
-A needle is a plain substring, never a regex, and may not hold `]`. The same trailer, with the
+A needle is a plain substring, never a regex, and may not hold `]`. The whole trailer sits on one
+line, past the prose's wrap column if that is what it takes: an argument carrying a line break is an
+argument no path, needle, name or date can equal, and `--check` reports one as malformed rather than
+reading it. The same trailer, with the
 same kinds, is what `docs/agent/guard-name-debt.md`'s bullets, `docs/agent/carried-gaps.md`'s
 § *Unowned* bullets and `docs/agent/carried-refusals.md`'s numbered entries carry; a row in
 carried-gaps' § *Owned* table declares through its *Owner* column instead, and `--check` flags a
@@ -316,9 +319,20 @@ def declaration(body: str) -> tuple[str, str] | None:
     """The `[until: kind arg]` a block ends with, or None when it declares nothing.
 
     `session.py --wrap` asks this of every `## playbook:` bullet before appending it, so the
-    trailer's grammar has one reader and the wrap and the check cannot disagree about it."""
+    trailer's grammar has one reader and the wrap and the check cannot disagree about it.
+
+    A trailer wrapped over two lines declares nothing. Its argument then holds a newline, which no
+    path, test name, rule slug or date can, and which a needle read out of a file will never match
+    -- so a wrapped `gone` holds the day it is written and `--retire` deletes a bullet whose trap
+    is still live. `wrapped` is what turns that into a finding."""
     m = EXPIRY.search(body.rstrip())
-    return (m.group(1), m.group(2).strip()) if m else None
+    return (m.group(1), m.group(2).strip()) if m and "\n" not in m.group(2) else None
+
+
+def wrapped(body: str) -> bool:
+    """Whether the block ends with a trailer broken across a line, which `declaration` refuses."""
+    m = EXPIRY.search(body.rstrip())
+    return bool(m and "\n" in m.group(2))
 
 
 def blocks(text: str) -> list[dict]:
@@ -457,7 +471,11 @@ def expiry_report(today: date | None = None) -> tuple[list[dict], list[dict], li
             where = {"file": rel, "path": path, "line": b["start"] + 1, "lead": b["lead"],
                      "start": b["start"], "end": b["end"]}
             if decl is None:
-                if EXPIRY_LIKE.search(b["body"]):
+                if wrapped(b["body"]):
+                    bad.append({**where, "why": "the trailer is broken across two lines, so its "
+                                "argument holds a newline no path, needle, name or date can -- put "
+                                "the whole `[until: ...]` on one line, past the wrap column if need be"})
+                elif EXPIRY_LIKE.search(b["body"]):
                     bad.append({**where, "why": "the trailer does not parse -- it is "
                                 "`[until: <kind> <arg>]`, kind one of test, exists, gone, rule, reviewed"})
                 elif must(b["section"], b["first"]):
