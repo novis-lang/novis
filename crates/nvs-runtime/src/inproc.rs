@@ -226,6 +226,7 @@ mod tests {
                 headers: Vec::new(),
                 error: None,
                 wall: None,
+                trace: Vec::new(),
             })
         }
     }

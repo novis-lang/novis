@@ -295,6 +295,12 @@ fn received(crossed: Crossed, receiving: Option<&ErrorClass>) -> Completion {
         headers: crossed.headers,
         error: crossed.error,
         wall: crossed.wall,
+        // A `spawn worker` child roots a trace of its own on the core it landed
+        // on, so there is nothing of the parent's trace here to carry back:
+        // what the parent's records of the child is the `spawn` event it filed
+        // itself (`rule:observability/spawn-is-its-own-event`), and that event
+        // is already on the parent's own context.
+        trace: Vec::new(),
     }
 }
 

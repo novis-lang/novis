@@ -97,7 +97,7 @@
 use std::cell::Cell;
 use std::time::{Duration, Instant};
 
-use crate::ctx::{Ctx, DeclaredHeader};
+use crate::ctx::{Ctx, DeclaredHeader, TraceEvent};
 use crate::graph::GraphError;
 use crate::script::{Program, ResolveError};
 use crate::throwable::Thrown;
@@ -470,6 +470,27 @@ pub struct Completion {
     /// reads no clock at all, so the parent asks once at the spawn and the
     /// child is handed the answer rather than reading the flags a second time.
     pub wall: Option<Duration>,
+    /// What the child filed for
+    /// `rule:observability/trace-events-carry-a-kind`'s kinds, moved off its
+    /// context on the way out where `rule:observability/sampling-is-head-based`
+    /// 's flag says somebody is recording this trace — and empty where nobody
+    /// is, which is every request under a `[trace] sample` of `0.0` and every
+    /// child that is not answering one.
+    ///
+    /// They leave on the completion for [`Self::content_type`]'s reason, and it
+    /// is the load-bearing one here: this is the **one** channel out of a
+    /// finished isolate, and a door that derives spans from a request it just
+    /// answered never holds that request's [`Ctx`]. `nvs_server::trace::spans`
+    /// is what derives them (`rule:observability/four-kinds-become-a-span`),
+    /// where a `call` event among them becomes no span.
+    ///
+    /// **What it spends** (`rule:programs/memory-priority`): a sampled
+    /// request's events, for as long as its completion is held, and nothing at
+    /// all for an unsampled one — the vector is moved rather than copied, and
+    /// it is moved only under the flag, so the request that pays is the one
+    /// somebody asked to record. [`Ctx::take_sampled_trace`] is where the
+    /// question is asked.
+    pub trace: Vec<TraceEvent>,
 }
 
 impl Completion {
@@ -850,6 +871,7 @@ mod tests {
                 headers: Vec::new(),
                 error: None,
                 wall: None,
+                trace: Vec::new(),
             }
         }
 

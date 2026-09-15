@@ -116,6 +116,10 @@ pub struct Isolate {
     /// response in the other — stays a value a handler can return without one
     /// arm dwarfing the other.
     inbound: Option<Box<Inbound>>,
+    /// The trace a run that answers no request is rooted in —
+    /// [`Isolate::recording`], and `None` for every isolate whose trace is the
+    /// carrier's above or the eager root `Ctx::new` drew.
+    recording: Option<nvs_runtime::TraceContext>,
     /// The origin the door that accepted this request resolved for it —
     /// [`Isolate::at_origin`], and `None` for every isolate whose context takes
     /// its parent's answer.
@@ -195,6 +199,7 @@ impl Isolate {
             charge: Charge::Tree,
             entry: Form::Path,
             inbound: None,
+            recording: None,
             origin: None,
             peer: None,
             event_stream: None,
@@ -312,6 +317,34 @@ impl Isolate {
     #[must_use]
     pub fn answering_request(&self) -> Option<&Inbound> {
         self.inbound.as_deref()
+    }
+
+    /// Roots this isolate in a trace somebody decided for it, for a run that
+    /// answers no request and so has no carrier to read one off.
+    ///
+    /// The caller is `rule:config/a-scheduled-run-is-a-root-isolate`'s fire,
+    /// and what it hands over is a head draw against `[trace] sample`
+    /// (`rule:observability/sampling-is-head-based`) — made by the implementor
+    /// that holds the tree, because a run's own context is built here and has
+    /// nothing to read a rate from. An isolate nobody calls this on keeps the
+    /// eager root `Ctx::new` drew for it, which is recorded by nothing.
+    #[must_use]
+    pub fn recording(mut self, trace: nvs_runtime::TraceContext) -> Self {
+        self.recording = Some(trace);
+        self
+    }
+
+    /// The trace this isolate will run in, for a caller that has to derive its
+    /// spans after it has ended.
+    ///
+    /// [`Self::answering_request`] owns the shape and the reason: the caller
+    /// takes what it needs while both are in one hand, because [`Self::start`]
+    /// moves this onto the child's own context and nothing above can reach it
+    /// afterwards. `None` for every isolate that reads its trace off a carrier
+    /// or inherits one.
+    #[must_use]
+    pub fn recorded_trace(&self) -> Option<nvs_runtime::TraceContext> {
+        self.recording
     }
 
     /// Gives it the origin absolute links are built from, which the child's own
@@ -524,6 +557,7 @@ impl Isolate {
             charge,
             entry,
             inbound,
+            recording,
             origin,
             peer,
             event_stream,
@@ -637,6 +671,15 @@ impl Isolate {
         // before it can run — [`Isolate::answering`] owns why it arrives here
         // rather than on the parent, and `Ctx::set_inbound` why it is written
         // once and never cleared.
+        // The trace a run with no carrier is rooted in, written first so that a
+        // door's decision has the last word: `Ctx::set_inbound` below writes
+        // the one that arrived on the request, and the two are never both here
+        // — [`Isolate::recording`] is the way in for the runs that answer no
+        // request, and `rule:config/a-scheduled-run-is-a-root-isolate`'s fire
+        // is the one that takes it.
+        if let Some(trace) = recording {
+            isolate_ctx.set_trace_context(trace);
+        }
         if let Some(inbound) = inbound {
             isolate_ctx.set_inbound(inbound);
         }
@@ -1196,6 +1239,14 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // same act — what is left on the context once the program has stopped
     // running belongs to nobody.
     drop(isolate_ctx.take_body_stream());
+    // And `rule:observability/four-kinds-become-a-span`'s half of that same
+    // act: what a recorded request filed leaves on the completion, which is the
+    // only channel to a door that never holds this context. Taken once, above
+    // every ending below, because a throw and a refused copy-out are traces
+    // somebody sampled exactly as much as a clean return is — and a request
+    // nobody is recording pays a load and a branch for the whole of it
+    // (`Ctx::take_sampled_trace`).
+    let trace = isolate_ctx.take_sampled_trace();
 
     if let Some(thrown) = thrown {
         // `rule:security/isolate-shares-nothing`'s second row: the class name and the message as copied data.
@@ -1218,6 +1269,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             // one measures the child, and a throw is a way for a body to end
             // rather than a reason not to have timed it.
             wall: None,
+            trace,
         };
     }
     if cancelled {
@@ -1229,6 +1281,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         completion.content_type = content_type;
         completion.status = status;
         completion.headers = headers;
+        completion.trace = trace;
         return completion;
     }
     // Out, at the await. A refusal here is the child's, so it is a failure
@@ -1249,6 +1302,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             headers,
             error: None,
             wall: None,
+            trace,
         },
         Err(refused) => Completion {
             ok: false,
@@ -1263,6 +1317,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
                 message: refused.to_string(),
             }),
             wall: None,
+            trace,
         },
     }
 }
@@ -1288,8 +1343,10 @@ pub(crate) fn refused_completion(message: &str) -> Completion {
             class: "Error".to_owned(),
             message: message.to_string(),
         }),
-        // No body ran, so there is no child time for a split to subtract.
+        // No body ran, so there is no child time for a split to subtract, and
+        // nothing filed an event for a trace to be derived from.
         wall: None,
+        trace: Vec::new(),
     }
 }
 
@@ -1311,6 +1368,9 @@ pub(crate) fn cancelled_completion() -> Completion {
         // The body never reported, so nothing measured it — the join that reads
         // this still closes the event, with the wall it observed alone.
         wall: None,
+        // Written over by [`finish`] for a cancellation it saw, which is the
+        // one path here that has a context to take events off.
+        trace: Vec::new(),
     }
 }
 
@@ -2590,5 +2650,59 @@ mod tests {
             done.wall.is_none(),
             "a request nobody is observing read a clock for a split nobody asked for"
         );
+    }
+
+    /// `rule:observability/four-kinds-become-a-span`'s seam: what a sampled
+    /// request filed leaves on its completion, because that is the one channel
+    /// out of a finished isolate and a door deriving spans for the request it
+    /// just answered never holds its context.
+    ///
+    /// The other half is what head sampling buys
+    /// (`rule:observability/sampling-is-head-based`): a request nobody is
+    /// recording hands over nothing at all, so its events are never copied out
+    /// of the arena they were filed in. The flag is `[trace] sample` at its two
+    /// ends, so the draw in `TraceContext::rooted` decides both runs rather
+    /// than chance.
+    #[test]
+    fn a_sampled_requests_events_reach_its_completion_and_an_unsampled_ones_do_not() {
+        for sample in [1.0, 0.0] {
+            let program: Program = Box::new(|child: &mut Ctx, _args| {
+                // A `query`, because it is one of the four a span is derived
+                // from and it is filed from a routine of its own rather than
+                // from the per-call probe a span is never derived from.
+                child.record_query("select 1 -- db=main rows=1");
+                Value::null()
+            });
+            let mut inbound = Inbound::new("GET", "/orders/17", "");
+            inbound.set_trace_context(nvs_runtime::TraceContext::rooted(sample));
+            let mut ctx = parent();
+
+            let done = run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                &mut ctx,
+            )
+            .expect("the argument crosses");
+
+            assert!(done.ok);
+            if sample > 0.0 {
+                let filed: Vec<&str> = done
+                    .trace
+                    .iter()
+                    .filter(|event| event.kind == TraceKind::Query)
+                    .map(|event| event.callee.as_str())
+                    .collect();
+                assert_eq!(
+                    filed,
+                    ["select 1 -- db=main rows=1"],
+                    "a recorded request's `query` event did not reach the door"
+                );
+            } else {
+                assert!(
+                    done.trace.is_empty(),
+                    "a request nobody is recording carried {} event(s) out for nobody to read",
+                    done.trace.len()
+                );
+            }
+        }
     }
 }

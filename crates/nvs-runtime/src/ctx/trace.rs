@@ -329,6 +329,29 @@ impl Ctx {
         &self.trace
     }
 
+    /// The events an exporter derives this request's spans from, **moved** out
+    /// of this context — and nothing at all where nobody is recording.
+    ///
+    /// The question is `rule:observability/sampling-is-head-based`'s flag and
+    /// not [`DebugFlags::TRACE`], because those two answer different things: the
+    /// flag says whether this trace is being recorded, and the bit says whether
+    /// the events were filed in the first place. A request that is not sampled
+    /// leaves them here untouched, which is what makes deriving spans cost it a
+    /// load and a branch; a sampled one gives them up, because the context is
+    /// about to be torn down and moving what is already owned costs less than
+    /// copying it. [`Ctx::trace`] answers empty afterwards, so this is called
+    /// once, where the request ends.
+    ///
+    /// [`nvs_host::Completion::trace`](crate::host::Completion::trace) is where
+    /// they go and owns the rest of the reasoning.
+    #[must_use]
+    pub fn take_sampled_trace(&mut self) -> Vec<TraceEvent> {
+        if !self.trace_context().sampled() {
+            return Vec::new();
+        }
+        std::mem::take(&mut self.trace)
+    }
+
     /// Arms a fault-injection site for this request — see [`FaultSite`] for
     /// what each one does and why the set is closed.
     pub fn inject_fault(&mut self, site: FaultSite) {

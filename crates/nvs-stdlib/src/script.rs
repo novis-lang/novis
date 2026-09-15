@@ -1225,6 +1225,12 @@ fn result_of(completion: Completion) -> Value {
         // and a program that never turned a debug bit on would read `null`
         // here for a clock nobody was allowed to consult.
         wall: _,
+        // And what a sampled child filed, which is an exporter's and not a
+        // program's: `rule:observability/four-kinds-become-a-span`'s spans are
+        // derived at the door that answers a peer, and a `spawn script`
+        // collector reading them here would be a second consumer of one
+        // request's trace.
+        trace: _,
         error,
     } = completion;
     let error = error.map_or_else(Value::null, |failure| {
