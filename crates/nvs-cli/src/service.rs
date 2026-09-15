@@ -48,16 +48,21 @@
 //! one of them and touches nothing, which is § 5's whole design on Linux and
 //! its `--print` on Windows.
 //!
-//! **Registration itself has not landed** — no `install`, `uninstall`,
-//! `start`, `stop`, `status` or `run` subcommand exists, and neither the SCM
-//! call of § 3 nor the unit-directory write and `daemon-reload` of § 5 is
-//! implemented. That is deliberate rather than forgotten: both need
-//! administrator rights on a machine somebody chose, and 0093's own
-//! *Verification* lists them among the end-to-end checks. [`Delivery`] and
-//! [`destination`] are the seam they will arrive at — `destination` already
-//! answers where a unit *would* go, and answers `None` for the printing form,
-//! which is what makes "printed, and written only on install" a property this
-//! module can be asked about rather than a comment.
+//! **Every verb is a plan of actions, and [`registration`] builds them.**
+//! `install`, `uninstall`, `start`, `stop` and `status` are each a pure
+//! function from a [`Plan`] to a list of [`registration::Action`]s — § 3's
+//! registration, § 4's `PRESHUTDOWN`, failure actions, grants and event-log
+//! source, or § 5's unit write and `daemon-reload` — applied in order through
+//! one [`registration::Manager`]. A case drives the recording manager and
+//! asserts the list, so every decision those sections take is held to with no
+//! administrator rights and on either platform.
+//!
+//! **What is not on disk is the two appliers and the subcommands that reach
+//! them**: `Scm`, `Systemd`, and the `ServiceCommand` variants beside `unit`.
+//! Nothing in this module touches a platform, which is what 0093's own
+//! *Verification* lists among the end-to-end checks: a real registration needs
+//! administrator rights on a machine somebody chose, and none of the cases
+//! here does.
 //!
 //! # The manager is told what state this process is in
 //!
@@ -190,10 +195,12 @@ pub(crate) enum Delivery {
     Print,
     /// Write it into the system unit directory.
     ///
-    /// Nothing outside a test constructs this yet: § 5's write and its
-    /// `daemon-reload` are the unlanded half the module doc names, and this
-    /// variant is the shape they will arrive as.
-    #[cfg_attr(not(test), expect(dead_code, reason = "§ 5's install has not landed"))]
+    /// [`registration::install_actions`] builds that write out of it, and the
+    /// applier that performs one is the half the module doc names as absent.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "§ 5's applier is what performs the write")
+    )]
     Install,
 }
 
@@ -1022,6 +1029,667 @@ pub(crate) fn deliver(text: &str, destination: Option<&Path>) -> std::io::Result
     }
 }
 
+/// § 3's registration and § 5's write, as a list of actions and the manager
+/// they go through.
+///
+/// **Every verb is a pure function from a [`Plan`] to a list of [`Action`]s**,
+/// and the manager that performs them is a parameter. That is what makes this
+/// half of the surface assertable with no administrator rights and on either
+/// platform: a case drives [`Recording`] and asserts the list, and the list is
+/// where every decision § 3 and § 4 take actually lives — the encoded
+/// `ImagePath`, the virtual account, `PRESHUTDOWN`, the failure actions, the
+/// grants § 4 closes and the event-log source. `--dry-run` describes that same
+/// list rather than a second rendering of it, so the change-management artifact
+/// § 5 argues for and the thing that is performed cannot drift apart.
+///
+/// The appliers `Scm` and `Systemd` arrive at [`Manager`], which is one method
+/// rather than one per verb: an [`Action`] already names what to do in its
+/// platform's own terms, and a trait with a method per row would grow one every
+/// time § 3 or § 5 gains a line.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the appliers and the subcommands that reach this seam are the slice after it"
+    )
+)]
+mod registration {
+    use super::*;
+
+    /// How long § 4's `PRESHUTDOWN` asks the machine to wait for this process.
+    ///
+    /// Plain `SHUTDOWN` allows roughly five seconds, and a drain finishes the
+    /// requests already in flight rather than dropping them, so this is a
+    /// ceiling over whatever bound `[server]` places on the drain rather than a
+    /// guess at how long one takes.
+    const PRESHUTDOWN: Duration = Duration::from_secs(180);
+
+    /// § 4's reset period: how long the service stays up before the manager
+    /// stops counting earlier failures against it.
+    const FAILURE_RESET: Duration = Duration::from_secs(600);
+
+    /// The `HKEY_LOCAL_MACHINE` key whose subkeys are event-log sources, which
+    /// is what § 4's *Output* registers at install and removes at uninstall.
+    const EVENT_SOURCES: &str = r"SYSTEM\CurrentControlSet\Services\EventLog\Application";
+
+    /// Which service manager holds the service.
+    ///
+    /// A parameter rather than a `cfg!`, because § 3's registration and § 5's
+    /// unit are each one list of actions, and a case that could only be written
+    /// on the platform it describes is a case nobody runs.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub(crate) enum Platform {
+        /// The SCM, whose own state is the only representation a service has.
+        Windows,
+        /// systemd, whose representation is a unit file.
+        Linux,
+    }
+
+    impl Platform {
+        /// The platform the installer is running on, which is the one the
+        /// service will run on — the same reading § 2's third row takes paths
+        /// against.
+        pub(crate) fn host() -> Self {
+            if cfg!(windows) {
+                Self::Windows
+            } else {
+                Self::Linux
+            }
+        }
+    }
+
+    /// § 4's failure actions, as the one decision they carry.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+    pub(crate) enum Restart {
+        /// The manager starts the service again after a failure, which is what
+        /// `--restart on-failure` asks for and what an installer that was told
+        /// nothing does.
+        #[default]
+        OnFailure,
+        /// A failure leaves the service stopped.
+        Never,
+    }
+
+    impl Restart {
+        /// The word an operator wrote, for the line `--dry-run` prints.
+        fn word(self) -> &'static str {
+            match self {
+                Self::OnFailure => "on-failure",
+                Self::Never => "never",
+            }
+        }
+    }
+
+    /// When the manager starts the service after a boot (§ 4).
+    #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+    pub(crate) enum StartMode {
+        /// At boot, with the rest of the automatic services.
+        #[default]
+        Automatic,
+        /// After them, which is § 4's delayed auto-start.
+        Delayed,
+        /// Only when somebody asks.
+        Manual,
+    }
+
+    impl StartMode {
+        /// The word an operator wrote, for the line `--dry-run` prints.
+        fn word(self) -> &'static str {
+            match self {
+                Self::Automatic => "automatic",
+                Self::Delayed => "delayed",
+                Self::Manual => "manual",
+            }
+        }
+
+        /// Whether systemd is asked to want this service at boot, which is what
+        /// `[Install] WantedBy` in the rendered unit is there for: on Linux the
+        /// two auto-start modes are one `enable`, and the manual one is the
+        /// unit sitting there unwanted.
+        fn enabled(self) -> bool {
+            matches!(self, Self::Automatic | Self::Delayed)
+        }
+    }
+
+    /// The installer's own options that § 2 has nothing to refuse about, and
+    /// the two directories § 4 grants the service's identity access to.
+    #[derive(Debug, Default)]
+    pub(crate) struct Registration {
+        /// § 4's `--start`.
+        pub(crate) start: StartMode,
+        /// § 4's `--restart`.
+        pub(crate) restart: Restart,
+        /// § 4's `--depends-on`, for a database that must come up first.
+        pub(crate) depends_on: Vec<String>,
+        /// What an administrator reads beside the name. The service's own name,
+        /// where the operator wrote nothing.
+        pub(crate) description: Option<String>,
+        /// The installer's `--log-file`, whose **directory** is granted
+        /// read/write: a process that may write the file but not the directory
+        /// cannot rotate it.
+        pub(crate) log_file: Option<PathBuf>,
+        /// `[opcache] file_cache_dir`, the artifact cache § 4 grants read/write
+        /// on. `[cache]` is `Core\Cache`'s two tiers and holds no directory at
+        /// all.
+        pub(crate) cache_directory: Option<PathBuf>,
+    }
+
+    /// What the platform still holds about an installed service.
+    ///
+    /// On Windows that is the `ImagePath` and nothing else (§ 3), read back
+    /// through [`decode`]; on Linux it is the unit's `ExecStart`. A value
+    /// rather than something [`uninstall_actions`] reads for itself, so the
+    /// property § 4 closes on — an uninstall leaves no key, no source, no unit
+    /// and no granted ACL — is one a case can assert against the very install
+    /// that granted them.
+    #[derive(Debug)]
+    pub(crate) struct Stored {
+        /// The identity the manager holds it under.
+        pub(crate) name: String,
+        /// The stored argv, decoded, which is what names the configuration
+        /// files the install granted read on.
+        pub(crate) argv: Vec<String>,
+        /// The account those grants were made to.
+        pub(crate) account: String,
+        /// The `--log-file` the install was given, if it was given one.
+        pub(crate) log_file: Option<PathBuf>,
+        /// The artifact cache directory it granted read/write on.
+        pub(crate) cache_directory: Option<PathBuf>,
+    }
+
+    /// One step a verb performs, in its platform's own terms.
+    ///
+    /// A union over both platforms rather than one enum each: the verbs are one
+    /// surface and [`Manager`] is one seam, and an applier never meets an action
+    /// its platform has no call for, because the builder that produced the list
+    /// was told which platform it was building for.
+    #[derive(Clone, PartialEq, Eq, Debug)]
+    pub(crate) enum Action {
+        /// Register the service with the SCM, carrying § 3's encoded
+        /// `ImagePath`.
+        Register {
+            name: String,
+            image_path: String,
+            account: String,
+            start: StartMode,
+            depends_on: Vec<String>,
+            description: String,
+        },
+        /// Ask for `SERVICE_CONTROL_PRESHUTDOWN`, and for the time a drain
+        /// needs.
+        Preshutdown { name: String, timeout: Duration },
+        /// Set § 4's failure actions and the period after which the manager
+        /// forgets earlier failures.
+        Failure {
+            name: String,
+            restart: Restart,
+            reset: Duration,
+        },
+        /// Grant the service's identity access to one path, and § 4's list
+        /// closes what may be granted at all.
+        Grant {
+            account: String,
+            path: PathBuf,
+            write: bool,
+        },
+        /// Register the event-log source § 4's *Output* writes lifecycle
+        /// records to, which is a subkey under [`EVENT_SOURCES`].
+        EventSource { name: String, exe: PathBuf },
+        /// Take the registration away.
+        Deregister { name: String },
+        /// Take one granted entry away again.
+        Revoke { account: String, path: PathBuf },
+        /// Remove the event-log source's subkey.
+        RemoveEventSource { name: String },
+        /// Write § 5's rendered unit where systemd reads it.
+        WriteUnit { path: PathBuf, text: String },
+        /// Remove it.
+        RemoveUnit { path: PathBuf },
+        /// Run `systemctl` with these arguments — by argv and with no shell,
+        /// per `rule:core-classes/process-is-argv-only`.
+        Systemctl { argv: Vec<String> },
+        /// Ask the SCM itself to start, stop or report on the service.
+        Scm { name: String, control: Control },
+    }
+
+    /// The three verbs that act on an installed service rather than on its
+    /// registration.
+    ///
+    /// `rule:packaging/a-service-is-one-stored-argv` has `status` report what no
+    /// service manager knows — the in-flight request count and drain progress,
+    /// asked over the control socket. That half belongs to the subcommand;
+    /// here, `Status` is the manager's own answer and nothing more.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub(crate) enum Control {
+        /// Start it now.
+        Start,
+        /// Stop it, which a hosted server answers with a drain
+        /// (`rule:packaging/a-service-answers-its-manager`).
+        Stop,
+        /// Ask what state the manager has it in.
+        Status,
+    }
+
+    impl Control {
+        /// The `systemctl` verb, which is also the word the SCM line prints.
+        fn word(self) -> &'static str {
+            match self {
+                Self::Start => "start",
+                Self::Stop => "stop",
+                Self::Status => "is-active",
+            }
+        }
+    }
+
+    /// The service manager an action is applied through.
+    ///
+    /// One method, because an [`Action`] already says what to do: `Scm` and
+    /// `Systemd` are the real implementations, and [`Recording`] is what a case
+    /// drives instead.
+    pub(crate) trait Manager {
+        /// Perform `action`, answering whatever the platform said about it —
+        /// which for a [`Control::Status`] query is the state it reported.
+        ///
+        /// # Errors
+        ///
+        /// The platform's own failure, unchanged: nothing above this can
+        /// anticipate what a service manager refuses.
+        fn apply(&self, action: &Action) -> std::io::Result<Option<String>>;
+    }
+
+    /// Where a verb is being performed.
+    ///
+    /// `unit_root` is a parameter for the reason [`destination`] takes one: the
+    /// directory § 5 writes into is the machine's, and a case asserting what an
+    /// install writes has to own the directory it looks in.
+    pub(crate) struct Site<'a> {
+        /// Which manager holds the service.
+        pub(crate) platform: Platform,
+        /// The system unit directory, on the platform that has one.
+        pub(crate) unit_root: &'a Path,
+        /// The manager itself.
+        pub(crate) manager: &'a dyn Manager,
+    }
+
+    /// Why a verb did not finish.
+    #[derive(Debug)]
+    pub(crate) enum Refused {
+        /// § 2, reached before the manager was touched at all — which is
+        /// `rule:packaging/the-installer-is-a-sink`'s whole claim.
+        Installer(Diagnostic),
+        /// The platform's own failure at the step it names.
+        Manager(std::io::Error),
+    }
+
+    /// § 4's default identity: the virtual account the SCM creates and owns,
+    /// with a per-service SID, no password to rotate or leak and no interactive
+    /// logon. `--account` replaces it with a domain identity for a deployment
+    /// that needs one, and `LocalSystem` is never the default.
+    fn account_of(plan: &Plan) -> String {
+        plan.account
+            .clone()
+            .unwrap_or_else(|| format!("NT SERVICE\\{}", plan.name))
+    }
+
+    /// § 4's grant list, closed: read on every configuration file the argv
+    /// names, read/write on the log and artifact-cache directories, and nothing
+    /// further.
+    ///
+    /// Read off the stored argv rather than off the installer's own options, so
+    /// an uninstall that has only the `ImagePath` to go on derives the same list
+    /// the install granted.
+    fn granted(
+        argv: &[String],
+        log_file: Option<&Path>,
+        cache_directory: Option<&Path>,
+    ) -> Vec<(PathBuf, bool)> {
+        let mut out: Vec<(PathBuf, bool)> = values_of(argv, "--config")
+            .into_iter()
+            .map(|config| (PathBuf::from(config), false))
+            .collect();
+        // The directory and not the file: a process that may write the log but
+        // not the directory holding it cannot rotate one.
+        if let Some(directory) = log_file.and_then(Path::parent) {
+            out.push((directory.to_path_buf(), true));
+        }
+        if let Some(cache) = cache_directory {
+            out.push((cache.to_path_buf(), true));
+        }
+        out
+    }
+
+    /// `install`'s steps, in the order the platform takes them.
+    pub(crate) fn install_actions(
+        platform: Platform,
+        plan: &Plan,
+        registration: &Registration,
+        unit_root: &Path,
+    ) -> Vec<Action> {
+        match platform {
+            Platform::Windows => {
+                let account = account_of(plan);
+                let mut out = vec![
+                    Action::Register {
+                        name: plan.name.clone(),
+                        image_path: image_path(plan),
+                        account: account.clone(),
+                        start: registration.start,
+                        depends_on: registration.depends_on.clone(),
+                        description: registration
+                            .description
+                            .clone()
+                            .unwrap_or_else(|| format!("Novis service {}", plan.name)),
+                    },
+                    Action::Preshutdown {
+                        name: plan.name.clone(),
+                        timeout: PRESHUTDOWN,
+                    },
+                    Action::Failure {
+                        name: plan.name.clone(),
+                        restart: registration.restart,
+                        reset: FAILURE_RESET,
+                    },
+                ];
+                for (path, write) in granted(
+                    &plan.argv,
+                    registration.log_file.as_deref(),
+                    registration.cache_directory.as_deref(),
+                ) {
+                    out.push(Action::Grant {
+                        account: account.clone(),
+                        path,
+                        write,
+                    });
+                }
+                // Last, and after the grants: it is the destination a failure
+                // to start is reported to, so it is registered while the
+                // service still cannot have been started.
+                out.push(Action::EventSource {
+                    name: plan.name.clone(),
+                    exe: plan.exe.clone(),
+                });
+                out
+            }
+            Platform::Linux => {
+                let mut out = vec![Action::WriteUnit {
+                    path: destination(Delivery::Install, &plan.name, unit_root)
+                        .expect("an installing delivery names a unit file"),
+                    text: unit(plan),
+                }];
+                // Then, and never before: `daemon-reload` is what makes the
+                // file a unit systemd knows about, and an `enable` ahead of it
+                // would be asked about a name it has not read yet.
+                out.push(Action::Systemctl {
+                    argv: vec!["daemon-reload".to_owned()],
+                });
+                if registration.start.enabled() {
+                    out.push(Action::Systemctl {
+                        argv: vec!["enable".to_owned(), plan.name.clone()],
+                    });
+                }
+                out
+            }
+        }
+    }
+
+    /// `uninstall`'s steps, which leave no key, no source, no unit and no
+    /// granted entry behind (`rule:packaging/a-service-answers-its-manager`).
+    pub(crate) fn uninstall_actions(
+        platform: Platform,
+        stored: &Stored,
+        unit_root: &Path,
+    ) -> Vec<Action> {
+        match platform {
+            Platform::Windows => {
+                // Stopped first: the SCM marks a running service for deletion
+                // and removes it when the process exits, which would leave the
+                // key behind for as long as it keeps running. An applier reads
+                // "already stopped" as done.
+                let mut out = vec![Action::Scm {
+                    name: stored.name.clone(),
+                    control: Control::Stop,
+                }];
+                for (path, _) in granted(
+                    &stored.argv,
+                    stored.log_file.as_deref(),
+                    stored.cache_directory.as_deref(),
+                ) {
+                    out.push(Action::Revoke {
+                        account: stored.account.clone(),
+                        path,
+                    });
+                }
+                out.push(Action::RemoveEventSource {
+                    name: stored.name.clone(),
+                });
+                out.push(Action::Deregister {
+                    name: stored.name.clone(),
+                });
+                out
+            }
+            Platform::Linux => vec![
+                Action::Systemctl {
+                    argv: vec![
+                        "disable".to_owned(),
+                        "--now".to_owned(),
+                        stored.name.clone(),
+                    ],
+                },
+                Action::RemoveUnit {
+                    path: destination(Delivery::Install, &stored.name, unit_root)
+                        .expect("an installing delivery names a unit file"),
+                },
+                Action::Systemctl {
+                    argv: vec!["daemon-reload".to_owned()],
+                },
+            ],
+        }
+    }
+
+    /// `start`, `stop` and `status`: the SCM directly on Windows, `systemctl`
+    /// by argv with no shell on Linux.
+    pub(crate) fn control_actions(platform: Platform, control: Control, name: &str) -> Vec<Action> {
+        match platform {
+            Platform::Windows => vec![Action::Scm {
+                name: name.to_owned(),
+                control,
+            }],
+            Platform::Linux => vec![Action::Systemctl {
+                argv: vec![control.word().to_owned(), name.to_owned()],
+            }],
+        }
+    }
+
+    /// One line naming what an action does, which is what `--dry-run` prints.
+    fn describe(action: &Action) -> String {
+        match action {
+            Action::Register {
+                name,
+                image_path,
+                account,
+                start,
+                depends_on,
+                description,
+            } => {
+                let depends = if depends_on.is_empty() {
+                    String::new()
+                } else {
+                    format!(", after {}", depends_on.join(", "))
+                };
+                format!(
+                    "register `{name}` as {account}, {} start, description `{description}`, \
+                     ImagePath {image_path}{depends}",
+                    start.word()
+                )
+            }
+            Action::Preshutdown { name, timeout } => format!(
+                "ask `{name}` for PRESHUTDOWN with {} seconds to drain in",
+                timeout.as_secs()
+            ),
+            Action::Failure {
+                name,
+                restart,
+                reset,
+            } => format!(
+                "set `{name}` to restart {}, forgetting failures after {} seconds",
+                restart.word(),
+                reset.as_secs()
+            ),
+            Action::Grant {
+                account,
+                path,
+                write,
+            } => format!(
+                "grant {account} {} on {}",
+                if *write { "read/write" } else { "read" },
+                path.display()
+            ),
+            Action::EventSource { name, exe } => format!(
+                "register the event-log source `{name}` under {EVENT_SOURCES}, reporting from {}",
+                exe.display()
+            ),
+            Action::Deregister { name } => format!("remove the registration of `{name}`"),
+            Action::Revoke { account, path } => {
+                format!("revoke {account}'s access to {}", path.display())
+            }
+            Action::RemoveEventSource { name } => {
+                format!("remove the event-log source `{name}` under {EVENT_SOURCES}")
+            }
+            Action::WriteUnit { path, text } => {
+                format!("write {} ({} bytes)", path.display(), text.len())
+            }
+            Action::RemoveUnit { path } => format!("remove {}", path.display()),
+            Action::Systemctl { argv } => format!("run systemctl {}", argv.join(" ")),
+            Action::Scm { name, control } => format!("{} `{name}`", control.word()),
+        }
+    }
+
+    /// Apply every action in order, or — for a dry run — describe them and
+    /// touch nothing.
+    ///
+    /// The description goes to `out` rather than straight to standard output,
+    /// because § 5's argument for the printed unit is that it is the artifact a
+    /// change-management review wants, and an artifact nothing can read back is
+    /// one nothing holds to the list that is actually performed.
+    ///
+    /// # Errors
+    ///
+    /// The manager's failure at the first action it refuses, so a verb stops
+    /// where it stopped rather than carrying on past it.
+    pub(crate) fn perform(
+        actions: &[Action],
+        site: &Site<'_>,
+        dry_run: bool,
+        out: &mut dyn std::io::Write,
+    ) -> Result<Vec<String>, Refused> {
+        if dry_run {
+            for action in actions {
+                writeln!(out, "{}", describe(action)).map_err(Refused::Manager)?;
+            }
+            return Ok(Vec::new());
+        }
+        let mut answers = Vec::new();
+        for action in actions {
+            match site.manager.apply(action) {
+                Ok(Some(answer)) => answers.push(answer),
+                Ok(None) => {}
+                Err(error) => return Err(Refused::Manager(error)),
+            }
+        }
+        Ok(answers)
+    }
+
+    /// `nvs service install` — § 2 first, then the platform's own steps.
+    ///
+    /// Nothing reaches [`Manager`] until [`plan`] has returned a [`Plan`],
+    /// which is `rule:packaging/the-installer-is-a-sink`'s whole claim: a
+    /// refusal touches nothing, and no step below re-checks, because none of
+    /// them could have been reached without one.
+    ///
+    /// # Errors
+    ///
+    /// § 2's refusal, or the manager's own failure at the step it names.
+    pub(crate) fn install(
+        request: &Request<'_>,
+        host: &Host,
+        registration: &Registration,
+        site: &Site<'_>,
+        dry_run: bool,
+        out: &mut dyn std::io::Write,
+    ) -> Result<(), Refused> {
+        let checked = plan(request, host).map_err(Refused::Installer)?;
+        let actions = install_actions(site.platform, &checked, registration, site.unit_root);
+        perform(&actions, site, dry_run, out).map(drop)
+    }
+
+    /// `nvs service uninstall` — the install's steps undone, from what the
+    /// platform still holds.
+    ///
+    /// # Errors
+    ///
+    /// The manager's own failure at the step it names. There is no § 2 refusal
+    /// here: nothing new is being stored.
+    pub(crate) fn uninstall(
+        stored: &Stored,
+        site: &Site<'_>,
+        dry_run: bool,
+        out: &mut dyn std::io::Write,
+    ) -> Result<(), Refused> {
+        let actions = uninstall_actions(site.platform, stored, site.unit_root);
+        perform(&actions, site, dry_run, out).map(drop)
+    }
+
+    /// `nvs service start`, `stop` and `status` — one manager call, and
+    /// whatever it answered.
+    ///
+    /// # Errors
+    ///
+    /// The manager's own failure.
+    pub(crate) fn control(
+        control: Control,
+        name: &str,
+        site: &Site<'_>,
+    ) -> Result<Vec<String>, Refused> {
+        let actions = control_actions(site.platform, control, name);
+        perform(&actions, site, false, &mut std::io::sink())
+    }
+
+    /// A manager that performs nothing and remembers every action it was
+    /// handed.
+    ///
+    /// What every case drives: § 3's registration and § 5's write both need
+    /// administrator rights on a machine somebody chose, while the property a
+    /// case is about is the list of actions rather than the platform's answer
+    /// to one of them.
+    #[cfg(test)]
+    #[derive(Debug, Default)]
+    pub(crate) struct Recording {
+        applied: Mutex<Vec<Action>>,
+    }
+
+    #[cfg(test)]
+    impl Recording {
+        /// Everything applied through it, in order.
+        pub(crate) fn applied(&self) -> Vec<Action> {
+            self.applied
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()
+        }
+    }
+
+    #[cfg(test)]
+    impl Manager for Recording {
+        fn apply(&self, action: &Action) -> std::io::Result<Option<String>> {
+            self.applied
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(action.clone());
+            Ok(None)
+        }
+    }
+}
+
 /// `nvs service unit <name> [options] -- <argv…>` — print what would be
 /// installed, and install nothing.
 ///
@@ -1565,5 +2233,499 @@ mod tests {
             stopped,
             "the thread outlived the handle that owns it and is still pinging"
         );
+    }
+
+    /// A scratch unit directory this case owns, so what an install would write
+    /// is asserted against a directory nothing else is looking at.
+    fn unit_root(case: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("nvs-service-{case}-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("a scratch directory");
+        root
+    }
+
+    /// An installer's options with both grantable directories named, so § 4's
+    /// grant list is exercised whole rather than in its empty case.
+    fn registration() -> registration::Registration {
+        registration::Registration {
+            log_file: Some(PathBuf::from(absolute("log/web.log"))),
+            cache_directory: Some(PathBuf::from(absolute("cache"))),
+            ..registration::Registration::default()
+        }
+    }
+
+    /// `rule:packaging/the-argv-lives-in-imagepath` and § 4's identity and
+    /// controls: what an install *is* on Windows is one registration carrying
+    /// the encoded `ImagePath`, a virtual account nobody holds a password for,
+    /// and a shutdown control that leaves room for a drain.
+    #[test]
+    fn service_install_on_windows_registers_the_encoded_image_path_a_virtual_account_and_preshutdown()
+     {
+        let argv = argv();
+        let checked = plan(&request(&argv), &host()).expect("a plan");
+        let root = unit_root("install-windows");
+        let actions = registration::install_actions(
+            registration::Platform::Windows,
+            &checked,
+            &registration(),
+            &root,
+        );
+
+        let registered = actions
+            .iter()
+            .find_map(|action| match action {
+                registration::Action::Register {
+                    image_path: stored,
+                    account,
+                    start,
+                    description,
+                    ..
+                } => Some((stored, account, *start, description)),
+                _ => None,
+            })
+            .expect("a registration");
+        // The encoder's output and not a second rendering of it: § 3 has that
+        // one string be the only record of what the service runs.
+        assert_eq!(registered.0, &image_path(&checked));
+        assert_eq!(registered.1, "NT SERVICE\\web");
+        assert_eq!(registered.2, registration::StartMode::Automatic);
+        assert!(registered.3.contains("web"), "{}", registered.3);
+
+        // `--account` replaces the virtual account and nothing else about the
+        // registration.
+        let mut named = request(&argv);
+        named.account = Some("EXAMPLE\\nvs-web");
+        let domain = plan(&named, &host()).expect("a plan");
+        assert!(
+            registration::install_actions(
+                registration::Platform::Windows,
+                &domain,
+                &registration(),
+                &root
+            )
+            .iter()
+            .any(|action| matches!(
+                action,
+                registration::Action::Register { account, .. } if account == "EXAMPLE\\nvs-web"
+            ))
+        );
+
+        // PRESHUTDOWN, with room for a drain: plain SHUTDOWN allows roughly
+        // five seconds, which is the whole reason § 4 asks for this control.
+        let timeout = actions
+            .iter()
+            .find_map(|action| match action {
+                registration::Action::Preshutdown { timeout, .. } => Some(*timeout),
+                _ => None,
+            })
+            .expect("a preshutdown request");
+        assert!(timeout > Duration::from_secs(5), "{timeout:?}");
+
+        // § 4's failure actions and its *Output*: both are part of installing,
+        // not a second command an operator has to remember.
+        assert!(actions.iter().any(|action| matches!(
+            action,
+            registration::Action::Failure {
+                restart: registration::Restart::OnFailure,
+                ..
+            }
+        )));
+        assert!(
+            actions
+                .iter()
+                .any(|action| matches!(action, registration::Action::EventSource { .. }))
+        );
+
+        // `--restart never` is the other half of that decision, and it changes
+        // nothing else about the registration.
+        let never = registration::Registration {
+            restart: registration::Restart::Never,
+            ..registration()
+        };
+        assert!(
+            registration::install_actions(registration::Platform::Windows, &checked, &never, &root)
+                .iter()
+                .any(|action| matches!(
+                    action,
+                    registration::Action::Failure {
+                        restart: registration::Restart::Never,
+                        ..
+                    }
+                ))
+        );
+
+        // Windows has no unit file, and nothing here writes one.
+        assert!(!actions.iter().any(|action| matches!(
+            action,
+            registration::Action::WriteUnit { .. } | registration::Action::Systemctl { .. }
+        )));
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`: an
+    /// install on Linux is the same generation `unit` prints, written into the
+    /// system unit directory and followed by a `daemon-reload` — in that order,
+    /// because a reload is what makes the file a unit systemd knows the name
+    /// of.
+    #[test]
+    fn service_install_on_linux_writes_the_unit_then_runs_daemon_reload() {
+        let argv = argv();
+        let checked = plan(&request(&argv), &host()).expect("a plan");
+        let root = unit_root("install-linux");
+        let actions = registration::install_actions(
+            registration::Platform::Linux,
+            &checked,
+            &registration(),
+            &root,
+        );
+
+        match &actions[0] {
+            registration::Action::WriteUnit { path, text } => {
+                assert_eq!(path, &root.join("web.service"));
+                assert_eq!(text, &unit(&checked));
+            }
+            other => panic!("the first action is not the unit write: {other:?}"),
+        }
+        assert_eq!(
+            actions[1],
+            registration::Action::Systemctl {
+                argv: vec!["daemon-reload".to_owned()]
+            }
+        );
+        // Automatic start is an `enable`, after the reload; a manual one is the
+        // unit sitting there unwanted.
+        assert_eq!(
+            actions[2],
+            registration::Action::Systemctl {
+                argv: vec!["enable".to_owned(), "web".to_owned()]
+            }
+        );
+        let manual = registration::Registration {
+            start: registration::StartMode::Manual,
+            ..registration()
+        };
+        assert_eq!(
+            registration::install_actions(registration::Platform::Linux, &checked, &manual, &root)
+                .len(),
+            2
+        );
+
+        // Delayed auto-start is still an auto-start: on Linux the difference is
+        // the manager's own ordering and not whether the unit is wanted, so the
+        // list is the same one.
+        let delayed = registration::Registration {
+            start: registration::StartMode::Delayed,
+            ..registration()
+        };
+        assert_eq!(
+            registration::install_actions(registration::Platform::Linux, &checked, &delayed, &root),
+            actions
+        );
+
+        // Linux holds no registration and no event-log source.
+        assert!(!actions.iter().any(|action| matches!(
+            action,
+            registration::Action::Register { .. }
+                | registration::Action::EventSource { .. }
+                | registration::Action::Grant { .. }
+        )));
+
+        // Building the list writes nothing: the write is an action an applier
+        // performs, which is what makes `--dry-run` possible at all.
+        assert_eq!(
+            std::fs::read_dir(&root).expect("readable").count(),
+            0,
+            "planning wrote into {}",
+            root.display()
+        );
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// § 5's change-management artifact, as the thing that is actually
+    /// performed rather than a second rendering of it: a dry run describes
+    /// every action and reaches the manager with none of them.
+    #[test]
+    fn service_install_dry_run_prints_the_actions_and_touches_nothing() {
+        let argv = argv();
+        let checked = plan(&request(&argv), &host()).expect("a plan");
+        let root = unit_root("dry-run");
+
+        for platform in [
+            registration::Platform::Windows,
+            registration::Platform::Linux,
+        ] {
+            let manager = registration::Recording::default();
+            let site = registration::Site {
+                platform,
+                unit_root: &root,
+                manager: &manager,
+            };
+            let actions = registration::install_actions(platform, &checked, &registration(), &root);
+            let mut printed = Vec::new();
+            registration::install(
+                &request(&argv),
+                &host(),
+                &registration(),
+                &site,
+                true,
+                &mut printed,
+            )
+            .expect("a dry run");
+
+            // One line per action, and the manager was not asked for any of
+            // them.
+            let text = String::from_utf8(printed).expect("utf-8");
+            assert_eq!(text.lines().count(), actions.len(), "{platform:?}\n{text}");
+            assert!(manager.applied().is_empty(), "{platform:?}");
+            assert_eq!(
+                std::fs::read_dir(&root).expect("readable").count(),
+                0,
+                "a dry run wrote into {}",
+                root.display()
+            );
+
+            // And the same call without it applies exactly that list, so the
+            // artifact and the steps cannot drift apart.
+            registration::install(
+                &request(&argv),
+                &host(),
+                &registration(),
+                &site,
+                false,
+                &mut std::io::sink(),
+            )
+            .expect("an install");
+            assert_eq!(manager.applied(), actions, "{platform:?}");
+        }
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `rule:packaging/a-service-answers-its-manager`'s closing sentence: an
+    /// uninstall leaves no registration, no event-log source, no unit file and
+    /// no granted access — and the grants it revokes are exactly the ones the
+    /// install made, because both derive them from the stored argv.
+    #[test]
+    fn service_uninstall_leaves_no_key_no_event_source_no_unit_and_no_acl() {
+        let argv = argv();
+        let checked = plan(&request(&argv), &host()).expect("a plan");
+        let root = unit_root("uninstall");
+        let options = registration();
+        let stored = registration::Stored {
+            name: "web".to_owned(),
+            argv: argv.clone(),
+            account: "NT SERVICE\\web".to_owned(),
+            log_file: options.log_file.clone(),
+            cache_directory: options.cache_directory.clone(),
+        };
+
+        let installed = registration::install_actions(
+            registration::Platform::Windows,
+            &checked,
+            &options,
+            &root,
+        );
+        let removed =
+            registration::uninstall_actions(registration::Platform::Windows, &stored, &root);
+
+        let mut granted: Vec<&PathBuf> = installed
+            .iter()
+            .filter_map(|action| match action {
+                registration::Action::Grant { path, .. } => Some(path),
+                _ => None,
+            })
+            .collect();
+        let mut revoked: Vec<&PathBuf> = removed
+            .iter()
+            .filter_map(|action| match action {
+                registration::Action::Revoke { path, .. } => Some(path),
+                _ => None,
+            })
+            .collect();
+        assert!(!granted.is_empty(), "nothing was granted to revoke");
+        granted.sort();
+        revoked.sort();
+        assert_eq!(granted, revoked);
+
+        assert!(
+            removed
+                .iter()
+                .any(|action| matches!(action, registration::Action::Deregister { .. }))
+        );
+        assert!(
+            removed
+                .iter()
+                .any(|action| matches!(action, registration::Action::RemoveEventSource { .. }))
+        );
+        // Stopped before the key is taken away: the SCM removes a running
+        // service when its process exits, which would leave the key behind for
+        // as long as it kept running.
+        assert_eq!(
+            removed[0],
+            registration::Action::Scm {
+                name: "web".to_owned(),
+                control: registration::Control::Stop
+            }
+        );
+        assert!(!removed.iter().any(|action| matches!(
+            action,
+            registration::Action::Register { .. } | registration::Action::Grant { .. }
+        )));
+
+        // On Linux the unit file is the registration, so removing it is what
+        // leaves nothing behind — and the reload is what makes systemd forget
+        // the name.
+        let linux = registration::uninstall_actions(registration::Platform::Linux, &stored, &root);
+        assert!(linux.contains(&registration::Action::RemoveUnit {
+            path: root.join("web.service")
+        }));
+        assert!(linux.contains(&registration::Action::Systemctl {
+            argv: vec!["daemon-reload".to_owned()]
+        }));
+        assert!(
+            !linux
+                .iter()
+                .any(|action| matches!(action, registration::Action::WriteUnit { .. }))
+        );
+        // Through the front door, and nothing added on the way: what an
+        // uninstall performs is that list, in that order.
+        let manager = registration::Recording::default();
+        let site = registration::Site {
+            platform: registration::Platform::Linux,
+            unit_root: &root,
+            manager: &manager,
+        };
+        registration::uninstall(&stored, &site, false, &mut std::io::sink()).expect("an uninstall");
+        assert_eq!(manager.applied(), linux);
+
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `rule:packaging/a-service-is-one-stored-argv`: the three thin verbs go
+    /// to the SCM directly on Windows and to `systemctl` on Linux **by argv**,
+    /// which is `rule:core-classes/process-is-argv-only` — the service's name
+    /// is one element and never a word inside a command line somebody has to
+    /// quote.
+    #[test]
+    fn service_start_stop_and_status_reach_the_manager_by_argv_with_no_shell() {
+        let root = unit_root("control");
+
+        // The manager is the host's, read rather than chosen: a service is
+        // installed on the machine it will run on, which is the reading § 2's
+        // third row already takes paths against.
+        assert_eq!(
+            registration::Platform::host(),
+            if cfg!(windows) {
+                registration::Platform::Windows
+            } else {
+                registration::Platform::Linux
+            }
+        );
+        for (control, verb) in [
+            (registration::Control::Start, "start"),
+            (registration::Control::Stop, "stop"),
+            (registration::Control::Status, "is-active"),
+        ] {
+            assert_eq!(
+                registration::control_actions(registration::Platform::Windows, control, "web"),
+                vec![registration::Action::Scm {
+                    name: "web".to_owned(),
+                    control
+                }]
+            );
+            assert_eq!(
+                registration::control_actions(registration::Platform::Linux, control, "a name"),
+                vec![registration::Action::Systemctl {
+                    argv: vec![verb.to_owned(), "a name".to_owned()]
+                }],
+                "{verb}"
+            );
+
+            // One manager call, and whatever it answered comes back.
+            let manager = registration::Recording::default();
+            let site = registration::Site {
+                platform: registration::Platform::Linux,
+                unit_root: &root,
+                manager: &manager,
+            };
+            registration::control(control, "web", &site).expect("a control");
+            assert_eq!(manager.applied().len(), 1, "{verb}");
+        }
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `rule:packaging/the-installer-is-a-sink`: `plan` is the front door, so
+    /// every § 2 refusal happens with the manager untouched. The cases above
+    /// assert each refusal's code; this one asserts that reaching one costs the
+    /// machine nothing.
+    #[test]
+    fn every_install_refusal_runs_before_the_manager_is_touched() {
+        let root = unit_root("refusals");
+        let good = argv();
+
+        // One fixture per refusal class § 2 lists, built as the cases above
+        // build them.
+        let mut wrong_subcommand = good.clone();
+        wrong_subcommand[0] = "ast".to_owned();
+        let mut relative = good.clone();
+        relative[3] = "nvs.toml".to_owned();
+        let hook = {
+            let mut argv = good.clone();
+            argv.push("--fault-inject".to_owned());
+            argv
+        };
+
+        for (case, argv, bundled, logged, password) in [
+            ("a bundle", good.clone(), true, true, None),
+            ("the allowlist", wrong_subcommand, false, true, None),
+            ("a testing hook", hook, false, true, None),
+            ("a relative path", relative, false, true, None),
+            ("a password", good.clone(), false, true, Some("hunter2")),
+            ("nowhere to write", good.clone(), false, false, None),
+        ] {
+            let mut asked = request(&argv);
+            asked.password = password;
+            if password.is_some() {
+                asked.account = Some("EXAMPLE\\nvs-web");
+            }
+            let mut host = host();
+            host.from_a_bundle = bundled;
+            host.config_names_a_log_destination = logged;
+
+            for platform in [
+                registration::Platform::Windows,
+                registration::Platform::Linux,
+            ] {
+                let manager = registration::Recording::default();
+                let site = registration::Site {
+                    platform,
+                    unit_root: &root,
+                    manager: &manager,
+                };
+                let refusal = registration::install(
+                    &asked,
+                    &host,
+                    &registration(),
+                    &site,
+                    false,
+                    &mut std::io::sink(),
+                )
+                .expect_err(case);
+                match refusal {
+                    registration::Refused::Installer(diagnostic) => {
+                        assert!(diagnostic.code.is_some(), "{case}");
+                    }
+                    registration::Refused::Manager(error) => {
+                        panic!("{case} reached the manager: {error}")
+                    }
+                }
+                assert!(manager.applied().is_empty(), "{case} on {platform:?}");
+                assert_eq!(
+                    std::fs::read_dir(&root).expect("readable").count(),
+                    0,
+                    "{case} wrote into {}",
+                    root.display()
+                );
+            }
+        }
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
     }
 }
