@@ -174,6 +174,9 @@ playbook = [
   'Writing Novis itself > a field added to nvsruntime::ctx',
   "Tooling > a # known gaps item's claims",
   "Tooling > a loop-goal.toml check's -p",
+  # Every stage here writes `.nvst` cases, and this one cost two sessions a compile round-trip
+  # each before it was named: a negative `decimal` has no literal spelling.
+  'Writing a test case > a negative decimal',
 ]
 
 plan = ["Open now", "Blocking"]

@@ -1,6 +1,6 @@
 ---
-summary: what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, and the exact power
-keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, bcmath, bcdiv, exact
+summary: what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, the exact power, and the four cuts to a scale
+keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, bcmath, bcdiv, exact, floor, ceil, truncate, round
 ---
 
 Novis's `decimal` scalar carries its own arithmetic as operators — `+`, `-`, `*`, `%` and `/` all work
@@ -24,6 +24,10 @@ code, and nowhere else does the type system help with them:
 - **"raise it to a power, exactly"** — `pow` multiplies a base by itself as many times as you ask. `**`
   has no row for a `decimal` base at all, because a power that does not come out exact would have to
   round without being asked; a negative power is written as the division it is.
+- **"cut it to this many places"** — `floor`, `ceil`, `truncate` and `round`, which answer a `decimal`
+  at the scale you name and not an `int`. `round` is the one with a decision to make, so it takes the
+  mode; the other three are directions. Converting to `int` afterwards is a second step, written out,
+  because a conversion that rounded on its own would be rounding you never asked for.
 
 `divRound` rounds **once**, from the exact quotient. It is not the `/` operator's answer rounded a second
 time — rounding twice is how a quotient one digit past the place you asked for carries a tie the exact value
@@ -103,4 +107,42 @@ echo Core\Decimal::pow($rate, 2), "|",
 alice 3.34
 bob 6.66
 1.1025|0.9070
+```
+
+Cutting a value to a number of places is the same question from the other end, and the four members
+that do it answer a `decimal` rather than an `int` — which is what makes the scale worth naming at
+all. The scale you ask for is the scale you get, so a cut pads a narrower value as well as trimming a
+wider one, and it defaults to zero: a whole number, still a `decimal`.
+
+`floor`, `ceil` and `truncate` are directions and take no mode. `round` is the one with a decision to
+make — which of two neighbours a value exactly between them goes to — so it names the mode, and the
+mode is written *before* the scale because the scale is the argument you may leave out.
+
+```nvs
+<?nvs
+// The scale you name is the scale you get, so a cut pads as well as trims.
+decimal $price = 1.005;
+echo Core\Decimal::floor($price, 2), "|", Core\Decimal::ceil($price, 2), "\n";
+
+// Left out, it is zero: a whole number that is still a `decimal`, so the
+// conversion to `int` is written after it rather than hidden inside it.
+echo Core\Decimal::truncate($price), "|", Core\Decimal::floor($price) as int, "\n";
+
+// Half a cent is the tie the `Half*` modes are named for, and the reason
+// `round` has no default mode.
+echo Core\Decimal::round($price, Core\RoundMode::HalfEven, 2), "|",
+     Core\Decimal::round($price, Core\RoundMode::HalfUp, 2), "\n";
+
+// Negative is where the three directions part: down the line, up the line,
+// and towards zero. A negative `decimal` is built by subtraction.
+decimal $loss = 0 - $price;
+echo Core\Decimal::floor($loss), "|",
+     Core\Decimal::ceil($loss), "|",
+     Core\Decimal::truncate($loss), "\n";
+```
+```output
+1.00|1.01
+1|1
+1.00|1.01
+-2|-1|-1
 ```

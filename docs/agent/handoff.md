@@ -2,60 +2,45 @@
 
 ## State
 
-Goal `m8-stdlib-depth`. **Stages 0 and 2 are done, and stage 3 is two thirds done**: `allocate` and
-`pow` are on disk at `crates/nvs-stdlib/src/decimal.rs:80`, each with its named `#[test]` and three
-conformance cases. What is left of the stage is the four rounding members.
+Goal `m8-stdlib-depth`. **Stages 0, 2 and 3 are done.** `Core\Decimal`'s roster is complete at
+`crates/nvs-stdlib/src/decimal.rs:84` — `divExact`, `divRound`, `allocate`, `pow`, and now the four
+cuts `floor`, `ceil`, `truncate` and `round`, each with its named `#[test]` and three `.nvst` cases.
+Both of stage 3's checks are green. Nothing is blocked.
 
-Stage 3's `cargo-named` check stays red until they land — it names four tests and three of them now
-run (`decimal_allocate_parts_add_back_to_the_amount_exactly`,
-`decimal_allocate_refuses_an_empty_zero_or_negative_ratio_list`,
-`decimal_pow_is_exact_or_throws_at_the_mantissa_or_scale_bound`); the fourth,
-`decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked`, does not exist yet. Its
-`nvs-suite` check is two cases of three, missing
-`tests/conformance/core/decimal-rounding-members-answer-decimal-and-name-their-mode.nvst`.
+The calls this session settled are in the module doc, not in a record — the goal's § *Standing
+decisions* pre-authorized each. The four cuts are **one division against `1`**
+(`Decimal::checked_div_at_scale`), so `round` and `divRound` reach the same `rounds_away` and agree
+on every mode by construction rather than by two rules kept in step. `round` is spelled
+`round($value, $mode, $scale = 0)`: a `defaults:` entry aligns to the *end* of the parameter list, so
+a required mode and an optional scale can sit in no other order, which is the one place it parts from
+`divRound`'s `$scale, $mode`. `floor` and `ceil` are the two answers no `Core\RoundMode` names —
+`Up`/`Down` are directions about zero, these are directions along the line.
 
-**The calls this session settled are in the module doc, not in a record** — the goal's § *Standing
-decisions* pre-authorized each. `allocate` splits its refusals: an empty, all-zero or negative ratio
-list is a `LogicError` (a bad argument), and a share no `decimal` holds is an `ArithmeticError` (the
-bound the operators have). The remainder goes by **position**, so a zero ratio written first takes a
-unit; keys are the ratios', so a named split answers under those names. `pow` agrees with repeated
-`*` on the scale as well as the value, and squares rather than walks so an exponent at `uint`'s
-ceiling terminates.
-
-`docs/spec/01-core-library.md` has **no `Core\Decimal` member table** — the hand-written home is
-`docs/reference/core/Decimal.md`, whose example blocks `tools/verify.py`'s reference step runs.
+`crates/nvs-stdlib/src/math.rs`'s "Known gap: `decimal` at the four rounding members" is gone:
+`Core\Math`'s four stay `float`'s, and its module doc now says why and where the `decimal` ones are.
 
 ## Next group
 
-**Stage 3: the four rounding members, and `Core\RoundMode` beside them** — one file set:
-`crates/nvs-stdlib/src/decimal.rs` (the roster at `:80`, the five edits per member), the enum's
-reader in `crates/nvs-stdlib/src/math.rs`, and cases under `tests/conformance/core/`. Each member is
-a row, a card, a body, an `address()` arm and cases; `rule:types/arithmetic` is the rule and the
-goal's § *Standing decisions* the wording.
+**Stage 4: the two release-only cost guards** — one file:
+`benches/abi-probe/tests/perf_guards.rs` (the shape at `:1-15` is a release-only test with a loose
+threshold that prints its own figure), plus wherever `python tools/dossier.py --id` puts a feature's
+bench program (`benches/members/README.md` § *Where a bench goes*). Both items are measured claims a
+record makes, so the record section is what specifies them.
 
-- [ ] **`floor`, `ceil` and `truncate`, each taking a target scale that defaults to 0** —
-      `crates/nvs-stdlib/src/decimal.rs:80`. They answer `decimal` at that scale, never `int`:
-      `rule:types/conversion` makes the scale observable, so `floor($x, 2)` renders its two places.
-      A `defaults:` entry is what carries the 0 — `crates/nvs-stdlib/src/decimal.rs:88` is a row
-      with none. The check names
-      `decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked`.
-- [ ] **`round`, taking `Core\RoundMode` with no default** —
-      `crates/nvs-stdlib/src/decimal.rs:290`'s `rounds_away` is already the six modes over a
-      truncation and a `Discard`, and `crates/nvs-stdlib/src/math.rs:2203`'s `round_mode` reads the
-      argument. Naming the mode is the point, so no default (the `divRound` doc at
-      `crates/nvs-stdlib/src/decimal.rs:236` argues it).
-- [ ] **Three cases, one of them named by the check** —
-      `tests/conformance/core/decimal-rounding-members-answer-decimal-and-name-their-mode.nvst`
-      plus two more: `crates/nvs-stdlib/tests/conformance_coverage.rs:155` is a floor of three
-      *per member*, and one case naming all four members counts for each of them.
+- [ ] **A typed `decimal` arithmetic loop as a figure with a guard, beside the `int` one** —
+      `benches/abi-probe/tests/perf_guards.rs:676`. `docs/decisions/0054.md:246-250` is the claim.
+      The check names the test `a_typed_decimal_arithmetic_loop_stays_in_its_cost_class`, and the
+      whole stage is release-only: `cargo test --release -p nvs-abi-probe --test perf_guards`.
+- [ ] **The linear regex tier's throughput against the backtracking tier's, on one shared corpus** —
+      `benches/abi-probe/tests/perf_guards.rs:1-15` for the shape. `docs/decisions/0056.md:146-148`
+      is the claim being measured, "the default tier is not a performance concession". The check
+      names `the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus`.
 
 ## Backlog
 
 - A leftover unit can land on a zero ratio that comes first; pinned by
   `tests/conformance/core/decimal-allocate-keeps-the-ratios-keys-and-the-amounts-sign.nvst`, and a
   decision to reopen only if skipping zero ratios is wanted.
-- The pack's `[context] playbook` is filtered to the item's own paths, so the trap at
-  `docs/agent/playbook.md:3889` — a negative `decimal` literal does not compile, and `0 - 1` does
-  not either; it needs `decimal $one = 1; 0 - $one` — did not print and cost two runs.
-- `crates/nvs-stdlib/src/decimal.rs`'s `# Known gaps` item is now the four rounding members alone,
-  and closes with the group above.
+- `Core\Math::ceil`/`floor`/`truncate`/`round` still answer `float` alone where spec § 3 writes
+  `int|float|decimal`; `crates/nvs-stdlib/src/math.rs`'s module doc owns why that is the answer and
+  not a gap.

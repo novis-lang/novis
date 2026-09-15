@@ -58,7 +58,7 @@ Conventions the whole file uses:
 | [`Core\Arr`](#core-core-arr) | every array function as a pure member — filter, map, sort, search, reshape, combine and aggregate, always answering a new array |
 | [`Core\Attributes`](#core-core-attributes) | reads the shape-literal attributes attached to a class, a method, a property or a parameter — structurally, by the shape they satisfy, at compile time |
 | [`Core\Math`](#core-core-math) | numeric functions over `int`, `float` and `decimal` — magnitude, rounding, integer division, roots, logarithms, trigonometry, base conversion and number formatting, plus the constants |
-| [`Core\Decimal`](#core-core-decimal) | what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, and the exact power |
+| [`Core\Decimal`](#core-core-decimal) | what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, the exact power, and the four cuts to a scale |
 | [`Core\Regex`](#core-core-regex) | regular expressions without delimiters — match, capture, replace and split, linear-time by default with a step budget for the patterns that need backtracking |
 | [`Core\Regex\Match`](#core-core-regex-match) | one match of a pattern — its text, its groups by number or name, and where it starts |
 | [`Core\Regex\Pattern`](#core-core-regex-pattern) | a compiled pattern carrying its flags, taken by every `Core\Regex` member in place of a pattern string |
@@ -9162,7 +9162,7 @@ Core\Math::format(int|float|decimal $n, {decimals?: uint, decimalSeparator?: str
 <a id="core-core-decimal"></a>
 ### `Core\Decimal`
 
-Keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, bcmath, bcdiv, exact, divExact, divRound, allocate, pow
+Keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, bcmath, bcdiv, exact, floor, ceil, truncate, round, divExact, divRound, allocate, pow, floor, ceil, truncate, round
 
 Novis's `decimal` scalar carries its own arithmetic as operators — `+`, `-`, `*`, `%` and `/` all work
 directly on it, exactly, with no class in the way. Division is the one operation that may be inexact, and
@@ -9185,6 +9185,10 @@ code, and nowhere else does the type system help with them:
 - **"raise it to a power, exactly"** — `pow` multiplies a base by itself as many times as you ask. `**`
   has no row for a `decimal` base at all, because a power that does not come out exact would have to
   round without being asked; a negative power is written as the division it is.
+- **"cut it to this many places"** — `floor`, `ceil`, `truncate` and `round`, which answer a `decimal`
+  at the scale you name and not an `int`. `round` is the one with a decision to make, so it takes the
+  mode; the other three are directions. Converting to `int` afterwards is a second step, written out,
+  because a conversion that rounded on its own would be rounding you never asked for.
 
 `divRound` rounds **once**, from the exact quotient. It is not the `/` operator's answer rounded a second
 time — rounding twice is how a quotient one digit past the place you asked for carries a tie the exact value
@@ -9266,12 +9270,54 @@ bob 6.66
 1.1025|0.9070
 ```
 
+Cutting a value to a number of places is the same question from the other end, and the four members
+that do it answer a `decimal` rather than an `int` — which is what makes the scale worth naming at
+all. The scale you ask for is the scale you get, so a cut pads a narrower value as well as trimming a
+wider one, and it defaults to zero: a whole number, still a `decimal`.
+
+`floor`, `ceil` and `truncate` are directions and take no mode. `round` is the one with a decision to
+make — which of two neighbours a value exactly between them goes to — so it names the mode, and the
+mode is written *before* the scale because the scale is the argument you may leave out.
+
+```nvs
+<?nvs
+// The scale you name is the scale you get, so a cut pads as well as trims.
+decimal $price = 1.005;
+echo Core\Decimal::floor($price, 2), "|", Core\Decimal::ceil($price, 2), "\n";
+
+// Left out, it is zero: a whole number that is still a `decimal`, so the
+// conversion to `int` is written after it rather than hidden inside it.
+echo Core\Decimal::truncate($price), "|", Core\Decimal::floor($price) as int, "\n";
+
+// Half a cent is the tie the `Half*` modes are named for, and the reason
+// `round` has no default mode.
+echo Core\Decimal::round($price, Core\RoundMode::HalfEven, 2), "|",
+     Core\Decimal::round($price, Core\RoundMode::HalfUp, 2), "\n";
+
+// Negative is where the three directions part: down the line, up the line,
+// and towards zero. A negative `decimal` is built by subtraction.
+decimal $loss = 0 - $price;
+echo Core\Decimal::floor($loss), "|",
+     Core\Decimal::ceil($loss), "|",
+     Core\Decimal::truncate($loss), "\n";
+```
+```output
+1.00|1.01
+1|1
+1.00|1.01
+-2|-1|-1
+```
+
 | Member | Signature |
 |---|---|
 | [`Core\Decimal::divExact`](#core-core-decimal-divexact) | `divExact(decimal $value, decimal $divisor): decimal` |
 | [`Core\Decimal::divRound`](#core-core-decimal-divround) | `divRound(decimal $value, decimal $divisor, uint $scale, Core\RoundMode $mode): decimal` |
 | [`Core\Decimal::allocate`](#core-core-decimal-allocate) | `allocate(decimal $amount, array<decimal> $ratios): array<decimal>` |
 | [`Core\Decimal::pow`](#core-core-decimal-pow) | `pow(decimal $base, uint $exponent): decimal` |
+| [`Core\Decimal::floor`](#core-core-decimal-floor) | `floor(decimal $value, uint $scale = 0): decimal` |
+| [`Core\Decimal::ceil`](#core-core-decimal-ceil) | `ceil(decimal $value, uint $scale = 0): decimal` |
+| [`Core\Decimal::truncate`](#core-core-decimal-truncate) | `truncate(decimal $value, uint $scale = 0): decimal` |
+| [`Core\Decimal::round`](#core-core-decimal-round) | `round(decimal $value, Core\RoundMode $mode, uint $scale = 0): decimal` |
 
 <a id="core-core-decimal-divexact"></a>
 #### `Core\Decimal::divExact`
@@ -9346,6 +9392,79 @@ Core\Decimal::pow(decimal $base, uint $exponent): decimal
 **Returns** `decimal` — The exact power, at the scale repeated multiplication gives it — `2.50` squared is `6.2500`, since a product's scale is its operands' scales added.
 
 **Throws** `ArithmeticError` — When the power is wider than a `decimal` holds: more than 28 fractional digits, which a scaled base reaches quickly, or more than a 96-bit mantissa.
+
+<a id="core-core-decimal-floor"></a>
+#### `Core\Decimal::floor`
+
+```nvs skip
+Core\Decimal::floor(decimal $value, uint $scale = 0): decimal
+```
+
+`$value` cut to `$scale` places towards negative infinity — the direction PHP's `floor` goes, kept exact and answering a `decimal` rather than a `float`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `decimal` | The value to cut. |
+| `$scale` | `uint` (default `0`) | How many digits after the point the answer keeps, at most 28, and none at all where it is left out. The answer carries exactly this scale, so it pads a narrower value as well as cutting a wider one. |
+
+**Returns** `decimal` — The largest `decimal` at `$scale` places that is not above `$value`: `floor(-1.5)` is `-2`, and `floor(1.005, 2)` is `1.00`.
+
+**Throws** `ArithmeticError` — When `$scale` is past 28, and when `$value` has too many digits before the point to carry that many after it.
+
+<a id="core-core-decimal-ceil"></a>
+#### `Core\Decimal::ceil`
+
+```nvs skip
+Core\Decimal::ceil(decimal $value, uint $scale = 0): decimal
+```
+
+`$value` cut to `$scale` places towards positive infinity — the direction PHP's `ceil` goes, kept exact and answering a `decimal` rather than a `float`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `decimal` | The value to cut. |
+| `$scale` | `uint` (default `0`) | How many digits after the point the answer keeps, at most 28, and none at all where it is left out. The answer carries exactly this scale, so it pads a narrower value as well as cutting a wider one. |
+
+**Returns** `decimal` — The smallest `decimal` at `$scale` places that is not below `$value`: `ceil(-1.5)` is `-1`, and `ceil(1.001, 2)` is `1.01`.
+
+**Throws** `ArithmeticError` — When `$scale` is past 28, and when `$value` has too many digits before the point to carry that many after it.
+
+<a id="core-core-decimal-truncate"></a>
+#### `Core\Decimal::truncate`
+
+```nvs skip
+Core\Decimal::truncate(decimal $value, uint $scale = 0): decimal
+```
+
+`$value` cut to `$scale` places towards zero, which drops digits and never moves the ones it keeps — the cut a fixed-width column or a display wants.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `decimal` | The value to cut. |
+| `$scale` | `uint` (default `0`) | How many digits after the point the answer keeps, at most 28, and none at all where it is left out. The answer carries exactly this scale, so it pads a narrower value as well as cutting a wider one. |
+
+**Returns** `decimal` — `$value` with everything past `$scale` places dropped: `truncate(-1.9)` is `-1`, and `truncate(1.999, 2)` is `1.99`.
+
+**Throws** `ArithmeticError` — When `$scale` is past 28, and when `$value` has too many digits before the point to carry that many after it.
+
+<a id="core-core-decimal-round"></a>
+#### `Core\Decimal::round`
+
+```nvs skip
+Core\Decimal::round(decimal $value, Core\RoundMode $mode, uint $scale = 0): decimal
+```
+
+`$value` at `$scale` places under `$mode`, which is the one rounding that settles a value between two neighbours and so the one that has to be named at the call.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `decimal` | The value to round. |
+| `$mode` | `Core\RoundMode` | How a value between two neighbours settles — the same `Core\RoundMode` `Core\Decimal::divRound` and `Core\Math::round` take, and the reason it comes before the optional scale rather than after it. |
+| `$scale` | `uint` (default `0`) | How many digits after the point the answer keeps, at most 28, and none at all where it is left out. The answer carries exactly this scale, so it pads a narrower value as well as cutting a wider one. |
+
+**Returns** `decimal` — The neighbour at `$scale` places `$mode` names: `round(0.125, Core\RoundMode::HalfEven, 2)` is `0.12` and `round(0.125, Core\RoundMode::HalfUp, 2)` is `0.13`.
+
+**Throws** `ArithmeticError` — When `$scale` is past 28, and when `$value` has too many digits before the point to carry that many after it.
 
 <a id="core-core-regex"></a>
 ### `Core\Regex`
