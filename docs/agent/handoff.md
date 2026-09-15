@@ -6,51 +6,50 @@
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
 and stages 3 to 11 are built. Nothing is blocked.
 
-**The OTLP push is landed, behind the `exporter` feature.** `nvs_server::otlp`
-(`crates/nvs-server/src/otlp.rs`) is the sibling of `prometheus`: one bounded process-wide queue
-(`otlp::queue`, `QUEUE_CEILING` spans, oldest dropped and counted), a protobuf encoder written here
-against OTLP `trace/v1`, and one `POST` per batch driven by `nvs_host::block_on` over a parking
-socket. `push_queued_on_this_core` is the drain task, armed on worker 0 beside the scrape listener
-(`crates/nvs-cli/src/serve.rs:1169`). A collector that is gone costs a batch, not a response: a
-request touches the queue and nothing else.
+**The trace path is end to end.** A sampled request's events leave its isolate on
+`nvs_runtime::host::Completion::trace` (`crates/nvs-runtime/src/host.rs:473`), taken there by
+`Ctx::take_sampled_trace` (`crates/nvs-runtime/src/ctx/trace.rs:332`) under
+`TraceContext::sampled` alone, so an unsampled request pays a load and a branch.
+`nvs_server::trace::record` (`crates/nvs-server/src/trace.rs:255`) is the one place a finished run
+reaches the exporter: the door calls it for a buffered answer and for a streamed one
+(`crates/nvs-server/src/serve.rs:1307`, `:715`), and the ticker calls it for a fire
+(`crates/nvs-server/src/schedule.rs:775`), whose head draw is
+`Isolate::recording` (`crates/nvs-host/src/isolate.rs:317`). `otlp.rs`'s known gap 1 is closed.
 
-**`[trace]` is read at the boot that dials it.** `nvs_config::export::Tracing`
-(`crates/nvs-config/src/export.rs:118`) is the resolved reading beside `Metering`;
-`serve::trace_collector` (`crates/nvs-cli/src/serve.rs:2104`) refuses an `otlp` exporter this build
-cannot run or one with no `endpoint`, and `nvs_server::otlp::Endpoint::of` parses and resolves the
-URL once — `https` and a scheme that is not HTTP are refused where they are written. `tree.rs`'s
-`[trace] endpoint` no longer carries an `[unread:]` trailer.
-
-**Nothing hands a finished request's spans over yet**, which is known gap 1 in `otlp.rs`'s module
-doc and the next group: `crate::trace::spans` derives the graph and only a test calls `queue`.
+**What a collector receives today is one span per sampled request**, which is known gap 1 in
+`crates/nvs-server/src/trace.rs`'s module doc: a `query`, an `http` and a `spawn` event is filed only
+under `DebugFlags::TRACE`, a served request never sets that bit, and setting it would file a `call`
+event per call site — the cost `rule:observability/a-call-never-becomes-a-span` refuses. The gate that
+separates the two is unbuilt and still belongs to this goal.
 
 ## Next group
 
-**Stage 11: the seam from a finished request to the span queue** — one file set:
-`crates/nvs-runtime/src/host.rs`, `crates/nvs-host/src/isolate.rs` and
-`crates/nvs-cli/src/serve.rs`.
+**Stage 12: the served path, end to end** — one file set: `crates/nvs-cli/src/serve.rs` and
+`crates/nvs-server/src/serve.rs`. The in-process serve fixture at
+`crates/nvs-cli/src/serve.rs:3353` is the harness all three reuse; the tests are named by the stage 12
+`[[check]]` in `docs/agent/loop-goal.toml` and must carry those exact names.
 
-- [ ] **A finished request's trace events reach the door**
-      (`rule:observability/four-kinds-become-a-span`). `Completion`
-      (`crates/nvs-runtime/src/host.rs:395`) carries the output, the status and the failure and not
-      the events `nvs_runtime::Ctx::trace` (`crates/nvs-runtime/src/ctx/trace.rs:328`) filed, so the
-      door cannot derive spans for a request it just answered. Decide it under ADR 0004's ordering
-      and write it down: the events on the completion, taken only where the request's
-      `TraceContext::sampled` says somebody is recording, is the shape that costs an unsampled
-      request nothing. The isolate that answers is built at `crates/nvs-cli/src/serve.rs:955`.
-- [ ] **The door queues what it derived** (`rule:observability/the-exporters-are-crates`). With the
-      events in hand, `crate::trace::spans` (`crates/nvs-server/src/trace.rs:194`) runs once per
-      answered request and its result goes to `nvs_server::otlp::queue`
-      (`crates/nvs-server/src/otlp.rs:310`) — the call that closes known gap 1 in that module's doc.
-      A scheduled run is the same call with the entry as the root's request
-      (`crates/nvs-server/src/schedule.rs:78`).
+- [ ] **A runaway under `nvs serve` is a fatal and its core answers the next request**
+      (`rule:errors/on-limit`). Two cases, `a_served_while_true_is_ended_as_a_fatal_and_the_core_answers_the_next_request`
+      and `a_served_allocation_loop_is_ended_as_a_fatal_and_the_core_answers_the_next_request`: a
+      request that spins and one that allocates are each ended by the tree's own ceiling, and the
+      worker that ran them serves the request after. The watchdog registration the door hands over is
+      `crates/nvs-cli/src/serve.rs:967`, and the ceilings are read at
+      `crates/nvs-cli/src/serve.rs:955`.
+- [ ] **A revalidation that fails to compile fails only the requests that resolve it afterwards**
+      (`rule:config/an-edit-reaches-the-next-request-without-a-restart`, and M7's acceptance paragraph
+      names it). `a_revalidation_that_fails_to_compile_fails_only_the_requests_that_resolve_it_afterwards`:
+      a request already holding the old unit runs to completion while the next resolve refuses.
+      The resolve is `crates/nvs-cli/src/serve.rs:955`'s program.
 
 ## Backlog
 
-- `[metrics] endpoint` has no pusher: a tree writing `exporter = "otlp"` under `[metrics]` builds a
-  registry nothing ships — `crates/nvs-server/src/metrics.rs:86`, known gap 1 there.
-- A span has no window; every one is encoded as an instant — `crates/nvs-server/src/otlp.rs` known
-  gap 2, owner M10.
-- `Core\Metrics`'s three rows are goal `m8-stdlib-depth`'s — `crates/nvs-server/src/metrics.rs:94`.
-- The `unowned` gaps at `crates/nvs-server/src/route.rs:30` and `bounds.rs:62` are goal
-  `unowned-closures`'.
+- The gate that files a `query`, an `http` and a `spawn` for a **sampled** request without turning on
+  `DebugFlags::TRACE`'s per-call probes — `crates/nvs-server/src/trace.rs`'s known gap 1, owner this
+  goal. It is a decision about where the bit lives, so it wants a record.
+- A span carries no timestamps, so every trace lands as an instant — `crates/nvs-server/src/otlp.rs`
+  known gap 1, owner M10.
+- A fire's context carries no configuration of its own — `crates/nvs-server/src/schedule.rs` known
+  gap 1, owner this goal.
+- The `unowned` gaps at `crates/nvs-server/src/route.rs:30` and `crates/nvs-server/src/bounds.rs:62`,
+  owner goal `unowned-closures`.
