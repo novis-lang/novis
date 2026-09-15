@@ -53,7 +53,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | Spec § 13's `Core\Test` cell states the roster in English, so `request`'s bag is spelled nowhere in the spec | `unowned-closures` | `docs/spec/01-core-library.md:1001`; the bag itself is `crates/nvs-stdlib/src/test.rs`'s `REQUEST_OPTIONS`, and `docs/novis.md` renders the signature |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
 | `array<T>` is invariant, so an `array<int|string>` parameter takes only that spelling | `unowned-closures` | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
-| The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | `m8-db-queue` | `crates/nvs-db/src/matrix.rs` gap 1 |
 
 ## Unowned
 
