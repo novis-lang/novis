@@ -2319,8 +2319,8 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The connection's driver has no streaming read yet — only PostgreSQL parks a \
-                   cursor today, and `query` answers the same rows on every driver.",
+            desc: "The connection's driver has no streaming read yet — PostgreSQL, MySQL and \
+                   MariaDB park one today, and `query` answers the same rows on every driver.",
         },
         ErrorDoc {
             error: "Core\\Db\\DbError",

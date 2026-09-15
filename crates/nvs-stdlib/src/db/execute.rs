@@ -466,7 +466,7 @@ pub(crate) enum Framed<'a> {
 impl Framed<'_> {
     /// § 9's zone a zone-less `DATETIME` off this connection is read in, as
     /// seconds east of UTC.
-    fn time_zone(&self) -> i32 {
+    pub(crate) fn time_zone(&self) -> i32 {
         match self {
             Framed::MySql(mysql) => mysql.time_zone(),
             Framed::MariaDb(maria) => maria.time_zone(),
@@ -488,6 +488,66 @@ impl Framed<'_> {
         match self {
             Framed::MySql(mysql) => mysql.query(sql, params),
             Framed::MariaDb(maria) => maria.query(sql, params),
+        }
+    }
+
+    /// `rule:core-classes/db-streaming`'s `stream`: the same statement [`Self::query`] sends, left
+    /// open with its read state parked on the connection.
+    ///
+    /// The description the driver answers with is dropped here rather than
+    /// returned, for the reason the PostgreSQL arm drops its own: the row loop
+    /// reads it back off the connection per step, so nothing about it is copied
+    /// into the walk. What it is *not* dropped for is a type — a definition is
+    /// `mysql_common`'s `Column` and this crate does not depend on that crate, so
+    /// a definition can be passed through here but not named in a signature.
+    ///
+    /// # Errors
+    ///
+    /// As the driver's own `stream`, which on both is `nvs_db::mysql`'s
+    /// `open_result`.
+    pub(crate) fn stream(&mut self, sql: &str, params: &[Option<&[u8]>]) -> std::io::Result<()> {
+        match self {
+            Framed::MySql(mysql) => mysql.stream(sql, params).map(|_| ()),
+            Framed::MariaDb(maria) => maria.stream(sql, params).map(|_| ()),
+        }
+    }
+
+    /// The next row of the parked walk, or `None` once it has ended.
+    ///
+    /// # Errors
+    ///
+    /// As the driver's own `stream_next_row`, which on both is `nvs_db::mysql`'s
+    /// `next_row_of`.
+    pub(crate) fn stream_next_row(&mut self) -> std::io::Result<Option<nvs_db::MySqlRow>> {
+        match self {
+            Framed::MySql(mysql) => mysql.stream_next_row(),
+            Framed::MariaDb(maria) => maria.stream_next_row(),
+        }
+    }
+
+    /// `rule:observability/a-query-is-a-trace-event`'s event for the parked walk, or `None` where
+    /// there is none.
+    pub(crate) fn stream_span(&self) -> Option<&nvs_db::QuerySpan> {
+        match self {
+            Framed::MySql(mysql) => mysql.stream_span(),
+            Framed::MariaDb(maria) => maria.stream_span(),
+        }
+    }
+
+    /// Names the `[db.<name>]` block the parked walk is running on — the driver
+    /// cannot work it out for itself, which is [`name_span`]'s reason.
+    pub(crate) fn name_stream_connection(&mut self, connection: &str) {
+        match self {
+            Framed::MySql(mysql) => mysql.name_stream_connection(connection),
+            Framed::MariaDb(maria) => maria.name_stream_connection(connection),
+        }
+    }
+
+    /// Drops the parked walk, draining whatever is left of its result set.
+    pub(crate) fn end_stream(&mut self) {
+        match self {
+            Framed::MySql(mysql) => mysql.end_stream(),
+            Framed::MariaDb(maria) => maria.end_stream(),
         }
     }
 

@@ -267,12 +267,13 @@
 //!    — owner: unowned-closures
 //! 3. **`query`, `queryAs`, `execute`, `executeMany`, `stream` and
 //!    `transaction` are what has landed of `Core\Db\Queryable`** (gap 4 is what
-//!    `queryAs` still owes). **`stream` lands on PostgreSQL alone**, and that is
-//!    the wire half rather than this one: § 4's read needs the portal left open
-//!    with the read state parked off the borrow — `nvs_db::PgCursor` — and the
-//!    other four drivers have no such state, so [`mod@stream`]'s member throws a
-//!    `RuntimeError` naming `query` on each of them rather than buffering behind
-//!    the caller's back. Buffering would be the worse answer twice over: it
+//!    `queryAs` still owes). **`stream` lands on PostgreSQL, MySQL and
+//!    MariaDB**, and what is left is the wire half rather than this one: § 4's
+//!    read needs the statement left open with the read state parked off the
+//!    borrow — `nvs_db::PgCursor`, and `nvs_db::MySqlCursor` for the two drivers
+//!    that share one row loop — and SQLite and SQL Server have no such state, so
+//!    [`mod@stream`]'s member throws a `RuntimeError` naming `query` on those two
+//!    rather than buffering behind the caller's back. Buffering would be the worse answer twice over: it
 //!    breaks the member's one promise, constant memory, and it breaks § 4's
 //!    *uniform* connection-busy rule, which is there so that a program written
 //!    against one driver runs on all five. `streamAs` is owed whole and is that

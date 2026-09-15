@@ -7,13 +7,14 @@
 //! *snapshot* — [`crate::cursor`]'s own module doc argues why, and
 //! [`nvs_core_db_rows_iterate`] is `Core\Db` taking that answer for a buffered
 //! result set. A streamed row cannot be in a snapshot, because it does not
-//! exist until [`nvs_db::PgConn::stream_next_row`] asks the server for it. So
+//! exist until the driver's own `stream_next_row` asks the server for it. So
 //! this class carries the `advance()`/`current()` pair itself and *is* its own
 //! iterator, exactly as `Core\Request\BodyStream` and `Core\Request\Files` are
 //! and for the same reason: naming the walk is not reading it.
 //!
 //! **What it holds is the connection's key and one row.** The rows live on the
-//! connection — [`nvs_db::PgCursor`] is the read state § 4 parks there — so
+//! connection — `nvs_db`'s `PgCursor` and `MySqlCursor` are the read state § 4
+//! parks there, one per driver that has a parked read — so
 //! this object owns nothing a request teardown does not already own, and an
 //! escaped `$stream` keeps no portal alive past the request that opened it. The
 //! one slot that holds a value is [`STREAM_ROW_SLOT`], overwritten by every
@@ -187,6 +188,8 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
                 }
             }
         }
+        nvs_db::Connection::MySql(mysql) => mysql_step(Framed::MySql(mysql), &block, &watch)?,
+        nvs_db::Connection::MariaDb(maria) => mysql_step(Framed::MariaDb(maria), &block, &watch)?,
         // Unreachable: [`nvs_core_db_connection_stream`] refuses every other
         // driver before it builds one of these, and a connection cannot change
         // driver under a walk.
@@ -199,6 +202,105 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
     };
     watch.file(ctx, taken);
     Ok(park_row(receiver, row))
+}
+
+/// What one step of a walk produced: the row where there was one, and
+/// `rule:observability/a-query-is-a-trace-event`'s event where this step is the one that ended the
+/// statement.
+///
+/// A name because the pair is what every arm of [`stream_step`] answers with,
+/// where the buffered members spell their own twin of it out at each signature.
+type Stepped = (Option<NvsArray>, Option<(String, std::time::Duration)>);
+
+/// One step of a walk over either of the two drivers [`Framed`] covers, for
+/// [`stream_step`]'s arms.
+///
+/// A function over that enum rather than two arms that read alike, and for its
+/// own reason: `nvs_db::MariaConn::stream_next_row` is a delegation into the
+/// same parked read `nvs_db::MySqlConn::stream_next_row` is, so the only thing
+/// the two arms could differ in is the type of the borrow.
+///
+/// **The per-row work is [`mysql_rows`]' and not [`stream_step`]'s**, down to
+/// the lossy label in the message beside the octets in the key: what a row *is*
+/// on this driver is one decision, and a walk that read a column differently
+/// from the buffered member would be two.
+///
+/// # Errors
+///
+/// [`statement_failure`]'s for anything the server refused mid-walk or a wire
+/// that failed under it, and [`mysql_column_value`]'s for a column with no Novis
+/// representation. A [`Fault::fatal`] for a row narrower than the definitions it
+/// was decoded against, which is a `nvs-db` bug rather than a program's.
+fn mysql_step(mut framed: Framed<'_>, block: &Value, watch: &QueryWatch) -> Result<Stepped, Fault> {
+    let read = framed
+        .stream_next_row()
+        .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+    let Some(read) = read else {
+        let taken = framed.stream_span().and_then(|span| watch.taken(span));
+        // The result set is already drained — this step is the one that read the
+        // terminator — so this drops the parked state rather than draining
+        // anything, and the connection is idle and poolable from here.
+        framed.end_stream();
+        return Ok((None, taken));
+    };
+
+    // Read after the row and not before it, for the PostgreSQL arm's reason: the
+    // row is owned, so the definitions can be borrowed rather than copied per
+    // row.
+    let zone = framed.time_zone();
+    // Matched here rather than reached through a [`Framed`] member, because a
+    // definition is `mysql_common`'s `Column` and this crate does not depend on
+    // that crate — [`Framed::stream`] owns that sentence.
+    let columns = match &framed {
+        Framed::MySql(mysql) => mysql.stream_columns(),
+        Framed::MariaDb(maria) => maria.stream_columns(),
+    }
+    .unwrap_or_default();
+
+    // Built whole before it is parked, on [`park_row`]'s reasoning: a column this
+    // driver cannot read back releases the half-built row rather than leaving it
+    // in the slot.
+    let mut one = NvsArray::new();
+    for (index, column) in columns.iter().enumerate() {
+        // Unreachable, as in [`mysql_rows`]: `nvs-db` decodes one value per
+        // definition, so a row is exactly as wide as this loop.
+        let body = read.value(index).ok_or_else(|| {
+            Fault::fatal(format!(
+                "{STREAM_MEMBER}: the row has no column {index}, where the result set described {}",
+                columns.len()
+            ))
+        })?;
+        let scalar = nvs_db::mysql::scalar(column, body)
+            .map_err(|refused| statement_failure(STREAM_MEMBER, block, None, &refused))?;
+        let label = String::from_utf8_lossy(column.name_ref());
+        let value = mysql_column_value(scalar, zone, STREAM_MEMBER, &label)?;
+        one.set(NvsStr::new(column.name_ref()), value);
+    }
+    Ok((Some(one), None))
+}
+
+/// Opens the walk on either of the two drivers [`Framed`] covers, for
+/// [`nvs_core_db_connection_stream`]'s arms.
+///
+/// [`mysql_step`]'s reason for existing, at the other end of the walk.
+///
+/// # Errors
+///
+/// [`statement_failure`] for anything the server refused, which for a connection
+/// that is already streaming is `rule:core-classes/db-streaming`'s `LogicError`.
+fn stream_over(
+    mut framed: Framed<'_>,
+    statement: &Statement,
+    sending: &[Option<&[u8]>],
+    source: Option<&str>,
+) -> Result<(), Fault> {
+    framed
+        .stream(&statement.sql, sending)
+        .map_err(|refused| statement_failure(STREAM_MEMBER, &statement.block, source, &refused))?;
+    if let Some(name) = statement.block.as_text() {
+        framed.name_stream_connection(name);
+    }
+    Ok(())
 }
 
 nvs_runtime::nvs_helper! {
@@ -251,6 +353,12 @@ nvs_runtime::nvs_helper! {
                     postgres.name_stream_connection(name);
                 }
             }
+            nvs_db::Connection::MySql(mysql) => {
+                stream_over(Framed::MySql(mysql), &statement, &sending, source)?;
+            }
+            nvs_db::Connection::MariaDb(maria) => {
+                stream_over(Framed::MariaDb(maria), &statement, &sending, source)?;
+            }
             other => {
                 return Err(unstreamed(other.driver()));
             }
@@ -284,18 +392,18 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The refusal for a driver whose wire half has no parked cursor yet.
+/// The refusal for a driver whose wire half has no parked read yet.
 ///
-/// A `RuntimeError` and not a `LogicError`: the call is well formed and the
-/// same call is answered on PostgreSQL, so it is this runtime that is short and
-/// not the program. It names `query` because that is the member every driver
-/// answers with the same rows, which is the whole of what a caller can do about
-/// it today.
+/// A `RuntimeError` and not a `LogicError`: the call is well formed and the same
+/// call is answered on the drivers that do park one, so it is this runtime that
+/// is short and not the program. It names `query` because that is the member
+/// every driver answers with the same rows, which is the whole of what a caller
+/// can do about it today.
 fn unstreamed(driver: nvs_db::Driver) -> Fault {
     Fault::thrown(format!(
-        "{STREAM_MEMBER}: this connection's driver has no streaming read yet — only PostgreSQL \
-         parks a cursor, so read this statement with `query` here, or open the block on a \
-         PostgreSQL server (`{}` is what it names today)",
+        "{STREAM_MEMBER}: this connection's driver has no streaming read yet — PostgreSQL, MySQL \
+         and MariaDB park one, so read this statement with `query` here, or open the block on one \
+         of those (`{}` is what it names today)",
         driver.matrix_name()
     ))
 }
