@@ -41,16 +41,23 @@
 //! is in flight, and at worst one [`CONNECT_DEADLINE`] for a worker still shaking hands with a
 //! server that is not answering.
 //!
-//! ## Why the grants are the run's own
+//! ## What a job's grants are
 //!
 //! A claimed job is § 5's root isolate, and an isolate is reached through
 //! `rule:security/capability-check-at-the-door`'s
 //! spawn door like any other — [`nvs_runtime::script::resolve`] asks `script.spawn` with the job's
 //! path as its scope. That question is asked of the *context*, and a worker's context is not the
-//! script's, so each one is handed the same configuration snapshot the run resolved at boot. § 5's
-//! "grants narrowed from those recorded at enqueue" is the narrower rule and § 2's schema has no
-//! column to record them in yet; what is here is the deployment's own configuration, which is the
-//! ceiling that narrowing would sit under.
+//! script's, so each one is handed the same configuration snapshot the run resolved at boot.
+//!
+//! That snapshot is the **ceiling** and not the answer.
+//! `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` has the job run under what
+//! the *enqueuing* context had narrowed itself to, and the claim answers with the `grants` and
+//! `limits` columns that recorded it. [`run`] reads them back through
+//! [`nvs_stdlib::queue::narrowing`] and hands the pair over as the same
+//! [`nvs_runtime::host::Narrowing`] a `spawn script … with(…)` carries, so what applies it is
+//! `nvs_config::Request::set` — the one reader that refuses a value wider than what is in force.
+//! A job whose row recorded neither half narrows nothing and runs at the ceiling, which is where a
+//! request that gave nothing up belongs.
 //!
 //! ## What it spends
 //!
@@ -445,8 +452,8 @@ fn sqlite_roster(sqlite: &nvs_db::SqliteConn, now: i64, cutoff: i64) -> io::Resu
 /// What a worker reads off [`nvs_stdlib::queue::CLAIM_POSTGRES`]'s `returning` list, and what running one
 /// and reporting it needs.
 ///
-/// Every column of that list: what to run, and what § 6's ladder is judged against, which
-/// [`report`] does the moment [`run`] returns.
+/// Every column of that list: what to run, what it runs under, and what § 6's ladder is judged
+/// against, which [`report`] does the moment [`run`] returns.
 struct Job {
     /// The primary key, which is what the write-back names the row by.
     id: i64,
@@ -473,6 +480,16 @@ struct Job {
     /// [`nvs_stdlib::queue::dead_errors`], which is the one place an entry is appended, so this
     /// crate carries the array as the text the column holds.
     errors: Option<String>,
+    /// The `grants` column as it is stored: the JSON array of capability names the context that
+    /// enqueued the job had narrowed itself to, or `None` for a context that narrowed none. Held as
+    /// the text the column carries for [`Self::errors`]'s reason — `nvs-stdlib` wrote it and
+    /// `nvs_stdlib::queue::narrowing` is the one place it is read back into the shape the spawn
+    /// door takes.
+    grants: Option<String>,
+    /// The `limits` column as it is stored: the JSON object of `[limits]` keys, each in the
+    /// spelling `nvs.toml` writes the same directive in, or `None` for a context under no sub-cap
+    /// at all. Read back beside the field above and by the same function.
+    limits: Option<String>,
 }
 
 /// One claim against one queue, answering with the row it took.
@@ -521,8 +538,13 @@ fn postgres_claim(conn: &mut nvs_db::PgConn, bound: &[Option<&[u8]>]) -> io::Res
     let columns: Vec<nvs_db::PgColumn> = answered.columns().to_vec();
     let mut took = None;
     while let Some(row) = answered.next_row()? {
-        let (Some(script), Some(args), Some(errors)) =
-            (columns.get(SCRIPT), columns.get(ARGS), columns.get(ERRORS))
+        let [
+            Some(script),
+            Some(args),
+            Some(errors),
+            Some(grants),
+            Some(limits),
+        ] = [SCRIPT, ARGS, ERRORS, GRANTS, LIMITS].map(|at| columns.get(at))
         else {
             continue;
         };
@@ -539,6 +561,16 @@ fn postgres_claim(conn: &mut nvs_db::PgConn, bound: &[Option<&[u8]>]) -> io::Res
         // `dead_errors` reads that as an array to start rather than one to append to.
         let errors = match errors.scalar(row.column(ERRORS)?)? {
             nvs_db::PgScalar::Text(errors) => Some(errors.into_owned()),
+            _ => None,
+        };
+        // And a null in either of the last two is the enqueuing context that narrowed nothing,
+        // which is a job held to the deployment's own ceiling rather than a row to drop.
+        let grants = match grants.scalar(row.column(GRANTS)?)? {
+            nvs_db::PgScalar::Text(grants) => Some(grants.into_owned()),
+            _ => None,
+        };
+        let limits = match limits.scalar(row.column(LIMITS)?)? {
+            nvs_db::PgScalar::Text(limits) => Some(limits.into_owned()),
             _ => None,
         };
         // The columns the write-back judges against, and every one of them is `not null` in the
@@ -572,6 +604,8 @@ fn postgres_claim(conn: &mut nvs_db::PgConn, bound: &[Option<&[u8]>]) -> io::Res
             max_attempts,
             backoff_ms,
             errors,
+            grants,
+            limits,
         });
     }
     Ok(took)
@@ -596,9 +630,15 @@ const MAX_ATTEMPTS: usize = 4;
 /// `backoff_ms`'s position in the same list.
 const BACKOFF: usize = 5;
 
-/// `errors`'s position in the same list, and the last of them — where a column a claim answers with
-/// arrives, for the reason [`nvs_stdlib::queue::schema`]'s own column list gives.
+/// `errors`'s position in the same list.
 const ERRORS: usize = 6;
+
+/// `grants`'s position in the same list.
+const GRANTS: usize = 7;
+
+/// `limits`'s position in the same list, and the last of them — where a column a claim answers with
+/// arrives, for the reason [`nvs_stdlib::queue::schema`]'s own column list gives.
+const LIMITS: usize = 8;
 
 /// [`claim`] as one statement in T-SQL: [`nvs_stdlib::queue::CLAIM_SQLSERVER`]'s updating CTE,
 /// which takes the row and answers with it in one round trip as PostgreSQL's does.
@@ -614,13 +654,23 @@ fn tds_claim(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<O
     let columns: Vec<nvs_db::tds::TdsColumn> = answered.columns().to_vec();
     let mut took = None;
     while let Some(row) = answered.next_row()? {
-        let (Some(script), Some(args), Some(errors)) =
-            (columns.get(SCRIPT), columns.get(ARGS), columns.get(ERRORS))
+        let [
+            Some(script),
+            Some(args),
+            Some(errors),
+            Some(grants),
+            Some(limits),
+        ] = [SCRIPT, ARGS, ERRORS, GRANTS, LIMITS].map(|at| columns.get(at))
         else {
             continue;
         };
-        let (Some(script_body), Some(args_body), Some(errors_body)) =
-            (row.column(SCRIPT), row.column(ARGS), row.column(ERRORS))
+        let [
+            Some(script_body),
+            Some(args_body),
+            Some(errors_body),
+            Some(grants_body),
+            Some(limits_body),
+        ] = [SCRIPT, ARGS, ERRORS, GRANTS, LIMITS].map(|at| row.column(at))
         else {
             continue;
         };
@@ -637,6 +687,16 @@ fn tds_claim(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<O
         // attempts has failed.
         let errors = match nvs_db::tds::scalar(errors, errors_body)? {
             nvs_db::tds::TdsScalar::Text(errors) => Some(errors.into_owned()),
+            _ => None,
+        };
+        // And a null in either of the last two is the enqueuing context that narrowed nothing,
+        // read the same way and for [`postgres_claim`]'s reason.
+        let grants = match nvs_db::tds::scalar(grants, grants_body)? {
+            nvs_db::tds::TdsScalar::Text(grants) => Some(grants.into_owned()),
+            _ => None,
+        };
+        let limits = match nvs_db::tds::scalar(limits, limits_body)? {
+            nvs_db::tds::TdsScalar::Text(limits) => Some(limits.into_owned()),
             _ => None,
         };
         // The columns the write-back judges against, every one of them `not null` in the migration
@@ -677,6 +737,8 @@ fn tds_claim(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<O
             max_attempts,
             backoff_ms,
             errors,
+            grants,
+            limits,
         });
     }
     Ok(took)
@@ -744,7 +806,7 @@ fn claimed_in_two(
         // A row narrower than § 4's list is one no `Core\Queue::push` wrote, and [`postgres_claim`]
         // drops such a row for the reason its own guards give: it stays claimed until § 4's
         // visibility timeout, which is where a row this worker cannot make sense of belongs.
-        if read.len() <= ERRORS {
+        if read.len() <= LIMITS {
             continue;
         }
         let nvs_db::MySqlScalar::Text(script) = &read[SCRIPT] else {
@@ -759,6 +821,16 @@ fn claimed_in_two(
         // And null `errors` is a job none of whose attempts has failed, read the same way.
         let errors = match &read[ERRORS] {
             nvs_db::MySqlScalar::Text(errors) => Some(errors.to_string()),
+            _ => None,
+        };
+        // A null in either of the last two is the enqueuing context that narrowed nothing, which
+        // is a job held to the deployment's own ceiling rather than a row to drop.
+        let grants = match &read[GRANTS] {
+            nvs_db::MySqlScalar::Text(grants) => Some(grants.to_string()),
+            _ => None,
+        };
+        let limits = match &read[LIMITS] {
+            nvs_db::MySqlScalar::Text(limits) => Some(limits.to_string()),
             _ => None,
         };
         let [
@@ -778,6 +850,8 @@ fn claimed_in_two(
             max_attempts,
             backoff_ms,
             errors,
+            grants,
+            limits,
         });
     }
     // The rows have to have let the connection go before the `update` on it starts, which is the
@@ -875,7 +949,7 @@ fn sqlite_claimed_in_two(
         // A row narrower than § 4's list is one no `Core\Queue::push` wrote, and it is dropped for
         // [`postgres_claim`]'s reason: it stays claimed until § 4's visibility timeout, which is
         // where a row this worker cannot make sense of belongs.
-        if row.len() <= ERRORS {
+        if row.len() <= LIMITS {
             continue;
         }
         let nvs_db::SqliteValue::Text(script) = &row[SCRIPT] else {
@@ -890,6 +964,16 @@ fn sqlite_claimed_in_two(
         // And a null `errors` cell is a job none of whose attempts has failed, read the same way.
         let errors = match &row[ERRORS] {
             nvs_db::SqliteValue::Text(errors) => Some(errors.clone()),
+            _ => None,
+        };
+        // A null cell in either of the last two is the enqueuing context that narrowed nothing,
+        // which is a job held to the deployment's own ceiling rather than a row to drop.
+        let grants = match &row[GRANTS] {
+            nvs_db::SqliteValue::Text(grants) => Some(grants.clone()),
+            _ => None,
+        };
+        let limits = match &row[LIMITS] {
+            nvs_db::SqliteValue::Text(limits) => Some(limits.clone()),
             _ => None,
         };
         let [
@@ -909,6 +993,8 @@ fn sqlite_claimed_in_two(
             max_attempts,
             backoff_ms,
             errors,
+            grants,
+            limits,
         });
     }
     // The rows have to have let the connection go before the `update` on it starts: a result set
@@ -955,12 +1041,30 @@ fn sqlite_integer(read: &nvs_db::SqliteValue) -> Option<i64> {
 /// the only honest one, since a job's `echo` landing in the middle of what the run's own script is
 /// writing is exactly the mixing that option exists to prevent.
 ///
+/// **Narrowed to what the row recorded, and read before anything else is spent.** The module doc's
+/// *What a job's grants are* owns why the pair is the answer and the worker's own configuration
+/// only the ceiling. A pair [`nvs_stdlib::queue::narrowing`] cannot read is a refused attempt
+/// rather than a job run at that ceiling: running it there is exactly the widening the two columns
+/// exist to prevent, and § 6's ladder bounds a refusal where nothing bounds an escalation.
+///
 /// A refusal is written to standard error rather than answered, because there is nobody to answer:
 /// a worker has no caller. One line per refused job, and the answer is a failure either way — a job
 /// whose script does not resolve is a failed attempt like any other, so § 6's ladder is what
 /// bounds it rather than a second policy written here. It crosses as the same [`nvs_host::Failure`]
 /// a throw does, under [`refusal`]'s class, so a dead-letter row records the two in one shape.
 fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
+    let Some(narrowing) =
+        nvs_stdlib::queue::narrowing(job.grants.as_deref(), job.limits.as_deref())
+    else {
+        eprintln!(
+            "warning: the queued job `{}` was not run: the grants and limits recorded with it are \
+             not the shape a push writes",
+            job.script
+        );
+        return Some(refusal(
+            "the grants and limits recorded with it could not be read".to_string(),
+        ));
+    };
     let program = match nvs_runtime::script::resolve(ctx, &job.script) {
         Ok(program) => program,
         Err(refused) => {
@@ -979,7 +1083,10 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
         .as_deref()
         .and_then(nvs_stdlib::queue::payload)
         .unwrap_or_else(nvs_runtime::Value::null);
-    match nvs_host::Isolate::new(program, args, nvs_host::Output::Capture).run(ctx) {
+    match nvs_host::Isolate::new(program, args, nvs_host::Output::Capture)
+        .narrowed_by(narrowing)
+        .run(ctx)
+    {
         // `ok` and not "it returned": an isolate whose program threw, or that was torn down over a
         // budget, answers here exactly as one that returned — which is § 6's "a job exceeding its
         // memory, CPU or time budget is a failed attempt, reported as that rather than as an
@@ -1716,6 +1823,8 @@ mod tests {
             (super::MAX_ATTEMPTS, "max_attempts"),
             (super::BACKOFF, "backoff_ms"),
             (super::ERRORS, "errors"),
+            (super::GRANTS, "grants"),
+            (super::LIMITS, "limits"),
         ];
         for (dialect, list) in [("postgres", postgres), ("mysql", mysql), ("sqlite", sqlite)] {
             let columns = answered(list);
@@ -1766,6 +1875,8 @@ mod tests {
                 max_attempts: 3,
                 backoff_ms: 100,
                 errors: carried,
+                grants: None,
+                limits: None,
             };
             carried = Some(super::errors_after(
                 &job,

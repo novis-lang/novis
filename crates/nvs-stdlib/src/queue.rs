@@ -71,18 +71,18 @@
 //!    grants them under, and `limits` its sub-caps one option each, which is what ADR 0084 § 1's
 //!    `{…}` was standing in for.
 //!
-//!    **What they wait on is enforcement.** A job runs as a root isolate
-//!    (`rule:concurrency/a-job-runs-as-a-root-isolate`) and the isolate half applies neither: the
-//!    spawn's own `limits:` and `grants:` are checked where they are written
-//!    (`nvs_types::expr::isolate`) and no sub-cap or narrowing reaches a child. A *declared* option
-//!    would therefore be `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
-//!    accepted-and-dropped narrowing, which hands the job the authority its request meant to give
-//!    up, and undeclared *is* the refusal: a bag reports a key it does not declare
-//!    (`rule:core-api/shape-reuses-the-option-diagnostics`), so `{grants: …}` is a diagnostic today
-//!    and stays one until the isolate the worker starts applies what the row carries. What it
-//!    carries meanwhile is the enqueuing context's own narrowing ([`grants_recorded`],
-//!    [`limits_recorded`]) — a fact about the request rather than a request from the call site, so
-//!    it widens nothing while the isolate half is unbuilt.
+//!    **What they wait on is the check at the call site.** The isolate half applies what the row
+//!    carries: [`narrowing`] reads the two columns back and `crates/nvs-cli/src/worker.rs`'s `run`
+//!    hands them to the same spawn door a `spawn script … with(…)` goes through, so a declared
+//!    option would no longer be `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
+//!    accepted-and-dropped narrowing. What is still missing is the refusal a written `grants:` owes
+//!    where it stands — a name the enqueuing request does not itself hold has to be rejected at the
+//!    call site rather than recorded, because a row is narrowed *from* that request and never
+//!    widened. Undeclared is that refusal meanwhile: a bag reports a key it does not declare
+//!    (`rule:core-api/shape-reuses-the-option-diagnostics`), so `{grants: …}` is a diagnostic
+//!    today. What the row carries without either option is the enqueuing context's own narrowing
+//!    ([`grants_recorded`], [`limits_recorded`]) — a fact about the request rather than a request
+//!    from the call site, so it widens nothing.
 //!    — owner: m8-db-queue
 //! 2. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
 //!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
@@ -483,15 +483,18 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// and [`RETRY_POSTGRES`] is what puts the key back when an attempt did not return.
 ///
 /// The `returning` list is what running a job needs and nothing else: `queue` is `$1` and the row's
-/// other columns are the schema's business.
+/// other columns are the schema's business. `grants` and `limits` are on it because *building* the
+/// isolate is what needs them — `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`
+/// has the job run narrowed to what the enqueuing context recorded, and a worker cannot narrow it
+/// without reading the pair back.
 ///
 /// `pub` because the worker that claims with it lives in `nvs-cli` — the crate that owns the
 /// scheduler a worker is a task on — and § 2's schema has one home, which is here beside the
 /// `insert` that writes the columns this reads back.
 ///
 /// **PostgreSQL's dialect, and [`CLAIM_MYSQL`] is § 4's claim where a data-modifying CTE cannot be
-/// had** — the same two arms, the same lock, and the same six columns in the same order, taken by
-/// two statements inside one transaction rather than by one.
+/// had** — the same two arms, the same lock, and the same columns in the same order, taken by two
+/// statements inside one transaction rather than by one.
 pub const CLAIM_POSTGRES: &str = "with due as (\
      select id from nvs_jobs \
      where queue = $1::text \
@@ -501,7 +504,7 @@ pub const CLAIM_POSTGRES: &str = "with due as (\
  ) update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = $2::bigint, \
    dedupe_pending = null \
    where id in (select id from due) \
-   returning id, script, args, attempts, max_attempts, backoff_ms, errors";
+   returning id, script, args, attempts, max_attempts, backoff_ms, errors, grants, limits";
 
 /// `rule:core-classes/queue-storage-is-a-table`'s unanswered question — *which* queues a worker asks about — answered by the table
 /// rather than by a key.
@@ -758,7 +761,7 @@ pub const INSERT_SQLSERVER: Split = Split {
 /// [`CLAIM_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
 /// **The `select` answers [`CLAIM_POSTGRES`]'s `returning` list, in its order**, so a worker reads
-/// the same column at the same ordinal whichever dialect it claimed with — the six slots
+/// the same column at the same ordinal whichever dialect it claimed with — the slots
 /// `crates/nvs-cli/src/worker.rs` names by position, and
 /// `all_three_dialects_answer_a_claim_with_the_same_columns` is what holds them together.
 /// `attempts + 1 as attempts` is what makes that true across the split: PostgreSQL's `returning`
@@ -776,7 +779,8 @@ pub const INSERT_SQLSERVER: Split = Split {
 /// named the row and holds its lock: PostgreSQL's `where id in (select id from due)` exists to
 /// reach its own CTE, and there is no CTE here to reach.
 pub const CLAIM_MYSQL: Split = Split {
-    first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms, errors \
+    first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms, errors, \
+            grants, limits \
             from nvs_jobs \
             where queue = ? \
             and ((state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)) \
@@ -807,7 +811,8 @@ pub const CLAIM_MYSQL: Split = Split {
 /// The `update` is keyed by `id` for [`CLAIM_MYSQL`]'s reason as well: [`Split::first`] has named
 /// the row, and there is no CTE to reach back into.
 pub const CLAIM_SQLITE: Split = Split {
-    first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms, errors \
+    first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms, errors, \
+            grants, limits \
             from nvs_jobs \
             where queue = ? \
             and ((state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)) \
@@ -840,7 +845,7 @@ pub const CLAIM_SQLITE: Split = Split {
 /// carries that CTE's columns and no others.
 pub const CLAIM_SQLSERVER: &str = "with due as (\
      select top 1 id, script, args, state, attempts, max_attempts, backoff_ms, run_at, claimed_at, \
-     dedupe_pending, errors from nvs_jobs with (updlock, readpast, rowlock) \
+     dedupe_pending, errors, grants, limits from nvs_jobs with (updlock, readpast, rowlock) \
      where queue = @p1 \
      and ((state = 0 and run_at <= cast(@p2 as bigint)) \
      or (state = 1 and claimed_at <= cast(@p3 as bigint))) \
@@ -848,7 +853,8 @@ pub const CLAIM_SQLSERVER: &str = "with due as (\
  ) update due set state = 1, attempts = attempts + 1, claimed_at = cast(@p2 as bigint), \
    dedupe_pending = null \
    output inserted.id, inserted.script, inserted.args, inserted.attempts, \
-   inserted.max_attempts, inserted.backoff_ms, inserted.errors";
+   inserted.max_attempts, inserted.backoff_ms, inserted.errors, inserted.grants, \
+   inserted.limits";
 
 /// [`DEAD_LETTER_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
@@ -2618,6 +2624,70 @@ fn limits_recorded(config: Option<&nvs_config::Request>) -> Option<String> {
         }
     }
     (!written.is_empty()).then(|| serde_json::Value::Object(written).to_string())
+}
+
+/// The row's `grants` and `limits` columns as the narrowing the isolate running the job is built
+/// with — [`grants_recorded`] and [`limits_recorded`] read back — and `None` for a pair that is not
+/// the shape they write.
+///
+/// **`None` is a refusal and not an empty narrowing**, which is the whole security content of this
+/// direction. `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` has the job run
+/// under what the enqueuing context had narrowed itself to, so a column this cannot read is a
+/// narrowing that would be silently dropped — and a dropped narrowing runs the job at the
+/// deployment's own ceiling, handing it the authority the request meant to give up. The caller
+/// reports it as a failed attempt instead, which § 6's ladder already bounds. A column that is
+/// *null* is a different answer: that context narrowed that half of nothing, and the ceiling is
+/// where it belongs.
+///
+/// **A key outside [`RECORDED_LIMITS`] is refused for the same reason**, rather than skipped: the
+/// enqueue writes those keys and no others, so a key here is a value some other writer put on the
+/// row, and reading the rest of the object around it is reading a narrowing this runtime does not
+/// understand. The pairs come back in that constant's order, which is an order rather than the
+/// object's because each key sets a different directive and `nvs_config::Request::set` takes them
+/// one at a time.
+///
+/// **What it spends**: one short `Vec` per claimed job, released once the child's context is built,
+/// which is what [`nvs_runtime::host::Narrowing`] already costs a `spawn script` that wrote an
+/// option.
+#[must_use]
+pub fn narrowing(
+    grants: Option<&str>,
+    limits: Option<&str>,
+) -> Option<nvs_runtime::host::Narrowing> {
+    let kept = match grants {
+        None => None,
+        Some(text) => {
+            let parsed: serde_json::Value = serde_json::from_str(text).ok()?;
+            let serde_json::Value::Array(names) = parsed else {
+                return None;
+            };
+            Some(
+                names
+                    .iter()
+                    .map(|name| name.as_str().map(str::to_owned))
+                    .collect::<Option<Vec<String>>>()?,
+            )
+        }
+    };
+    let mut written = Vec::new();
+    if let Some(text) = limits {
+        let parsed: serde_json::Value = serde_json::from_str(text).ok()?;
+        let serde_json::Value::Object(keys) = parsed else {
+            return None;
+        };
+        for key in RECORDED_LIMITS {
+            if let Some(value) = keys.get(*key) {
+                written.push(((*key).to_owned(), value.as_str()?.to_owned()));
+            }
+        }
+        if written.len() != keys.len() {
+            return None;
+        }
+    }
+    Some(nvs_runtime::host::Narrowing {
+        limits: written,
+        grants: kept,
+    })
 }
 
 /// `{args: …}` as the JSON the row holds, or `None` for a payload that was not given.
@@ -6495,13 +6565,101 @@ mod tests {
         );
     }
 
+    /// `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`'s other half: what the
+    /// row recorded is what the isolate running the job is narrowed by.
+    ///
+    /// **A round trip through the recorders rather than over hand-written text**, because what the
+    /// rule asks is that the pair the enqueue *wrote* is the pair the run applies — a case over a
+    /// literal would keep passing on the day one side changed spelling and the other did not.
+    /// [`super::narrowing`] has one caller, `crates/nvs-cli/src/worker.rs`'s `run`, which hands
+    /// what comes back to `nvs_host::Isolate::narrowed_by` unchanged.
+    ///
+    /// **The refusals below are the security half**, and each is a column that is not the shape the
+    /// recorders write. Reading one as *no narrowing* would run the job at the deployment's own
+    /// ceiling, which is the widening the columns exist to prevent, so the answer is `None` and the
+    /// caller reports a failed attempt.
+    #[test]
+    fn a_job_runs_under_the_grants_and_limits_recorded_at_enqueue() {
+        use nvs_config::capability::Cap;
+        use nvs_runtime::host::Narrowing;
+
+        assert_eq!(
+            super::narrowing(None, None),
+            Some(Narrowing::default()),
+            "a context that narrowed neither half is a job at the deployment's own ceiling, which \
+             is the narrowing that narrows nothing"
+        );
+
+        let capped = nvs_config::Request::new(crate::tests::granting(
+            "[limits]\nmemory = \"64m\"\ncpu_time = \"2s\"\n",
+        ));
+        let recorded_grants = super::grants_recorded(Some(&[Cap::FsRead, Cap::QueuePurge]));
+        let recorded_limits = super::limits_recorded(Some(&capped));
+        assert_eq!(
+            super::narrowing(recorded_grants.as_deref(), recorded_limits.as_deref()),
+            Some(Narrowing {
+                limits: vec![
+                    ("memory".to_owned(), "64m".to_owned()),
+                    ("cpu_time".to_owned(), "2s".to_owned()),
+                ],
+                grants: Some(vec!["fs.read".to_owned(), "queue.purge".to_owned()]),
+            }),
+            "the row's two columns are the spawn site's two options, read back in the spelling \
+             `nvs_config::Request::set` applies"
+        );
+
+        assert_eq!(
+            super::narrowing(super::grants_recorded(Some(&[])).as_deref(), None),
+            Some(Narrowing {
+                limits: Vec::new(),
+                grants: Some(Vec::new()),
+            }),
+            "an empty list is a job that may ask for nothing, and it crosses the row as that \
+             rather than as no narrowing at all"
+        );
+
+        for (what, grants, limits) in [
+            (
+                "a `grants` column that is not an array",
+                Some(r#"{"fs.read":true}"#),
+                None,
+            ),
+            ("a capability name that is not a string", Some("[1]"), None),
+            ("text that is not JSON at all", Some("fs.read"), None),
+            (
+                "a `limits` column that is not an object",
+                None,
+                Some(r#"["memory"]"#),
+            ),
+            (
+                "a written value that is not text",
+                None,
+                Some(r#"{"memory":64}"#),
+            ),
+            (
+                "a key no isolate applies",
+                None,
+                Some(r#"{"max_tasks":"4"}"#),
+            ),
+        ] {
+            assert_eq!(
+                super::narrowing(grants, limits),
+                None,
+                "{what} is refused rather than read as no narrowing, which would run the job at \
+                 the deployment's own ceiling"
+            );
+        }
+    }
+
     /// The module doc's gap 1, asserted as the absence it now is.
     ///
     /// A declared option that `push` recorded in the row and no isolate applied is
     /// `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s accepted-and-dropped narrowing:
     /// the job keeps the authority the enqueuing request meant to give up, which is a priority-1
-    /// failure rather than a missing feature. The isolate half applies neither today, so
-    /// undeclared is the matching refusal — a bag reports a key it does not declare
+    /// failure rather than a missing feature. The isolate half applies what the row carries
+    /// ([`super::narrowing`]), so what holds the options undeclared is the other end: a written
+    /// `grants:` naming a capability the enqueuing request does not hold has to be refused where it
+    /// stands. Undeclared is that refusal meanwhile — a bag reports a key it does not declare
     /// (`rule:core-api/shape-reuses-the-option-diagnostics`), and this reads the rows a call site
     /// resolves that diagnostic off.
     ///
