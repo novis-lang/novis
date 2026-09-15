@@ -38,11 +38,14 @@
 //!   can do with one. Nothing here reads a path from request bytes — that
 //!   module's docs own the one place a remainder meets a filesystem, and § 2's
 //!   rule with it.
-//! - **No response policy for a request that *ran*, beyond a status.** A
+//! - **No file policy of its own, for a selection or for a program.** A
 //!   [`crate::mount::What::Static`] selection is answered in full by
 //!   [`crate::statics`] — § 4's `ETag`, `Range` and MIME policy, one policy in
-//!   both deployments — and this loop only carries the [`Reply`] back. What a
-//!   *program's* response may say is the next paragraph.
+//!   both deployments — and this loop only carries the [`Reply`] back. A
+//!   request that *ran* and named a file with `Core\Response::sendFile` reaches
+//!   that same policy through `sent`, so the two deployments and the two ways
+//!   of choosing a file are one answer. What a *program's* own response may say
+//!   is the next paragraph.
 //! - **No response policy beyond a status.** A request that ran answers `200`
 //!   carrying what it echoed, and one that did not answers `500` carrying
 //!   nothing; `answer`'s own docs are the home of that second call.
@@ -73,6 +76,7 @@ use std::cell::{Cell, RefCell};
 use std::convert::Infallible;
 use std::io;
 use std::ops::ControlFlow;
+use std::path::Path;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -83,7 +87,7 @@ use hyper::body::{Body, Bytes, Frame, Incoming, SizeHint};
 use hyper::header::{self, HeaderName, HeaderValue};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{Request, Response, StatusCode};
+use hyper::{HeaderMap, Request, Response, StatusCode};
 use nvs_config::Waits;
 use nvs_host::{
     Completion, Isolate, NvsConnection, NvsListener, Output, Running, Waiting, Wake, block_on,
@@ -99,7 +103,9 @@ use crate::body::Supply;
 use crate::cors::Cors;
 use crate::forwarded::{Arrival, Origin, Trusted};
 use crate::io::Phase;
+use crate::mount::OnDisk;
 use crate::secure::{Scheme, Secure};
+use crate::statics;
 
 /// A response body: one this server already holds in full, or one an isolate
 /// writes over time.
@@ -1025,6 +1031,16 @@ where
         // about an answer the policy never produced. [`crate::cors`] owns the
         // rest, including why a cache is what `Vary` is for.
         let crossing = serving.cors.answer(request.headers());
+        // What a request that answers with a **file** will be answered against —
+        // taken here for `crossing`'s reason, the handler below owning the
+        // request from the next line on, and kept rather than the whole header
+        // map because a program declares a file body only after it has run:
+        // there is no earlier moment at which this loop can know whether the
+        // conditional and the range will be needed. [`crate::statics::asked`]
+        // is the one home of which headers those are, so this line cannot come
+        // to hold a different subset than the policy reads. A request that
+        // named neither leaves an empty map, which allocates nothing.
+        let asked = statics::asked(request.headers());
         // `rule:concurrency/a-connection-is-a-root-isolate`'s offer, taken here for `crossing`'s reason and one more:
         // `hyper` leaves an `OnUpgrade` in the extensions of a request it framed
         // an upgrade for and of no other, so this is both the last moment
@@ -1226,7 +1242,7 @@ where
                             // park.
                             None => peer
                                 .collect(&mut ctx.borrow_mut())
-                                .map_or_else(failed, answer),
+                                .map_or_else(failed, |done| finished(done, &asked)),
                         }
                     }
                     // The *argument* had no meaning on the other side, so no
@@ -1529,6 +1545,75 @@ fn answer(mut done: Completion) -> Response<Answer> {
         .headers_mut()
         .insert(header::CONTENT_TYPE, content_type);
     // [`overrides`] owns the ordering and what it costs.
+    overrides(&mut response, done.headers);
+    response
+}
+
+/// The response one finished request is, whichever of the two bodies it has.
+///
+/// A request answers with the bytes it wrote or with a file it **named**, and
+/// the name is both the question and the answer: `Core\Response::sendFile`
+/// leaves a path on the completion and writes nothing into
+/// [`Completion::output`], so there is one field to ask and no ordering to get
+/// right. [`answer`] takes the first body and [`sent`] the second.
+///
+/// A request that failed goes to [`answer`] whatever it named, which is that
+/// function's `500` reached without opening anything: a handler that declared a
+/// file and then threw did not get to give the response the file was for, and
+/// reading a path for a body nobody will be sent is authority spent on nothing.
+fn finished(mut done: Completion, asked: &HeaderMap) -> Response<Answer> {
+    match done.file_body.take() {
+        Some(file) if done.ok => sent(done, &file, asked, &OnDisk),
+        _ => answer(done),
+    }
+}
+
+/// The response a request that named a file is — [`answer`]'s other half for
+/// `rule:security/response-body-is-one-typed-member`'s file row.
+///
+/// **The file is answered by the static policy and by nothing here**, which is
+/// the whole of this function: [`crate::statics::send`] already owns the
+/// media-type table, the `ETag`, the conditional and the range
+/// ([0186](/docs/decisions/0186.md) § 4), and it is the same policy in both
+/// deployments. So a program that sends a file gets what a mount table serving
+/// the same file gets, rather than a second answer this loop would have to keep
+/// correct — and the bytes are read at the connection, one range's worth,
+/// instead of ever having passed through the request.
+///
+/// **Nothing about the program's authority is re-asked here.** The member
+/// resolved the name under the calling namespace's `fs.read` and refused
+/// everything it could not send (`nvs_stdlib::response`'s `sendFile`), and this
+/// side has no capability table to ask. What the policy does re-ask is whether
+/// the file is *still there*: one that vanished between the two answers `404`,
+/// which is its own rule rather than a hole in this one.
+///
+/// A declared status is honoured only over the policy's `200`. A `206`, a `304`
+/// and a `416` are answers about **this representation** — the peer asked a
+/// question about the bytes and got the reply that question has — while a
+/// program's `setStatus` was about the response as a whole, and letting it
+/// overwrite a `304` would answer a validated cache with a body it did not ask
+/// for. [`overrides`] applies after, unchanged: `Content-Disposition` is how a
+/// download name is set on a file this member sent, and spec § 15 gives
+/// `setHeader` the last word over a policy-owned header either way.
+fn sent(
+    mut done: Completion,
+    file: &Path,
+    asked: &HeaderMap,
+    source: &dyn statics::Source,
+) -> Response<Answer> {
+    // [`answer`]'s first line, for its reason: this crate forbids `unsafe_code`
+    // and the returned value carries a reference it would otherwise leak.
+    done.discard_value();
+    // There is no isolate in a file, so the policy answers with a response and
+    // never with something to run. The other arm is [`Reply`]'s second variant
+    // rather than a case this can reach.
+    let Reply::Done(mut response) = statics::send(file, asked, source) else {
+        return failed();
+    };
+    let declared = done.status.filter(|_| response.status() == StatusCode::OK);
+    if let Some(code) = declared {
+        *response.status_mut() = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);
+    }
     overrides(&mut response, done.headers);
     response
 }
@@ -2162,6 +2247,7 @@ mod tests {
             value: Value::null(),
             output: output.as_bytes().to_vec(),
             content_type: content_type.map(Into::into),
+            file_body: None,
             status: None,
             headers: Vec::new(),
             error: None,
@@ -2189,6 +2275,162 @@ mod tests {
             echoed.headers().get(header::CONTENT_TYPE).unwrap(),
             ECHOED,
             "a request that only echoed did not get § 4's HTML default"
+        );
+    }
+
+    /// The files a case sends, with one `mtime` for all of them — a fake source
+    /// rather than a directory, because what these two cases assert is the route
+    /// from a completion into [`crate::statics`] and never the disk under it.
+    struct Files(&'static [(&'static str, &'static [u8])]);
+
+    /// The pair the file cases send: two extensions, so the media type asserted
+    /// below is read off the name rather than off a constant.
+    const FILES: Files = Files(&[("page.html", b"<p>hi</p>"), ("notes.txt", b"plain")]);
+
+    impl Files {
+        fn at(&self, path: &Path) -> Option<&'static [u8]> {
+            self.0
+                .iter()
+                .find(|(name, _)| Path::new(name) == path)
+                .map(|(_, bytes)| *bytes)
+        }
+    }
+
+    impl statics::Source for Files {
+        fn stat(&self, path: &Path) -> Option<statics::Stat> {
+            Some(statics::Stat {
+                len: u64::try_from(self.at(path)?.len()).ok()?,
+                mtime_nanos: 7,
+            })
+        }
+
+        fn read(&self, path: &Path, at: u64, len: u64) -> Option<Vec<u8>> {
+            let bytes = self.at(path)?;
+            let at = usize::try_from(at).ok()?;
+            let len = usize::try_from(len).ok()?;
+            bytes.get(at..at.checked_add(len)?).map(<[u8]>::to_vec)
+        }
+    }
+
+    /// One finished request that named `file` with `Core\Response::sendFile`,
+    /// answered against the request headers `asked` and whatever status the
+    /// program declared.
+    fn named(file: &str, asked: &[(&str, &str)], status: Option<u16>) -> Response<Answer> {
+        let mut headers = HeaderMap::new();
+        for (name, value) in asked {
+            headers.insert(
+                HeaderName::from_bytes(name.as_bytes()).expect("a header name"),
+                HeaderValue::from_str(value).expect("a header value"),
+            );
+        }
+        let mut done = completed("", None);
+        done.status = status;
+        sent(done, Path::new(file), &headers, &FILES)
+    }
+
+    /// `rule:security/response-body-is-one-typed-member`'s file row, answered by
+    /// the one static policy: a program hands over a **name**, so what the bytes
+    /// are called is [`crate::statics`]'s media-type table and not this loop's.
+    ///
+    /// Two extensions rather than one, and neither is [`ECHOED`]: a path that
+    /// declared a constant which happened to match would pass against a single
+    /// file and fails against a pair. The `404` and the `500` beside them are
+    /// the two ways there are no bytes to send — the file went between the
+    /// member's answer and this one, and the handler threw after naming it —
+    /// which is what makes the sent half a bound named on both sides.
+    #[test]
+    fn a_declared_file_body_is_streamed_under_the_static_policys_media_type() {
+        let page = named("page.html", &[], None);
+        assert_eq!(page.status(), StatusCode::OK);
+        assert_eq!(
+            page.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/html; charset=utf-8",
+            "a declared file body did not take the static policy's media type"
+        );
+        assert_eq!(
+            page.body().bytes().to_vec(),
+            b"<p>hi</p>".to_vec(),
+            "the file's own bytes are the body"
+        );
+        let notes = named("notes.txt", &[], None);
+        assert_eq!(
+            notes.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/plain; charset=utf-8",
+            "the media type is read off the name, not declared once for every file"
+        );
+        assert_eq!(notes.body().bytes().to_vec(), b"plain".to_vec());
+
+        let gone = named("vanished.html", &[], None);
+        assert_eq!(
+            gone.status(),
+            StatusCode::NOT_FOUND,
+            "a file that went between the member's answer and this one is the policy's 404"
+        );
+
+        let mut threw = completed("", None);
+        threw.ok = false;
+        threw.file_body = Some(Path::new("page.html").into());
+        let refused = finished(threw, &HeaderMap::new());
+        assert_eq!(
+            refused.status(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "a request that named a file and then failed still answers 500"
+        );
+        assert!(
+            refused.body().bytes().is_empty(),
+            "nothing was opened for a response that is not going to be given"
+        );
+    }
+
+    /// The rest of the policy reaches a program's file too — the conditional and
+    /// the range — which is the whole reason `sendFile` hands over a name
+    /// instead of bytes.
+    ///
+    /// The validator is taken from the first answer rather than computed here:
+    /// what is asserted is that the two answers are about one representation,
+    /// which a case rebuilding the `ETag` itself would assert of its own
+    /// arithmetic. The declared status rides along on both halves, because the
+    /// direction that matters is the one where it does **not** win: a `201`
+    /// overwriting a `304` would answer a validated cache with a body it did not
+    /// ask for, while the same `201` over the policy's `200` is spec § 15's
+    /// `setStatus` doing exactly what it says.
+    #[test]
+    fn a_declared_file_body_answers_a_range_and_a_conditional_request() {
+        let whole = named("page.html", &[], None);
+        let tag = whole
+            .headers()
+            .get(header::ETAG)
+            .expect("the policy states a validator")
+            .to_str()
+            .expect("a validator is ASCII")
+            .to_owned();
+
+        let fresh = named("page.html", &[("if-none-match", &tag)], Some(201));
+        assert_eq!(
+            fresh.status(),
+            StatusCode::NOT_MODIFIED,
+            "a program's file body did not answer its own validator"
+        );
+        assert!(fresh.body().bytes().is_empty(), "a 304 carries no body");
+
+        let part = named("page.html", &[("range", "bytes=3-5")], None);
+        assert_eq!(part.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(
+            part.headers().get(header::CONTENT_RANGE).unwrap(),
+            "bytes 3-5/9",
+            "the range is stated against the whole file's length"
+        );
+        assert_eq!(
+            part.body().bytes().to_vec(),
+            b"hi<".to_vec(),
+            "only the asked-for bytes were read"
+        );
+
+        let declared = named("page.html", &[], Some(201));
+        assert_eq!(
+            declared.status(),
+            StatusCode::CREATED,
+            "setStatus has no effect on a file body the policy answered 200 for"
         );
     }
 
@@ -4480,6 +4722,7 @@ mod tests {
                 value: Value::null(),
                 output: Vec::new(),
                 content_type: None,
+                file_body: None,
                 status: None,
                 headers: Vec::new(),
                 error: None,

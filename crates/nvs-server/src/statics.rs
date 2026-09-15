@@ -128,6 +128,32 @@ impl Source for OnDisk {
     }
 }
 
+/// The request headers [`send`] reads, copied out of a request that still has
+/// them — the one home of which headers this policy is a function of.
+///
+/// A static selection hands [`send`] the request itself and needs none of this.
+/// A **program's** file body does: `Core\Response::sendFile` declares one only
+/// while the request runs, by which time the request is the isolate's, so
+/// [`crate::serve`] has to decide before the handler what it may still be asked
+/// for. Copying the two named here rather than the whole map is what keeps that
+/// decision free — a request that sent neither leaves an empty map, which
+/// allocates nothing, and one that sent both pays two header values on a
+/// response that is about to read a file.
+///
+/// A header this policy comes to read is added here in the same edit, and a
+/// stale copy of the list cannot exist elsewhere: nothing but [`send`] reads a
+/// request here, and nothing but this builds what it reads.
+#[must_use]
+pub fn asked(headers: &HeaderMap) -> HeaderMap {
+    let mut kept = HeaderMap::new();
+    for name in [IF_NONE_MATCH, RANGE] {
+        if let Some(value) = headers.get(&name) {
+            kept.insert(name, value.clone());
+        }
+    }
+    kept
+}
+
 /// `rule:http-server/a-request-resolves-in-five-steps`'s static policy over one selected file.
 ///
 /// `headers` are the request's, which is all of a request this reads: a method
