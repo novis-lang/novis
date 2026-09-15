@@ -1451,11 +1451,23 @@ fn lock(handle: &Mutex<rusqlite::Connection>) -> std::sync::MutexGuard<'_, rusql
 /// result set alive or shared a connection across two flows, and the message is
 /// the only place that says which two things to look at. `nvs-stdlib` re-words
 /// it as the `LogicError` § 4 specifies.
+///
+/// **`InvalidInput` is what carries the class across the crate boundary**, and
+/// it is the same kind `second_statement` uses. This crate builds no fault —
+/// its `Cargo.toml` § 1 is that rule — so the only thing a refusal can say
+/// about *whose* mistake it is is its [`io::ErrorKind`], and `nvs-stdlib`'s
+/// `statement_failure` reads `InvalidInput` as a mistake in the call and
+/// everything else as a refusal the engine made. An `Other` here would reach a
+/// program as `Core\Db\DbError` carrying a § 8 `kind` no engine ever answered,
+/// where § 4's uniform busy rule is a `LogicError` on every driver.
 fn busy(state: State) -> io::Error {
-    io::Error::other(format!(
-        "this SQLite connection is {state:?}: read or drop the rows of the statement already \
-         running before starting another, or open a second connection for the second flow"
-    ))
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!(
+            "this SQLite connection is {state:?}: read or drop the rows of the statement already \
+             running before starting another, or open a second connection for the second flow"
+        ),
+    )
 }
 
 /// SQLite's refusal as an `io::Error` carrying § 8's normalised kind.
