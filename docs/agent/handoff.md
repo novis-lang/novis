@@ -2,62 +2,54 @@
 
 ## State
 
-**Goal `m8-db-queue` is met.** Stage 10's four checks pass locally: the three rules ADR 0187 created
-print `shipped` with `guardedBy` filled from this goal's own cases and tests, and
-`git grep -F "owner: m8-db-queue" -- crates tools` finds nothing.
+**Goal `m8-db-queue` is met, and the one floor check that held its `DONE` back is green.**
+`crates/nvs-stdlib/src/json.rs`'s gap 1 carried `— owner: m8-stdlib-depth` above the item's closing
+`decimal` paragraph; `tools/owners.py` reads the tag off an item's last line, so the register counted
+it untagged and the goal-end sweep refused it. The tag now closes the item, and
+`python tools/owners.py --check --untagged-is-an-error` reports `untagged: 0` over 166 tagged gaps.
 
-`rule:core-classes/db-streaming` is flipped with them. Stage 2 removed its *Not shipped whole*
-paragraph and both members now answer on all five drivers, so `designed` was the stale half of one
-change; `crates/nvs-stdlib/tests/db_stream.rs` joins its `guardedBy`.
+Stage 10 is as session 0003 left it: the three rules ADR 0187 created and
+`rule:core-classes/db-streaming` print `shipped` with `guardedBy` filled from this goal's own cases
+and tests. Nothing is blocked.
 
-**Two fragments were corrected while being flipped**, because `shipped` claims the tree holds every
-sentence in them. `rule:core-classes/a-unique-key-reads-nulls-as-distinct` said `plan` refuses where a
-filtered index cannot be read back as its key; `crates/nvs-db/src/catalog.rs:44-60` is the opposite and
-is what the tree does — a predicate that is not the key's own drops the index out of the read value,
-and a plan proposing a name a partial index already owns fails on the server rather than in the plan.
-ADR 0187 § 3 wrote that refusal as the fallback *if* the round trip could not be made to work, and
-`a_filtered_unique_index_reads_back_as_the_same_key` is it working.
-`rule:core-classes/server-version-is-what-the-server-said` charged a string per open connection to all
-five; SQLite reads `crate::sqlite::library_version()` and holds nothing per connection.
-
-**The two `# Known gaps` blocks shrank rather than went.** `crates/nvs-stdlib/src/db/mod.rs` gap 3 is
-closed; its gap 4 keeps only the skipped field's constructor default and is re-owned to
-`m8-stdlib-depth`, beside `crate::json`'s gap 1, which is the same knot at the other door.
-`crates/nvs-types/src/derive.rs` gaps 1–2 are closed and its gap 3 is renumbered to 1. Renumbering
-moved three in-file citations and two in other crates, one of them the text of a runtime fatal
-(`crates/nvs-stdlib/src/db/row.rs:209`, which named a gap 8 that has not existed for some time).
-
-**Three carried floor checks named tests this goal's own work deleted**, found by the wrap's `DONE`
-gate rather than by the floor, which runs one session in ten; they now name the tests that hold the
-same ground on five drivers. The playbook bullet is the general form.
+**The pack did not print `rule:security/db-pool-reset-is-a-boundary`**, which the first item below
+cites — this goal's `[context] rules` names only the three `core-classes/db-*` ones. It is fixed where
+it will next be paid rather than here: goal `unowned-closures`'s own `[context]` now names that rule,
+`core-classes/derive-attribute`, and the two files its three open gaps live in, neither of which it
+listed.
 
 ## Next group
 
-**The goal is met, so this names what a session in this file set takes next** — all of it goal
-`unowned-closures`'s, whose decision sheet answers each one; the `Decided:` line is already on disk
-under every item below. One file set: `crates/nvs-stdlib/src/db/mod.rs` and
-`crates/nvs-types/src/derive.rs`.
+**All of it goal `unowned-closures`'s, whose decision sheet answers each one** — the `Decided:` line
+is already on disk under every item. One file set: `crates/nvs-stdlib/src/db/mod.rs` and
+`crates/nvs-types/src/derive.rs`, with `crates/nvs-stdlib/src/db/pool.rs` beside the first.
 
 - [ ] **Build `crates/nvs-stdlib/src/db/mod.rs:214`'s gap 1** — a literal naming an endpoint no
-      `[db.<name>]` block describes gets `PoolBounds::DEFAULT`, and the decision on disk is that the
+      `[db.<name>]` block describes takes `PoolBounds::DEFAULT`, and the decision on disk is that the
       defaults apply and a deployment that wants bounds writes a block
       (`rule:security/db-pool-reset-is-a-boundary`). What is left is the first-use notice, or the
-      record that there is none.
-- [ ] **Close `crates/nvs-stdlib/src/db/mod.rs:240`'s gap 2** — `Db\DbError` declares no `issues` and
-      a per-column refusal is thrown as a `ParseError`; the split stands, so the work is stating it in
-      `rule:core-classes/db-one-api`'s neighbourhood and striking the gap rather than changing a class.
+      record that there is none; `crates/nvs-stdlib/src/db/pool.rs:300` is the doc both would be
+      written against, and `bounds_for_settings` at `crates/nvs-stdlib/src/db/pool.rs:342` is the half
+      a test drives.
+- [ ] **Close `crates/nvs-stdlib/src/db/mod.rs:240`'s gap 2** — `Db\DbError` is not in spec § 10's
+      error tree so it declares no `issues`, and the decision on disk is that the split stands: a
+      per-column refusal stays a `ParseError`, as for `Json::decodeAs`, and no spec change follows
+      (`rule:core-classes/db-one-api`). The slice is the module doc saying that as what the tree does
+      rather than as a question.
 - [ ] **Build `crates/nvs-types/src/derive.rs:44`'s gap 1** — `check_row_sites` gains the
-      `Core\Json::decodeAs` half, checking `T` and `array<T>`'s element statically, which is the rule
-      amendment `rule:core-classes/derive-attribute` owes.
+      `Core\Json::decodeAs` half the decision asks for: check `T`, and `array<T>`'s element,
+      statically, so both members enforce the attribute the same way and the error is earlier. That is
+      a `rule:core-classes/derive-attribute` amendment, and the run-time refusal in
+      `nvs_stdlib::json` is what it moves ahead of.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/queue.rs` gaps 1–2 are goal `unowned-closures`'s — `docs/agent/loop-goal.md`
-  § *Standing decisions*, *Not this goal*.
-- The socket leg asserts `crates/nvs-db`'s case list alone: `queue`, `db_stream` and the worker's
-  case gate themselves out on a `Location::Socket`. `tools/db-matrix.py`'s `SOCKET_SUITES` says what
-  a case needing a socket would change.
-- A Linux host runs the socket leg natively and has never been tried; `NOVIS_DB_SOCKET_DIR` is the
-  one field that has to name the same directory at both ends there.
-- `crates/nvs-stdlib/src/json.rs:128`'s gap 1 (`m8-stdlib-depth`) is now cited from two doors — what
-  an inline shape and an `Instant` are on the wire decides both.
+- `crates/nvs-stdlib/src/queue.rs` gaps 1–2 and `nvs-db`'s `catalog.rs`, `ddl.rs` and `schema.rs` are
+  the rest of goal `unowned-closures`'s database half — each crate's own module doc.
+- `crates/nvs-stdlib/src/db/mod.rs` gap 3 and `crates/nvs-stdlib/src/json.rs` gap 1 are one knot at
+  two doors: what an `Instant`, an inline shape and a skipped field are on the wire — goal
+  `m8-stdlib-depth`.
+- `Core\Decimal`'s `divExact`/`divRound`/`allocate` and the rest of the stdlib roster — goal
+  `m8-stdlib-depth` (`docs/agent/goals/`).
+- 17 recorded gaps are deferred to a milestone the program has passed; `python tools/owners.py
+  --check --past-is-an-error` is the run that refuses them, and nothing schedules it.
