@@ -5,7 +5,7 @@
 //! direction is the whole reason.** What they run is [`nvs_stdlib::queue`]'s
 //! statement roster — § 2's schema has one home and that is it — and the only
 //! thing that can run a statement is `nvs-db`'s own connection, which is
-//! `PgConn`, `MySqlConn` or `MariaConn` as [`Conn`] holds it. `rule:core-classes/db-crate-boundary` fixes
+//! `PgConn`, `MySqlConn`, `MariaConn` or `TdsConn` as [`Conn`] holds it. `rule:core-classes/db-crate-boundary` fixes
 //! which way that edge points: `nvs-stdlib` depends on `nvs-db` and never the
 //! reverse, so a `crates/nvs-db/tests/queue.rs` would need a `use
 //! nvs_stdlib::…` that closes a cycle in the workspace, and the alternative —
@@ -40,9 +40,10 @@ use std::sync::{Mutex, MutexGuard, Once};
 use std::time::{Duration, Instant};
 
 use nvs_db::matrix::{self, Location, Server};
+use nvs_db::tds::TdsScalar;
 use nvs_db::{
     DbErrorKind, Driver, Isolation, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar,
-    MySqlTarget, PgConn, PgTarget, QuerySpan, ServerError,
+    MySqlTarget, PgConn, PgTarget, QuerySpan, ServerError, TdsConn, TdsTarget,
 };
 use nvs_stdlib::queue;
 
@@ -165,10 +166,21 @@ impl Deref for FramedLeg {
     }
 }
 
+/// This process's SQL Server leg, or `None` because this run is one of the
+/// others.
+///
+/// [`postgres`]'s shape and not [`framed`]'s: there is no lock to take here,
+/// because InnoDB's scan-locking rule is InnoDB's and a leg runs one driver, so
+/// the only writers on a SQL Server leg are the cases this gate opens.
+fn sqlserver() -> Option<Leg> {
+    let leg = endpoint()?;
+    (leg.driver == Driver::SqlServer).then_some(leg)
+}
+
 /// A connection to `leg`'s server, as a request that found the pool empty opens
 /// one.
 ///
-/// **The three targets differ in their type and in nothing else**, so the arms
+/// **The targets differ in their type and in nothing else**, so the arms
 /// are a macro rather than three copies of one field list: `rule:core-classes/db-connection-is-named`'s
 /// settings are the same seven for every driver that has a wire, and what
 /// changes between them is which `connect` reads them.
@@ -206,13 +218,13 @@ fn open(leg: &Leg) -> Conn {
         Driver::Postgres => connect_as!(PgTarget, PgConn, Conn::Postgres),
         Driver::MySql => connect_as!(MySqlTarget, MySqlConn, Conn::MySql),
         Driver::MariaDb => connect_as!(MariaTarget, MariaConn, Conn::MariaDb),
+        Driver::SqlServer => connect_as!(TdsTarget, TdsConn, Conn::SqlServer),
         // Spelled rather than left to a `_`, exactly as `crate::worker`'s own
         // opener spells them: [`endpoint`] skips SQLite before anything is
-        // connected, and no gate above hands this function a SQL Server leg
-        // until [`Conn`] has an arm to hold one — so a sixth driver arrives
-        // here as a build failure rather than as a refusal that has stopped
-        // being true.
-        Driver::SqlServer | Driver::Sqlite => {
+        // connected, because every target here is an address and that driver is
+        // a path — so a sixth driver arrives here as a build failure rather
+        // than as a refusal that has stopped being true.
+        Driver::Sqlite => {
             unreachable!("no gate above opens a leg this file has no connection arm for")
         }
     }
@@ -220,11 +232,11 @@ fn open(leg: &Leg) -> Conn {
 
 /// The connection a case runs on, in the driver the harness named.
 ///
-/// **Owned and three arms, where [`Dialect`] is borrowed and two**, which is
-/// `crates/nvs-cli/src/worker.rs`'s `Wire` one crate over and for its reason: a
-/// case holds its connection for its whole body, so there has to be a value
-/// that *is* the connection, and what every statement below branches on is the
-/// dialect it is written in.
+/// **Owned where [`Dialect`] is borrowed, and one arm per driver where that is
+/// one arm per dialect**, which is `crates/nvs-cli/src/worker.rs`'s `Wire` one
+/// crate over and for its reason: a case holds its connection for its whole
+/// body, so there has to be a value that *is* the connection, and what every
+/// statement below branches on is the dialect it is written in.
 enum Conn {
     /// [`queue::INSERT_POSTGRES`] and the single-statement roster beside it.
     Postgres(PgConn),
@@ -233,6 +245,8 @@ enum Conn {
     MySql(MySqlConn),
     /// MariaDB, which runs every one of MySQL's texts unchanged.
     MariaDb(MariaConn),
+    /// [`queue::INSERT_SQLSERVER`] and the T-SQL roster beside it.
+    SqlServer(TdsConn),
 }
 
 impl Conn {
@@ -242,6 +256,7 @@ impl Conn {
             Conn::Postgres(postgres) => Dialect::Postgres(postgres),
             Conn::MySql(mysql) => Dialect::Framed(Framed::MySql(mysql)),
             Conn::MariaDb(maria) => Dialect::Framed(Framed::MariaDb(maria)),
+            Conn::SqlServer(tds) => Dialect::SqlServer(tds),
         }
     }
 
@@ -257,6 +272,7 @@ impl Conn {
             Conn::Postgres(_) => Driver::Postgres,
             Conn::MySql(_) => Driver::MySql,
             Conn::MariaDb(_) => Driver::MariaDb,
+            Conn::SqlServer(_) => Driver::SqlServer,
         }
     }
 
@@ -271,6 +287,7 @@ impl Conn {
         match self {
             Conn::Postgres(_) => "$1::text",
             Conn::MySql(_) | Conn::MariaDb(_) => "?",
+            Conn::SqlServer(_) => "@p1",
         }
     }
 
@@ -279,6 +296,7 @@ impl Conn {
         match self.dialect() {
             Dialect::Postgres(postgres) => postgres.begin(isolation, read_only),
             Dialect::Framed(mut framed) => framed.begin(isolation, read_only),
+            Dialect::SqlServer(tds) => tds.begin(isolation, read_only),
         }
     }
 
@@ -287,6 +305,7 @@ impl Conn {
         match self.dialect() {
             Dialect::Postgres(postgres) => postgres.commit(),
             Dialect::Framed(mut framed) => framed.commit(),
+            Dialect::SqlServer(tds) => tds.commit(),
         }
     }
 
@@ -295,6 +314,7 @@ impl Conn {
         match self.dialect() {
             Dialect::Postgres(postgres) => postgres.roll_back(),
             Dialect::Framed(mut framed) => framed.roll_back(),
+            Dialect::SqlServer(tds) => tds.roll_back(),
         }
     }
 
@@ -305,23 +325,28 @@ impl Conn {
             Conn::Postgres(postgres) => postgres.depth(),
             Conn::MySql(mysql) => mysql.depth(),
             Conn::MariaDb(maria) => maria.depth(),
+            Conn::SqlServer(tds) => tds.depth(),
         }
     }
 }
 
-/// A borrowed [`Conn`], narrowed to the two dialects [`nvs_stdlib::queue`]
-/// writes.
+/// A borrowed [`Conn`], as the dialect [`nvs_stdlib::queue`] writes its
+/// statements in.
 ///
-/// The same two arms `crates/nvs-cli/src/worker.rs`'s `Dialect` has, and for
-/// the same reason: § 2's schema is two migration lists and §§ 4 and 6's
-/// statements two spellings, so a third arm here would be a driver with nothing
-/// to send.
+/// The same arms `crates/nvs-cli/src/worker.rs`'s `Dialect` has, and for the
+/// same reason: § 2's schema is a migration list per dialect and §§ 4 and 6's
+/// statements a spelling per dialect, so an arm here is a roster and a driver
+/// that shares another's gets no arm of its own.
 enum Dialect<'a> {
     /// One statement in, one answer out.
     Postgres(&'a mut PgConn),
     /// The framed drivers, three of whose statements are pairs inside one
     /// transaction — and MariaDB runs every one of them unchanged.
     Framed(Framed<'a>),
+    /// T-SQL, whose enqueue, dead-letter move and delete are [`queue::Split`]s
+    /// inside one transaction and whose insert answers its id through an
+    /// `output` clause rather than a `returning` or an OK packet.
+    SqlServer(&'a mut TdsConn),
 }
 
 /// The two drivers that share one dialect and one send path, borrowed as one.
@@ -435,11 +460,14 @@ fn clear(conn: &mut Conn, queue: &str) {
 /// The `Once` is [`schema`]'s and for [`schema`]'s reason, and the `delete` is
 /// [`clear`]'s half for the one table § 2 does not own.
 ///
-/// **The `create` is two spellings, split the way [`queue::Split`] splits § 4's
-/// and for the same three reasons.** `bigserial` is a sequence and
+/// **The `create` is a spelling per dialect, split the way [`queue::Split`]
+/// splits § 4's and for its reasons.** `bigserial` is a sequence and
 /// a default in one word and the framed servers have neither, `text` is a column
 /// InnoDB will not index at an unbounded width, and `engine=innodb` is what makes
-/// a rollback of this table a rollback at all. The `delete` below stays one text,
+/// a rollback of this table a rollback at all. T-SQL's spelling is a third for a
+/// reason of its own: `if not exists` is not a clause `create table` takes on
+/// this backend, so the existence question is asked of the catalog and the
+/// `create` is what the answer guards. The `delete` below stays one text,
 /// because the only thing that differs there is the placeholder [`Conn::text`]
 /// already answers with.
 fn orders(leg: &Leg, conn: &mut Conn, queue: &str) {
@@ -450,6 +478,11 @@ fn orders(leg: &Leg, conn: &mut Conn, queue: &str) {
             Driver::Postgres => {
                 "create table if not exists nvs_stdlib_tests_orders \
                  (id bigserial primary key, queue text not null)"
+            }
+            Driver::SqlServer => {
+                "if object_id('nvs_stdlib_tests_orders', 'U') is null \
+                 create table nvs_stdlib_tests_orders \
+                 (id bigint identity(1, 1) primary key, queue nvarchar(255) not null)"
             }
             _ => {
                 "create table if not exists nvs_stdlib_tests_orders \
@@ -506,11 +539,11 @@ fn order_row(conn: &mut Conn, queue: &str) -> String {
 /// `Core\Queue::push` does: the connection has to be back at a message boundary
 /// before the next statement on it starts.
 ///
-/// **The two arms are two protocols and not two spellings of one walk**, which
-/// is why nothing here is shared between them: PostgreSQL's extended query
-/// answers a column as the text it renders to, where the framed drivers send a
-/// `bigint` as octets against the column definition it arrived under —
-/// [`rendered`] is the whole of what that costs a case.
+/// **Each arm is a protocol and not a spelling of one walk**, which is why
+/// nothing here is shared between them: PostgreSQL's extended query answers a
+/// column as the text it renders to, where the framed drivers and TDS each send
+/// a `bigint` as octets against the column definition it arrived under —
+/// [`rendered`] and [`tds_rendered`] are the whole of what that costs a case.
 fn rows(conn: &mut Conn, sql: &str, bound: &[Option<&[u8]>]) -> Vec<Vec<Option<String>>> {
     match conn.dialect() {
         Dialect::Postgres(postgres) => {
@@ -564,6 +597,29 @@ fn rows(conn: &mut Conn, sql: &str, bound: &[Option<&[u8]>]) -> Vec<Vec<Option<S
             }
             all
         }
+        Dialect::SqlServer(tds) => {
+            let mut answered = tds.query(sql, bound).expect("the server ran the statement");
+            // Described before the first row for the framed arm's borrow
+            // reason, and read against those definitions for its decoding one:
+            // `nvs_db::tds::scalar` measures a value by the column it arrived
+            // under.
+            let columns = answered.columns().to_vec();
+            let mut all = Vec::new();
+            while let Some(row) = answered
+                .next_row()
+                .expect("a row, or the end of the stream")
+            {
+                let mut one = Vec::with_capacity(columns.len());
+                for (at, column) in columns.iter().enumerate() {
+                    let body = row.column(at).expect("the row has that column");
+                    one.push(tds_rendered(
+                        nvs_db::tds::scalar(column, body).expect("the column is one § 9 maps"),
+                    ));
+                }
+                all.push(one);
+            }
+            all
+        }
     }
 }
 
@@ -587,6 +643,27 @@ fn rendered(read: MySqlScalar<'_>) -> Option<String> {
     }
 }
 
+/// One T-SQL column as the text the same column arrives as on PostgreSQL.
+///
+/// [`rendered`]'s twin over the other binary protocol, and shorter than it by
+/// exactly what § 9 says about this driver: every integer width arrives on one
+/// row of that table rather than on a signed and an unsigned one, because
+/// `tinyint` is the only unsigned type SQL Server has and every value of it fits
+/// an `int`. Text is owned or borrowed depending on whether the column was one
+/// of the `N` types, which is what the `Cow` carries and what [`String::from`]
+/// flattens.
+fn tds_rendered(read: TdsScalar<'_>) -> Option<String> {
+    match read {
+        TdsScalar::Null => None,
+        TdsScalar::Int(at) => Some(at.to_string()),
+        TdsScalar::Text(text) => Some(text.into_owned()),
+        TdsScalar::Bytes(octets) => Some(
+            String::from_utf8(octets.to_vec()).expect("§ 2 declares no column that is not text"),
+        ),
+        other => panic!("§ 2's schema declares no column that reads as {other:?}"),
+    }
+}
+
 /// One row's first column, as the text it arrived as.
 fn one(conn: &mut Conn, sql: &str, bound: &[Option<&[u8]>]) -> String {
     let mut answered = rows(conn, sql, bound);
@@ -602,6 +679,7 @@ fn apply(conn: &mut Conn, sql: &str, bound: &[Option<&[u8]>]) -> u64 {
     match conn.dialect() {
         Dialect::Postgres(postgres) => postgres.execute_many(sql, &[bound]),
         Dialect::Framed(mut framed) => framed.execute_many(sql, &[bound]),
+        Dialect::SqlServer(tds) => tds.execute_many(sql, &[bound]),
     }
     .expect("the server ran the statement")
 }
@@ -611,13 +689,19 @@ fn apply(conn: &mut Conn, sql: &str, bound: &[Option<&[u8]>]) -> u64 {
 /// `max_attempts` is the case's whole lever over § 6: a job pushed with `1` is
 /// exhausted by its first claim, and one pushed with more is owed another.
 ///
-/// **A push with no dedupe key is one statement in both dialects**, which is
+/// **A push with no dedupe key is one statement in every dialect**, which is
 /// why this is not a [`queue::Split`] anywhere: [`queue::INSERT_MYSQL`]'s first
 /// half is the dedupe read, and `Core\Queue::push` skips it for exactly this
 /// case. What does differ is where the id comes from — PostgreSQL's
-/// `returning`, and the framed drivers' own OK packet, which
-/// [`nvs_db::MySqlRows::last_id`] carries and a `select last_insert_id()` would
-/// pay a third round trip for.
+/// `returning`, T-SQL's `output inserted.id`, and the framed drivers' own OK
+/// packet, which [`nvs_db::MySqlRows::last_id`] carries and a `select
+/// last_insert_id()` would pay a third round trip for.
+///
+/// **T-SQL binds [`queue::INSERT_MYSQL`]'s list in [`queue::INSERT_MYSQL`]'s
+/// order**, so the two share one array here: [`queue::INSERT_SQLSERVER`] writes
+/// the same columns in the same places, and what it adds is a cast at each one
+/// the table types as a number, which is a property of the text rather than of
+/// what is bound to it.
 fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
     let at = millis(at);
     let (script, args, backoff) = (
@@ -668,8 +752,13 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
         // checked against.
         None,
     ];
+    if conn.driver() == Driver::SqlServer {
+        // A statement whose `output` clause answers a row is read the way every
+        // other answer in this file is, and this driver has no `last_id` at all.
+        return one(conn, queue::INSERT_SQLSERVER.then, &bound);
+    }
     let Dialect::Framed(mut framed) = conn.dialect() else {
-        unreachable!("every driver but PostgreSQL is the framed dialect here")
+        unreachable!("every driver but PostgreSQL and SQL Server is the framed dialect here")
     };
     let mut answered = framed
         .query(queue::INSERT_MYSQL.then, &bound)
@@ -837,24 +926,29 @@ fn claim(conn: &mut Conn, queue: &str, now: i64, cutoff: i64) -> Vec<Vec<Option<
 /// whatever happened between them is a moment neither one looked at.
 ///
 /// **The framed spelling binds the name twice for one that is read twice**, and
-/// that is the whole of the difference: `$1` is a number a statement may repeat
-/// and `?` is a position that cannot, so one text with two occurrences is one
-/// parameter there and two here. [`Conn::text`]'s doc owns why these ad-hoc
-/// statements are written per driver rather than put through § 5's rewriter.
+/// that is the whole of the difference: `$1` and `@p1` are numbers a statement
+/// may repeat and `?` is a position that cannot, so one text with two
+/// occurrences is one parameter on the other dialects and two there.
+/// [`Conn::text`]'s doc owns why these ad-hoc statements are written per driver
+/// rather than put through § 5's rewriter.
 fn landed(conn: &mut Conn, queue: &str) -> (String, String) {
     let name = queue.as_bytes();
-    let postgres = conn.driver() == Driver::Postgres;
-    let sql = if postgres {
-        "select (select count(*) from nvs_jobs where queue = $1::text), \
-                (select count(*) from nvs_stdlib_tests_orders where queue = $1::text)"
-    } else {
-        "select (select count(*) from nvs_jobs where queue = ?), \
-                (select count(*) from nvs_stdlib_tests_orders where queue = ?)"
-    };
-    let bound = if postgres {
-        vec![Some(name)]
-    } else {
-        vec![Some(name), Some(name)]
+    let (sql, bound) = match conn.driver() {
+        Driver::Postgres => (
+            "select (select count(*) from nvs_jobs where queue = $1::text), \
+                    (select count(*) from nvs_stdlib_tests_orders where queue = $1::text)",
+            vec![Some(name)],
+        ),
+        Driver::SqlServer => (
+            "select (select count(*) from nvs_jobs where queue = @p1), \
+                    (select count(*) from nvs_stdlib_tests_orders where queue = @p1)",
+            vec![Some(name)],
+        ),
+        _ => (
+            "select (select count(*) from nvs_jobs where queue = ?), \
+                    (select count(*) from nvs_stdlib_tests_orders where queue = ?)",
+            vec![Some(name), Some(name)],
+        ),
     };
     let mut answered = rows(conn, sql, &bound);
     assert_eq!(answered.len(), 1, "a count answers with one row");
@@ -3532,5 +3626,93 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
         four(["1", "0", "0", "0"]),
         "and the other queue sees its own pending job and none of this one's depth, which is both \
          `?`s bound to the name that was asked about"
+    );
+}
+
+/// § 3 on SQL Server: the job and the write that caused it are durable together.
+///
+/// [`an_enqueue_commits_with_the_write_that_made_it`]'s claim on this backend,
+/// and that case's doc owns why § 3 is a property of the pair rather than of
+/// either half. What this one adds is the *mechanism* under the id, which is
+/// neither of the other two's: [`queue::INSERT_SQLSERVER`]'s `output
+/// inserted.id` hands the row back inside the insert's own round trip, where
+/// PostgreSQL's `returning` is a clause and the framed drivers' id is a field on
+/// an OK packet. So the id asserted below is the one the insert itself reported
+/// from inside the transaction, and the row carrying it afterwards is the commit
+/// having covered both writes.
+///
+/// **The enqueue is a pair of statements on this dialect and is still one
+/// statement here**, because this push names no dedupe key:
+/// [`queue::INSERT_SQLSERVER::first`](queue::INSERT_SQLSERVER) is the dedupe
+/// read `Core\Queue::push` skips for exactly that case, which is [`push`]'s own
+/// doc. The transaction this case opens is therefore the *application's*, which
+/// is the only one § 3 is about.
+#[test]
+fn an_enqueue_commits_with_the_write_on_sql_server() {
+    const QUEUE: &str = "nvs-stdlib-tests-mssql-commit";
+
+    let Some(server) = sqlserver() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+    orders(&server, &mut conn, QUEUE);
+
+    let now = queue::now_millis();
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("0".to_owned(), "0".to_owned()),
+        "the case starts where an earlier run of it started"
+    );
+
+    conn.begin(None, false)
+        .expect("the server opened a transaction");
+    assert_eq!(conn.depth(), 1, "the connection is inside one transaction");
+
+    let order = one(
+        &mut conn,
+        "insert into nvs_stdlib_tests_orders (queue) output inserted.id values (@p1)",
+        &[Some(QUEUE.as_bytes())],
+    );
+    let id = push(&mut conn, QUEUE, now, "3");
+
+    conn.commit().expect("the server closed the transaction");
+    assert_eq!(conn.depth(), 0, "the transaction is over");
+
+    assert_eq!(
+        landed(&mut conn, QUEUE),
+        ("1".to_owned(), "1".to_owned()),
+        "the job and the write that caused it are both durable"
+    );
+    let job = rows(
+        &mut conn,
+        "select id, state, attempts from nvs_jobs where queue = @p1",
+        &[Some(QUEUE.as_bytes())],
+    );
+    assert_eq!(
+        job[0][ID].as_deref(),
+        Some(id.as_str()),
+        "the durable job is the row `INSERT_SQLSERVER`'s `output` clause answered with inside the \
+         transaction"
+    );
+    assert_eq!(
+        job[0][1].as_deref(),
+        Some(std::str::from_utf8(PENDING).expect("an ordinal is ASCII")),
+        "it is claimable, so a worker that starts now runs it"
+    );
+    assert_eq!(
+        job[0][2].as_deref(),
+        Some("0"),
+        "nothing has attempted it yet"
+    );
+    assert_eq!(
+        one(
+            &mut conn,
+            "select count(*) from nvs_stdlib_tests_orders where id = @p1",
+            &[Some(order.as_bytes())],
+        ),
+        "1",
+        "the order the job was pushed for is the one that committed"
     );
 }
