@@ -818,7 +818,8 @@
       "because": [
         "0084",
         "0074",
-        "0076"
+        "0076",
+        "0187"
       ],
       "divergesFromPhp": "nothing is discarded silently and nothing retries forever — an exhausted job is a row in a dead-letter table rather than a line in a log",
       "seeAlso": [

@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*24 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
+*27 of 86 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -905,6 +905,36 @@ path in `TdsTarget::resolve`, as `BlockError`'s `NoSocketTransport`.
 
 <sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
 
+<a id="core-classes-server-version-is-what-the-server-said"></a>
+
+## `serverVersion` answers what the server said during the handshake, and never spends a round trip  *(designed — not yet in the compiler)*
+
+`rule:core-classes/server-version-is-what-the-server-said`
+
+`serverVersion` answers what the server said during the handshake, kept on the connection, and no
+driver ever issues a statement to learn it.
+
+| Driver | What is answered | Where it comes from |
+|---|---|---|
+| PostgreSQL | the `server_version` string verbatim | the `ParameterStatus` at startup |
+| MySQL | the greeting's banner verbatim | the handshake packet's version field |
+| MariaDB | the greeting's banner verbatim, which is how a MariaDB server says it is one | the same field |
+| SQL Server | `major.minor.build`, decimal and unpadded — `16.0.4125` | `LOGINACK`'s numeric triple |
+| SQLite | the library version, as `sqlite3_libversion` reports it | the linked library, not a server |
+
+A server's own string is answered **unchanged**, suffix and all: the value exists to say what is on
+the other end, and a driver that tidies it hides the thing being asked about. Where the server sends
+numbers rather than a string, the table above fixes the one spelling, so a program comparing versions
+across drivers compares one shape. The member never answers `null` — each of the five has an answer —
+and it costs one short string per open connection.
+
+A `SELECT version()` is refused: it spends a round trip on the request path to learn something the
+connection was already told. [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan)'s grader is keyed on the server version
+and reads it off the connection it already holds, so the same refusal keeps a grade from costing a
+statement of its own.
+
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan). Decided in [0187](../decisions/0187.md).</sub>
+
 <a id="core-classes-db-connection-busy-state"></a>
 
 ## Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset
@@ -1045,13 +1075,47 @@ a streamed result already crosses on a single round trip while the client holds 
 a chunk size exists to bound is already one row, and the option could only spend latency to buy
 nothing.
 
-**Not shipped whole.** `stream` lands on PostgreSQL alone: the read needs the portal left open with
-its state parked off the borrow, and the other four drivers have no such state, so the member throws
-a `RuntimeError` naming `query` on each of them rather than buffering behind the caller's back.
-`streamAs` is owed entirely. `crates/nvs-stdlib/src/db/mod.rs` is where that gap is recorded, and
-`crates/nvs-db/src/pg.rs` holds the one driver that has it.
+**Both members answer on all five drivers**, and a driver never substitutes a buffer for a walk it
+cannot park. This rule is the member's contract — constant memory, the connection held, the second
+statement refused — and the read state each driver leaves between two steps is
+[`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection), which is the mechanism under it.
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection). Decided in [0067](../decisions/0067.md), [0132](../decisions/0132.md), [0187](../decisions/0187.md).</sub>
+
+<a id="core-classes-a-stream-parks-its-read-on-the-connection"></a>
+
+## A stream's read state is parked on the connection on every driver, and a buffer is never the answer  *(designed — not yet in the compiler)*
+
+`rule:core-classes/a-stream-parks-its-read-on-the-connection`
+
+A streaming statement's read state is split from the borrow and parked on the connection, on every
+driver, so a walk advanced by a later call holds one row rather than a result set.
+
+What is parked is what the result set described, what will end it, and the trace event the statement
+is timed by — `crates/nvs-db/src/pg.rs`'s `PgCursor` is the shape, and each driver's is the same kind
+of value: the column definitions and the wire's sequence position on MySQL and MariaDB, `COLMETADATA`
+on SQL Server. The buffered members keep the same state beside a borrow of the connection, so one row
+reader serves both paths per driver and they cannot disagree about what ends a stream.
+`State::Streaming` is what refuses the second statement ([`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state)),
+read off a cell rather than off a lifetime.
+
+**SQLite streams on one pinned thread per open walk.** `rusqlite`'s rows borrow the statement, which
+borrows the connection, so there is no value to park; the statement is stepped on a thread from the
+blocking pool and each row handed across instead. The thread is released when the walk is drained,
+dropped, or its task ends — O(open streams), never O(requests served).
+
+**Buffering is refused on every driver, in every disguise**, because it breaks the member's one
+promise and makes a request's memory a function of a table's size. A driver whose protocol cannot be
+advanced between calls throws a `RuntimeError` naming the driver and naming `query`; that refusal is
+the fallback for a protocol that has no parked form, not a state any of the five drivers is in.
+
+**An abandoned stream drains rather than poisons.** Each wire protocol frames its remaining rows
+self-describingly to a terminating packet or `DONE` token, so the read back to a message boundary is
+deterministic, bounded by the result set the caller asked for, and the connection returns to `Idle`
+and to the pool. A read that *fails* mid-message is `Poisoned` and closed, as it is for every other
+statement.
+
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-db-transactions"></a>
 
@@ -1168,7 +1232,9 @@ The vocabulary is tables, columns, primary keys, unique constraints and indexes 
 five backends genuinely share. A column carries a name, a type, nullability, a default, and whether
 it is the table's **identity**, which every backend has and spells differently. A unique constraint
 is the canonical spelling of uniqueness, so an index in the vocabulary is never unique: admitting
-both would make one schema expressible two ways.
+both would make one schema expressible two ways. Its nulls are distinct on every backend
+([`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct)), which is a property of the vocabulary and
+not of whichever dialect is emitting it.
 
 The column type enum is [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types)'s map read in the **write** direction —
 one canonical SQL type per Novis type per dialect, chosen so that introspecting the result maps back
@@ -1184,8 +1250,52 @@ schema" is not a state that exists; and a vendor shipping a new feature costs th
 because it is reachable through `Core\Db::execute` exactly as it is today. Foreign keys, partial
 indexes, index types, collations, check constraints, triggers, views and partitioning are all out of
 v1 for the same reason: no portable spelling, and admitting one would break the empty-plan property.
+What is out of v1 is what a schema *value* may say. An emitter still writes whatever its dialect needs
+to mean a construct that is in the vocabulary — SQLite's `CREATE UNIQUE INDEX` where the others write
+a constraint, SQL Server's filtered index for a nullable unique key — and the introspector reads that
+spelling back as the construct it stands for.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0187](../decisions/0187.md).</sub>
+
+<a id="core-classes-a-unique-key-reads-nulls-as-distinct"></a>
+
+## A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index  *(designed — not yet in the compiler)*
+
+`rule:core-classes/a-unique-key-reads-nulls-as-distinct`
+
+A unique key in the schema vocabulary means the standard's unique key on all five backends: rows whose
+key columns are all non-null are distinct, and a row with a null in any key column collides with
+nothing.
+
+Four backends give that directly. **SQL Server's emitter writes a filtered unique index** for a key
+over any nullable column —
+
+```sql
+CREATE UNIQUE INDEX <key> ON <table> (<columns>) WHERE <column> IS NOT NULL;
+```
+
+— with one `IS NOT NULL` conjunct per nullable key column, and the plain `ADD CONSTRAINT … UNIQUE`
+where every key column is `not null`.
+
+**That is a spelling, not a vocabulary growth.** A `Core\Db\Schema` declares a unique key over columns
+and nothing else; the `WHERE` is the emitter's, the way SQLite's emitter already writes
+`CREATE UNIQUE INDEX` where the others write a constraint, and
+[`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed) still keeps a partial index out of what a program may
+express. The catalog reader matches the index back to the key that asked for it, predicate and all, so
+a second `plan` over a converged database is empty. **Where it cannot, `plan` refuses** on a SQL
+Server table holding a nullable unique column, naming the table and the key: a refusal costs an
+operator a manual step, while DDL that will not converge re-proposes itself on every deployment. A
+build over an existing table is `Locking` and inside a `CREATE TABLE` it is `Safe`
+([`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan)).
+
+The alternative is refused for a reason that outlives SQL Server: a `not null` column carrying a
+generated token per row cannot be added to a table that already holds rows, so it describes a schema
+no existing deployment can converge to, while a nullable column arrives as a `Safe` step. Uniform null
+semantics are what [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s one-API promise means for a program's own schema,
+and [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)'s `dedupe_pending` is one reader of them rather than
+the reason for them.
+
+<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-schema-converges"></a>
 
@@ -1259,7 +1369,12 @@ cannot issue DDL at all and a DBA applies the change from a ticket — a plan wh
 elided into "3 unsafe changes" is useless to that person, and a plan they can paste is the whole
 product. Emitters follow the four dialects, not the five drivers.
 
-<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md).</sub>
+A dialect's spelling of a vocabulary construct is graded as that construct, not as the SQL it happens
+to be: SQL Server's filtered unique index for a nullable unique key
+([`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct)) is `Locking` built over an existing table
+and `Safe` inside a `CREATE TABLE`, exactly as the constraint form is on the other dialects.
+
+<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-schema-absence-never-destroys"></a>
 
@@ -1431,16 +1546,16 @@ job's `dedupe_key` while the job is pending and `null` once it is claimed, succe
 dead-lettered. A partial index (`… where state = 0`) and a stored generated column each say the same
 thing, and neither is in [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value)'s vocabulary — they are two dialects'
 answers to one requirement, which is exactly what a schema value exists to stop being. A null
-collides with nothing on the four backends whose unique keys read nulls as distinct, so the
-guarantee is the same one on every backend `Core\Queue` runs a statement against.
+collides with nothing on any of the five, because a unique key's nulls are distinct on every backend
+([`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct)) — four give it directly and SQL Server
+through the filtered index its emitter writes — so the guarantee is one guarantee, stated once, on
+every backend `Core\Queue` runs a statement against.
 
-SQL Server reads two nulls as **equal**, and so admits one released row rather than any number of
-them. It has no queue statements at all, so nothing runs against that shape today; the day it gains
-them, the spelling it needs is the filtered index [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan) keeps out of v1,
-and the vocabulary grows before the queue does. The alternative — a `not null` column with a
-generated token per released row — is refused for a reason that outlives SQL Server: such a column
-cannot be added to a table that already holds rows, so it would be a schema no existing deployment
-could converge to, while a nullable one arrives as a `Safe` step.
+That is the queue reading a property of the vocabulary rather than the queue asking for one. The
+alternative — a `not null` column with a generated token per released row — is refused for a reason
+that outlives any one backend: such a column cannot be added to a table that already holds rows, so
+it would be a schema no existing deployment could converge to, while a nullable one arrives as a
+`Safe` step.
 
 DDL is an injection sink and a privileged act, so **the runtime never issues it implicitly**, not at
 boot and not from a request; applying the plan takes `db.schema` like any other DDL
@@ -1451,7 +1566,7 @@ transactional enqueue — the property the whole design rests on — requires it
 database is permitted and silently gives up that property, which is why the documentation says so at
 the point the option is offered.
 
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0153](../decisions/0153.md).</sub>
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0153](../decisions/0153.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 

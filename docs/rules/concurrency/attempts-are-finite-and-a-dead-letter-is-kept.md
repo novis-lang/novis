@@ -3,7 +3,11 @@ wearing a different name. Between attempts the delay grows exponentially, is jit
 not retry in lockstep, and is capped.
 
 A job that exhausts its attempts **moves** to the dead-letter table, carrying its payload, every
-attempt's error and its timing. The runtime never deletes it. `stats` reports the dead-letter depth
+attempt's error and its timing. Every attempt's error is there because the jobs row accumulates it:
+an `errors` array on the job itself gains one entry — when the attempt started, the class thrown and
+its message, capped — as each attempt fails, and the move copies the array rather than writing the
+last failure alone (`docs/decisions/0187.md` § 4). Attempts are finite and an entry is capped, so the
+array is bounded by construction. The runtime never deletes it. `stats` reports the dead-letter depth
 beside the pending and claimed counts, because an unwatched dead-letter table is the classic way a
 queue silently loses work and a depth nobody reads is the same as no record at all.
 

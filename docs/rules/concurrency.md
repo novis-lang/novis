@@ -1161,14 +1161,18 @@ wearing a different name. Between attempts the delay grows exponentially, is jit
 not retry in lockstep, and is capped.
 
 A job that exhausts its attempts **moves** to the dead-letter table, carrying its payload, every
-attempt's error and its timing. The runtime never deletes it. `stats` reports the dead-letter depth
+attempt's error and its timing. Every attempt's error is there because the jobs row accumulates it:
+an `errors` array on the job itself gains one entry — when the attempt started, the class thrown and
+its message, capped — as each attempt fails, and the move copies the array rather than writing the
+last failure alone (`docs/decisions/0187.md` § 4). Attempts are finite and an entry is capped, so the
+array is bounded by construction. The runtime never deletes it. `stats` reports the dead-letter depth
 beside the pending and claimed counts, because an unwatched dead-letter table is the classic way a
 queue silently loses work and a depth nobody reads is the same as no record at all.
 
 An attempt ceiling of zero is refused at the call rather than accepted: it asks for a job dead-lettered
 by the enqueue that created it, and attempts are finite, not optional.
 
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0074](../decisions/0074.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0074](../decisions/0074.md), [0076](../decisions/0076.md), [0187](../decisions/0187.md).</sub>
 
 <a id="concurrency-a-budget-overrun-is-a-failed-attempt"></a>
 

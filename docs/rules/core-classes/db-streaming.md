@@ -8,8 +8,7 @@ a streamed result already crosses on a single round trip while the client holds 
 a chunk size exists to bound is already one row, and the option could only spend latency to buy
 nothing.
 
-**Not shipped whole.** `stream` lands on PostgreSQL alone: the read needs the portal left open with
-its state parked off the borrow, and the other four drivers have no such state, so the member throws
-a `RuntimeError` naming `query` on each of them rather than buffering behind the caller's back.
-`streamAs` is owed entirely. `crates/nvs-stdlib/src/db/mod.rs` is where that gap is recorded, and
-`crates/nvs-db/src/pg.rs` holds the one driver that has it.
+**Both members answer on all five drivers**, and a driver never substitutes a buffer for a walk it
+cannot park. This rule is the member's contract — constant memory, the connection held, the second
+statement refused — and the read state each driver leaves between two steps is
+`rule:core-classes/a-stream-parks-its-read-on-the-connection`, which is the mechanism under it.

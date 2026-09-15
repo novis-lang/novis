@@ -16,3 +16,8 @@ will refuse to run. The common case in a serious deployment is that the applicat
 cannot issue DDL at all and a DBA applies the change from a ticket — a plan whose risky steps are
 elided into "3 unsafe changes" is useless to that person, and a plan they can paste is the whole
 product. Emitters follow the four dialects, not the five drivers.
+
+A dialect's spelling of a vocabulary construct is graded as that construct, not as the SQL it happens
+to be: SQL Server's filtered unique index for a nullable unique key
+(`rule:core-classes/a-unique-key-reads-nulls-as-distinct`) is `Locking` built over an existing table
+and `Safe` inside a `CREATE TABLE`, exactly as the constraint form is on the other dialects.

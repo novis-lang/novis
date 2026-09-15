@@ -10,16 +10,16 @@ job's `dedupe_key` while the job is pending and `null` once it is claimed, succe
 dead-lettered. A partial index (`… where state = 0`) and a stored generated column each say the same
 thing, and neither is in `rule:core-classes/schema-is-a-value`'s vocabulary — they are two dialects'
 answers to one requirement, which is exactly what a schema value exists to stop being. A null
-collides with nothing on the four backends whose unique keys read nulls as distinct, so the
-guarantee is the same one on every backend `Core\Queue` runs a statement against.
+collides with nothing on any of the five, because a unique key's nulls are distinct on every backend
+(`rule:core-classes/a-unique-key-reads-nulls-as-distinct`) — four give it directly and SQL Server
+through the filtered index its emitter writes — so the guarantee is one guarantee, stated once, on
+every backend `Core\Queue` runs a statement against.
 
-SQL Server reads two nulls as **equal**, and so admits one released row rather than any number of
-them. It has no queue statements at all, so nothing runs against that shape today; the day it gains
-them, the spelling it needs is the filtered index `rule:core-classes/schema-plan` keeps out of v1,
-and the vocabulary grows before the queue does. The alternative — a `not null` column with a
-generated token per released row — is refused for a reason that outlives SQL Server: such a column
-cannot be added to a table that already holds rows, so it would be a schema no existing deployment
-could converge to, while a nullable one arrives as a `Safe` step.
+That is the queue reading a property of the vocabulary rather than the queue asking for one. The
+alternative — a `not null` column with a generated token per released row — is refused for a reason
+that outlives any one backend: such a column cannot be added to a table that already holds rows, so
+it would be a schema no existing deployment could converge to, while a nullable one arrives as a
+`Safe` step.
 
 DDL is an injection sink and a privileged act, so **the runtime never issues it implicitly**, not at
 boot and not from a request; applying the plan takes `db.schema` like any other DDL
