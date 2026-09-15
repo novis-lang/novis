@@ -58,6 +58,7 @@ use std::time::Instant;
 use mysql_common::constants::CapabilityFlags;
 use mysql_common::constants::MariadbCapabilities;
 use mysql_common::packets::AuthPlugin;
+use mysql_common::packets::Column;
 use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
 #[cfg(unix)]
@@ -436,6 +437,8 @@ impl MariaConn {
             time_zone: target.time_zone,
             // § 7's nesting, which a fresh connection is outside of.
             depth: Cell::new(0),
+            // Nothing is parked until `stream` parks it — see the field.
+            reading: None,
         })
     }
 
@@ -475,6 +478,70 @@ impl MariaConn {
             sql,
             params,
         )
+    }
+
+    /// `rule:core-classes/db-streaming`'s `stream`: one statement left open, its read state
+    /// parked here rather than lent out inside a borrow.
+    ///
+    /// The two-line delegation into the *same* row loop
+    /// [`crate::MySqlConn::stream`] runs, which is that member's whole reasoning:
+    /// one protocol is framed one way, and a result set is read one way with it.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::mysql::open_result`].
+    pub fn stream(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<&[Column]> {
+        let reading = crate::mysql::open_result(
+            &mut self.wire,
+            &self.state,
+            self.capabilities,
+            &mut self.cache,
+            sql,
+            params,
+        )?;
+        Ok(self.reading.insert(reading).columns())
+    }
+
+    /// What the parked walk's result set described, or `None` for a connection
+    /// that has not streamed since its last reset —
+    /// [`crate::MySqlConn::stream_columns`].
+    #[must_use]
+    pub fn stream_columns(&self) -> Option<&[Column]> {
+        Some(self.reading.as_ref()?.columns())
+    }
+
+    /// The next row of the parked walk, or `None` once it has ended —
+    /// [`crate::MySqlConn::stream_next_row`].
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::mysql::next_row_of`].
+    pub fn stream_next_row(&mut self) -> io::Result<Option<crate::MySqlRow>> {
+        let Some(reading) = self.reading.as_mut() else {
+            return Ok(None);
+        };
+        crate::mysql::next_row_of(&mut self.wire, &self.state, reading)
+    }
+
+    /// § 11's trace event for the parked walk —
+    /// [`crate::MySqlConn::stream_span`].
+    #[must_use]
+    pub fn stream_span(&self) -> Option<&crate::QuerySpan> {
+        Some(self.reading.as_ref()?.span())
+    }
+
+    /// Names the `[db.<name>]` block the parked walk is running on —
+    /// [`crate::MySqlConn::name_stream_connection`].
+    pub fn name_stream_connection(&mut self, connection: &str) {
+        if let Some(reading) = self.reading.as_mut() {
+            reading.name_connection(connection);
+        }
+    }
+
+    /// Abandons the parked walk, draining what is left of it —
+    /// [`crate::MySqlConn::end_stream`].
+    pub fn end_stream(&mut self) {
+        crate::mysql::end_stream_of(&mut self.wire, &self.state, &mut self.reading);
     }
 
     /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany`: one
@@ -552,6 +619,10 @@ impl MariaConn {
     /// As [`crate::mysql::reset_session`]. The connection is consumed either
     /// way.
     pub fn reset(mut self) -> io::Result<MariaConn> {
+        // A walk the program abandoned is read to its end before the reset goes
+        // out — [`crate::MySqlConn::reset`] owns why a command written over rows
+        // that are still arriving is one nothing can frame the answer to.
+        crate::mysql::end_stream_of(&mut self.wire, &self.state, &mut self.reading);
         crate::mysql::reset_session(
             &mut self.wire,
             self.capabilities,

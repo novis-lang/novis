@@ -873,6 +873,27 @@ pub struct MySqlConn {
     /// needs no `RELEASE` after it because a same-named `SAVEPOINT` replaces
     /// the one it finds.
     pub(crate) depth: Cell<u32>,
+    /// The read state of a statement whose rows a *held cursor* is walking,
+    /// parked here rather than lent out inside a borrow of this connection.
+    ///
+    /// [`PgConn::reading`]'s twin, for that field's reasons and holding this
+    /// protocol's own state: the column definitions a binary row can only be
+    /// decoded against, the counts the terminator left, and the span. The
+    /// refusal a second statement meets is [`State::Streaming`] on either
+    /// driver, read off the state rather than off a lifetime.
+    ///
+    /// `None` for a connection that has never streamed. It stays `Some` after a
+    /// walk ends, holding what the statement finished with, until the next
+    /// `stream` replaces it or `end_stream` drops it — and § 13's reset drops it
+    /// too, after draining whatever the program walked away from, because
+    /// `COM_RESET_CONNECTION` is a command and a command written over rows still
+    /// arriving is one whose answer nothing can frame.
+    ///
+    /// **What it spends:** one result set's column definitions per connection
+    /// that has streamed, held until the next statement replaces them. That is
+    /// O(pooled connections) rather than O(requests served), and § 13's `max`
+    /// per core is the cap on it.
+    pub(crate) reading: Option<crate::mysql::MySqlCursor>,
 }
 
 /// A MariaDB connection: `mysql_common`'s codec, its own auth plugins, its own
@@ -907,6 +928,10 @@ pub struct MariaConn {
     /// How many of `rule:core-classes/db-transactions`'s transactions are open — [`MySqlConn::depth`]'s
     /// twin, spent on the same commands.
     pub(crate) depth: Cell<u32>,
+    /// The read state of a statement whose rows a *held cursor* is walking —
+    /// [`MySqlConn::reading`]'s twin, and the *same* type, because one protocol
+    /// is read one way and `crate::mysql`'s row loop serves both servers.
+    pub(crate) reading: Option<crate::mysql::MySqlCursor>,
 }
 
 /// A SQL Server connection over TDS 7.4, all of which is written here: there is

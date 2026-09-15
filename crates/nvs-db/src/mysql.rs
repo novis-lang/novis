@@ -14,6 +14,13 @@
 //! — the asymmetry with PostgreSQL that § 13 calls the protocol's rather than a
 //! choice.
 //!
+//! A statement whose rows a *held* cursor walks cannot be a borrow — the program
+//! advances it from a later call, with nothing borrowed in between — so its read
+//! state is parked on the connection instead ([`MySqlConn::stream`]) and
+//! [`State::Streaming`] is what refuses the second statement. [`MySqlCursor`] is
+//! that state, both paths carry one, and [`next_row_of`] is the single place a
+//! binary row packet is read.
+//!
 //! **A value is finished in two places, and § 9's table says which.**
 //! [`scalar`] reads one column against its definition and answers a
 //! [`MySqlScalar`]; [`decode`] mints the [`Value`] for the rows that are
@@ -1646,6 +1653,8 @@ impl MySqlConn {
             time_zone: target.time_zone,
             // § 7's nesting, which a fresh connection is outside of.
             depth: Cell::new(0),
+            // Nothing is parked until `stream` parks it — see the field.
+            reading: None,
         })
     }
 
@@ -1687,6 +1696,95 @@ impl MySqlConn {
             sql,
             params,
         )
+    }
+
+    /// Runs one statement and leaves its result set open, **borrowing nothing**:
+    /// the read state is parked on this connection and the rows come off it one
+    /// [`Self::stream_next_row`] at a time.
+    ///
+    /// The wire half of `rule:core-classes/db-streaming`'s `stream`, costing the round trips
+    /// [`Self::query`] costs and stopping where it stops — [`MySqlCursor`] owns
+    /// why the state has to be here rather than inside a borrow. The answer is
+    /// what the result set described, empty for a statement that returned none,
+    /// and [`Self::stream_columns`] hands the same slice back to the later calls
+    /// that decode against it.
+    ///
+    /// A second statement is refused while this one is open, which is
+    /// `rule:core-classes/db-streaming`'s `LogicError` read off [`State::Streaming`] rather than
+    /// off a lifetime. [`Self::end_stream`] is the abandonment [`MySqlRows`] gets
+    /// from `Drop`; a walk read to its end needs no call at all.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::query`].
+    pub fn stream(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<&[Column]> {
+        let reading = open_result(
+            &mut self.wire,
+            &self.state,
+            self.capabilities,
+            &mut self.cache,
+            sql,
+            params,
+        )?;
+        Ok(self.reading.insert(reading).columns())
+    }
+
+    /// What the parked walk's result set described, or `None` for a connection
+    /// that has not streamed since its last reset.
+    ///
+    /// It outlives the rows on purpose: a binary row is decoded against the
+    /// definitions it belongs to, and that decode happens after the step that
+    /// produced it.
+    #[must_use]
+    pub fn stream_columns(&self) -> Option<&[Column]> {
+        Some(self.reading.as_ref()?.columns())
+    }
+
+    /// The next row of the parked walk, or `None` once it has ended — and `None`
+    /// too for a connection with no walk parked on it at all.
+    ///
+    /// Ending it returns the connection to [`State::Idle`], exactly as
+    /// [`MySqlRows::next_row`] does. The state itself stays parked, holding what
+    /// the statement finished with, until the next [`Self::stream`] replaces it
+    /// or [`Self::end_stream`] drops it.
+    ///
+    /// # Errors
+    ///
+    /// As [`MySqlRows::next_row`].
+    pub fn stream_next_row(&mut self) -> io::Result<Option<MySqlRow>> {
+        let Some(reading) = self.reading.as_mut() else {
+            return Ok(None);
+        };
+        next_row_of(&mut self.wire, &self.state, reading)
+    }
+
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for the parked walk, or `None`
+    /// where there is none — [`MySqlRows::span`] for what a caller reading one
+    /// mid-walk gets.
+    #[must_use]
+    pub fn stream_span(&self) -> Option<&QuerySpan> {
+        Some(self.reading.as_ref()?.span())
+    }
+
+    /// Names the `[db.<name>]` block the parked walk is running on, and does
+    /// nothing where there is no walk — [`MySqlRows::name_connection`] owns why
+    /// the driver cannot work the name out for itself.
+    pub fn name_stream_connection(&mut self, connection: &str) {
+        if let Some(reading) = self.reading.as_mut() {
+            reading.name_connection(connection);
+        }
+    }
+
+    /// Abandons the parked walk: reads what is left of the result set and
+    /// forgets it.
+    ///
+    /// This is [`MySqlRows`]' `Drop` written as a call, and for the same reason —
+    /// the rows are on their way whether or not anybody reads them, so draining
+    /// to the terminator is what keeps the connection poolable instead of
+    /// poisoned. A read that fails on the way poisons it, through the same helper
+    /// every other read here uses.
+    pub fn end_stream(&mut self) {
+        end_stream_of(&mut self.wire, &self.state, &mut self.reading);
     }
 
     /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany`: one
@@ -1777,6 +1875,12 @@ impl MySqlConn {
     ///
     /// As [`read_ok`]. The connection is consumed either way.
     pub fn reset(mut self) -> io::Result<MySqlConn> {
+        // A walk the program abandoned is read to its end before the reset goes
+        // out, and then dropped. `COM_RESET_CONNECTION` is a command like any
+        // other: written over rows that are still arriving it is a second run of
+        // packets numbered from the same 0 as the first, and nothing framing
+        // them tells the reset's `OK` from the row that was already coming.
+        end_stream_of(&mut self.wire, &self.state, &mut self.reading);
         reset_session(
             &mut self.wire,
             self.capabilities,
@@ -2040,7 +2144,8 @@ fn close_statement<S: Read + Write>(wire: &mut Wire<S>, stmt: Prepared) -> io::R
 }
 
 /// One statement, end to end: the cache or a prepare, execute, and stop at the
-/// first row.
+/// first row — answering the read state [`MySqlCursor`] is, which the borrowed
+/// path and the parked one carry the same copy of.
 ///
 /// The shape is [`crate::pg`]'s `start_statement` and for its reasons — free
 /// and generic in the stream so a unit test can script a server for it, and
@@ -2059,14 +2164,14 @@ fn close_statement<S: Read + Write>(wire: &mut Wire<S>, stmt: Prepared) -> io::R
 /// for [`execute`]'s parameter-count mismatch; otherwise as [`read_answer`]. A
 /// write that failed part-way leaves the connection [`State::Poisoned`],
 /// because a half-written packet is not a boundary anything can be found from.
-pub(crate) fn start_statement<'a, S: Read + Write>(
-    wire: &'a mut Wire<S>,
-    state: &'a Cell<State>,
+pub(crate) fn open_result<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
     capabilities: CapabilityFlags,
     cache: &mut StatementCache<Prepared>,
     sql: &str,
     params: &[Option<&[u8]>],
-) -> io::Result<MySqlRows<'a, S>> {
+) -> io::Result<MySqlCursor> {
     if !state.get().may_start_statement() {
         return Err(crate::pg::second_statement(state));
     }
@@ -2095,9 +2200,7 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
             // stream left to reach [`MySqlRows::next_row`]'s terminator.
             span.finished(Some(affected));
             state.set(State::Idle);
-            Ok(MySqlRows {
-                wire,
-                state,
+            Ok(MySqlCursor {
                 capabilities,
                 columns: Arc::from(Vec::new()),
                 rows: 0,
@@ -2110,9 +2213,7 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
         Answer::Columns(count) => match read_columns(wire, count) {
             Ok(columns) => {
                 state.set(State::Streaming);
-                Ok(MySqlRows {
-                    wire,
-                    state,
+                Ok(MySqlCursor {
                     capabilities,
                     columns: Arc::from(columns),
                     rows: 0,
@@ -2125,6 +2226,29 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
             Err(e) => Err(poison_on_write(state, e)),
         },
     }
+}
+
+/// [`open_result`] with the read state lent out beside a borrow of the
+/// connection: the shape every buffered member of `rule:core-classes/db-statement-members` wants, and
+/// the one `Core\Db\Connection::stream` is the single caller that cannot use.
+///
+/// # Errors
+///
+/// As [`open_result`].
+pub(crate) fn start_statement<'a, S: Read + Write>(
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    capabilities: CapabilityFlags,
+    cache: &mut StatementCache<Prepared>,
+    sql: &str,
+    params: &[Option<&[u8]>],
+) -> io::Result<MySqlRows<'a, S>> {
+    let reading = open_result(wire, state, capabilities, cache, sql, params)?;
+    Ok(MySqlRows {
+        wire,
+        state,
+        reading,
+    })
 }
 
 /// `rule:core-classes/db-statement-members`'s `executeMany`: one prepare, N `COM_STMT_EXECUTE`s, and the
@@ -3084,9 +3208,38 @@ fn malformed(column: &Column, wanted: &str) -> io::Error {
 /// A statement with no result set answers one of these too, already ended: its
 /// [`Self::next_row`] is `None` on the first call and [`Self::affected`] is the
 /// number the server's status packet carried.
+///
+/// Everything about the result set that is not the borrow is [`MySqlCursor`],
+/// which owns why that is a split rather than its fields inlined here.
 pub struct MySqlRows<'a, S: Read + Write = MyStream> {
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
+    reading: MySqlCursor,
+}
+
+/// A statement's read state: what the result set described, how far it has got,
+/// what ended it, and the event it is being timed by — everything a row needs
+/// that is not the wire.
+///
+/// [`crate::PgCursor`]'s twin, and a type of its own for that one's reason:
+/// `rule:core-classes/db-statement-members`'s rows are reached two ways and only one of them can
+/// hold a borrow. The **buffered** members drain their rows inside the call that
+/// started the statement, so [`MySqlRows`] keeps this beside a borrow of the
+/// connection and the borrow checker is what refuses a second statement.
+/// **`Core\Db\Connection::stream`** hands a walk back to the program and is
+/// advanced by a *later* call, with nothing of the connection borrowed in
+/// between; a borrow cannot span that, so its copy of this state is parked on
+/// the connection ([`MySqlConn::stream`]) and [`State::Streaming`] is what
+/// refuses the second statement there.
+///
+/// Both drive [`next_row_of`], which is the one place in this driver a binary
+/// row packet is read, so the two paths cannot disagree about what ends a result
+/// set or about what the status packet said on the way past.
+#[derive(Debug)]
+pub(crate) struct MySqlCursor {
+    /// What the two ends agreed this connection can do, carried here so a row
+    /// read through a fresh borrow of the wire needs nothing else off the
+    /// connection: the terminator is deserialized against these bits.
     capabilities: CapabilityFlags,
     /// Shared rather than borrowed because `mysql_common`'s binary row
     /// deserializer takes exactly this: an `Arc<[Column]>` per row, which is a
@@ -3103,11 +3256,31 @@ pub struct MySqlRows<'a, S: Read + Write = MyStream> {
     span: QuerySpan,
 }
 
+impl MySqlCursor {
+    /// The result set's column definitions, empty for a statement that returned
+    /// none — [`MySqlRows::columns`] and [`MySqlConn::stream_columns`] are both
+    /// this.
+    pub(crate) fn columns(&self) -> &[Column] {
+        &self.columns
+    }
+
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for the statement this walks.
+    pub(crate) fn span(&self) -> &QuerySpan {
+        &self.span
+    }
+
+    /// Names the `[db.<name>]` block the statement ran on — [`QuerySpan::name`]
+    /// owns why the driver cannot work it out for itself.
+    pub(crate) fn name_connection(&mut self, connection: &str) {
+        self.span.name(connection);
+    }
+}
+
 impl<S: Read + Write> std::fmt::Debug for MySqlRows<'_, S> {
     /// The shape of the result and where the wire is, and nothing that arrived.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MySqlRows")
-            .field("columns", &self.columns.len())
+            .field("columns", &self.reading.columns.len())
             .field("state", &self.state.get())
             .finish_non_exhaustive()
     }
@@ -3118,14 +3291,14 @@ impl<S: Read + Write> MySqlRows<'_, S> {
     /// none.
     #[must_use]
     pub fn columns(&self) -> &[Column] {
-        &self.columns
+        &self.reading.columns
     }
 
     /// Column `index`'s Novis type, per [`column_type`], or `None` where the
     /// result set has no such column.
     #[must_use]
     pub fn column_type(&self, index: usize) -> Option<ColumnType> {
-        self.columns.get(index).map(column_type)
+        self.reading.columns.get(index).map(column_type)
     }
 
     /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for this
@@ -3137,13 +3310,13 @@ impl<S: Read + Write> MySqlRows<'_, S> {
     /// ends and freezes it.
     #[must_use]
     pub fn span(&self) -> &QuerySpan {
-        &self.span
+        &self.reading.span
     }
 
     /// Names the `[db.<name>]` block this statement ran on, for the layer that
     /// resolved it — [`QuerySpan::name`] owns why the driver cannot.
     pub fn name_connection(&mut self, connection: &str) {
-        self.span.name(connection);
+        self.reading.span.name(connection);
     }
 
     /// [ADR 0067 § 4](/docs/decisions/0067.md)'s affected-row count,
@@ -3157,7 +3330,7 @@ impl<S: Read + Write> MySqlRows<'_, S> {
     /// them inventing a count.
     #[must_use]
     pub fn affected(&self) -> Option<u64> {
-        self.ended.then_some(self.affected)
+        self.reading.ended.then_some(self.reading.affected)
     }
 
     /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `lastId` — the
@@ -3169,128 +3342,182 @@ impl<S: Read + Write> MySqlRows<'_, S> {
     /// statement that returned a result set has none, and answers `0`.
     #[must_use]
     pub fn last_id(&self) -> Option<u64> {
-        self.ended.then_some(self.last_id)
+        self.reading.ended.then_some(self.reading.last_id)
     }
 
     /// The next row, or `None` once the stream has ended.
     ///
-    /// **The first byte says which thing arrived, with no ambiguity to weigh**,
-    /// unlike the shapes [`read_answer`] tells apart: a binary row always
-    /// opens `0x00`, the terminator is the `0xFE` status packet
-    /// `CLIENT_DEPRECATE_EOF` promises instead of an EOF packet, and `0xFF` is
-    /// the server's own error. A length is not read here because none is needed
-    /// — the collision `read_answer` reads one for is between a status packet
-    /// and a column count, and neither of those can be at this point in the
-    /// stream.
-    ///
-    /// Ending the stream is what returns the connection to [`State::Idle`].
-    /// Deliberately not `Iterator::next`, for [`crate::PgRows::next_row`]'s
-    /// reason: every call can fail, and an `Option` would have to swallow it.
+    /// [`next_row_of`] is the whole of it, and the parked walk
+    /// [`MySqlConn::stream_next_row`] advances is the same call over the same
+    /// state. Deliberately not `Iterator::next`, for
+    /// [`crate::PgRows::next_row`]'s reason: every call can fail, and an
+    /// `Option` would have to swallow it.
     ///
     /// # Errors
     ///
-    /// The server's own error, which still ends the stream cleanly and leaves
-    /// the connection idle; `InvalidData` for a packet the protocol does not
-    /// allow here, or for a second result set, which poison it; and whatever
-    /// the stream reported.
+    /// As [`next_row_of`].
     pub fn next_row(&mut self) -> io::Result<Option<MySqlRow>> {
-        // The state is the only bookkeeping: anything that ended this stream —
-        // a terminator, a server error, a poisoning — has already left it.
-        if self.state.get() != State::Streaming {
-            return Ok(None);
-        }
+        next_row_of(self.wire, self.state, &mut self.reading)
+    }
+}
 
-        let packet = match self.wire.read_packet() {
-            Ok(packet) => packet,
-            Err(e) => return Err(poison_on_write(self.state, e)),
-        };
-        match packet.first() {
-            Some(0x00) => {
-                let row = decode_row(&self.columns, &packet)
-                    .map_err(|e| poison_on_write(self.state, e))?;
-                self.rows += 1;
-                self.span.row();
-                Ok(Some(row))
+/// One row off a live result set, or `None` once it has ended — the whole of
+/// [`MySqlRows::next_row`], and of [`MySqlConn::stream_next_row`] with it.
+///
+/// Free, and generic in the stream, for the two reasons [`crate::pg`]'s
+/// `next_row_of` gives: the parked path has no [`MySqlRows`] to call a method
+/// on, its state being on the connection and its wire reached through a fresh
+/// borrow per row; and a [`MySqlConn`]'s own wire is at the default type
+/// parameter, so anything reachable only through an inherent method on it would
+/// need a socket and a certificate to reach at all.
+///
+/// **The first byte says which thing arrived, with no ambiguity to weigh**,
+/// unlike the shapes [`read_answer`] tells apart: a binary row always opens
+/// `0x00`, the terminator is the `0xFE` status packet `CLIENT_DEPRECATE_EOF`
+/// promises instead of an EOF packet, and `0xFF` is the server's own error. A
+/// length is not read here because none is needed — the collision `read_answer`
+/// reads one for is between a status packet and a column count, and neither of
+/// those can be at this point in the stream.
+///
+/// Ending the stream is what returns the connection to [`State::Idle`].
+///
+/// # Errors
+///
+/// The server's own error, which still ends the stream cleanly and leaves the
+/// connection idle; `InvalidData` for a packet the protocol does not allow here,
+/// or for a second result set, which poison it; and whatever the stream
+/// reported.
+pub(crate) fn next_row_of<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    reading: &mut MySqlCursor,
+) -> io::Result<Option<MySqlRow>> {
+    // The state is the only bookkeeping: anything that ended this stream —
+    // a terminator, a server error, a poisoning — has already left it.
+    if state.get() != State::Streaming {
+        return Ok(None);
+    }
+
+    let packet = match wire.read_packet() {
+        Ok(packet) => packet,
+        Err(e) => return Err(poison_on_write(state, e)),
+    };
+    match packet.first() {
+        Some(0x00) => {
+            let row =
+                decode_row(&reading.columns, &packet).map_err(|e| poison_on_write(state, e))?;
+            reading.rows += 1;
+            reading.span.row();
+            Ok(Some(row))
+        }
+        Some(0xFE) => {
+            let terminator = OkPacketDeserializer::<ResultSetTerminator>::deserialize(
+                reading.capabilities,
+                &mut ParseBuf(&packet),
+            )
+            .map_err(|e| poison_on_write(state, e))?
+            .into_inner();
+            reading.ended = true;
+            reading.affected = reading.rows;
+            // [`MySqlRows::affected`]'s two numbers under one name, and the
+            // span takes the same one: for a result set that is the rows
+            // that came back, which is what PostgreSQL's `SELECT 2` tag
+            // puts in the other driver's span.
+            reading.span.finished(Some(reading.affected));
+            if terminator
+                .status_flags()
+                .contains(StatusFlags::SERVER_MORE_RESULTS_EXISTS)
+            {
+                // A stored procedure's second result set. There is no
+                // reader here to drain it with and no surface in `rule:core-classes/db-statement-members` to hand it to, and walking away from packets that are
+                // still coming is what leaves the wire pointing into the
+                // middle of one — [`read_ok`] refuses the same thing for
+                // the same reason.
+                return Err(poison_on_write(
+                    state,
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "the server has a second result set for this statement, and ADR \
+                         0067 § 4's one-statement-at-a-time surface has nowhere to put it",
+                    ),
+                ));
             }
-            Some(0xFE) => {
-                let terminator = OkPacketDeserializer::<ResultSetTerminator>::deserialize(
-                    self.capabilities,
-                    &mut ParseBuf(&packet),
-                )
-                .map_err(|e| poison_on_write(self.state, e))?
-                .into_inner();
-                self.ended = true;
-                self.affected = self.rows;
-                // [`MySqlRows::affected`]'s two numbers under one name, and the
-                // span takes the same one: for a result set that is the rows
-                // that came back, which is what PostgreSQL's `SELECT 2` tag
-                // puts in the other driver's span.
-                self.span.finished(Some(self.affected));
-                if terminator
-                    .status_flags()
-                    .contains(StatusFlags::SERVER_MORE_RESULTS_EXISTS)
-                {
-                    // A stored procedure's second result set. There is no
-                    // reader here to drain it with and no surface in `rule:core-classes/db-statement-members` to hand it to, and walking away from packets that are
-                    // still coming is what leaves the wire pointing into the
-                    // middle of one — [`read_ok`] refuses the same thing for
-                    // the same reason.
-                    return Err(poison_on_write(
-                        self.state,
-                        io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "the server has a second result set for this statement, and ADR \
-                             0067 § 4's one-statement-at-a-time surface has nowhere to put it",
-                        ),
-                    ));
-                }
-                self.state.set(State::Idle);
-                Ok(None)
-            }
-            Some(0xFF) => {
-                // A refused statement is still a statement that ran, and the
-                // error packet arrived whole: the wire is at a boundary, so
-                // `poison_on_write` leaves the connection idle rather than
-                // poisoned.
-                self.ended = true;
-                self.affected = self.rows;
-                // No affected count on the span, as [`crate::PgRows::next_row`]
-                // does it: § 11 gives a span no success field to lose, so a
-                // refused statement reports the rows that did arrive and the
-                // error is the caller's own return value.
-                self.span.finished(None);
-                Err(poison_on_write(
-                    self.state,
-                    server_refusal(self.wire.backend, &packet, self.capabilities),
-                ))
-            }
-            _ => Err(poison_on_write(
-                self.state,
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "the server sent something that is neither a binary row, the end of a \
-                     result set, nor an error",
-                ),
-            )),
+            state.set(State::Idle);
+            Ok(None)
+        }
+        Some(0xFF) => {
+            // A refused statement is still a statement that ran, and the
+            // error packet arrived whole: the wire is at a boundary, so
+            // `poison_on_write` leaves the connection idle rather than
+            // poisoned.
+            reading.ended = true;
+            reading.affected = reading.rows;
+            // No affected count on the span, as [`crate::PgRows::next_row`]
+            // does it: § 11 gives a span no success field to lose, so a
+            // refused statement reports the rows that did arrive and the
+            // error is the caller's own return value.
+            reading.span.finished(None);
+            Err(poison_on_write(
+                state,
+                server_refusal(wire.backend, &packet, reading.capabilities),
+            ))
+        }
+        _ => Err(poison_on_write(
+            state,
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "the server sent something that is neither a binary row, the end of a \
+                 result set, nor an error",
+            ),
+        )),
+    }
+}
+
+/// Reads what is left of a result set nobody wants, to the terminator that ends
+/// it.
+///
+/// Abandonment is the ordinary case rather than an error: the rows are coming
+/// whether or not anybody reads them, so draining is what returns the connection
+/// to the pool instead of closing it — [`crate::PgRows`]' `Drop` and
+/// `rule:core-classes/db-connection-busy-state`'s rule for both. A read that fails on the way poisons
+/// the connection through the same helper every other read here uses, and the
+/// loop ends because that leaves [`State::Streaming`].
+fn drain_result<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    reading: &mut MySqlCursor,
+) {
+    while state.get() == State::Streaming {
+        if next_row_of(wire, state, reading).is_err() {
+            break;
         }
     }
 }
 
+/// Abandons a parked walk and forgets what it read — [`MySqlConn::end_stream`],
+/// and [`crate::MariaConn::end_stream`] with it.
+///
+/// The walk is drained first, by [`drain_result`], so the connection this was
+/// read off is at a message boundary and poolable when this returns. Dropping
+/// the state is the other half: a result set's shape and its counts are one
+/// request's, and `rule:security/db-pool-reset-is-a-boundary` is why the next one must not be able to
+/// read them.
+pub(crate) fn end_stream_of<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    reading: &mut Option<MySqlCursor>,
+) {
+    if let Some(walk) = reading.as_mut() {
+        drain_result(wire, state, walk);
+    }
+    *reading = None;
+}
+
 impl<S: Read + Write> Drop for MySqlRows<'_, S> {
-    /// Abandonment, and it is the ordinary case rather than an error.
-    ///
-    /// The rows are coming whether or not anybody reads them, so draining to
-    /// the terminator is what returns the connection to the pool instead of
-    /// closing it — [`crate::PgRows`]' `Drop` and `rule:core-classes/db-connection-busy-state`'s rule for both.
-    /// A read that fails on the way poisons the connection through the same
-    /// helper every other read here uses, and the loop ends because that
-    /// leaves [`State::Streaming`].
+    /// Abandonment, and it is the ordinary case rather than an error —
+    /// [`drain_result`] is the whole of it and owns the reasoning.
     fn drop(&mut self) {
-        while self.state.get() == State::Streaming {
-            if self.next_row().is_err() {
-                break;
-            }
-        }
+        drain_result(self.wire, self.state, &mut self.reading);
     }
 }
 
@@ -3337,8 +3564,8 @@ mod tests {
         AuthContext, Backend, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, DbErrorKind, Greeting,
         Login, MYSQL, MySqlTarget, MyValue, NvsStr, Prepared, REQUIRED_CAPABILITIES, ServerError,
         State, Value, Wire, authenticate, begin, column_type, commit, encode, execute,
-        execute_many, kind_of, offset_literal, plugin_or_refuse, read_greeting, read_ok,
-        request_tls, roll_back, scalar, server_refusal, start_statement,
+        execute_many, kind_of, next_row_of, offset_literal, open_result, plugin_or_refuse,
+        read_greeting, read_ok, request_tls, roll_back, scalar, server_refusal, start_statement,
     };
     use crate::conn::ColumnType as NovisType;
     use crate::conn::{BlockError, Driver, Isolation};
@@ -5561,6 +5788,192 @@ mod tests {
             "two unread rows and a terminator were drained, so the connection is \
              reusable rather than destroyed"
         );
+    }
+
+    /// A server holding one single-column result set of two rows, answering the
+    /// prepare and the execute the same way however often either is asked for.
+    ///
+    /// Shared by the parked-walk cases below, one of which runs two statements
+    /// over it: what those assert is the sequencing, and a script that answered
+    /// the second statement differently would be asserting itself.
+    fn two_rows() -> impl FnMut(&[u8]) -> Vec<u8> {
+        |sent: &[u8]| match sent.get(4) {
+            Some(0x16) => {
+                let mut out = packet(1, &prepare_ok(7, 1, 0));
+                out.extend_from_slice(&packet(2, &column_def("v")));
+                out
+            }
+            Some(0x17) => {
+                let mut out = packet(1, &[0x01]);
+                out.extend_from_slice(&packet(2, &column_def("v")));
+                out.extend_from_slice(&packet(3, &[0x00, 0x00, 0x01, b'a']));
+                out.extend_from_slice(&packet(4, &[0x00, 0x00, 0x01, b'b']));
+                out.extend_from_slice(&packet(5, &result_set_end(0x0002)));
+                out
+            }
+            other => panic!("the driver sent command {other:?}"),
+        }
+    }
+
+    /// The two rows [`two_rows`] holds, as a walk over it hands them back.
+    fn walked() -> Vec<Option<MyValue>> {
+        vec![
+            Some(MyValue::Bytes(b"a".to_vec())),
+            Some(MyValue::Bytes(b"b".to_vec())),
+        ]
+    }
+
+    /// The parked form of a walk, which is the whole point of splitting the read
+    /// state off the borrow: the cursor is a local of its own, and every row is
+    /// read through a **fresh** borrow of the wire and the state.
+    ///
+    /// The compiler is half the assertion, as it is in `crate::pg`'s
+    /// `a_parked_cursor_reads_every_row_through_a_fresh_borrow`. A [`MySqlRows`]
+    /// cannot express this shape at all — its borrow would have to span the calls
+    /// between the rows — and that is exactly what a `Core\Db\Connection` holding
+    /// a walk across `advance()` calls needs, because the connection goes back to
+    /// the request in between. The other half is the run: one row per step, in
+    /// order, the connection busy for as long as rows remain, and the terminator
+    /// leaving it idle and poolable.
+    #[test]
+    fn mysql_stream_parks_its_read_and_answers_one_row_per_step() {
+        let mut wire = Wire::new(Peer::new(two_rows()));
+        let state = Cell::new(State::Idle);
+
+        let mut reading = open_result(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut no_cache(),
+            "SELECT v",
+            &[],
+        )
+        .expect("a result set the server described");
+
+        assert_eq!(state.get(), State::Streaming);
+        assert_eq!(reading.columns().len(), 1);
+
+        let mut seen = Vec::new();
+        while let Some(row) =
+            next_row_of(&mut wire, &state, &mut reading).expect("the walk advanced")
+        {
+            // Read a step at a time and not drained into a buffer: the rows
+            // still to come are still on the wire, which is what
+            // `rule:core-classes/db-streaming`'s constant memory means and why the connection is
+            // busy between the steps.
+            assert_eq!(state.get(), State::Streaming);
+            seen.push(row.value(0).cloned());
+        }
+
+        assert_eq!(seen, walked());
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "a drained walk left the connection unpoolable"
+        );
+        assert!(reading.ended);
+        assert_eq!(reading.affected, 2);
+    }
+
+    /// MariaDB walks through the *same* parked read, which is this module's half
+    /// of `rule:core-classes/db-streaming`'s "both members answer on all five drivers".
+    ///
+    /// The wire is MariaDB's — [`MARIADB`] is the table a refusal off it would be
+    /// worded from — and every byte of the row loop is [`next_row_of`]. A second
+    /// copy of that loop for the second server is what this case exists to keep
+    /// from being written: the two drivers differ in their rosters and their
+    /// error tables, and `rule:core-classes/db-one-api` is explicit that the framing is not one
+    /// of the places they are allowed to.
+    #[test]
+    fn mariadb_stream_answers_through_the_mysql_parked_read() {
+        let mut wire = Wire::on(&MARIADB, Peer::new(two_rows()));
+        let state = Cell::new(State::Idle);
+
+        let mut reading = open_result(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut no_cache(),
+            "SELECT v",
+            &[],
+        )
+        .expect("a result set the server described");
+
+        assert_eq!(wire.backend.name, "mariadb");
+        assert_eq!(state.get(), State::Streaming);
+
+        let mut seen = Vec::new();
+        while let Some(row) =
+            next_row_of(&mut wire, &state, &mut reading).expect("the walk advanced")
+        {
+            seen.push(row.value(0).cloned());
+        }
+
+        assert_eq!(seen, walked());
+        assert_eq!(state.get(), State::Idle);
+    }
+
+    /// `rule:core-classes/db-streaming`'s second statement: refused for as long as the walk is
+    /// open, and taken the moment it is not.
+    ///
+    /// The refusal is the state's rather than a lifetime's, and that is the whole
+    /// difference the parked read makes — [`MySqlRows`] made this case unwritable,
+    /// and a program holding a `Core\Db\Stream` across two calls can write it.
+    /// Both halves are asserted: a connection that refused forever would pass the
+    /// first one and would strand every pooled connection that ever streamed.
+    #[test]
+    fn a_statement_on_a_streaming_mysql_connection_is_refused_until_the_walk_ends() {
+        let mut wire = Wire::new(Peer::new(two_rows()));
+        let state = Cell::new(State::Idle);
+        let mut cache = no_cache();
+
+        let mut reading = open_result(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut cache,
+            "SELECT v",
+            &[],
+        )
+        .expect("a result set the server described");
+        let sent = wire.peer().sent.len();
+
+        let refused = start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut cache,
+            "SELECT v",
+            &[],
+        )
+        .expect_err("a second statement over an open walk — `rule:core-classes/db-streaming`");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            refused.to_string().contains("one at a time"),
+            "the refusal is the one sentence `crate::pg` words for every driver: {refused}"
+        );
+        assert_eq!(
+            wire.peer().sent.len(),
+            sent,
+            "a refused statement still put a command on a busy wire"
+        );
+
+        while next_row_of(&mut wire, &state, &mut reading)
+            .expect("the walk advanced")
+            .is_some()
+        {}
+        assert_eq!(state.get(), State::Idle);
+
+        let taken = start_statement(
+            &mut wire,
+            &state,
+            CLIENT_CAPABILITIES,
+            &mut cache,
+            "SELECT v",
+            &[],
+        )
+        .expect("the walk ended, so the connection takes a statement again");
+        assert_eq!(taken.columns().len(), 1);
     }
 
     /// § 11's span over this driver, and the property that makes it exportable
