@@ -58,7 +58,7 @@ Conventions the whole file uses:
 | [`Core\Arr`](#core-core-arr) | every array function as a pure member — filter, map, sort, search, reshape, combine and aggregate, always answering a new array |
 | [`Core\Attributes`](#core-core-attributes) | reads the shape-literal attributes attached to a class, a method, a property or a parameter — structurally, by the shape they satisfy, at compile time |
 | [`Core\Math`](#core-core-math) | numeric functions over `int`, `float` and `decimal` — magnitude, rounding, integer division, roots, logarithms, trigonometry, base conversion and number formatting, plus the constants |
-| [`Core\Decimal`](#core-core-decimal) | the two divisions that name their own rounding — one that throws unless the quotient is exact, one that takes the scale and the mode as arguments |
+| [`Core\Decimal`](#core-core-decimal) | what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, and the exact power |
 | [`Core\Regex`](#core-core-regex) | regular expressions without delimiters — match, capture, replace and split, linear-time by default with a step budget for the patterns that need backtracking |
 | [`Core\Regex\Match`](#core-core-regex-match) | one match of a pattern — its text, its groups by number or name, and where it starts |
 | [`Core\Regex\Pattern`](#core-core-regex-pattern) | a compiled pattern carrying its flags, taken by every `Core\Regex` member in place of a pattern string |
@@ -9162,7 +9162,7 @@ Core\Math::format(int|float|decimal $n, {decimals?: uint, decimalSeparator?: str
 <a id="core-core-decimal"></a>
 ### `Core\Decimal`
 
-Keywords: decimal, division, divExact, divRound, rounding, scale, money, currency, banker's rounding, half-even, bcmath, bcdiv, exact, divExact, divRound
+Keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, bcmath, bcdiv, exact, divExact, divRound, allocate, pow
 
 Novis's `decimal` scalar carries its own arithmetic as operators — `+`, `-`, `*`, `%` and `/` all work
 directly on it, exactly, with no class in the way. Division is the one operation that may be inexact, and
@@ -9170,14 +9170,21 @@ the `/` operator's answer to that is fixed in the language: round half to even, 
 result admits. There is no `bcscale()` and never will be, because an ambient precision that unrelated later
 code reads is a global by another name.
 
-`Core\Decimal` is where a program says something the operator cannot. Two questions come up in money code
-and nowhere else does the type system help with them:
+`Core\Decimal` is where a program says something the operator cannot. These questions come up in money
+code, and nowhere else does the type system help with them:
 
 - **"this division must come out even"** — `divExact` answers the quotient when it is exact and throws
   `ArithmeticError` when it is not. A third of a bill is not a number you should get back by accident.
 - **"round it here, this way"** — `divRound` takes the number of places and the rounding mode as ordinary
   arguments, both required. Neither has a default, because a default for either would be that same ambient
   precision moved into a signature. The mode is `Core\RoundMode`, the same enum `Core\Math::round` takes.
+- **"split this sum and lose none of it"** — `allocate` splits an amount by a list of ratios into parts
+  that add back to it exactly. Each part is its share truncated to the amount's own scale, and the units
+  left over go one each to the earliest parts. The keys are the ratios', so a split written under the
+  names of its parties answers under those names.
+- **"raise it to a power, exactly"** — `pow` multiplies a base by itself as many times as you ask. `**`
+  has no row for a `decimal` base at all, because a power that does not come out exact would have to
+  round without being asked; a negative power is written as the division it is.
 
 `divRound` rounds **once**, from the exact quotient. It is not the `/` operator's answer rounded a second
 time — rounding twice is how a quotient one digit past the place you asked for carries a tie the exact value
@@ -9224,10 +9231,47 @@ not an even split
 0.12|0.13|0.25000
 ```
 
+A split is the one place none of that is enough: three even shares of five cents do not exist, whatever
+rounding you name, and the penny has to land somewhere. `allocate` lands it on the earliest part and
+answers parts that add back to the amount exactly.
+
+```nvs
+<?nvs
+// A five-cent bill split three ways. The parts cannot be equal, and they
+// still add back to the amount.
+decimal $nickel = 0.05;
+foreach (Core\Decimal::allocate($nickel, [1, 1, 1]) as decimal $part) {
+    echo $part, "\n";
+}
+
+// The keys are the ratios', so the parties keep their names -- and the
+// leftover unit goes to the one written first.
+array<decimal> $shares = ["alice" => 1, "bob" => 2];
+foreach (Core\Decimal::allocate(10.00, $shares) as string $name => decimal $share) {
+    echo $name, " ", $share, "\n";
+}
+
+// A power is repeated multiplication to the digit, scale included. The
+// reciprocal is a division, so it names the rounding it needs.
+decimal $rate = 1.05;
+echo Core\Decimal::pow($rate, 2), "|",
+     Core\Decimal::divRound(1, Core\Decimal::pow($rate, 2), 4, Core\RoundMode::HalfEven), "\n";
+```
+```output
+0.02
+0.02
+0.01
+alice 3.34
+bob 6.66
+1.1025|0.9070
+```
+
 | Member | Signature |
 |---|---|
 | [`Core\Decimal::divExact`](#core-core-decimal-divexact) | `divExact(decimal $value, decimal $divisor): decimal` |
 | [`Core\Decimal::divRound`](#core-core-decimal-divround) | `divRound(decimal $value, decimal $divisor, uint $scale, Core\RoundMode $mode): decimal` |
+| [`Core\Decimal::allocate`](#core-core-decimal-allocate) | `allocate(decimal $amount, array<decimal> $ratios): array<decimal>` |
+| [`Core\Decimal::pow`](#core-core-decimal-pow) | `pow(decimal $base, uint $exponent): decimal` |
 
 <a id="core-core-decimal-divexact"></a>
 #### `Core\Decimal::divExact`
@@ -9266,6 +9310,42 @@ Core\Decimal::divRound(decimal $value, decimal $divisor, uint $scale, Core\Round
 **Returns** `decimal` — The quotient at exactly `$scale` places.
 
 **Throws** `ArithmeticError` — When `$divisor` is zero, when `$scale` is past 28, and when the quotient's mantissa would not fit at that scale.
+
+<a id="core-core-decimal-allocate"></a>
+#### `Core\Decimal::allocate`
+
+```nvs skip
+Core\Decimal::allocate(decimal $amount, array<decimal> $ratios): array<decimal>
+```
+
+Splits `$amount` into one part per ratio, at the amount's own scale and adding back to it exactly — the penny split, which dividing and rounding each share on its own loses or invents a smallest unit of.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$amount` | `decimal` | The sum to split. Its scale is the parts' scale, so a price at two places is split into parts at two places. |
+| `$ratios` | `array<decimal>` | One weight per part, each zero or more, at least one of them above zero. The keys are kept, so a split written under the names of its parties answers under those names. |
+
+**Returns** `array<decimal>` — One part per ratio, in the ratios' own order and under their own keys: each its share truncated towards zero, and then one more smallest unit for each of the earliest parts until what is left over is gone.
+
+**Throws** `LogicError` — When there are no ratios, when a ratio is negative, and when every ratio is zero — three ways of asking for a split that has no parts to make.; `ArithmeticError` — When a share is wider than a `decimal` holds: the amount and a ratio together want more than 28 fractional digits or more than a 96-bit mantissa.
+
+<a id="core-core-decimal-pow"></a>
+#### `Core\Decimal::pow`
+
+```nvs skip
+Core\Decimal::pow(decimal $base, uint $exponent): decimal
+```
+
+`$base` multiplied by itself `$exponent` times, exactly — the power a `decimal` base takes, since `**` has no row for one and would have to round to get an answer.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$base` | `decimal` | The value to raise. |
+| `$exponent` | `uint` | How many times to multiply it by itself. Zero answers `1`, and there is no negative exponent: `Core\Decimal::divRound(1, Core\Decimal::pow($b, $n), $scale, $mode)` is the reciprocal, with the rounding it needs written out. |
+
+**Returns** `decimal` — The exact power, at the scale repeated multiplication gives it — `2.50` squared is `6.2500`, since a product's scale is its operands' scales added.
+
+**Throws** `ArithmeticError` — When the power is wider than a `decimal` holds: more than 28 fractional digits, which a scaled base reaches quickly, or more than a 96-bit mantissa.
 
 <a id="core-core-regex"></a>
 ### `Core\Regex`
