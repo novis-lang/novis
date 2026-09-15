@@ -604,7 +604,7 @@ impl SqliteCursor {
 /// The thread ended without answering, which is a pool shutting down or a job
 /// that unwound where nothing here can.
 ///
-/// It is not a server error and carries no `rule:core-classes/db-error-kinds` kind: SQLite said
+/// It is not a server error and carries no `rule:core-classes/db-error` kind: SQLite said
 /// nothing, and a caller reading a kind off this would be reading one this
 /// runtime invented.
 fn lost_walk() -> io::Error {
