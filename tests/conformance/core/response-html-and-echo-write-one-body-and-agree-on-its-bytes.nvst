@@ -1,0 +1,43 @@
+--TEST--
+`Core\Response::html` and `echo` are the two spellings of one HTML body, so they write to one output and put the same bytes there — `rule:tooling/echo-always-has-a-sink` and `rule:security/response-body-is-one-typed-member`
+--FILE--
+<?nvs
+// Agreement rather than two plausible lines: `rule:core-classes/html-auto-escape` makes `echo` the
+// other way to write this same body, so the member and the sink handed the
+// same carrier must answer the same bytes. A member that rendered the slot
+// instead of writing it would still look right on one line alone.
+var $name = "ada & <grace>";
+Core\Html\Markup $fragment = html`<span>{$name}</span>`;
+Core\Response::html($fragment);
+echo "\n";
+echo $fragment, "\n";
+
+// One output and not two buffers, which is observable as ordering: what the
+// member wrote and what `echo` wrote come back in the order they were written.
+echo "before ";
+Core\Response::html("<i>middle</i>" as Core\Html\Markup);
+echo " after", "\n";
+
+// One member called twice is a handler writing its whole body one way, which
+// `rule:security/response-body-is-one-typed-member` admits and a second body member beside it is what
+// it refuses: the fragments accumulate in call order rather than the last one
+// replacing the first.
+Core\Response::html(html`<li>one</li>`);
+Core\Response::html(html`<li>two</li>`);
+echo "\n";
+
+// The same claim under `Core\Out::capture`, which redirects that one output: a
+// capture in force takes both writers or neither, and taking only `echo` would
+// be the second buffer this design does not have.
+var $captured = Core\Out::capture(fn (): void => {
+    echo "a";
+    Core\Response::html("<hr>" as Core\Html\Markup);
+    echo "c";
+});
+echo $captured, "\n";
+--EXPECT--
+<span>ada &amp; &lt;grace&gt;</span>
+<span>ada &amp; &lt;grace&gt;</span>
+before <i>middle</i> after
+<li>one</li><li>two</li>
+a<hr>c

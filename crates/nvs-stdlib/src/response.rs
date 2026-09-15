@@ -4,16 +4,15 @@
 //!
 //! # What is here, and what is not
 //!
-//! Three of
 //! `rule:security/response-body-is-one-typed-member`
-//! 's five body members: `text`, `json` and `bytes`, plus `stream`, which that
-//! rule's table does not have a row for because a body written over time is
+//! 's body members bar one: `html`, `text`, `json` and `bytes`, plus `stream`,
+//! which that rule's table does not have a row for because a body written over
+//! time is
 //! `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
-//! subject rather than that one's. The other two — `html`,
-//! whose parameter is a carrier this class cannot take until `Core\Html\Markup`
-//! is spellable in a registry row, and `sendFile`, whose path is § 1's sink
-//! over a file the server resolves — are known gaps of this module rather than
-//! of [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
+//! subject rather than that one's. The one still owed is `sendFile`, whose path
+//! is § 1's sink over a file the server resolves, and it is a known gap of this
+//! module rather than of
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 15.
 //!
 //! Beside them, § 15's `setStatus`, `setHeader`, `redirect` and `addCookie`:
@@ -213,12 +212,18 @@ use crate::registry::{
     MethodDoc, ParamDoc, Qual,
 };
 
+/// What `html` declares — § 4's `text/html`, with the charset every other
+/// text-shaped answer in this runtime carries, and the same string
+/// `nvs_server::serve` answers a request that only echoed with: the sink and
+/// the member write one kind of body, so they say one thing about it.
+const HTML_MEDIA_TYPE: &str = "text/html; charset=utf-8";
+
 /// What `text` declares — § 4's `text/plain`, with the charset every other
 /// text-shaped answer in this runtime carries.
 ///
-/// A constant rather than a literal at the write, because the four members
-/// still to land each own one of these and reading them in a column is how a
-/// reviewer checks the table against § 4.
+/// A constant rather than a literal at the write, because each body member owns
+/// one of these and reading them in a column is how a reviewer checks the table
+/// against § 4.
 const TEXT_MEDIA_TYPE: &str = "text/plain; charset=utf-8";
 
 /// What `json` declares — § 4's `application/json`, and no `charset`: the
@@ -257,10 +262,26 @@ const LOCATION_HEADER: &str = "Location";
 const TOKEN_MARKS: &[u8] = b"!#$%&'*+-.^_`|~";
 
 /// `Core\Response`'s registry rows — § 15's body members, in § 4's own table
-/// order for the three that exist.
+/// order for the ones that exist.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Response",
     methods: &[
+        CoreMethod {
+            name: "html",
+            names: &["body"],
+            // Unmarked, and the row where that is the *point*: § 4 says the
+            // HTML member "takes the carrier and so has nothing to refuse",
+            // because `Core\Html\Markup` is reached only through
+            // `rule:core-classes/html-auto-escape`'s own doors — a markup
+            // literal, `as` on a source literal, a launderer — each of which
+            // already decided what may be raw. A `Qual` here would classify a
+            // parameter whose type has settled the question.
+            params: &[CoreTy::Instance(crate::html::MARKUP_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_response_html",
+            doc: Some(&HTML_DOC),
+        },
         CoreMethod {
             name: "json",
             names: &["value"],
@@ -532,6 +553,23 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
                the connection's send timeout, which closes the stream rather than waiting \
                without end.",
     }],
+};
+
+/// `Core\Response::html`'s reference card — `rule:core-api/reference-card`.
+const HTML_DOC: MethodDoc = MethodDoc {
+    short: "Answers with `$body`'s bytes as they are, declaring `text/html; charset=utf-8` — the \
+            page a handler built, sent without a second escaping pass.",
+    params: &[ParamDoc {
+        name: "body",
+        desc: "The markup to send, verbatim. A `Core\\Html\\Markup` is trusted by the time it \
+               exists — a markup literal escaped its holes, `as` took a source literal, a \
+               launderer rebuilt it — so there is nothing left here to refuse or to escape, and \
+               a `string` is not accepted at all.",
+        shape: &[],
+    }],
+    ret: "Nothing. Mixing this with `echo` on one response is a compile error, `echo` in a request \
+          being the other way to write this same body.",
+    errors: &[],
 };
 
 /// `Core\Response::json`'s reference card — `rule:core-api/reference-card`.
@@ -844,6 +882,7 @@ const REDIRECT_CASES_DOC: EnumDoc = EnumDoc {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "nvs_core_response_html" => (nvs_core_response_html as *const ()).cast(),
         "nvs_core_response_json" => (nvs_core_response_json as *const ()).cast(),
         "nvs_core_response_text" => (nvs_core_response_text as *const ()).cast(),
         "nvs_core_response_bytes" => (nvs_core_response_bytes as *const ()).cast(),
@@ -915,6 +954,45 @@ pub(crate) fn nameable(name: &str) -> bool {
         && name
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || TOKEN_MARKS.contains(&byte))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Response::html(Core\Html\Markup $body): void` — `rule:security/response-body-is-one-typed-member`'s first row.
+    ///
+    /// [`nvs_core_response_text`]'s two effects over the carrier's bytes
+    /// instead of a `string`'s, and in that member's order: the media type is
+    /// declared before the write, for the reason written there.
+    ///
+    /// **Nothing is escaped here, and that is the rule rather than an
+    /// omission.** A `Core\Html\Markup` exists only where
+    /// `rule:core-classes/html-auto-escape` let one be built — a markup
+    /// literal, whose holes this member's argument already went through, `as`
+    /// on a source literal, or a launderer — so escaping the slot again would
+    /// corrupt the page it was built for, exactly as it would in
+    /// [`crate::html::nvs_core_html_markup_concat`]. The bytes are read through
+    /// [`crate::html::markup_slot`], which is the one reader of that slot, so
+    /// this member adds no second way out of the carrier for
+    /// `rule:core-classes/html-to-source` to have to be about.
+    fn nvs_core_response_html(ctx, args: [1]) {
+        let held = crate::html::markup_slot(args[0], r"`Core\Response::html`'s `$body`")?;
+        // Unreachable from source twice over: the row's parameter is the
+        // carrier, so `E0401` refuses anything else at the call, and the slot
+        // holds what `crate::html` put there.
+        let body = held.as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Response::html expected a `string` in the carrier's slot, got tag {}",
+                held.tag_byte()
+            ))
+        })?;
+        ctx.declare_content_type(HTML_MEDIA_TYPE);
+        // Verbatim, and gap 1 in the module doc owns what that means off a
+        // request. Unreachable from source for `nvs_core_response_text`'s
+        // reason: `OutputSink::Buffer` and `Sink` never fail, and nothing in
+        // the language closes a descriptor the host handed the process.
+        ctx.write_output(body.as_bytes())
+            .map_err(|error| Fault::fatal(format!("Core\\Response::html could not write: {error}")))?;
+        Ok(Value::null())
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -1695,7 +1773,7 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use super::{JSON_MEDIA_TYPE, TEXT_MEDIA_TYPE};
+    use super::{HTML_MEDIA_TYPE, JSON_MEDIA_TYPE, TEXT_MEDIA_TYPE};
     use nvs_runtime::{Ctx, NvsStr, OutputSink, Value, call};
 
     /// One body member's whole effect on the response *head*, which is the one
@@ -1737,10 +1815,10 @@ mod tests {
     /// *distinct*, and — for the one member that is told its type — asserted to
     /// carry two different ones rather than a constant that happened to match.
     ///
-    /// `html` and `sendFile` are § 4's other two rows and are not here because
-    /// they have not landed; `nvs_stdlib::response`'s module doc owns that gap,
-    /// and the sweep below is over the roster rather than over three names, so
-    /// each of them joins by being added to it.
+    /// `sendFile` is § 4's remaining row and is not here because it has not
+    /// landed; `nvs_stdlib::response`'s module doc owns that gap, and the sweep
+    /// below is over the table rather than over a list of names, so it joins by
+    /// being added to it.
     #[test]
     fn each_body_member_sets_its_own_content_type() {
         // Nothing else on the path declares one: a context no body member has
@@ -1752,8 +1830,20 @@ mod tests {
         let body = Value::str(NvsStr::new(b"a paragraph"));
         let blob = Value::bytes(NvsStr::new(b"\x89PNG"));
         let told = Value::str(NvsStr::new(b"application/octet-stream"));
+        // The carrier itself, built the way `crate::html` builds one: `html`'s
+        // parameter is the class and never a `string`, so a test handing it
+        // text would assert something no call site can write.
+        let markup = crate::instance::build(
+            &crate::html::MARKUP,
+            [Value::str(NvsStr::new(b"<p>a paragraph</p>"))],
+        );
 
         let table = [
+            (
+                "html",
+                declared(super::nvs_core_response_html, &[markup]),
+                HTML_MEDIA_TYPE,
+            ),
             (
                 "text",
                 declared(super::nvs_core_response_text, &[body]),
@@ -1780,7 +1870,7 @@ mod tests {
 
         // And they are its own: two members answering one type is the endpoint
         // that serves JSON labelled as HTML, which is what § 4 exists to make
-        // unwritable. Counted rather than compared pairwise, so a fourth row
+        // unwritable. Counted rather than compared pairwise, so another row
         // added above is covered by this line as it stands.
         let distinct: std::collections::BTreeSet<_> =
             table.iter().map(|(_, said, _)| said.clone()).collect();
@@ -1800,6 +1890,7 @@ mod tests {
             "Core\\Response::bytes carries the content type it was given"
         );
 
+        dropped(markup);
         dropped(body);
         dropped(blob);
         dropped(told);

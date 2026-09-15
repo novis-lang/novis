@@ -1,0 +1,37 @@
+--TEST--
+`Core\Response::html` writes the carrier whichever door made one — the lift, the literal, the composition, the escape and the join — `rule:security/response-body-is-one-typed-member`
+--FILE--
+<?nvs
+// The claim is asked of every entrance rather than of the one that is easiest
+// to write: a member that read the slot of a lifted literal and not of a
+// composed one would print plausibly on its own line. `rule:core-classes/html-auto-escape`
+// is where the doors are named, and the one thing they have in common is that
+// each already decided what may be raw.
+Core\Response::html("<b>bold</b>" as Core\Html\Markup);
+echo "\n";
+
+Core\Response::html(html`<i>italic</i>`);
+echo "\n";
+
+Core\Response::html(("<b>" as Core\Html\Markup) + ("</b>" as Core\Html\Markup));
+echo "\n";
+
+Core\Response::html(Core\Html::escape("Tom & Jerry"));
+echo "\n";
+
+array<Core\Html\Markup> $rows = [html`<li>one</li>`, html`<li>two</li>`];
+Core\Response::html(Core\Html::join($rows, "<br>" as Core\Html\Markup));
+echo "\n";
+
+// The empty carrier is the edge on the other side: a `Markup` carrying no
+// bytes writes no bytes, rather than a member that treats an empty body as
+// nothing to do and skips the whole write.
+Core\Response::html("" as Core\Html\Markup);
+echo "|", "\n";
+--EXPECT--
+<b>bold</b>
+<i>italic</i>
+<b></b>
+Tom &amp; Jerry
+<li>one</li><br><li>two</li>
+|

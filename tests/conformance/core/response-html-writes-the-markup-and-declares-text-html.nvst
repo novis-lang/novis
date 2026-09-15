@@ -1,0 +1,34 @@
+--TEST--
+`Core\Response::html` writes a `Core\Html\Markup`'s bytes as they are, which is the whole of what taking the carrier buys — `rule:security/response-body-is-one-typed-member` and `rule:core-classes/html-auto-escape`
+--FILE--
+<?nvs
+// § 4's HTML row takes the carrier and so has nothing to refuse: every door
+// into a `Markup` already decided what may be raw, so this member escapes
+// nothing and the page comes out as the handler built it. The
+// `text/html; charset=utf-8` it declares beside the write is not observable
+// off a request — `each_body_member_sets_its_own_content_type` in
+// `crates/nvs-stdlib/src/response.rs` is where that half is asserted, and gap
+// 1 of that module owns why the bytes still land here.
+Core\Html\Markup $page = html`<p>hello & welcome</p>`;
+Core\Response::html($page);
+echo "\n";
+
+// What it does *not* do, over the identical characters: the launderer is the
+// path text takes into the carrier, and it writes them as references. The two
+// lines together are the bound on either side, so a member that quietly
+// escaped its argument fails on the first and one that quietly stopped
+// escaping fails on the second.
+Core\Response::html(Core\Html::escape("<p>hello & welcome</p>"));
+echo "\n";
+
+// A literal's hole is escaped once, where `rule:core-classes/html-literal`
+// escapes it, and this member does not escape it a second time — which is the
+// failure the carrier exists to make unwritable, since escaping is not
+// idempotent.
+var $name = "ada & <grace>";
+Core\Response::html(html`<b>{$name}</b>`);
+echo "\n";
+--EXPECT--
+<p>hello & welcome</p>
+&lt;p&gt;hello &amp; welcome&lt;/p&gt;
+<b>ada &amp; &lt;grace&gt;</b>

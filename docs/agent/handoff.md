@@ -4,57 +4,55 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
-and stages 3, 4 and 5 are complete. **Stage 5's two checks are green**: `nvs service` names all seven
-verbs, and all nine named cases run — the three installs, the uninstall, the control verbs, the
-refusal that precedes any manager call, `status` over the control socket, and the two that drive a
-service manager's own controls.
+and stages 3, 4 and 5 are complete. **Stage 6 is half landed**: `Core\Response::html` is registered
+and `echo` into a request's sink escapes, so two of that stage's three checks are green. `sendFile` is
+the whole of what is left, and it is the stage's remaining `nvs-suite` and `cargo-named` check both.
 
-**A service manager's controls are answered with the operations that already exist.**
-`service::hosted` (`crates/nvs-cli/src/service.rs:807`) maps an SCM control code to one of two
-things: a `STOP` or a `PRESHUTDOWN` enters `crate::stop::deliver_to`, the one drain a `SIGTERM`
-enters, and is reported with a checkpoint that advances while requests finish; a `PARAMCHANGE` enters
-`Controlled::reload`, the one reload every other spelling ends in. The mapping is a value on both
-platforms, and on Windows a case holds its three numbers to `windows-sys`'s own.
+**The escape has one home and it is `nvs_render::html::escape`**
+(`crates/nvs-render/src/html.rs`), a peer of `text::substitute`: `Core\Html::escape` calls it,
+`echo` calls it, and neither holds a table. Which transform runs is read off the sink —
+`crates/nvs-runtime/src/helpers.rs`'s `write_rendered` asks `Ctx::carrier()`, so
+`rule:tooling/echo-always-has-a-sink`'s carrier column and rendering column cannot disagree. The raw
+path is `writes_raw`, which compares the operand's class to **that sink's** carrier rather than to the
+roster, so a `Cli\Text` echoed in a request is escaped and a `Markup` echoed from a CLI program is
+substituted.
 
-**What is not on disk is the dispatcher that would hand it a control** — `StartServiceCtrlDispatcherW`,
-`RegisterServiceCtrlHandlerExW` and `SetServiceStatus`, which only a process the SCM started itself
-can use, and which invert `nvs serve`'s entry so the serving happens inside `ServiceMain`. No check
-names it and `service.rs`'s module doc owns the gap. Nothing is blocked.
+`Core\Response::html` takes `CoreTy::Instance(MARKUP_NAME)` unmarked — the carrier's own doors are
+the refusal — and reads its bytes through `crate::html::markup_slot`, now `pub(crate)`, so nothing
+grew a second reader of the carrier's slot. Nothing is blocked.
 
 ## Next group
 
-**Stage 6: the response body, and `echo` into it** — one file set:
-`crates/nvs-stdlib/src/response.rs`, `crates/nvs-stdlib/src/html.rs` and
-`crates/nvs-runtime/src/ctx/output.rs`.
+**Stage 6: `Core\Response::sendFile`, the last of the response body** — one file set:
+`crates/nvs-stdlib/src/response.rs`, `crates/nvs-runtime/src/ctx/output.rs` and
+`crates/nvs-server/src/serve.rs`.
 
-- [ ] **`Core\Response::html(Core\Html\Markup $body)`** — the carrier's bytes written as they are,
-      declaring `text/html; charset=utf-8`. The member row goes in the `CLASS` table at
-      `crates/nvs-stdlib/src/response.rs:261`, beside `bytes` at
-      `crates/nvs-stdlib/src/response.rs:284`; `Markup` is `crates/nvs-stdlib/src/html.rs:146`'s.
-      `crates/nvs-stdlib/src/response.rs:13`'s reason for the member's absence is false today and
-      goes with it, and the
-      key is struck from `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:30`.
-      `rule:core-classes/html-auto-escape`.
-- [ ] **`echo` into an HTML response escapes, and the escape gets one home** — under
-      `OutputSink::Body` a non-`Markup` value takes the five-character escape whether or not it is
-      tainted, and `Markup` is written as it is; every other sink keeps the terminal's rendering. The
-      sink is `crates/nvs-runtime/src/ctx/output.rs:464`, the carrier test is
-      `crates/nvs-runtime/src/ctx/output.rs:54`, and `Core\Html::escape`
-      (`crates/nvs-stdlib/src/html.rs:146`) becomes a caller of it rather than its home.
-      `rule:core-classes/html-auto-escape`, `rule:tooling/echo-always-has-a-sink`.
-- [ ] **`Core\Response::sendFile(string $path)`** — the path alone, as a `Qual::Sink` checked against
-      `fs.read` at the call, with a missing path, a directory or an unreadable file throwing there;
-      the `Ctx` then holds a declared file body that the server answers through the static-file
-      policy, streamed and never read whole. Same table at
-      `crates/nvs-stdlib/src/response.rs:261`, and the body reaches the writer at
-      `crates/nvs-runtime/src/ctx/output.rs:248`.
-      `rule:security/response-body-is-one-typed-member`.
+- [ ] **The member: `Core\Response::sendFile(string $path)`** — the path alone, as a `Qual::Sink`,
+      with a missing path, a directory or an unreadable file throwing at the call. The row goes in the
+      `CLASS` table at `crates/nvs-stdlib/src/response.rs:266`, beside `html` at
+      `crates/nvs-stdlib/src/response.rs:269`; the `fs.read` grant is a row in the capability table at
+      `crates/nvs-stdlib/src/registry.rs:2145`, where `Core\IO::read` has one. The key is struck from
+      `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:30`, and
+      `crates/nvs-stdlib/src/response.rs:12`'s "the one still owed" goes with it.
+      `rule:security/response-body-is-one-typed-member`, `rule:security/sink-predicate`.
+- [ ] **The declared file body on the context** — what the member leaves behind for the isolate's
+      finish path, in the shape `Core\Response::stream`'s writing half already has at
+      `crates/nvs-runtime/src/ctx/output.rs:528`: a path and no bytes, taken once, so nothing is read
+      whole into memory. `rule:security/response-body-is-one-typed-member`.
+- [ ] **The server answers it through the static policy** — `crates/nvs-server/src/serve.rs:1499`'s
+      `answer` hands a declared file body to `statics::send`
+      (`crates/nvs-server/src/statics.rs:145`), which already owns the media-type table, the range and
+      the conditional. The two names the check wants are
+      `a_declared_file_body_is_streamed_under_the_static_policys_media_type` and
+      `a_declared_file_body_answers_a_range_and_a_conditional_request`, plus the cases
+      `tests/conformance/core/response-send-file-streams-the-file-under-its-media-type.nvst` and
+      `tests/conformance/reject/response-send-file-refuses-a-tainted-path.nvst`.
+      [0186](../decisions/0186.md) § 4.
 
 ## Backlog
 
-- The SCM dispatcher that hands `service::hosted` a control — `crates/nvs-cli/src/serve.rs`, and the
-  module doc at `crates/nvs-cli/src/service.rs:100` owns the gap.
-- `crates/nvs-cli/src/service.rs` is past 4,000 lines; `hosted` and `registration` are the two
-  seams that would split out cleanly.
-- Stage 6's four `.nvst` cases and the two `nvs-server` cases named at
-  `docs/agent/loop-goal.toml:10222` are all still unwritten.
+- The Windows service dispatcher (`StartServiceCtrlDispatcherW` and the two beside it) is still
+  unwritten; `crates/nvs-cli/src/service.rs`'s module doc owns the gap and no check names it.
+- `Core\Metrics`'s three rows belong to goal `m8-stdlib-depth`, not here.
+- The `unowned` gaps at `crates/nvs-server/src/route.rs:30` and its three siblings wait on goal
+  `unowned-closures`' decision sheet.

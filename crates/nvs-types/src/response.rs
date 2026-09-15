@@ -72,10 +72,9 @@ use crate::{Ctx, Env};
 /// the name a call spells.
 ///
 /// `rule:security/response-body-is-one-typed-member`'s table first, in its own
-/// order. `html` and `sendFile` are not in `nvs_stdlib::registry` yet — the
-/// first waits on `Core\Html\Markup` being spellable as a registry parameter
-/// and the second on a mount root to resolve a path against — and they are
-/// listed anyway: an unregistered name is reported as `E0405` *beside* this
+/// order. `sendFile` is not in `nvs_stdlib::registry` yet — it waits on a mount
+/// root to resolve a path against — and it is listed anyway: an unregistered
+/// name is reported as `E0405` *beside* this
 /// refusal rather than instead of it, so a row here costs nothing while its
 /// member is being landed, and leaving it out would make landing one a
 /// two-file change with the second file easy to miss.

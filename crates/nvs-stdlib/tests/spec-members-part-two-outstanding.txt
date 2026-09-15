@@ -27,7 +27,6 @@
 # seven members, its sealed pair being owed. What is left of ADR 0139 is § 4's
 # write-back at the end of the request, which is a server question rather than a
 # member.
-§15 Response::html      # m7-server-surface
 §15 Response::sendFile  # m7-server-surface
 
 # § 18 -- `Core\Db`, whose remaining members each need a driver and a server to

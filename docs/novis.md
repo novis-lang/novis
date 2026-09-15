@@ -17455,10 +17455,11 @@ no request here
 <a id="core-core-response"></a>
 ### `Core\Response`
 
-Keywords: json, text, bytes, stream, setStatus, setHeader, redirect, addCookie
+Keywords: html, json, text, bytes, stream, setStatus, setHeader, redirect, addCookie
 
 | Member | Signature |
 |---|---|
+| [`Core\Response::html`](#core-core-response-html) | `html(Core\Html\Markup $body): void` |
 | [`Core\Response::json`](#core-core-response-json) | `json(mixed $value): void` |
 | [`Core\Response::text`](#core-core-response-text) | `text(string $body): void` |
 | [`Core\Response::bytes`](#core-core-response-bytes) | `bytes(bytes $body, string $contentType): void` |
@@ -17467,6 +17468,21 @@ Keywords: json, text, bytes, stream, setStatus, setHeader, redirect, addCookie
 | [`Core\Response::setHeader`](#core-core-response-setheader) | `setHeader(string $name, string $value): void` |
 | [`Core\Response::redirect`](#core-core-response-redirect) | `redirect(string $url, Core\Response\Redirect $status = Core\Response\Redirect::SeeOther): void` |
 | [`Core\Response::addCookie`](#core-core-response-addcookie) | `addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\Response\SameSite, path?: string, domain?: string, maxAge?: Core\Time\Duration}): void` |
+
+<a id="core-core-response-html"></a>
+#### `Core\Response::html`
+
+```nvs skip
+Core\Response::html(Core\Html\Markup $body): void
+```
+
+Answers with `$body`'s bytes as they are, declaring `text/html; charset=utf-8` — the page a handler built, sent without a second escaping pass.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$body` | `Core\Html\Markup` | The markup to send, verbatim. A `Core\Html\Markup` is trusted by the time it exists — a markup literal escaped its holes, `as` took a source literal, a launderer rebuilt it — so there is nothing left here to refuse or to escape, and a `string` is not accepted at all. |
+
+**Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error, `echo` in a request being the other way to write this same body.
 
 <a id="core-core-response-json"></a>
 #### `Core\Response::json`
