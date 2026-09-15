@@ -952,6 +952,41 @@ fn without_asides(text: &str) -> String {
     out
 }
 
+/// The type a `| Type | Members … |` row is about: its first cell's own code
+/// span, with any type argument dropped.
+///
+/// `Rows<T>` is one class at one argument and the registry knows it under its
+/// bare name, so the argument is what this drops rather than something it has
+/// to resolve.
+fn typed_row_name(cell: &str) -> Option<&str> {
+    let span = *spans(cell).first()?;
+    Some(span.split_once('<').map_or(span, |(name, _)| name))
+}
+
+/// `candidates`, narrowed to the class a `| Type | Members … |` row names.
+///
+/// [`scoped`]'s narrowing keyed off the row's own first cell instead of off a
+/// qualifier written inside a member span, and it falls back the same way for
+/// the same reason: § 18's `InList` is a type the registry declares no class
+/// for, and that row still names a member — `Db::inList` — that a class in the
+/// section does declare, which [`scoped`] then resolves off the span itself.
+fn typed_row_classes<'a>(
+    candidates: &[&'a registry::CoreClass],
+    name: &str,
+) -> Vec<&'a registry::CoreClass> {
+    let suffix = format!(r"\{name}");
+    let narrowed: Vec<&'a registry::CoreClass> = candidates
+        .iter()
+        .copied()
+        .filter(|found| found.name == name || found.name.ends_with(&suffix))
+        .collect();
+    if narrowed.is_empty() {
+        candidates.to_vec()
+    } else {
+        narrowed
+    }
+}
+
 /// Every registered class inside `name`, itself included — empty when nothing
 /// registers that name at all, which is what makes a bullet led by a class no
 /// one has written yet outstanding member by member rather than silently
@@ -1007,8 +1042,11 @@ struct PartTwoMember {
 /// `Core\Xml`, `Core\Compress`, `Core\Zip` or `Core\Mime` has a row for every
 /// member the spec gives it — the registry-side gates walk the registry, so
 /// they can only ask about the members that *are* registered. The four this
-/// walk does read are § 14's and § 15's bullets and § 18's and § 19's Member
-/// tables.
+/// walk does read are § 14's and § 15's bullets, § 18's and § 19's Member
+/// tables, and § 18's two `| Type | Members … |` tables — the shape that
+/// states a roster per *type* rather than a row per member, and the one that
+/// left `Connection::serverVersion` enumerated by nothing until
+/// [`every_member_beyond_queryable_is_enumerated_from_the_spec`] pinned it.
 fn part_two_members() -> Vec<PartTwoMember> {
     let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
     let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
@@ -1016,6 +1054,7 @@ fn part_two_members() -> Vec<PartTwoMember> {
     let mut section = None;
     let mut heading: Vec<&'static registry::CoreClass> = Vec::new();
     let mut in_members = false;
+    let mut members_at: Option<usize> = None;
     let mut bullet = String::new();
     let mut found: Vec<PartTwoMember> = Vec::new();
 
@@ -1086,27 +1125,69 @@ fn part_two_members() -> Vec<PartTwoMember> {
         if line.starts_with("- ") {
             bullet.push_str(line);
             in_members = false;
+            members_at = None;
             continue;
         }
         if !line.starts_with('|') {
             in_members = false;
+            members_at = None;
             continue;
         }
-        let cell = line
-            .trim_start_matches('|')
-            .split('|')
-            .next()
-            .unwrap_or("")
-            .trim();
+        let row = cells(line);
+        let cell = row.first().map_or("", String::as_str);
         if cell == "Member" {
             in_members = true;
+            members_at = None;
             continue;
         }
-        if cell.starts_with("---") || !in_members {
+        // § 18 states a class's members two ways, and this is the second: a
+        // table whose rows are *types* and whose member column holds the whole
+        // roster of one. Read by the column its header names rather than by
+        // position, because the two such tables are three columns and two —
+        // and reading the other columns would take `Replaces`' PHP twins for
+        // members of the very class they are being replaced on.
+        if cell == "Type" {
+            in_members = false;
+            members_at = row.iter().position(|head| head.starts_with("Members"));
             continue;
         }
-        for span in spans(cell) {
-            record(number, &heading, "", span);
+        if cell.starts_with("---") {
+            continue;
+        }
+        if in_members {
+            for span in spans(cell) {
+                record(number, &heading, "", span);
+            }
+            continue;
+        }
+        let Some(listed) = members_at.and_then(|at| row.get(at)) else {
+            continue;
+        };
+        let Some(named) = typed_row_name(cell) else {
+            continue;
+        };
+        // The bullet path's own two steps, in its order and for its reasons:
+        // § 18's `Transaction` row states what `rollBack` *does* after an em
+        // dash, and a parenthesised aside beside a member is prose either way.
+        let cleaned = without_asides(listed);
+        let candidates = typed_row_classes(&heading, named);
+        let prefix = format!("{named}::");
+        for span in spans(member_list(&cleaned)) {
+            // A span qualified with some *other* class is a cross-reference and
+            // not one of this row's members: § 18's `InList` row is a sentence
+            // saying the type is opaque and "produced by `Db::inList`", which
+            // is a member of `Core\Db`. Read as a member of the row's own type
+            // it would be a ratchet key no session could ever strike, which is
+            // [`member_list`]'s warning about prose in a roster's clothes.
+            if qualifier(span).is_some_and(|class| class != named) {
+                continue;
+            }
+            // The receiver form these cells are written in — `$c->close()`,
+            // `->driver()` — is dropped here rather than inside [`record`], so
+            // the key reads `§18 Connection::close` and the ratchet's keys stay
+            // the member spellings the rest of this file's do.
+            let member = span.split_once("->").map_or(span, |(_, rest)| rest);
+            record(number, &candidates, &prefix, member);
         }
     }
 
@@ -1118,6 +1199,52 @@ fn part_two_members() -> Vec<PartTwoMember> {
         found.len()
     );
     found
+}
+
+/// The members § 18 states in its *Members beyond `Queryable`* table reach the
+/// walk, resolved to the class each row is about.
+///
+/// **A gate over a parser needs a case that knows what the parser must find**,
+/// and this table is why: the walk turned its member reading on at a header
+/// cell reading `Member`, so a table headed `Type` was walked past in silence
+/// and every member in it — `close`, `driver`, `serverVersion`, `isOpen` and a
+/// transaction's `rollBack` — was enumerated by nothing at all. Neither gate
+/// below could report that, because both ask whether what was *found* is
+/// registered and a member that is never found is never asked about.
+///
+/// Both halves are asserted, because either alone passes on a walk that is
+/// wrong: that the key exists says the table is read, and that its candidates
+/// declare the member says the row resolved to the class it is about rather
+/// than to the section's whole namespace, which is what would let a `Rows`
+/// member answer for a `Connection` one.
+#[test]
+fn every_member_beyond_queryable_is_enumerated_from_the_spec() {
+    let found = part_two_members();
+
+    for key in [
+        "§18 Connection::close",
+        "§18 Connection::driver",
+        "§18 Connection::serverVersion",
+        "§18 Connection::isOpen",
+        "§18 Transaction::rollBack",
+    ] {
+        let member = found
+            .iter()
+            .find(|member| member.key == key)
+            .unwrap_or_else(|| {
+                panic!(
+                    "the walk over docs/spec/01-core-library.md § 18 did not enumerate `{key}` — a \
+                 `| Type | Members … |` table states a roster per type, and one the walk cannot \
+                 read is a roster nothing gates"
+                )
+            });
+        assert!(
+            registered(&member.candidates, &member.name),
+            "`{key}` resolves to {} candidate class(es), none of which declares `{}`",
+            member.candidates.len(),
+            member.name
+        );
+    }
 }
 
 /// [`every_part_one_spec_member_is_registered`]'s other half: every member
