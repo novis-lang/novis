@@ -46,12 +46,11 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | Gap | Owner | Where the detail lives |
 |---|---|---|
 | `Core\Db::stream` on four drivers, `streamAs` whole, § 18's `serverVersion` | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 3 |
-| `scope = "fleet"` parses, boots and is not armed | `m7-server-surface` | `crates/nvs-server/src/schedule.rs` § *The fallback, when there is no lease to take*, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` |
+
 | `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `M7` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
 | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `gap-zero` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
-| `Core\Response::html` and `sendFile`, the two § 15 members still outstanding | `m7-server-surface` | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
-| Spec § 13's `Core\Test` cell states the roster in English, so `request`'s bag is spelled nowhere in the spec | `m7-server-surface` | `docs/spec/01-core-library.md:1001`; the bag itself is `crates/nvs-stdlib/src/test.rs`'s `REQUEST_OPTIONS`, and `docs/novis.md` renders the signature |
+| Spec § 13's `Core\Test` cell states the roster in English, so `request`'s bag is spelled nowhere in the spec | `unowned-closures` | `docs/spec/01-core-library.md:1001`; the bag itself is `crates/nvs-stdlib/src/test.rs`'s `REQUEST_OPTIONS`, and `docs/novis.md` renders the signature |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
 | `array<T>` is invariant, so an `array<int|string>` parameter takes only that spelling | `unowned-closures` | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
 | The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | `m8-db-queue` | `crates/nvs-db/src/matrix.rs` gap 1 |

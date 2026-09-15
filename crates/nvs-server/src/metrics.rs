@@ -89,7 +89,7 @@
 //!    nothing ships. This module is in every build either way — the crate doc's
 //!    § *The `exporter` feature* is where the reader's half of that split is,
 //!    and it is why the sentence above names a module it does not link.
-//!    — owner: m7-server-surface
+//!    — owner: unowned-closures
 //!
 //! 2. **`Core\Metrics`'s three members (`rule:observability/metrics-three-members`) have no row yet**, so the only
 //!    writer is [`Registry::request`]. When they land they are three calls onto

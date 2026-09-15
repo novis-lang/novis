@@ -36,6 +36,9 @@ modules = [
   "crates/nvs-config/src/cache.rs",
   "crates/nvs-server/src/bounds.rs",
   "crates/nvs-server/src/route.rs",
+  "crates/nvs-server/src/metrics.rs",
+  "crates/nvs-server/src/schedule.rs",
+  "crates/nvs-server/src/trace.rs",
   "crates/nvs-db/src/catalog.rs",
 ]
 

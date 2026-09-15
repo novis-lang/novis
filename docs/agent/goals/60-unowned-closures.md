@@ -103,6 +103,14 @@ One file set: `crates/nvs-server/src/`, `crates/nvs-config/src/`, `crates/nvs-cl
 - **Decided**: `crates/nvs-server/src/route.rs` gap 1 (where a forged CSRF token is refused);
   `crates/nvs-cli/src/cache.rs` gaps 2–3 (`aarch64` and Mach-O); `crates/nvs-db/src/catalog.rs` gaps 1–3,
   `ddl.rs` gaps 1–2, `schema.rs` gap 1.
+- **Goal `m7-server-surface`'s three open items**, re-owned here because that goal retired without
+  closing them: `crates/nvs-server/src/metrics.rs` gap 1 (the `otlp` pusher behind `[metrics] endpoint`,
+  its stage 10); `crates/nvs-server/src/schedule.rs` gap 1 (a fire's context carries the deployment's
+  configuration, so its `limits` sub-cap has a ceiling to narrow and `script` is granted, its stage 9);
+  `crates/nvs-server/src/trace.rs` gap 1 (the gate that files a `query`, an `http` and a `spawn` event
+  for a sampled request without `DebugFlags::TRACE`, its stage 11). The same goal's last
+  `docs/agent/carried-gaps.md` row comes here with them: spec § 13's `Core\Test` cell spells `request`'s
+  bag nowhere, and `crates/nvs-stdlib/src/test.rs`'s `REQUEST_OPTIONS` is the roster it should state.
 
 ## Stage 6 — the honest deferrals
 

@@ -86,7 +86,7 @@
 //!    they should ask is whether this trace is recorded and not whether a
 //!    debugger is attached. Until it exists, a collector receives one span per
 //!    sampled request, correctly placed in its trace.
-//!    — owner: m7-server-surface
+//!    — owner: unowned-closures
 
 use nvs_runtime::{Inbound, TraceContext, TraceEvent, TraceKind};
 use rand::RngExt;

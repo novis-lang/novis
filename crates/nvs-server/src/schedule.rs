@@ -88,7 +88,7 @@
 //!    narrowing lands regardless — it subtracts from a list rather than setting
 //!    a directive — so what is missing here is the deployment's own snapshot on
 //!    that context and not the narrowing over it.
-//!    — owner: m7-server-surface
+//!    — owner: unowned-closures
 
 use std::cell::Cell;
 use std::io;
