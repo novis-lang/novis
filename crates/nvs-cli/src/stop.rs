@@ -8,8 +8,9 @@
 //! have meant is a reload — and a reload is `nvs ctl reload` over the control
 //! socket (`rule:config/one-local-control-socket`), never a signal. Windows has
 //! no signals; its console control events are the same set of questions and get
-//! the same answer, and a service's stop arrives through the SCM instead
-//! ([`crate::service`] owns that half, which is not built yet).
+//! the same answer, and a service's stop arrives through the SCM instead —
+//! which [`crate::service::hosted`] turns into [`deliver_to`] below, so that
+//! both roads end in the one drain this module owns.
 //!
 //! # A delivery is one call, and it is not made in the signal handler
 //!
