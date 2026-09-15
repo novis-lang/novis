@@ -91,16 +91,21 @@
 //!
 //! # The `exporter` feature
 //!
-//! `prometheus` is the one module a build of this crate can be without.
+//! `prometheus` and `otlp` are the two modules a build of this crate can be
+//! without.
 //! `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not` puts
-//! the encoder behind the `exporter` feature, on by default, so a binary that
-//! only ever runs a program from the command line carries no exposition writer.
-//! [`metrics`] is beside it in **every** build, because a `Core\Metrics` call
+//! both encoders behind the `exporter` feature, on by default, so a binary that
+//! only ever runs a program from the command line carries neither the exposition
+//! writer nor the span pusher.
+//! [`metrics`] is beside them in **every** build, because a `Core\Metrics` call
 //! that compiled in one build and not another would make the `Core` namespace
 //! conditional; a build without the feature still accumulates every series and
-//! has no reader for them, which is that rule's own reading of the split. The
-//! prose here names the module rather than linking it, so these docs are whole
-//! whichever way they were built.
+//! has no reader for them, which is that rule's own reading of the split.
+//! [`trace`] sits on the same side as [`metrics`] and for the same reason: every
+//! build gives a request an id and decides whether it is recorded, and what a
+//! featureless one lacks is the pusher that would ship what it derived. The
+//! prose here names the modules rather than linking them, so these docs are
+//! whole whichever way they were built.
 //!
 //! # Why `hyper` and not our own h1
 //!
@@ -133,8 +138,10 @@ pub mod forwarded;
 pub mod io;
 pub mod metrics;
 pub mod mount;
-// The crate doc's § *The `exporter` feature* is why this one module is
-// conditional and `metrics` above it is not.
+// The crate doc's § *The `exporter` feature* is why these two modules are
+// conditional and `metrics` above them is not.
+#[cfg(feature = "exporter")]
+pub mod otlp;
 #[cfg(feature = "exporter")]
 pub mod prometheus;
 pub mod route;
@@ -165,6 +172,8 @@ pub use forwarded::{Arrival, Origin, Trusted, Unusable};
 pub use io::{ConnectionIo, Phase};
 pub use metrics::{Family, Histogram, Kind, Refused, Registry, Series, Value};
 pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
+#[cfg(feature = "exporter")]
+pub use otlp::{Endpoint, Pending, Recorded, push_queued_on_this_core, queue};
 #[cfg(feature = "exporter")]
 pub use prometheus::{scrape, scrape_every_core, serve_scrapes_on_this_core};
 pub use schedule::{Armed, Fires, Leases, arm, tick_on_this_core};

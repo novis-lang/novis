@@ -45,6 +45,11 @@
 //! `rule:testing/debug-probes`'s sites stay as cheap as they are and a request
 //! that nothing samples does no tracing work at all.
 //!
+//! Where the graph goes is the `otlp` module's queue, which is the whole of what
+//! handing it on costs a request — the crate doc's § *The `exporter` feature*
+//! is why this paragraph names that module rather than linking it, and why a
+//! build without the feature derives spans that nothing ships.
+//!
 //! # What a bad header does
 //!
 //! It starts a new trace, and that is the rule rather than a leniency: a
