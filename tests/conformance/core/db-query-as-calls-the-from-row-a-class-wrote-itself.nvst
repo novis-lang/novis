@@ -1,0 +1,73 @@
+--TEST--
+A class that writes `Core\Db\Codec`'s `fromRow` and carries no `#[Db\Derive]` is hydrated through the member it wrote, handed the `Core\Db\Row` a `query` would have answered with — `rule:core-classes/derive-generates-what-is-missing`, `rule:core-classes/derive-attribute`, spec § 18
+--FILE--
+<?nvs
+// The row format is one-directional, so `Core\Db\Codec` declares `fromRow`
+// alone and a class that writes it has nothing left for an attribute to
+// generate — writing both is `E0757`. Declaring the member is therefore the
+// opt-in, as squarely as `#[Db\Derive]` is: `nvs_types::derive`'s
+// `check_row_sites` admits the call site for a class that records no column
+// mapping but declares this member, and `nvs_stdlib::db::row`'s `hydrate`
+// dispatches to it.
+//
+// What the member builds here is something no mapping could: the properties
+// are named after neither column, and one of them is arithmetic over the row.
+// So a `queryAs<T>` that quietly fell back to a generated decoder — or that
+// handed the member anything other than the real row — fails this case rather
+// than printing plausibly.
+class Account {
+    public uint $twice;
+
+    public string $who;
+
+    public function constructor(uint $twice, string $who)
+    {
+        $this->twice = $twice;
+        $this->who = $who;
+    }
+
+    // `rule:core-classes/db-column-types`: every reader answers `?T`, a NULL
+    // column being an ordinary absence, so the narrowing is this member's own
+    // business and not the caller's.
+    public static function fromRow(Core\Db\Row $row): static
+    {
+        ?uint $id = $row->uint("id");
+        ?string $name = $row->string("name");
+        if ($id != null) {
+            if ($name != null) {
+                return new static($id + $id, $name);
+            }
+        }
+        throw new RuntimeError("a row of `accounts` held a NULL where the schema forbids one");
+    }
+}
+
+var $db = Core\Db::connect("main");
+$db->execute("create table accounts (id integer primary key, name text not null)", []);
+$db->executeMany("insert into accounts (name) values (?)", [["ada"], ["grace"]]);
+
+foreach ($db->queryAs<Account>("select id, name from accounts order by id", [])->all() as Account $each) {
+    echo "account ", $each->who, " ", $each->twice, "\n";
+}
+
+// `rule:classes/no-traits` declares the member once, on `Core\Db\Queryable`, so
+// the door a transaction's call reaches is the connection's.
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    foreach ($tx->queryAs<Account>("select id, name from accounts order by id desc", [])->all() as Account $mirrored) {
+        echo "in transaction ", $mirrored->who, " ", $mirrored->twice, "\n";
+    }
+});
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+account ada 2
+account grace 4
+in transaction grace 4
+in transaction ada 2
