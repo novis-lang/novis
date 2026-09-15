@@ -102,15 +102,26 @@ pub(super) fn row_object(
 /// the `Db` half, so a list element's position rides in its message rather
 /// than in a dotted path.
 ///
+/// **Two doors, and the class picks which.**
+/// `rule:core-classes/derive-generates-what-is-missing` makes the row format
+/// one-directional, so `Core\Db\Codec` declares `fromRow` alone and a class
+/// that writes it carries no attribute to go with it. Such a class records no
+/// mapping, so an empty [`nvs_runtime::ClassDesc::db_codec`] is the *written*
+/// member's door rather than a refusal: the row is handed over as the
+/// [`ROW`] every other caller would have been given, and whatever the member
+/// built is the instance. The mapping below is the other door, and
+/// [ADR 0067 § 6](/docs/decisions/0067.md) admits them beside each other.
+///
 /// # Errors
 ///
 /// A `ParseError` carrying every bad column at once — `ParseError` rather than
 /// § 8's `DbError` because this module's known gap 2 is that the latter is not
 /// in spec § 10's tree, and because `issues` is a property only the former
-/// declares. A class carrying no `#[Db\Derive]` is a `LogicError` instead: it
-/// is the program's mistake rather than the row's, and `nvs_types::derive`'s
-/// `check_row_sites` says it as `E0806` while compiling — what stays here is
-/// the backstop for a class built by hand, which no call site named.
+/// declares. A class that took neither door — no `#[Db\Derive]` and no
+/// `fromRow` — is a `LogicError` instead: it is the program's mistake rather
+/// than the row's, and `nvs_types::derive`'s `check_row_sites` says it as
+/// `E0806` while compiling — what stays here is the backstop for a class built
+/// by hand, which no call site named.
 ///
 /// # Safety
 ///
@@ -129,16 +140,7 @@ pub(super) unsafe fn hydrate(
     let desc = unsafe { &*class };
     let fields = desc.db_codec();
     if fields.is_empty() {
-        return Err(Fault::thrown_as(
-            ThrownClass::Logic,
-            format!(
-                "{QUERY_AS}: `{}` carries no `#[Db\\Derive]`, so there is no column mapping to \
-                 build one from — `rule:core-classes/derive-attribute`'s opt-in is that attribute, and this is the \
-                 refusal a compile-time diagnostic would be better at (`nvs_stdlib::db`'s known \
-                 gap 8)",
-                desc.name()
-            ),
-        ));
+        return hand_written(ctx, desc, row);
     }
     let mut ctor_args = vec![Value::null(); desc.ctor_arity()];
     let mut filled = vec![false; desc.ctor_arity()];
@@ -216,6 +218,58 @@ pub(super) unsafe fn hydrate(
     unsafe {
         nvs_runtime::construct(ctx, class, &ctor_args)
     }
+}
+
+/// The one member `Core\Db\Codec` declares —
+/// `static fromRow(Db\Row $row): static`. `nvs_types::derive` owns the spelling
+/// as the half a `#[Db\Derive]` generates, and the two never both exist on one
+/// class: `E0757` refuses an attribute that would generate what the class
+/// already wrote.
+const FROM_ROW: &str = "fromRow";
+
+/// [`hydrate`]'s other door: the row handed to the [`FROM_ROW`] the class wrote
+/// itself, as the [`ROW`] a `query` would have answered with.
+///
+/// The object is built here rather than borrowed from a caller because
+/// [`hydrate`]'s two callers hold the columns and not a row object — a
+/// `stream`'s row is one it has just decoded, and a `queryAs`'s is a slot of
+/// the result array. It is this frame's own reference for the length of the
+/// call: [`nvs_runtime::call_static_on`] retains every argument it passes, so
+/// the release below is what frees it and the array it wraps.
+///
+/// # Errors
+///
+/// [`ThrownClass::Logic`] where the class declares no [`FROM_ROW`] either,
+/// which is the backstop [`hydrate`]'s own docs describe, and
+/// [`Fault::Pending`] where the member itself threw.
+fn hand_written(
+    ctx: &mut nvs_runtime::Ctx,
+    desc: &nvs_runtime::ClassDesc,
+    row: &NvsArray,
+) -> Result<Value, Fault> {
+    let written = crate::instance::build(&ROW, [Value::array(row.clone())]);
+    #[expect(
+        unsafe_code,
+        reason = "the caller of `hydrate` owes the liveness of the descriptor, \
+                  and the row object is this frame's own reference"
+    )]
+    let called =
+        unsafe { nvs_runtime::call_static_on(ctx, std::ptr::from_ref(desc), FROM_ROW, &[written]) };
+    release_all(&[written]);
+    called?.ok_or_else(|| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{QUERY_AS}: `{}` carries no `#[Db\\Derive]` and declares no `{FROM_ROW}`, so \
+                 there is neither a column mapping to build one from nor a member to hand the row \
+                 to — `rule:core-classes/derive-attribute`'s opt-in is that attribute, and \
+                 `rule:core-classes/derive-generates-what-is-missing` is the hand-written half \
+                 beside it. `E0806` is where a call site that wrote such a class is refused while \
+                 compiling",
+                desc.name()
+            ),
+        )
+    })
 }
 
 /// One column as the value one [`nvs_runtime::CodecField`] takes, borrowed from
@@ -1526,5 +1580,95 @@ mod tests {
         unsafe {
             issues.release();
         }
+    }
+
+    /// Stands in for the compiled `static fromRow(Db\Row $row): static` a class
+    /// writes itself, with the ABI a compiled method has: slot 0 is the called
+    /// class and slot 1 the row, and what it answers is read **out of the row**
+    /// so that no path which failed to hand one over can produce it.
+    ///
+    /// It releases its parameter because a compiled Novis function does —
+    /// [`nvs_runtime::call_static_on`] retained every slot before the jump —
+    /// and retains what it hands back for the same reason.
+    #[expect(
+        unsafe_code,
+        reason = "a method's slot array, its ownership convention and the out \
+                  parameter are all `nvs_runtime::abi`'s calling convention, \
+                  which a stand-in for a compiled member has to meet exactly"
+    )]
+    unsafe extern "C" fn from_row_stub(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        let row = unsafe { *args.add(1) };
+        let object = row
+            .obj_ptr()
+            .expect("`fromRow` is handed the `Core\\Db\\Row` every other reader gets");
+        let columns = crate::arr::borrowed(
+            crate::instance::slot(object, COLUMNS_AT)
+                .array_ptr()
+                .expect("a row's one slot holds its columns"),
+        );
+        let id = columns.get(b"id").expect("the row carries an `id` column");
+        unsafe { id.retain() };
+        unsafe { *out = id };
+        unsafe { row.release() };
+        nvs_runtime::OK
+    }
+
+    /// `rule:core-classes/derive-generates-what-is-missing`'s other door for a
+    /// row: `Core\Db\Codec` declares `fromRow` alone, so a class that writes it
+    /// carries no `#[Db\Derive]` — the two together are `E0757` — and records
+    /// no column mapping at all.
+    ///
+    /// So the assertion is that an **empty** `db_codec` reaches the member the
+    /// class wrote rather than the refusal it used to be, and that the member
+    /// is handed the same `Core\Db\Row` a `query` would have answered with:
+    /// the value that comes back is one only a call that received the row could
+    /// have built. [ADR 0067 § 6](/docs/decisions/0067.md) admits the
+    /// hand-written body beside the derived one, and `check_row_sites` lets the
+    /// call site through for exactly this class.
+    #[test]
+    fn query_as_calls_a_hand_written_from_row() {
+        let table: &'static mut nvs_runtime::ClassTable =
+            Box::leak(Box::new(nvs_runtime::ClassTable::new()));
+        let id = table.define("Account", &["id"], &[]);
+        table.set_methods(
+            id,
+            vec![nvs_runtime::MethodRow {
+                name: FROM_ROW.to_owned(),
+                code: from_row_stub as nvs_runtime::NvsFn as *const u8,
+                arity: 1,
+                // Nothing on this route reads either of the two: an argument
+                // list a native member built is checked where it is built, and
+                // `nvs_runtime::call_static_bound`'s tag comparison is for the
+                // other caller, whose list came out of a program's own map.
+                param_tags: 0,
+                public: true,
+                native: false,
+            }],
+        );
+        let class = table.desc(id);
+
+        let mut row = NvsArray::new();
+        row.set(NvsStr::new(b"id"), Value::int(7));
+
+        #[expect(unsafe_code, reason = "the leaked table keeps the descriptor live")]
+        let built = unsafe { hydrate(&mut Ctx::new(OutputSink::Sink), class, &row) }
+            .expect("a class declaring `fromRow` hydrates through it");
+        assert_eq!(
+            built.as_int(),
+            Some(7),
+            "the member answered out of the row it was handed"
+        );
+
+        // The class that took neither door is still the backstop refusal, and
+        // it now names both of them.
+        let bare = table.define("Bare", &["id"], &[]);
+        #[expect(unsafe_code, reason = "the leaked table keeps the descriptor live")]
+        let refused = unsafe { hydrate(&mut Ctx::new(OutputSink::Sink), table.desc(bare), &row) }
+            .expect_err("no mapping and no `fromRow` is the program's own mistake");
+        let Fault::Thrown(ThrownClass::Logic, message) = refused else {
+            panic!("a class with neither half is a `LogicError`")
+        };
+        assert!(message.contains(FROM_ROW), "{message}");
+        assert!(message.contains("E0806"), "{message}");
     }
 }

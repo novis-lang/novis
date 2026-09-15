@@ -791,6 +791,50 @@ class Rowsource {
     );
 }
 
+/// `rule:core-classes/derive-generates-what-is-missing`'s hand-written door,
+/// asked at the call site: `Core\Db\Codec` declares `fromRow` alone, so a class
+/// that writes it has opted in as squarely as the attribute does and records no
+/// mapping precisely because there is nothing left to generate.
+///
+/// The two halves are asserted together because they are one edit apart. Every
+/// condition `check_row_sites` reports is about a mapping, so a pass that read
+/// "no mapping" as "no codec" refuses the class that wrote its own — and one
+/// that stopped asking would let the class with neither half through to the run
+/// time refusal `nvs_stdlib::db::row`'s `hydrate` keeps as a backstop.
+#[test]
+fn a_query_as_over_a_hand_written_from_row_is_admitted_while_compiling() {
+    let source = |body: &str| {
+        format!(
+            "<?nvs
+class Account {{
+    public int $id;
+    public function constructor(int $id) {{ $this->id = $id; }}
+{body}}}
+class Rowsource {{
+    public static function all(Core\\Db\\Transaction $tx): Core\\Db\\Rows<Account>
+    {{
+        return $tx->queryAs<Account>(\"select id from t\", []);
+    }}
+}}
+"
+        )
+    };
+
+    let written = check_src(&source(
+        "    public static function fromRow(mixed $row): static { return new static(1); }\n",
+    ));
+    assert!(!written.has_errors(), "{written:?}");
+
+    let neither = check_src(&source(""));
+    assert!(
+        neither
+            .iter()
+            .any(|d| d.code == Some(code::E_QUERY_AS_NOT_A_ROW_CLASS)
+                && d.message.contains("fromRow")),
+        "{neither:?}"
+    );
+}
+
 /// `rule:core-classes/db-column-types`'s three types that a decoder used to have
 /// no wire type for: each erases to a `CodecTy` of its own, so neither door has
 /// to tell them from the `Opaque` that means a decoder is missing or from the

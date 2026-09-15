@@ -218,7 +218,7 @@ pub fn check_program_granted(
     crate::derive::resolve_field_types(&codec_sites, &signatures, interner, exprs, diags);
     // The call-site half of the same deferral: § 9's map asked of the class a
     // `queryAs<T>` wrote, after every deriving class has recorded its mapping.
-    crate::derive::check_row_sites(&row_sites, exprs, diags);
+    crate::derive::check_row_sites(&row_sites, &signatures, exprs, diags);
     // The same deferral for the other member that writes a class: the body a
     // `jsonAs<T>` decodes is a peer's, so `rule:security/derived-codec-qualifiers`
     // asks the fields receiving it to declare the qualifier they receive.

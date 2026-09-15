@@ -137,7 +137,47 @@ pub fn call_static(ctx: &mut Ctx, label: &str, args: &[Value]) -> Result<Option<
         reason = "`Ctx::class_desc` answers out of the compiled unit's own class \
                   table, which the context shares ownership of for its whole life"
     )]
-    let Some(target) = (unsafe { &*desc }).method(method) else {
+    unsafe {
+        call_static_on(ctx, desc, method, args)
+    }
+}
+
+/// [`call_static`] for a caller that is **already holding the descriptor**,
+/// answering `None` where that class declares no method `name`.
+///
+/// The label form above exists because its caller has a string and nothing
+/// else. A native member that reached a class through a call site's own type
+/// argument — `nvs_stdlib::db::row`'s hydration, which takes the descriptor
+/// `queryAs<T>` wrote — has the table in hand, and rendering its name to look
+/// it up again would make the call depend on a second resolution of a question
+/// already answered.
+///
+/// Slot 0 is the **called class**, per [`Value::class_desc`], exactly as above.
+///
+/// # Safety
+///
+/// `desc` must refer to a live descriptor whose method table `nvs-codegen` has
+/// filled.
+///
+/// # Errors
+///
+/// [`Fault::Pending`] when the method throws, carrying that call's own status
+/// so the exception reaches the request unchanged.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub unsafe fn call_static_on(
+    ctx: &mut Ctx,
+    desc: *const ClassDesc,
+    name: &str,
+    args: &[Value],
+) -> Result<Option<Value>, Fault> {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the descriptor is live for this read"
+    )]
+    let Some(target) = (unsafe { &*desc }).method(name) else {
         return Ok(None);
     };
     call_at(ctx, Value::class_desc(desc), target, args).map(Some)

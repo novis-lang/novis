@@ -87,6 +87,14 @@
 //!    map already refuses. A `decimal`, a `bytes` and each of
 //!    [`DB_COLUMN_CLASSES`]'s value types carry a wire type the reader has a
 //!    case for.
+//!
+//!    **A class that wrote `Core\Db\Codec`'s one member is not in this gap.**
+//!    It records no mapping at all — `rule:core-classes/derive-generates-what-is-missing`
+//!    leaves an attribute beside it nothing to generate, which is why the two
+//!    together are [`code::E_DERIVE_BOTH_HALVES`] — so [`check_row_sites`]
+//!    admits the call site on the strength of the declared `fromRow` and
+//!    `nvs_stdlib::db::row`'s `hydrate` hands it the row. Nothing on that path
+//!    is erased, so there is no case for the reader to be missing.
 //!    — owner: m8-db-queue
 //! 3. **[`check_row_sites`] has no `Core\Json::decodeAs` half.** The two
 //!    members share [`crate::expr::args::written_class_of`]'s lookup and do
@@ -750,6 +758,7 @@ impl RowSite {
 /// nothing can fill.
 pub(crate) fn check_row_sites(
     sites: &[RowSite],
+    signatures: &crate::signatures::SignatureTable,
     exprs: &crate::expr_table::ExprTypeTable,
     diags: &mut Diagnostics,
 ) {
@@ -768,11 +777,31 @@ pub(crate) fn check_row_sites(
             continue;
         }
         let Some(codec) = exprs.db_codec(&class.to_string()) else {
+            // The hand-written door, which is the *whole* of what
+            // `rule:core-classes/derive-generates-what-is-missing` leaves a row
+            // class to write: `Core\Db\Codec` declares [`DB_DECODE`] alone, so
+            // a class that declares it has opted in as squarely as the
+            // attribute does and records no mapping precisely because there is
+            // nothing left to generate. Every condition below is about a
+            // mapping, so there is none of them to ask — what the member does
+            // with the row is the member's own. `nvs_stdlib::db::row`'s
+            // `hydrate` dispatches to it.
+            if signatures
+                .get(class)
+                .is_some_and(|sig| sig.methods.contains_key(DB_DECODE))
+            {
+                continue;
+            }
             report_row_site(
                 site,
-                format!("`{class}` carries no `#[Db\\Derive]`, so `{member}` has no mapping"),
+                format!(
+                    "`{class}` carries no `#[Db\\Derive]` and declares no `{DB_DECODE}`, so \
+                     `{member}` has no mapping"
+                ),
                 "`rule:core-classes/derive-attribute`: hydrating a row is opt-in — write `#[Db\\Derive]` on the class, \
-                 which is what generates the `Core\\Db\\Codec` this call needs. A `#[Json\\Derive]` \
+                 which is what generates the `Core\\Db\\Codec` this call needs, or declare that \
+                 interface's `fromRow` yourself and build the instance from the \
+                 `Core\\Db\\Row`. A `#[Json\\Derive]` \
                  is the document half and answers for nothing here: `rule:core-classes/db-column-types`'s map is over \
                  columns",
                 diags,
