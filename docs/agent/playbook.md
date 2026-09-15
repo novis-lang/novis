@@ -5049,6 +5049,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `config` gets an uncapped context that grants nothing, and the assertion that fails is about the
   ceiling rather than about the missing half. Fill both from the same written text, which is what
   `crates/nvs-cli/src/serve.rs`'s `tree_of` does. [until: reviewed 2026-09-15]
+- **A test over `nvs_server::metrics::every_core` sees every other test in the binary that served a
+  request, because the roster is one per process.** Asserting a length or a total is therefore a race
+  against whatever the harness scheduled alongside, and it passes alone and fails under `cargo test`.
+  Give the case its own `route` label and assert on that series by name
+  (`crates/nvs-server/src/metrics.rs:1154`), and hold the cores alive across the gather with a
+  `Barrier` — a thread that exited is indistinguishable from one the roster never reached.
+  [until: gone crates/nvs-server/src/metrics.rs:static CORES]
 
 ## Splitting a file that got too big
 

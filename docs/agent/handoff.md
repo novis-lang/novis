@@ -4,55 +4,50 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
-and stages 3 to 9 are complete. Stage 10, the metrics export, is the earliest red stage: its first
-check is green and its second is the next group. Nothing is blocked.
+and stages 3 to 9 are complete. Stage 10, the metrics export, is the earliest red stage and both of
+its `[[check]]` blocks are now green; what is left of it is the cargo feature and the OTLP push.
+Nothing is blocked.
 
-**A serving core counts every response it writes.** `crates/nvs-server/src/metrics.rs:671`'s
-`meter_this_core` gives the core the registry `[metrics]` asks for — a thread-local, because that is
-what "per core" is when one core runs one accept loop per listening socket and they share its
-counters — and `crates/nvs-server/src/serve.rs`'s service closure reaches it through
-`count_request` at all four of its answers, including the forwarded refusal, the ceiling's `503` and
-a preflight. `rule:observability/route-label-is-the-declared-name`'s label is taken off the reply's
-own carrier before `Isolate::start` moves it (`nvs_host::Isolate::answering_request`), which closes
-`route.rs`'s old gap 2.
+**A scrape reaches every core through a handle, not a message.** The goal's stage 10 prose names "the
+existing cross-core channel" and there is none — `nvs_host::channel` is one core's tasks and is
+`!Send`. Each core's registry now lives behind a lock of its own with a weak handle in one
+process-wide roster, and `crates/nvs-server/src/metrics.rs:770`'s `every_core` copies what is behind
+them. The alternative (poke each core, wait for it to publish) and why ADR 0004's ordering refused it
+are in that module's doc § *How a scrape reaches a core it is not running on*; the per-request cost is
+one uncontended lock where it was a `RefCell` borrow.
 
-**The encoder is written and has no gatherer.** `crates/nvs-server/src/prometheus.rs:63`'s `scrape`
-takes every core's registry, adds them up and writes the Prometheus text exposition format — by
-hand against the specification, which is `rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`'s
-finding that neither candidate crate is takeable. What it has no caller for is the slice below:
-nothing binds `[metrics] listen` and nothing carries another core's `on_this_core()` copy across.
+**The endpoint is bound and answers.** `crates/nvs-cli/src/serve.rs:1950`'s `scrape_socket` resolves
+and binds `[metrics] listen` at boot — `None` for every way of not asking, and a **refusal** where
+`exporter = "prometheus"` names no address — and one worker gets the socket.
+`crates/nvs-server/src/prometheus.rs:90`'s `serve_scrapes_on_this_core` is the loop: a task on that
+core, one collector at a time, `hyper` framing both halves, and it counts no request of its own.
+`[metrics] endpoint` is still the only `[unread:]` key in that block.
 
 ## Next group
 
-**Stage 10: the exporter's listener** — one file set: `crates/nvs-cli/src/serve.rs` for the boot and
-the per-core arming, with `crates/nvs-server/src/metrics.rs` and
-`crates/nvs-server/src/prometheus.rs` for the two halves it joins.
+**Stage 10: the exporter behind a feature** — one file set: `crates/nvs-server/src/prometheus.rs` and
+`crates/nvs-server/src/lib.rs` for the gate, `crates/nvs-cli/src/serve.rs` for the boot refusal, and
+the two `Cargo.toml`s that declare it.
 
-- [ ] **A scrape reaches every core's registry** — `crates/nvs-server/src/metrics.rs:700`'s
-      `on_this_core` is the per-core copy, and `crates/nvs-server/src/prometheus.rs:63`'s `scrape`
-      is the consumer that wants all of them. The goal's stage 10 prose decides the shape: a message
-      over the cross-core channel, gathered on the scraping core, never a shared store
-      (`rule:observability/a-registry-is-per-core-and-nothing-reads-it`). **No such channel was found
-      under that name** — `nvs-host` has `Worker` and `wake_at_drain` and nothing else obvious — so
-      the first thing this slice owes is to name what it is or to build it.
-- [ ] **`serve` answers a scrape at `[metrics] listen`, and a tree whose exporter is `false` binds
-      nothing** — the key is `crates/nvs-config/src/tree.rs:1050`, still carrying its `[unread:]`
-      marker, and the arming goes beside the per-core listener loop at
-      `crates/nvs-cli/src/serve.rs:984`. One more listening socket on this server's own accept loop
-      and never a second HTTP server, per the rule above. Tests:
-      `serve_answers_a_scrape_at_the_metrics_listen_address`,
-      `a_tree_whose_metrics_exporter_is_false_binds_nothing_and_builds_no_registry`, `-p nvs-cli`.
-- [ ] **The exporter goes behind a cargo feature, on by default** —
-      `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`, whose fragment is still
-      marked *designed, not yet shipped*. `crates/nvs-server/src/prometheus.rs:1` is the module the
-      gate wraps; `crates/nvs-server/src/metrics.rs:1` is the half that is Tier 0 in every build and
-      stays ungated. A build without it refuses any `exporter` other than `false` at boot, naming the
-      feature.
+- [ ] **The exporter goes behind a cargo feature, on by default** — gate `crates/nvs-server/src/lib.rs:123`'s
+      `pub mod prometheus;` and its re-export beside it, so a CLI build carries no encoder
+      (`rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`). `crates/nvs-server/src/metrics.rs:121`
+      stays in every build unconditionally — that rule's second half is the whole reason the split is
+      here and not one module up.
+- [ ] **A build without the feature refuses any `exporter` other than `false` at boot, naming the
+      feature** — `crates/nvs-cli/src/serve.rs:1950`'s `scrape_socket` is where the `prometheus` arm
+      already refuses, and the `otlp` arm returns `Ok(None)` today; both become the refusal under
+      `#[cfg(not(feature = ...))]`. Its neighbouring case
+      `a_prometheus_exporter_with_no_listen_address_is_refused_at_boot` is the shape to copy.
+- [ ] **The OTLP push** — stage 10's third bullet, and the last `[unread:]` key in the block is
+      `crates/nvs-config/src/tree.rs:1051`'s `endpoint`. It pushes
+      `crates/nvs-server/src/prometheus.rs:192`'s merge on an interval through stage 2's transport, so
+      read `rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client` before
+      reaching for a client.
 
 ## Backlog
 
-- No `# HELP` line is written for any family: `Family` (`crates/nvs-server/src/metrics.rs:135`) holds
-  no help text, and adding one changes what `rule:observability/default-series`'s roster carries.
-- `Core\Metrics`'s three rows are goal `m8-stdlib-depth`'s — `crates/nvs-server/src/metrics.rs`'s
-  known gap 2 owns it.
-- Stage 11's spans and the OTLP push are still ahead of this stage's `otlp` half.
+- The `unowned` gaps at `crates/nvs-server/src/route.rs:30` and `crates/nvs-server/src/bounds.rs:62` — goal `unowned-closures`.
+- `docs/plan/m7.md`'s carrier list and `crates/nvs-cli/src/serve.rs`'s "no configuration" gap — goal `plan-truth`.
+- `Core\Metrics`'s three rows, which would give `Registry` a second writer — goal `m8-stdlib-depth`.
+- No end-to-end `nvs serve` runaway test for the CPU and memory ceilings — `crates/nvs-runtime/src/budget.rs`.
