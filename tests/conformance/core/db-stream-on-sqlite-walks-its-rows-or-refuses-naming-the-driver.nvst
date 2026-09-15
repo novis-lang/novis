@@ -1,0 +1,56 @@
+--TEST--
+Spec § 18's `stream` walks a result set a row at a time and holds the connection for the walk's whole length: the rows arrive in the statement's order, a statement attempted between two of them is a `LogicError`, and the connection takes one again the moment the last row is read — `rule:core-classes/db-streaming`, `rule:core-classes/a-stream-parks-its-read-on-the-connection` and `rule:core-classes/db-connection-busy-state`
+--FILE--
+<?nvs
+// SQLite is the one backend a case can reach — a `:memory:` block needs no
+// server and no container — and it is also the one that takes no recorded
+// refusal: its walk is a pinned pool thread rather than a message boundary, so
+// what this case pins is the walk itself. The four drivers with a wire assert
+// the same three promises against a real server from
+// `crates/nvs-stdlib/tests/db_stream.rs`, which is where a driver that could
+// not park a read would have to name itself and `query` instead.
+var $db = Core\Db::connect("main");
+$db->execute("create table t (id integer primary key, name text)", []);
+$db->executeMany("insert into t (name) values (?)", [["ada"], ["grace"], ["alan"]]);
+
+// § 4's one member that does not buffer. Naming the walk opens the statement,
+// and each step of the `foreach` reads one row — the rows themselves stay in
+// SQLite, which is the whole difference from `query` beside it.
+foreach ($db->stream("select name from t order by id", []) as Core\Db\Row $row) {
+    echo "row ", $row->string("name") ?? "null", "\n";
+
+    // § 4's uniform busy rule, asked *between* two rows rather than once: the
+    // connection is held for as long as rows remain, so this is refused on
+    // every step and not only on the first. It is a `LogicError` because the
+    // fault is the program's — the fix is `->all()` or a second connection —
+    // and the refusal writes nothing to the connection, so the walk under it
+    // still has the rows it had.
+    try {
+        $db->query("select 1", []);
+        echo "  second statement: not refused\n";
+    } catch (LogicError $refused) {
+        echo "  second statement: refused\n";
+    }
+}
+
+// The last row ends the walk, which releases the connection: a program does not
+// have to close anything for the next statement to run.
+foreach ($db->query("select count(*) as n from t", []) as Core\Db\Row $counted) {
+    echo "after the walk: ", $counted->int("n") ?? 0, " rows\n";
+}
+--FILE nvs.toml--
+# § 3: `db.connect` covers a SQLite block, whose path is configuration.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+row ada
+  second statement: refused
+row grace
+  second statement: refused
+row alan
+  second statement: refused
+after the walk: 3 rows
