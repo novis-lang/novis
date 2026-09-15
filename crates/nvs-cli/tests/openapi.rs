@@ -246,6 +246,45 @@ fn a_closed_set_parameter_carries_the_unions_members_as_an_enum() {
     );
 }
 
+/// § 1's *Enumerations* row for the other kind of closed set, and
+/// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
+/// 's promise that one spelling serves the route, its links and this document
+/// alike.
+///
+/// Both halves of that rule at once, which is what makes it an assertion rather
+/// than a row: a subset whose every admitted case wrote its value lists those
+/// integers, and one where any case counted lists the case names. A document
+/// that read the backing value under either spelling passes against the first
+/// of the two alone.
+#[test]
+fn an_enum_captures_cases_are_the_enum_row_under_their_own_spelling() {
+    let (doc, err, ok) = build(&fixture("narrowed"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let params = &document["paths"]["/p/{lang}/{shelf}"]["get"]["parameters"];
+
+    assert_eq!(
+        params[0],
+        serde_json::json!({
+            "name": "lang",
+            "in": "path",
+            "required": true,
+            "schema": {"enum": ["7", "9"]},
+        }),
+        "a whole enum whose cases wrote their values is spelled by those values:\n{doc}"
+    );
+    assert_eq!(
+        params[1],
+        serde_json::json!({
+            "name": "shelf",
+            "in": "path",
+            "required": true,
+            "schema": {"enum": ["New", "Sale"]},
+        }),
+        "a subset of a counted enum is the admitted case names, and never the case it leaves out:\n{doc}"
+    );
+}
+
 /// § 1 by way of `rule:routing/a-capture-narrows-to-a-closed-set`'s other named capture type: `Core\Uuid` is the one
 /// class a segment converts to, and `format: uuid` is what the JSON Schema
 /// dialect 3.1 uses already registers for it. An empty schema in its place would

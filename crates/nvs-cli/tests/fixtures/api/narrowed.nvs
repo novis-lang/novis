@@ -7,6 +7,14 @@
 // literal or union declared type is `E0451`, so a closed-set key is a required
 // one and this fixture is not the place to argue about that.
 
+// One spelling in three places
+// (`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`):
+// `Lang` wrote both its values, so the document lists those integers, and
+// `Shelf` counts, so it lists the case names. `Clearance` is the case the
+// capture below leaves out.
+enum Lang: uint { De = 7, En = 9 }
+enum Shelf { New, Sale, Clearance }
+
 class Docs
 {
     #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get, name: "Docs::show")]
@@ -14,6 +22,13 @@ class Docs
     public function show("en"|"de"|"fr" $lang, string $page, #[Core\Query] 1|2|3 $depth): string
     {
         return $lang . "/" . $page;
+    }
+
+    #[Core\Route(path: "/p/{lang}/{shelf}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(Lang $lang, Shelf::New|Shelf::Sale $shelf): string
+    {
+        return "one page";
     }
 
     #[Core\Route(path: "/docs/{id}", method: Core\Http\Method::Get, name: "Docs::byId")]

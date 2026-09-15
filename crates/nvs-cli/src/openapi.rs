@@ -333,7 +333,7 @@ fn parameter(param: &RouteParam) -> Value {
             ParamIn::Query => "query",
         },
         "required": param.required,
-        "schema": schema(param.ty.as_deref(), param.allowed.as_deref(), param.parses),
+        "schema": schema(param.ty.as_deref(), param.admits().as_deref(), param.parses),
     })
 }
 
@@ -373,10 +373,14 @@ fn parameter(param: &RouteParam) -> Value {
 /// the one arm above that says more is a format the *engine* registers for a
 /// type it ships — a class declaring its own is a feature this module does not
 /// have, and guessing one from a name would be the contradiction
-/// `rule:attributes/api-adds-and-cannot-contradict` forbids. An enum keeps the
-/// empty schema for the other half of the same reason: its case spellings are
-/// `Core\Router::match`'s to decide and are not decided yet.
-fn schema(ty: Option<&str>, allowed: Option<&[String]>, parses: bool) -> Value {
+/// `rule:attributes/api-adds-and-cannot-contradict` forbids. An enum names no
+/// JSON Schema type either, and its set is the whole of what it says: the case
+/// spellings
+/// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
+/// decided while compiling, which [`RouteParam::admits`] hands over beside a
+/// literal union's members — one list, because a document listing anything else
+/// is a generated client building links the router answers `404` to.
+fn schema(ty: Option<&str>, allowed: Option<&[&str]>, parses: bool) -> Value {
     let mut rendered = match ty {
         Some("bool") => json!({"type": "boolean"}),
         Some("int") => json!({"type": "integer"}),
