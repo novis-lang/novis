@@ -415,6 +415,7 @@ mod tests {
     /// [`answer_connection`] and that the answer comes back whole, not what the answer says.
     struct Answering {
         in_flight: usize,
+        draining: bool,
         refuse: Option<String>,
     }
 
@@ -443,7 +444,7 @@ mod tests {
         }
 
         fn draining(&self) -> bool {
-            false
+            self.draining
         }
     }
 
@@ -562,6 +563,7 @@ mod tests {
             "/status",
             served(Answering {
                 in_flight: 2,
+                draining: false,
                 refuse: None,
             }),
         );
@@ -581,6 +583,68 @@ mod tests {
         );
     }
 
+    /// `rule:packaging/a-service-is-one-stored-argv`, the sentence that earns
+    /// `status` its second spelling: `start` and `stop` are thin, and `status` reports what no
+    /// service manager knows — the in-flight request count, and how far a drain has got.
+    ///
+    /// Both halves of what `nvs service status` adds to the verb above are here. The endpoint it
+    /// asks is the **service's**, named by the argv the manager stored rather than by the tree
+    /// this shell happens to be standing in; and the two answers are one process read before and
+    /// during its drain, so the count falling beside `draining: true` is the progress an operator
+    /// is watching for rather than two unrelated readings.
+    #[test]
+    fn service_status_reports_in_flight_and_drain_progress_from_the_control_socket() {
+        let stored = [
+            "serve".to_owned(),
+            "--config".to_owned(),
+            "/etc/nvs/site.toml".to_owned(),
+        ];
+        let shell = [PathBuf::from("nvs.toml")];
+        assert_eq!(
+            crate::service::service_configuration(&stored, &shell),
+            vec![PathBuf::from("/etc/nvs/site.toml")],
+            "the verb asked the tree this shell is standing in rather than the service's",
+        );
+        let names_none: [String; 0] = [];
+        assert_eq!(
+            crate::service::service_configuration(&names_none, &shell),
+            shell.to_vec(),
+            "a stored argv naming no `--config` leaves this shell's as the only tree there is",
+        );
+
+        let serving = asked(
+            "service-status-serving",
+            "GET",
+            "/status",
+            served(Answering {
+                in_flight: 3,
+                draining: false,
+                refuse: None,
+            }),
+        );
+        assert_eq!(
+            judged(serving, Path::new("here"), "GET", "/status").as_deref(),
+            Ok("in_flight: 3\ndraining: false\n"),
+            "a running service answers with the count no service manager holds",
+        );
+
+        let draining = asked(
+            "service-status-draining",
+            "GET",
+            "/status",
+            served(Answering {
+                in_flight: 1,
+                draining: true,
+                refuse: None,
+            }),
+        );
+        assert_eq!(
+            judged(draining, Path::new("here"), "GET", "/status").as_deref(),
+            Ok("in_flight: 1\ndraining: true\n"),
+            "and a stopping one answers how much of the drain is left",
+        );
+    }
+
     #[test]
     fn a_reload_the_process_refused_is_the_servers_own_text_and_not_output() {
         let answered = asked(
@@ -589,6 +653,7 @@ mod tests {
             "/reload",
             served(Answering {
                 in_flight: 0,
+                draining: false,
                 refuse: Some("nvs.toml line 4: `listen` is not a port\n".to_string()),
             }),
         );
@@ -613,6 +678,7 @@ mod tests {
             "/shutdown",
             served(Answering {
                 in_flight: 0,
+                draining: false,
                 refuse: None,
             }),
         );
