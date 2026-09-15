@@ -108,14 +108,6 @@
 //!    Decided: No: state it in the embedding contract and assert it when a Ctx is built — One
 //!    assertion; the silent non-match becomes impossible.
 //!    — owner: unowned-closures
-//! 3. **A synthetic request carries no headers and no body.** § 18's worked
-//!    example passes a `{headers: ...}` bag, and its second paragraph says
-//!    the body and parameters arrive `tainted` exactly as a real request's
-//!    would — true of the path's query, which crosses on the carrier, and
-//!    vacuous for the other two, which have no spelling to arrive through.
-//!    The bag wants a `nvs_runtime::RequestBody` over held bytes, which
-//!    nothing in this crate builds.
-//!    — owner: m7-server-surface
 //!
 //! # What these members do with a qualifier
 //!
@@ -274,6 +266,46 @@ const ANSWER: &[CoreOption] = &[
         name: "headers",
         ty: CoreTy::Array(&CoreTy::Union(ANSWER_HEADER)),
         default: Const::EmptyArray,
+    },
+];
+
+/// What a synthetic request's `body` may be: text, or the octets of a body that
+/// is not text at all.
+///
+/// [`ANSWER_BODY`]'s pair, in the other direction and for the second half of
+/// its reason: the bodies a request test is written for are the ones a
+/// `string` cannot hold. A payload that is not UTF-8 is exactly what
+/// `Core\Request::body()` refuses and `Core\Request::bytes()` answers
+/// (`rule:types/string-is-utf8`), so a bag admitting text alone could not
+/// describe the request that pins either of them.
+const SENT_BODY: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::Neutral)];
+
+/// `Core\Test::request`'s `{headers?: array<string>, body?: string|bytes}` — the
+/// two halves of a request a verb and a path do not describe.
+///
+/// A bag rather than two more parameters, on [`ANSWER`]'s reading of
+/// `rule:core-api/shape-rules` R2: every request has a verb and a path, and
+/// most of the ones a test writes carry neither a field line nor a body.
+///
+/// **`headers` is `Core\Http\Options`' shape**, read by that class's own walk
+/// ([`crate::http::headers_of`]), so a test describing a request and a program
+/// making one spell a header map the same way and the names arrive as they were
+/// written.
+///
+/// **`body`'s default is [`Const::Null`] and not an empty `bytes`**: a request
+/// that carries no body and one that carries an empty body are different facts
+/// (RFC 9110 § 8.6) that reach a program differently, so "not given" cannot be
+/// spelled by a value the option's own type admits.
+const REQUEST_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "headers",
+        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        default: Const::EmptyArray,
+    },
+    CoreOption {
+        name: "body",
+        ty: CoreTy::Union(SENT_BODY),
+        default: Const::Null,
     },
 ];
 
@@ -444,6 +476,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Enum(crate::router::METHOD_NAME),
                 CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(REQUEST_OPTIONS),
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(RESPONSE_NAME),
@@ -714,6 +747,22 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
             name: "path",
             desc: "The path to ask for, mount prefix already stripped — what a handler's \
                    `#[Route]` is declared against. A `?` and everything after it is the query.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "headers",
+            desc: "The field lines the request carries, keyed by name and spelled as the program \
+                   under test will read them back. A `content-type` or a `content-length` written \
+                   here stands; one written for neither is derived from `body`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "body",
+            desc: "The octets the request carries, framed by nothing and typed by nothing. Text \
+                   goes as it is written, and a body that is not text at all — the kind \
+                   `Core\\Request::bytes` exists for — goes as `bytes`. A call naming no body \
+                   describes a request carrying none, which is not a request carrying an empty \
+                   one.",
             shape: &[],
         },
     ],
@@ -1842,8 +1891,49 @@ fn verb_of(ordinal: i64) -> Option<String> {
         .map(|(case, _)| case.to_ascii_uppercase())
 }
 
+/// The request `Core\Test::request`'s `target` and [`REQUEST_OPTIONS`] bag
+/// describe, ready to be built into a carrier.
+///
+/// **A spec rather than a carrier assembled here.** `nvs_runtime::InboundSpec`
+/// is what derives `content-type` and `content-length` from a body and what
+/// leaves a field line the bag wrote alone; doing either here would be that
+/// derivation's second copy, free to disagree with the served one the day
+/// either moves.
+///
+/// Split out from the member so that what the bag becomes is assertable on its
+/// own: answering the request wants a compiled unit under test, and what this
+/// file owns is the reading of the bag rather than the answering.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a `headers` bag that is not `array<string>`, which
+/// `E0401` refuses a phase earlier and so is unreachable from source.
+fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::InboundSpec, Fault> {
+    // Split exactly as the door does: everything after the first `?` is the
+    // query, undecoded, and a target with none has an empty one rather than no
+    // query at all.
+    let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    let mut spec = nvs_runtime::InboundSpec::new(verb, path);
+    spec.set_query(query);
+    for (name, value) in crate::http::headers_of(args, 2, "Core\\Test::request")? {
+        spec.push_header(&name, value.as_bytes());
+    }
+    // A body is described only where one was written: the omitted default is
+    // `null`, and a request carrying no body is not one carrying an empty body.
+    // `SpecBody::Raw` frames nothing and declares nothing, which is what the
+    // bag's `body` promised.
+    if let Some(octets) = args[3]
+        .as_bytes()
+        .or_else(|| args[3].as_text().map(str::as_bytes))
+    {
+        spec.set_body(nvs_runtime::SpecBody::Raw(octets.to_vec()))
+            .expect("this bag spells a body one way, so there is no second spelling to refuse");
+    }
+    Ok(spec)
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::request(Core\Http\Method $method, string $path): Core\Test\Response`
+    /// `Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes}): Core\Test\Response`
     /// — `rule:testing/in-process-request`'s in-process request.
     ///
     /// **Neither the match nor the dispatch happens here.** `rule:routing/matched-once-before-the-handler`'s
@@ -1857,11 +1947,14 @@ nvs_runtime::nvs_helper! {
     /// parameters, which is dispatch. What runs is the program's own entry,
     /// exactly as a served request runs it.
     ///
-    /// **Known gap, `rule:testing/in-process-request`'s second sentence:** the worked example's
-    /// `{headers: ...}` bag and a synthetic body are not here yet, so nothing a
-    /// synthetic request carries arrives `tainted` because it carries nothing.
-    /// The module doc's own gap list is the home of that.
-    fn nvs_core_test_request(ctx, args: [2]) {
+    /// **What the bag carries arrives `tainted`**, which is
+    /// `rule:testing/in-process-request`'s second sentence and needs nothing
+    /// written here to hold: a field line and a body reach the program through
+    /// `Core\Request`'s own members, and those rows declare the qualifier for
+    /// every request alike. So a handler that forgets to launder a header fails
+    /// its test rather than production, and the test that pins it says nothing
+    /// about being synthetic.
+    fn nvs_core_test_request(ctx, args: [4]) {
         let ordinal = args[0].as_int().unwrap_or(-1);
         let Some(verb) = verb_of(ordinal) else {
             // Unreachable from source — the parameter is `CoreTy::Enum`, so
@@ -1880,12 +1973,10 @@ nvs_runtime::nvs_helper! {
                 "Core\\Test::request expected a string for its path".to_owned(),
             ));
         };
-        // Split exactly as the door does: everything after the first `?` is the
-        // query, undecoded, and a target with none has an empty one rather than
-        // no query at all.
-        let (path, query) = target.split_once('?').unwrap_or((target, ""));
-        let inbound = nvs_runtime::Inbound::new(&verb, path, query);
-        let mut completion = match nvs_runtime::inproc::answer(ctx, Box::new(inbound)) {
+        let mut completion = match nvs_runtime::inproc::answer(
+            ctx,
+            Box::new(described(&verb, target, args)?.build()),
+        ) {
             Ok(completion) => completion,
             Err(refusal) => return Err(Fault::thrown(format!(
                 "Core\\Test::request could not run the request: {refusal}"
@@ -2935,5 +3026,96 @@ mod tests {
         // this number.
         assert_eq!(asserting_members().count(), CLASS.methods.len() - 9);
         assert_eq!(equality_members().count(), 3);
+    }
+
+    /// The release a compiled call site owes for a value a member answered.
+    fn dropped(value: Value) {
+        #[expect(unsafe_code, reason = "the member transferred what it answered")]
+        // SAFETY: a member's answer carries a reference of its own, and this
+        // driver is the caller that would otherwise hold it.
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// `Core\Test::request`'s bag reaches the program as the request's own
+    /// headers and body — `rule:testing/in-process-request`'s second paragraph,
+    /// which promises a synthetic request's input arrives exactly as an arrived
+    /// one's does.
+    ///
+    /// Asserted through `Core\Request`'s own members rather than off the spec,
+    /// because what the bag is worth is what the program under test reads back.
+    /// The body is not UTF-8 on purpose: it is the body a `.nvst` case cannot
+    /// write for itself — a case file crosses as text — and the one
+    /// `Core\Request::bytes` exists for.
+    ///
+    /// The derived field lines are the other half. `content-length` is the
+    /// spec's, written because the bag wrote neither it nor a `content-type`,
+    /// and `x-signature` is the bag's own, spelled as the program wrote it.
+    #[test]
+    fn a_synthetic_request_carries_its_headers_and_body_into_the_program() {
+        const BODY: &[u8] = &[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+
+        let mut headers = nvs_runtime::NvsArray::new();
+        headers.set(
+            nvs_runtime::NvsStr::new(b"X-Signature"),
+            Value::str(nvs_runtime::NvsStr::new(b"t=1,v1=deadbeef")),
+        );
+        // The four slots the ABI hands a member, of which this reading uses the
+        // bag's two: the verb is the caller's `verb_of` and the target is a
+        // parameter rather than a slot.
+        let args = [
+            Value::int(0),
+            Value::str(nvs_runtime::NvsStr::new(b"/hooks?since=2")),
+            Value::array(headers),
+            Value::bytes(nvs_runtime::NvsStr::new(BODY)),
+        ];
+        let described =
+            described("POST", "/hooks?since=2", &args).expect("this bag is what the row declares");
+        let mut ctx = Ctx::buffered();
+        ctx.set_inbound(described.build());
+
+        let read = |ctx: &mut Ctx, member, arguments: &[Value]| -> Vec<u8> {
+            let answered = nvs_runtime::call(member, ctx, arguments)
+                .expect("this request carries what it was described with");
+            let octets = answered
+                .as_bytes()
+                .or_else(|| answered.as_text().map(str::as_bytes))
+                .expect("every reader here answers a string or a `bytes`")
+                .to_vec();
+            dropped(answered);
+            octets
+        };
+
+        assert_eq!(
+            read(&mut ctx, crate::request::nvs_core_request_bytes, &[]),
+            BODY,
+            "the bag's body is the request's body, octet for octet"
+        );
+        let signature = Value::str(nvs_runtime::NvsStr::new(b"x-signature"));
+        assert_eq!(
+            read(
+                &mut ctx,
+                crate::request::nvs_core_request_header,
+                &[signature]
+            ),
+            b"t=1,v1=deadbeef",
+            "and its header is a field line the program reads back under that name"
+        );
+        dropped(signature);
+        let length = Value::str(nvs_runtime::NvsStr::new(b"content-length"));
+        assert_eq!(
+            read(&mut ctx, crate::request::nvs_core_request_header, &[length]),
+            b"8",
+            "with the length derived from the body, since the bag declared none"
+        );
+        dropped(length);
+        let since = Value::str(nvs_runtime::NvsStr::new(b"since"));
+        assert_eq!(
+            read(&mut ctx, crate::request::nvs_core_request_query, &[since]),
+            b"2",
+            "and the target's query is split from its path exactly as the door splits one"
+        );
+        dropped(since);
     }
 }

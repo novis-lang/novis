@@ -14929,7 +14929,7 @@ final class CartTest {
 | [`Core\Test::advance`](#core-core-test-advance) | `advance(Core\Time\Duration $by): void` |
 | [`Core\Test::serverUrl`](#core-core-test-serverurl) | `serverUrl(): ?string` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
-| [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path): Core\Test\Response` |
+| [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string\|bytes}): Core\Test\Response` |
 | [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, {json?: mixed, body?: string\|bytes, headers?: array<string\|array<string>>}): void` |
 | [`Core\Test::sentHttp`](#core-core-test-senthttp) | `sentHttp(): array<Core\Test\SentRequest>` |
 | [`Core\Test::answerSocket`](#core-core-test-answersocket) | `answerSocket(string $url, array<string\|bytes> $frames, {protocol?: string}): void` |
@@ -15186,7 +15186,7 @@ Writes down what the next `Core\Cli` prompts will be answered with, so an intera
 #### `Core\Test::request`
 
 ```nvs skip
-Core\Test::request(Core\Http\Method $method, string $path): Core\Test\Response
+Core\Test::request(Core\Http\Method $method, string $path, {headers?: array<string>, body?: string|bytes}): Core\Test\Response
 ```
 
 Runs one request through the program under test in this process — the compiled route table and the real handler chain, with no socket and no port — and answers with what the program wrote.
@@ -15195,6 +15195,8 @@ Runs one request through the program under test in this process — the compiled
 |---|---|---|
 | `$method` | `Core\Http\Method` | The verb the synthetic request carries, matched against the table exactly as an arrived one is. |
 | `$path` | `string` (neutral) | The path to ask for, mount prefix already stripped — what a handler's `#[Route]` is declared against. A `?` and everything after it is the query. |
+| `{headers: …}` | `array<string>` (default `[]`) | The field lines the request carries, keyed by name and spelled as the program under test will read them back. A `content-type` or a `content-length` written here stands; one written for neither is derived from `body`. |
+| `{body: …}` | `string\|bytes` (default `null`) | The octets the request carries, framed by nothing and typed by nothing. Text goes as it is written, and a body that is not text at all — the kind `Core\Request::bytes` exists for — goes as `bytes`. A call naming no body describes a request carrying none, which is not a request carrying an empty one. |
 
 **Returns** `Core\Test\Response` — The status the program declared and the bytes it wrote. A path the table does not claim is still answered: nothing here dispatches, so the program decides what a miss means.
 
@@ -16619,7 +16621,7 @@ The ceiling `memoryHeld()` and `memoryPeak()` are measured against — `[limits]
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method, method, isHead, path, query, queryAs, header, headers, cookie, body, json, jsonAs, bodyStream, files, post, postAs, clientIp, scheme, host, route, mount
+Keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method, method, isHead, path, query, queryAs, header, headers, cookie, body, bytes, json, jsonAs, bodyStream, files, post, postAs, clientIp, scheme, host, route, mount
 
 `Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `query`, `header`, `headers`,
 `cookie` and the body readers, plus `route` and `mount` for where the router put it. There are no
@@ -16704,6 +16706,7 @@ no request here
 | [`Core\Request::headers`](#core-core-request-headers) | `headers(): array<array<tainted string>>` |
 | [`Core\Request::cookie`](#core-core-request-cookie) | `cookie(string $name): ?tainted string` |
 | [`Core\Request::body`](#core-core-request-body) | `body(): tainted string` |
+| [`Core\Request::bytes`](#core-core-request-bytes) | `bytes(): tainted bytes` |
 | [`Core\Request::json`](#core-core-request-json) | `json({maxDepth?: uint}): mixed` |
 | [`Core\Request::jsonAs`](#core-core-request-jsonas) | `jsonAs<T>({maxDepth?: uint}): T` |
 | [`Core\Request::bodyStream`](#core-core-request-bodystream) | `bodyStream(): Core\Request\BodyStream` |
@@ -16847,7 +16850,20 @@ The whole request body, pulled to its end into one string — the buffered way o
 
 **Returns** `tainted string` — Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the request carried no body, which is a different fact from a program that is answering no request at all — that one throws.
 
-**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files` — the three are exclusive on one request.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files` — the three are exclusive on one request.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.; `ParseError` — The body is not UTF-8, and a `string` is UTF-8 for its whole lifetime, so there is no string this could answer with. `bytes()` reads the same octets out of the same hold.
+
+<a id="core-core-request-bytes"></a>
+#### `Core\Request::bytes`
+
+```nvs skip
+Core\Request::bytes(): tainted bytes
+```
+
+The whole request body as the octets it arrived as — `body()`'s reading for a payload that is not text, named after `Core\Response::bytes`, and buffering on the same terms.
+
+**Returns** `tainted bytes` — Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the request carried no body. A body `body()` refuses for not being UTF-8 is an answer here, because `bytes` carries no encoding promise.
+
+**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files`, which keep none of what they read.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
 
 <a id="core-core-request-json"></a>
 #### `Core\Request::json`

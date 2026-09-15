@@ -1,0 +1,40 @@
+--TEST--
+`Core\Test::request`'s bag carries field lines and a body into the program under test, and each reaches it through the member an arrived request would — `rule:testing/in-process-request`
+--FILE--
+<?nvs
+// The two halves a verb and a path do not describe. A header written here
+// stands as it was written; the `content-length` nobody wrote is derived from
+// the body, which is what makes the bag describe a request rather than a
+// half-filled one.
+try {
+    var $answered = Core\Test::request(
+        Core\Http\Method::Post,
+        "/hooks?since=2",
+        {
+            headers: ["X-Signature" => "t=1,v1=deadbeef"],
+            body: "id=7" as bytes
+        }
+    );
+    echo $answered->body();
+} catch (RuntimeError $inside) {
+    // `tainted` on the way in, exactly as an arrived request's input is, so a
+    // handler that forgets to launder one of these fails its test rather than
+    // production.
+    tainted string $signature = Core\Request::header("x-signature") ?? "none";
+    echo "signature ", $signature, "\n";
+    echo "length ", Core\Request::header("content-length") ?? "none", "\n";
+    // One body, read both ways: the bag spelled it as `bytes`, and what the
+    // program gets is a request whose body is those octets and nothing about
+    // how they were described.
+    echo "body ", Core\Request::body(), "\n";
+    echo "octets ", Core\Bytes::length(Core\Request::bytes()), "\n";
+    // The target splits exactly as the door splits one, so the query is the
+    // request's and not part of its path.
+    echo "since ", Core\Request::query("since") as string, "\n";
+}
+--EXPECT--
+signature t=1,v1=deadbeef
+length 4
+body id=7
+octets 4
+since 2

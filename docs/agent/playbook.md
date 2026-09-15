@@ -4997,6 +4997,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   before the reload re-reads it — and the failure arrives as `E0605: cannot read …nvs.toml` from
   inside the server's answer rather than from the case. Give the tree a name of its own
   (`scratch("reload-live-tree")`) and leave the endpoint's to `asked`. [until: reviewed 2026-11-01]
+- **A `.nvst` case cannot carry a body that is not UTF-8.** `--POST_RAW--` crosses to
+  `nvs run --request` as a `String` (`crates/nvs-test/src/request.rs:100`), so nothing in that path
+  spells one. Build the octets in the program instead — `Core\Encoding::fromHex` into
+  `Core\Test::request`'s `body` key. [until: `--BODY--` crosses as octets]
+
+- **`echo` inside an in-process request escapes its string**, so a `--EXPECT--` quoting a throw's
+  message sees `&quot;` and `&#39;`. Write the message with no `"` and no `'` in it, or expect the
+  entities. [until: reviewed 2026-09-15]
 
 ## Splitting a file that got too big
 
