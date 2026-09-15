@@ -328,6 +328,10 @@ fn roster(conn: &mut Wire, now: i64, cutoff: i64) -> io::Result<Vec<String>> {
             let sending = [millis(now), millis(cutoff)];
             framed_roster(&mut framed, &borrowed(&sending))
         }
+        Dialect::SqlServer(tds) => {
+            let sending = [millis(now), millis(cutoff)];
+            tds_roster(tds, &borrowed(&sending))
+        }
         Dialect::Sqlite(sqlite) => sqlite_roster(sqlite, now, cutoff),
     }
 }
@@ -379,6 +383,28 @@ fn framed_roster(framed: &mut Framed<'_>, bound: &[Option<&[u8]>]) -> io::Result
         };
         if let nvs_db::MySqlScalar::Text(name) = nvs_db::mysql::scalar(column, body)? {
             names.push(name.to_string());
+        }
+    }
+    Ok(names)
+}
+
+/// [`roster`] over TDS, which answers one statement's one column as the wire drivers above do.
+///
+/// **Not shared with [`framed_roster`] for [`framed_roster`]'s own reason**, one protocol further
+/// along: a value is read here against the column definition it arrived under too, and
+/// `nvs_db::tds::TdsScalar`'s rows are not `nvs_db::MySqlScalar`'s.
+fn tds_roster(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<Vec<String>> {
+    let mut answered = tds.query(nvs_stdlib::queue::QUEUES_SQLSERVER, bound)?;
+    // Described before the first row for [`postgres_roster`]'s reason, and needed whatever that
+    // reason: `nvs_db::tds::scalar` reads a value against the definition it arrived under.
+    let columns: Vec<nvs_db::tds::TdsColumn> = answered.columns().to_vec();
+    let mut names = Vec::new();
+    while let Some(row) = answered.next_row()? {
+        let (Some(column), Some(body)) = (columns.first(), row.column(0)) else {
+            continue;
+        };
+        if let nvs_db::tds::TdsScalar::Text(name) = nvs_db::tds::scalar(column, body)? {
+            names.push(name.into_owned());
         }
     }
     Ok(names)
@@ -451,6 +477,10 @@ fn claim(conn: &mut Wire, queue: &str, now: i64, cutoff: i64) -> io::Result<Opti
         Dialect::Framed(mut framed) => {
             let sending = wire_claim(queue, now, cutoff);
             framed_claim(&mut framed, &borrowed(&sending), now)
+        }
+        Dialect::SqlServer(tds) => {
+            let sending = wire_claim(queue, now, cutoff);
+            tds_claim(tds, &borrowed(&sending))
         }
         Dialect::Sqlite(sqlite) => sqlite_claim(sqlite, queue, now, cutoff),
     }
@@ -542,6 +572,77 @@ const MAX_ATTEMPTS: usize = 4;
 
 /// `backoff_ms`'s position in the same list, and the last of them.
 const BACKOFF: usize = 5;
+
+/// [`claim`] as one statement in T-SQL: [`nvs_stdlib::queue::CLAIM_SQLSERVER`]'s updating CTE,
+/// which takes the row and answers with it in one round trip as PostgreSQL's does.
+///
+/// **The same walk as [`postgres_claim`] and deliberately not shared with it**, for
+/// [`framed_roster`]'s reason. Every row is drained before the answer is judged, for
+/// [`postgres_claim`]'s reason, and `top 1` inside the statement is what makes that at most one
+/// row.
+fn tds_claim(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<Option<Job>> {
+    let mut answered = tds.query(nvs_stdlib::queue::CLAIM_SQLSERVER, bound)?;
+    // Described before the first row for [`postgres_roster`]'s reason, and read against those
+    // definitions for [`tds_roster`]'s.
+    let columns: Vec<nvs_db::tds::TdsColumn> = answered.columns().to_vec();
+    let mut took = None;
+    while let Some(row) = answered.next_row()? {
+        let (Some(script), Some(args)) = (columns.get(SCRIPT), columns.get(ARGS)) else {
+            continue;
+        };
+        let (Some(script_body), Some(args_body)) = (row.column(SCRIPT), row.column(ARGS)) else {
+            continue;
+        };
+        let nvs_db::tds::TdsScalar::Text(script) = nvs_db::tds::scalar(script, script_body)? else {
+            continue;
+        };
+        // A text column that is null is § 3's job with no payload, which [`postgres_claim`] reads
+        // the same way and for the same reason: it is the ordinary shape of a job that needs none.
+        let args = match nvs_db::tds::scalar(args, args_body)? {
+            nvs_db::tds::TdsScalar::Text(args) => Some(args.into_owned()),
+            _ => None,
+        };
+        // The columns the write-back judges against, every one of them `not null` in the migration
+        // — [`postgres_claim`]'s own comment owns why a row missing one is dropped rather than run.
+        let [Some(id), Some(attempts), Some(max_attempts), Some(backoff)] =
+            [ID, ATTEMPTS, MAX_ATTEMPTS, BACKOFF].map(|at| columns.get(at))
+        else {
+            continue;
+        };
+        let [
+            Some(id_body),
+            Some(attempts_body),
+            Some(max_body),
+            Some(backoff_body),
+        ] = [ID, ATTEMPTS, MAX_ATTEMPTS, BACKOFF].map(|at| row.column(at))
+        else {
+            continue;
+        };
+        let (
+            nvs_db::tds::TdsScalar::Int(id),
+            nvs_db::tds::TdsScalar::Int(attempts),
+            nvs_db::tds::TdsScalar::Int(max_attempts),
+            nvs_db::tds::TdsScalar::Int(backoff_ms),
+        ) = (
+            nvs_db::tds::scalar(id, id_body)?,
+            nvs_db::tds::scalar(attempts, attempts_body)?,
+            nvs_db::tds::scalar(max_attempts, max_body)?,
+            nvs_db::tds::scalar(backoff, backoff_body)?,
+        )
+        else {
+            continue;
+        };
+        took = Some(Job {
+            id,
+            script: script.into_owned(),
+            args,
+            attempts,
+            max_attempts,
+            backoff_ms,
+        });
+    }
+    Ok(took)
+}
 
 /// [`claim`] as the pair MySQL and MariaDB spell it, inside one transaction.
 ///
@@ -926,6 +1027,11 @@ fn report(
             Dialect::Framed(mut framed) => {
                 apply_framed(&mut framed, nvs_stdlib::queue::SUCCEEDED_MYSQL, &lease)
             }
+            // The same two values in the same order once more: a marker carries its own number in
+            // this dialect, so the lease keying is PostgreSQL's numbering rather than a position.
+            Dialect::SqlServer(tds) => {
+                tds_apply(tds, nvs_stdlib::queue::SUCCEEDED_SQLSERVER, &lease)
+            }
             // The same two values again as the integers this driver binds, against the text the
             // arm above sends: what has to survive is the keying and not the spelling.
             Dialect::Sqlite(sqlite) => sqlite_apply(
@@ -964,6 +1070,9 @@ fn report(
                 failed.as_slice(),
                 errors.as_bytes(),
             ),
+            Dialect::SqlServer(tds) => {
+                tds_dead_letter_in_two(tds, &id, &held, failed.as_slice(), errors.as_bytes())
+            }
             Dialect::Sqlite(sqlite) => {
                 sqlite_dead_letter_in_two(sqlite, job.id, held_at, failed_at, &errors)
             }
@@ -998,6 +1107,18 @@ fn report(
                 Some(due.as_slice()),
                 Some(id.as_slice()),
                 Some(held.as_slice()),
+            ],
+        ),
+        // PostgreSQL's order and not the framed one, which that constant's doc owns: a `@pn` is
+        // named where its value is wanted, so the new `run_at` is the third value here as it is
+        // there, and the `set` clause standing left of the `where` forces nothing.
+        Dialect::SqlServer(tds) => tds_apply(
+            tds,
+            nvs_stdlib::queue::RETRY_SQLSERVER,
+            &[
+                Some(id.as_slice()),
+                Some(held.as_slice()),
+                Some(due.as_slice()),
             ],
         ),
         // The same three in the same order, and the order is forced by the same `set` clause: this
@@ -1050,6 +1171,41 @@ fn dead_letter_in_two(
     }
 }
 
+/// § 6's move in T-SQL: the copy, then the delete, inside one transaction.
+///
+/// [`dead_letter_in_two`]'s twin, and its doc owns the whole of why the pair is the shape — the
+/// copy runs first because a `delete` cannot answer with what it removed, and both halves are keyed
+/// on the lease. [`nvs_stdlib::queue::DEAD_LETTER_SQLSERVER`]'s own doc owns why the
+/// `delete … output deleted.* into` this dialect could spell is refused.
+///
+/// The rollback is [`framed_claim`]'s, for its reason.
+fn tds_dead_letter_in_two(
+    tds: &mut nvs_db::TdsConn,
+    id: &[u8],
+    held: &[u8],
+    failed: &[u8],
+    errors: &[u8],
+) -> io::Result<()> {
+    let split = nvs_stdlib::queue::DEAD_LETTER_SQLSERVER;
+    // The two values the copy adds stand before the two the lease is keyed on, exactly as in the
+    // framed pair, because that is where they stand in the text.
+    let copying: [Option<&[u8]>; 4] = [Some(failed), Some(errors), Some(id), Some(held)];
+    let removing: [Option<&[u8]>; 2] = [Some(id), Some(held)];
+    tds.begin(None, false)?;
+    let moved =
+        tds_apply(tds, split.first, &copying).and_then(|()| tds_apply(tds, split.then, &removing));
+    match moved {
+        Ok(()) => {
+            tds.commit()?;
+            Ok(())
+        }
+        Err(refused) => {
+            let _undone = tds.roll_back();
+            Err(refused)
+        }
+    }
+}
+
 /// One statement that answers with no rows, run for its effect.
 ///
 /// [`nvs_db::PgConn::execute_many`] with a single set is what a driver spells that as — there is no
@@ -1067,6 +1223,14 @@ fn apply(conn: &mut nvs_db::PgConn, sql: &str, bound: &[Option<&[u8]>]) -> io::R
 /// visibility window, not an error.
 fn apply_framed(framed: &mut Framed<'_>, sql: &str, bound: &[Option<&[u8]>]) -> io::Result<()> {
     framed.execute_many(sql, &[bound])?;
+    Ok(())
+}
+
+/// [`apply`] over TDS.
+///
+/// The affected count is discarded for [`apply_framed`]'s reason, which is [`report`]'s.
+fn tds_apply(tds: &mut nvs_db::TdsConn, sql: &str, bound: &[Option<&[u8]>]) -> io::Result<()> {
+    tds.execute_many(sql, &[bound])?;
     Ok(())
 }
 
@@ -1239,38 +1403,18 @@ fn open(name: &str, block: &Database) -> Option<Wire> {
             name,
             block
         ),
+        nvs_db::Driver::SqlServer => open_as!(
+            nvs_db::TdsTarget<'_>,
+            nvs_db::TdsConn,
+            nvs_db::tds::DEFAULT_PORT,
+            Wire::SqlServer,
+            name,
+            block
+        ),
         // Its own arm rather than one the macro writes: a SQLite block names a path this process
         // opens itself, so there is no host to resolve, no port to pick and no handshake to bound.
         nvs_db::Driver::Sqlite => sqlite_wire(name, block),
-        // Spelled rather than left to a `_`, exactly as [`crate::queue`]'s applying half spells it:
-        // a driver *gaining* a send path arrives here as a build failure instead of as a refusal
-        // that has stopped being true.
-        nvs_db::Driver::SqlServer => {
-            eprintln!("warning: no queue worker started: {}", sql_server_gap(name));
-            None
-        }
     }
-}
-
-/// [`open`]'s answer for the one driver this command starts no worker over, as a value.
-///
-/// A sentence built here rather than printed inside the arm, because what an operator is told is
-/// itself asserted: that it names the block, names the driver as its vendor spells it, and puts the
-/// gap where it is. Nothing parses it — [`nvs_db::Driver::display_name`]'s own doc is why that
-/// stays true of every sentence that method appears in.
-///
-/// **Where the gap is, is the half that has moved.** `nvs_stdlib::queue` has § 4's statements in
-/// this dialect and sends them (`nvs_stdlib::queue::runs`), so an enqueue against the same block is
-/// accepted and kept; what no arm of [`Wire`] does yet is claim one back, and an operator told
-/// otherwise would go looking in the wrong crate.
-fn sql_server_gap(name: &str) -> String {
-    format!(
-        "`[db.{name}]` names the {} driver, and `nvs queue work` has no send path for it yet — the \
-         gap is this command and not `Core\\Queue`'s statements, which are written in this \
-         dialect, so a `Core\\Queue::push` against the same block is accepted and its job kept \
-         until a worker can claim it",
-        nvs_db::Driver::SqlServer.display_name()
-    )
 }
 
 /// [`open`]'s SQLite half, which resolves a path where every other arm resolves an address.
@@ -1312,8 +1456,9 @@ fn sqlite_wire(name: &str, block: &Database) -> Option<Wire> {
 /// per driver this can open. What every statement below then branches on is the dialect instead,
 /// and [`Wire::dialect`] is the one place a driver narrows to one.
 ///
-/// The driver with no send path is not an arm: [`open`] refuses SQL Server before anything is
-/// connected, so a `Wire` that exists is one § 4's statements can run on.
+/// Every driver `nvs_stdlib::queue::runs` answers for has an arm, so a `Wire` that exists is one
+/// § 4's statements can run on, and a driver gaining a send path arrives here as a build failure
+/// rather than as a refusal that has quietly stopped being true.
 enum Wire {
     /// § 4's and § 6's statements as PostgreSQL's single texts.
     Postgres(nvs_db::PgConn),
@@ -1323,6 +1468,9 @@ enum Wire {
     /// MariaDB, which runs every one of MySQL's texts unchanged over its own framing and its own
     /// authentication roster.
     MariaDb(nvs_db::MariaConn),
+    /// § 4's and § 6's statements as T-SQL, whose claim is one statement and whose dead-letter move
+    /// is a [`nvs_stdlib::queue::Split`].
+    SqlServer(nvs_db::TdsConn),
     /// A file this process opened rather than a socket, running MySQL's own texts — the SQLite
     /// constants beside them in [`nvs_stdlib::queue`] are that dialect and not a copy of it.
     Sqlite(nvs_db::SqliteConn),
@@ -1335,6 +1483,7 @@ impl Wire {
             Wire::Postgres(postgres) => Dialect::Postgres(postgres),
             Wire::MySql(mysql) => Dialect::Framed(Framed::MySql(mysql)),
             Wire::MariaDb(maria) => Dialect::Framed(Framed::MariaDb(maria)),
+            Wire::SqlServer(tds) => Dialect::SqlServer(tds),
             Wire::Sqlite(sqlite) => Dialect::Sqlite(sqlite),
         }
     }
@@ -1357,6 +1506,9 @@ enum Dialect<'a> {
     /// [`nvs_stdlib::queue::CLAIM_MYSQL`] and its siblings, some of them pairs inside one
     /// transaction — and MariaDB runs every one of them unchanged.
     Framed(Framed<'a>),
+    /// [`nvs_stdlib::queue::CLAIM_SQLSERVER`] and its siblings: the claim is one statement as
+    /// PostgreSQL's is, and § 6's move is a pair inside one transaction as the framed one is.
+    SqlServer(&'a mut nvs_db::TdsConn),
     /// [`nvs_stdlib::queue::CLAIM_SQLITE`] and its siblings, every pair inside the immediate
     /// transaction `rule:concurrency/claiming-is-one-statement` makes the mutual exclusion out of.
     Sqlite(&'a mut nvs_db::SqliteConn),
@@ -1602,35 +1754,44 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// The driver this command still has no send path for opens no worker, and the line an
-    /// operator reads names it.
+    /// A `[queue] connection` naming a SQL Server block starts a worker, and the statements that
+    /// worker will send are T-SQL.
     ///
-    /// **Both halves, because neither is the assertion on its own**: a `None` is also what a block
-    /// naming no driver at all answers with, so the sentence is what says this refusal is about the
-    /// backend rather than about a block that could not be read. `rule:core-classes/db-drivers-are-an-enum`'s spelled arm is what
-    /// makes the day this driver gains a send path a build failure instead of a refusal that has
-    /// quietly stopped being true.
+    /// **[`a_sqlite_block_opens_a_queue_worker`]'s claim over a socket**, and that is the whole of
+    /// why this one asks the matrix for an endpoint where its twin makes a temporary file:
+    /// [`super::open`] connects, so the only block that opens is one with a server behind it. A
+    /// process that finds `NVS_DB_MATRIX_DRIVER` unset asserts nothing — [`nvs_db::matrix`]'s own
+    /// rule, and `python tools/db-matrix.py` is what makes this assertion happen, which is why this
+    /// crate is one of that tool's suites.
+    ///
+    /// The seam asserted is [`super::Wire::dialect`] and not the connection, for the twin's reason:
+    /// a block that opened and was then read as another dialect would send a placeholder spelling
+    /// this backend refuses, and only once a job was actually due.
     #[test]
-    fn a_sql_server_block_still_starts_no_worker_and_names_the_driver() {
+    fn a_worker_opens_a_sql_server_queue_block() {
+        let Some(endpoint) = nvs_db::matrix::endpoint() else {
+            return;
+        };
+        if endpoint.driver != nvs_db::Driver::SqlServer {
+            return;
+        }
+        let nvs_db::matrix::Location::Server(server) = endpoint.location else {
+            return;
+        };
         let block = nvs_config::tree::Database {
             driver: Some("mssql".to_owned()),
-            host: Some("127.0.0.1".to_owned()),
-            database: Some("novis_test".to_owned()),
+            host: Some(server.host.clone()),
+            port: Some(server.port),
+            user: Some(server.user.clone()),
+            password: Some(server.password.clone()),
+            database: Some(server.database.clone()),
+            tls_ca_file: Some(server.ca.display().to_string()),
             ..Default::default()
         };
+        let mut wire = super::open("jobs", &block).expect("a SQL Server block opens a worker");
         assert!(
-            super::open("jobs", &block).is_none(),
-            "a SQL Server block opened a worker, and this command has no arm that could send one a \
-             statement"
-        );
-        let said = super::sql_server_gap("jobs");
-        assert!(
-            said.contains(nvs_db::Driver::SqlServer.display_name()),
-            "the refusal is `{said}`, which does not name the driver it is about"
-        );
-        assert!(
-            said.contains("`[db.jobs]`"),
-            "the refusal is `{said}`, which does not name the block that opened nothing"
+            matches!(wire.dialect(), super::Dialect::SqlServer(_)),
+            "the worker opened the block and reads it as some other dialect's statements"
         );
     }
 

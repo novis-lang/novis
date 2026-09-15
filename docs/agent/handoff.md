@@ -2,55 +2,49 @@
 
 ## State
 
-**Goal `m8-db-queue`, stage 7. `Core\Queue` sends its statements over all five backends.**
-`queue::runs` (`crates/nvs-stdlib/src/queue.rs:2640`) answers `true` for every driver, because
-`Queued::SqlServer` is `queue_connection`'s fourth arm and `tds_counted`
-(`crates/nvs-stdlib/src/queue.rs:3608`) is `counted_row`'s fourth send path — so `push`, `status`,
-`cancel`, `delete`, `purge` and `stats` all reach SQL Server. The enqueue is a pair inside a
-transaction (`push_in_tds`, `crates/nvs-stdlib/src/queue.rs:3005`) and reads its id off
-`output inserted.id`, `TdsRows` having no `last_id` at all.
+**Goal `m8-db-queue`, stage 7. The SQL Server leg of the queue is closed at both ends.** A case can
+open one: `Conn::SqlServer` (`crates/nvs-stdlib/tests/queue.rs:249`) holds a `TdsConn`, `Dialect`
+has a third arm, and `rows` renders a T-SQL column through `nvs_db::tds::scalar`. And a worker can
+claim one back: `Wire::SqlServer` (`crates/nvs-cli/src/worker.rs:1473`) with `tds_claim`,
+`tds_roster`, `tds_apply` and `tds_dead_letter_in_two` beside the framed ones, so `open` takes the
+`open_as!` arm every other socket driver takes and `sql_server_gap` is deleted rather than narrowed.
+`tools/db-matrix.py`'s `SUITES` gained `["--bin", "nvs", "worker::"]` for the worker's own case.
 
-**`no_dialect` is deleted rather than narrowed.** Every driver has an arm, so a sixth is a build
-failure at `queue_connection` instead of a sentence a session has to keep true, and the two unit
-tests over that refusal went with it. `queue_runs_on_every_driver`
-(`crates/nvs-stdlib/tests/queue.rs:1162`) is what holds the predicate to the roster now: it asks
-`queue::texts` for every driver's member set and fails a driver `runs` claims but the texts skipped.
-
-**Two things are still unsent.** `nvs queue work` has no SQL Server arm, so a job pushed onto that
-backend is kept and never claimed — the refusal an operator reads says that now, and names this
-command rather than the queue's statements. And no case in `crates/nvs-stdlib/tests/queue.rs` can
-open a SQL Server connection, so nothing in the group below has met a real server yet; the matrix's
-`mssql` leg runs the two caseless tests and skips every other one.
+**Stage 4's matrix check is red on MariaDB alone, and not on anything this goal has left to
+build.** `python tools/db-matrix.py --all --no-up` answers `4/5 drivers ok`: mysql, postgres, mssql
+and sqlite pass and `catalog::tests::an_applied_schema_introspects_back_to_an_empty_plan_on_mariadb`
+fails, deterministically, with *the schema this server was given is not the schema it answers* over
+one step — `ALTER TABLE wide MODIFY COLUMN slug VARCHAR(64)`. The older ledger entries for that
+check are a different failure: it ran without `--no-up` on a cold tree and never reached a driver.
+`docker compose … up -d --wait` over the four services answers `0` today.
 
 ## Next group
 
-**Stage 7: the SQL Server leg, and the worker behind it** — one file set:
-`crates/nvs-stdlib/tests/queue.rs` and `crates/nvs-cli/src/worker.rs`. The send path is landed, so
-what is left is the harness that watches it and the command that claims a job back.
-`rule:concurrency/enqueue-commits-with-your-write` owns the transactional half and
-`rule:concurrency/claiming-is-one-statement` the claim.
+**Stage 4: the MariaDB catalog read-back** — one file set: `crates/nvs-db/src/catalog.rs` and
+`crates/nvs-db/src/ddl.rs`. This is what stage 4's `[[check]]`
+(`docs/agent/loop-goal.toml:10544`) is red on, and it outranks stage 7's remaining work.
+`rule:core-classes/schema-plan` owns what a plan step is and `rule:core-classes/schema-introspection`
+what a catalog reader owes.
 
-- [ ] **`an_enqueue_commits_with_the_write_on_sql_server` does not exist**, and the harness refuses
-      before it can. `Conn` (`crates/nvs-stdlib/tests/queue.rs:228`) has three arms and `Dialect`
-      (`crates/nvs-stdlib/tests/queue.rs:319`) two, so a `Conn::SqlServer` needs its arm in
-      `dialect`, `driver`, `text` (`@p1`), `begin`/`commit`/`roll_back` and `depth`, a `TdsTarget`
-      arm in `open` (`crates/nvs-stdlib/tests/queue.rs:175`), and a rendering arm in `rows`
-      (`crates/nvs-stdlib/tests/queue.rs:514`) over `nvs_db::tds::scalar` — which is where the work
-      is, the other two arms rendering `PgScalar` and `MySqlScalar`. Then a `sqlserver()` gate beside
-      `framed()` (`crates/nvs-stdlib/tests/queue.rs:117`) and the case itself, in
-      `an_enqueue_commits_with_the_write_that_made_it`'s shape.
-- [ ] **`a_worker_opens_a_sql_server_queue_block` does not exist**, and `open`
-      (`crates/nvs-cli/src/worker.rs:1202`) still answers `None` for the driver. It needs a `Wire`
-      arm (`crates/nvs-cli/src/worker.rs:1311`) and a `Dialect` one
-      (`crates/nvs-cli/src/worker.rs:1348`) sending `CLAIM_SQLSERVER`, `SUCCEEDED_SQLSERVER`,
-      `RETRY_SQLSERVER` and `DEAD_LETTER_SQLSERVER` — all four are in `queue::texts` already — and
-      it deletes `sql_server_gap` (`crates/nvs-cli/src/worker.rs:1266`) and the test over it
-      (`crates/nvs-cli/src/worker.rs:1614`) the way this session deleted `no_dialect`.
+- [ ] **A `varchar(64)` this emitter applied reads back as a column that plans a `MODIFY` to
+      `VARCHAR(64)` again**, so an applied schema does not introspect to an empty plan on this
+      driver. The assertion is `crates/nvs-db/src/catalog.rs:2275`, inside the shared
+      `introspects_back_to_an_empty_plan`, and the case that hands it this connection is
+      `crates/nvs-db/src/catalog.rs:2332`. MySQL's own leg passes that same shared body, so what
+      differs is one server's `information_schema` answer rather than the shape of the reader.
+- [ ] **Re-run the whole matrix before calling it closed** — `python tools/db-matrix.py --all
+      --no-up` with the containers already healthy, which is the check's own argv minus the
+      bring-up. Its `want` list is the five `<driver>: ok` lines at
+      `docs/agent/loop-goal.toml:10551`.
 
 ## Backlog
 
-- `a_dead_lettered_row_carries_every_attempts_error` is stage 7's third check and is `-p nvs-cli`'s
-  — `docs/agent/loop-goal.toml:10669`.
+- Stage 7's remainder is the `errors` array: no `RETRY_*` text writes that column
+  (`crates/nvs-stdlib/src/queue.rs:554`, `:946`, `:962`), so a retry appends nothing.
+- `dead_errors` (`crates/nvs-stdlib/src/queue.rs:977`) answers the exhausting attempt alone, and
+  `report` (`crates/nvs-cli/src/worker.rs:1044`) binds it into a move that never reads the column.
+- `a_dead_lettered_row_carries_every_attempts_error` exists nowhere; it is `-p nvs-cli`'s
+  (`docs/agent/loop-goal.toml:10669`), beside `crates/nvs-cli/src/worker.rs:1771`.
 - The `unowned`-tagged gaps in `crates/nvs-stdlib/src/queue.rs` and `crates/nvs-stdlib/src/db/mod.rs`
   are goal `unowned-closures`', per this goal's § *Standing decisions*.
 - `crates/nvs-db/src/tds/rows.rs` has no `last_id`; nothing needs one while `output inserted.id`

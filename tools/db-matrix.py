@@ -113,12 +113,20 @@ TEST_TIMEOUT = 900
 #: `rule:core-classes/db-streaming`'s promises sit in that crate for a nearer reason: they are
 #: `Core\Db\Connection::stream`'s rather than any one driver's read state, and one case asserting
 #: them on whichever driver the leg named is what makes *answers on all five* a measurement.
-#: `crates/nvs-stdlib/tests/db_stream.rs` is that case. Narrowed to those two targets on purpose:
-#: the rest of `nvs-stdlib`'s suite asks a server nothing, and every driver leg would pay for it.
+#: `crates/nvs-stdlib/tests/db_stream.rs` is that case. And `nvs queue work` opens its own
+#: connection rather than taking one from a pool, so the block that a worker reads as a dialect is
+#: `crates/nvs-cli`'s to answer for; the last entry is the unit test that opens one.
+#:
+#: Every entry is narrowed to the targets that ask a server something, and the last one further to
+#: the module: the rest of each crate's suite asks nothing, and every driver leg would pay for it.
+#: The last entry names no `-p` because it does not need one -- a `--bin` names one target in one
+#: package already, and a `-p` would resolve features over that package alone and rebuild the
+#: workspace beside itself.
 SUITES = (
     ["-p", "nvs-db"],
     ["-p", "nvs-stdlib", "--test", "queue"],
     ["-p", "nvs-stdlib", "--test", "db_stream"],
+    ["--bin", "nvs", "worker::"],
 )
 
 #: What the driver with no server runs on top of `SUITES`, and nothing else does.
