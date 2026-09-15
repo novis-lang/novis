@@ -265,33 +265,9 @@
 //!    Decided: Split stands: a shape mismatch is a ParseError, as for Json::decodeAs — One class for
 //!    'data does not fit the type' across Json and Db, and no spec change.
 //!    — owner: unowned-closures
-//! 3. **§ 18's roster is registered whole, and the four wire drivers' walks
-//!    are asserted only where a server is reachable.** `crates/nvs-stdlib/tests/db_stream.rs`
-//!    is that home and `python tools/db-matrix.py --all` is what runs it, so an
-//!    ordinary `python tools/verify.py` proves the member against SQLite alone
-//!    — the one backend a `.nvst` case can reach. **`stream` and `streamAs`
-//!    land on all five drivers**: each parks its own read state off the borrow
-//!    that opened it — `nvs_db::PgCursor`, `nvs_db::MySqlCursor` for the two
-//!    drivers that share one row loop, `nvs_db::TdsCursor`, and
-//!    `nvs_db::SqliteCursor`, which is a pool thread holding the statement
-//!    because a `rusqlite` cursor cannot be parked in a field. No driver
-//!    substitutes a buffer, which would be the worse answer twice over: it
-//!    breaks the member's one promise, constant memory, and it breaks § 4's
-//!    *uniform* connection-busy rule, which is there so that a program written
-//!    against one driver runs on all five. The two members differ in one slot,
-//!    [`STREAM_CLASS_SLOT`], exactly as `query` and `queryAs` differ in
-//!    [`ROWS_CLASS_SLOT`]. Of § 18's rows beyond the interface, `close` goes
-//!    over [`nvs_runtime::Ctx::close_open_connection`], which is § 13's release
-//!    reached early for one connection, and `serverVersion` answers the string
-//!    each driver kept from its own handshake and costs no round trip. On the
-//!    result side [`ROWS`] owes nothing: all six of § 18's members are
-//!    registered, `columns()` among them. What that member cannot answer is
-//!    one field rather than a member — [`COLUMN_NULLABLE_DOC`] states it — and
-//!    it is a property of the PostgreSQL wire and not a gap in this module.
-//!    — owner: m8-db-queue
-//! 4. **A skipped field's constructor default is a fatal, and the refusals ride
-//!    on the wrong class.** [`hydrate`] is the walk over
-//!    [`nvs_runtime::ClassDesc::db_codec`], reached per result set on
+//! 3. **A constructor parameter no codec field fills is a fatal rather than
+//!    `rule:core-classes/derive-field-list`'s default.** [`hydrate`] is the
+//!    walk over [`nvs_runtime::ClassDesc::db_codec`], reached per result set on
 //!    `queryAs<T>` and per step on `streamAs<T>`. Every way a call is answered
 //!    *no* is a property of the call site or of the class, and
 //!    `nvs_types::derive`'s `check_row_sites` says all of them as `E0806` while
@@ -300,12 +276,12 @@
 //!    erasure gave no wire type; and a mapping that fills fewer parameters than
 //!    the constructor declares. The run-time refusals stay under the compiling
 //!    pass as the backstop for a class built by hand, and each says so. What is
-//!    left here is two smaller things: a constructor parameter no codec field
-//!    fills is a fatal rather than `rule:core-classes/derive-field-list`'s
-//!    default, for `crate::json`'s reason, and the refusals carry § 5's
-//!    `issues` on a `ParseError` because `Db\DbError` has no `issues` slot to
-//!    carry them — gap 2's other half.
-//!    — owner: m8-db-queue
+//!    left is the skipped field itself: its default is a constant the *call
+//!    site* emits and a hydration has no call site, so [`hydrate`] is loud
+//!    rather than filling a `null` that would be right for one declaration in
+//!    ten. What such a field is on the wire before either end can carry it is
+//!    `crate::json`'s gap 1, the same knot at the other door.
+//!    — owner: m8-stdlib-depth
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 

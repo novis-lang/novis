@@ -41,62 +41,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A reachable type whose decoder is not written yet is still
-//!    [`CodecTy::Opaque`].** § 2's compile-time refusal is applied — see
-//!    [`resolve_field_types`] — but it names only the types that can never
-//!    have a wire form. An inline shape reached as a field is *reachable* and
-//!    erases to `Opaque` here, so a `decodeAs<T>` over one still refuses at run
-//!    time; the decoder it needs is `nvs_stdlib::json`'s own gap, and keeping
-//!    the two apart is why this module refuses a type rather than refusing an
-//!    `Opaque`.
-//!
-//!    **A `decimal`, a `bytes` and an `Instant` are no longer among them.**
-//!    Each erases to a [`CodecTy`] of its own, so both doors can tell it from
-//!    the `Opaque` that means a missing decoder and from the [`CodecTy::Class`]
-//!    that means a nested one.
-//!
-//!    **An enum is no longer one of them either.** It erases to
-//!    [`CodecTy::Enum`] carrying [`DerivedField::cases`], the roster of
-//!    backing values [`nvs_stdlib::EnumCases`] describes — the enum's *name*
-//!    never travels, because `rule:enums/representation` leaves a case indistinguishable
-//!    from the integer behind it and a decoder therefore has nothing to look
-//!    the name up in.
-//!
-//!    **A nested class is no longer one of them.** It erases to
-//!    [`CodecTy::Class`] carrying [`DerivedField::class`], the label the
-//!    *declaration* can state; the descriptor it names is resolved by
-//!    `nvs-codegen`, after every class of the unit is defined, because § 2
-//!    admits a class holding a field of its own type and a table cannot point
-//!    at a descriptor it has not built. That split — a label out of the front
-//!    end, a pointer out of the back end — is what this design call decided,
-//!    against the alternative of a decoder that reads the class name off the
-//!    document; the document is untrusted and the checker has already named
-//!    the class, so asking it again would let the input choose which
-//!    constructor runs.
-//!    — owner: m8-db-queue
-//! 2. **A [`Format::Db`] codec is recorded, and the decoder behind it cannot
-//!    read the types gap 1 erases.** The checking half is whole — the roster,
-//!    the nominal match, §§ 2, 3, 5 and 7's rules and `rule:core-classes/db-column-types`'s type map are all
-//!    asked of a `#[Db\Derive]` class, and [`check_row_sites`] asks the last
-//!    of them again of the class a `queryAs<T>` *wrote* — and
-//!    [`crate::ExprTypeTable::db_codec`]
-//!    holds the answer the driver half reads back. `nvs_stdlib::db::row`'s
-//!    `hydrate` is that reader, and it builds the class one row at a time.
-//!    What it cannot build is a field this pass flattened to
-//!    [`CodecTy::Opaque`]: an inline shape, and an `array<array<T>>` the type
-//!    map already refuses. A `decimal`, a `bytes` and each of
-//!    [`DB_COLUMN_CLASSES`]'s value types carry a wire type the reader has a
-//!    case for.
-//!
-//!    **A class that wrote `Core\Db\Codec`'s one member is not in this gap.**
-//!    It records no mapping at all — `rule:core-classes/derive-generates-what-is-missing`
-//!    leaves an attribute beside it nothing to generate, which is why the two
-//!    together are [`code::E_DERIVE_BOTH_HALVES`] — so [`check_row_sites`]
-//!    admits the call site on the strength of the declared `fromRow` and
-//!    `nvs_stdlib::db::row`'s `hydrate` hands it the row. Nothing on that path
-//!    is erased, so there is no case for the reader to be missing.
-//!    — owner: m8-db-queue
-//! 3. **[`check_row_sites`] has no `Core\Json::decodeAs` half.** The two
+//! 1. **[`check_row_sites`] has no `Core\Json::decodeAs` half.** The two
 //!    members share [`crate::expr::args::written_class_of`]'s lookup and do
 //!    not share a rule: `decodeAs<array<T>>` is a JSON array document and is
 //!    legitimate, and a document is a tree, so "the mapping cannot fill the
@@ -532,7 +477,7 @@ pub fn shape_class_label(sorted_fields: &[String]) -> String {
 /// [`DB_COLUMN_CLASSES`] that are not an `Instant` erase to [`CodecTy::Class`]
 /// and are told from a codec-carrying class by their label alone, which is what
 /// `nvs_stdlib::db::row` reads. § 2's compile-time refusal of a genuinely
-/// unreachable type is this module's gap 3.
+/// unreachable type is this module's gap 1.
 /// An inline shape is `Opaque` here, because a shape reached as a derived
 /// class's *field* is a nested decode this row has no room to describe; a shape
 /// written as the whole type argument goes through [`shape_codec`] instead,
@@ -677,8 +622,8 @@ pub struct CodecFieldSite {
 /// erases to [`CodecTy::Opaque`] and is refused by `nvs_stdlib::json` when a
 /// `decodeAs<T>` runs, which is that crate's missing decoder and not a
 /// contract error. Refusing an `Opaque` here would report it as if the
-/// program were wrong — so the test is over the declared type, and this
-/// module's gap 2 owns the difference.
+/// program were wrong — so the test is over the declared type, and
+/// `nvs_stdlib::json`'s gap 1 owns the difference.
 pub(crate) fn resolve_field_types(
     sites: &[CodecFieldSite],
     signatures: &crate::signatures::SignatureTable,
@@ -1205,8 +1150,8 @@ fn class_has_codec(
                 // A `Core` value type — § 2's `Instant`, `Duration`, `Uuid`
                 // and their siblings — declares no member for this to find:
                 // which of them has a wire form is `nvs_stdlib::json`'s
-                // roster, not this pass's, and gap 2 is where the missing
-                // decoders are owed.
+                // roster, not this pass's, and that crate's gap 1 is where
+                // the missing decoders are owed.
                 || label.starts_with(r"Core\")
         }
         // A name with no signature is a name that did not resolve, and that

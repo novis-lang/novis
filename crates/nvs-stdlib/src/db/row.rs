@@ -206,7 +206,7 @@ pub(super) unsafe fn hydrate(
         release_all(&ctor_args);
         return Err(Fault::fatal(format!(
             "{QUERY_AS}: `{}`'s constructor parameter {index} is not a codec field, and a \
-             skipped field's default is `nvs_stdlib::db`'s own known gap 8",
+             skipped field's default is `nvs_stdlib::db`'s own known gap 3",
             desc.name()
         )));
     }

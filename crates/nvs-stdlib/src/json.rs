@@ -135,7 +135,7 @@
 //!    was handed, and [`decode_field`] refuses on reaching it inside a nested
 //!    one. What is left to decide is what each of those is on the wire before
 //!    either end can carry it — an `Instant` is RFC 3339 text — and
-//!    `crate::db`'s gap 4 is the same knot at the other door.
+//!    `crate::db`'s gap 3 is the same knot at the other door.
 //!    — owner: m8-stdlib-depth
 //!
 //!    A `decimal` is settled and landed at both ends: it is a JSON **string**,
