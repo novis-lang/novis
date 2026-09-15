@@ -5192,6 +5192,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `($a == $b) as string`, or better render the member's own text (`$at->toIso()`) so the line asserts a
   value rather than a `bool`.
   [until: reviewed 2026-09-16]
+- **A `Core` class reached only through an `array<T>` return is held by no case that does not
+  name it.** `crates/nvs-stdlib/tests/corpus/mod.rs`'s `Attribution` follows a `CoreTy::Instance`
+  return to the class it builds and stops there, so `$info->methods()` then `$row->name()`
+  attributes nothing to `Core\Reflect\MethodInfo` and the floor of three fails over members the
+  case plainly asks. Write the class's own name in, which a `foreach (… as Core\Reflect\MethodInfo
+  $row)` binding already does.
+  [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:CoreTy::Instance(made)]
 
 ## Splitting a file that got too big
 

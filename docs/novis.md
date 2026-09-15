@@ -185,6 +185,7 @@ Conventions the whole file uses:
 | [`Core\RateLimit\Decision`](#core-core-ratelimit-decision) |  |
 | [`Core\Reflect`](#core-core-reflect) |  |
 | [`Core\Reflect\ClassInfo`](#core-core-reflect-classinfo) |  |
+| [`Core\Reflect\MethodInfo`](#core-core-reflect-methodinfo) |  |
 | [`Core\Ast`](#core-core-ast) |  |
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
 | [`Core\Db`](#core-core-db) |  |
@@ -22219,12 +22220,14 @@ Which of the language's representations `$value` currently holds. The single rep
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`
 
-Keywords: name, properties, get, set, call
+Keywords: name, properties, methods, hasMethod, get, set, call
 
 | Member | Signature |
 |---|---|
 | [`Core\Reflect\ClassInfo->name`](#core-core-reflect-classinfo-name) | `name(): string` |
 | [`Core\Reflect\ClassInfo->properties`](#core-core-reflect-classinfo-properties) | `properties(): array<string>` |
+| [`Core\Reflect\ClassInfo->methods`](#core-core-reflect-classinfo-methods) | `methods(): array<Core\Reflect\MethodInfo>` |
+| [`Core\Reflect\ClassInfo->hasMethod`](#core-core-reflect-classinfo-hasmethod) | `hasMethod(string $name): bool` |
 | [`Core\Reflect\ClassInfo->get`](#core-core-reflect-classinfo-get) | `get(mixed $object, string $name): mixed` |
 | [`Core\Reflect\ClassInfo->set`](#core-core-reflect-classinfo-set) | `set(mixed $object, string $name, mixed $value): void` |
 | [`Core\Reflect\ClassInfo->call`](#core-core-reflect-classinfo-call) | `call(mixed $object, string $name, array<mixed> $arguments): mixed` |
@@ -22250,6 +22253,32 @@ $classInfo->properties(): array<string>
 The described class's property names, in slot order — every ancestor's first, then its own.
 
 **Returns** `array<string>` — One name per property code outside the class may read, `$`-sigil excluded. A `private` or `protected` property is not among them: reflection has the visibility ordinary code has, and no way to widen it.
+
+<a id="core-core-reflect-classinfo-methods"></a>
+#### `Core\Reflect\ClassInfo->methods`
+
+```nvs skip
+$classInfo->methods(): array<Core\Reflect\MethodInfo>
+```
+
+The described class's methods — its own and every inherited one — each with its name, its visibility and how many parameters it declares. Replaces `get_class_methods`.
+
+**Returns** `array<Core\Reflect\MethodInfo>` — One `Core\Reflect\MethodInfo` per declared method, in name order, and a method the calling site could not call is among them carrying `isPublic() === false`. Naming a method is not calling it, which is why the roster is complete and `Core\Reflect\ClassInfo::call` is where the check is made.
+
+<a id="core-core-reflect-classinfo-hasmethod"></a>
+#### `Core\Reflect\ClassInfo->hasMethod`
+
+```nvs skip
+$classInfo->hasMethod(string $name): bool
+```
+
+Reports whether the described class declares or inherits a method named `$name`. Replaces `method_exists`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The method's name, as the declaration writes it and as `methods` spells it. |
+
+**Returns** `bool` — `true` for a method the class answers for at any visibility, `false` for a name it declares none of — so a refusal to call tells a `private` method from a misspelling.
 
 <a id="core-core-reflect-classinfo-get"></a>
 #### `Core\Reflect\ClassInfo->get`
@@ -22306,6 +22335,50 @@ Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility
 **Returns** `mixed` — Whatever the method returned, with its own declared type erased to `mixed`.
 
 **Throws** `LogicError` — `$name` is not `public`, names no method of the class, or names a `Core` member; or `$arguments` has fewer entries than the method declares, or an entry whose type the parameter does not accept. Every one of these is the refusal an ordinary call through an erased receiver meets, raised by that same check rather than by a second one written here.; `RuntimeError` — `$object` is not an object at all. A `$object` that is an object but not an instance of the described class is the `LogicError` above.
+
+<a id="core-core-reflect-methodinfo"></a>
+### `Core\Reflect\MethodInfo`
+
+Keywords: name, isPublic, parameterCount
+
+| Member | Signature |
+|---|---|
+| [`Core\Reflect\MethodInfo->name`](#core-core-reflect-methodinfo-name) | `name(): string` |
+| [`Core\Reflect\MethodInfo->isPublic`](#core-core-reflect-methodinfo-ispublic) | `isPublic(): bool` |
+| [`Core\Reflect\MethodInfo->parameterCount`](#core-core-reflect-methodinfo-parametercount) | `parameterCount(): uint` |
+
+<a id="core-core-reflect-methodinfo-name"></a>
+#### `Core\Reflect\MethodInfo->name`
+
+```nvs skip
+$methodInfo->name(): string
+```
+
+The method's name, as the declaring class writes it.
+
+**Returns** `string` — The name with no class qualifier and no parentheses — what `hasMethod` and `call` take.
+
+<a id="core-core-reflect-methodinfo-ispublic"></a>
+#### `Core\Reflect\MethodInfo->isPublic`
+
+```nvs skip
+$methodInfo->isPublic(): bool
+```
+
+Whether code outside the declaring class may call the method.
+
+**Returns** `bool` — `false` for a `private` or `protected` method, which is still listed: knowing that a method exists and may not be called is what tells a refusal from a misspelling, and neither answer reaches any state the declaration did not expose.
+
+<a id="core-core-reflect-methodinfo-parametercount"></a>
+#### `Core\Reflect\MethodInfo->parameterCount`
+
+```nvs skip
+$methodInfo->parameterCount(): uint
+```
+
+How many parameters the method declares, excluding the implicit receiver.
+
+**Returns** `uint` — The count an argument list is judged against — the same number a call through `Core\Reflect\ClassInfo::call` must supply.
 
 <a id="core-core-ast"></a>
 ### `Core\Ast`
