@@ -44,6 +44,8 @@ create table nvs_jobs (
     created_at bigint not null,
     claimed_at bigint,
     errors text,
+    grants text,
+    limits text,
     constraint nvs_jobs_dedupe unique (dedupe_pending)
 )
 SQL;

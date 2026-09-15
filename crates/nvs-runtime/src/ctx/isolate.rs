@@ -663,6 +663,22 @@ impl Ctx {
             .is_none_or(|kept| kept.contains(&cap))
     }
 
+    /// The same narrowing as a list — what a `grants:` left this context able to
+    /// ask for, and `None` for one no spawn narrowed.
+    ///
+    /// [`Self::grants_allow`] answers the question a door asks, and this answers
+    /// the one a caller that is going to *carry* the narrowing asks:
+    /// `Core\Queue::push` records it with the job so the isolate that runs the
+    /// job is held to it
+    /// (`rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`).
+    /// Handing the list out widens nothing — the names are the parent's own, and
+    /// applying them anywhere still goes through
+    /// [`crate::capability::granted`], which asks the configuration underneath.
+    #[must_use]
+    pub fn grant_filter(&self) -> Option<&[nvs_config::capability::Cap]> {
+        self.grant_filter.as_deref()
+    }
+
     /// The base of the static-property storage compiled code loads inline —
     /// the word at [`STATICS_OFFSET`], handed out rather than re-derived.
     ///

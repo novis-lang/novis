@@ -74,15 +74,15 @@
 //!    **What they wait on is enforcement.** A job runs as a root isolate
 //!    (`rule:concurrency/a-job-runs-as-a-root-isolate`) and the isolate half applies neither: the
 //!    spawn's own `limits:` and `grants:` are checked where they are written
-//!    (`nvs_types::expr::isolate`) and no sub-cap or narrowing reaches a child, so a row recording
-//!    either would be
-//!    `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s accepted-and-dropped narrowing,
-//!    which hands the job the authority its request meant to give up. Undeclared *is* the refusal
-//!    here: a bag reports a key it does not declare
+//!    (`nvs_types::expr::isolate`) and no sub-cap or narrowing reaches a child. A *declared* option
+//!    would therefore be `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
+//!    accepted-and-dropped narrowing, which hands the job the authority its request meant to give
+//!    up, and undeclared *is* the refusal: a bag reports a key it does not declare
 //!    (`rule:core-api/shape-reuses-the-option-diagnostics`), so `{grants: …}` is a diagnostic today
-//!    and stays one until the narrowing
-//!    `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` asks for is applied to the
-//!    isolate the worker starts.
+//!    and stays one until the isolate the worker starts applies what the row carries. What it
+//!    carries meanwhile is the enqueuing context's own narrowing ([`grants_recorded`],
+//!    [`limits_recorded`]) — a fact about the request rather than a request from the call site, so
+//!    it widens nothing while the isolate half is unbuilt.
 //!    — owner: m8-db-queue
 //! 2. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
 //!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
@@ -293,6 +293,17 @@ const KEY_WIDTH: u32 = 255;
 /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `purge` alone, which is what makes
 /// the pair one column and one index rather than a feature.
 ///
+/// **`grants` and `limits` are the enqueuing context's own narrowing, held as text.**
+/// `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` has a job run under what the
+/// request that enqueued it held, so the row carries the two halves
+/// [`nvs_runtime::host::Narrowing`] carries: a JSON array of the capability names a `grants:` left
+/// that context able to ask for, and a JSON object of the `[limits]` keys in force on it with the
+/// text each was written as. Null on either side is a context that narrowed that half of nothing,
+/// and a job held to the deployment's own ceiling — which is what a narrowing sits under rather
+/// than beside. [`grants_recorded`] and [`limits_recorded`] are where each is read off the context.
+/// Neither column is on [`DEAD_TABLE`]: a dead-lettered job is never run again, and what that row
+/// is kept for is the failure its attempts recorded.
+///
 /// **A live queue converges onto it by one `Safe` step per table and one `Locking` index build.**
 /// A nullable column with no default is a catalog write on all four dialects, which is the whole
 /// reason `tag` is declared that way; the index over `(queue, tag)` is built over every row that is
@@ -300,10 +311,12 @@ const KEY_WIDTH: u32 = 255;
 /// concurrently as `Locking`. So `nvs queue migrate` takes the columns unasked and the index with
 /// `--including-risky`, and a deployment that is not ready for the build has the column regardless.
 ///
-/// **What it spends:** two indexed [`KEY_WIDTH`]-wide columns per job row. `dedupe_pending` is what
-/// a partial index costs nothing for — priority 5 spent to buy one spelling everywhere the queue
-/// runs instead of two spellings on two backends — and `tag` is one more, written once by `push`
-/// and read by no statement a request or a worker runs.
+/// **What it spends:** two indexed [`KEY_WIDTH`]-wide columns per job row, plus the two documents
+/// `grants` and `limits` hold. `dedupe_pending` is what a partial index costs nothing for —
+/// priority 5 spent to buy one spelling everywhere the queue runs instead of two spellings on two
+/// backends — and `tag` is one more, written once by `push` and read by no statement a request or a
+/// worker runs. The narrowing pair is bounded by the capability roster and the `[limits]` keys
+/// rather than by anything a caller writes, and both are written once and released with the row.
 ///
 /// Every identifier below is a literal this module wrote, so a refusal from the builders is a bug
 /// in this function rather than bad input, and the `expect` says which.
@@ -317,8 +330,8 @@ pub fn schema() -> nvs_db::Schema {
     let big = || ScalarType::Int(IntWidth::Big);
     let int = || ScalarType::Int(IntWidth::Normal);
     // Indexed text is bounded and payload text is not: `queue`, `tag` and the two dedupe columns
-    // are read by a key, while `script`, `args` and `errors` are a path and two JSON documents that
-    // no index ever covers.
+    // are read by a key, while `script`, `args`, `errors`, `grants` and `limits` are a path and the
+    // JSON documents no index ever covers.
     let short = || ScalarType::Text {
         max: Some(KEY_WIDTH),
     };
@@ -350,6 +363,8 @@ pub fn schema() -> nvs_db::Schema {
             // `crates/nvs-cli/src/worker.rs` reads the claim's columns by position, so this list and
             // [`CLAIM_POSTGRES`]'s `returning` gain their newest column at the same end.
             named("errors", long()).null(),
+            named("grants", long()).null(),
+            named("limits", long()).null(),
         ],
     )
     .and_then(|table| table.primary_key(&["id"]))
@@ -402,10 +417,12 @@ pub fn schema() -> nvs_db::Schema {
 /// no parameter at all; a repeated bound slot in [`INSERT_MYSQL`]'s array is what it costs the
 /// other one.
 ///
-/// **`tag` is bound last and written to one column**, because it is the newest of the job's own
-/// values and `crates/nvs-cli/src/worker.rs` reads the claim's columns by position — a value added
-/// anywhere but the end of a list here is a column list a session has to check against every other
-/// statement. It has no second column for the reason
+/// **The job's own values are bound in the order [`schema`] declares their columns, and a value
+/// added to the job joins the end.** `crates/nvs-cli/src/worker.rs` reads the claim's columns by
+/// position, so a value written anywhere but the end is a column list a session has to check
+/// against every other statement: `tag` sits after `created_at`, and after it the narrowing
+/// [`grants_recorded`] and [`limits_recorded`] read off the enqueuing context. `tag` writes one
+/// column and has no `_pending` twin for the reason
 /// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them` gives: nothing releases a tag.
 ///
 /// The trailing `union all` is what makes the answer one row in both cases: a deduped push answers
@@ -422,9 +439,9 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
  ), inserted as (\
      insert into nvs_jobs \
      (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-      dedupe_pending, created_at, tag) \
+      dedupe_pending, created_at, tag, grants, limits) \
      select $2::text, $3::text, $4::text, $5::smallint, 0, $6::int, $7::bigint, $8::bigint, \
-            $1::text, $1::text, $9::bigint, $10::text \
+            $1::text, $1::text, $9::bigint, $10::text, $11::text, $12::text \
      where not exists (select 1 from existing) \
      returning id\
  ) select id from inserted union all select id from existing limit 1";
@@ -676,8 +693,8 @@ pub const INSERT_MYSQL: Split = Split {
     first: "select id from nvs_jobs where dedupe_pending = ? limit 1 for update",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at, tag) \
-           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
+           dedupe_pending, created_at, tag, grants, limits) \
+           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 };
 
 /// [`INSERT_MYSQL`] on the backend with one writer, which is that pair with the locking clause
@@ -704,8 +721,8 @@ pub const INSERT_SQLITE: Split = Split {
     first: "select id from nvs_jobs where dedupe_pending = ? limit 1",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at, tag) \
-           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
+           dedupe_pending, created_at, tag, grants, limits) \
+           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 };
 
 /// The same enqueue in T-SQL, as a [`Split`] for [`INSERT_MYSQL`]'s reason and one of its own.
@@ -731,10 +748,11 @@ pub const INSERT_SQLSERVER: Split = Split {
     first: "select top 1 id from nvs_jobs with (updlock, holdlock) where dedupe_pending = @p1",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at, tag) \
+           dedupe_pending, created_at, tag, grants, limits) \
            output inserted.id \
            values (@p1, @p2, @p3, cast(@p4 as smallint), 0, cast(@p5 as int), \
-           cast(@p6 as bigint), cast(@p7 as bigint), @p8, @p9, cast(@p10 as bigint), @p11)",
+           cast(@p6 as bigint), cast(@p7 as bigint), @p8, @p9, cast(@p10 as bigint), @p11, \
+           @p12, @p13)",
 };
 
 /// [`CLAIM_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -2551,6 +2569,57 @@ fn max_attempts_of(args: &[Value], configured: u32) -> Result<u32, Fault> {
     Ok(u32::try_from(written).unwrap_or(u32::MAX))
 }
 
+/// The `[limits]` keys [`limits_recorded`] records, which are the `Runtime` half of that block
+/// something enforces.
+///
+/// `max_tasks` is `Runtime` too and is read by no scheduler
+/// (`nvs_config::tree::Limits::max_tasks`), so recording it would put a value on the row that no
+/// isolate applies; the reserves and the recursion ceiling are `System`, which a request may not
+/// set and so a narrowing may not carry.
+const RECORDED_LIMITS: &[&str] = &["memory", "cpu_time", "wall_time", "max_output"];
+
+/// The capability names the enqueuing context may still ask for, as the JSON array the row's
+/// `grants` column holds — `None` for a context no spawn narrowed.
+///
+/// **The narrowing, and not an enumeration of what the context holds.**
+/// `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` has a job's grants narrowed
+/// from the enqueuing context's and never widened, and a name list is what narrows: applied over
+/// the configuration the worker's own context carries, it can only ever subtract, exactly as
+/// `spawn script`'s `grants:` does (`rule:security/isolate-shares-nothing`). A list of
+/// capabilities read *out* of one configuration and applied against another would carry none of
+/// the scopes that made them safe — `fs.read` recorded off a request granted one directory, and
+/// applied where the file grants two, is the widening this member exists to refuse. So `None` is a
+/// job held to the deployment's own grants, which is the ceiling a narrowing sits under.
+fn grants_recorded(kept: Option<&[nvs_config::capability::Cap]>) -> Option<String> {
+    let names = kept?
+        .iter()
+        .map(|cap| serde_json::Value::from(cap.name()))
+        .collect();
+    Some(serde_json::Value::Array(names).to_string())
+}
+
+/// The `[limits]` keys in force on the enqueuing context and the text each is written as, as the
+/// JSON object the row's `limits` column holds — `None` for a context under no cap at all.
+///
+/// **Text, through the reader `Core\Config::get` already is.** A sub-cap crosses to an isolate in
+/// the spelling `nvs.toml` writes the same directive in ([`nvs_runtime::host::Narrowing`]), and
+/// `nvs_config::Request::set` is what refuses a value wider than the one in force — so a row
+/// carrying the written words is applied by the same one reader that applies a spawn site's
+/// `limits:`, and no quantity is rendered, parsed or carved into a reserve twice on the way. The
+/// context's own resolved ceilings are the wrong number to record for the same reason they are the
+/// wrong number to carry: `Ctx::memory_limit` is `[limits] memory` less the tier-1 handler's
+/// reserve, and recording it would narrow every job by that slice again.
+fn limits_recorded(config: Option<&nvs_config::Request>) -> Option<String> {
+    let config = config?;
+    let mut written = serde_json::Map::new();
+    for key in RECORDED_LIMITS {
+        if let Some(value) = config.get(key) {
+            written.insert((*key).to_owned(), serde_json::Value::from(value));
+        }
+    }
+    (!written.is_empty()).then(|| serde_json::Value::Object(written).to_string())
+}
+
 /// `{args: …}` as the JSON the row holds, or `None` for a payload that was not given.
 ///
 /// Two tags mean `None` and they are two different requests that arrive at the same place: an
@@ -2818,6 +2887,12 @@ nvs_runtime::nvs_helper! {
 
         let configured = configured_queue(ctx, PUSH)?;
         let max_attempts = max_attempts_of(args, configured.max_attempts)?;
+        // `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`'s two facts, read off
+        // the enqueuing context beside its arguments and before anything is opened: what the job
+        // may ask for is a property of the request that enqueued it, so the reading belongs at the
+        // one instant that request is certainly still the one running.
+        let granted = grants_recorded(ctx.grant_filter());
+        let limited = limits_recorded(ctx.config());
 
         // Shared, and that is § 3 rather than an economy: `{shared: false}` would open a second
         // connection, outside whatever transaction the request has open on the first, and the
@@ -2842,6 +2917,8 @@ nvs_runtime::nvs_helper! {
         let backing = backoff.to_string().into_bytes();
         let due = run_at.unwrap_or(now).to_string().into_bytes();
         let created = now.to_string().into_bytes();
+        let granting = granted.as_deref().map(str::as_bytes);
+        let limiting = limited.as_deref().map(str::as_bytes);
 
         let block = configured.connection.clone();
         // `rule:observability/a-query-is-a-trace-event`'s event belongs to a *statement*, not to `Core\Db`, so this one files it
@@ -2850,10 +2927,10 @@ nvs_runtime::nvs_helper! {
         // statements, so what a driver hands back is a *list* of spans, filed once the connection
         // has let the context go.
         let mut spans = Spans::of(ctx, &block);
-        // [`INSERT_MYSQL`]'s eleven slots, which [`INSERT_SQLSERVER`] takes unchanged: the two
-        // texts write the same columns in the same order, so the array is one binding rather than
-        // one per dialect that happens to agree.
-        let eleven: [Option<&[u8]>; 11] = [
+        // [`INSERT_MYSQL`]'s slots, which [`INSERT_SQLSERVER`] takes unchanged: the two texts write
+        // the same columns in the same order, so the array is one binding rather than one per
+        // dialect that happens to agree.
+        let framed_order: [Option<&[u8]>; 13] = [
             Some(queued),
             Some(scripted),
             payloaded,
@@ -2867,10 +2944,12 @@ nvs_runtime::nvs_helper! {
             dedupe,
             Some(&created),
             tagged,
+            granting,
+            limiting,
         ];
         let id = match queue_connection(ctx, handle, PUSH)? {
             Queued::Postgres(postgres) => {
-                let bound: [Option<&[u8]>; 10] = [
+                let bound: [Option<&[u8]>; 12] = [
                     dedupe,
                     Some(queued),
                     Some(scripted),
@@ -2881,18 +2960,20 @@ nvs_runtime::nvs_helper! {
                     Some(&due),
                     Some(&created),
                     tagged,
+                    granting,
+                    limiting,
                 ];
                 push_in_one(postgres, &bound, &block, &mut spans)?
             }
             Queued::Framed(framed) => {
-                push_in_two(framed, dedupe, &eleven, &block, &mut spans)?
+                push_in_two(framed, dedupe, &framed_order, &block, &mut spans)?
             }
-            // The same eleven slots, because `@p1` through `@p11` are written over the same
-            // columns in the same order — [`INSERT_SQLSERVER`] owns why the pair is a transaction
-            // here and why each slot a column types as a number is cast where it is bound.
-            Queued::SqlServer(tds) => push_in_tds(tds, dedupe, &eleven, &block, &mut spans)?,
-            // [`INSERT_SQLITE`]'s eleven slots, which are the framed dialect's in the framed
-            // dialect's order — the same value in `dedupe_key` and `dedupe_pending` among them.
+            // The same slots, because `@p1` onwards are written over the same columns in the same
+            // order — [`INSERT_SQLSERVER`] owns why the pair is a transaction here and why each
+            // slot a column types as a number is cast where it is bound.
+            Queued::SqlServer(tds) => push_in_tds(tds, dedupe, &framed_order, &block, &mut spans)?,
+            // [`INSERT_SQLITE`]'s slots, which are the framed dialect's in the framed dialect's
+            // order — the same value in `dedupe_key` and `dedupe_pending` among them.
             Queued::Sqlite(sqlite) => {
                 let keyed = sqlite_text(key.as_deref());
                 let values = vec![
@@ -2907,6 +2988,8 @@ nvs_runtime::nvs_helper! {
                     keyed,
                     nvs_db::SqliteValue::Int(now),
                     sqlite_text(tag.as_deref()),
+                    sqlite_text(granted.as_deref()),
+                    sqlite_text(limited.as_deref()),
                 ];
                 push_in_sqlite(sqlite, key.as_deref(), values, &block, &mut spans)?
             }
@@ -4605,14 +4688,14 @@ mod tests {
         CLAIM_POSTGRES, CLAIM_SQLITE, CLAIM_SQLSERVER, CLASS, COUNTS_MYSQL, COUNTS_POSTGRES,
         COUNTS_SQLITE, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_LETTER_SQLSERVER, DEAD_TABLE,
         DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES, DELETE_SQLITE, Fault, INSERT_MYSQL,
-        INSERT_POSTGRES, INSERT_SQLSERVER, JOBS_TABLE, MESSAGE_CAP, PENDING, PURGE_DEAD_MYSQL,
-        PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE, PURGE_MYSQL, PURGE_POSTGRES, PURGE_SQLITE,
-        PURGE_STATE_ARG, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES,
-        RETRY_SQLSERVER, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
-        STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
-        STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE, STATUS_SQLSERVER, SUCCEEDED_MYSQL,
-        SUCCEEDED_POSTGRES, SUCCEEDED_SQLSERVER, Selection, Split, ThrownClass, Value, dead_errors,
-        migration, purge_state_of, purge_texts, retry_at,
+        INSERT_POSTGRES, INSERT_SQLITE, INSERT_SQLSERVER, JOBS_TABLE, MESSAGE_CAP, PENDING,
+        PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE, PURGE_MYSQL, PURGE_POSTGRES,
+        PURGE_SQLITE, PURGE_STATE_ARG, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL,
+        RETRY_POSTGRES, RETRY_SQLSERVER, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
+        STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT,
+        STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE, STATUS_SQLSERVER,
+        SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, SUCCEEDED_SQLSERVER, Selection, Split, ThrownClass,
+        Value, dead_errors, migration, purge_state_of, purge_texts, retry_at,
     };
     use super::{NAME, PURGE_DOC, PUSH_DOC};
     use crate::registry::{CAPABILITIES, Const, CoreTy};
@@ -6302,6 +6385,114 @@ mod tests {
                 driver.display_name()
             );
         }
+    }
+
+    /// `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`: the row carries what
+    /// the enqueuing request held, so a claim reads it back rather than inferring it.
+    ///
+    /// **One case over three places, because they are one fact and a case each would let two of
+    /// them drift.** The schema declares the pair, every dialect's enqueue writes it at the end of
+    /// its own column list and binds a value for it, and the two readers render what a context
+    /// carries. The end of the list is where a value a claim will answer with has to sit — a
+    /// worker reads a claim's columns by ordinal, which
+    /// `all_three_dialects_answer_a_claim_with_the_same_columns` is the other half of.
+    #[test]
+    fn push_records_its_grants_and_limits_on_the_row() {
+        use nvs_config::capability::Cap;
+
+        let schema = super::schema();
+        let jobs = schema
+            .tables()
+            .iter()
+            .find(|table| table.name().as_str() == JOBS_TABLE)
+            .expect("§ 2 declares the table a push writes");
+        for name in ["grants", "limits"] {
+            let column = jobs
+                .columns()
+                .iter()
+                .find(|column| column.name().as_str() == name)
+                .unwrap_or_else(|| panic!("the jobs table declares `{name}`"));
+            assert!(
+                column.is_nullable(),
+                "`{name}` is null for a context that narrowed that half of nothing, which is a job \
+                 held to the deployment's own ceiling"
+            );
+        }
+
+        for (dialect, sql) in [
+            ("postgres", INSERT_POSTGRES),
+            ("mysql", INSERT_MYSQL.then),
+            ("sqlite", INSERT_SQLITE.then),
+            ("sqlserver", INSERT_SQLSERVER.then),
+        ] {
+            let columns = sql
+                .split_once(&format!("insert into {JOBS_TABLE} ("))
+                .and_then(|(_, rest)| rest.split_once(')'))
+                .expect("the enqueue names its columns as one parenthesised list")
+                .0;
+            assert!(
+                columns.trim_end().ends_with("tag, grants, limits"),
+                "{dialect}: the narrowing is written after `tag`, which is the end of the job's own \
+                 values — `{columns}`"
+            );
+        }
+        // Each dialect binds a value for both, in the count the caller's array holds: a `?` is a
+        // position, and a numbered slot is read as often as its text names it.
+        for (dialect, sql) in [("mysql", INSERT_MYSQL.then), ("sqlite", INSERT_SQLITE.then)] {
+            assert_eq!(
+                sql.matches('?').count(),
+                13,
+                "{dialect}: the enqueue binds one value per column it names"
+            );
+        }
+        assert!(
+            INSERT_POSTGRES.contains("$12::text") && !INSERT_POSTGRES.contains("$13"),
+            "PostgreSQL binds the pair as the last two of its numbered values"
+        );
+        assert!(
+            INSERT_SQLSERVER.then.contains("@p13") && !INSERT_SQLSERVER.then.contains("@p14"),
+            "T-SQL binds the pair as the last two of its numbered values"
+        );
+
+        assert_eq!(
+            super::grants_recorded(None),
+            None,
+            "a context no spawn narrowed records no list, and is a job held to the deployment's own"
+        );
+        assert_eq!(
+            super::grants_recorded(Some(&[Cap::FsRead, Cap::QueuePurge])).as_deref(),
+            Some(r#"["fs.read","queue.purge"]"#),
+            "the names are the spelling `nvs.toml` grants them under, which is what a narrowing \
+             carries either side of the row"
+        );
+        assert_eq!(
+            super::grants_recorded(Some(&[])).as_deref(),
+            Some("[]"),
+            "an empty list is a job that may ask for nothing, which is not no narrowing at all"
+        );
+
+        assert_eq!(
+            super::limits_recorded(None),
+            None,
+            "a context holding no configuration is under no ceiling for a row to record"
+        );
+        let capped = nvs_config::Request::new(crate::tests::granting(
+            "[limits]\nmemory = \"64m\"\ncpu_time = \"2s\"\n",
+        ));
+        assert_eq!(
+            super::limits_recorded(Some(&capped)).as_deref(),
+            Some(r#"{"cpu_time":"2s","memory":"64m"}"#),
+            "each key in force crosses as the text it was written as, which is the spelling \
+             `nvs_config::Request::set` narrows a child with"
+        );
+        let untracked =
+            nvs_config::Request::new(crate::tests::granting("[limits]\nmax_tasks = 4\n"));
+        assert_eq!(
+            super::limits_recorded(Some(&untracked)),
+            None,
+            "`max_tasks` is read by no scheduler, so recording it would put a value on the row that \
+             no isolate applies"
+        );
     }
 
     /// The module doc's gap 1, asserted as the absence it now is.

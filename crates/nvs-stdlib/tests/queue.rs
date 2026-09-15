@@ -728,6 +728,10 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
                 // No tag: nothing here groups jobs, and `$10` is the option
                 // `push` leaves null on every enqueue that does not name one.
                 None,
+                // The narrowing pair, null for the same reason a helper's push
+                // is: this stands in for a context that narrowed neither half.
+                None,
+                None,
             ],
         );
     }
@@ -747,9 +751,11 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
         None,
         None,
         Some(at.as_slice()),
-        // The tag, last for the reason `INSERT_POSTGRES`'s doc gives: a value
-        // added anywhere else is a column list every other statement has to be
-        // checked against.
+        // The tag, then the narrowing pair, at the end for the reason
+        // `INSERT_POSTGRES`'s doc gives: a value added anywhere else is a column
+        // list every other statement has to be checked against.
+        None,
+        None,
         None,
     ];
     if conn.driver() == Driver::SqlServer {
@@ -804,6 +810,9 @@ fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<St
         Some(at.as_slice()),
         // No tag: a key and a tag are opposites, and this helper is the key's
         // half — `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`.
+        None,
+        // The narrowing pair, which a hand-built push narrows neither half of.
+        None,
         None,
     ];
     let Dialect::Framed(mut framed) = conn.dialect() else {
@@ -866,6 +875,9 @@ fn push_marked(
             Some(at.as_slice()),
             Some(at.as_slice()),
             tag.map(str::as_bytes),
+            // The narrowing pair, which neither slot this helper fills is.
+            None,
+            None,
         ],
     )
 }

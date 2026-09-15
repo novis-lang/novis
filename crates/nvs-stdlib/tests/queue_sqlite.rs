@@ -353,6 +353,11 @@ fn push_in_two(conn: &SqliteConn, key: Option<&str>, run_at: i64) -> (i64, bool)
             dedupe,
             SqliteValue::Int(run_at),
             SqliteValue::Null,
+            // The narrowing pair, after the tag: a fixture pushing by hand
+            // stands in for a context that narrowed nothing, which is the null
+            // `queue::schema` declares both columns for.
+            SqliteValue::Null,
+            SqliteValue::Null,
         ],
     );
 
