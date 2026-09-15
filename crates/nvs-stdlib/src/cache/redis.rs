@@ -1,6 +1,8 @@
 //! The shared tier's wire: RESP over `nvs_host`'s parking stream, the two
-//! commands `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s operations become, and the one `EVAL` `rule:core-classes/ratelimit-two-members`'s
-//! limiter needs.
+//! commands `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s operations become, and the server-side steps
+//! `rule:core-classes/ratelimit-two-members`'s limiter and
+//! `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s fleet lease
+//! need.
 //!
 //! [`super`] owns the *policy* — which store is configured, where the grant
 //! approved reaching it, and what an entry's bytes are. What is here is
@@ -34,7 +36,18 @@
 //! ([`crate::ratelimit`] owns it and the reasoning); what is here is `EVAL` and
 //! the array of integers it answers with.
 //!
-//! Only the reply shapes those three commands answer are read — a simple
+//! The fleet lease is the other decision only the store can take, and it is not
+//! `Core\Cache`'s either. [`Connection::set_if_absent`] is `SET … NX PX`, whose
+//! whole value is that two hosts asking at once get two different answers, and
+//! [`Connection::renew_if_holder`] is [`RENEW`], a second `EVAL` that pushes the
+//! expiry out only while the key still holds the token that took it.
+//! `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` is what needs
+//! both and `nvs serve` is their only caller: a compare-and-set a *program*
+//! could reach is new cross-request coordination
+//! (`rule:concurrency/cross-request-state-is-explicit`), so the tier's own wire
+//! stays `put` and `get` and these two are internal to this crate.
+//!
+//! Only the reply shapes those commands answer are read — a simple
 //! string, a bulk string, a null bulk, an error, an integer and an array of
 //! integers. An array of anything else arrives here as "a reply this client does
 //! not read" rather than as a variant nothing constructs.
@@ -92,8 +105,25 @@ const CHUNK: usize = 4096;
 ///
 /// [`REPLY_CEILING`]'s reason one level up: the count is a number the store
 /// chose, so allocating against it unbounded is that store deciding this
-/// process's footprint. The one script this client sends answers three.
+/// process's footprint. The scripts this client sends answer three integers and
+/// one.
 const ELEMENT_CEILING: i64 = 64;
+
+/// The fleet lease's renewal, run where the lease lives.
+///
+/// A script rather than a `GET` here and a `PEXPIRE` from the caller, because
+/// between those two round trips the lease can expire and another host take it —
+/// and the extension would then land on *that* host's lease, which is the
+/// failure carrying a token exists to catch. `PEXPIRE` answers `1` when it moved
+/// an expiry and `0` when there was no key to move, and the table around it is
+/// what makes both that and the refusal the one reply shape
+/// [`Connection::eval`] already reads.
+const RENEW: &str = "\
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return {redis.call('PEXPIRE', KEYS[1], ARGV[2])}
+end
+return {0}
+";
 
 /// One core's connection to the shared store.
 ///
@@ -171,11 +201,9 @@ impl Connection {
     /// `rule:http-server/session-expiry-belongs-to-the-store`
     /// 's sweeper coming back. Two names cannot be omitted.
     ///
-    /// Milliseconds rather than `EX`'s seconds, because a lifetime is a
-    /// `Core\Time\Duration` and a cache entry may be written for less than a
-    /// second — which under `EX` would round to the zero that is `SET`'s
-    /// spelling for an error. Anything shorter than a millisecond rounds
-    /// **up** to one for the same reason.
+    /// Milliseconds rather than `EX`'s seconds, and what a lifetime shorter
+    /// than one becomes, is [`expiry`]'s: the lease's two commands carry the
+    /// same lifetime through the same conversion.
     ///
     /// # Errors
     ///
@@ -186,14 +214,51 @@ impl Connection {
         payload: &[u8],
         ttl: Duration,
     ) -> Result<(), String> {
-        let millis = u64::try_from(ttl.as_millis().max(1))
-            .unwrap_or(u64::MAX)
-            .to_string();
+        let millis = expiry(ttl);
         match self.command(
             &[b"SET", key, payload, b"PX", millis.as_bytes()],
             Replay::Idempotent,
         )? {
             Reply::Simple(word) if word == "OK" => Ok(()),
+            other => Err(other.unexpected("SET")),
+        }
+    }
+
+    /// `SET key token NX PX milliseconds` — the key taken **only if nothing
+    /// holds it**, and the answer to whether this caller is what holds it now.
+    ///
+    /// `true` is a key that was absent or expired and now carries `token`;
+    /// `false` is another holder's token already there. `NX` is what makes that
+    /// one decision the store's rather than this process's: a read followed by a
+    /// write hands two hosts asking at once the same `true` under exactly the
+    /// load that makes it matter, which is the failure
+    /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` exists to
+    /// prevent.
+    ///
+    /// The lifetime is not optional and has no unbounded spelling: a lease is
+    /// released by expiry when the host holding it dies, so one written without
+    /// an expiry would block its key for as long as the store lived
+    /// (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::set`]. Not replayed past a request that reached the
+    /// store, because here the **reply is the effect**: a second attempt reads
+    /// back the key its own first attempt took and reports the lease lost to its
+    /// own winning write.
+    pub(crate) fn set_if_absent(
+        &mut self,
+        key: &[u8],
+        token: &[u8],
+        ttl: Duration,
+    ) -> Result<bool, String> {
+        let millis = expiry(ttl);
+        match self.command(
+            &[b"SET", key, token, b"NX", b"PX", millis.as_bytes()],
+            Replay::OnlyIfUnsent,
+        )? {
+            Reply::Simple(word) if word == "OK" => Ok(true),
+            Reply::Nil => Ok(false),
             other => Err(other.unexpected("SET")),
         }
     }
@@ -256,6 +321,36 @@ impl Connection {
         match self.command(&parts, Replay::OnlyIfUnsent)? {
             Reply::Array(numbers) => Ok(numbers),
             other => Err(other.unexpected("EVAL")),
+        }
+    }
+
+    /// [`RENEW`] over `key` — the lease held for `ttl` longer, and only while
+    /// `token` is still what holds it.
+    ///
+    /// `true` is the expiry moved. `false` is a key carrying another host's
+    /// token, and a key carrying nothing at all: a lease that has already
+    /// expired belongs to whoever takes it next, so renewal never writes one
+    /// back into existence.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::eval`], plus a reply that is not the one integer
+    /// [`RENEW`] answers with.
+    pub(crate) fn renew_if_holder(
+        &mut self,
+        key: &[u8],
+        token: &[u8],
+        ttl: Duration,
+    ) -> Result<bool, String> {
+        let millis = expiry(ttl);
+        let answered = self.eval(RENEW, key, &[token, millis.as_bytes()])?;
+        match answered.as_slice() {
+            [1] => Ok(true),
+            [0] => Ok(false),
+            _ => Err(format!(
+                "the store answered {answered:?} to a renewal, which is not the one integer \
+                 the script returns"
+            )),
         }
     }
 
@@ -407,7 +502,9 @@ enum Replay {
     /// point may be retried on a fresh connection. `SET` and `GET`.
     Idempotent,
     /// Running it twice is two effects, so only a request that provably never
-    /// left may be retried. `EVAL` of the limiter's script.
+    /// left may be retried. `EVAL` of the limiter's script, and the lease's two
+    /// commands, whose reply *is* their effect: a replayed `SET … NX` answers
+    /// `false` about the key its own first attempt took.
     OnlyIfUnsent,
 }
 
@@ -619,6 +716,21 @@ impl Wire<'_> {
         }
         Ok(self.buf[start..start + len].to_vec())
     }
+}
+
+/// A lifetime as the whole milliseconds `PX` and `PEXPIRE` both count in.
+///
+/// Milliseconds rather than `EX`'s seconds, because a lifetime is a
+/// `Core\Time\Duration` and a cache entry may be written for less than a
+/// second — which under `EX` would round to the zero that is `SET`'s spelling
+/// for an error. Anything shorter than a millisecond rounds **up** to one for
+/// the same reason. A lifetime longer than a `u64` of them saturates rather
+/// than wrapping: no deployment reaches that ceiling, and every one of them
+/// would notice a wrap.
+fn expiry(ttl: Duration) -> String {
+    u64::try_from(ttl.as_millis().max(1))
+        .unwrap_or(u64::MAX)
+        .to_string()
 }
 
 /// `parts` as a RESP array of bulk strings, which is how every command is sent.
@@ -855,5 +967,153 @@ mod tests {
                 "a spelling this build cannot dial must be refused before the wire sees it"
             );
         }
+    }
+
+    /// The port `tests/db/compose.yaml` publishes its `redis` on — non-standard
+    /// on purpose, so a developer's own store is never the one a case writes to.
+    const REDIS: u16 = 16379;
+
+    /// Two clients onto that store and a key no other run holds, or [`None`]
+    /// when nothing is listening there.
+    ///
+    /// The two lease cases below are the only ones in this module that are not
+    /// written against a fake, and they cannot be: a set-if-absent and an expiry
+    /// are the **server's** semantics, and a fake store agrees with whatever the
+    /// client that scripted it sent. What they assert is that a real Redis
+    /// answers `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s
+    /// two questions the way `Leases` needs them answered.
+    ///
+    /// A machine with no store running skips rather than fails, which is the
+    /// rule the `.nvst` cases over this tier already carry in their `--SKIPIF--`
+    /// section: what cannot be reached cannot be asserted, and the skip says so
+    /// on stderr rather than quietly.
+    ///
+    /// The key carries this process's id so two runs at once are two leases, and
+    /// it is deleted on the way in because a run that was killed mid-case leaves
+    /// one behind for as long as its TTL.
+    // The workspace denies a print in a library because user-facing output
+    // belongs in `nvs-cli`. A case that asserted nothing is not that output: it
+    // is addressed to whoever is reading the test run, and a skip nobody is told
+    // about reads exactly like a case that passed.
+    #[allow(clippy::print_stderr)]
+    fn lease_case(label: &str) -> Option<(Connection, Connection, Vec<u8>)> {
+        let address = SocketAddr::from((Ipv4Addr::LOCALHOST, REDIS));
+        let mut first = Connection::new(Target::Tcp(address), Duration::from_secs(5));
+        if let Err(why) = first.ensure() {
+            eprintln!(
+                "the {label} lease case asserted nothing: no store at {address} ({why}). \
+                 `docker compose -f tests/db/compose.yaml up -d --wait redis` starts the one \
+                 these cases are written against."
+            );
+            return None;
+        }
+        let mut second = Connection::new(Target::Tcp(address), Duration::from_secs(5));
+        second
+            .ensure()
+            .expect("a second connection to a store that has already answered one");
+        let key = format!("nvs:test:lease:{}:{label}", std::process::id()).into_bytes();
+        first.del(&key).expect("a key an earlier run may have left");
+        Some((first, second, key))
+    }
+
+    /// A lease is one host's for as long as it holds it, and the store is what
+    /// decides which host that is.
+    ///
+    /// The second of two clients asking for a key the first holds is told
+    /// `false` rather than made a second holder, and the same client asking
+    /// again once the TTL has passed is told `true`. Those are § 3's two halves:
+    /// at most one run per interval, and a host that dies holding the lease
+    /// releases it by expiry instead of blocking the next interval forever.
+    #[test]
+    fn a_shared_tier_lease_is_taken_by_one_of_two_clients_and_expires_after_its_ttl() {
+        let Some((mut first, mut second, key)) = lease_case("two-clients") else {
+            return;
+        };
+        let held = Duration::from_secs(1);
+
+        assert!(
+            first
+                .set_if_absent(&key, b"first", held)
+                .expect("the store answers the set-if-absent"),
+            "nothing held the key, so the first client takes it"
+        );
+        assert!(
+            !second
+                .set_if_absent(&key, b"second", held)
+                .expect("the store answers the set-if-absent"),
+            "the key is held, so the second client is refused rather than made a second holder"
+        );
+        assert_eq!(
+            first.get(&key).expect("the key the first client took"),
+            Some(b"first".to_vec()),
+            "the refused attempt overwrote the holder's token"
+        );
+
+        std::thread::sleep(held * 2);
+
+        assert!(
+            second
+                .set_if_absent(&key, b"second", held)
+                .expect("the store answers the set-if-absent"),
+            "the lease expired with its TTL, so the next interval is takeable"
+        );
+        second.del(&key).expect("the key this case wrote");
+    }
+
+    /// The token is what a renewal is checked against, so a host extends only
+    /// the lease it is actually holding.
+    ///
+    /// A lease taken for one second and renewed for thirty is still held two
+    /// seconds later, which is the extension landing; the other client's renewal
+    /// is refused while the first holds it; and once the key is gone no renewal
+    /// writes it back, because an expired lease belongs to whoever takes it next.
+    #[test]
+    fn a_shared_tier_lease_is_renewed_only_while_the_token_is_still_the_holders() {
+        let Some((mut holder, mut other, key)) = lease_case("renewal") else {
+            return;
+        };
+        let held = Duration::from_secs(1);
+        let extended = Duration::from_secs(30);
+
+        assert!(
+            holder
+                .set_if_absent(&key, b"holder", held)
+                .expect("the store answers the set-if-absent"),
+            "nothing held the key, so this client takes it"
+        );
+        assert!(
+            !other
+                .renew_if_holder(&key, b"other", extended)
+                .expect("the store runs the renewal"),
+            "a host that does not hold the lease cannot extend it"
+        );
+        assert!(
+            holder
+                .renew_if_holder(&key, b"holder", extended)
+                .expect("the store runs the renewal"),
+            "the holder's own token extends the lease it took"
+        );
+
+        std::thread::sleep(held * 2);
+
+        assert!(
+            !other
+                .set_if_absent(&key, b"other", held)
+                .expect("the store answers the set-if-absent"),
+            "the renewal pushed the expiry past the TTL the lease was taken for"
+        );
+        assert_eq!(
+            other.get(&key).expect("the key the holder took"),
+            Some(b"holder".to_vec()),
+            "the refused renewal replaced the holder's token"
+        );
+
+        holder.del(&key).expect("the key this case wrote");
+        assert!(
+            !holder
+                .renew_if_holder(&key, b"holder", extended)
+                .expect("the store runs the renewal"),
+            "a lease nobody holds is not renewed back into existence"
+        );
     }
 }
