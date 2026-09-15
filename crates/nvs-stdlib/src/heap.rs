@@ -44,7 +44,7 @@
 //! [`crate::instance`]'s dispatch roster, which § 9's own `iterate` is on — so
 //! what is left is a row per `Core` class that declares `compareTo`, plus the
 //! receiver-transfer wrapper such a row owes ([`crate::cursor`]).
-//! — owner: gap-zero
+//! — owner: m8-stdlib-depth
 //!
 //! # What it spends, and what a comparator may not do
 //!

@@ -152,7 +152,7 @@
 //!    **value**, so an element-covariant read cannot be aliased into an unsound
 //!    write the way a mutable container's could, and accepting one breaks no
 //!    program that compiles today.
-//!    — owner: unowned-closures
+//!    — owner: m8-stdlib-depth
 
 pub mod arr;
 mod ast;

@@ -13,4 +13,4 @@
 # The list only shrinks: registering a class and striking its line here are one
 # slice, and a line naming a class that is registered now fails the same test.
 
-§16 Core\Metrics   # unowned
+§16 Core\Metrics   # m8-stdlib-depth

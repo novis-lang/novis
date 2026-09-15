@@ -46,13 +46,14 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | Gap | Owner | Where the detail lives |
 |---|---|---|
 | `Core\Db::stream` on four drivers, `streamAs` whole, § 18's `serverVersion` | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 3 |
-
 | `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `M7` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
-| Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `gap-zero` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
+| CLDR's unformattable pattern letters, and a language absent from the ordinal roster answering `Other` silently | `m8-stdlib-depth` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–3 |
 | Spec § 13's `Core\Test` cell states the roster in English, so `request`'s bag is spelled nowhere in the spec | `unowned-closures` | `docs/spec/01-core-library.md:1001`; the bag itself is `crates/nvs-stdlib/src/test.rs`'s `REQUEST_OPTIONS`, and `docs/novis.md` renders the signature |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
-| `array<T>` is invariant, so an `array<int|string>` parameter takes only that spelling | `unowned-closures` | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
+| `array<T>` is invariant in the rulebook and covariant in the checker, and the decision is to widen the rule | `m8-stdlib-depth` | `crates/nvs-stdlib/src/lib.rs` gap 4, `crates/nvs-types/src/expr/assign.rs:172` |
+| `Core\Metrics` has no `registry::CLASSES` row, so no program can read the metrics a core already meters | `m8-stdlib-depth` | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
+| `Core\Process::spawn` — `proc_open`'s and `popen`'s streaming half — is unregistered, and `run` is the whole of what there is | `m8-stdlib-depth` | `crates/nvs-stdlib/tests/migration-members-outstanding.txt` |
 
 ## Unowned
 
@@ -71,14 +72,6 @@ where taking it is the work and the code that follows it is not.
   each field in the tree or beside the capability roster the checker already walks; `docs/plan/m6.md:52`
   promises the verb and not the refusal, so no milestone's plan carries it either.
   `crates/nvs-config/src/tree.rs:50`. [until: reviewed 2026-09-13]
-- **`array<T>` is covariant in the checker and invariant in the rulebook.**
-  `crates/nvs-types/src/expr/assign.rs:172` recurses element to element, so `array<int>` satisfies
-  `array<int|float|decimal>`, and `:161-171` argues that is sound because an array is a copy-on-write
-  value rather than an alias — while `rule:types/arrays` states invariance flatly and prices the
-  widening at an O(n) restamp, and `:228` still speaks of that invariance as live. What has to be
-  decided is which of the two is the bug: the fragment carries five records (0007, 0069, 0114, 0002,
-  0159) and `crates/nvs-types/tests/arrays.rs` is the guard that says whether the covariance was ever
-  intended. `crates/nvs-types/src/expr/assign.rs:172`. [until: reviewed 2026-09-13]
 - **The route table is walked by comparison rather than by a trie**, which answers identically and
   costs one comparison per row of the right verb where a trie costs one step per path segment.
   `rule:routing/path-grammar` names `matchit`'s left-to-right precedence as the model and no
@@ -144,16 +137,6 @@ where taking it is the work and the code that follows it is not.
   `nvs-codegen` — rather than whether it is wanted; Mach-O's leading underscore rides along with it,
   since neither is worth a format branch on its own. Until then every run on such a host compiles:
   slow, never wrong. `crates/nvs-cli/src/cache.rs` gaps 2–3. [until: reviewed 2026-09-10]
-- **`Core\Metrics`** — spec § 16's class, filed as goal `server`'s item 19 and left behind by it.
-  `rule:observability/the-runtime-exports-what-it-already-measures`'s exporter, both of its config blocks and the nine
-  metrics a core meters all landed; `registry::CLASSES` has no row for the class a program reads them
-  through, so no Novis program can name one. `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`.
-  [until: exists crates/nvs-stdlib/src/registry.rs:metrics::CLASS]
-- **`Core\Process::spawn`** — `proc_open`'s and `popen`'s streaming half, which
-  `docs/spec/02-php-migration.md` points a migrating program at and which no entry on the chain builds.
-  `Core\Process::run` is registered and is the whole of what there is.
-  `crates/nvs-stdlib/tests/migration-members-outstanding.txt`.
-  [until: exists crates/nvs-stdlib/src/process.rs:name: "spawn"]
 - **`rule:security/arena-is-an-ownership-root`'s optional in-flight cycle
   collector**, for a long-running CLI script that builds cycles *between* teardowns. That ADR's
   *Consequences* says outright that it "remains open"; goal `carried-gaps`'s item 7 closes the *leak* at teardown
