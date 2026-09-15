@@ -4,64 +4,52 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
-and **stages 3 to 7 are complete**. Stage 8 is open on two counts: its `nvs-suite` check wants three
-`.nvst` cases and two are on disk, and its `cargo-named` check — a served request's mount origin, and
-the boot refusal for a mount that needs one and has none — is untouched. Nothing is blocked.
+and stages 3 to 7 are complete. **Stage 8's `nvs-suite` check is green** — all three cases are on
+disk. What is left of stage 8 is its `cargo-named` half: a served request's mount origin, and the
+boot refusal for a mount that needs one and has none. Nothing is blocked.
 
-**`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name` is `shipped`.** One
-compile-time answer serves every position: the match converts on it, `Core\Router::url` is refused
-against it and renders through it, and the generated document lists it. The `#[Query]` half left in
-its closing paragraph is an *arrival* and not this rule's — no query value of any declared type is
-bound to its parameter yet (`rule:routing/a-bad-query-value-is-a-400`).
+**`rule:routing/link-carries-the-mount-prefix` is `shipped`.** `nvs_stdlib::router`'s `mounted` reads
+`Ctx::inbound`'s `mount_prefix` and joins it in front of `substitute`'s answer for all three of
+`url`, `urlAbsolute` and `urlSigned` — one function, because a prefix joined at two of the three
+sites is how they would come to disagree about where the module is mounted. A program carrying no
+request and a request whose door stripped nothing are one answer there, so neither has a branch, and
+a signed link survives a remount because `signed_payload` is the route's name and its `$params`.
 
-**Where the spelling crosses to run time.** `nvs_types::links`' `spellings` collects a name-spelled
-subset's value-to-segment rows, `UrlPiece::prepared` writes them as `link::SPELLING` pieces in front
-of every path piece, and `nvs_stdlib::router`'s `spelled` looks the arriving text up in them. A
-value-spelled subset carries no rows at all: a case is its backing integer by the time it is a value
-(`rule:enums/no-class-machinery`), and that decimal is already the segment. The rows are a
-*conversion* and never a check, which is what lets them cross where `substitute`'s own doc refuses to
-carry a closed set for a refusal.
-
-**`RouteParam::admits` is the one home of "every segment this parameter admits"** — the literal
-union's members and an enum subset's spellings as one list. `links`' refusal and `nvs_cli::openapi`'s
-`enum:` row both read it, because a route, its links and its document are spelled the same way or one
-of the three is wrong.
+**A synthetic request describes its door.** `Core\Test::request`'s bag carries `mount` beside
+`headers` and `body`, defaulting to `""` and not `null` for the reason
+`rule:routing/a-request-reads-its-mount` makes `mount()` never-`null`; `nvs_runtime::InboundSpec`
+holds the prefix and the captures and hands both to `Inbound::set_mount` in `build`, while the bag
+key is the prefix alone. Both `loop-goal.toml` copies also lost a floor name this goal had renamed
+away — see the playbook's bullet, not this file.
 
 ## Next group
 
-**Stage 8: the routes, the mount prefix** — one file set: `crates/nvs-stdlib/src/router.rs`,
-`crates/nvs-stdlib/src/test.rs` and `crates/nvs-runtime/src/ctx/inbound.rs`.
+**Stage 8: the mount's origin, at boot and on a served request** — one file set:
+`crates/nvs-config/src/mount.rs`, `crates/nvs-cli/src/serve.rs` and `crates/nvs-server/src/mount.rs`.
 
-- [ ] **`url` prepends the mount prefix the door stripped** — `crates/nvs-stdlib/src/router.rs:65`'s
-      gap 2, owned by this goal: the door puts the prefix on the request
-      (`crates/nvs-server/src/mount.rs:518`'s `carry` into
-      `crates/nvs-runtime/src/ctx/inbound.rs:653`'s `set_mount`) and no member here asks for it, so
-      `crates/nvs-stdlib/src/router.rs:973`'s `nvs_core_router_link` answers from the mount root out.
-      That body is where the prefix joins, in front of `substitute`'s answer, and a command-line run
-      has none to read. `rule:routing/link-carries-the-mount-prefix`. **The settled half of the
-      decision:** a synthetic request carries no mount at all —
-      `crates/nvs-stdlib/src/test.rs:1911`'s `described` builds a
-      `crates/nvs-runtime/src/ctx/inbound.rs:1055` `InboundSpec` with a path, a query, headers and a
-      body and nothing else — so the `.nvst` the check wants needs the test bag to carry one key
-      more, beside `headers` and `body`, and a spec field the isolate applies through `set_mount`.
-      Case: `tests/conformance/core/router-url-prepends-the-mount-prefix-the-door-stripped.nvst`.
-- [ ] **A served request receives its mount's resolved origin, and a mount that needs one and has
-      none refuses the boot** — stage 8's `cargo-named` check, and
-      `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s own unbuilt half: the reader parses
-      and substitutes a mount's `origin` and only a command-line run installs one
-      (`crates/nvs-cli/src/main.rs:1296`). `crates/nvs-config/src/mount.rs:206`'s `expand` is where
-      the per-resolved-mount check belongs, `crates/nvs-server/src/mount.rs:518`'s `carry` is where
-      the value would reach the request beside the prefix above, and
-      `crates/nvs-runtime/src/ctx/wiring.rs:338`'s `Ctx::origin` is what
-      `crates/nvs-stdlib/src/router.rs:992`'s `urlAbsolute` already reads.
+- [ ] **A served request receives its mount's resolved origin** —
+      `crates/nvs-config/src/mount.rs:64`'s `Mounted::origin` is substituted at expansion, and
+      `crates/nvs-server/src/mount.rs:334` says reading it onto the request context is still this
+      slice's to do, so `Core\Router::urlAbsolute` throws under a mount that resolved one. The served
+      carrier is built at `crates/nvs-cli/src/serve.rs:783`, beside the `carry` that already puts the
+      prefix on it; an origin is a context field rather than a carrier one, written through
+      `crates/nvs-runtime/src/ctx/wiring.rs:351`'s `set_origin`, whose command-line caller is
+      `crates/nvs-cli/src/main.rs:2129`. `rule:routing/an-origin-is-per-mount-and-checked-at-boot`.
+      Test: `a_served_request_receives_its_mounts_resolved_origin`, `-p nvs-cli`.
+- [ ] **A mount whose unit calls `urlAbsolute` and resolves no origin refuses the boot** —
+      `crates/nvs-config/src/mount.rs:27`'s module doc says the question needs the compiled unit and
+      so belongs beside whatever compiles a mount's entry, which is the `expand` call at
+      `crates/nvs-cli/src/serve.rs:352`. It runs per resolved mount and re-runs on reload, so the
+      failure is at deploy time rather than in a sent message.
+      `rule:routing/an-origin-is-per-mount-and-checked-at-boot`. Test:
+      `a_mount_whose_unit_calls_url_absolute_and_resolves_no_origin_refuses_the_boot`, `-p nvs-cli`.
 
 ## Backlog
 
-- A `#[Query]` value is not bound to its parameter for any declared type — owner
-  `rule:routing/a-bad-query-value-is-a-400` § *The query half is not shipped*.
-- `urlSigned` over a name-spelled enum capture: `signed_payload` writes whatever `$params` held, so a
-  program passing the segment spelling rather than the case signs bytes the verifier would not derive
-  — not checked against `nvs_core_router_signed_route`, and `rule:core-classes/router-signed-url` is
-  where it lands if it is real.
-- `crates/nvs-types/src/links.rs`'s gap 1, a named argument in a link, stays with goal
-  `unowned-closures`.
+- Spec § 13's `Core\Test` cell states the roster in English, so `request`'s bag is spelled nowhere in
+  the spec — `docs/agent/carried-gaps.md`.
+- `scope = "fleet"` parses, boots and is not armed — `crates/nvs-server/src/schedule.rs`.
+- `Core\Response::html` and `sendFile`, the two § 15 members still outstanding —
+  `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`.
+- `Core\Metrics`'s three rows belong to goal `m8-stdlib-depth`, not here — `docs/agent/loop-goal.md`
+  § *Not this goal*.
