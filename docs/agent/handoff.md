@@ -2,59 +2,53 @@
 
 ## State
 
-**Goal `m8-db-queue`, stage 5: `streamAs<T>` is all that is left of it.** `serverVersion` is closed
-end to end — each driver keeps what its handshake delivered, `Core\Db\Connection::serverVersion`
-answers it, and `server_version_answers_what_the_connection_kept`
-(`crates/nvs-stdlib/tests/db_stream.rs:658`) now asserts against the server that produced the string,
-green on all five legs under `python tools/db-matrix.py --all`. What each driver is entitled to say is
-ADR 0187 § 2's table and nothing else.
+**Goal `m8-db-queue`, stage 5 is closed.** `streamAs<T>` is on both `Queryable` classes and runs end
+to end: `Core\Db\Stream` is generic in `T`, `stream` answers it at `Core\Db\Row` and `streamAs` at the
+call site's own class, and the walk builds one `T` per step in `park_row`
+(`crates/nvs-stdlib/src/db/stream.rs:131`) where `queryAs` builds one per row handed out. The
+call-site refusals are `E0806` while compiling on both members now — `check_row_sites` reads
+`streamAs` sites as it reads `queryAs`'s — and the run-time pair stays as the backstop for a class
+built by hand. `serverVersion` closed last session and is unchanged.
 
-**The roster hole is closed.** `part_two_members` reads § 18's two `| Type | Members … |` tables as
-well as its `| Member |` ones, so `close`, `driver`, `serverVersion`, `isOpen` and
-`Transaction::rollBack` — and the `Rows`/`Row`/`Write`/`Column` rosters beside them — are enumerated
-and gated rather than walked past. All four were already registered, so no ratchet key moved.
+`tests/conformance/core/db-stream-as-answers-the-class-it-was-written-with.nvst` runs the whole member
+against SQLite. The four wire drivers' walks are `crates/nvs-stdlib/tests/db_stream.rs` under `python
+tools/db-matrix.py --all`, which was not run this session — nothing in this group touches a wire.
 
 Nothing is blocked. Stage 1 is the carried floor and the driver's to run.
 
 ## Next group
 
-**Stage 5: `streamAs<T>`, `stream` at a written type** — one file set:
-`crates/nvs-stdlib/src/db/registry.rs`, `crates/nvs-stdlib/src/db/stream.rs`,
-`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/derive.rs` and
-`crates/nvs-stdlib/tests/db_stream.rs`. `rule:core-classes/db-streaming` is the member's contract and
-spec § 18 its signature; the whole member is one slice's worth of work, so it is the group.
+**Stage 6: the row decoders** — one file set: `crates/nvs-types/src/derive.rs`,
+`crates/nvs-runtime/src/object.rs`, `crates/nvs-stdlib/src/db/row.rs` and the two conformance cases
+the stage names. `rule:core-classes/derive-attribute` owns the mapping, `rule:types/decimal` the
+refusal a `NUMERIC` takes, and `rule:core-classes/db-column-types` the map both doors read.
 
-- [ ] **The two rows and the generic plumbing.** `streamAs` beside `stream` on both `Queryable`
-      classes — `crates/nvs-stdlib/src/db/registry.rs:372` and `:678` are the return types to copy —
-      answering `CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Written("T")])` where `queryAs`
-      (`crates/nvs-stdlib/src/db/registry.rs:298`) answers `Rows<T>`, which makes `stream`'s own row
-      `InstanceAt(STREAM_NAME, &[CoreTy::Instance(ROW_NAME)])`. `Core\Db\Stream`'s `T` is declared in
-      `crates/nvs-stdlib/src/registry.rs:2970` `GENERIC_CLASSES` and `:3000` `ITERABLES`, and both
-      spellings of the member go on `:2865` `WRITTEN_CLASS_MEMBERS` — `rule:classes/no-traits`'
-      delegation is keyed by the declaring class, so the transaction's is a second row.
-- [ ] **The body.** `nvs_core_db_connection_stream_as` beside `crates/nvs-stdlib/src/db/stream.rs:426`,
-      reading the three written-class arguments the way `crates/nvs-stdlib/src/db/execute.rs:1221`
-      does and refusing the `array<...>` form there for its reason. The class goes in a fourth
-      `STREAM` slot (`crates/nvs-stdlib/src/db/stream.rs:66`) and is read where the row is parked —
-      `crates/nvs-stdlib/src/db/stream.rs:106` `park_row`, through
-      `crates/nvs-stdlib/src/db/row.rs:122` `hydrate`, which needs the `ctx` `stream_step`
-      (`crates/nvs-stdlib/src/db/stream.rs:135`) already holds. The `address()` arm is
-      `crates/nvs-stdlib/src/db/mod.rs:638`.
-- [ ] **The compile-time refusal**, which the goal's own check names:
-      `check_row_sites` (`crates/nvs-types/src/derive.rs:713`) asks `streamAs` the same question it
-      asks `queryAs`, and `tests/conformance/reject/db-stream-as-over-a-class-without-db-derive-is-refused-while-compiling.nvst`
-      is the case. `rule:core-classes/derive-attribute` owns the opt-in.
-- [ ] **`stream_as_answers_rows_at_the_class_it_was_written_with`**, beside
-      `crates/nvs-stdlib/tests/db_stream.rs:658` over the same `leg()`, plus the three `.nvst` cases a
-      new member owes; then strike `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt:32`.
-      Run all five legs with `python tools/db-matrix.py --all`.
+- [ ] **A reachable field type erases to its own codec type.** `crates/nvs-types/src/derive.rs:533`
+      `codec_ty` folds `decimal`, `instant` and `bytes` to `CodecTy::Opaque` today
+      (`crates/nvs-types/src/derive.rs:562`); the cases to add are
+      `nvs_runtime::CodecTy`'s own (`crates/nvs-runtime/src/object.rs:607`), which is what
+      `a_decimal_an_instant_and_bytes_field_erase_to_their_own_codec_type` asks for.
+- [ ] **An inline-shape field is refused while compiling.** The site is recorded at
+      `crates/nvs-types/src/expr/args.rs:1659` and judged at `crates/nvs-types/src/derive.rs:717`
+      `check_row_sites`, which is where the fourth `E0806` condition goes —
+      `a_query_as_over_an_inline_shape_field_is_refused_while_compiling`, with
+      `tests/conformance/reject/db-query-as-over-an-inline-shape-field-is-refused-while-compiling.nvst`
+      beside it.
+- [ ] **The three types decode per row, and a `NUMERIC` that will not fit throws naming the column.**
+      `crates/nvs-stdlib/src/db/row.rs:226` `hydrated` is the per-field check and
+      `crates/nvs-stdlib/src/db/column.rs` the map it reads —
+      `a_numeric_30_10_value_past_decimals_range_throws_rather_than_truncating` and, on a leg,
+      `a_numeric_30_10_postgres_column_throws_on_read_rather_than_truncating`.
+- [ ] **A hand-written `fromRow` is called.** `crates/nvs-stdlib/src/db/row.rs:122` `hydrate` refuses
+      a class with an empty `db_codec()`, so `Core\Db\Codec`'s own door is the one it does not try —
+      `query_as_calls_a_hand_written_from_row`.
 
 ## Backlog
 
-- `part_one_members` has the hole this session closed for Part II: § 7's
-  `| Type | Members | Replaces |` table (`docs/spec/01-core-library.md:706`) is read by nothing.
-  Owner: `crates/nvs-stdlib/tests/spec_registry_coverage.rs`.
-- `crates/nvs-db/src/tds/token.rs:228` renders the version per call; a field on `TdsConn` holds it,
-  so nothing caches — fine, but it is the one driver whose answer is built rather than kept.
-- The `unowned` gaps in `crates/nvs-stdlib/src/db/mod.rs` and `crates/nvs-stdlib/src/queue.rs` are
-  goal `unowned-closures`'s, per this goal's § *Standing decisions*.
+- A closure's `foreach` binding is recorded as a capture of an enclosing name of the same spelling and
+  panics `nvs-ir` lowering — `crates/nvs-ir/src/lower/expr.rs:2667` is where it lands; no gap entry
+  owns it yet.
+- `crates/nvs-stdlib/src/db/mod.rs`'s gaps 3 and 4 are both this goal's and both now record landed
+  work; closing them means renumbering, and `gap 4`/`gap 8` are named from `row.rs` and `execute.rs`.
+- `[context] modules` did not name `crates/nvs-types/src/expr/args.rs` or
+  `crates/nvs-types/src/intrinsics.rs`, which stage 5's compile-time refusal had to edit.

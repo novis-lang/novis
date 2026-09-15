@@ -191,7 +191,7 @@ Conventions the whole file uses:
 | [`Core\Db\Connection`](#core-core-db-connection) |  |
 | [`Core\Db\Transaction`](#core-core-db-transaction) |  |
 | [`Core\Db\Rows<T>`](#core-core-db-rows) |  |
-| [`Core\Db\Stream`](#core-core-db-stream) |  |
+| [`Core\Db\Stream<T>`](#core-core-db-stream) |  |
 | [`Core\Db\Row`](#core-core-db-row) |  |
 | [`Core\Db\Write`](#core-core-db-write) |  |
 | [`Core\Db\Column`](#core-core-db-column) |  |
@@ -22264,7 +22264,7 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
 
-Keywords: query, queryAs, execute, executeMany, stream, transaction, close, driver, serverVersion, isOpen
+Keywords: query, queryAs, execute, executeMany, stream, streamAs, transaction, close, driver, serverVersion, isOpen
 
 | Member | Signature |
 |---|---|
@@ -22272,7 +22272,8 @@ Keywords: query, queryAs, execute, executeMany, stream, transaction, close, driv
 | [`Core\Db\Connection->queryAs`](#core-core-db-connection-queryas) | `queryAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<T>` |
 | [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write` |
 | [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint` |
-| [`Core\Db\Connection->stream`](#core-core-db-connection-stream) | `stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream` |
+| [`Core\Db\Connection->stream`](#core-core-db-connection-stream) | `stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<Core\Db\Row>` |
+| [`Core\Db\Connection->streamAs`](#core-core-db-connection-streamas) | `streamAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<T>` |
 | [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable(Core\Db\Transaction): T $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Connection->close`](#core-core-db-connection-close) | `close(): void` |
 | [`Core\Db\Connection->driver`](#core-core-db-connection-driver) | `driver(): Core\Db\Driver` |
@@ -22359,7 +22360,7 @@ Runs one statement once per set of values and answers how many rows the whole ba
 #### `Core\Db\Connection->stream`
 
 ```nvs skip
-$connection->stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream
+$connection->stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<Core\Db\Row>
 ```
 
 Runs one statement and walks its rows one at a time, holding the connection open until the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as something a `foreach` reads directly. Memory is constant in the number of rows, which is the whole reason to write this rather than `query`.
@@ -22370,9 +22371,28 @@ Runs one statement and walks its rows one at a time, holding the connection open
 | `$params` | `array<mixed>` | The values to bind, read exactly as `query` reads them — list-keyed for `?`, string-keyed for `:name`, one array and never both spellings. |
 | `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long the whole walk may take. The bound stays on the connection while the cursor is open, so it covers every row read and not just the call that opens the walk; the statement gives up with an `IOError` when it passes, and the connection is spent. Omitted, the walk waits as long as the server takes. |
 
-**Returns** `Core\Db\Stream` — A walk over the statement's rows, each one a `Core\Db\Row`, in the server's order. Nothing has been read when this returns and the connection is busy from here: no second statement runs on it until the walk reaches its end, so a loop that writes per row needs a second connection (`{shared: false}`) or `query`'s buffered read instead.
+**Returns** `Core\Db\Stream<Core\Db\Row>` — A walk over the statement's rows, each one a `Core\Db\Row`, in the server's order. Nothing has been read when this returns and the connection is busy from here: no second statement runs on it until the walk reaches its end, so a loop that writes per row needs a second connection (`{shared: false}`) or `query`'s buffered read instead.
 
 **Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-connection-streamas"></a>
+#### `Core\Db\Connection->streamAs`
+
+```nvs skip
+$connection->streamAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<T>
+```
+
+Walks a result set a row at a time exactly as `stream` does and builds each row into the class written at the call site — `queryAs`'s hydration over `stream`'s constant memory, which is the pair `MYSQLI_USE_RESULT` and `PDO::FETCH_CLASS` only ever did one at a time.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
+| `$params` | `array<mixed>` | The values to bind, read exactly as `query` reads them — list-keyed for `?`, string-keyed for `:name`, one array and never both spellings. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long the whole walk may take, under `stream`'s own rule: the bound stays on the connection while the cursor is open, so it covers every row read and not just the call that opens the walk. Omitted, the walk waits as long as the server takes. |
+
+**Returns** `Core\Db\Stream<T>` — A walk over the statement's rows, each one built into `T`, in the server's order. Nothing has been read when this returns and the connection is busy from here, exactly as `stream` leaves it — and one `T` is held at a time, which is the whole difference from `queryAs`.
+
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it. A `T` that carries no `#[Db\Derive]` is refused here too, as the backstop under the compile-time diagnostic that already names it.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not `?T`, or a field whose declared type has no column mapping at all. Every bad column of that row is reported at once, in `issues`, each `path` the column's name — and the walk ends there, since the connection is left holding an unread portal.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-transaction"></a>
 #### `Core\Db\Connection->transaction`
@@ -22445,7 +22465,7 @@ Whether this connection is still usable — `true` until `close`, and `false` af
 <a id="core-core-db-transaction"></a>
 ### `Core\Db\Transaction`
 
-Keywords: query, queryAs, execute, executeMany, stream, transaction, rollBack
+Keywords: query, queryAs, execute, executeMany, stream, streamAs, transaction, rollBack
 
 | Member | Signature |
 |---|---|
@@ -22453,7 +22473,8 @@ Keywords: query, queryAs, execute, executeMany, stream, transaction, rollBack
 | [`Core\Db\Transaction->queryAs`](#core-core-db-transaction-queryas) | `queryAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<T>` |
 | [`Core\Db\Transaction->execute`](#core-core-db-transaction-execute) | `execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write` |
 | [`Core\Db\Transaction->executeMany`](#core-core-db-transaction-executemany) | `executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint` |
-| [`Core\Db\Transaction->stream`](#core-core-db-transaction-stream) | `stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream` |
+| [`Core\Db\Transaction->stream`](#core-core-db-transaction-stream) | `stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<Core\Db\Row>` |
+| [`Core\Db\Transaction->streamAs`](#core-core-db-transaction-streamas) | `streamAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<T>` |
 | [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable(Core\Db\Transaction): T $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Transaction->rollBack`](#core-core-db-transaction-rollback) | `rollBack(string $reason): void` |
 
@@ -22537,7 +22558,7 @@ Runs one statement once per set of values and answers how many rows the whole ba
 #### `Core\Db\Transaction->stream`
 
 ```nvs skip
-$transaction->stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream
+$transaction->stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<Core\Db\Row>
 ```
 
 Runs one statement and walks its rows one at a time, holding the connection open until the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as something a `foreach` reads directly. Memory is constant in the number of rows, which is the whole reason to write this rather than `query`.
@@ -22548,9 +22569,28 @@ Runs one statement and walks its rows one at a time, holding the connection open
 | `$params` | `array<mixed>` | The values to bind, read exactly as `query` reads them — list-keyed for `?`, string-keyed for `:name`, one array and never both spellings. |
 | `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long the whole walk may take. The bound stays on the connection while the cursor is open, so it covers every row read and not just the call that opens the walk; the statement gives up with an `IOError` when it passes, and the connection is spent. Omitted, the walk waits as long as the server takes. |
 
-**Returns** `Core\Db\Stream` — A walk over the statement's rows, each one a `Core\Db\Row`, in the server's order. Nothing has been read when this returns and the connection is busy from here: no second statement runs on it until the walk reaches its end, so a loop that writes per row needs a second connection (`{shared: false}`) or `query`'s buffered read instead.
+**Returns** `Core\Db\Stream<Core\Db\Row>` — A walk over the statement's rows, each one a `Core\Db\Row`, in the server's order. Nothing has been read when this returns and the connection is busy from here: no second statement runs on it until the walk reaches its end, so a loop that writes per row needs a second connection (`{shared: false}`) or `query`'s buffered read instead.
 
 **Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-transaction-streamas"></a>
+#### `Core\Db\Transaction->streamAs`
+
+```nvs skip
+$transaction->streamAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream<T>
+```
+
+Walks a result set a row at a time exactly as `stream` does and builds each row into the class written at the call site — `queryAs`'s hydration over `stream`'s constant memory, which is the pair `MYSQLI_USE_RESULT` and `PDO::FETCH_CLASS` only ever did one at a time.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
+| `$params` | `array<mixed>` | The values to bind, read exactly as `query` reads them — list-keyed for `?`, string-keyed for `:name`, one array and never both spellings. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long the whole walk may take, under `stream`'s own rule: the bound stays on the connection while the cursor is open, so it covers every row read and not just the call that opens the walk. Omitted, the walk waits as long as the server takes. |
+
+**Returns** `Core\Db\Stream<T>` — A walk over the statement's rows, each one built into `T`, in the server's order. Nothing has been read when this returns and the connection is busy from here, exactly as `stream` leaves it — and one `T` is held at a time, which is the whole difference from `queryAs`.
+
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it. A `T` that carries no `#[Db\Derive]` is refused here too, as the backstop under the compile-time diagnostic that already names it.; `ParseError` — A row did not match `T`: a column missing, a column of another type than the field declares, a SQL NULL in a field that is not `?T`, or a field whose declared type has no column mapping at all. Every bad column of that row is reported at once, in `issues`, each `path` the column's name — and the walk ends there, since the connection is left holding an unread portal.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-transaction"></a>
 #### `Core\Db\Transaction->transaction`
@@ -22676,7 +22716,7 @@ What the statement described, one `Core\Db\Column` per column and in the server'
 **Returns** `array<Core\Db\Column>` — The columns. An empty result set has them too: a `select` that matched nothing still described what it would have answered, which is what makes this readable before the rows are.
 
 <a id="core-core-db-stream"></a>
-### `Core\Db\Stream`
+### `Core\Db\Stream<T>`
 
 Keywords: 
 

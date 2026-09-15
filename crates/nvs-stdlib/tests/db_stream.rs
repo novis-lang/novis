@@ -5,6 +5,10 @@
 //! version the handshake delivered, which `Core\Db\Connection::serverVersion`
 //! answers out of the connection with no statement of its own.
 //!
+//! One case here needs no server and says so in its own doc:
+//! `streamAs<T>`'s answer is decided while compiling, so a leg has nothing to
+//! add to it, and it sits beside the walk it is that walk at a written type.
+//!
 //! **These cases live in this crate because the promise is the member's, not a
 //! driver's.** `crates/nvs-stdlib/src/db/stream.rs` is where
 //! `Core\Db\Connection::stream` lives, and its in-crate
@@ -678,5 +682,74 @@ fn server_version_answers_what_the_connection_kept() {
         kept_is_the_reported_one(driver, &kept, &reported),
         "the connection kept `{kept}`, and {} reports `{reported}`",
         driver.display_name()
+    );
+}
+
+/// Spec § 18's `streamAs<T>`: the walk above at the class its call site wrote,
+/// on both spellings of `Core\Db\Queryable`.
+///
+/// **The one promise of this member no leg can vary**, which is why it is
+/// asserted without one while every case above needs a server: what a row
+/// *becomes* is decided while compiling, out of the type argument, so a driver
+/// has no say in it at all. The rows themselves are
+/// `tests/conformance/core/db-stream-as-answers-the-class-it-was-written-with.nvst`,
+/// which runs the whole member against SQLite, and the walk under them is the
+/// `stream` this file already asserts on all five drivers — § 4 gives the two
+/// members one statement, so there is no second walk for a leg to prove.
+///
+/// **Three rosters and not one**, because a member that loses any of them
+/// compiles: without the [`CoreTy::Written`] the call site's class is never
+/// asked for, without the `WRITTEN_CLASS_MEMBERS` row it is never *emitted*,
+/// and without the generic declaration the answer cannot be written down in
+/// source at all.
+#[test]
+fn stream_as_answers_rows_at_the_class_it_was_written_with() {
+    use nvs_stdlib::registry::{self, CoreTy};
+
+    const STREAM: &str = r"Core\Db\Stream";
+    const ROW: &str = r"Core\Db\Row";
+
+    for owner in [r"Core\Db\Connection", r"Core\Db\Transaction"] {
+        let class = registry::class(owner).expect("§ 18's class is registered");
+        let answers = |member: &str| {
+            class
+                .members()
+                .find(|row| row.name == member)
+                .unwrap_or_else(|| panic!("`{owner}::{member}` is registered"))
+                .return_ty
+        };
+
+        assert!(
+            matches!(
+                answers("streamAs"),
+                CoreTy::InstanceAt(name, [CoreTy::Written("T")]) if name == STREAM
+            ),
+            "`{owner}::streamAs` answers the walk at the written type, and answers {:?}",
+            answers("streamAs")
+        );
+        assert!(
+            matches!(
+                answers("stream"),
+                CoreTy::InstanceAt(name, [CoreTy::Instance(element)])
+                    if name == STREAM && *element == ROW
+            ),
+            "`{owner}::stream` answers the same walk with its element fixed, and answers {:?}",
+            answers("stream")
+        );
+        assert!(
+            registry::WRITTEN_CLASS_MEMBERS.contains(&(owner, "streamAs")),
+            "`{owner}::streamAs` is keyed by its declaring class, so a call through a `$tx` \
+             keeps the class its call site wrote"
+        );
+    }
+
+    assert_eq!(
+        registry::class_type_params(STREAM),
+        Some(&["T"][..]),
+        "`{STREAM}` is one generic walk and not two classes"
+    );
+    assert!(
+        matches!(registry::iterable_element(STREAM), Some(CoreTy::Var("T"))),
+        "a walk yields what it was opened to build, which is its own type argument"
     );
 }

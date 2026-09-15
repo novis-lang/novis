@@ -1,0 +1,41 @@
+--TEST--
+`streamAs<T>` over a class carrying no `#[Db\Derive]` is refused while compiling, on both spellings of the member — `rule:core-classes/derive-attribute`, `rule:core-classes/db-streaming`, spec § 18
+--FILE--
+<?nvs
+// `rule:core-classes/derive-attribute` makes hydration opt-in, so a class with
+// no `#[Db\Derive]` is perfectly well formed and stays so: it is only a call
+// that asks a row to *become* one that has no column mapping to work from. That
+// question is the whole program's — the class is routinely declared in a file
+// the walk has not reached — so it is answered after the walk rather than where
+// the call is written, which is what `nvs_types::derive`'s `check_row_sites`
+// exists for.
+//
+// The same refusal `queryAs<T>` takes, said of the member that never holds a
+// result set: what a walk cannot build it cannot build one row at a time
+// either.
+use Core\Db\Transaction;
+
+class Plain {
+    public uint $id;
+
+    public function constructor(uint $id)
+    {
+        $this->id = $id;
+    }
+}
+
+class People {
+    public static function walking(Transaction $tx): Core\Db\Stream<Plain>
+    {
+        return $tx->streamAs<Plain>("select id from people", []);
+    }
+}
+
+var $db = Core\Db::connect("main");
+var $walk = $db->streamAs<Plain>("select id from people", []);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0806]: `Plain` carries no `#[Db\Derive]`, so `Core\Db\Transaction::streamAs` has no mapping
+%A
+error: aborting due to 2 errors

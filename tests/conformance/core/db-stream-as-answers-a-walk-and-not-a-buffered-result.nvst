@@ -1,0 +1,44 @@
+--TEST--
+`streamAs<T>` answers `Core\Db\Stream` at the class its call site wrote, which is not the `Core\Db\Rows` the buffering half of the same pair answers — `rule:core-classes/db-streaming`, `rule:core-classes/db-statement-members`, spec § 18
+--FILE--
+<?nvs
+// § 18 puts four hydrating readings of one statement on `Core\Db\Queryable`,
+// and the two axes are independent: `query`/`stream` decides where the rows
+// are, and the written type argument decides what each row becomes. So the
+// answer's *class* is the walk's and its *type argument* is the call site's,
+// and a program that confuses the first axis for the second is refused here
+// rather than at the row that would not arrive.
+use Core\Db\Derive;
+use Core\Db\Transaction;
+
+#[Derive]
+class Person {
+    public uint $id;
+    public tainted string $name;
+
+    public function constructor(uint $id, tainted string $name)
+    {
+        $this->id = $id;
+        $this->name = $name;
+    }
+}
+
+// `rule:classes/no-traits` declares the member once, so a transaction answers
+// exactly what its connection does — this function type-checks, and is the
+// agreement half of the refusal below.
+class People {
+    public static function walking(Transaction $tx): Core\Db\Stream<Person>
+    {
+        return $tx->streamAs<Person>("select id, name from people", []);
+    }
+}
+
+var $db = Core\Db::connect("main");
+
+Core\Db\Rows<Person> $wrong = $db->streamAs<Person>("select id, name from people", []);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Db\Rows<Person>`, found `Core\Db\Stream<Person>`
+%A
+error: aborting due to 1 error

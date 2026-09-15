@@ -26,7 +26,3 @@
 # members beside the four that shape a response without writing one. It keeps no
 # keys here. What is left of ADR 0139 is § 4's write-back at the end of the
 # request, which is a server question rather than a member.
-
-# § 18 -- `Core\Db`, whose remaining members each need a driver and a server to
-# talk to. `inList` and `quoteIdentifier` need neither and have landed.
-§18 streamAs            # m8-db-queue

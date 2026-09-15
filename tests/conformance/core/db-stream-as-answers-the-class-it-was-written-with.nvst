@@ -1,0 +1,65 @@
+--TEST--
+`streamAs<T>` walks a result set a row at a time and builds each row into the class its call site wrote, through a connection and through a transaction alike — `rule:core-classes/db-streaming`, `rule:core-classes/derive-attribute`, `rule:classes/no-traits`, spec § 18
+--FILE--
+<?nvs
+// Spec § 18 gives `stream` and `streamAs<T>` one statement, one binding rule
+// and one held connection: what differs is that the walk's element is a
+// `Core\Db\Row` on the first and the written class on the second. So this case
+// asks for the rows a member that buffered could answer just as well, and what
+// it pins is that they arrive as `Person`s — the hydration `queryAs` does, done
+// one row at a time as the walk reaches each.
+//
+// SQLite is the backend a case can reach: a `:memory:` block needs no server.
+// The four drivers with a wire assert the walk itself from
+// `crates/nvs-stdlib/tests/db_stream.rs`.
+use Core\Db\Derive;
+use Core\Db\Transaction;
+
+#[Derive]
+class Person {
+    public uint $id;
+    // § 9: every column a row yields is `tainted` where its type can carry it,
+    // so a field receiving one says so or the call site is a diagnostic.
+    public tainted string $name;
+
+    public function constructor(uint $id, tainted string $name)
+    {
+        $this->id = $id;
+        $this->name = $name;
+    }
+}
+
+var $db = Core\Db::connect("main");
+$db->execute("create table people (id integer primary key, name text not null)", []);
+$db->executeMany("insert into people (name) values (?)", [["ada"], ["grace"], ["alan"]]);
+
+// The `foreach` binds a `Person` and not a `Core\Db\Row`, which is the whole of
+// what the type argument bought: the class is built where the row is read.
+foreach ($db->streamAs<Person>("select id, name from people order by id", []) as Person $person) {
+    echo "person ", $person->id, " ", $person->name, "\n";
+}
+
+// `rule:classes/no-traits` declares the member once, on `Core\Db\Queryable`, so a
+// transaction's walk is its connection's: the same statement, the same class,
+// through the receiver the closure was handed.
+$db->transaction(fn (Transaction $tx): void => {
+    foreach ($tx->streamAs<Person>("select id, name from people order by id desc", []) as Person $each) {
+        echo "in transaction ", $each->name, "\n";
+    }
+});
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+person 1 ada
+person 2 grace
+person 3 alan
+in transaction alan
+in transaction grace
+in transaction ada
