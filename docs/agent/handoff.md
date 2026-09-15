@@ -4,66 +4,58 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
-and stages 3 to 11 are built. Stage 12 is half landed. Nothing is blocked.
+stages 3 to 11 are built, and stage 12 has two of its three cases green. Nothing is blocked.
 
-**The served path now has a memory ceiling.** `Ctx::isolate`
-(`crates/nvs-runtime/src/ctx/isolate.rs:364`) armed no threshold and set no ceiling, so every request
-served over a socket — each one an isolate — allocated unbounded under any `[limits] memory`. It now
-crosses what remains of the tree's ceiling through `set_memory_limit`, which is the number and the
-setter `PlacedIsolate::build` (`:806`) already handed a child placed on another core, so the two
-halves of `rule:security/isolate-budget-is-the-trees` agree. Two cases asserted the old shape as the
-design and now assert the rule instead — `crates/nvs-runtime/tests/allocator_ceiling.rs:161` and
-`crates/nvs-server/src/schedule.rs:1327`. `crates/nvs-cli/src/serve.rs:4139` is the case that holds
-it end to end: a served doubling loop is a `500` and the same core answers the request after it.
+**A served request is now its own request tree.** `Ctx::reroot`
+(`crates/nvs-runtime/src/ctx/safepoint.rs:96`) mints a safepoint word and a deadline nothing else
+polls, and `serve_connection` calls it in front of every request
+(`crates/nvs-server/src/serve.rs:1229`) — ahead of the `set_config` that arms the ceilings off them,
+for the ordering `Ctx::isolate` already keeps. Both words were the *connection's* before it: a
+request stopped at `rule:errors/on-limit`'s CPU ceiling left `SafepointFlags::CPU_LIMIT` standing
+with the deadline expired beside it, and the next request down the same keep-alive connection was a
+`500` at its first poll. The pair is **replaced rather than cleared**, and the method's doc is the
+home of why — `SafepointView::expire_deadline` is one-way by design, and no seam that watches an
+isolate end knows whether its tree ended. The allocation is reused where the context is the tree's
+only holder, which is the same fact that keeps
+`rule:concurrency/after-response-outlives-the-connection`'s deferred work stopped.
 
-**The CPU half of stage 12 is written, diagnosed and not landed**, because it exposes a second
-defect whose fix is a design call this session had no room left to make well. A request stopped by
-`rule:errors/on-limit`'s CPU ceiling leaves `SafepointFlags::CPU_LIMIT` standing in the word its
-*tree* shares — which on the served path is the **connection's**, since `Ctx::isolate` calls
-`share_safepoint_with` (`crates/nvs-runtime/src/ctx/safepoint.rs:59`) — and the safepoint's tail
-lowers only `COLLECT | DEBUG_BREAK | MEMORY_LIMIT`
-(`crates/nvs-runtime/src/ctx/safepoint.rs:475`). The watchdog expires the tree's deadline beside
-raising the flag (`crates/nvs-runtime/src/ctx/safepoint.rs:301`), and `SafepointView` can raise and
-expire but neither lower nor un-expire (`crates/nvs-runtime/src/ctx/safepoint.rs:279`). So the next
-request on that keep-alive connection is a `500` at its first poll. Measured through the fixture
-below, not inferred: it answered `500` and then `500`.
+**Stage 12's CPU case is landed**: `a_served_while_true_is_ended_as_a_fatal_and_the_core_answers_the_next_request`
+(`crates/nvs-cli/src/serve.rs:4145`) serves a spinning entry and then an answering one over one
+connection on one core through `a_runaway_then_an_answer` (`:3991`). Measured both ways — with the
+re-root ablated it answers `500` and then `500`.
+
+**The stage-12 acceptance check stays red until the third case exists.** One `[[check]]` names all
+three tests, and `a_revalidation_that_fails_to_compile_fails_only_the_requests_that_resolve_it_afterwards`
+is not written yet. That is the next group, and it is the whole of what stands between this goal and
+its last stage.
 
 ## Next group
 
-**Stage 12: the served path, end to end** — one file set: `crates/nvs-runtime/src/ctx/safepoint.rs`,
-`crates/nvs-host/src/isolate.rs` and `crates/nvs-cli/src/serve.rs`. The in-process serve fixture the
-remaining cases reuse is `a_runaway_then_an_answer` at `crates/nvs-cli/src/serve.rs:3991`; it serves
-two requests over one connection on one core through `serve_on_this_core` and returns both status
-lines.
+**Stage 12: the served path, end to end** — one file set: `crates/nvs-cli/src/script.rs`. The
+compiler under test lives there; `revalidating()` (`crates/nvs-cli/src/script.rs:954`) and
+`checking(validate, freq)` (`:961`) build one, `a_file_running` (`:933`) writes an entry, and
+`a_revalidation_that_wins_publishes_and_readers_never_block_on_a_compile` (`:1293`) is the sibling
+whose shape both cases below take.
 
-- [ ] **A stopped request gives the connection its safepoint word back**
-      (`rule:errors/on-limit`). Decide which seam owns the clearing — the `Unpublished` guard that
-      already clears the publication (`crates/nvs-host/src/isolate.rs:766`), or the safepoint tail
-      (`crates/nvs-runtime/src/ctx/safepoint.rs:475`) — and what an expired deadline means to the
-      connection that outlives the request that expired it. The alternative to weigh is a
-      per-request word rather than a per-tree one, which `Ctx::share_safepoint_with`
-      (`crates/nvs-runtime/src/ctx/safepoint.rs:59`) is the whole of. Write the reasoning where the
-      rule does not already hold it.
-- [ ] **A runaway `while (true)` under `nvs serve` is a fatal and its core answers the next
-      request** (`rule:errors/on-limit`), as
-      `a_served_while_true_is_ended_as_a_fatal_and_the_core_answers_the_next_request` beside the
-      allocation case at `crates/nvs-cli/src/serve.rs:4139`. The tree is
-      `[limits] cpu_time = "200ms"`, the program is the corpus's own spelling in
-      `tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst`,
-      and the case skips where `nvs_host::cpuclock::no_ceiling_note` answers `Some`. The fixture's
-      watchdog is already registered the way the door registers one
-      (`crates/nvs-cli/src/serve.rs:4059`).
 - [ ] **A revalidation that fails to compile fails only the requests that resolve it afterwards**
-      (`rule:config/a-broken-edit-fails-the-requests-that-resolve-it`), over the same fixture at
-      `crates/nvs-cli/src/serve.rs:3991`.
+      (`rule:config/a-broken-edit-fails-the-requests-that-resolve-it`, first paragraph). The test the
+      stage-12 `[[check]]` names by exactly that name, so it goes in `nvs-cli`. A request that
+      resolved the last good content runs to completion, the broken resolution is what *this* caller
+      gets as checked-return data, and the path's pointer is left naming the content that compiled —
+      `Compiler::record` (`crates/nvs-cli/src/script.rs:621`) and `Compiler::advance` (`:598`) are
+      the two halves, and `a_stale_revalidation_does_not_overwrite_a_fresher_published_one` (`:1400`)
+      already asserts the pointer one.
+- [ ] **A storm against a broken file costs one compile and one rendering of its spans**
+      (same rule, first paragraph's tail). The `Failed` entry is keyed by content, so every later
+      request on the same broken bytes is answered from the table rather than compiled again;
+      `the_compile_counter_counts_compiles_and_not_cores` (`crates/nvs-cli/src/script.rs:1446`) is
+      the counter to assert it against.
 
 ## Backlog
 
-- `Ctx::isolate` carries no `output_limit` and no `cpu_limit` across, so a served request is under
-  no `[limits] max_output` — `crates/nvs-runtime/src/ctx/isolate.rs:364`, and
-  `PlacedIsolate::build` at `:806` is the shape that is already right.
-- The `unowned` gaps at `crates/nvs-server/src/route.rs:30`, `bounds.rs:62`,
-  `crates/nvs-types/src/response.rs:29` and `crates/nvs-stdlib/src/cli.rs:130` — goal
-  `unowned-closures`.
-- Stale prose in `docs/plan/m7.md`'s carrier list and `crates/nvs-cli/src/serve.rs:79-90` — goal
-  `plan-truth`.
+- An upgraded connection's isolate is built from the connection's context and so joins the tree of
+  the request that upgraded it, where `rule:concurrency/a-connection-is-a-root-isolate` makes it a
+  root with a budget of its own — `crates/nvs-server/src/serve.rs:1560`.
+- `Core\Metrics`'s three rows belong to goal `m8-stdlib-depth`; the `unowned` gaps at
+  `crates/nvs-server/src/route.rs:30` and its siblings belong to goal `unowned-closures`.
+- `docs/plan/m7.md`'s carrier list and the "one core" rows are goal `plan-truth`'s stale prose.
