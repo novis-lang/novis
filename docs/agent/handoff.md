@@ -4,55 +4,53 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
-stages 3 and 4 are complete. **Stage 5 is one group from done**: every verb is a plan of actions, and
-both appliers now apply one.
+stages 3 and 4 are complete. **Stage 5's surface is on disk**: `nvs service` names all seven verbs of
+`rule:packaging/a-service-is-one-stored-argv`, each a `Site` over the applier `at_host`
+(`crates/nvs-cli/src/service.rs:2680`) names, plus the hidden `nvs install-service` alias. An install
+dry run, an uninstall and a control verb all run end to end against the real SCM on this machine.
 
-`registration::scm::Scm` (`crates/nvs-cli/src/service.rs:1841`) is the Windows half — `CreateServiceW`
-plus the configuration levels for the description, delayed auto-start, `PRESHUTDOWN` and the failure
-actions; `RegCreateKeyExW`/`RegDeleteTreeW` for the event-log source; `SetEntriesInAclW` over the DACL
-`crates/nvs-config/src/trust.rs` reads, for a grant and its revoke. `registration::Systemd`
-(`:1676`) is the Linux half — the unit write, its remove, and `systemctl` by argv with no shell.
-Three steps answer for the state they ask for rather than for the call (a service already gone, a stop
-of one that is not running, a source that was never registered), so an uninstall after an interrupted
-install still leaves nothing behind.
+**An uninstall reads back what it is undoing** — `Manager::stored`, which is `QueryServiceConfigW`'s
+`ImagePath` and account on Windows and the unit's `ExecStart` on Linux. The two grant directories
+neither manager holds are derived again from the configuration the stored argv names, so they are the
+same paths the install granted; an install given the installer's own `--log-file` over a
+configuration that names no `file:` destination is the single grant that derivation cannot reach, and
+`service.rs`'s module doc owns that gap.
 
-**`Systemd` is deliberately not `#[cfg(unix)]`** — `verify.py` has no Linux leg, and a write, a remove
-and a child process are `std` everywhere, so compiling it on both platforms is what keeps it compiled.
-`Scm` has no such choice and is type-checked on Windows only.
-
-**What is not on disk is the `ServiceCommand` variants beside `unit`**, so `nvs service --help` still
-names one verb and stage 5's first check is still red. Nothing is blocked.
+**`nvs service run` is the foreground spelling and nothing more.** `image_path` and `unit()` both
+carry the stored argv directly, so a manager starts `nvs serve …` itself and never reaches this verb
+— which puts `rule:packaging/a-service-answers-its-manager`'s table (STOP and PRESHUTDOWN to the
+drain, PARAMCHANGE to the reload, the lifecycle records) inside `nvs serve` running under the SCM,
+and that half is not on disk. Stage 5's `cargo-named` check is all that is left of the stage.
+Nothing is blocked.
 
 ## Next group
 
-**Stage 5: `nvs service`, the surface over the two appliers** — one file set:
-`crates/nvs-cli/src/main.rs` and `crates/nvs-cli/src/service.rs`.
+**Stage 5: the cases, against the recording manager** — one file set: `crates/nvs-cli/src/service.rs`
+(its `mod tests`) and `crates/nvs-cli/src/ctl.rs`.
 
-- [ ] **`ServiceCommand` gains `install`, `uninstall`, `start`, `stop` and `status` beside `unit`,
-      each one a `Site` over the applier `Platform::host()` names** — the enum is
-      `crates/nvs-cli/src/main.rs:961` and the dispatch that currently reaches `unit` alone is
-      `crates/nvs-cli/src/main.rs:1175`; the front doors are `install`
-      (`crates/nvs-cli/src/service.rs:1614`), `uninstall` (`crates/nvs-cli/src/service.rs:1634`) and
-      `control` (`crates/nvs-cli/src/service.rs:1650`), and the appliers are
-      `crates/nvs-cli/src/service.rs:1676` and `crates/nvs-cli/src/service.rs:1841`. `--dry-run`
-      is `perform`'s own parameter (`crates/nvs-cli/src/service.rs:1581`).
-      `rule:packaging/a-service-is-one-stored-argv`.
-- [ ] **`nvs service run` is the foreground spelling of "start it as the manager would"** — both
-      `image_path` and `unit()` put the argv in directly, so a manager never invokes `run`; what it
-      needs is the stored argv read back, and `decode` (`crates/nvs-cli/src/service.rs:471`) is
-      already the Windows half. The drain, the `PARAMCHANGE` reload and the event-log records are
-      `rule:packaging/a-service-answers-its-manager`'s table, entered through
-      `Drain::process().begin()`.
-- [ ] **The stage's cases, against the recording manager** — the `cargo-named` check at
-      `docs/agent/loop-goal.toml:10201` names them and `Recording` is
-      `crates/nvs-cli/src/service.rs:2404`. Nothing in one touches the real SCM or `systemctl`;
-      `service_status_reports_in_flight_and_drain_progress_from_the_control_socket` is the one that
-      drives the control socket instead, and `crates/nvs-cli/src/ctl.rs` holds the client half.
+- [ ] **The seven cases that need only the recording manager** — the three installs, the uninstall,
+      `start`/`stop`/`status` by argv with no shell, and the refusal that runs before any manager
+      call. `Recording` is `crates/nvs-cli/src/service.rs:2594`, and the front doors it is driven
+      through are `crates/nvs-cli/src/service.rs:1711`, `crates/nvs-cli/src/service.rs:1731` and
+      `crates/nvs-cli/src/service.rs:1747`; the exact names are the check at
+      `docs/agent/loop-goal.toml:10201`. `rule:packaging/a-service-is-one-stored-argv`.
+- [ ] **The SCM control handler belongs to `nvs serve`, and it is what the two `run` cases assert** —
+      a control maps to a `State` (`crates/nvs-cli/src/service.rs:667`) through the `Supervisor` seam
+      (`crates/nvs-cli/src/service.rs:712`), and `recording()`
+      (`crates/nvs-cli/src/service.rs:791`) is the fake sink a case reads the checkpoints out of.
+      The drain itself is one state machine entered at `Drain::process().begin()`.
+      `rule:packaging/a-service-answers-its-manager`.
+- [ ] **`service_status_reports_in_flight_and_drain_progress_from_the_control_socket`** — the verb is
+      `crates/nvs-cli/src/service.rs:2838` and it already asks the socket named by the *stored*
+      argv's configuration; the client half is `crates/nvs-cli/src/ctl.rs:75`.
 
 ## Backlog
 
-- `crates/nvs-cli/src/service.rs` is past [doc-style.md](doc-style.md)'s ~1,500-line target; the
-  spec-shaped seam is `registration` and its two appliers.
+- `crates/nvs-cli/src/service.rs` is now ~2,900 lines against [doc-style.md](doc-style.md)'s ~1,500
+  target; the seam is `registration` and its two appliers, which is most of it.
+- An install given `--log-file` over a configuration naming no `file:` destination leaves that one
+  grant unrevoked at uninstall — `service.rs`'s module doc owns it, and binding the same value at
+  `run` needs it recoverable too.
 - `docs/agent/goals/23-per-core.md:87-89` still says `serve.rs` refuses `Listen::Unix` — retired
   goal's prose, owned by goal `plan-truth`.
 - `rule:http-server/a-unix-socket-listener` is still `designed`; stage 13 flips it with `guardedBy`

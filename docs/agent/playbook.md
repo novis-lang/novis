@@ -6973,6 +6973,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   own `#[cfg_attr(test, expect(dead_code, reason = …))]`, and reach for `cargo clippy --all-targets`
   rather than `cargo build` while a seam still has no caller.
   [until: gone crates/nvs-cli/src/service.rs:the subcommands that reach this seam]
+- **A helper only `registration::Systemd` reaches is dead code on Windows, and only in the test
+  build.** `cargo clippy --all-targets -- -D warnings` stops on it while the ordinary build is
+  clean, because `Systemd` is compiled on both platforms but constructed only where it is the
+  host's manager, so on Windows everything under it is reachable from a case alone — and a case
+  drives `Recording` instead. Spell the marker `#[cfg_attr(all(test, windows), expect(dead_code,
+  reason = "…"))]`, which is what `Systemd` and `systemctl` already carry.
+  [until: reviewed 2026-09-15]
 
 ## Divergences and refusals already pinned
 
