@@ -3,7 +3,7 @@
 
 # Configuration
 
-*12 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
@@ -1532,7 +1532,7 @@ queued job is the same root shape ([`concurrency/a-job-runs-as-a-root-isolate`](
 
 <a id="config-a-fleet-entry-fires-at-most-once-under-a-lease"></a>
 
-## A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once  *(designed — not yet in the compiler)*
+## A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once
 
 `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`
 

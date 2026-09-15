@@ -1092,7 +1092,7 @@
     {
       "id": "config/a-fleet-entry-fires-at-most-once-under-a-lease",
       "title": "A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0073",
         "0059"
