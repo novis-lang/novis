@@ -1,0 +1,44 @@
+--TEST--
+`queryAs<T>` over a class with an inline-shape field is refused while compiling rather than once per row — `rule:core-classes/db-column-types`, `rule:core-classes/derive-field-list`, spec § 18
+--FILE--
+<?nvs
+// `rule:core-classes/db-column-types` makes a row a flat list of columns, so a
+// nested document is not one. The property is answered twice, and the two say
+// different things: the declaration carries a type the map has no row for, and
+// the *call* has a constructor parameter no column can fill. Only the second
+// is a question about the call, which is why it waits for the whole program —
+// the class is routinely declared in a file the walk has not reached — and it
+// is `nvs_types::derive`'s `check_row_sites` that answers it after the walk.
+//
+// This is the refusal that used to be said once per row. `Core\Db\Row`'s
+// `hydrate` still carries it as the backstop for a class built by hand, where
+// there is no `#[Db\Derive]` for a compiling pass to read.
+use Core\Db\Transaction;
+
+#[Core\Db\Derive]
+class Row {
+    public int $n;
+
+    public {city: string} $where;
+
+    public function constructor(int $n, {city: string} $where)
+    {
+        $this->n = $n;
+        $this->where = $where;
+    }
+}
+
+class Rowsource {
+    public static function all(Transaction $tx): Core\Db\Rows<Row>
+    {
+        return $tx->queryAs<Row>("select n, city from t", []);
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0756]: `Row::$where` is declared `{city: string}`, which has no column mapping
+%A
+error[E0806]: `Row::$where` is declared a type no column reads back, so `Core\Db\Transaction::queryAs` has no value to give it
+%A
+error: aborting due to 2 errors

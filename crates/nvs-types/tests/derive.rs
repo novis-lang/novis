@@ -757,3 +757,129 @@ var $two = Core\\Json::decodeAs<{n: string}>($doc);
     assert_eq!(field_ty(&one), CodecTy::Int);
     assert_eq!(field_ty(&two), CodecTy::Str);
 }
+
+/// The fourth way `check_row_sites` answers "no", and the one that used to be
+/// said once per row: a field the erasure could give no wire type.
+#[test]
+fn a_query_as_over_an_inline_shape_field_is_refused_while_compiling() {
+    let shaped = check_src(
+        "<?nvs
+#[Core\\Db\\Derive]
+class Row {
+    public int $n;
+    public {city: string} $where;
+    public function constructor(int $n, {city: string} $where)
+    {
+        $this->n = $n;
+        $this->where = $where;
+    }
+}
+class Rowsource {
+    public static function all(Core\\Db\\Transaction $tx): Core\\Db\\Rows<Row>
+    {
+        return $tx->queryAs<Row>(\"select n, city from t\", []);
+    }
+}
+",
+    );
+    assert!(
+        shaped
+            .iter()
+            .any(|d| d.code == Some(code::E_QUERY_AS_NOT_A_ROW_CLASS)
+                && d.message.contains("$where")),
+        "{shaped:?}"
+    );
+}
+
+/// `rule:core-classes/db-column-types`'s three types that a decoder used to have
+/// no wire type for: each erases to a `CodecTy` of its own, so neither door has
+/// to tell them from the `Opaque` that means a decoder is missing or from the
+/// `Class` that means a nested one.
+///
+/// Asked of every column-mapped `Core` value type at once rather than of the
+/// `Instant` alone: the four that are still a class label are only correct
+/// while `nvs_stdlib::db::row` reads that label, so a fifth one quietly
+/// erasing to `Instant` — or the `Instant` quietly going back to `Class` —
+/// fails here rather than one row at a time against a live server.
+///
+/// `bytes` is written both ways for `rule:security/derived-codec-qualifiers`:
+/// the qualifier is a call-site question, so a `tainted bytes` column and a
+/// `bytes` one are one wire type, exactly as the two spellings of `string` are.
+#[test]
+fn a_decimal_an_instant_and_bytes_field_erase_to_their_own_codec_type() {
+    let (diags, exprs) = check_src_table(
+        "<?nvs
+#[Core\\Db\\Derive]
+class Row {
+    public decimal $price;
+    public Core\\Time\\Instant $at;
+    public bytes $blob;
+    public tainted bytes $payload;
+    public Core\\Time\\Date $day;
+    public Core\\Time\\TimeOfDay $clock;
+    public Core\\Time\\DateTime $stamp;
+    public Core\\Uuid $id;
+    public function constructor(
+        decimal $price,
+        Core\\Time\\Instant $at,
+        bytes $blob,
+        tainted bytes $payload,
+        Core\\Time\\Date $day,
+        Core\\Time\\TimeOfDay $clock,
+        Core\\Time\\DateTime $stamp,
+        Core\\Uuid $id,
+    )
+    {
+        $this->price = $price;
+        $this->at = $at;
+        $this->blob = $blob;
+        $this->payload = $payload;
+        $this->day = $day;
+        $this->clock = $clock;
+        $this->stamp = $stamp;
+        $this->id = $id;
+    }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let codec = exprs
+        .db_codec("Row")
+        .expect("the class derives a row codec");
+    let field = |property: &str| {
+        codec
+            .fields
+            .iter()
+            .find(|field| field.property == property)
+            .unwrap_or_else(|| panic!("no `${property}` field"))
+    };
+
+    assert_eq!(field("price").ty, CodecTy::Decimal);
+    assert_eq!(field("blob").ty, CodecTy::Bytes);
+    assert_eq!(field("payload").ty, CodecTy::Bytes);
+
+    // The label rides along with the wire type, because what the decode owes is
+    // to say which class the column was expected to build.
+    let at = field("at");
+    assert_eq!(at.ty, CodecTy::Instant);
+    assert_eq!(at.class.as_deref(), Some(r"Core\Time\Instant"));
+
+    // The rest of the map is a class label and is read by it.
+    for (property, class) in [
+        ("day", r"Core\Time\Date"),
+        ("clock", r"Core\Time\TimeOfDay"),
+        ("stamp", r"Core\Time\DateTime"),
+        ("id", r"Core\Uuid"),
+    ] {
+        let value = field(property);
+        assert_eq!(value.ty, CodecTy::Class, "`${property}`");
+        assert_eq!(value.class.as_deref(), Some(class), "`${property}`");
+    }
+
+    // None of them is the erasure that means "no decoder": that is now an
+    // inline shape reached as a field, and nothing else a row can declare.
+    assert!(
+        codec.fields.iter().all(|field| field.ty != CodecTy::Opaque),
+        "{codec:?}"
+    );
+}
