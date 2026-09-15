@@ -115,7 +115,7 @@
 //!
 
 use std::cell::Cell;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs as _};
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -470,6 +470,22 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     }
+    // `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`'s
+    // scrape endpoint, bound here rather than by the core that ends up serving
+    // it, for [`bind_sockets`]' own reason: an address the platform refuses is a
+    // start that fails, not one core quietly missing a listener. A tree naming
+    // no Prometheus exporter binds nothing at all, which is [`scrape_socket`]'s
+    // `None` and the cheapest reading of `exporter = false`.
+    let mut scrapes = match scrape_socket(&current.load().config) {
+        Ok(socket) => socket,
+        Err(refusal) => {
+            eprintln!("error: {refusal}");
+            return ExitCode::FAILURE;
+        }
+    };
+    if let Some(socket) = &scrapes {
+        println!("scrapes answered on {}", socket.named());
+    }
     listening(&bound, path, &told);
 
     // The fan-out itself: one worker per core, each taking its own handle on
@@ -510,6 +526,7 @@ pub(crate) fn run(
         let mut sched = nvs_host::Scheduler::new();
         let core = Core {
             listeners: rows.swap_remove(0),
+            scrapes: scrapes.take(),
             compiler,
             mounts,
             snapshot,
@@ -563,6 +580,11 @@ pub(crate) fn run(
             current: Arc::clone(&current),
             waits,
             serving: serving.clone(),
+            // One listener and so one core answering scrapes, on the same
+            // worker the ticker went to. Every core's series still reach it —
+            // `nvs_server::metrics::every_core` is what a scrape gathers
+            // through, and the listener's core is not the only one it reads.
+            scrapes: if index == 0 { scrapes.take() } else { None },
             // One roster and so one ticker, on the first worker: a schedule
             // armed per core would fire every entry once per core.
             ticks: index == 0,
@@ -606,6 +628,14 @@ struct Core {
     /// This core's own handle on every socket the boot bound, one per
     /// `[server] listen` entry.
     listeners: Vec<Socket>,
+    /// `[metrics] listen`, on exactly one worker: a scrape gathers every core's
+    /// series through `nvs_server::metrics::every_core`, so a second listener
+    /// would be a second address answering the same numbers.
+    ///
+    /// The socket itself and not a handle on it, because there is nothing to
+    /// share it with. `None` on every other core, and on every core of a
+    /// process whose `[metrics]` names no Prometheus exporter.
+    scrapes: Option<Socket>,
     /// The fleet's one compiled-unit cache, so a source compiles once for the
     /// process rather than once per core.
     compiler: Arc<Compiler>,
@@ -651,6 +681,7 @@ struct Core {
 fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     let Core {
         listeners,
+        scrapes,
         compiler,
         mounts,
         snapshot,
@@ -1017,6 +1048,39 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 );
                 if let Err(error) = served {
                     eprintln!("error: the accept loop on {named} stopped: {error}");
+                    stopped.set(true);
+                }
+            }
+        });
+    }
+
+    // The exporter's own accept loop, on the one core the boot handed the
+    // listener to. It is a task beside the accept loops above and not a thread
+    // of its own (`rule:concurrency/one-scheduler`), it answers one collector at
+    // a time, and it runs no Novis code; what it reads is every core's series
+    // and never this one's alone.
+    if let Some(handle) = scrapes {
+        let named = handle.named();
+        let mut listener = match handle.accepting() {
+            Ok(listener) => listener,
+            Err(error) => {
+                eprintln!("error: this core could not take the scrape socket: {error}");
+                return false;
+            }
+        };
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let stopped = Rc::clone(&stopped);
+            let draining = draining.clone();
+            move |_ctx| {
+                let served = nvs_server::serve_scrapes_on_this_core(
+                    &mut *listener,
+                    waits,
+                    &draining,
+                    |note| eprintln!("note: {note}"),
+                    || ControlFlow::Continue(()),
+                );
+                if let Err(error) = served {
+                    eprintln!("error: the scrape loop on {named} stopped: {error}");
                     stopped.set(true);
                 }
             }
@@ -1865,6 +1929,59 @@ fn handles_for(bound: &[Socket], workers: usize) -> std::io::Result<Vec<Vec<Sock
         .collect()
 }
 
+/// The exporter's listener, where `[metrics]` asks for one.
+///
+/// `None` covers every way of not asking — no `[metrics]` block, `exporter =
+/// false`, and an `otlp` exporter, which pushes and is never scraped — and is
+/// the reading `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`
+/// wants: a deployment that configured no scrape endpoint opens no port.
+///
+/// **A `prometheus` exporter with no `listen` is refused rather than defaulted.**
+/// The address a scrape arrives at decides who on the network can read this
+/// process's series, and picking one on an operator's behalf is
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s unsafe
+/// default: the tree would open a port nobody wrote down. `nvs.toml`'s own
+/// commented line is the one to uncomment.
+///
+/// # Errors
+///
+/// The refusal as one line: an exporter with nowhere to answer, an address that
+/// does not resolve, or the platform's own on the bind.
+fn scrape_socket(config: &nvs_config::Config) -> Result<Option<Socket>, String> {
+    let Some(metering) = nvs_config::Metering::of(config) else {
+        return Ok(None);
+    };
+    if metering.exporter != nvs_config::Exporter::Prometheus {
+        return Ok(None);
+    }
+    let written = config
+        .metrics
+        .as_ref()
+        .and_then(|metrics| metrics.listen.as_deref())
+        .ok_or_else(|| {
+            "`[metrics] exporter` is `prometheus` and `[metrics] listen` names no address, so a \
+             scrape would have nowhere to arrive: write one, or `exporter = false`"
+                .to_owned()
+        })?;
+    let address = written
+        .to_socket_addrs()
+        .map_err(|error| {
+            format!("`[metrics] listen` names `{written}`, which does not resolve: {error}")
+        })?
+        .next()
+        .ok_or_else(|| {
+            format!("`[metrics] listen` names `{written}`, which resolves to no address at all")
+        })?;
+    // The same bind every `[server] listen` entry takes, so a refusal reads the
+    // same way whichever socket it was. The mode is the Unix-domain one and
+    // this entry is always a port: `rule:config/no-network-control-surface`
+    // keeps an operator surface local, and a scrape endpoint is read by a
+    // collector on the network rather than by an operator on this host.
+    Ok(Some(
+        bind_all(&[Listen::Tcp(address)], 0o660)?.swap_remove(0),
+    ))
+}
+
 /// One configuration refusal, rendered with the line it came from.
 fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitCode {
     let mut diags = Diagnostics::new();
@@ -1878,8 +1995,8 @@ mod tests {
     use super::{
         Address, Compiler, Ctx, Inbound, Isolate, Listen, Mounted, Notify, Output, OutputSink,
         Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all, bind_sockets,
-        compiled_under, fall_back_to, handles_for, listening, one_mount, sweep_orphans,
-        workers_for,
+        compiled_under, fall_back_to, handles_for, listening, one_mount, scrape_socket,
+        sweep_orphans, workers_for,
     };
     use std::cell::Cell;
     use std::collections::BTreeMap;
@@ -3385,6 +3502,159 @@ echo Core\Router::{member}("Docs::here", []);
             served_under(&compiler, &mounts[0]),
             (true, "https://app.example.test/tenant/here".to_owned()),
             "a request served through a mount that took the fallback did not link from it"
+        );
+    }
+
+    /// `[metrics] listen` is bound at boot, and a collector connecting to it is
+    /// answered with this process's series in the text exposition format.
+    ///
+    /// The socket half of stage 10 end to end: the address the tree wrote is
+    /// resolved and bound by [`scrape_socket`], and what answers on it is the
+    /// loop [`serve_on_worker`] spawns. The counted request is made on *this*
+    /// thread, which is the core the loop runs on, because what this case is
+    /// about is the endpoint — `nvs_server::metrics`'s own case is the one that
+    /// proves a scrape crosses cores.
+    ///
+    /// `Connection: close` is what lets the body be read to the end without a
+    /// framing parser here: the case is about what the server wrote, and a
+    /// keep-alive connection would leave the client waiting out `keepalive` for
+    /// bytes it already has.
+    #[test]
+    fn serve_answers_a_scrape_at_the_metrics_listen_address() {
+        let wanted = a_free_address();
+        let config = config_of(&format!(
+            "[metrics]\nexporter = \"prometheus\"\nlisten = \"{wanted}\"\n"
+        ));
+        let socket = scrape_socket(&config)
+            .expect("a written address was refused")
+            .expect("a `prometheus` exporter binds a scrape endpoint");
+        let bound = socket.address();
+        assert_eq!(bound, wanted, "the endpoint is the address the tree named");
+
+        let client = std::thread::spawn(move || {
+            let mut socket =
+                std::net::TcpStream::connect(bound).expect("the endpoint refused a socket");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(b"GET /metrics HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the request could not be written");
+            let mut answered = String::new();
+            socket
+                .read_to_string(&mut answered)
+                .expect("the response could not be read");
+            answered
+        });
+
+        nvs_server::metrics::meter_this_core(&config);
+        nvs_server::metrics::count_request(
+            "GET",
+            200,
+            Some("metrics.probe"),
+            Duration::from_millis(5),
+        );
+
+        let mut listener = socket
+            .accepting()
+            .expect("the platform refused a parking listener");
+        let waits = nvs_config::server::Waits {
+            header: KEPT_ALIVE_FOR,
+            keepalive: KEPT_ALIVE_FOR,
+            ..nvs_config::server::Waits::default()
+        };
+        // Detached, so that a case elsewhere in this binary delivering the
+        // process's own stop does not end this loop before it has accepted.
+        let draining = nvs_server::Draining::detached();
+        let mut sched = nvs_host::Scheduler::new();
+        let installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            nvs_server::serve_scrapes_on_this_core(
+                &mut *listener,
+                waits,
+                &draining,
+                |_note| {},
+                // One scrape is the whole case, and the loop has no ending of
+                // its own: a deployment's is the drain.
+                || ControlFlow::Break(()),
+            )
+            .expect("the scrape loop failed");
+        });
+        loop {
+            match nvs_host::run_until_idle(&mut sched) {
+                Ok(report) if report.parked > 0 => {}
+                Ok(_) => break,
+                Err(error) => panic!("the scheduler stopped: {error}"),
+            }
+        }
+        drop(installed);
+
+        let answered = client.join().expect("the client thread panicked");
+        assert!(
+            answered.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the scrape was not answered: {answered}"
+        );
+        assert!(
+            answered.contains("content-type: text/plain; version=0.0.4; charset=utf-8\r\n"),
+            "the body was not sent as the text exposition format: {answered}"
+        );
+        assert!(
+            answered.contains("# TYPE nvs_requests_total counter\r\n")
+                || answered.contains("# TYPE nvs_requests_total counter\n"),
+            "the exposition carried no declared family: {answered}"
+        );
+        assert!(
+            answered.contains(
+                r#"nvs_requests_total{method="GET",route="metrics.probe",status="200"} 1"#
+            ),
+            "the scrape did not carry this core's own count: {answered}"
+        );
+    }
+
+    /// A tree whose `[metrics]` asks for nothing opens no port and builds no
+    /// registry, which is the cheapest reading of `exporter = false` and the one
+    /// `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`
+    /// asks for.
+    ///
+    /// The three trees are the three ways of not asking, and they are one case
+    /// because saying them differently must not mean different things: a block
+    /// that bounds a registry it never requested is still a tree that requested
+    /// nothing.
+    #[test]
+    fn a_tree_whose_metrics_exporter_is_false_binds_nothing_and_builds_no_registry() {
+        for written in [
+            "[server]\nworkers = 1\n",
+            "[metrics]\nexporter = false\n",
+            "[metrics]\nmax_series = 64\n",
+        ] {
+            let config = config_of(written);
+            assert!(
+                scrape_socket(&config)
+                    .expect("a tree asking for no exporter is not a refusal")
+                    .is_none(),
+                "a socket was bound for `{written}`"
+            );
+            assert!(
+                nvs_server::Registry::of(&config).is_none(),
+                "a registry was built for `{written}`"
+            );
+        }
+    }
+
+    /// A `prometheus` exporter with no address to answer at is a boot refusal,
+    /// not a port this process picks for itself.
+    ///
+    /// The contrast that gives the case above its meaning: what binds nothing is
+    /// a tree that asked for nothing, and a tree that asked for an exporter and
+    /// forgot where gets told so rather than getting a default.
+    #[test]
+    fn a_prometheus_exporter_with_no_listen_address_is_refused_at_boot() {
+        let refusal = scrape_socket(&config_of("[metrics]\nexporter = \"prometheus\"\n"))
+            .expect_err("an exporter with nowhere to answer was accepted");
+        assert!(
+            refusal.contains("`[metrics] listen`"),
+            "the refusal did not name the key that is missing: {refusal}"
         );
     }
 }

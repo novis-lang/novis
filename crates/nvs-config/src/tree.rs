@@ -1044,9 +1044,9 @@ pub struct Schedule {
 pub struct Metrics {
     /// `false`, `prometheus` or `otlp`.
     pub exporter: Option<Setting>,
-    /// The Prometheus scrape endpoint.
-    ///
-    /// [unread: no exporter is built, so nothing binds this; the per-core registry it would serve is `crates/nvs-server/src/metrics.rs`, which `rule:observability/a-registry-is-per-core-and-nothing-reads-it` keeps whole without one. owner: rule:observability/the-exporters-are-crates]
+    /// The Prometheus scrape endpoint, bound at boot by `nvs serve` and
+    /// answered by `nvs_server::serve_scrapes_on_this_core`. Required where
+    /// `exporter` is `prometheus`.
     pub listen: Option<String>,
     /// The OTLP collector URL.
     ///

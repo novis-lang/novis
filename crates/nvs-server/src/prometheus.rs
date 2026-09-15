@@ -39,9 +39,159 @@
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::convert::Infallible;
 use std::fmt::Write as _;
+use std::io;
+use std::ops::ControlFlow;
+use std::time::Instant;
 
+use hyper::body::Incoming;
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{Method, Request, Response, StatusCode, header};
+use nvs_config::server::Waits;
+use nvs_runtime::host::Woken;
+
+use crate::io::ConnectionIo;
 use crate::metrics::{Histogram, Kind, Registry, Series, Value};
+use crate::serve::{AcceptBackoff, Answer, Draining, Listening};
+
+/// The content type the text exposition format is served as, version and all.
+///
+/// The version is part of the media type rather than decoration: a scraper
+/// reads it to know which grammar it is parsing, and a body sent as bare
+/// `text/plain` is one Prometheus accepts by falling back rather than by being
+/// told.
+const EXPOSITION: &str = "text/plain; version=0.0.4; charset=utf-8";
+
+/// Answers scrapes on `listener` until the drain begins, one connection at a
+/// time.
+///
+/// **One at a time is the design and not a simplification.** A scrape is a
+/// request every fifteen seconds from one or two collectors, and it costs a
+/// copy of every core's series; serving two of them concurrently buys nothing
+/// and would put a second copy of the whole registry set in flight. The
+/// control endpoint serializes for a related reason
+/// (`rule:config/one-local-control-socket`), and this loop is the same shape
+/// with no thread of its own: it runs as a task on whichever core the boot gave
+/// the listener to, and hands that core back at every park.
+///
+/// **Nothing here counts a request.** The series a scrape reports are the
+/// application's, and a `[metrics]` endpoint that appeared in
+/// `nvs_requests_total` would be measuring its own collector — so this loop
+/// reaches [`crate::metrics::every_core`] and never [`crate::metrics::count_request`].
+///
+/// # Errors
+///
+/// The listener's own, on [`crate::serve_on_this_core`]'s terms: an `accept`
+/// that fails for anything but descriptor exhaustion ends the loop, and
+/// exhaustion is waited out so that a shortage the whole process is in does not
+/// leave the exporter dark after it clears.
+pub fn serve_scrapes_on_this_core<L>(
+    listener: &mut L,
+    waits: Waits,
+    draining: &Draining,
+    mut report: impl FnMut(&str),
+    mut keep_serving: impl FnMut() -> ControlFlow<()>,
+) -> io::Result<()>
+where
+    L: Listening + ?Sized,
+{
+    let mut backoff = AcceptBackoff::default();
+    loop {
+        if draining.is_draining() {
+            break;
+        }
+        let stream = match listener.arrived_or_woken() {
+            // The park ended and named nothing — the drain above is what this
+            // goes back round to read.
+            Ok(None) => continue,
+            Ok(Some((stream, _arrival))) => {
+                backoff.accepted();
+                stream
+            }
+            Err(err) => {
+                let Some((wait, note)) = backoff.after(&err, Instant::now()) else {
+                    return Err(err);
+                };
+                if let Some(note) = note {
+                    report(&note);
+                }
+                if matches!(nvs_host::sleep(wait), Woken::Cancelled) {
+                    break;
+                }
+                continue;
+            }
+        };
+        // A connection's own failure is the connection's, and there is nobody
+        // to report a reset collector to: the socket that would carry the
+        // report is the one that failed.
+        drop(answer_one(ConnectionIo::new(stream, waits)));
+        if keep_serving().is_break() {
+            break;
+        }
+    }
+    Ok(())
+}
+
+/// Answers one connected collector, and returns when its connection is closed.
+///
+/// `hyper` frames both halves, which is the argument `crate::control` and
+/// `crate::serve` both make: framing is where smuggling lives, and a parser of
+/// ours on a socket an operator can reach is a parser of ours to get right.
+/// Driven on this core's own stack through [`nvs_host::block_on`], so the park
+/// a slow collector causes hands the core back rather than holding it.
+///
+/// `None` is the cancellation [`nvs_host::block_on`] answers with rather than
+/// parking on a wake that is not coming: this loop's task is being torn down,
+/// and the connection goes with it. The answer inside it is whatever `hyper`
+/// ended the connection on — a collector that went away, or one that sent
+/// something that is not HTTP.
+fn answer_one(io: ConnectionIo) -> Option<hyper::Result<()>> {
+    let service = service_fn(|request: Request<Incoming>| {
+        std::future::ready(Ok::<_, Infallible>(answered(request.method())))
+    });
+    nvs_host::block_on(http1::Builder::new().serve_connection(io, service))
+}
+
+/// What one scrape is answered with.
+///
+/// **Whatever the path.** `[metrics] listen` is the exporter's own address and
+/// nothing else is served on it, so matching a path would be one more thing to
+/// configure and to get wrong — and answering every one of them is what makes a
+/// collector's default `metrics_path` work without being told anything. A
+/// method other than `GET` or `HEAD` is a `405` naming the two, because a
+/// scrape endpoint that is not read-only is the one thing a reader must be able
+/// to rule out.
+fn answered(method: &Method) -> Response<Answer> {
+    if !matches!(*method, Method::GET | Method::HEAD) {
+        return Response::builder()
+            .status(StatusCode::METHOD_NOT_ALLOWED)
+            .header(header::ALLOW, "GET, HEAD")
+            .body(Answer::empty())
+            .unwrap_or_else(|_| Response::new(Answer::empty()));
+    }
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, EXPOSITION)
+        .body(Answer::new(scrape_every_core()))
+        .unwrap_or_else(|_| Response::new(Answer::empty()))
+}
+
+/// This whole process, scraped.
+///
+/// [`scrape`] over [`crate::metrics::every_core`], and the one call a listener
+/// on `[metrics] listen` makes. It takes no argument because a scrape is about
+/// the process rather than about the connection that asked for it: what it
+/// answers with is every core that is serving at the moment it is called,
+/// including the one it is called on.
+///
+/// An empty body where no core built a registry, which is what a tree writing
+/// `exporter = false` produces and is a valid exposition of nothing.
+#[must_use]
+pub fn scrape_every_core() -> String {
+    scrape(&crate::metrics::every_core())
+}
 
 /// Every core's series, merged and written in the text exposition format.
 ///
@@ -253,7 +403,12 @@ fn number(value: f64) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Barrier};
+    use std::thread;
     use std::time::Duration;
+
+    use nvs_config::tree::Metrics;
+    use nvs_config::{Config, Setting};
 
     use crate::metrics::Registry;
 
@@ -354,5 +509,50 @@ mod tests {
                 "a line was neither a header nor a sample: {line}"
             );
         }
+    }
+
+    /// [`super::scrape_every_core`] reaches a core that is not the one
+    /// scraping, which is the one thing the case above takes as given by
+    /// handing [`super::scrape`] the registries itself.
+    ///
+    /// Asserted on the other core's own route label rather than on the body as
+    /// a whole, because every other test in this binary that serves a request
+    /// is a core in the same roster and its series are in this scrape too.
+    #[test]
+    fn a_process_scrape_reaches_a_core_that_is_not_the_one_scraping() {
+        let gate = Arc::new(Barrier::new(2));
+        let serving = {
+            let gate = Arc::clone(&gate);
+            thread::spawn(move || {
+                crate::metrics::meter_this_core(&Config {
+                    metrics: Some(Metrics {
+                        exporter: Some(Setting::Text("prometheus".to_owned())),
+                        ..Metrics::default()
+                    }),
+                    ..Config::default()
+                });
+                crate::metrics::count_request(
+                    "GET",
+                    200,
+                    Some("scrape.elsewhere"),
+                    Duration::from_millis(30),
+                );
+                gate.wait();
+                gate.wait();
+            })
+        };
+
+        gate.wait();
+        let scraped = super::scrape_every_core();
+        gate.wait();
+        serving.join().expect("the metering thread panicked");
+
+        assert!(
+            scraped.lines().any(|line| line
+                == r#"nvs_requests_total{method="GET",route="scrape.elsewhere",status="200"} 1"#),
+            "the scrape did not reach the other core: {scraped}"
+        );
+        assert!(scraped.lines().any(|line| line
+            == r#"nvs_request_duration_seconds_count{method="GET",route="scrape.elsewhere",status="200"} 1"#));
     }
 }

@@ -723,11 +723,14 @@
 # end (`rule:observability/past-max-series-a-new-series-is-refused`).
 #exporter = false
 #max_series = 10000
-# NOT IMPLEMENTED — no exporter is built, so nothing binds `listen` and nothing pushes to
-# `endpoint`. The per-core registry an exporter would serve is real and is kept whole without one;
-# the `opentelemetry-otlp` dependency that would push is not in the workspace.
-# `rule:observability/the-exporters-are-crates` is what closes both.
+# Where a collector reaches the scrape endpoint. Required where `exporter = "prometheus"`, and a
+# start that names that exporter without this one is refused: the address decides who on the network
+# reads this process's series, and picking one nobody wrote down is not a default to have
+# (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
 #listen = "127.0.0.1:9090"          # the Prometheus scrape endpoint
+# NOT IMPLEMENTED — nothing pushes to `endpoint`: the `opentelemetry-otlp` dependency that would is
+# not in the workspace, and `rule:observability/the-exporters-are-crates` is what closes it. The
+# registry it would push is real and is kept whole without it.
 #endpoint = "http://127.0.0.1:4317" # the OTLP collector URL
 
 #[trace]

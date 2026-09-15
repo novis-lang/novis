@@ -2167,7 +2167,7 @@ fn out_of_descriptors(err: &io::Error) -> bool {
 /// that will still be there in a minute — and doubling is what asks the first
 /// question first.
 #[derive(Debug, Default)]
-struct AcceptBackoff {
+pub(crate) struct AcceptBackoff {
     /// What the previous exhausted `accept` parked for, and `None` whenever the
     /// listener is accepting: the state that makes an episode an episode.
     waited: Option<Duration>,
@@ -2179,7 +2179,7 @@ struct AcceptBackoff {
 
 impl AcceptBackoff {
     /// The listener accepted: the episode is over and the next one reports.
-    fn accepted(&mut self) {
+    pub(crate) fn accepted(&mut self) {
         *self = Self::default();
     }
 
@@ -2188,7 +2188,11 @@ impl AcceptBackoff {
     ///
     /// `None` is every failure that is not descriptor exhaustion — which the
     /// caller ends the loop on, unchanged.
-    fn after(&mut self, err: &io::Error, now: Instant) -> Option<(Duration, Option<String>)> {
+    pub(crate) fn after(
+        &mut self,
+        err: &io::Error,
+        now: Instant,
+    ) -> Option<(Duration, Option<String>)> {
         if !out_of_descriptors(err) {
             return None;
         }

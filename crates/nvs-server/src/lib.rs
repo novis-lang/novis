@@ -149,6 +149,7 @@ pub use forwarded::{Arrival, Origin, Trusted, Unusable};
 pub use io::{ConnectionIo, Phase};
 pub use metrics::{Family, Histogram, Kind, Refused, Registry, Series, Value};
 pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
+pub use prometheus::{scrape, scrape_every_core, serve_scrapes_on_this_core};
 pub use schedule::{Armed, Fires, Leases, arm, tick_on_this_core};
 pub use secure::{Scheme, Secure};
 pub use serve::{
