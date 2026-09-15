@@ -148,19 +148,20 @@
 //!
 //! # Known gaps
 //!
-//! 1. **An inline shape reached as a *field* is narrower than
+//! 1. **An `array<T>` of inline shapes is narrower than
 //!    `rule:core-classes/derive-field-list`'s reachable set.** [`decode_field`]
 //!    has a case for every scalar wire type, a `decimal`, an `Instant`, a
-//!    `mixed`, an enum, another derived class, an `array<T>` of any of those,
-//!    and a `?T` of any of them. A shape written as a *field* — and an
-//!    `array<T>` of one — is codec-reachable by that rule and erases to
-//!    `nvs_runtime::CodecTy::Opaque` in `nvs_types::derive`, so [`decode_as`]
-//!    refuses it **before reading the document** for the class it was handed,
-//!    and [`decode_field`] refuses on reaching it inside a nested one. A shape
-//!    written as the whole *type argument* decodes: what that has and a field
-//!    has not is a [`nvs_runtime::ShapeCodec`] the call site names, so closing
-//!    this is the same contract reached from a field. `crate::db`'s gap 3 is
-//!    the neighbouring question at the other door.
+//!    `mixed`, an enum, another derived class, an inline shape reached as a
+//!    field, an `array<T>` of any of those but the shape, and a `?T` of any of
+//!    them. An `array<T>` of shapes erases to `nvs_runtime::CodecTy::Opaque`,
+//!    because the element's contract has nowhere to ride:
+//!    `nvs_runtime::CodecField` carries one, and a list has already spent it
+//!    naming the element's wire type. So [`decode_as`] refuses such a field
+//!    **before reading the document** for the class it was handed, and
+//!    [`decode_field`] refuses on reaching it inside a nested one. Closing it is
+//!    an element description that nests, which is the same widening
+//!    `array<array<T>>` waits on. `crate::db`'s gap 3 is the neighbouring
+//!    question at the other door.
 //!    — owner: m8-stdlib-depth
 //! 2. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
 //!    two default-bearing rows are unimplemented: an absent key fails whether
@@ -1430,6 +1431,17 @@ impl<'a> Contract<'a> {
         }
     }
 
+    /// The contract the `index`th field decodes against, or `None` where that
+    /// field names no inline shape — [`Self::class_at`]'s question asked of the
+    /// same two tables for the second pointer a `CodecTy::Shape` needs, which
+    /// `nvs_runtime::CodecTy::Shape`'s own docs say why it needs.
+    fn shape_at(&self, index: usize) -> Option<*const nvs_runtime::ShapeCodec> {
+        match self.shape {
+            Some(codec) => codec.shape(index),
+            None => self.desc.codec_shape(index),
+        }
+    }
+
     /// How many positions the walk fills: a shape's own field count, since it
     /// writes slots, and a derived class's declared constructor arity.
     fn arity(&self) -> usize {
@@ -2030,10 +2042,11 @@ unsafe fn convert_field(
         return Err(issue("null is not permitted".to_owned()));
     }
     let converted = match field.ty {
-        // `rule:core-classes/derive-field-list`'s nested class, decoded by running that class's own
-        // field list over this key's object — which is why § 5's paths are
-        // dotted in the first place.
-        CodecTy::Class => {
+        // `rule:core-classes/derive-field-list`'s nested class and its inline
+        // shape, both decoded by running a field list over this key's object —
+        // which is why § 5's paths are dotted in the first place. What differs
+        // is only where that list is read from, which [`Contract`] answers.
+        CodecTy::Class | CodecTy::Shape => {
             #[expect(
                 unsafe_code,
                 reason = "`nvs-codegen` resolved this out of the same class table \
@@ -2116,9 +2129,11 @@ unsafe fn convert_field(
 /// declared type. A decoder that read a class name out of the JSON would let
 /// untrusted input choose which constructor runs.
 ///
-/// What it nests into is always a *class* contract, whichever one named it: an
-/// inline shape reached as a field erases to `CodecTy::Opaque` in
-/// `nvs_types::derive`, so it never reaches here.
+/// What it nests into is a class's contract or an inline shape's, which are one
+/// walk over two tables: a shape field's descriptor is the class a literal of
+/// those same field names builds, and the per-field wire types that label cannot
+/// carry come from the [`nvs_runtime::ShapeCodec`] beside it
+/// ([`Contract::shape_at`]).
 ///
 /// # Safety
 ///
@@ -2151,8 +2166,10 @@ unsafe fn decode_nested(
     #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
     // The reading carries down: what the values are is a property of the door
     // the whole call came through, not of how deep the field sits.
-    let nested = unsafe { Contract::new(class, None) }.over(contract.reading);
-    if nested.fields().is_empty() {
+    let nested = unsafe { Contract::new(class, contract.shape_at(index)) }.over(contract.reading);
+    // Asked of a class only, on [`check_codec`]'s terms: an inline shape *is* a
+    // wire contract, and `{}` is an empty one rather than a missing one.
+    if nested.fields().is_empty() && !nested.is_shape() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field decodes into `{}`, which carries no \
              derived codec — `rule:core-classes/derive-generates-what-is-missing`'s hand-written half is `nvs_stdlib::json`'s own \
@@ -2313,7 +2330,7 @@ unsafe fn scalar(
             Some(Tag::Str) => return found.as_text().and_then(crate::time::instant_from_iso),
             _ => None,
         },
-        CodecTy::Class | CodecTy::List | CodecTy::Opaque | CodecTy::Bytes => None,
+        CodecTy::Class | CodecTy::Shape | CodecTy::List | CodecTy::Opaque | CodecTy::Bytes => None,
     }?;
     // Every arm reaching here either passed the document's own value through
     // or built an unrefcounted scalar, and a retain on the second is the
@@ -2563,6 +2580,10 @@ const fn wanted(ty: CodecTy) -> &'static str {
         // Never reached through a field: `decode_nested` names the class
         // itself, which is what the reader wrote. Here for the roster.
         CodecTy::Class => "an object",
+        // Never reached for [`CodecTy::Class`]'s reason exactly: `decode_nested`
+        // names the shape's own label, which is the nearest thing a shape has to
+        // what the reader wrote.
+        CodecTy::Shape => "an object",
         // Likewise: `decode_list` reports the array itself, and an element is
         // named by its own wire type.
         CodecTy::List => "an array",
@@ -2739,14 +2760,17 @@ mod tests {
                 element: None,
                 class: None,
                 cases: None,
+                shape: None,
                 nullable: true,
                 required: true,
             })
             .collect();
         // One entry per field, null throughout: the encoder reads a field's key
-        // and slot and never its class, so nothing here resolves one.
+        // and slot and never its class or its contract, so nothing here
+        // resolves either.
         let classes = vec![std::ptr::null(); codec.len()];
-        table.set_codec(id, codec, fields.len(), classes);
+        let shapes = vec![std::ptr::null(); codec.len()];
+        table.set_codec(id, codec, fields.len(), classes, shapes);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         table.desc(id)
     }
@@ -2774,17 +2798,75 @@ mod tests {
             element: None,
             class: None,
             cases: None,
+            shape: None,
             nullable: false,
             required: true,
         };
         let mut table = ClassTable::new();
         let id = table.define(name, &[key], &[]);
-        table.set_codec(id, vec![field()], 1, vec![std::ptr::null()]);
+        table.set_codec(
+            id,
+            vec![field()],
+            1,
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
         // The contract is boxed inside the table, so its address survives the
         // leak below unchanged — which is what lets it be taken first.
-        let shape = table.define_shape_codec(vec![field()], vec![std::ptr::null()]);
+        let shape = table.define_shape_codec(
+            vec![field()],
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
         let table: &'static ClassTable = Box::leak(Box::new(table));
         (table.desc(id), shape)
+    }
+
+    /// A shape of one field that is itself a shape: the outer descriptor and
+    /// contract, with the inner pair resolved into the outer field the way
+    /// `nvs-codegen` resolves a [`CodecTy::Shape`]'s two pointers.
+    ///
+    /// [`nvs_runtime::CodecField::shape`] is written as the key a compiled unit
+    /// would carry, though nothing reads it here: at run time the field is the
+    /// resolved address beside it, and the key is what the relocation was
+    /// derived from a crate earlier.
+    ///
+    /// Leaked for [`holder_class`]'s reason, which both contracts inherit: they
+    /// are boxed inside the table that owns them.
+    fn nested_shape_class() -> (*const ClassDesc, *const nvs_runtime::ShapeCodec) {
+        let field = |key: &str, ty, class: Option<&str>, shape: Option<&str>| CodecField {
+            key: key.to_owned(),
+            slot: 0,
+            param: 0,
+            ty,
+            element: None,
+            class: class.map(str::to_owned),
+            cases: None,
+            shape: shape.map(str::to_owned),
+            nullable: false,
+            required: true,
+        };
+        let mut table = ClassTable::new();
+        let inner_id = table.define("$shape{n}", &["n"], &[]);
+        let inner = table.define_shape_codec(
+            vec![field("n", CodecTy::Int, None, None)],
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
+        let outer_id = table.define("$shape{meta}", &["meta"], &[]);
+        let inner_desc = table.desc(inner_id);
+        let outer = table.define_shape_codec(
+            vec![field(
+                "meta",
+                CodecTy::Shape,
+                Some("$shape{n}"),
+                Some("$codec{n:Int}"),
+            )],
+            vec![inner_desc],
+            vec![inner],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(outer_id), outer)
     }
 
     /// `rule:types/decimal`'s exactness reaches roughly 29 significant digits and
@@ -2847,6 +2929,74 @@ mod tests {
 
         // Both halves, one spelling: what the encoder writes is the document
         // the decoder was handed, down to the scale.
+        assert_eq!(
+            encoded(value).expect("a decoded shape re-encodes"),
+            document
+        );
+
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// `rule:core-classes/derive-field-list`'s inline shape reached as a
+    /// *field*, which is the one wire type needing **two** resolved pointers: a
+    /// shape class is keyed on its field names alone, so the descriptor says
+    /// which object to build and says nothing about what goes in it, and the
+    /// contract beside it is the half that does.
+    ///
+    /// Asserted through the nested object's own slot rather than through the
+    /// re-encoding alone: an encode walks the value and would print the same
+    /// document for a field the decode had filled by luck.
+    #[test]
+    fn decode_as_fills_an_inline_shape_field() {
+        let (class, shape) = nested_shape_class();
+        let document = "{\"meta\":{\"n\":7}}";
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        #[expect(
+            unsafe_code,
+            reason = "`nested_shape_class` leaks its table, so every address in it \
+                      outlives the object decoded against them"
+        )]
+        let decoded = unsafe {
+            decode_as(
+                &mut ctx,
+                class,
+                Some(shape),
+                document,
+                DEFAULT_MAX_DEPTH_U32,
+                false,
+                r"Core\Json::decodeAs",
+            )
+        };
+        let Ok(value) = decoded else {
+            panic!("a shape field decodes against the contract beside its class label");
+        };
+
+        let ptr = value
+            .obj_ptr()
+            .expect("a decoded shape is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        let inner = object
+            .field(0)
+            .obj_ptr()
+            .expect("a shape field holds the object its own contract built");
+        #[expect(
+            unsafe_code,
+            reason = "the outer object owns this reference for as long as it lives, \
+                      and this handle is never dropped either"
+        )]
+        let inner = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(inner) });
+        assert_eq!(inner.field(0).as_int(), Some(7));
+
+        // Both halves, one spelling: what the encoder writes is the document the
+        // decoder was handed, nesting included.
         assert_eq!(
             encoded(value).expect("a decoded shape re-encodes"),
             document
