@@ -1207,12 +1207,14 @@ impl Classes {
         // `rule:core-classes/derive-field-list`'s nested field names a class that may be defined after
         // the one holding it — or be that same class, since § 2 makes
         // recursion the data's problem rather than the table's — so the codec
-        // is joined only once every descriptor above exists.
-        out.link_codecs(classes);
-        // In the same pass and for the same reason: a shape field naming a
-        // class needs that class's descriptor, and the shape itself is not one
-        // of them — a written shape has no declaration to define it from.
+        // is joined only once every descriptor above exists, and the contracts
+        // go ahead of that join: a codec field naming an inline shape resolves
+        // to a table that has to exist before the join reads it, where one
+        // naming a class resolves to a descriptor the pass above already wrote.
+        // A written shape has no declaration to define it from, which is why it
+        // is a pass of its own at all.
         out.define_shape_codecs(shapes);
+        out.link_codecs(classes);
         out
     }
 
@@ -1232,8 +1234,9 @@ impl Classes {
             };
             if !class.codec.is_empty() {
                 let nested = self.nested_descs(&class.codec);
+                let shapes = self.nested_shapes(&class.codec);
                 self.table
-                    .set_codec(id, class.codec.clone(), class.ctor_arity, nested);
+                    .set_codec(id, class.codec.clone(), class.ctor_arity, nested, shapes);
             }
             // The row half, on the same terms: a class carrying both
             // attributes has two field lists and fills both, and one carrying
@@ -1257,11 +1260,69 @@ impl Classes {
     /// distinct shape written in the program, owned by the unit's class table
     /// for that unit's life — O(distinct types), never O(requests served).
     fn define_shape_codecs(&mut self, shapes: &[nvs_ir::ir::ShapeCodec]) {
+        let by_key: FxHashMap<&str, &nvs_ir::ir::ShapeCodec> = shapes
+            .iter()
+            .map(|shape| (shape.key.as_str(), shape))
+            .collect();
         for shape in shapes {
-            let nested = self.nested_descs(&shape.fields);
-            let codec = self.table.define_shape_codec(shape.fields.clone(), nested);
-            self.shape_codecs.insert(shape.key.clone(), codec);
+            self.define_shape_codec(shape, &by_key);
         }
+    }
+
+    /// One shape's table, with every shape its own fields reach defined first
+    /// so the pointers handed to
+    /// [`nvs_runtime::ClassTable::define_shape_codec`] are already resolved.
+    ///
+    /// The recursion terminates on the type: a shape's field types are written
+    /// out in full where the shape is, so no contract reaches itself. An entry
+    /// already defined is handed back rather than defined twice, which is what
+    /// keeps `{a: {n: int}, b: {n: int}}` one nested table and not two.
+    fn define_shape_codec(
+        &mut self,
+        shape: &nvs_ir::ir::ShapeCodec,
+        by_key: &FxHashMap<&str, &nvs_ir::ir::ShapeCodec>,
+    ) -> *const nvs_runtime::ShapeCodec {
+        if let Some(codec) = self.shape_codecs.get(&shape.key) {
+            return *codec;
+        }
+        let mut nested_shapes: Vec<*const nvs_runtime::ShapeCodec> =
+            Vec::with_capacity(shape.fields.len());
+        for field in &shape.fields {
+            let inner = field
+                .shape
+                .as_deref()
+                .and_then(|key| by_key.get(key).copied());
+            nested_shapes.push(match inner {
+                Some(inner) => self.define_shape_codec(inner, by_key),
+                None => std::ptr::null(),
+            });
+        }
+        let nested = self.nested_descs(&shape.fields);
+        let codec = self
+            .table
+            .define_shape_codec(shape.fields.clone(), nested, nested_shapes);
+        self.shape_codecs.insert(shape.key.clone(), codec);
+        codec
+    }
+
+    /// One contract per field of `codec`, null except where the field names an
+    /// inline shape — [`Self::nested_descs`]' twin for the second pointer a
+    /// `nvs_runtime::CodecTy::Shape` field decodes through, and answerable only
+    /// because [`Self::define_shape_codecs`] has already run.
+    fn nested_shapes(
+        &self,
+        codec: &[nvs_runtime::CodecField],
+    ) -> Vec<*const nvs_runtime::ShapeCodec> {
+        codec
+            .iter()
+            .map(|field| {
+                field
+                    .shape
+                    .as_deref()
+                    .and_then(|key| self.shape_codecs.get(key).copied())
+                    .unwrap_or(std::ptr::null())
+            })
+            .collect()
     }
 
     /// Every wire contract this unit defines, as `(key, address)` — what

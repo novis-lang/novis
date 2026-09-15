@@ -6089,10 +6089,12 @@ mod tests {
                 element: None,
                 class: None,
                 cases: None,
+                shape: None,
                 nullable: false,
                 required: true,
             }],
             1,
+            vec![std::ptr::null()],
             vec![std::ptr::null()],
         );
         let table: &'static ClassTable = Box::leak(Box::new(table));
@@ -6528,6 +6530,7 @@ mod tests {
                 element: None,
                 class: None,
                 cases: None,
+                shape: None,
                 nullable: false,
                 required: true,
             },
@@ -6539,14 +6542,16 @@ mod tests {
                 element: None,
                 class: None,
                 cases: None,
+                shape: None,
                 nullable: false,
                 required: true,
             },
         ];
-        // One entry per field, null throughout: neither of these names a class,
-        // which is the only thing the vector is read for.
+        // One entry per field, null throughout: neither of these names a class
+        // or a nested contract, which is all the two vectors are read for.
         let classes = vec![std::ptr::null(); codec.len()];
-        let shape = table.define_shape_codec(codec, classes);
+        let shapes = vec![std::ptr::null(); codec.len()];
+        let shape = table.define_shape_codec(codec, classes, shapes);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         (table.desc(id), shape)
     }

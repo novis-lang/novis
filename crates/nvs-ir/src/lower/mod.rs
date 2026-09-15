@@ -466,6 +466,11 @@ fn codec_fields(
                     // The enum roster rides down untouched too, and needs no
                     // resolution at all: it is already the values themselves.
                     cases: field.cases.clone(),
+                    // The second label a shape field needs, rendered here
+                    // rather than carried down: a contract's key is this
+                    // crate's own spelling, and `nvs_types` holds the contract
+                    // it renders.
+                    shape: nested_shape_key(field),
                     nullable: field.nullable,
                     // `rule:core-api/required-optional-and-nullable`'s first
                     // column, already read off the constructor parameter's
@@ -836,6 +841,22 @@ pub fn lower_program(
         ctor_arity: 0,
         defaults: Vec::new(),
     }));
+    // A shape reached as a *field* has no call site to be lowered at, so the
+    // class it decodes into is collected off the derived codecs here. A label a
+    // literal in this unit also wrote is one class, which the dedup below
+    // decides, and it keeps the literal's own slot representations because that
+    // entry comes first.
+    let mut shape_codecs = shape_codecs(exprs, &mut classes);
+    for (label, _) in layouts.iter() {
+        if let Some(codec) = exprs.codec(label) {
+            nested_shapes(codec, &mut shape_codecs, &mut classes);
+        }
+    }
+    // Sorted and deduped on the key for the reason the collection itself is not
+    // ordered: the table is walked to publish one relocation symbol per entry,
+    // and two sites writing one contract are one table.
+    shape_codecs.sort_by(|a, b| a.key.cmp(&b.key));
+    shape_codecs.dedup_by(|a, b| a.key == b.key);
     // The table behind `iter()` is a hash map, so its order varies run to run.
     // Sorting here is what makes a lowered `Program` — and therefore the
     // `--dump-ir` listing and every snapshot taken of it — reproducible for an
@@ -890,36 +911,33 @@ pub fn lower_program(
         functions,
         classes,
         statics: static_props(layouts, exprs, checked_types),
-        shape_codecs: shape_codecs(exprs),
+        shape_codecs,
     }
 }
 
 /// Every inline shape the unit wrote as a type argument, as the table
 /// `nvs-codegen` materializes and [`crate::ir::InstKind::ShapeCodecConst`]
-/// names an entry of.
+/// names an entry of, plus every shape reached through one of their fields.
 ///
 /// Read off the checker's own record of what each call site wrote, rather than
 /// collected out of the functions that lowered: a contract is a fact about the
 /// program and a lowering walks one function at a time, so two sites writing
-/// one shape would otherwise each carry a list and be merged here anyway.
-/// Sorted by key, because the table is walked to publish one relocation symbol
-/// per entry and a hash map's order would make an unchanged file compile
-/// differently twice.
-fn shape_codecs(exprs: &ExprTypeTable) -> Vec<crate::ir::ShapeCodec> {
-    let mut out: Vec<crate::ir::ShapeCodec> = exprs
-        .shape_codecs()
-        .map(|codec| {
-            let fields = shape_codec_fields(codec);
-            crate::ir::ShapeCodec {
-                key: shape_codec_key(&fields),
-                fields,
-            }
-        })
-        .collect();
-    out.sort_by(|a, b| a.key.cmp(&b.key));
-    // Two call sites writing the same contract are one table, which is the
-    // sharing `shape_codec_key` exists to decide — see its docs.
-    out.dedup_by(|a, b| a.key == b.key);
+/// one shape would otherwise each carry a list and be merged anyway. The
+/// ordering and the merge are [`lower_program`]'s, which is where the shapes
+/// reached through a *class's* fields join these.
+fn shape_codecs(
+    exprs: &ExprTypeTable,
+    classes: &mut Vec<crate::ir::Class>,
+) -> Vec<crate::ir::ShapeCodec> {
+    let mut out: Vec<crate::ir::ShapeCodec> = Vec::new();
+    for codec in exprs.shape_codecs() {
+        let fields = shape_codec_fields(codec);
+        out.push(crate::ir::ShapeCodec {
+            key: shape_codec_key(&fields),
+            fields,
+        });
+        nested_shapes(codec, &mut out, classes);
+    }
     out
 }
 
@@ -3347,10 +3365,75 @@ fn shape_codec_fields(codec: &nvs_types::derive::DerivedCodec) -> Vec<nvs_types:
             // themselves.
             class: field.class.clone(),
             cases: field.cases.clone(),
+            shape: nested_shape_key(field),
             nullable: field.nullable,
             required: field.required,
         })
         .collect()
+}
+
+/// The [`nvs_types::CodecField::shape`] a derived field carries: the key of the
+/// table holding an inline shape field's own per-field wire types, and `None`
+/// for every other wire type.
+///
+/// The class half of the same erasure needs nothing here — `nvs_types::derive`
+/// already named it, and it rides down as the field's `class` label like a
+/// nested class's does.
+fn nested_shape_key(field: &nvs_types::derive::DerivedField) -> Option<String> {
+    let nested = field.shape.as_deref()?;
+    Some(shape_codec_key(&shape_codec_fields(nested)))
+}
+
+/// Every inline shape reached through a field of `codec`, and through one of
+/// theirs: the contract each decodes against, and the class each decodes into.
+///
+/// A shape written as a **type argument** is registered where its call site
+/// lowers ([`Lowering::written_type_constants`]). One reached as a *field* has
+/// no site to lower at — a class may declare `{n: int}` in a program that never
+/// writes a literal of it — so both halves are collected here instead, which is
+/// what leaves `nvs-codegen` two resolvable pointers rather than one label and a
+/// null.
+fn nested_shapes(
+    codec: &nvs_types::derive::DerivedCodec,
+    codecs: &mut Vec<crate::ir::ShapeCodec>,
+    classes: &mut Vec<crate::ir::Class>,
+) {
+    for field in &codec.fields {
+        let Some(nested) = field.shape.as_deref() else {
+            continue;
+        };
+        let fields = shape_codec_fields(nested);
+        let names: Vec<String> = nested
+            .fields
+            .iter()
+            .map(|nested_field| nested_field.property.clone())
+            .collect();
+        let field_count = names.len();
+        classes.push(crate::ir::Class {
+            label: shape_class_label(&names),
+            fields: names,
+            // `Ty::Tagged` on every slot, on [`Lowering::record_shape_class`]'s
+            // terms: what fills these is a native decoder rather than a lowered
+            // write, so there is no tag to promise, and a literal of the same
+            // field names merges onto that same answer.
+            field_reprs: vec![Ty::Tagged; field_count],
+            secret_fields: vec![false; field_count],
+            public_fields: vec![true; field_count],
+            conforms: Vec::new(),
+            methods: Vec::new(),
+            codec: Vec::new(),
+            db_codec: Vec::new(),
+            ctor_arity: 0,
+            defaults: Vec::new(),
+        });
+        codecs.push(crate::ir::ShapeCodec {
+            key: shape_codec_key(&fields),
+            fields,
+        });
+        // A shape's own field may be a shape, and the contract it decodes
+        // against is one more table to publish.
+        nested_shapes(nested, codecs, classes);
+    }
 }
 
 /// The class label a member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is

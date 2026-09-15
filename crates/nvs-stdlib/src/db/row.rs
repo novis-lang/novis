@@ -466,9 +466,13 @@ pub(super) fn converted(
         // owns the erasure. `check_row_sites` says this as `E0806` while
         // compiling; what is left here is the backstop for a class built by
         // hand, which no call site named.
-        CodecTy::Opaque => Err(
-            "this field's declared type is one the derive pass has no wire \
-                                type for — an inline shape"
+        // An inline shape is not a column type at all
+        // (`rule:core-classes/db-column-types`), which `nvs_types::derive`'s
+        // reachable set refuses at the declaration, so both of these are the
+        // backstop for a class built by hand and named by no call site.
+        CodecTy::Opaque | CodecTy::Shape => Err(
+            "this field's declared type is one no column reads back — an inline \
+                                shape"
                 .to_owned(),
         ),
         // Unreachable: [`hydrated`] takes the list arm before this is called,
@@ -1461,8 +1465,8 @@ mod tests {
         assert!(refused.contains("`float`"), "{refused}");
     }
 
-    /// One [`nvs_runtime::CodecField`], with the seven properties this file's
-    /// cases never vary spelled once.
+    /// One [`nvs_runtime::CodecField`], with the properties this file's cases
+    /// never vary spelled once.
     fn codec_field(key: &str, param: usize, ty: nvs_runtime::CodecTy) -> nvs_runtime::CodecField {
         nvs_runtime::CodecField {
             key: key.to_owned(),
@@ -1472,6 +1476,7 @@ mod tests {
             element: None,
             class: None,
             cases: None,
+            shape: None,
             nullable: false,
             required: true,
         }

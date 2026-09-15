@@ -339,6 +339,14 @@ pub struct ClassDesc {
     /// [`ClassTable::set_codec`] call and on exactly [`Self::conforms`]'
     /// terms.
     codec_classes: Vec<*const ClassDesc>,
+    /// One entry per [`Self::codec`] field: the contract a [`CodecTy::Shape`]
+    /// field decodes against, and a null pointer for every other wire type.
+    ///
+    /// [`Self::codec_classes`]' terms exactly, for the half a class label
+    /// cannot carry. There is no row twin: `rule:core-classes/db-column-types`
+    /// maps no column to an object, so `nvs_types::derive` refuses an inline
+    /// shape at the declaration of a `#[Db\Derive]` field.
+    codec_shapes: Vec<*const ShapeCodec>,
     /// `rule:core-classes/derive-attribute`'s derived **row**
     /// field list — [`Self::codec`]'s twin for `#[Db\Derive]`, and empty for
     /// every class not carrying it.
@@ -662,10 +670,22 @@ pub enum CodecTy {
     /// The roster of accepted values rides on [`CodecField::cases`] for
     /// [`Self::Class`]'s reason: this enum is `Copy` and a case list is not.
     Enum,
-    /// A declared type this decoder has no case for yet — an inline shape
-    /// reached as a field, an `array<array<T>>`. Encoding one still works;
-    /// decoding into one is `nvs_stdlib::json`'s own known gap, and it faults
-    /// naming the field rather than guessing a value.
+    /// An inline shape reached as a field — `rule:types/shape-type`'s
+    /// `{name: T}` written as a property's declared type, decoded by running
+    /// that shape's own contract over the nested JSON object.
+    ///
+    /// **Two resolved pointers, where every other wire type needs at most
+    /// one**, which is why this is not [`Self::Class`]: a shape class is keyed
+    /// on its field *names* alone (`nvs_ir::lower::shape_class_label`), so the
+    /// descriptor a decode constructs rides on [`CodecField::class`] exactly as
+    /// a nested class's does, and the per-field wire types the class cannot
+    /// carry ride beside it on [`CodecField::shape`], as the key of the
+    /// [`ShapeCodec`] a `decodeAs<{n: int}>` call site is handed.
+    Shape,
+    /// A declared type this decoder has no case for yet — an
+    /// `array<array<T>>`. Encoding one still works; decoding into one is
+    /// `nvs_stdlib::json`'s own known gap, and it faults naming the field
+    /// rather than guessing a value.
     Opaque,
 }
 
@@ -732,6 +752,16 @@ pub struct CodecField {
     /// case, exactly as [`Self::class`] holds the element's label. `None` for
     /// every other wire type.
     pub cases: Option<EnumCases>,
+    /// The wire contract's key when [`Self::ty`] is [`CodecTy::Shape`], and
+    /// `None` for every other wire type — `nvs_ir::lower::shape_codec_key`'s
+    /// rendering of the nested shape, which `nvs-codegen` resolves to a
+    /// [`ShapeCodec`] address in the second pass [`Self::class`] is resolved in.
+    ///
+    /// A second label beside [`Self::class`] rather than one label answering
+    /// for both, because the two sharings are not the same sharing: `{n: int}`
+    /// and `{n: string}` are one class and two contracts, so a shape field
+    /// names its class *and* this.
+    pub shape: Option<String>,
     /// Whether the declared type admits `null` — `rule:core-api/required-optional-and-nullable`'s second
     /// column, which is a property of the *type* and says nothing about
     /// whether the key may be absent.
@@ -774,6 +804,11 @@ pub struct ShapeCodec {
     /// a class — [`ClassDesc::codec_class`]'s convention, resolved in the same
     /// second pass and for the same reason.
     classes: Vec<*const ClassDesc>,
+    /// One entry per [`Self::fields`] entry, null except where the field is
+    /// itself an inline shape — [`ClassDesc::codec_shapes`]' convention, which
+    /// is what makes `{outer: {inner: int}}` decode rather than stop one level
+    /// down.
+    shapes: Vec<*const ShapeCodec>,
 }
 
 impl ShapeCodec {
@@ -790,6 +825,17 @@ impl ShapeCodec {
     pub fn class(&self, index: usize) -> Option<*const ClassDesc> {
         match self.classes.get(index) {
             Some(desc) if !desc.is_null() => Some(*desc),
+            _ => None,
+        }
+    }
+
+    /// The contract the `index`th field decodes against, or `None` where that
+    /// field is not itself an inline shape — [`Self::class`]'s twin, on
+    /// [`ClassDesc::codec_shape`]'s terms.
+    #[must_use]
+    pub fn shape(&self, index: usize) -> Option<*const ShapeCodec> {
+        match self.shapes.get(index) {
+            Some(codec) if !codec.is_null() => Some(*codec),
             _ => None,
         }
     }
@@ -1010,6 +1056,17 @@ impl ClassDesc {
         }
     }
 
+    /// The contract the `index`th codec field decodes against, or `None` where
+    /// that field names no inline shape — [`Self::codec_class`]'s twin, indexed
+    /// the same way and for its reason.
+    #[must_use]
+    pub fn codec_shape(&self, index: usize) -> Option<*const ShapeCodec> {
+        match self.codec_shapes.get(index) {
+            Some(codec) if !codec.is_null() => Some(*codec),
+            _ => None,
+        }
+    }
+
     /// `rule:core-classes/derive-attribute`'s derived **row** field list, in declaration order — empty for
     /// a class carrying no `#[Db\Derive]`.
     ///
@@ -1217,6 +1274,7 @@ impl ClassTable {
             methods: Vec::new(),
             codec: Vec::new(),
             codec_classes: Vec::new(),
+            codec_shapes: Vec::new(),
             db_codec: Vec::new(),
             db_codec_classes: Vec::new(),
             ctor_arity: 0,
@@ -1349,19 +1407,22 @@ impl ClassTable {
     ///
     /// `classes` is one entry per `codec` field, null except where the field's
     /// [`CodecField::ty`] is [`CodecTy::Class`] — see
-    /// [`ClassDesc::codec_class`].
+    /// [`ClassDesc::codec_class`] — and `shapes` is one entry per field on the
+    /// same terms, null except where that wire type is [`CodecTy::Shape`].
     ///
     /// # Panics
     ///
-    /// If `id` does not belong to this table, or if `classes` is not one entry
-    /// per field — a length disagreement would decode one field into another
-    /// field's class, which builds an object out of the wrong constructor.
+    /// If `id` does not belong to this table, or if either resolved list is not
+    /// one entry per field — a length disagreement would decode one field
+    /// against another field's contract, which builds an object out of the
+    /// wrong constructor.
     pub fn set_codec(
         &mut self,
         id: ClassId,
         codec: Vec<CodecField>,
         ctor_arity: usize,
         classes: Vec<*const ClassDesc>,
+        shapes: Vec<*const ShapeCodec>,
     ) {
         let desc = self
             .classes
@@ -1374,8 +1435,16 @@ impl ClassTable {
             codec.len(),
             classes.len()
         );
+        assert!(
+            shapes.len() == codec.len(),
+            "`{}` has {} codec field(s) but {} resolved nested contract(s)",
+            desc.name,
+            codec.len(),
+            shapes.len()
+        );
         desc.codec = codec;
         desc.codec_classes = classes;
+        desc.codec_shapes = shapes;
         desc.ctor_arity = ctor_arity;
     }
 
@@ -1429,12 +1498,13 @@ impl ClassTable {
     ///
     /// # Panics
     ///
-    /// If `classes` is not one entry per field, which would decode one field
-    /// into another field's class.
+    /// If either resolved list is not one entry per field, which would decode
+    /// one field against another field's class or contract.
     pub fn define_shape_codec(
         &mut self,
         fields: Vec<CodecField>,
         classes: Vec<*const ClassDesc>,
+        shapes: Vec<*const ShapeCodec>,
     ) -> *const ShapeCodec {
         assert!(
             classes.len() == fields.len(),
@@ -1442,8 +1512,17 @@ impl ClassTable {
             fields.len(),
             classes.len()
         );
-        self.shape_codecs
-            .push(Box::new(ShapeCodec { fields, classes }));
+        assert!(
+            shapes.len() == fields.len(),
+            "a shape codec has {} field(s) but {} resolved nested contract(s)",
+            fields.len(),
+            shapes.len()
+        );
+        self.shape_codecs.push(Box::new(ShapeCodec {
+            fields,
+            classes,
+            shapes,
+        }));
         let codec: &ShapeCodec = self
             .shape_codecs
             .last()
@@ -3958,6 +4037,7 @@ mod tests {
             element: None,
             class: None,
             cases: None,
+            shape: None,
             nullable: false,
             required: true,
         }
@@ -4038,6 +4118,7 @@ mod tests {
         let first = table.define_shape_codec(
             vec![shape_field(0, "n", CodecTy::Int)],
             vec![std::ptr::null()],
+            vec![std::ptr::null()],
         );
         let nested = table.desc(animal);
         let second = table.define_shape_codec(
@@ -4046,16 +4127,24 @@ mod tests {
                 shape_field(1, "seen", CodecTy::Bool),
             ],
             vec![nested, std::ptr::null()],
+            vec![std::ptr::null(), std::ptr::null()],
+        );
+        // A field that is itself a shape decodes against the contract beside
+        // it, which is the pointer a class label cannot carry.
+        let third = table.define_shape_codec(
+            vec![shape_field(0, "inner", CodecTy::Shape)],
+            vec![std::ptr::null()],
+            vec![first],
         );
         // Every later definition — of a class or of another contract — leaves
-        // both addresses where compiled code was told they are.
+        // all three addresses where compiled code was told they are.
         table.define("Later", &["x"], &[]);
-        table.define_shape_codec(Vec::new(), Vec::new());
+        table.define_shape_codec(Vec::new(), Vec::new(), Vec::new());
         #[expect(
             unsafe_code,
             reason = "both pointers came from this table, which owns its contracts for its whole life"
         )]
-        let (first, second) = unsafe { (&*first, &*second) };
+        let (first, second, third) = unsafe { (&*first, &*second, &*third) };
         assert_eq!(first.fields().len(), 1);
         assert_eq!(first.fields()[0].key, "n");
         assert!(first.class(0).is_none());
@@ -4065,6 +4154,11 @@ mod tests {
             second.class(2).is_none(),
             "and neither does no field at all"
         );
+        assert_eq!(third.shape(0), Some(std::ptr::from_ref(first)));
+        assert!(
+            second.shape(0).is_none(),
+            "a class field names a descriptor, not a contract"
+        );
     }
 
     #[test]
@@ -4072,6 +4166,7 @@ mod tests {
         let mut table = ClassTable::new();
         let codec = table.define_shape_codec(
             vec![shape_field(0, "n", CodecTy::Int)],
+            vec![std::ptr::null()],
             vec![std::ptr::null()],
         );
         let slot = Value::shape_codec(codec);

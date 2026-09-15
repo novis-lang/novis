@@ -366,6 +366,15 @@ pub struct DerivedField {
     /// [`nvs_stdlib::CodecField::cases`], which this is the declaration half
     /// of.
     pub cases: Option<EnumCases>,
+    /// The inline shape's own field list where the erasure above produced a
+    /// [`CodecTy::Shape`] — the declaration half of
+    /// [`nvs_stdlib::CodecField::shape`], whose key `nvs_ir::lower` renders
+    /// from this.
+    ///
+    /// The contract itself rather than that key, because the key's spelling is
+    /// `nvs-ir`'s — it renders the slot and parameter indices no front-end
+    /// crate has resolved yet — and this is the pass that read the type.
+    pub shape: Option<Box<DerivedCodec>>,
     /// Whether the declared type admits `null` (`rule:core-api/required-optional-and-nullable`'s second column).
     pub nullable: bool,
     /// Whether a document must carry [`Self::key`] at all
@@ -428,14 +437,15 @@ pub fn shape_codec(
             } else {
                 field.ty
             };
-            let (ty, element, class, cases) = codec_ty(carried, interner, enums);
+            let erased = codec_ty(carried, interner, enums);
             DerivedField {
                 property: field.name.clone(),
                 key: field.name.clone(),
-                ty,
-                element,
-                class,
-                cases,
+                ty: erased.ty,
+                element: erased.element,
+                class: erased.class,
+                cases: erased.cases,
+                shape: erased.shape,
                 nullable,
                 required: field.required,
                 param: Some(param),
@@ -478,11 +488,13 @@ pub fn shape_class_label(sorted_fields: &[String]) -> String {
 /// and are told from a codec-carrying class by their label alone, which is what
 /// `nvs_stdlib::db::row` reads. § 2's compile-time refusal of a genuinely
 /// unreachable type is this module's gap 1.
-/// An inline shape is `Opaque` here, because a shape reached as a derived
-/// class's *field* is a nested decode this row has no room to describe; a shape
-/// written as the whole type argument goes through [`shape_codec`] instead,
-/// which reads its fields rather than erasing them. Nothing here narrows what
-/// *encodes*, which walks the value rather than the declared type.
+/// An inline shape keeps **both** halves of what it loses — the class a decode
+/// constructs and the contract holding its field types — because a class label
+/// is keyed on the field names alone and cannot carry the second
+/// (`nvs_ir::lower::shape_class_label`). A shape written as the whole type
+/// argument goes through [`shape_codec`], which is this same read one level up.
+/// Nothing here narrows what *encodes*, which walks the value rather than the
+/// declared type.
 ///
 /// A class is [`CodecTy::Class`] whether or not it turns out to carry a
 /// codec, because that is a question about the *whole program* — the class may
@@ -492,27 +504,51 @@ pub fn shape_class_label(sorted_fields: &[String]) -> String {
 /// derived decoder calls yet.
 fn codec_ty(
     declared: TypeId,
-    interner: &crate::ty::TypeInterner,
+    interner: &mut crate::ty::TypeInterner,
     enums: &crate::enums::EnumTable,
 ) -> Erased {
+    // The arms that recurse need the interner handed back — a nested shape's
+    // contract is read with [`shape_codec`], which interns — so what the type
+    // is gets read out into an owned answer before the match ends, rather than
+    // inside an arm that still holds the borrow.
+    match nested_of(declared, interner) {
+        Nested::Array(elem) => return list_erasure(elem, interner, enums),
+        Nested::Shape(names) => {
+            // § 2's inline shape reached as a field, keeping both halves the
+            // erasure would otherwise drop: the class a decode constructs,
+            // named the way a literal of those same fields names it, and the
+            // per-field wire types that label cannot carry.
+            return shape_codec(declared, interner, enums).map_or_else(
+                || Erased::wire(CodecTy::Opaque),
+                |codec| Erased {
+                    ty: CodecTy::Shape,
+                    element: None,
+                    class: Some(shape_class_label(&names)),
+                    cases: None,
+                    shape: Some(Box::new(codec)),
+                },
+            );
+        }
+        Nested::No => {}
+    }
     match interner.get(declared) {
-        Ty::Bool => (CodecTy::Bool, None, None, None),
-        Ty::Int => (CodecTy::Int, None, None, None),
-        Ty::Uint => (CodecTy::Uint, None, None, None),
-        Ty::Float => (CodecTy::Float, None, None, None),
+        Ty::Bool => Erased::wire(CodecTy::Bool),
+        Ty::Int => Erased::wire(CodecTy::Int),
+        Ty::Uint => Erased::wire(CodecTy::Uint),
+        Ty::Float => Erased::wire(CodecTy::Float),
         // `rule:types/decimal`'s own wire type, never `float`'s: the types are
         // not assignable to each other in the language, so a decoder reaching
         // one through the other would round away what the type is for.
-        Ty::Decimal => (CodecTy::Decimal, None, None, None),
+        Ty::Decimal => Erased::wire(CodecTy::Decimal),
         // A `tainted` string is still a string on the wire; `rule:security/derived-codec-qualifiers` makes
         // the qualifier a call-site question, not a decoder one.
-        Ty::String | Ty::TaintedString => (CodecTy::Str, None, None, None),
+        Ty::String | Ty::TaintedString => Erased::wire(CodecTy::Str),
         // `rule:types/bytes`, under the same call-site reading of the
         // qualifier. It reaches a wire through a column alone — [`db_reachable`]
         // admits it and [`json_reachable`] does not — so the erasure is shared
         // and the reachable set is what keeps it out of a JSON document.
-        Ty::Bytes | Ty::TaintedBytes => (CodecTy::Bytes, None, None, None),
-        Ty::Mixed => (CodecTy::Mixed, None, None, None),
+        Ty::Bytes | Ty::TaintedBytes => Erased::wire(CodecTy::Bytes),
+        Ty::Mixed => Erased::wire(CodecTy::Mixed),
         // § 2's "another class that itself has a codec", and the one `Core`
         // value type that is a wire type instead. The label is what
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
@@ -529,33 +565,111 @@ fn codec_ty(
             } else {
                 CodecTy::Class
             };
-            (wire, None, Some(label), None)
+            Erased {
+                ty: wire,
+                element: None,
+                class: Some(label),
+                cases: None,
+                shape: None,
+            }
         }
         // § 2's enum. What travels is the roster and not the name: `rule:enums/representation` reserves an enum tag that nothing writes, so by the time a case
         // is a value it is the integer behind it, and a decoder has nothing to
         // resolve a name against. The membership test is therefore the whole
         // of the decode — see `nvs_stdlib::EnumCases`.
-        Ty::Enum(name, backing) => (CodecTy::Enum, None, None, enum_cases(name, *backing, enums)),
-        // § 2's list field. The element goes through this same erasure once,
-        // and a second `List` coming back out is `array<array<T>>` — which
-        // [`nvs_stdlib::CodecField::element`] has no room to describe, so the
-        // whole field stays `Opaque` and refuses at the `decodeAs<T>` rather
-        // than half-decoding. An `Opaque` element is refused the same way.
-        Ty::Array(elem) => match codec_ty(*elem, interner, enums) {
-            (CodecTy::List | CodecTy::Opaque, _, _, _) => (CodecTy::Opaque, None, None, None),
-            // The element's class label and its case roster both ride up onto
-            // the *field*, which is the one row a decoder has in hand when it
-            // reaches position `n`.
-            (element, _, class, cases) => (CodecTy::List, Some(element), class, cases),
+        Ty::Enum(name, backing) => Erased {
+            ty: CodecTy::Enum,
+            element: None,
+            class: None,
+            cases: enum_cases(name, *backing, enums),
+            shape: None,
         },
-        _ => (CodecTy::Opaque, None, None, None),
+        _ => Erased::wire(CodecTy::Opaque),
     }
 }
 
-/// What [`codec_ty`] answers: the wire type, then the three things the erasure
-/// drops — a list's element type, a class label, an enum's case roster — each
-/// present only for the wire type that lost it.
-type Erased = (CodecTy, Option<CodecTy>, Option<String>, Option<EnumCases>);
+/// § 2's list field, erased. The element goes through [`codec_ty`] once, and a
+/// second `List` coming back out is `array<array<T>>` — which
+/// [`nvs_stdlib::CodecField::element`] has no room to describe, so the whole
+/// field stays `Opaque` and refuses at the `decodeAs<T>` rather than
+/// half-decoding. An `Opaque` element is refused the same way, and so is a
+/// [`CodecTy::Shape`] one: a shape needs the field's own contract slot, which a
+/// list has already spent describing its element.
+fn list_erasure(
+    element: TypeId,
+    interner: &mut crate::ty::TypeInterner,
+    enums: &crate::enums::EnumTable,
+) -> Erased {
+    let erased = codec_ty(element, interner, enums);
+    match erased.ty {
+        CodecTy::List | CodecTy::Shape | CodecTy::Opaque => Erased::wire(CodecTy::Opaque),
+        // The element's class label and its case roster both ride up onto the
+        // *field*, which is the one row a decoder has in hand when it reaches
+        // position `n`.
+        ty => Erased {
+            ty: CodecTy::List,
+            element: Some(ty),
+            class: erased.class,
+            cases: erased.cases,
+            shape: None,
+        },
+    }
+}
+
+/// What [`codec_ty`]'s recursive arms need, read off the declared type and
+/// owned, so the interner's borrow ends with the match that produced it.
+enum Nested {
+    /// An `array<T>`, carrying `T`.
+    Array(TypeId),
+    /// An inline shape, carrying its field names in the sorted order
+    /// [`crate::ty::TypeInterner::shape`] interns them in — which is what
+    /// [`shape_class_label`] keys the synthesized class on.
+    Shape(Vec<String>),
+    /// Every other declared type, which [`codec_ty`] erases without recursing.
+    No,
+}
+
+/// Which of [`Nested`]'s answers `declared` is.
+fn nested_of(declared: TypeId, interner: &crate::ty::TypeInterner) -> Nested {
+    match interner.get(declared) {
+        Ty::Array(element) => Nested::Array(*element),
+        Ty::Shape(fields) => Nested::Shape(fields.iter().map(|f| f.name.clone()).collect()),
+        _ => Nested::No,
+    }
+}
+
+/// What [`codec_ty`] answers: the wire type, then what the erasure drops — a
+/// list's element type, a class label, an enum's case roster, an inline shape's
+/// own contract — each present only for the wire type that lost it.
+#[derive(Clone, Debug)]
+struct Erased {
+    /// The wire type a decoder branches on.
+    ty: CodecTy,
+    /// A [`CodecTy::List`]'s element type.
+    element: Option<CodecTy>,
+    /// The class label a [`CodecTy::Class`], a [`CodecTy::Shape`] or a list of
+    /// either lost.
+    class: Option<String>,
+    /// A [`CodecTy::Enum`]'s accepted backing values, for the field itself or
+    /// for a list's element.
+    cases: Option<EnumCases>,
+    /// A [`CodecTy::Shape`]'s own field list, read the way [`shape_codec`]
+    /// reads a written one.
+    shape: Option<Box<DerivedCodec>>,
+}
+
+impl Erased {
+    /// A wire type the erasure dropped nothing from.
+    fn wire(ty: CodecTy) -> Self {
+        Self {
+            ty,
+            element: None,
+            class: None,
+            cases: None,
+            shape: None,
+        }
+    }
+}
 
 /// `qname`'s declared cases, ascending — [`CodecTy::Enum`]'s whole decode.
 ///
@@ -618,10 +732,12 @@ pub struct CodecFieldSite {
 ///
 /// **What it refuses is the unreachable set, not the undecoded one.** § 2
 /// lists a `decimal`, an `Instant`, an enum, an inline shape, an `array<T>`
-/// and a nested codec-carrying class as reachable; the inline shape still
-/// erases to [`CodecTy::Opaque`] and is refused by `nvs_stdlib::json` when a
-/// `decodeAs<T>` runs, which is that crate's missing decoder and not a
-/// contract error. Refusing an `Opaque` here would report it as if the
+/// and a nested codec-carrying class as reachable; a reachable type the
+/// erasure has no wire type for — an `array<array<T>>`, an `array` of inline
+/// shapes — still erases to [`CodecTy::Opaque`] and is refused by
+/// `nvs_stdlib::json` when a `decodeAs<T>` runs, which is that crate's missing
+/// decoder and not a contract error. Refusing an `Opaque` here would report it
+/// as if the
 /// program were wrong — so the test is over the declared type, and
 /// `nvs_stdlib::json`'s gap 1 owns the difference.
 pub(crate) fn resolve_field_types(
@@ -760,11 +876,10 @@ pub(crate) fn check_row_sites(
         // questions — so the call that asks for a whole row out of it is where
         // it is answered. `nvs_stdlib::db::row`'s `hydrate` keeps the same
         // refusal as the backstop for a class built by hand.
-        if let Some(field) = codec
-            .fields
-            .iter()
-            .find(|field| field.ty == CodecTy::Opaque || field.element == Some(CodecTy::Opaque))
-        {
+        if let Some(field) = codec.fields.iter().find(|field| {
+            matches!(field.ty, CodecTy::Opaque | CodecTy::Shape)
+                || field.element == Some(CodecTy::Opaque)
+        }) {
             let property = &field.property;
             report_row_site(
                 site,
@@ -1473,14 +1588,15 @@ fn codec_field(
         declared: carried,
         format,
     });
-    let (ty, element, class, cases) = codec_ty(carried, env.interner, env.enums);
+    let erased = codec_ty(carried, env.interner, env.enums);
     FieldOutcome::Kept(DerivedField {
         key: overrides.name.unwrap_or_else(|| name.clone()),
         property: name,
-        ty,
-        element,
-        class,
-        cases,
+        ty: erased.ty,
+        element: erased.element,
+        class: erased.class,
+        cases: erased.cases,
+        shape: erased.shape,
         nullable,
         required,
         param,

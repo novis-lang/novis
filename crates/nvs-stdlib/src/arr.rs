@@ -6047,14 +6047,16 @@ mod tests {
                 element: None,
                 class: None,
                 cases: None,
+                shape: None,
                 nullable: *nullable,
                 required: *required,
             })
             .collect();
-        // One entry per field, null throughout: none of these names a class,
-        // which is the only thing the vector is read for.
+        // One entry per field, null throughout: none of these names a class or
+        // a nested contract, which is all the two vectors are read for.
         let classes = vec![std::ptr::null(); codec.len()];
-        let shape = table.define_shape_codec(codec, classes);
+        let shapes = vec![std::ptr::null(); codec.len()];
+        let shape = table.define_shape_codec(codec, classes, shapes);
         // No `set_methods`, unlike the class fixture: a shape declares no
         // constructor and `crate::json`'s `build_shape` writes its slots
         // directly rather than reaching `nvs_runtime::construct`.
