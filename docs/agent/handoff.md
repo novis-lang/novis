@@ -2,26 +2,21 @@
 
 ## State
 
-**Goal `m7-server-surface` is complete, stage 13 included.** Stages 3 to 12 built the surface and
-stage 13 is the rulebook: every rule the goal names now reports `shipped`, each carrying `guardedBy`
-paths to the files whose tests fail when it breaks. `python tools/rules.py --check` and
-`--render --check` are clean, and `python tools/verify.py` is green on all twelve legs — including
-`doc`, which says every intra-doc link resolves. Nothing is blocked.
+**Goal `m7-server-surface` is met.** Stage 13 flipped the last of its rules to `shipped` in the
+previous session; the only thing left red was the floor check `python tools/playbook.py --check`,
+and it is green now. Two bullets carried trailers the tool could not read: one ended
+`[until: \`--BODY--\` crosses as octets]`, which names no kind, and one had its `[until: gone
+tools/peek.py:…]` needle wrapped onto a second line, so the needle held a newline no file content
+can and the condition read as *held* — `--retire` would have deleted a bullet whose trap is still
+live (`tools/peek.py:313` bounds nothing).
 
-**Eight rules were flipped this session; three of the stage's eleven were already `shipped`** — the
-enum-capture spelling, the fleet lease and the per-mount origin, which earlier stages had already
-landed. The eight are `config/one-local-control-socket` and
-`config/ctl-config-reports-the-live-snapshot`, `packaging/a-service-is-one-stored-argv` and
-`packaging/a-service-answers-its-manager`, `http-server/a-unix-socket-listener`,
-`observability/the-exporters-are-crates`, `observability/four-kinds-become-a-span` and
-`observability/an-exporter-brings-no-second-scheduler-and-no-second-client`. Each one's guards were
-read before the flip rather than assumed: the control endpoint's three operations at
-`crates/nvs-server/src/control.rs:593`, the client half at `crates/nvs-cli/src/ctl.rs:814`, the
-separator overload at `crates/nvs-config/src/server.rs:912`, the Unix peer's implicit forwarded trust
-at `crates/nvs-server/src/forwarded.rs:587`, the four span kinds at `crates/nvs-server/src/trace.rs:607`
-and the push at `crates/nvs-server/src/otlp.rs:944`.
+**Both classes are now refused where they would be written, not where they are found.**
+`playbook.declaration` returns `None` for a trailer broken across a line and `playbook.wrapped` says
+so in one word, so `--check` reports it as malformed instead of retiring the bullet; and
+`session.py --wrap` asks each bullet of a `## playbook:` section separately, because it read only
+the section's last trailer and that is how the malformed one landed in front of a good one.
 
-**`verify.py` runs the doc leg now**, so the backlog line claiming it does not is gone.
+`python tools/verify.py` and `--doc` are green. Nothing is blocked.
 
 ## Next group
 
@@ -31,7 +26,6 @@ the group, and this handoff is overwritten by the goal switch.
 
 ## Backlog
 
-- `Core\Metrics`'s three rows — goal `m8-stdlib-depth`.
-- The `unowned` gaps at `crates/nvs-server/src/route.rs:30`, `crates/nvs-server/src/bounds.rs:62`,
-  `crates/nvs-types/src/response.rs:29` and `crates/nvs-stdlib/src/cli.rs:130` — goal
-  `unowned-closures`.
+- `peek.py`'s `re:` target still prints every hit in the file unbounded (`tools/peek.py:313`); the
+  playbook bullet about it carries a `reviewed` date now, since nothing in the tree names the bound
+  a mechanical trailer could wait on — `docs/agent/playbook.md` under *Tooling*.
