@@ -470,6 +470,7 @@ fn introspected(
             ordinal: int_at(row, b"nvs_ordinal")?,
             unique: flag_at(row, b"nvs_unique"),
             primary: flag_at(row, b"nvs_primary"),
+            filter: text_at(row, b"nvs_filter"),
         })
     })?;
     nvs_db::catalog::assemble(&columns, &indexes, dialect).map_err(|why| {

@@ -130,6 +130,7 @@ pub fn schema_of(conn: &mut Connection) -> Result<Schema, ReadError> {
             ordinal: int_at(row, 3).ok_or_else(|| short(read, index))?,
             unique: flag_at(row, 4),
             primary: flag_at(row, 5),
+            filter: text_at(row, 6),
         });
     }
 

@@ -40,14 +40,24 @@
 //!   `postgres_reads_pg_catalog_and_the_others_read_information_schema`
 //!   asserts.
 //! - **An index outside § 11's vocabulary is not reported at all.** A partial
-//!   or expression index is filtered out of every dialect's index read —
-//!   `indexprs`/`indpred` on PostgreSQL, `has_filter` on SQL Server, `partial`
-//!   and a null `pragma_index_info` name on SQLite, and a null `column_name`
-//!   on MySQL. A [`Schema`] cannot hold one, so reporting it with its
-//!   predicate dropped would put a *false* index in the value and the diff
-//!   would then agree with a server it does not match. The cost is the other
-//!   way round: a plan that creates an index whose name is already taken by a
-//!   partial one fails on the server rather than in the plan.
+//!   or expression index is dropped — by `indexprs`/`indpred` on PostgreSQL,
+//!   `partial` and a null `pragma_index_info` name on SQLite, and a null
+//!   `column_name` on MySQL, each in the statement itself. A [`Schema`] cannot
+//!   hold one, so reporting it with its predicate dropped would put a *false*
+//!   index in the value and the diff would then agree with a server it does
+//!   not match. The cost is the other way round: a plan that creates an index
+//!   whose name is already taken by a partial one fails on the server rather
+//!   than in the plan.
+//! - **SQL Server's filtered index is the one predicate that is read rather
+//!   than dropped**, because a unique key over a nullable column *is* a
+//!   filtered index there (`rule:core-classes/a-unique-key-reads-nulls-as-distinct`).
+//!   Its read carries `filter_definition` and [`predicate_is_the_key_itself`]
+//!   matches it against that key's own nullable columns, so the `WHERE`
+//!   [`crate::ddl`] wrote reads back as the key that asked for it and a second
+//!   `plan` over a converged database is empty. Every other predicate is
+//!   dropped exactly as above. The match is in [`assemble`] and not in the
+//!   statement because it takes the index's columns and their nullability
+//!   together, and only the assembly holds both.
 //! - **The read is one schema deep.** A PostgreSQL search path with two
 //!   schemas on it, or a SQL Server object under a schema other than the
 //!   login's default, is out of view. § 11 has no cross-schema construct, so
@@ -163,6 +173,7 @@ impl Read {
                 "nvs_ordinal",
                 "nvs_unique",
                 "nvs_primary",
+                "nvs_filter",
             ],
         }
     }
@@ -225,13 +236,16 @@ ORDER BY c.relname, a.attnum";
 /// `indkey` is an `int2vector`, so it is cast to an array before `unnest …
 /// WITH ORDINALITY` gives each column its position. A zero entry there is an
 /// expression, and the `indexprs`/`indpred` filter has already dropped the
-/// index it belonged to.
+/// index it belonged to — which is why `nvs_filter` is a typed null here: the
+/// column is SQL Server's answer to a question this dialect settles in its own
+/// `WHERE`, and the row shape is one shape for all four.
 const PG_INDEXES: &str = r"SELECT c.relname AS nvs_table,
        i.relname AS nvs_index,
        a.attname AS nvs_column,
        k.ord AS nvs_ordinal,
        CASE WHEN ix.indisunique THEN 1 ELSE 0 END AS nvs_unique,
-       CASE WHEN ix.indisprimary THEN 1 ELSE 0 END AS nvs_primary
+       CASE WHEN ix.indisprimary THEN 1 ELSE 0 END AS nvs_primary,
+       CAST(NULL AS text) AS nvs_filter
 FROM pg_catalog.pg_index ix
 JOIN pg_catalog.pg_class c ON c.oid = ix.indrelid
 JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid
@@ -276,7 +290,8 @@ const MYSQL_INDEXES: &str = r"SELECT s.table_name AS nvs_table,
        s.column_name AS nvs_column,
        s.seq_in_index AS nvs_ordinal,
        CASE WHEN s.non_unique = 0 THEN 1 ELSE 0 END AS nvs_unique,
-       CASE WHEN s.index_name = 'PRIMARY' THEN 1 ELSE 0 END AS nvs_primary
+       CASE WHEN s.index_name = 'PRIMARY' THEN 1 ELSE 0 END AS nvs_primary,
+       CAST(NULL AS char) AS nvs_filter
 FROM information_schema.statistics s
 JOIN information_schema.tables t
   ON t.table_schema = s.table_schema AND t.table_name = s.table_name
@@ -327,15 +342,22 @@ ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION";
 /// `INFORMATION_SCHEMA` has `TABLE_CONSTRAINTS` and `KEY_COLUMN_USAGE` and no
 /// view over indexes at all, so a plain non-unique index — which § 11 very much
 /// has — is unreadable there. `type IN (1, 2)` keeps clustered and nonclustered
-/// b-trees and drops the heap, the XML, spatial and columnstore forms; an
-/// included column is not a key column and `has_filter` is the filtered index
-/// the vocabulary cannot hold.
+/// b-trees and drops the heap, the XML, spatial and columnstore forms, and an
+/// included column is not a key column.
+///
+/// **`filter_definition` is carried rather than filtered on**, because this is
+/// the dialect where a filtered index is a unique key of the vocabulary's own
+/// (`rule:core-classes/a-unique-key-reads-nulls-as-distinct`) and not only a
+/// predicate a `Schema` cannot hold. Which of the two it is depends on the
+/// index's columns and their nullability, so [`assemble`] reads it where both
+/// are already in hand.
 const SQLSERVER_INDEXES: &str = r"SELECT t.name AS nvs_table,
        i.name AS nvs_index,
        c.name AS nvs_column,
        ic.key_ordinal AS nvs_ordinal,
        CASE WHEN i.is_unique = 1 THEN 1 ELSE 0 END AS nvs_unique,
-       CASE WHEN i.is_primary_key = 1 THEN 1 ELSE 0 END AS nvs_primary
+       CASE WHEN i.is_primary_key = 1 THEN 1 ELSE 0 END AS nvs_primary,
+       i.filter_definition AS nvs_filter
 FROM sys.indexes i
 JOIN sys.tables t ON t.object_id = i.object_id
 JOIN sys.schemas s ON s.schema_id = t.schema_id
@@ -344,7 +366,6 @@ JOIN sys.index_columns ic
 JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
 WHERE s.name = SCHEMA_NAME()
   AND i.type IN (1, 2)
-  AND i.has_filter = 0
   AND i.is_hypothetical = 0
   AND ic.is_included_column = 0
 ORDER BY t.name, i.name, ic.key_ordinal";
@@ -397,7 +418,7 @@ ORDER BY m.name, p.cid"#;
 /// key's `sqlite_autoindex_…` is not reported a second time. The `ORDER BY` is
 /// by position because a compound select takes the first branch's column names.
 const SQLITE_INDEXES: &str = r#"SELECT m.name AS nvs_table, 'PRIMARY' AS nvs_index, p.name AS nvs_column,
-       p.pk AS nvs_ordinal, 1 AS nvs_unique, 1 AS nvs_primary
+       p.pk AS nvs_ordinal, 1 AS nvs_unique, 1 AS nvs_primary, NULL AS nvs_filter
 FROM sqlite_master m
 JOIN pragma_table_info(m.name) p
 WHERE m.type = 'table'
@@ -406,7 +427,8 @@ WHERE m.type = 'table'
 UNION ALL
 SELECT m.name, il.name, ii.name, ii.seqno + 1,
        CASE WHEN il."unique" = 1 THEN 1 ELSE 0 END,
-       0
+       0,
+       NULL
 FROM sqlite_master m
 JOIN pragma_index_list(m.name) il
 JOIN pragma_index_info(il.name) ii
@@ -890,6 +912,11 @@ pub struct IndexRow {
     pub unique: bool,
     /// Whether this is the table's primary key.
     pub primary: bool,
+    /// The server's spelling of the index's predicate, where it has one.
+    ///
+    /// Only SQL Server answers it: the other three drop a partial index in
+    /// their own statement, having no predicate the vocabulary can name.
+    pub filter: Option<String>,
 }
 
 /// The two reads' rows as one [`Schema`], built through the same builders a
@@ -953,12 +980,20 @@ pub fn assemble(
             .map(|row| column_of(row, dialect))
             .collect::<Result<Vec<Column>, SchemaError>>()?;
         let mut table = Table::new(name, built)?;
+        let nullable: Vec<&str> = rows
+            .iter()
+            .filter(|row| row.nullable)
+            .map(|row| row.column.as_str())
+            .collect();
         let keys = indexes.iter().filter(|row| row.table == name);
         for key in first_seen(keys.clone().map(|row| row.index.as_str())) {
             let mut key_rows: Vec<&IndexRow> =
                 keys.clone().filter(|row| row.index == key).collect();
             key_rows.sort_by_key(|row| row.ordinal);
             let names: Vec<&str> = key_rows.iter().map(|row| row.column.as_str()).collect();
+            if !predicate_is_the_key_itself(&key_rows, &names, &nullable, dialect) {
+                continue;
+            }
             table = if key_rows[0].primary {
                 table.primary_key(&names)?
             } else if key_rows[0].unique {
@@ -970,6 +1005,81 @@ pub fn assemble(
         tables.push(table);
     }
     Schema::new(tables)
+}
+
+/// Whether an index carrying a predicate is [`crate::ddl`]'s spelling of the
+/// unique key over `names`, rather than a partial index the vocabulary cannot
+/// hold.
+///
+/// An index with no predicate is every dialect's ordinary key and is kept. One
+/// with a predicate is kept on SQL Server alone, because that is where a unique
+/// key over a nullable column *is* a filtered index
+/// (`rule:core-classes/a-unique-key-reads-nulls-as-distinct`), and only when
+/// the predicate requires exactly this key's nullable columns to be present —
+/// which is the emitter's own `WHERE` and nothing else. Anything else is
+/// dropped, as a partial index has always been: reporting one with its
+/// predicate discarded would put a *false* key in the value, and the diff would
+/// then agree with a server it does not match.
+fn predicate_is_the_key_itself(
+    rows: &[&IndexRow],
+    names: &[&str],
+    nullable: &[&str],
+    dialect: Dialect,
+) -> bool {
+    let Some(filter) = rows[0].filter.as_deref() else {
+        return true;
+    };
+    if dialect != Dialect::SqlServer || rows[0].primary || !rows[0].unique {
+        return false;
+    }
+    let wanted: Vec<&str> = names
+        .iter()
+        .copied()
+        .filter(|name| {
+            nullable
+                .iter()
+                .any(|other| other.eq_ignore_ascii_case(name))
+        })
+        .collect();
+    present_columns(filter).is_some_and(|present| {
+        present.len() == wanted.len()
+            && wanted
+                .iter()
+                .all(|name| present.iter().any(|other| other.eq_ignore_ascii_case(name)))
+    })
+}
+
+/// The columns a predicate requires to be present, or `None` for a predicate
+/// that says anything else at all.
+///
+/// This is not a SQL parser and refuses everything it does not recognise. SQL
+/// Server stores a predicate in its own normalised form — `WHERE dedupe_pending
+/// IS NOT NULL` comes back as `([dedupe_pending] IS NOT NULL)`, delimited and
+/// parenthesised however it was written — so the one shape accepted here is a
+/// conjunction of `IS NOT NULL` over bare column names, which is the only shape
+/// [`crate::ddl`] writes. A predicate this returns `None` for is an index the
+/// value drops, which is the same answer it gave before any of them were read.
+fn present_columns(filter: &str) -> Option<Vec<String>> {
+    let mut rest = filter.trim();
+    if let Some(inner) = rest
+        .strip_prefix('(')
+        .and_then(|text| text.strip_suffix(')'))
+    {
+        rest = inner;
+    }
+    let mut columns = Vec::new();
+    for term in rest.split(" AND ") {
+        let name = term.trim().strip_suffix("IS NOT NULL")?.trim();
+        let name = name
+            .strip_prefix('[')
+            .and_then(|text| text.strip_suffix(']'))
+            .unwrap_or(name);
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            return None;
+        }
+        columns.push(name.to_owned());
+    }
+    Some(columns)
 }
 
 /// The distinct values of `names`, in the order they first appear.
@@ -1586,6 +1696,79 @@ mod tests {
         }
     }
 
+    /// `rule:core-classes/a-unique-key-reads-nulls-as-distinct`: the filtered index SQL Server's
+    /// emitter writes reads back as the unique key that asked for it, and every
+    /// other predicate is still dropped.
+    ///
+    /// This is the half of the round trip that closes it: a key emitted as an
+    /// index and read back as an index would be a plan that proposes the same
+    /// unique key on every deployment, for ever. `plan` is what the assertion
+    /// goes through rather than the value alone, because *converging* is what
+    /// the rule promises and the value is only how it gets there.
+    ///
+    /// The predicates that must stay unreadable are asserted beside it: one
+    /// over a value, one over a column the key does not name, and one naming
+    /// only part of what the key filters. None is a `Schema` this vocabulary
+    /// can hold, so each has to leave the key out of the value entirely rather
+    /// than arrive with its predicate discarded.
+    #[test]
+    fn a_filtered_unique_index_reads_back_as_the_same_key() {
+        let fixture = assembled_fixture();
+        let (columns, indexes) = rows_of(&fixture, Dialect::SqlServer);
+        let filtered: Vec<&IndexRow> = indexes.iter().filter(|row| row.filter.is_some()).collect();
+        assert_eq!(
+            filtered
+                .iter()
+                .map(|row| (row.index.as_str(), row.filter.as_deref().unwrap()))
+                .collect::<Vec<_>>(),
+            [("wide_slug", "([slug] IS NOT NULL)")],
+            "the fixture's nullable unique key is the only filtered index on it"
+        );
+
+        let read = assemble(&columns, &indexes, Dialect::SqlServer).unwrap();
+        let wide = read.table(&Ident::new("wide").unwrap()).unwrap();
+        assert_eq!(
+            wide.unique_keys()
+                .iter()
+                .map(|key| key.name().to_string())
+                .collect::<Vec<_>>(),
+            ["wide_label", "wide_slug"],
+            "the filtered index came back as something other than its key"
+        );
+        assert_eq!(
+            wide.indexes()
+                .iter()
+                .map(|key| key.name().to_string())
+                .collect::<Vec<_>>(),
+            ["wide_weight"],
+            "a unique key read back as a plain index"
+        );
+        let plan = crate::plan::diff(&fixture, &read, Dialect::SqlServer);
+        assert!(
+            plan.is_empty(),
+            "a converged SQL Server database still has a plan:\n{plan}"
+        );
+
+        for predicate in [
+            "([weight] = 7)",
+            "([label] IS NOT NULL)",
+            "([slug] IS NOT NULL AND [weight] > 0)",
+            "([slug] IS NOT NULL AND [note] IS NOT NULL)",
+        ] {
+            let mut altered = indexes.clone();
+            for row in altered.iter_mut().filter(|row| row.index == "wide_slug") {
+                row.filter = Some(predicate.to_owned());
+            }
+            let read = assemble(&columns, &altered, Dialect::SqlServer).unwrap();
+            let wide = read.table(&Ident::new("wide").unwrap()).unwrap();
+            assert_eq!(
+                wide.unique_keys().len(),
+                1,
+                "`{predicate}` is not a key this vocabulary holds"
+            );
+        }
+    }
+
     /// A schema carrying every part the assembly has to put back together: an
     /// identity primary key, a composite one, a unique constraint, a plain
     /// index, a nullable column and both kinds of default.
@@ -1611,6 +1794,14 @@ mod tests {
     ///   MySQL 8, and `rule:core-classes/schema-is-a-value`'s identifiers are
     ///   validated rather than delimited — so a name a backend reserves is a
     ///   `CREATE TABLE` that server will not parse, whatever this crate does.
+    ///
+    /// **`slug` is nullable and unique**, which is the one construct whose SQL
+    /// Server spelling is not a constraint at all
+    /// (`rule:core-classes/a-unique-key-reads-nulls-as-distinct`): it is the
+    /// filtered index [`crate::ddl`] writes there, and this fixture is what
+    /// asks every server whether it reads back as the key that asked for it.
+    /// `label` beside it is unique and `not null`, so a reader that answered
+    /// the same way for both would fail here.
     fn assembled_fixture() -> Schema {
         let wide = Table::new(
             "wide",
@@ -1621,6 +1812,9 @@ mod tests {
                     .unwrap(),
                 Column::new("label", ScalarType::Text { max: Some(200) }).unwrap(),
                 Column::new("note", ScalarType::Text { max: None })
+                    .unwrap()
+                    .null(),
+                Column::new("slug", ScalarType::Text { max: Some(64) })
                     .unwrap()
                     .null(),
                 Column::new("weight", ScalarType::Int(IntWidth::Normal))
@@ -1637,6 +1831,8 @@ mod tests {
         .primary_key(&["id"])
         .unwrap()
         .unique("wide_label", &["label"])
+        .unwrap()
+        .unique("wide_slug", &["slug"])
         .unwrap()
         .index("wide_weight", &["weight"])
         .unwrap();
@@ -1702,7 +1898,13 @@ mod tests {
             }
             for key in table.unique_keys() {
                 let key_name = key.name().to_string();
-                indexes.append(&mut key_rows(&name, &key_name, key.columns(), true, false));
+                let mut block = key_rows(&name, &key_name, key.columns(), true, false);
+                if let Some(predicate) = stored_filter(table, key.columns(), dialect) {
+                    for row in &mut block {
+                        row.filter = Some(predicate.clone());
+                    }
+                }
+                indexes.append(&mut block);
             }
             for key in table.indexes() {
                 let key_name = key.name().to_string();
@@ -1710,6 +1912,27 @@ mod tests {
             }
         }
         (columns, indexes)
+    }
+
+    /// What SQL Server stores as the predicate of the filtered unique index
+    /// [`ddl`] writes for a key over a nullable column, and `None` for every
+    /// key that is a plain constraint.
+    ///
+    /// The spelling is the **server's** and not the emitter's: SQL Server
+    /// normalises the `WHERE slug IS NOT NULL` it was handed into
+    /// `([slug] IS NOT NULL)` before it stores it, delimiters and parentheses
+    /// added. A reader that matched the emitter's own text byte for byte would
+    /// pass every assertion here and fail on the first real server.
+    fn stored_filter(table: &Table, columns: &[Ident], dialect: Dialect) -> Option<String> {
+        if dialect != Dialect::SqlServer {
+            return None;
+        }
+        let terms: Vec<String> = columns
+            .iter()
+            .filter(|name| table.column(name).is_some_and(Column::is_nullable))
+            .map(|name| format!("[{name}] IS NOT NULL"))
+            .collect();
+        (!terms.is_empty()).then(|| format!("({})", terms.join(" AND ")))
     }
 
     /// One key's rows, backwards, for the reason [`rows_of`] states.
@@ -1730,6 +1953,7 @@ mod tests {
                 ordinal: i64::try_from(at).unwrap() + 1,
                 unique,
                 primary,
+                filter: None,
             })
             .collect();
         rows.reverse();
@@ -1840,6 +2064,7 @@ mod tests {
                     ordinal: row.get(3)?,
                     unique: row.get(4)?,
                     primary: row.get(5)?,
+                    filter: row.get(6)?,
                 })
             })
             .unwrap();
