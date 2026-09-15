@@ -2104,6 +2104,26 @@ impl<'a> Lowering<'a> {
         self.emit(b, Ty::ClassDesc, InstKind::SourceConst { source })
             .0
     }
+
+    /// The constant a member on `nvs_stdlib::registry::CALL_SITE_MEMBERS` takes
+    /// as its **last** argument: the class this frame's statements are inside,
+    /// carried as the enclosing `Class::member` half of the same
+    /// [`InstKind::SourceConst`] a producer is handed.
+    ///
+    /// One instruction for both rosters rather than a second constant carrying
+    /// the class alone, because the datum is already in this one and a helper
+    /// reading it goes through `nvs_runtime::source::of_operand` either way. A
+    /// descriptor address would be smaller and is what
+    /// [`Self::written_type_constants`] hands over — but a *call site* is not a
+    /// class reference: a script frame has none at all, and a class the unit
+    /// declares no descriptor for would be a compile refusal where the answer
+    /// wanted is "no class".
+    ///
+    /// Emitted before the receiver is opened, and not refcounted, for
+    /// [`Self::producer_source`]'s reasons exactly.
+    pub(crate) fn call_site(&mut self, b: BlockId) -> ValueId {
+        self.producer_source(b)
+    }
     pub(crate) fn emit(&mut self, b: BlockId, ty: Ty, kind: InstKind) -> (ValueId, Ty) {
         let v = self.ids.next_value();
         self.block_insts[b.index() as usize].push(Inst {

@@ -1,0 +1,67 @@
+--TEST--
+A reflective call to a `private` method fails from outside the class and runs from inside it, each the way the ordinary call at that site does — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// `rule:security/reflection-enforces-visibility`: acting on a member runs
+// through exactly the check ordinary code *at that call site* would face. So
+// this asks the question as an **agreement** rather than as a refusal: the
+// same method, reached through both doors from each of two sites, with the
+// answers compared. A `call` that simply refused every `private` method would
+// print plausibly on the first half alone and fail on the second.
+class Vault {
+    public function open(): string {
+        return "opened";
+    }
+
+    private function sealed(): string {
+        return "the combination";
+    }
+
+    // Inside the class, an ordinary call to `sealed()` compiles, so the
+    // reflective one written here reaches it too — and answers the same thing.
+    public function fromInside(): string {
+        var $described = Core\Reflect::forObject($this);
+        var $reflective = $described->call($this, "sealed", []);
+        if ($reflective == $this->sealed()) {
+            return "inside agrees: " . $reflective;
+        }
+        return "inside disagrees";
+    }
+}
+
+var $vault = new Vault();
+var $described = Core\Reflect::forObject($vault);
+
+// The public half runs through both doors, so the agreement below is not two
+// doors that are simply both shut.
+mixed $erased = $vault;
+echo $described->call($vault, "open", []), " ", $erased->open(), "\n";
+
+// The ordinary call to a `private` method from out here is the one through an
+// erased receiver: a `mixed` is outside every class by construction, which is
+// the premise this call site has too. Both refusals are caught as `LogicError`
+// and compared by their own sentence — the same check, not two that agree.
+var $reflectively = "not refused";
+try {
+    var $said = $described->call($vault, "sealed", []);
+} catch (LogicError $refused) {
+    $reflectively = $refused->message;
+}
+var $ordinarily = "not refused";
+try {
+    var $also = $erased->sealed();
+} catch (LogicError $met) {
+    $ordinarily = $met->message;
+}
+if ($reflectively == $ordinarily) {
+    echo "outside agrees: ", $reflectively, "\n";
+} else {
+    echo "outside disagrees: ", $reflectively, " / ", $ordinarily, "\n";
+}
+
+// And from inside the class, where the ordinary call is allowed.
+echo $vault->fromInside(), "\n";
+--EXPECT--
+opened opened
+outside agrees: `Vault::sealed` is not public, and a `mixed` receiver is outside every class
+inside agrees: the combination

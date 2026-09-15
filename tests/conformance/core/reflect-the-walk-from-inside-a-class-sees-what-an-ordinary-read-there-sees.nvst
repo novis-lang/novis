@@ -1,0 +1,54 @@
+--TEST--
+A description's property walk from inside the described class names every slot an ordinary body there reads, and from outside only the public ones — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// `rule:security/reflection-enforces-visibility` states its rule over the call
+// *site*, so one description answers two ways: the walk is the list a `get` is
+// about to be made against, and what may be read depends on where the asking
+// is written. The class a call is inside reaches the member as a constant the
+// compiler supplies, which is why a native member can answer this at all.
+class Point {
+    public int $x = 3;
+    public int $y = 4;
+    private int $scratch = 5;
+
+    // Asked as an agreement: every name the walk hands back is read straight
+    // through `get`, so a walk naming a slot this site may not read would
+    // throw here rather than print, and one dropping a readable slot would
+    // print a smaller count than the declarations above.
+    public function fromInside(): void {
+        var $described = Core\Reflect::forObject($this);
+        var $names = $described->properties();
+        echo "inside ", Core\Arr::count($names);
+        foreach ($names as string $name) {
+            echo " ", $name, "=", $described->get($this, $name);
+        }
+        echo "\n";
+    }
+}
+
+var $point = new Point();
+$point->fromInside();
+
+// The same description, asked from out here: the `private` slot is not one of
+// the names, and every name that is one still reads.
+var $outside = Core\Reflect::forObject($point);
+var $names = $outside->properties();
+echo "outside ", Core\Arr::count($names);
+foreach ($names as string $name) {
+    echo " ", $name, "=", $outside->get($point, $name);
+}
+echo "\n";
+
+// And the slot the walk out here did not name is the slot the read out here is
+// refused, which is what makes the two answers one rule rather than two lists.
+try {
+    var $hidden = $outside->get($point, "scratch");
+    echo "read\n";
+} catch (RuntimeError $refused) {
+    echo "refused\n";
+}
+--EXPECT--
+inside 3 x=3 y=4 scratch=5
+outside 2 x=3 y=4
+refused

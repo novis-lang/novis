@@ -3570,6 +3570,13 @@ impl<'a> Lowering<'a> {
             // owns the position and why it is emitted here.
             let source = nvs_types::core_takes_source(&call.class.to_string(), &call.method)
                 .then(|| self.producer_source(*cur));
+            // A member on `nvs_stdlib::registry::CALL_SITE_MEMBERS` is handed
+            // the class this call is written inside, as its *last* argument —
+            // that roster owns the position and `Lowering::call_site` the
+            // constant. Emitted here with the block above, before the receiver
+            // is opened, and pushed last below.
+            let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
+                .then(|| self.call_site(*cur));
             let mark = self.temporaries_mark();
             let (object_v, receiver_ty, guard) =
                 self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
@@ -3586,11 +3593,12 @@ impl<'a> Lowering<'a> {
             }
             let LoweredArgs { values } =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
-            let mut arg_values = Vec::with_capacity(values.len() + 4);
+            let mut arg_values = Vec::with_capacity(values.len() + 5);
             arg_values.extend(source);
             arg_values.extend(written_class.into_iter().flatten());
             arg_values.push(object_v);
             arg_values.extend(values);
+            arg_values.extend(site);
             let (v, ty) = self.emit_fallible(
                 *cur,
                 return_ty,
@@ -3790,6 +3798,12 @@ impl<'a> Lowering<'a> {
             // owns the position.
             let source = nvs_types::core_takes_source(&call.class.to_string(), &call.method)
                 .then(|| self.producer_source(*cur));
+            // `nvs_stdlib::registry::CALL_SITE_MEMBERS`' trailing constant,
+            // which that roster owns — the same ABI a static member gets as an
+            // instance one, so a member joining the roster needs nothing
+            // decided about which of the two paths reached it.
+            let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
+                .then(|| self.call_site(*cur));
             let mark = self.temporaries_mark();
             let lowered =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
@@ -3797,6 +3811,7 @@ impl<'a> Lowering<'a> {
                 .into_iter()
                 .chain(written_class.into_iter().flatten())
                 .chain(lowered.values)
+                .chain(site)
                 .collect::<Vec<_>>();
             let result = self.emit_fallible(
                 *cur,

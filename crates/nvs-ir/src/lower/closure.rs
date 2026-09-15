@@ -645,11 +645,23 @@ pub(crate) fn lower_callable(
                 low.emit(cur, Ty::ClassDesc, InstKind::SourceConst { source: None })
                     .0
             });
+        // A member on `nvs_stdlib::registry::CALL_SITE_MEMBERS` reached through
+        // a callable reference is inside no class, for the reason the producer
+        // above is handed the zero word: the act happens wherever the callable
+        // is later invoked, and the line that wrote the reference is not that
+        // place. Outside is the answer that fails closed, which is what makes
+        // the zero word right here rather than merely convenient.
+        let site =
+            nvs_types::core_takes_call_site(&call.class.to_string(), &call.method).then(|| {
+                low.emit(cur, Ty::ClassDesc, InstKind::SourceConst { source: None })
+                    .0
+            });
         let args = source
             .into_iter()
             .chain(written.into_iter().flatten())
             .chain(receiver)
             .chain(args)
+            .chain(site)
             .collect::<Vec<_>>();
         let (v, _) = low.emit_fallible(cur, ret, InstKind::CoreCall { symbol, args }, &env);
         low.release_temporaries_since(mark, cur);

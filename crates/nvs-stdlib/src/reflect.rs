@@ -31,14 +31,17 @@
 //! valid. Holding the answers instead makes the description exactly as inert as
 //! § 1 says it is: nothing it carries can be dereferenced back into the program.
 //!
-//! **What it spends:** per `forClass` or `forObject` call, one array of one
-//! string per visible property, plus one array and one [`METHOD_INFO`] of three
-//! slots per declared method — charged to the request that asked and released
-//! with the description. A program that describes the same class in a loop pays
-//! per call; the alternative is a per-core cache keyed by descriptor address,
-//! which nothing yet needs. The roster is built eagerly rather than on the
-//! first `methods` call because the alternative is a slot holding the
-//! descriptor, which the decision above rules out for every slot alike.
+//! **What it spends:** per `forClass` or `forObject` call, two arrays of one
+//! string per property — the public names and every name, which § *the call
+//! site arrives as a constant* is why — plus one array and one [`METHOD_INFO`]
+//! of three slots per declared method, charged to the request that asked and
+//! released with the description. A program that describes the same class in a
+//! loop pays per call; the alternative is a per-core cache keyed by descriptor
+//! address, which nothing yet needs. The roster is built eagerly rather than on
+//! the first `methods` call because the alternative is a slot holding the
+//! descriptor, which the decision above rules out for every slot alike. An
+//! acting call spends one decoded [`nvs_render::Source`] on top, which is two
+//! short strings read out of the unit's own data section.
 //!
 //! # Decision: the method roster is complete, and each row carries its own
 //! visibility
@@ -70,6 +73,25 @@
 //! not `instanceof` — a subclass has its own description, one call away, and
 //! answering for it here would mean answering visibility from one class's table
 //! about another class's slot.
+//!
+//! # Decision: the call site arrives as a constant of the call
+//!
+//! `rule:security/reflection-enforces-visibility` states its rule over the
+//! **call site**, and a native member sees only the values it was handed — so
+//! the compiler hands it one more: the class the call is written inside, as the
+//! last argument, which [`crate::registry::CALL_SITE_MEMBERS`] owns the ABI of
+//! and [`site_class`] reads. It is a constant rather than a parameter, so no
+//! program can write it and none can forge one; a site inside no class arrives
+//! as the zero word and is treated as outside, which is the answer that fails
+//! closed.
+//!
+//! That is what makes [`nvs_core_reflect_class_info_properties`] answer two
+//! ways off one description. A walk is the list a `get` is about to be made
+//! against, so it names what *this* site may read: every declared property from
+//! inside the class, the public ones from anywhere else — the two lists
+//! [`describe`] fills. The method roster is the other half of the same rule and
+//! does not move: naming a method is metadata, which § 2 makes always
+//! available, and the bit each row carries is what a caller reads instead.
 //!
 //! # Decision: `TypeKind` is one case per representation, and no case is a
 //! question about a value
@@ -108,10 +130,15 @@
 //!    constants, no attributes and no enum cases at all, so each is a join from
 //!    `nvs_types` through `nvs-codegen` before it is a member here.
 //!    — owner: M8
-//! 2. A description's property walk is the same from inside the described class
-//!    as from outside it. § 2's rule is stated over the *call site*, and a
-//!    native member has no view of its caller's class — so this answers the
-//!    narrower question, which is the one that cannot leak a member.
+//! 2. A `protected` member is reached reflectively from the declaring class's
+//!    own bodies and from nowhere else, where an ordinary call from a subclass
+//!    reaches it too. [`nvs_runtime::ClassDesc`] carries one bit per member and
+//!    not the level behind it, so the class a site is inside is compared for
+//!    equality rather than walked up the graph the way
+//!    `nvs_types::signatures`'s `is_visible_from` walks it. What closes it is a
+//!    second bit carried down from `nvs_types::layout`, next to the one
+//!    [`nvs_runtime::ClassDesc::field_is_public`] answers; until then the
+//!    narrower answer is the one that refuses rather than the one that leaks.
 //!    — owner: M8
 //! 3. Invoking a constructor reflectively — the third acting member § 2 names,
 //!    after the read and the write that are both here now — is not. What the
@@ -141,11 +168,17 @@ pub(crate) const METHOD_INFO_NAME: &str = "Core\\Reflect\\MethodInfo";
 /// [`CLASS_INFO`]'s slot holding the described class's name.
 const NAME_SLOT: usize = 0;
 
-/// [`CLASS_INFO`]'s slot holding the described class's visible property names.
+/// [`CLASS_INFO`]'s slot holding the property names a call site outside the
+/// described class may read.
 const PROPERTIES_SLOT: usize = 1;
 
 /// [`CLASS_INFO`]'s slot holding one [`METHOD_INFO`] per declared method.
 const METHODS_SLOT: usize = 2;
+
+/// [`CLASS_INFO`]'s slot holding every declared property name — the answer a
+/// call site *inside* the described class gets, where its own bodies reach
+/// every slot the declaration wrote.
+const ALL_PROPERTIES_SLOT: usize = 3;
 
 /// [`METHOD_INFO`]'s slot holding the method's name.
 const METHOD_NAME_SLOT: usize = 0;
@@ -422,7 +455,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&CALL_DOC),
         },
     ],
-    slots: &["name", "properties", "methods"],
+    slots: &["name", "properties", "methods", "allProperties"],
     constants: &[],
 };
 
@@ -606,6 +639,31 @@ fn subject_of(
     Ok((ptr, class))
 }
 
+/// The class an acting member's call site is written inside, or `None` for a
+/// site inside no class at all.
+///
+/// The last argument of every member on [`crate::registry::CALL_SITE_MEMBERS`]
+/// is where this reads from, and that roster owns the ABI: the constant carries
+/// the whole `Class::member` label the enclosing frame has, of which the class
+/// half is the only part a visibility question is asked against. A label is
+/// split on its first `::` because a class name cannot hold one and a member's
+/// own label can — a property hook's is `Class::$prop::get`.
+///
+/// `None` covers three sites that are all outside: a script frame, a callable
+/// reference's thunk, and a carrier that is the zero word for any other reason.
+/// Every one of them is refused what a `private` member would refuse, which is
+/// the direction `docs/agent/loop-goal.md` § *Standing decisions* fixes.
+fn site_class(operand: Value) -> Option<String> {
+    #[expect(
+        unsafe_code,
+        reason = "the carrier came out of a `SourceConst` the compiled unit baked into its own data section, which outlives every request served from it"
+    )]
+    let source = unsafe { nvs_runtime::source::of_operand(operand) }?;
+    let member = source.member?;
+    let (class, _) = member.split_once("::")?;
+    Some(class.to_owned())
+}
+
 /// `Core\Reflect\ClassInfo::call`'s reference card — `rule:core-api/reference-card`.
 const CALL_DOC: MethodDoc = MethodDoc {
     short: "Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility \
@@ -754,13 +812,23 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 /// whose name holds a `#`, which no source can spell — `nvs_ir::lower`'s
 /// generator transform mints those, and a roster naming one would be naming a
 /// rewriting rather than a declaration.
+///
+/// *Where it is readable* is two answers, so the walk fills two slots: the
+/// public names and every name, of which
+/// [`nvs_core_reflect_class_info_properties`] picks the one its call site is
+/// owed. Both are built here rather than filtered per call because the
+/// descriptor is not reachable from a description — the module doc's § *holds
+/// its answers* is that decision — and building the wider list costs the walk
+/// it is already doing.
 fn describe(desc: &ClassDesc) -> Value {
     let mut visible = NvsArray::new();
+    let mut declared = NvsArray::new();
     for slot in 0..desc.field_count() {
-        if !desc.field_is_public(slot) {
+        let Some(name) = desc.field_name(slot) else {
             continue;
-        }
-        if let Some(name) = desc.field_name(slot) {
+        };
+        declared.append(Value::str(NvsStr::new(name.as_bytes())));
+        if desc.field_is_public(slot) {
             visible.append(Value::str(NvsStr::new(name.as_bytes())));
         }
     }
@@ -787,6 +855,7 @@ fn describe(desc: &ClassDesc) -> Value {
             Value::str(NvsStr::new(desc.name().as_bytes())),
             Value::array(visible),
             Value::array(methods),
+            Value::array(declared),
         ],
     )
 }
@@ -974,10 +1043,22 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\ClassInfo::properties(): array<string>` — `rule:security/reflection-enforces-visibility`'s
-    /// visibility-respecting walk, answered off the slot the description was
-    /// built with.
-    fn nvs_core_reflect_class_info_properties(_ctx, args: [1]) {
-        slot_of(args, &CLASS_INFO, PROPERTIES_SLOT, "properties")
+    /// visibility-respecting walk, answered off the slot its **call site** is
+    /// owed.
+    ///
+    /// The rule is stated over the site and not over the description, so the
+    /// same description answers two ways: inside the described class every
+    /// declared name, which is what an ordinary body there reads, and anywhere
+    /// else the public ones alone. [`describe`] filled both slots, and the last
+    /// argument — [`crate::registry::CALL_SITE_MEMBERS`]' constant, which no
+    /// program can write — is what picks between them.
+    fn nvs_core_reflect_class_info_properties(_ctx, args: [2]) {
+        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, "properties")?;
+        let described = crate::instance::slot(receiver, NAME_SLOT);
+        let described = described.as_text();
+        let inside = site_class(args[1]).is_some_and(|site| described == Some(site.as_str()));
+        let slot = if inside { ALL_PROPERTIES_SLOT } else { PROPERTIES_SLOT };
+        slot_of(args, &CLASS_INFO, slot, "properties")
     }
 }
 
@@ -1070,11 +1151,12 @@ nvs_runtime::nvs_helper! {
     /// misspelling with the same refusal as a `private` read, which is
     /// precisely the confusion `examples/reflect.nvs` catches on `RuntimeError`
     /// rather than on `Throwable` to avoid.
-    fn nvs_core_reflect_class_info_get(_ctx, args: [3]) {
+    fn nvs_core_reflect_class_info_get(_ctx, args: [4]) {
         let member = "get";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::get")?;
         let (subject, class) = subject_of(receiver, args[1], member)?;
+        let inside = site_class(args[3]).is_some_and(|site| site == class);
         #[expect(
             unsafe_code,
             reason = "the argument owns a reference to a live allocation, so it is \
@@ -1095,7 +1177,7 @@ nvs_runtime::nvs_helper! {
                 format!("{CLASS_INFO_NAME}::get(): `{class}` has no property named `{name}`"),
             ));
         };
-        if !visible {
+        if !visible && !inside {
             return Err(Fault::thrown(format!(
                 "{CLASS_INFO_NAME}::get(): `{class}::{name}` is not readable from outside the \
                  class, and reflection does not lift that"
@@ -1139,11 +1221,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// Ownership is that function's too: it retains what it stores and leaves
     /// this frame's own borrowed slots alone.
-    fn nvs_core_reflect_class_info_set(ctx, args: [4]) {
+    fn nvs_core_reflect_class_info_set(ctx, args: [5]) {
         let member = "set";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::set")?;
         let (subject, class) = subject_of(receiver, args[1], member)?;
+        let inside = site_class(args[4]).is_some_and(|site| site == class);
         #[expect(
             unsafe_code,
             reason = "the argument owns a reference to a live allocation, so it is \
@@ -1164,7 +1247,7 @@ nvs_runtime::nvs_helper! {
                 format!("{CLASS_INFO_NAME}::set(): `{class}` has no property named `{name}`"),
             ));
         }
-        if !visible {
+        if !visible && !inside {
             return Err(Fault::thrown(format!(
                 "{CLASS_INFO_NAME}::set(): `{class}::{name}` is not writable from outside the \
                  class, and reflection does not lift that"
@@ -1183,29 +1266,35 @@ nvs_runtime::nvs_helper! {
     /// "fails the same way an ordinary out-of-class call would", and the
     /// strongest reading of *the same way* is the same code: past the two
     /// questions a description owes about its own subject, this hands the call
-    /// to [`nvs_runtime::call_erased_method`], which is what an ordinary
+    /// to [`nvs_runtime::call_erased_method_from`], which is what an ordinary
     /// `$value->name(...)` on a `mixed` receiver reaches. That path already
     /// asks every question this one owes — is the member `public`, does the
     /// class declare it at all, is it a native `Core` member that borrows its
     /// receiver, are there enough arguments, does each argument carry the tag
-    /// its parameter requires — and asks them *on behalf of a site that is
-    /// outside every class by construction*, which is exactly the premise a
-    /// reflective call site has. A check re-implemented here would be a second
-    /// visibility rule to keep in step with the first, and the pair would
-    /// diverge in the direction that matters: the copy is the one nothing
-    /// dispatches through, so a program would keep passing while the rule it
-    /// states quietly stopped being the rule.
+    /// its parameter requires. What it cannot derive is *where the call is*,
+    /// and that is the one datum handed to it: the last argument is the class
+    /// this call site is inside ([`site_class`]), so a `private` method is
+    /// reached from its own class's bodies and refused everywhere else, which
+    /// is what an ordinary call at each of those sites does. A check
+    /// re-implemented here would be a second visibility rule to keep in step
+    /// with the first, and the pair would diverge in the direction that
+    /// matters: the copy is the one nothing dispatches through, so a program
+    /// would keep passing while the rule it states quietly stopped being the
+    /// rule.
     ///
     /// So there is no `setAccessible` and nowhere to put one — the check is not
-    /// this member's to relax. Ownership is that path's too: the arguments are
+    /// this member's to relax, and the site it is made against is a constant of
+    /// the call rather than anything a program hands over. Ownership is that
+    /// path's too: the arguments are
     /// this frame's borrowed slots, `call_at` retains each one and the callee's
     /// own exit sweep releases them, and the [`Value`] handed back is already a
     /// fresh reference.
-    fn nvs_core_reflect_class_info_call(ctx, args: [4]) {
+    fn nvs_core_reflect_class_info_call(ctx, args: [5]) {
         let member = "call";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::call")?;
         subject_of(receiver, args[1], member)?;
+        let site = site_class(args[4]);
         // Unreachable from source on `crate::arr`'s own terms: parameter 2 is
         // `array<mixed>` in `CLASS_INFO` above, so a non-container argument is
         // `E0401` at the checker. It stays because it is what makes
@@ -1228,7 +1317,7 @@ nvs_runtime::nvs_helper! {
             slot = live + 1;
             passed.push(list.value_at(live).expect("a live slot has a value"));
         }
-        nvs_runtime::call_erased_method(ctx, args[1], name, &passed)
+        nvs_runtime::call_erased_method_from(ctx, args[1], name, &passed, site.as_deref())
     }
 }
 
@@ -1262,6 +1351,24 @@ mod tests {
         OK
     }
 
+    /// The last argument every acting member takes, for a call site inside no
+    /// class — `crate::registry::CALL_SITE_MEMBERS`' zero word, which is what
+    /// `nvs_ir::lower` emits for a script frame.
+    const OUTSIDE: Value = Value::null();
+
+    /// That argument for a site inside `member`'s class, as the compiler bakes
+    /// it: the blob and the slot naming it, returned together because the slot
+    /// is only readable while the blob it points at is alive.
+    fn inside(member: &str) -> (Vec<u8>, Value) {
+        let blob = nvs_runtime::source::encode(&nvs_render::Source {
+            file: "app/Main.nvs".to_owned(),
+            line: 1,
+            member: Some(member.to_owned()),
+        });
+        let slot = Value::source_const(blob.as_ptr());
+        (blob, slot)
+    }
+
     /// A `Vault` declaring one `public` method and one `private` one, an
     /// instance of it, and a context anchored into the table that holds both.
     ///
@@ -1269,8 +1376,9 @@ mod tests {
     /// handle *is* this context's anchor into the compiled unit's classes —
     /// `crate::command`'s `dispatching` is the same shape and its doc comment
     /// owns why there is no second registration to make. Both rows carry the
-    /// same address: `sealed` is refused before anything jumps, so a body for
-    /// it would be a body no assertion here could reach.
+    /// same address, which is what lets one assertion read the private method's
+    /// answer: a call from inside `Vault` reaches it, and [`OPENED`] coming back
+    /// is what says the check passed rather than that nothing ran.
     fn vault() -> (Ctx, Value) {
         let mut classes = ClassTable::new();
         let id = classes.define("Vault", &[] as &[&str], &[]);
@@ -1328,7 +1436,7 @@ mod tests {
             call(
                 super::nvs_core_reflect_class_info_call,
                 &mut ctx,
-                &[info, subject, sealed, none],
+                &[info, subject, sealed, none, OUTSIDE],
             )
             .err(),
             Some(nvs_runtime::THROWN),
@@ -1352,13 +1460,31 @@ mod tests {
             call(
                 super::nvs_core_reflect_class_info_call,
                 &mut ctx,
-                &[info, subject, open, none],
+                &[info, subject, open, none, OUTSIDE],
             )
             .expect("`open` is public")
             .as_uint(),
             Some(OPENED),
             "the public half runs and answers, so the agreement above is not \
              two members refusing everything"
+        );
+
+        // And the other side of the same rule: the identical call from inside
+        // `Vault` reaches `sealed`, because that is what an ordinary call
+        // written there does. Nothing about the call changes but the constant
+        // the compiler supplies, which is the whole of what a call site is.
+        let none = Value::array(NvsArray::new());
+        let site = inside("Vault::open");
+        assert_eq!(
+            call(
+                super::nvs_core_reflect_class_info_call,
+                &mut ctx,
+                &[info, subject, sealed, none, site.1],
+            )
+            .expect("`sealed` is reachable from `Vault`'s own bodies")
+            .as_uint(),
+            Some(OPENED),
+            "a private method is refused for the site, not for the door"
         );
 
         #[expect(
@@ -1510,7 +1636,7 @@ mod tests {
         call(
             super::nvs_core_reflect_class_info_set,
             &mut ctx,
-            &[info, subject, name, Value::uint(7)],
+            &[info, subject, name, Value::uint(7), OUTSIDE],
         )
         .expect("`n` is public, and 7 is the `uint` it declares");
 
@@ -1539,7 +1665,7 @@ mod tests {
         let read = call(
             super::nvs_core_reflect_class_info_get,
             &mut ctx,
-            &[info, subject, name],
+            &[info, subject, name, OUTSIDE],
         )
         .expect("`n` is public");
         assert_eq!(read.as_uint(), Some(7));
@@ -1556,7 +1682,7 @@ mod tests {
         call(
             super::nvs_core_reflect_class_info_set,
             &mut plain_ctx,
-            &[plain_info, plain, name, Value::uint(9)],
+            &[plain_info, plain, name, Value::uint(9), OUTSIDE],
         )
         .expect("`n` is public on this one too");
         assert_eq!(

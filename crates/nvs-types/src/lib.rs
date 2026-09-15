@@ -222,6 +222,7 @@ pub use nvs_stdlib::html::{
     MARKUP_TEXT_SYMBOL as CORE_HTML_MARKUP_TEXT,
 };
 pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
+pub use nvs_stdlib::registry::takes_call_site as core_takes_call_site;
 pub use nvs_stdlib::registry::takes_source as core_takes_source;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use nvs_stdlib::router::link::{

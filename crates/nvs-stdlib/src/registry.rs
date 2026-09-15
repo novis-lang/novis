@@ -2951,6 +2951,53 @@ pub fn takes_source(class: &str, method: &str) -> bool {
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
+/// The closed roster of members whose helper is handed **the class its call
+/// site is inside**, as an extra trailing argument — the same
+/// `nvs_ir::ir::InstKind::SourceConst` [`RECORD_PRODUCERS`] takes, read for its
+/// enclosing `Class::member` half alone.
+///
+/// `rule:security/reflection-enforces-visibility` states its rule over the call
+/// *site*, and a native member has no view of its caller: every question it can
+/// ask of a receiver it was handed is a question about the receiver. So the
+/// compiler supplies the answer as a constant of the call, which is what makes
+/// it unforgeable — there is no argument position a program can write it in,
+/// and no value it can reach that carries one. A member on this roster has
+/// `args: [N]` **one more** than [`CoreMethod::params`] counts, receiver
+/// included.
+///
+/// **The constant is always the last argument**, where [`RECORD_PRODUCERS`]' is
+/// always argument 0, so the two rosters need no order decided between them: a
+/// member on both reads the source at the front and the site at the back. A
+/// trailing slot is affordable here and not there because no member on this
+/// roster is variadic, which
+/// [`tests::every_call_site_member_takes_a_fixed_argument_list`] holds.
+///
+/// **The zero word is a call site inside no class at all** — a script frame, or
+/// the thunk a callable reference synthesizes, which is invoked wherever it is
+/// later passed rather than where it was written. Both read as *outside*, which
+/// is the direction that fails closed: a reflective act attributed to no class
+/// faces exactly the checks an out-of-class one faces.
+///
+/// **Three lowerings reach a `Core` member and every one of them emits this**,
+/// which is what adding a member here owes: `nvs_ir::lower`'s instance-call and
+/// static-call paths, and the callable-reference thunk that emits the zero
+/// word. A path that skipped it would leave the helper reading the slot past
+/// its own arguments — not a refusal but a slot nothing wrote.
+pub const CALL_SITE_MEMBERS: &[(&str, &str)] = &[
+    (crate::reflect::CLASS_INFO_NAME, "properties"),
+    (crate::reflect::CLASS_INFO_NAME, "get"),
+    (crate::reflect::CLASS_INFO_NAME, "set"),
+    (crate::reflect::CLASS_INFO_NAME, "call"),
+];
+
+/// Whether `class::method` is one of [`CALL_SITE_MEMBERS`].
+#[must_use]
+pub fn takes_call_site(class: &str, method: &str) -> bool {
+    CALL_SITE_MEMBERS
+        .iter()
+        .any(|(owner, name)| *owner == class && *name == method)
+}
+
 /// The closed roster of `Core`-owned **generic** classes, each with the type
 /// parameters it declares, in order — spec § 9's three collections.
 ///
@@ -4666,6 +4713,31 @@ mod tests {
             marked > 0,
             "`rule:concurrency/an-upgrade-is-spawn-shaped`'s `Core\\Socket::upgrade` declares one"
         );
+    }
+
+    /// Every member on [`CALL_SITE_MEMBERS`] is a registered row whose argument
+    /// list has a fixed length, which is what makes the call site's constant
+    /// readable as the **last** slot.
+    ///
+    /// A variadic member's own tail is its last slot and its position is what
+    /// the site constant would take, so the two cannot share a member: that is
+    /// [`RECORD_PRODUCERS`]' whole reason for claiming argument 0 instead, and
+    /// this is the check that keeps the cheaper choice honest here.
+    #[test]
+    fn every_call_site_member_takes_a_fixed_argument_list() {
+        for (owner, name) in CALL_SITE_MEMBERS {
+            let class = self::class(owner).unwrap_or_else(|| {
+                panic!("`{owner}` takes a call site and is not a registered class");
+            });
+            let member = class
+                .members()
+                .find(|member| member.name == *name)
+                .unwrap_or_else(|| panic!("`{owner}::{name}` takes a call site and is no row"));
+            assert!(
+                member.variadic().is_none(),
+                "`{owner}::{name}` is variadic, so its last argument is its own tail"
+            );
+        }
     }
 
     /// Every row, enum and constant carries its `rule:core-api/reference-card` card — the second of

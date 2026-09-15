@@ -309,6 +309,38 @@ pub fn call_erased_method(
     name: &str,
     args: &[Value],
 ) -> Result<Value, Fault> {
+    call_erased_method_from(ctx, receiver, name, args, None)
+}
+
+/// [`call_erased_method`], with the class the call is written inside named —
+/// `rule:security/reflection-enforces-visibility`'s check asked from somewhere
+/// rather than from nowhere.
+///
+/// `site` is `None` for every erased call a program writes, which is what the
+/// entry point above passes: a `mixed` receiver is outside every class by
+/// construction, and that is the whole of what the visibility question can be
+/// asked against there. It is `Some` for one caller — `Core\Reflect\ClassInfo`'s
+/// acting members, which the compiler hands their own call site through
+/// `nvs_stdlib::registry::CALL_SITE_MEMBERS` — and a non-`public` member is
+/// reachable exactly when that site is the class the method belongs to. A site
+/// naming any other class is refused the way the anonymous one is.
+///
+/// Exact class and not the inheritance walk `nvs_types::signatures`'s
+/// `is_visible_from` runs, because a descriptor carries one bit per member and
+/// not the level behind it: a `protected` method reached from a subclass is
+/// refused here where an ordinary call at that site is allowed.
+/// `nvs_stdlib::reflect`'s known gaps own that difference, which fails closed.
+///
+/// # Errors
+///
+/// [`call_erased_method`]'s, whose doc comment lists them.
+pub fn call_erased_method_from(
+    ctx: &mut Ctx,
+    receiver: Value,
+    name: &str,
+    args: &[Value],
+    site: Option<&str>,
+) -> Result<Value, Fault> {
     let Some(ptr) = receiver.obj_ptr() else {
         return Err(Fault::thrown_as(
             crate::ThrownClass::Logic,
@@ -364,10 +396,14 @@ pub fn call_erased_method(
         ));
     };
     let callee = format!("`{class}::{name}`");
-    if !row.public {
+    if !row.public && site != Some(class) {
+        let outside = site.map_or_else(
+            || "a `mixed` receiver is outside every class".to_owned(),
+            |site| format!("the call is written inside `{site}`"),
+        );
         return Err(Fault::thrown_as(
             crate::ThrownClass::Logic,
-            format!("{callee} is not public, and a `mixed` receiver is outside every class"),
+            format!("{callee} is not public, and {outside}"),
         ));
     }
     if row.native {

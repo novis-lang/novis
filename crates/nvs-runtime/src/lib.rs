@@ -355,8 +355,9 @@ pub use ctx::{
 };
 pub use decimal::{Decimal, NotDecimal};
 pub use dispatch::{
-    CrossedFixtures, Fixtures, RowValues, call_erased_method, call_method, call_render,
-    call_static, call_static_bound, call_static_on, construct_and_call, method_address,
+    CrossedFixtures, Fixtures, RowValues, call_erased_method, call_erased_method_from, call_method,
+    call_render, call_static, call_static_bound, call_static_on, construct_and_call,
+    method_address,
 };
 pub use drain::{Drain, DrainWake};
 pub use fmt::php_float_to_string;
