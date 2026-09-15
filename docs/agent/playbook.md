@@ -6960,6 +6960,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   switch inside one call that leaves and comes back — `Fiber::around` in
   `crates/nvs-host/src/tsan.rs` — and read a SEGV in `__tsan_func_entry` as a broken annotation
   rather than a race. [until: gone crates/nvs-host/src/tsan.rs:__tsan_switch_to_fiber]
+- **A `#[cfg_attr(not(test), expect(dead_code, …))]` over a seam whose only callers are its own cases
+  still fails `clippy --all-targets`.** The attribute is gone in the test build, so every item the cases
+  do not actually reach — a `Platform::host()` nothing asserts, an enum variant no fixture constructs —
+  is reported there instead, one item at a time. Reach each of them from a case rather than widening the
+  attribute: a variant nothing constructs is a decision nothing holds to.
+  [until: reviewed 2026-09-15]
 
 ## Divergences and refusals already pinned
 
