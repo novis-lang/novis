@@ -5,59 +5,56 @@
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
 and stages 3 to 10 are complete but for stage 10's `otlp` push, which is the same transport stage 11
-needs and is grouped with it. Stage 11 is now half landed. Nothing is blocked.
+needs and is the next group. Stage 11 is now one item short of done. Nothing is blocked.
+
+**Head sampling is landed, and the decision is the root's.** `nvs_server::trace::take`
+(`crates/nvs-server/src/trace.rs:95`) carries `[trace] sample` off the snapshot standing when the
+request arrived; `nvs_runtime::TraceContext::rooted` (`crates/nvs-runtime/src/trace_context.rs:96`)
+makes the one draw, and `continuing` hands the rate to it rather than deciding above, so a header
+this process cannot read is a new trace in the draw exactly as it is in the rule. A continued trace
+keeps the flag that arrived either way. `nvs_config::export::head_sample`
+(`crates/nvs-config/src/export.rs:120`) is the one home for the unwritten default, which is `0.0`,
+and `rule:observability/sampling-is-head-based` is `shipped` with those three files as its guards.
 
 **A sampled request's spans are derived, not probed.** `nvs_server::trace::spans`
-(`crates/nvs-server/src/trace.rs:176`) turns the events `rule:testing/debug-probes` already filed into
-`rule:observability/four-kinds-become-a-span`'s four — the root, a `query`, an outbound call and a
-`spawn` — and `SpanKind` has no variant for the two the rule excludes, so a `call` or a `gc` cannot
-become one by a later reader's oversight. `SPAN_CEILING` is what one request holds at most. **Nothing
-calls it yet**: the door decides no sampling and no transport pushes it.
-
-**A request's span id is now its own, and the caller's arrives beside it.**
-`nvs_runtime::TraceContext` used to adopt the arrived `traceparent`'s span id as this request's, which
-would have given a continued trace two spans with one id the moment a root span existed; `continuing`
-now draws this request's span and keeps the arrived one as `parent_span_id()`. The outbound header is
-unchanged in shape and now names a span that exists. That module's doc owns why.
-
-**The pack's stage 11 manifest is short two things**, both of which this session paid for by hand:
-`[context] modules` prints no `crates/nvs-runtime/src/trace_context.rs` even though the stage names
-the file, and `[context.stage.11] rules` names neither `rule:observability/sampling-is-head-based`
-nor `rule:observability/a-call-never-becomes-a-span`, which are the two the remaining items are
-specified by.
+(`crates/nvs-server/src/trace.rs:189`) turns the events `rule:testing/debug-probes` already filed into
+`rule:observability/four-kinds-become-a-span`'s four, bounded by `SPAN_CEILING`. **Nothing calls it
+yet**: the door now decides who is recorded, and no transport takes what they produced.
 
 ## Next group
 
-**Stage 11: the rate at the door, then the push** — one file set: `crates/nvs-server/src/trace.rs`,
-`crates/nvs-cli/src/serve.rs` and `crates/nvs-cli/src/runner.rs`.
+**Stage 11: the OTLP push, behind the `exporter` feature** — one file set: a new
+`crates/nvs-server/src/otlp.rs`, `crates/nvs-server/src/lib.rs`, `crates/nvs-server/src/trace.rs` and
+`crates/nvs-cli/src/serve.rs`.
 
-- [ ] **Sampling is decided at the root, and a sampled inbound trace is always continued**
-      (`rule:observability/sampling-is-head-based`). Only a request that *started* a trace draws
-      against `[trace] sample`; one that continued a sampled header is recorded regardless, and one
-      that continued an unsampled header stays unsampled — the root already decided.
-      `crates/nvs-server/src/trace.rs:83`'s `take` is what widens to carry the rate, and its two
-      callers are `crates/nvs-cli/src/serve.rs:851` and `crates/nvs-cli/src/runner.rs:1479`. The rate
-      must come off the **live** snapshot per request, not off boot: `[trace] sample` is
-      `crates/nvs-config/src/tree.rs:1070`, the handler closure that would capture the holder is
-      `crates/nvs-cli/src/serve.rs:758`, the `current.load()` idiom is
-      `crates/nvs-cli/src/serve.rs:1325`, and `crates/nvs-stdlib/src/http.rs:4074` is the existing
-      per-request read of a `[trace]` key. The check wants
-      `trace_sample_decides_at_the_root_and_a_sampled_inbound_trace_is_always_continued` under
+- [ ] **A sampled request's spans are pushed to `[trace] endpoint` as one trace**
+      (`rule:observability/the-exporters-are-crates`). The spans `crates/nvs-server/src/trace.rs:189`
+      derives go to one bounded process-wide queue and a task drains it; the encoder is written here
+      against the OTLP specification exactly as the exposition format was, with
+      `crates/nvs-server/src/prometheus.rs` as the feature-gated sibling to sit beside and
+      `crates/nvs-server/src/lib.rs:138` as the `#[cfg(feature = "exporter")]` gate to copy (the
+      re-export list is `crates/nvs-server/src/lib.rs:168`). `[trace] exporter` and `endpoint` are
+      `crates/nvs-config/src/tree.rs:1064-1068`, whose `[unread:]` trailer this closes, and
+      `nvs_config::export::Metering` (`crates/nvs-config/src/export.rs:91`) is the resolved-reading
+      shape to follow. `crates/nvs-cli/src/serve.rs:479` is where the sibling listener is armed at
+      the boot. The check wants `a_sampled_request_is_pushed_to_the_otlp_endpoint_as_one_trace`
+      under `-p nvs-server`.
+- [ ] **An unreachable collector drops and counts spans, and never delays a response**
+      (`rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`). A full
+      queue drops and counts rather than blocking the request that filled it, and a collector that
+      will not answer is the same case: `crates/nvs-server/src/trace.rs:116`'s `SPAN_CEILING` bounds
+      one request, and the queue's own bound is what bounds the process. The check wants
+      `an_unreachable_collector_drops_and_counts_spans_and_never_delays_a_response` under
       `-p nvs-server`.
-- [ ] **The OTLP transport, behind the same `exporter` feature** — stage 10's third bullet and stage
-      11's last two checks are one piece of work. A sampled request's derived spans
-      (`crates/nvs-server/src/trace.rs:104`'s ceiling bounds them) go to one bounded process-wide
-      queue and a task pushes them to `[trace] endpoint`
-      (`crates/nvs-config/src/tree.rs:1068`, whose `[unread:]` trailer this closes);
-      a full queue drops and counts, and an unreachable collector never delays a response
-      (`rule:observability/the-exporters-are-crates`). `crates/nvs-server/src/prometheus.rs` is the
-      feature-gated sibling to sit beside.
 
 ## Backlog
 
 - Stage 12: a runaway under `nvs serve`, and the hot-reload case M7's *Verify* names
   ([docs/agent/loop-goal.md](loop-goal.md) § *Stage 12*).
-- Stage 13: flip this goal's rules to `shipped` with `guardedBy` filled, then `python tools/rules.py
-  --render` (§ *Stage 13*).
+- Stage 13: flip the rest of this goal's rules to `shipped` with `guardedBy` filled, then `python
+  tools/rules.py --render` (§ *Stage 13*).
 - `crates/nvs-config/src/default.toml:743`'s "NOT IMPLEMENTED" note under `[trace]` goes when the
   push lands.
+- A scheduled run's root is never head-sampled: a fire gets `Ctx::new`'s `TraceContext::started()`
+  and no door reads a header for it (`crates/nvs-server/src/schedule.rs:1060`, owner
+  `rule:observability/sampling-is-head-based`).

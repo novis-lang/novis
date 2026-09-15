@@ -130,6 +130,12 @@ modules = [
   # The per-core registry (:368, `of` :388) and `route::label`'s gap 2. Stage 10.
   "crates/nvs-server/src/metrics.rs",
   "crates/nvs-server/src/route.rs",
+  # The door's trace: `take` (:95) and the spans a sampled request derives (:189). Stage 11.
+  "crates/nvs-server/src/trace.rs",
+  # `TraceContext`: the head draw at a root (`rooted` :96) and the continue (:128). Stage 11.
+  "crates/nvs-runtime/src/trace_context.rs",
+  # `head_sample` (:120), and the `[trace]`/`[metrics]` block a boot refuses. Stages 10 and 11.
+  "crates/nvs-config/src/export.rs",
 ]
 
 # Every stage works inside these two: one server shape and no third deployment, and a parameter that
@@ -266,8 +272,11 @@ playbook = ['Writing a test case > a -p nvs-server test can serve']
 [context.stage.11]
 rules = [
   "observability/four-kinds-become-a-span",
+  "observability/a-call-never-becomes-a-span",
   "observability/an-inbound-traceparent-is-continued",
+  "observability/sampling-is-head-based",
   "observability/trace-events-carry-a-kind",
+  "observability/the-exporters-are-crates",
 ]
 
 [context.stage.12]
