@@ -513,6 +513,7 @@ pub(crate) fn run(
             compiler,
             mounts,
             snapshot,
+            current,
             waits,
             serving,
             ticks: true,
@@ -559,6 +560,7 @@ pub(crate) fn run(
             compiler: Arc::clone(&compiler),
             mounts: mounts.clone(),
             snapshot: Arc::clone(&snapshot),
+            current: Arc::clone(&current),
             waits,
             serving: serving.clone(),
             // One roster and so one ticker, on the first worker: a schedule
@@ -611,6 +613,13 @@ struct Core {
     mounts: Vec<Mounted>,
     /// The tree this process booted on, read by every core and written by none.
     snapshot: Arc<nvs_config::Snapshot>,
+    /// `rule:config/the-config-is-an-immutable-snapshot`'s holder, which is where
+    /// the ticker on this core reads a fire's configuration out of: [`Scheduled`]
+    /// takes its clone at each fire exactly as the accept loop takes one at each
+    /// request. Beside the boot snapshot above rather than instead of it — what
+    /// this core *builds* is `Boot`-class and is the tree this process started
+    /// on, and what a fire *runs under* is whatever a reload has published since.
+    current: Arc<nvs_config::Current>,
     /// § 5's waits, copied because they are `Boot`-class and nothing reloads
     /// them under a connection.
     waits: nvs_config::server::Waits,
@@ -645,6 +654,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         compiler,
         mounts,
         snapshot,
+        current,
         waits,
         serving,
         ticks,
@@ -927,7 +937,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         // `TaskRoot::Request` for the same reason the accept loop holds it — a
         // fault under a fire belongs to that run and must not retire the worker
         // the requests are being served by.
-        let fires = Rc::new(Scheduled);
+        let fires = Rc::new(Scheduled { current });
         let ticking = draining.clone();
         sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
             // `Zoned::now` and not a fixed instant: § 6's missed interval is
@@ -1208,14 +1218,41 @@ fn fleet_lease(config: &nvs_config::Config) -> Option<FleetLease> {
 /// says. Both are this crate's, for the reason the module doc gives for the
 /// handler.
 ///
-/// Nothing is carried on it: the resolver is installed for the whole run
+/// The configuration is the one thing carried on it. A fire's context is built
+/// by the ticker, in a crate that names no configuration at all, so this is the
+/// only side that can put a tree on it — and `rule:config/a-scheduled-run-is-a-root-isolate`
+/// wants the deployment's: `[limits]` for the run's budget and `[capabilities]`
+/// for its grants, which is also what the resolve below is asked under.
+///
+/// The resolver is not carried. It is installed for the whole run
 /// (`nvs_runtime::script::scoped` below), so a fire reaches the same compiler and
 /// the same compiled-unit cache a request does, and a scheduled script that is
 /// also a mounted entry is a cache hit rather than a second compile.
-struct Scheduled;
+///
+/// # Known gaps
+///
+/// The roster this serves is armed once, off the boot tree, so a reload that
+/// adds, removes or re-times a `[[schedule]]` entry reaches the *configuration*
+/// a fire runs under and not the set of entries that fire. Every `[[schedule]]`
+/// key is `System`-class (`rule:config/three-changeability-classes`), so the
+/// reload applies it and nothing re-arms — the operator is told a change landed
+/// that this ticker will not honour until a restart.
+struct Scheduled {
+    /// The tree a fire is run under, taken from the holder per fire and never
+    /// held across one.
+    current: Arc<nvs_config::Current>,
+}
 
 impl nvs_server::Fires for Scheduled {
     fn isolate(&self, entry: &nvs_server::Armed, ctx: &mut Ctx) -> Option<Isolate> {
+        // The fire's context arrives holding no tree, and this is the line that
+        // gives it one. Read out of the holder per fire for the reason the accept
+        // loop reads it per request (`rule:config/the-config-is-an-immutable-snapshot`):
+        // an entry firing nightly runs under what a reload published, and a fire
+        // already in flight keeps the clone it took. It is before the resolve
+        // because `script.spawn` is the first thing that resolve asks for, and a
+        // context holding no configuration grants nothing.
+        ctx.set_config(self.current.load());
         // Resolved per fire and not once at boot, because `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s unit swap is
         // the point: an entry that fires nightly picks up an edited script at the
         // next fire, exactly as a request picks it up at the next request. What
@@ -1952,6 +1989,180 @@ mod tests {
         assert!(
             nvs_server::Leases::renew(&lease, &key, held),
             "and the renewal a fire runs on its own task holds the key this process took"
+        );
+    }
+
+    /// A unit for a fire to be handed, so that a case about the configuration a
+    /// fire runs under does not also need a compiler. It answers every path,
+    /// which is what makes it usable as the control below: whether a fire got an
+    /// isolate is then entirely a question of which side of `script.spawn` the
+    /// entry's path fell on, since the door is asked before any resolver is
+    /// (`nvs_runtime::script::resolve`).
+    #[derive(Debug)]
+    struct Compiles;
+
+    impl nvs_runtime::script::Resolver for Compiles {
+        fn resolve(&self, _path: &str) -> Result<nvs_runtime::script::Program, String> {
+            Ok(Box::new(|_ctx, _args| Value::null()))
+        }
+    }
+
+    /// A deployment whose one entry fires `script` under a `[limits] memory`
+    /// ceiling, granting `script.spawn` over `over` and nothing else.
+    fn firing(script: &std::path::Path, over: Option<&std::path::Path>) -> String {
+        let grant = match over {
+            Some(root) => format!("[capabilities]\nscript.spawn = ['{}']\n\n", root.display()),
+            None => String::new(),
+        };
+        format!(
+            "[limits]\nmemory = '512M'\n\n{grant}[[schedule]]\nname = 'nightly'\ncron = '0 3 * * \
+             *'\nscript = '{}'\nscope = 'host'\n",
+            script.display()
+        )
+    }
+
+    /// The written tree as a snapshot, with both halves filled: a directive is
+    /// read off the table a boot kept and the typed tree is the view of it
+    /// ([`nvs_config::Snapshot::table`]), so a case leaving one of them empty
+    /// asserts against a deployment that configured nothing.
+    fn tree_of(written: &str) -> nvs_config::Snapshot {
+        nvs_config::Snapshot {
+            config: config_of(written),
+            table: written.parse().expect("the case writes valid TOML"),
+            ..Default::default()
+        }
+    }
+
+    /// One tree in the holder a reload publishes into, which is what a core hands
+    /// its ticker.
+    fn holding(written: &str) -> Arc<nvs_config::Current> {
+        Arc::new(nvs_config::Current::new(Arc::new(tree_of(written))))
+    }
+
+    /// A directory of this case's own, with one script in it for an entry to
+    /// name.
+    fn scheduled_script(case: &str) -> (PathBuf, PathBuf) {
+        let root = std::env::temp_dir().join(format!("nvs-serve-{case}-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("the platform temporary root is writable");
+        let script = root.join("nightly.nvs");
+        std::fs::write(&script, b"<?php\n").expect("the case writes its own script");
+        (root, script)
+    }
+
+    /// `rule:config/a-scheduled-run-is-a-root-isolate`'s two halves, which the
+    /// ticker cannot supply and this crate can: a fire's budget is the
+    /// deployment's `[limits]`, and its grants are the deployment's
+    /// `[capabilities]`.
+    ///
+    /// The grant half is asserted as a **difference** rather than as a `Some`,
+    /// because the same resolver answers both runs: the tree that wrote the grant
+    /// gets an isolate and the tree that wrote none is refused at the door. A
+    /// fire whose context held no configuration at all would look exactly like
+    /// the second one, which is what this closes.
+    #[test]
+    fn a_scheduled_fire_runs_under_the_deployments_configuration() {
+        let (root, script) = scheduled_script("fire-configured");
+        let granted = firing(&script, Some(&root));
+        let armed = nvs_server::arm(
+            &config_of(&granted).schedule,
+            &super::Zoned::now(),
+            None,
+            |note| panic!("a `scope = \"host\"` entry needs no lease and was not armed: {note}"),
+        );
+        assert_eq!(
+            armed.len(),
+            1,
+            "the case wrote one entry for the ticker to hold"
+        );
+
+        let fires = super::Scheduled {
+            current: holding(&granted),
+        };
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        assert_eq!(
+            ctx.memory_limit(),
+            0,
+            "the context the ticker builds a fire on holds no tree, so it starts uncapped"
+        );
+        let built = nvs_runtime::script::scoped(&Compiles, || {
+            nvs_server::Fires::isolate(&fires, &armed[0], &mut ctx)
+        });
+        assert!(
+            built.is_some(),
+            "the fire's context did not carry the `script.spawn` grant its deployment wrote, so \
+             the resolve was refused at the door"
+        );
+        // The written ceiling less the slice `rule:errors/on-limit` carves out of
+        // it for the tier-1 handler, which is what ordinary execution is held to
+        // and is bounded by a quarter of the ceiling
+        // (`nvs_runtime::Ctx::refresh_limits`). Asserted as that band rather than
+        // as one number, so the reserve's own size stays the runtime's to choose.
+        let ceiling = 512 * 1024 * 1024;
+        let held = ctx.memory_limit();
+        assert!(
+            held > 0 && held <= ceiling && ceiling - held <= ceiling / 4,
+            "a fire is charged against the deployment's `[limits] memory = '512M'`, and this one \
+             was held to {held} byte(s)"
+        );
+
+        let ungranted = super::Scheduled {
+            current: holding(&firing(&script, None)),
+        };
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let refused = nvs_runtime::script::scoped(&Compiles, || {
+            nvs_server::Fires::isolate(&ungranted, &armed[0], &mut ctx)
+        });
+        assert!(
+            refused.is_none(),
+            "the same entry under a deployment granting no `script.spawn` still reached a resolver"
+        );
+    }
+
+    /// The tree a fire runs under is the published one, which is
+    /// `rule:config/an-edit-reaches-the-next-request-without-a-restart` read for
+    /// a fire: the ticker holds its [`super::Scheduled`] for as long as the
+    /// process runs, so a snapshot cloned into it at boot would outlive every
+    /// reload.
+    ///
+    /// What a reload does **not** reach is the roster itself, which is armed once
+    /// off the boot tree — [`super::Scheduled`]'s own `# Known gaps` owns that,
+    /// and it is why the entry here is the same one on both sides of the publish.
+    #[test]
+    fn a_fire_reads_the_published_tree_and_not_the_one_its_ticker_was_armed_on() {
+        let (root, script) = scheduled_script("fire-reloaded");
+        let booted = firing(&script, None);
+        let armed = nvs_server::arm(
+            &config_of(&booted).schedule,
+            &super::Zoned::now(),
+            None,
+            |note| panic!("a `scope = \"host\"` entry needs no lease and was not armed: {note}"),
+        );
+        let fires = super::Scheduled {
+            current: holding(&booted),
+        };
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let before = nvs_runtime::script::scoped(&Compiles, || {
+            nvs_server::Fires::isolate(&fires, &armed[0], &mut ctx)
+        });
+        assert!(
+            before.is_none(),
+            "the boot tree granted no `script.spawn`, so this fire had nothing to run"
+        );
+
+        fires
+            .current
+            .publish(tree_of(&firing(&script, Some(&root))))
+            .expect("the case publishes a tree that changes no `Boot` key");
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let after = nvs_runtime::script::scoped(&Compiles, || {
+            nvs_server::Fires::isolate(&fires, &armed[0], &mut ctx)
+        });
+        assert!(
+            after.is_some(),
+            "the next fire after a reload ran under the tree the boot resolved rather than the \
+             one the reload published"
         );
     }
 
