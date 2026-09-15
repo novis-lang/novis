@@ -2,37 +2,39 @@
 
 ## State
 
-**Goal `m8-db-queue` is met.** `python tools/loop.py --goal-only` ends `GOAL REACHED: every acceptance
-check passes` (782 checks remembered, 7 re-run), and `python tools/verify.py --doc` resolves every link —
-the one gate a goal meets only at its end.
+**Goal 59 — every class M8 names is as deep as its spec section — has just started; nothing of it has landed yet.** Goal `m8-db-queue`'s whole list is this goal's Stage 1 floor.
 
-The check this session was handed, `no module-doc gap names a goal that walked without closing it`, was
-**already green on arrival**: `927195406` re-owned goal `m7-server-surface`'s three open gaps by hand
-while the run was held, and `cab85530d` is the `tools/loop.py` change that grants a retry when a DONE
-falls to a *different* check. The playbook already carries that trap — *the pack's "THE DRIVER'S LAST
-ACCEPTANCE CHECK FAILED" line survives a hold* — and this session did exactly what it says: ran the
-named `argv` once, found exit 0, collected the acceptance and re-claimed. No new bullet.
-
-No code changed this session. Nothing is blocked.
+Every design call a stage reaches is settled in the goal's § *Standing decisions*. That covers the
+wire forms, the reflective call site, `allocate`'s rounding, the CSV spelling, where the metrics
+registry moves, and what the one record decides. A session applies those decisions and does not
+re-open them. The goal's one new record is stage 2's, on `array<T>` variance; no other stage opens a
+number. Every check runs locally, because CI is not running.
 
 ## Next group
 
-**Goal `unowned-closures` stage 2: the lowering and the runtime, security first** — one file set:
-`crates/nvs-ir/src/lower/` and `crates/nvs-runtime/src/`. A goal switch reseeds the handoff from
-`docs/agent/goals/60-unowned-closures.handoff.md`, so this trio is repeated here only so that a refused
-DONE does not lose it. Each item's answer is the `Decided:` sentence already on disk under its gap;
-build to it and never re-open it.
+**Stage 0: the catch-up** — one file set: the `# Known gaps` blocks and the two ratchet files the goal
+re-points, and nothing else. Doc edits only, so one session takes all three.
 
-- [ ] **A `secret` compared against a `mixed` is constant-time** —
-      `crates/nvs-ir/src/lower/operator.rs:896`, with the type side at `crates/nvs-ir/src/lib.rs:405`.
-- [ ] **One allocation past the budget, to its decision** — `crates/nvs-runtime/src/budget.rs:89`.
-- [ ] **A hooked property is reached through an erased key** — `crates/nvs-runtime/src/object.rs:3403`.
+- [ ] **Re-point owners at `m8-stdlib-depth`** — `crates/nvs-stdlib/src/heap.rs:47`,
+      `crates/nvs-stdlib/src/cldr.rs:165`, `crates/nvs-stdlib/src/cldr.rs:183`,
+      `crates/nvs-stdlib/src/lib.rs:152`, `crates/nvs-stdlib/src/ast.rs:64`,
+      `crates/nvs-stdlib/src/json.rs:143`,
+      `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt:16`,
+      `crates/nvs-stdlib/tests/migration-members-outstanding.txt:22`, and the owner cell at
+      `docs/agent/carried-gaps.md:62`. Done when `python tools/owners.py` lists every one of them under
+      this goal.
+- [ ] **Strike CLDR gap 3 into prose** — `crates/nvs-stdlib/src/cldr.rs:166`: the twenty languages are
+      carried, and `crates/nvs-stdlib/src/cldr.rs:2812`'s test holds it. The boundary sentence joins
+      the roster's prose, and the item leaves the block.
+- [ ] **Rewrite `Core\Out`'s gap** — `crates/nvs-stdlib/src/out.rs:36`. `Text::plain` and `styled`
+      exist (`crates/nvs-stdlib/src/cli.rs:1945`); what is missing is an instance member to read a
+      `Text`, and stage 8 is what closes it.
 
 ## Backlog
 
-- The db half session 0004 scoped, now stage 4 of `unowned-closures`: `crates/nvs-stdlib/src/db/mod.rs:214`
-  gap 1 wants the first-use notice or the record that there is none, and its neighbour gap 2 the `DbError`
-  split — both `Decided:` on disk.
-- `crates/nvs-types/src/derive.rs:44` gap 1, the third of that group — `rule:core-classes/derive-attribute`.
-- Stages 3, 5 and 6 of the next goal, listed in its own seeded handoff — `docs/agent/goals/60-unowned-closures.handoff.md`.
-- What must survive the goal switch is `docs/agent/carried-gaps.md`, not this file.
+- Stage 2 (the record, `crates/nvs-types/src/expr/assign.rs:60`) is its own session; it shares no
+  file with stage 0.
+- Stages 3 and 4 share nothing either. Stage 4 and stage 13's guard share
+  `benches/abi-probe/tests/perf_guards.rs`, so a session holding that file cheaply can take both
+  guards once `spawn` exists.
+- When this goal's last check goes green the driver takes goal `unowned-closures`.
