@@ -131,7 +131,7 @@ use nvs_host::net::NvsTcp;
 #[cfg(unix)]
 use nvs_host::net::NvsUnix;
 use nvs_host::tls::NvsTls;
-use nvs_runtime::{Decimal, NvsArray, NvsStr, Tag, Value};
+use nvs_runtime::{Decimal, NotDecimal, NvsArray, NvsStr, Tag, Value};
 use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
 use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
@@ -1944,12 +1944,13 @@ impl PgColumn {
     /// # Errors
     ///
     /// `InvalidData` for a body the column's own type cannot be read out of: a
-    /// `NUMERIC` past what
+    /// `NUMERIC` whose value is past what
     /// `rule:types/decimal`'s `decimal`
-    /// holds or a `NaN` in one, which that type has no representation for; a
-    /// text body that is not UTF-8; a malformed `bytea`. Every such message
-    /// names the column and its OID and **never the body**, for the reason
-    /// [`Self::malformed`] gives.
+    /// holds, which [`Self::decimal`] refuses as the schema question it is
+    /// rather than narrowing, or a `NaN` in one, which that type has no
+    /// representation for; a text body that is not UTF-8; a malformed `bytea`.
+    /// Every such message names the column and its OID and **never the body**,
+    /// for the reason [`Self::malformed`] gives.
     pub fn decode(&self, body: Option<&[u8]>) -> io::Result<Option<Value>> {
         Ok(self.scalar(body)?.into_value())
     }
@@ -2003,9 +2004,7 @@ impl PgColumn {
                     .parse()
                     .map_err(|_| self.malformed("a float"))?,
             ),
-            oid::NUMERIC => PgScalar::Decimal(
-                Decimal::parse(self.text(body)?).ok_or_else(|| self.malformed("a decimal"))?,
-            ),
+            oid::NUMERIC => PgScalar::Decimal(self.decimal(self.text(body)?)?),
             oid::MONEY => PgScalar::Decimal(self.money(self.text(body)?)?),
             oid::BYTEA => PgScalar::Bytes(NvsStr::new(&self.bytea(body)?)),
             oid::DATE => PgScalar::Date(self.date(self.text(body)?)?),
@@ -2488,7 +2487,7 @@ impl PgColumn {
             }
         }
 
-        Decimal::parse(&digits).ok_or_else(|| self.malformed("a decimal"))
+        self.decimal(&digits)
     }
 
     /// A `bytea`'s octets, out of either of the two text renderings.
@@ -2553,6 +2552,38 @@ impl PgColumn {
         }
 
         Ok(out)
+    }
+
+    /// § 9's `NUMERIC` and `money` rows: the server's own rendering as a
+    /// [`Decimal`], and the two reasons it may not be one.
+    ///
+    /// **The two are separate refusals because they are separate jobs.** A
+    /// column holding a number past `rule:types/decimal`'s 96 mantissa bits or
+    /// scale of 28 — a `NUMERIC(30,10)` is one — is a schema question, and the
+    /// answer is the column's own type or a cast in the statement; it is
+    /// refused rather than narrowed, because a truncated amount that looks
+    /// right is the failure this type exists to make impossible. A rendering
+    /// that is not a decimal literal at all is the other refusal, and it is
+    /// [`Self::malformed`]'s: a `NUMERIC`'s `NaN`, which this type has no
+    /// value for, and a body this driver was not sent, which is a bug over
+    /// here rather than a number over there. [`Decimal::read`] is what tells
+    /// the two apart.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidData` either way, and neither message carries the value.
+    fn decimal(&self, text: &str) -> io::Result<Decimal> {
+        Decimal::read(text).map_err(|why| match why {
+            NotDecimal::PastRange => io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "column {:?} of type OID {} holds more precision than a `decimal` does — 96 \
+                     mantissa bits and a scale of 28 — so the column's own type is what narrows",
+                    self.name, self.type_oid
+                ),
+            ),
+            NotDecimal::Unreadable => self.malformed("a decimal"),
+        })
     }
 
     /// The error a body that will not decode carries.

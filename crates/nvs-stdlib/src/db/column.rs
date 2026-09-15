@@ -428,4 +428,68 @@ mod tests {
              order — a case added to either belongs in both, and in the same place"
         );
     }
+
+    /// `rule:types/decimal`'s bound, at the door a database can push a wider
+    /// number through: a `NUMERIC(30,10)` column holds numbers a `decimal`
+    /// does not, and reading one **throws naming the column**.
+    ///
+    /// **Asserted here rather than only against a server**, because what a
+    /// truncating driver would produce is a plausible number: a case that
+    /// needs a container is a case that does not run on the machine the
+    /// change is written on, and this refusal is one wrong `if` away at any
+    /// time. `a_numeric_30_10_postgres_column_throws_on_read_rather_than_truncating`
+    /// in `tests/db_stream.rs` is the same assertion against a real server,
+    /// where the rendering is the server's own rather than this test's.
+    ///
+    /// **The two refusals are told apart**, which is the whole point of
+    /// `nvs_runtime::Decimal::read`: the operator reading the first one fixes
+    /// a column type, and the one reading the second is looking at a driver
+    /// that read a body it was not sent — or at PostgreSQL's `NaN`, which this
+    /// type has no value for. One message for both sends the first operator
+    /// hunting corruption that is not there.
+    ///
+    /// The in-range value is asserted digit for digit beside them, because a
+    /// refusal that fired on everything would pass both halves above.
+    #[test]
+    fn a_numeric_30_10_value_past_decimals_range_throws_rather_than_truncating() {
+        // `nvs-db`'s OID table is private to that crate; `NUMERIC` is 1700 and
+        // is one of the fixed numbers PostgreSQL's own catalog assigns.
+        let total = nvs_db::PgColumn {
+            name: String::from("total"),
+            type_oid: 1700,
+            type_modifier: -1,
+        };
+        let read = |body: &'static str| total.scalar(Some(body.as_bytes()));
+
+        let kept =
+            read("1234567890.1234567890").expect("a `NUMERIC(30,10)` value a `decimal` holds");
+        match kept {
+            nvs_db::PgScalar::Decimal(number) => assert_eq!(
+                number.to_string(),
+                "1234567890.1234567890",
+                "a value inside the bound keeps every digit the server wrote, scale included"
+            ),
+            other => panic!("§ 9 reads a `NUMERIC` as a `decimal`, and read {other:?}"),
+        }
+
+        let past = read("12345678901234567890.1234567890")
+            .expect_err("a value past 96 mantissa bits is refused rather than narrowed")
+            .to_string();
+        assert!(
+            past.contains("total") && past.contains("narrows"),
+            "the refusal names the column and what fixes it, and said: {past}"
+        );
+        assert!(
+            !past.contains("1234567890"),
+            "no refusal carries the value — `PgColumn::malformed`'s reason — and said: {past}"
+        );
+
+        let unreadable = read("NaN")
+            .expect_err("a `NUMERIC`'s `NaN` has no `decimal` value")
+            .to_string();
+        assert!(
+            unreadable.contains("total") && !unreadable.contains("narrows"),
+            "a rendering that is not a number at all is the other refusal, and said: {unreadable}"
+        );
+    }
 }

@@ -11,6 +11,7 @@
 //! this one's tail.
 
 use super::*;
+use nvs_runtime::NotDecimal;
 
 /// One row, already read out of the packets it was framed in.
 ///
@@ -476,10 +477,19 @@ pub(super) fn parse_exact(
         text.push('.');
         text.push_str(fraction);
     }
-    Decimal::parse(&text).ok_or_else(|| {
-        malformed(format!(
-            "column `{column}` carries a number with more precision than a `decimal` holds"
-        ))
+    Decimal::read(&text).map_err(|why| match why {
+        NotDecimal::PastRange => malformed(format!(
+            "column `{column}` carries a number with more precision than a `decimal` holds — 96 \
+             mantissa bits and a scale of 28 — so the column's own type is what narrows"
+        )),
+        // The text above is a decimal literal by construction, so this arm is
+        // the loop that built it having gone wrong rather than anything the
+        // server sent. `crate::pg::PgColumn::decimal` is the same split where
+        // the server's own rendering is what arrives, and owns why there are
+        // two refusals.
+        NotDecimal::Unreadable => malformed(format!(
+            "column `{column}` holds a scaled integer this driver did not render as a decimal"
+        )),
     })
 }
 

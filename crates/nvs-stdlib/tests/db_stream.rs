@@ -753,3 +753,63 @@ fn stream_as_answers_rows_at_the_class_it_was_written_with() {
         "a walk yields what it was opened to build, which is its own type argument"
     );
 }
+
+/// `rule:types/decimal`'s bound where a real server is what renders the
+/// number: a `NUMERIC(30,10)` column holds values a `decimal` does not, and
+/// reading one **throws naming the column** rather than handing back a
+/// narrower number that looks right.
+///
+/// **PostgreSQL alone, and that is not a missing leg.** `NUMERIC(30,10)` is
+/// the column type § 9's decimal row is specified against, and the other four
+/// backends spell their own; what this case adds over
+/// `nvs_stdlib::db::column`'s own
+/// `a_numeric_30_10_value_past_decimals_range_throws_rather_than_truncating`
+/// is that the rendering is the **server's** rather than a test's — a driver
+/// that agreed with this repository about what PostgreSQL writes, and was
+/// wrong, passes the unit test and fails here.
+///
+/// Both columns are read from one row, because a refusal that fired on every
+/// `NUMERIC` would look identical on the wide one alone.
+#[test]
+fn a_numeric_30_10_postgres_column_throws_on_read_rather_than_truncating() {
+    /// Two `NUMERIC(30,10)` values the server renders in full: one a
+    /// `decimal` holds, and one past its 96-bit mantissa.
+    const WIDE: &str = "select 1234567890.1234567890::numeric(30,10) as fits, \
+                        12345678901234567890.1234567890::numeric(30,10) as total";
+
+    let Some(mut conn) = leg() else {
+        return;
+    };
+    let Connection::Postgres(pg) = &mut conn else {
+        return;
+    };
+
+    let mut answered = pg.query(WIDE, &[]).expect("the server ran the statement");
+    let columns = answered.columns().to_vec();
+    let row = answered
+        .next_row()
+        .expect("the row arrived")
+        .expect("the statement selects one row");
+    while answered.next_row().expect("the result set ended").is_some() {}
+
+    let fits = columns[0]
+        .scalar(row.column(0).expect("the row has its first column"))
+        .expect("a value inside the bound is read rather than refused");
+    assert!(
+        matches!(fits, nvs_db::PgScalar::Decimal(number) if number.to_string() == "1234567890.1234567890"),
+        "a `NUMERIC` a `decimal` holds keeps every digit the server wrote, and read {fits:?}"
+    );
+
+    let refused = columns[1]
+        .scalar(row.column(1).expect("the row has its second column"))
+        .expect_err("a `NUMERIC` past a `decimal`'s mantissa is refused rather than narrowed")
+        .to_string();
+    assert!(
+        refused.contains("total") && refused.contains("narrows"),
+        "the refusal names the column and what fixes it, and said: {refused}"
+    );
+    assert!(
+        !refused.contains("1234567890"),
+        "no refusal carries the value — `PgColumn::malformed`'s reason — and said: {refused}"
+    );
+}

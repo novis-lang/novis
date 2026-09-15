@@ -171,7 +171,7 @@ use nvs_host::net::NvsTcp;
 #[cfg(unix)]
 use nvs_host::net::NvsUnix;
 use nvs_host::tls::NvsTls;
-use nvs_runtime::{Decimal, NvsStr, Tag, Value};
+use nvs_runtime::{Decimal, NotDecimal, NvsStr, Tag, Value};
 
 use crate::conn::{
     BlockError, ColumnType, DbErrorKind, Driver, Endpoint, Isolation, MySqlConn, ServerError,
@@ -3064,9 +3064,9 @@ pub fn scalar<'a>(column: &Column, value: &'a MyValue) -> io::Result<MySqlScalar
         (ColumnType::Uint, MyValue::UInt(number)) => MySqlScalar::UInt(*number),
         (ColumnType::Float, MyValue::Float(number)) => MySqlScalar::Float(widened(*number)),
         (ColumnType::Float, MyValue::Double(number)) => MySqlScalar::Float(*number),
-        (ColumnType::Decimal, MyValue::Bytes(digits)) => MySqlScalar::Decimal(
-            Decimal::parse(text(column, digits)?).ok_or_else(|| malformed(column, "a decimal"))?,
-        ),
+        (ColumnType::Decimal, MyValue::Bytes(digits)) => {
+            MySqlScalar::Decimal(decimal(column, text(column, digits)?)?)
+        }
         // § 9's `BIT(1)` row: one octet, and the width is what said this
         // column was a `bool` at all.
         (ColumnType::Bool, MyValue::Bytes(bits)) => MySqlScalar::Bool(match bits.as_slice() {
@@ -3190,6 +3190,34 @@ fn time_of_day(
 /// definition.
 fn text<'a>(column: &Column, body: &'a [u8]) -> io::Result<&'a str> {
     std::str::from_utf8(body).map_err(|_| malformed(column, "well-formed UTF-8"))
+}
+
+/// § 9's `DECIMAL` row: the server's own rendering as a [`Decimal`], and the
+/// two reasons it may not be one.
+///
+/// `crate::pg::PgColumn::decimal` is the same split on the other wire driver
+/// and owns why there are two — a value past `rule:types/decimal`'s range is a
+/// schema an operator narrows, and text that is not a literal is a driver
+/// reading a body it was not sent. What is written twice is the column's own
+/// metadata, which is each driver's and not shared: a MySQL column names its
+/// declared type where a PostgreSQL one names an OID.
+///
+/// # Errors
+///
+/// `InvalidData` either way, and neither message carries the value.
+fn decimal(column: &Column, text: &str) -> io::Result<Decimal> {
+    Decimal::read(text).map_err(|why| match why {
+        NotDecimal::PastRange => io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "column {:?} of type {:?} holds more precision than a `decimal` does — 96 \
+                 mantissa bits and a scale of 28 — so the column's own type is what narrows",
+                column.name_str(),
+                column.column_type()
+            ),
+        ),
+        NotDecimal::Unreadable => malformed(column, "a decimal"),
+    })
 }
 
 /// The refusal every decode above answers with: the column, its declared type,

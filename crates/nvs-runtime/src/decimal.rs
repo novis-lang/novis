@@ -255,8 +255,27 @@ impl Decimal {
     /// an exact decimal literal, with no leading-garbage rule.
     #[must_use]
     pub fn parse(text: &str) -> Option<Self> {
-        let (negative, digits, scale) = literal_parts(text)?;
-        fit(negative, digits, scale)
+        Self::read(text).ok()
+    }
+
+    /// [`Self::parse`], with its two failures told apart for a caller that
+    /// must act differently on each.
+    ///
+    /// A database driver is that caller. A column holding a number past this
+    /// type's range is a schema an operator narrows — the column's own type,
+    /// or a cast in the statement — where a rendering that is not a decimal
+    /// literal at all is the driver reading a body it was not sent. `None`
+    /// says neither, and one message for both sends the operator looking for
+    /// corruption that is not there.
+    ///
+    /// # Errors
+    ///
+    /// [`NotDecimal::Unreadable`] for text that is not an exact decimal
+    /// literal in full, and [`NotDecimal::PastRange`] for one that is, whose
+    /// value needs more than 96 mantissa bits or a scale past 28.
+    pub fn read(text: &str) -> Result<Self, NotDecimal> {
+        let (negative, digits, scale) = read_parts(text)?;
+        fit(negative, digits, scale).ok_or(NotDecimal::PastRange)
     }
 
     /// The nearest `f64` — lossy, and explicit at every call site like every
@@ -690,31 +709,76 @@ fn fit(negative: bool, mantissa: u128, scale: i32) -> Option<Decimal> {
 /// Trailing zeros are kept, since scale is observable in rendering: `19.90` is
 /// a scale-2 value and not a second spelling of `19.9`.
 fn literal_parts(text: &str) -> Option<(bool, u128, i32)> {
+    read_parts(text).ok()
+}
+
+/// Why text a caller meant as a `decimal` is not one.
+///
+/// The two are told apart because the person who reads them is different: a
+/// value past the range is read by whoever owns the schema it came out of, and
+/// text that is not a literal is read by whoever owns the code that produced
+/// it. [`Decimal::read`] is the member that answers this, and
+/// [`Decimal::parse`] is the same walk for a caller with one answer for both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotDecimal {
+    /// Not an exact decimal literal in full — a spelling, not a magnitude.
+    Unreadable,
+    /// An exact decimal literal whose value needs more than 96 mantissa bits
+    /// or a scale past 28. `rule:types/decimal` is where the bound is, and
+    /// `Core\BigDecimal` is what lies past it.
+    PastRange,
+}
+
+/// [`literal_parts`], with the two failures [`NotDecimal`] separates kept
+/// apart: a spelling that is not a literal at all, and digits that are one and
+/// are too many.
+///
+/// The split is drawn where the bytes stop being readable rather than where a
+/// parse happens to overflow: a mantissa past a `u128` and an exponent past an
+/// `i32` are both magnitudes, so they answer [`NotDecimal::PastRange`] even
+/// though this function's own arithmetic is what refused them.
+fn read_parts(text: &str) -> Result<(bool, u128, i32), NotDecimal> {
     let (negative, rest) = match text.as_bytes().first() {
         Some(b'-') => (true, &text[1..]),
         Some(b'+') => (false, &text[1..]),
         _ => (false, text),
     };
-    let (numeric, exponent) = match rest.split_once(['e', 'E']) {
-        Some((numeric, exponent)) => (numeric, exponent.parse::<i32>().ok()?),
+    let (numeric, power) = match rest.split_once(['e', 'E']) {
+        Some((numeric, written)) => (numeric, exponent(written)?),
         None => (rest, 0),
     };
     let (whole, fraction) = numeric.split_once('.').unwrap_or((numeric, ""));
     if whole.is_empty() && fraction.is_empty() {
-        return None;
+        return Err(NotDecimal::Unreadable);
     }
     if !whole
         .bytes()
         .chain(fraction.bytes())
         .all(|b| b.is_ascii_digit())
     {
-        return None;
+        return Err(NotDecimal::Unreadable);
     }
-    let scale = i32::try_from(fraction.len()).ok()?.checked_sub(exponent)?;
+    let scale = i32::try_from(fraction.len())
+        .ok()
+        .and_then(|places| places.checked_sub(power))
+        .ok_or(NotDecimal::PastRange)?;
     let mut digits = String::with_capacity(whole.len() + fraction.len());
     digits.push_str(whole);
     digits.push_str(fraction);
-    Some((negative, digits.parse::<u128>().ok()?, scale))
+    let mantissa = digits.parse::<u128>().map_err(|_| NotDecimal::PastRange)?;
+    Ok((negative, mantissa, scale))
+}
+
+/// The `e` half of a literal as its power of ten: a signed run of digits, and
+/// nothing else. One past an `i32` is a magnitude rather than a spelling, so
+/// it is [`NotDecimal::PastRange`] — no `decimal` has an exponent near that
+/// bound, and neither has any `f64` this crate renders through [`f64_parts`].
+fn exponent(written: &str) -> Result<i32, NotDecimal> {
+    let digits = written.strip_prefix(['-', '+']).unwrap_or(written);
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(NotDecimal::Unreadable);
+    }
+    written.parse().map_err(|_| NotDecimal::PastRange)
 }
 
 #[cfg(test)]

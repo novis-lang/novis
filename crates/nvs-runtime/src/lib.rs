@@ -353,7 +353,7 @@ pub use ctx::{
     is_carrier, nvs_probe_call_enter, nvs_probe_call_exit, nvs_probe_stmt, nvs_safepoint,
     nvs_stack_check,
 };
-pub use decimal::Decimal;
+pub use decimal::{Decimal, NotDecimal};
 pub use dispatch::{
     CrossedFixtures, Fixtures, RowValues, call_erased_method, call_method, call_render,
     call_static, call_static_bound, construct_and_call, method_address,
