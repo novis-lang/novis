@@ -31,11 +31,32 @@
 //! valid. Holding the answers instead makes the description exactly as inert as
 //! § 1 says it is: nothing it carries can be dereferenced back into the program.
 //!
-//! **What it spends:** one array of one string per visible property, per
-//! `forObject` call, charged to the request that asked and released with the
-//! description. A program that describes the same class in a loop pays per
-//! call; the alternative is a per-core cache keyed by descriptor address, which
-//! nothing yet needs.
+//! **What it spends:** per `forClass` or `forObject` call, one array of one
+//! string per visible property, plus one array and one [`METHOD_INFO`] of three
+//! slots per declared method — charged to the request that asked and released
+//! with the description. A program that describes the same class in a loop pays
+//! per call; the alternative is a per-core cache keyed by descriptor address,
+//! which nothing yet needs. The roster is built eagerly rather than on the
+//! first `methods` call because the alternative is a slot holding the
+//! descriptor, which the decision above rules out for every slot alike.
+//!
+//! # Decision: the method roster is complete, and each row carries its own
+//! visibility
+//!
+//! [`CLASS_INFO`]'s property walk names only what the calling site may read,
+//! and its method roster names every method with [`METHOD_INFO`]'s bit saying
+//! which may be called. That is not two answers to one question: § 2 divides
+//! *reading metadata*, which is always available, from *acting on a member*,
+//! which faces the ordinary check — and a roster is metadata, while a property
+//! walk is the list a `get` is about to be made against.
+//!
+//! `rule:core-classes/reflect` is what forces the complete list: a refusal has
+//! to be distinguishable from a misspelling, and a roster that dropped the
+//! `private` methods would make `hasMethod` answer `false` to both. Nothing
+//! leaks by it — a name, a visibility bit and a parameter count are what the
+//! declaration already published to the checker, and no state of any instance
+//! is reachable through them. Acting is still
+//! [`nvs_core_reflect_class_info_call`]'s, which is where § 2's check is made.
 //!
 //! # Decision: a description reads its own class's instances, and says so
 //!
@@ -54,7 +75,7 @@
 //! question about a value
 //!
 //! [`TYPE_KIND`] replaces fourteen `is_*` predicates plus `gettype`
-//! (`docs/spec/01-core-library.md` § 20) by being *finer* than any of them and
+//! (`docs/spec/01-core-library.md` § 13) by being *finer* than any of them and
 //! overlapping none of them: `is_scalar` and `is_int` both answer `true` for a
 //! `7`, so a program asking both learns nothing the second time, while ten
 //! cases that partition [`nvs_runtime::Tag`]'s value-carrying half answer the
@@ -70,10 +91,22 @@
 //!
 //! # Known gaps
 //!
-//! 1. § 1's remaining `*Info` classes are not here yet — a description names
-//!    its properties and no methods, so `get_class_methods` and
-//!    `method_exists` have no answer here yet; the spec's roster row
-//!    (`docs/spec/01-core-library.md` § 20) is the home of the full list.
+//! 1. § 1's roster is short of five of the classes it names. [`METHOD_INFO`] is
+//!    here, so `get_class_methods` and `method_exists` have their answers; the
+//!    spec's roster row (`docs/spec/01-core-library.md` § 13) is the home of the
+//!    full list, and each of the five is waiting on descriptor data no crate
+//!    carries yet rather than on a decision. `PropertyInfo` and `ParameterInfo`
+//!    are the near pair — a property's declared type and a parameter's name are
+//!    neither of them in [`nvs_runtime::ClassDesc`], which holds a slot's name,
+//!    its visibility bit and at most one [`nvs_runtime::Tag`]. `PropertyInfo`
+//!    also re-asks the decision below for the walk that already exists:
+//!    [`nvs_core_reflect_class_info_properties`] names only what the calling
+//!    site may read, where the method roster names everything, and a row
+//!    carrying its own bit is what would let the two answer alike.
+//!    `ConstantInfo`,
+//!    `AttributeInfo` and `EnumInfo` are the far three: a descriptor carries no
+//!    constants, no attributes and no enum cases at all, so each is a join from
+//!    `nvs_types` through `nvs-codegen` before it is a member here.
 //!    — owner: M8
 //! 2. A description's property walk is the same from inside the described class
 //!    as from outside it. § 2's rule is stated over the *call site*, and a
@@ -102,11 +135,26 @@ pub(crate) const NAME: &str = "Core\\Reflect";
 /// The described class's own name, as a program writes it.
 pub(crate) const CLASS_INFO_NAME: &str = "Core\\Reflect\\ClassInfo";
 
+/// One described method's own name, as a program writes it.
+pub(crate) const METHOD_INFO_NAME: &str = "Core\\Reflect\\MethodInfo";
+
 /// [`CLASS_INFO`]'s slot holding the described class's name.
 const NAME_SLOT: usize = 0;
 
 /// [`CLASS_INFO`]'s slot holding the described class's visible property names.
 const PROPERTIES_SLOT: usize = 1;
+
+/// [`CLASS_INFO`]'s slot holding one [`METHOD_INFO`] per declared method.
+const METHODS_SLOT: usize = 2;
+
+/// [`METHOD_INFO`]'s slot holding the method's name.
+const METHOD_NAME_SLOT: usize = 0;
+
+/// [`METHOD_INFO`]'s slot holding whether the method is `public`.
+const METHOD_PUBLIC_SLOT: usize = 1;
+
+/// [`METHOD_INFO`]'s slot holding how many parameters the method declares.
+const METHOD_PARAMETERS_SLOT: usize = 2;
 
 /// `Core\Reflect` — the door onto a description, and nothing that acts.
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -313,6 +361,24 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&PROPERTIES_DOC),
         },
         CoreMethod {
+            name: "methods",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(METHOD_INFO_NAME)),
+            symbol: "nvs_core_reflect_class_info_methods",
+            doc: Some(&METHODS_DOC),
+        },
+        CoreMethod {
+            name: "hasMethod",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_reflect_class_info_has_method",
+            doc: Some(&HAS_METHOD_DOC),
+        },
+        CoreMethod {
             name: "get",
             names: &["object", "name"],
             params: &[CoreTy::Mixed, CoreTy::Text(Qual::Neutral)],
@@ -356,7 +422,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&CALL_DOC),
         },
     ],
-    slots: &["name", "properties"],
+    slots: &["name", "properties", "methods"],
     constants: &[],
 };
 
@@ -377,6 +443,32 @@ const PROPERTIES_DOC: MethodDoc = MethodDoc {
     ret: "One name per property code outside the class may read, `$`-sigil excluded. A `private` \
           or `protected` property is not among them: reflection has the visibility ordinary code \
           has, and no way to widen it.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ClassInfo::methods`'s reference card — `rule:core-api/reference-card`.
+const METHODS_DOC: MethodDoc = MethodDoc {
+    short: "The described class's methods — its own and every inherited one — each with its name, \
+            its visibility and how many parameters it declares. Replaces `get_class_methods`.",
+    params: &[],
+    ret: "One `Core\\Reflect\\MethodInfo` per declared method, in name order, and a method the \
+          calling site could not call is among them carrying `isPublic() === false`. Naming a \
+          method is not calling it, which is why the roster is complete and \
+          `Core\\Reflect\\ClassInfo::call` is where the check is made.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ClassInfo::hasMethod`'s reference card — `rule:core-api/reference-card`.
+const HAS_METHOD_DOC: MethodDoc = MethodDoc {
+    short: "Reports whether the described class declares or inherits a method named `$name`. \
+            Replaces `method_exists`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The method's name, as the declaration writes it and as `methods` spells it.",
+        shape: &[],
+    }],
+    ret: "`true` for a method the class answers for at any visibility, `false` for a name it \
+          declares none of — so a refusal to call tells a `private` method from a misspelling.",
     errors: &[],
 };
 
@@ -556,6 +648,80 @@ const CALL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Reflect\MethodInfo` — one row of [`CLASS_INFO`]'s roster: a method's
+/// name, its visibility and how many parameters it declares.
+///
+/// Every member is a reader over a slot the description was built with, for
+/// [`CLASS_INFO`]'s own reason: what it carries is answers, not a way back into
+/// the class it came from. Nothing here acts —
+/// [`nvs_core_reflect_class_info_call`] is the one door onto an invocation, and
+/// it is where § 2's check is made.
+pub(crate) const METHOD_INFO: CoreClass = CoreClass {
+    name: METHOD_INFO_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_reflect_method_info_name",
+            doc: Some(&METHOD_NAME_DOC),
+        },
+        CoreMethod {
+            name: "isPublic",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_reflect_method_info_is_public",
+            doc: Some(&IS_PUBLIC_DOC),
+        },
+        CoreMethod {
+            name: "parameterCount",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // `uint`, and the receiver is not among them: a declared parameter
+            // list is what a call site is judged against, which is
+            // [`nvs_runtime::MethodRow::arity`]'s own reading.
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_reflect_method_info_parameter_count",
+            doc: Some(&PARAMETER_COUNT_DOC),
+        },
+    ],
+    slots: &["name", "public", "parameterCount"],
+    constants: &[],
+};
+
+/// `Core\Reflect\MethodInfo::name`'s reference card — `rule:core-api/reference-card`.
+const METHOD_NAME_DOC: MethodDoc = MethodDoc {
+    short: "The method's name, as the declaring class writes it.",
+    params: &[],
+    ret: "The name with no class qualifier and no parentheses — what `hasMethod` and `call` take.",
+    errors: &[],
+};
+
+/// `Core\Reflect\MethodInfo::isPublic`'s reference card — `rule:core-api/reference-card`.
+const IS_PUBLIC_DOC: MethodDoc = MethodDoc {
+    short: "Whether code outside the declaring class may call the method.",
+    params: &[],
+    ret: "`false` for a `private` or `protected` method, which is still listed: knowing that a \
+          method exists and may not be called is what tells a refusal from a misspelling, and \
+          neither answer reaches any state the declaration did not expose.",
+    errors: &[],
+};
+
+/// `Core\Reflect\MethodInfo::parameterCount`'s reference card — `rule:core-api/reference-card`.
+const PARAMETER_COUNT_DOC: MethodDoc = MethodDoc {
+    short: "How many parameters the method declares, excluding the implicit receiver.",
+    params: &[],
+    ret: "The count an argument list is judged against — the same number a call through \
+          `Core\\Reflect\\ClassInfo::call` must supply.",
+    errors: &[],
+};
+
 /// A `string` argument of `member`, as text.
 ///
 /// A [`Fault::fatal`] for the wrong tag, on `crate::json`'s own `text_of`
@@ -571,7 +737,7 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
     })
 }
 
-/// The description of one class — [`CLASS_INFO`]'s two slots, filled.
+/// The description of one class — [`CLASS_INFO`]'s slots, filled.
 ///
 /// Both doors onto a description share this, which is the point: `forObject`
 /// reaches a descriptor through a value and `forClass` reaches one through the
@@ -580,6 +746,14 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 /// numbered — `field_name` answers `None` only past the last slot, so the loop
 /// bound already excludes it, and a synthesized class reads as having nothing
 /// visible at all.
+///
+/// The property walk and the method walk answer the visibility bit differently,
+/// and the module doc's § *the roster is complete* owns why: a property is
+/// named only where it is readable, and a method is named whatever it is, with
+/// [`METHOD_PUBLIC_SLOT`] carrying the answer. The one name skipped is a method
+/// whose name holds a `#`, which no source can spell — `nvs_ir::lower`'s
+/// generator transform mints those, and a roster naming one would be naming a
+/// rewriting rather than a declaration.
 fn describe(desc: &ClassDesc) -> Value {
     let mut visible = NvsArray::new();
     for slot in 0..desc.field_count() {
@@ -590,11 +764,29 @@ fn describe(desc: &ClassDesc) -> Value {
             visible.append(Value::str(NvsStr::new(name.as_bytes())));
         }
     }
+    let mut methods = NvsArray::new();
+    for index in 0..desc.method_count() {
+        let Some(row) = desc.method_at(index) else {
+            continue;
+        };
+        if row.name.contains('#') {
+            continue;
+        }
+        methods.append(crate::instance::build(
+            &METHOD_INFO,
+            [
+                Value::str(NvsStr::new(row.name.as_bytes())),
+                Value::bool(row.public),
+                Value::uint(u64::from(row.arity)),
+            ],
+        ));
+    }
     crate::instance::build(
         &CLASS_INFO,
         [
             Value::str(NvsStr::new(desc.name().as_bytes())),
             Value::array(visible),
+            Value::array(methods),
         ],
     )
 }
@@ -638,6 +830,21 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_reflect_class_info_properties" => {
             (nvs_core_reflect_class_info_properties as *const ()).cast()
         }
+        "nvs_core_reflect_class_info_methods" => {
+            (nvs_core_reflect_class_info_methods as *const ()).cast()
+        }
+        "nvs_core_reflect_class_info_has_method" => {
+            (nvs_core_reflect_class_info_has_method as *const ()).cast()
+        }
+        "nvs_core_reflect_method_info_name" => {
+            (nvs_core_reflect_method_info_name as *const ()).cast()
+        }
+        "nvs_core_reflect_method_info_is_public" => {
+            (nvs_core_reflect_method_info_is_public as *const ()).cast()
+        }
+        "nvs_core_reflect_method_info_parameter_count" => {
+            (nvs_core_reflect_method_info_parameter_count as *const ()).cast()
+        }
         "nvs_core_reflect_class_info_get" => (nvs_core_reflect_class_info_get as *const ()).cast(),
         "nvs_core_reflect_class_info_set" => (nvs_core_reflect_class_info_set as *const ()).cast(),
         "nvs_core_reflect_class_info_call" => {
@@ -647,15 +854,19 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// A slot of the receiving `ClassInfo`, retained because it is being answered.
+/// A slot of the receiving description, retained because it is being answered.
+///
+/// Shared by [`CLASS_INFO`]'s readers and [`METHOD_INFO`]'s, which is why the
+/// class is an argument: both hold their answers rather than a way back to what
+/// they describe, so every reader of either is this one call.
 ///
 /// # Errors
 ///
 /// A [`Fault::fatal`] for a receiver that is not an object — unreachable from
 /// source, since an instance member's receiver is typed and `E0401` refuses a
 /// call on anything else.
-fn slot_of(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
-    let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+fn slot_of(args: &[Value], class: &CoreClass, index: usize, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], class, member)?;
     let held = crate::instance::slot(receiver, index);
     #[expect(
         unsafe_code,
@@ -757,7 +968,7 @@ nvs_runtime::nvs_helper! {
     /// none at all: [`crate::registry::CoreTy::Instance`] is the home of why,
     /// and `Core\RateLimit\Decision`'s four readers are the precedent.
     fn nvs_core_reflect_class_info_name(_ctx, args: [1]) {
-        slot_of(args, NAME_SLOT, "name")
+        slot_of(args, &CLASS_INFO, NAME_SLOT, "name")
     }
 }
 
@@ -766,7 +977,85 @@ nvs_runtime::nvs_helper! {
     /// visibility-respecting walk, answered off the slot the description was
     /// built with.
     fn nvs_core_reflect_class_info_properties(_ctx, args: [1]) {
-        slot_of(args, PROPERTIES_SLOT, "properties")
+        slot_of(args, &CLASS_INFO, PROPERTIES_SLOT, "properties")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::methods(): array<Core\Reflect\MethodInfo>` —
+    /// ADR 0019 § 1's roster, replacing `get_class_methods`.
+    ///
+    /// The whole roster, and § 2 is why: naming a method reads the program's
+    /// *shape*, which is always available, while calling one is acting and goes
+    /// through [`nvs_core_reflect_class_info_call`]'s check. Answered off the
+    /// slot [`describe`] filled, so two calls on one description walk nothing
+    /// twice.
+    fn nvs_core_reflect_class_info_methods(_ctx, args: [1]) {
+        slot_of(args, &CLASS_INFO, METHODS_SLOT, "methods")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::hasMethod(string $name): bool` — replacing
+    /// `method_exists`.
+    ///
+    /// A linear scan of the roster rather than a fourth slot keyed by name: a
+    /// class's method list is short, and the alternative is a second copy of
+    /// every name that would have to be kept saying the same thing as the
+    /// first. It answers `true` for a `private` method, which is the whole
+    /// point — `rule:core-classes/reflect` asks that a refusal be
+    /// distinguishable from a misspelling, and this is the member that
+    /// distinguishes them.
+    fn nvs_core_reflect_class_info_has_method(_ctx, args: [2]) {
+        let member = "hasMethod";
+        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+        let name = text_of(&args[1], "Core\\Reflect\\ClassInfo::hasMethod")?;
+        let held = crate::instance::slot(receiver, METHODS_SLOT);
+        let Some(ptr) = held.array_ptr() else {
+            return Err(Fault::fatal(format!(
+                "{CLASS_INFO_NAME}::{member} expected {:?} in its roster slot, got tag {}",
+                Tag::Array,
+                held.tag_byte()
+            )));
+        };
+        let roster = crate::arr::borrowed(ptr);
+        // By slot rather than by key: [`describe`] builds this array with
+        // `append` alone and hands it to nobody who can unset an entry, so its
+        // slots are exactly `0..count` and a scan of them names every row once.
+        let found = (0..roster.count()).any(|index| {
+            let Some(row) = roster.value_at(index) else {
+                return false;
+            };
+            let Some(row) = row.obj_ptr() else {
+                return false;
+            };
+            crate::instance::slot(row, METHOD_NAME_SLOT).as_text() == Some(name)
+        });
+        Ok(Value::bool(found))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\MethodInfo::name(): string` — the method's own name.
+    fn nvs_core_reflect_method_info_name(_ctx, args: [1]) {
+        slot_of(args, &METHOD_INFO, METHOD_NAME_SLOT, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\MethodInfo::isPublic(): bool` — the visibility bit
+    /// `nvs_types::layout` fixed at the declaration and
+    /// [`nvs_runtime::MethodRow::public`] carried down.
+    fn nvs_core_reflect_method_info_is_public(_ctx, args: [1]) {
+        slot_of(args, &METHOD_INFO, METHOD_PUBLIC_SLOT, "isPublic")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\MethodInfo::parameterCount(): uint` — the declared
+    /// parameter count, receiver excluded.
+    fn nvs_core_reflect_method_info_parameter_count(_ctx, args: [1]) {
+        slot_of(args, &METHOD_INFO, METHOD_PARAMETERS_SLOT, "parameterCount")
     }
 }
 

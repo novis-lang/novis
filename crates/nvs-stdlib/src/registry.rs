@@ -2005,11 +2005,16 @@ pub const CLASSES: &[CoreClass] = &[
     // call only through the description, and § 2 makes that reach face the
     // ordinary check.
     crate::reflect::CLASS,
-    // What `forObject` answers with: the described class, as the two questions
-    // that need no argument. Readers rather than properties, for the reason
-    // [`CoreTy::Instance`] states — a `Core` instance has no property a program
-    // can reach.
+    // What `forObject` answers with: the described class, as the questions that
+    // need no argument and the acting members that take the value back. Readers
+    // rather than properties, for the reason [`CoreTy::Instance`] states — a
+    // `Core` instance has no property a program can reach.
     crate::reflect::CLASS_INFO,
+    // One row of that description's method roster. A class of its own rather
+    // than a `{name, public}` shape, because a shape has no member to hang the
+    // next question off and the roster ADR 0019 § 1 names is a family of
+    // descriptions, not of records.
+    crate::reflect::METHOD_INFO,
     // § 3's other half of the same ADR: the compiler's own parser, reached at
     // run time. One member, because parsing is one question.
     crate::ast::CLASS,

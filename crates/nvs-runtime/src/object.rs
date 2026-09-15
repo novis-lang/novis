@@ -1032,6 +1032,19 @@ impl ClassDesc {
         self.methods.len()
     }
 
+    /// The method at `index` in name order, or `None` past the last one.
+    ///
+    /// [`Self::field_name`]'s twin, and it exists for the same single reader:
+    /// the walk that wants *every* row rather than the one a dispatch names.
+    /// `Core\Reflect\ClassInfo::methods` is that walk, and the order it
+    /// inherits is the sort [`Self::methods`] is already kept in for
+    /// [`Self::method_row`]'s binary search — which is what makes a reflective
+    /// roster the same list on every run and every machine.
+    #[must_use]
+    pub fn method_at(&self, index: usize) -> Option<&MethodRow> {
+        self.methods.get(index)
+    }
+
     /// `rule:core-classes/derive-attribute`'s derived JSON field list, in declaration order — empty for a
     /// class carrying no `#[Json\Derive]`.
     ///
