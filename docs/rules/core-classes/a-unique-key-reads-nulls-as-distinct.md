@@ -17,11 +17,13 @@ and nothing else; the `WHERE` is the emitter's, the way SQLite's emitter already
 `CREATE UNIQUE INDEX` where the others write a constraint, and
 `rule:core-classes/schema-vocabulary-is-closed` still keeps a partial index out of what a program may
 express. The catalog reader matches the index back to the key that asked for it, predicate and all, so
-a second `plan` over a converged database is empty. **Where it cannot, `plan` refuses** on a SQL
-Server table holding a nullable unique column, naming the table and the key: a refusal costs an
-operator a manual step, while DDL that will not converge re-proposes itself on every deployment. A
-build over an existing table is `Locking` and inside a `CREATE TABLE` it is `Safe`
-(`rule:core-classes/schema-plan`).
+a second `plan` over a converged database is empty. **Any other predicate leaves the index out of the
+read value entirely**, as a partial index always has: one arriving with its `WHERE` discarded would
+put a key in the value the server does not hold, and a diff that agrees with a database it does not
+match is the failure the whole schema half rests on not having. The cost falls the other way — a plan
+proposing a key whose name a partial index already owns fails on the server rather than in the plan,
+which `crates/nvs-db/src/catalog.rs`'s module doc owns. A build over an existing table is `Locking`
+and inside a `CREATE TABLE` it is `Safe` (`rule:core-classes/schema-plan`).
 
 The alternative is refused for a reason that outlives SQL Server: a `not null` column carrying a
 generated token per row cannot be added to a table that already holds rows, so it describes a schema

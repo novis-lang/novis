@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*27 of 86 rules below are **designed** rather than shipped, and are marked where they appear.*
+*23 of 86 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -907,7 +907,7 @@ path in `TdsTarget::resolve`, as `BlockError`'s `NoSocketTransport`.
 
 <a id="core-classes-server-version-is-what-the-server-said"></a>
 
-## `serverVersion` answers what the server said during the handshake, and never spends a round trip  *(designed — not yet in the compiler)*
+## `serverVersion` answers what the server said during the handshake, and never spends a round trip
 
 `rule:core-classes/server-version-is-what-the-server-said`
 
@@ -926,7 +926,8 @@ A server's own string is answered **unchanged**, suffix and all: the value exist
 the other end, and a driver that tidies it hides the thing being asked about. Where the server sends
 numbers rather than a string, the table above fixes the one spelling, so a program comparing versions
 across drivers compares one shape. The member never answers `null` — each of the five has an answer —
-and it costs one short string per open connection.
+and it costs one short string per open wire connection, and nothing at all on SQLite, whose answer is
+the linked library's and belongs to the binary rather than to a connection.
 
 A `SELECT version()` is refused: it spends a round trip on the request path to learn something the
 connection was already told. [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan)'s grader is keyed on the server version
@@ -1061,7 +1062,7 @@ as reflected. The same table is read the other way by [`core-classes/schema-voca
 
 <a id="core-classes-db-streaming"></a>
 
-## A streaming result holds its connection until it is drained, and a second statement on it throws  *(designed — not yet in the compiler)*
+## A streaming result holds its connection until it is drained, and a second statement on it throws
 
 `rule:core-classes/db-streaming`
 
@@ -1084,7 +1085,7 @@ statement refused — and the read state each driver leaves between two steps is
 
 <a id="core-classes-a-stream-parks-its-read-on-the-connection"></a>
 
-## A stream's read state is parked on the connection on every driver, and a buffer is never the answer  *(designed — not yet in the compiler)*
+## A stream's read state is parked on the connection on every driver, and a buffer is never the answer
 
 `rule:core-classes/a-stream-parks-its-read-on-the-connection`
 
@@ -1259,7 +1260,7 @@ spelling back as the construct it stands for.
 
 <a id="core-classes-a-unique-key-reads-nulls-as-distinct"></a>
 
-## A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index  *(designed — not yet in the compiler)*
+## A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index
 
 `rule:core-classes/a-unique-key-reads-nulls-as-distinct`
 
@@ -1282,11 +1283,13 @@ and nothing else; the `WHERE` is the emitter's, the way SQLite's emitter already
 `CREATE UNIQUE INDEX` where the others write a constraint, and
 [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed) still keeps a partial index out of what a program may
 express. The catalog reader matches the index back to the key that asked for it, predicate and all, so
-a second `plan` over a converged database is empty. **Where it cannot, `plan` refuses** on a SQL
-Server table holding a nullable unique column, naming the table and the key: a refusal costs an
-operator a manual step, while DDL that will not converge re-proposes itself on every deployment. A
-build over an existing table is `Locking` and inside a `CREATE TABLE` it is `Safe`
-([`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan)).
+a second `plan` over a converged database is empty. **Any other predicate leaves the index out of the
+read value entirely**, as a partial index always has: one arriving with its `WHERE` discarded would
+put a key in the value the server does not hold, and a diff that agrees with a database it does not
+match is the failure the whole schema half rests on not having. The cost falls the other way — a plan
+proposing a key whose name a partial index already owns fails on the server rather than in the plan,
+which `crates/nvs-db/src/catalog.rs`'s module doc owns. A build over an existing table is `Locking`
+and inside a `CREATE TABLE` it is `Safe` ([`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan)).
 
 The alternative is refused for a reason that outlives SQL Server: a `not null` column carrying a
 generated token per row cannot be added to a table that already holds rows, so it describes a schema

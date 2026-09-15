@@ -13,7 +13,8 @@ A server's own string is answered **unchanged**, suffix and all: the value exist
 the other end, and a driver that tidies it hides the thing being asked about. Where the server sends
 numbers rather than a string, the table above fixes the one spelling, so a program comparing versions
 across drivers compares one shape. The member never answers `null` — each of the five has an answer —
-and it costs one short string per open connection.
+and it costs one short string per open wire connection, and nothing at all on SQLite, whose answer is
+the linked library's and belongs to the binary rather than to a connection.
 
 A `SELECT version()` is refused: it spends a round trip on the request path to learn something the
 connection was already told. `rule:core-classes/schema-plan`'s grader is keyed on the server version

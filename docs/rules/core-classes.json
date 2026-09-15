@@ -404,9 +404,14 @@
     {
       "id": "core-classes/server-version-is-what-the-server-said",
       "title": "`serverVersion` answers what the server said during the handshake, and never spends a round trip",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0187"],
-      "seeAlso": ["core-classes/db-connection-is-named", "core-classes/db-drivers-are-an-enum", "core-classes/schema-plan"]
+      "seeAlso": ["core-classes/db-connection-is-named", "core-classes/db-drivers-are-an-enum", "core-classes/schema-plan"],
+      "guardedBy": [
+        "crates/nvs-stdlib/tests/db_stream.rs",
+        "tests/conformance/core/db-server-version-answers-what-the-connection-kept.nvst",
+        "tests/conformance/core/db-server-version-costs-no-statement-so-a-held-connection-answers-it.nvst"
+      ]
     },
     {
       "id": "core-classes/db-connection-busy-state",
@@ -475,10 +480,11 @@
     {
       "id": "core-classes/db-streaming",
       "title": "A streaming result holds its connection until it is drained, and a second statement on it throws",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0067", "0132", "0187"],
       "seeAlso": ["core-classes/db-statement-members", "core-classes/db-connection-busy-state", "core-classes/a-stream-parks-its-read-on-the-connection"],
       "guardedBy": [
+        "crates/nvs-stdlib/tests/db_stream.rs",
         "tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst",
         "tests/conformance/core/db-stream-refuses-a-tainted-statement.nvst"
       ]
@@ -486,10 +492,14 @@
     {
       "id": "core-classes/a-stream-parks-its-read-on-the-connection",
       "title": "A stream's read state is parked on the connection on every driver, and a buffer is never the answer",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0187"],
       "seeAlso": ["core-classes/db-streaming", "core-classes/db-connection-busy-state", "core-classes/db-drivers-are-an-enum"],
-      "guardedBy": ["crates/nvs-db/src/pg.rs"]
+      "guardedBy": [
+        "crates/nvs-stdlib/tests/db_stream.rs",
+        "tests/conformance/core/db-stream-as-answers-a-walk-and-not-a-buffered-result.nvst",
+        "tests/conformance/core/db-stream-on-sqlite-walks-its-rows-or-refuses-naming-the-driver.nvst"
+      ]
     },
     {
       "id": "core-classes/db-transactions",
@@ -548,9 +558,14 @@
     {
       "id": "core-classes/a-unique-key-reads-nulls-as-distinct",
       "title": "A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0187"],
-      "seeAlso": ["core-classes/schema-vocabulary-is-closed", "core-classes/schema-plan", "core-classes/queue-storage-is-a-table"]
+      "seeAlso": ["core-classes/schema-vocabulary-is-closed", "core-classes/schema-plan", "core-classes/queue-storage-is-a-table"],
+      "guardedBy": [
+        "crates/nvs-db/src/ddl.rs",
+        "crates/nvs-db/src/catalog.rs",
+        "crates/nvs-stdlib/tests/queue.rs"
+      ]
     },
     {
       "id": "core-classes/schema-converges",
