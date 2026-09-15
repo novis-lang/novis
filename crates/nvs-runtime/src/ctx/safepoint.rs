@@ -62,6 +62,68 @@ impl Ctx {
         self.on_root_core = parent.on_root_core;
     }
 
+    /// Starts a request tree of its own on this context: a safepoint word and a
+    /// deadline nothing else polls, in place of the two it was sharing.
+    ///
+    /// The inverse of [`Self::share_safepoint_with`], and what a connection
+    /// serving one request after another calls in front of each of them. A stop
+    /// is the **tree's** — one store reaches every isolate under it — so the
+    /// tree a request is stopped in has to be that request's, and on the served
+    /// path it is the connection's context that every request's isolate is made
+    /// from ([`Self::isolate`]). A request stopped at `rule:errors/on-limit`'s
+    /// CPU ceiling leaves [`SafepointFlags::CPU_LIMIT`] standing in that word
+    /// with the deadline beside it expired, and the next request down the same
+    /// keep-alive connection would be a `FATAL` at its first poll.
+    ///
+    /// **Replaced rather than cleared, and the deadline is why.** Lowering the
+    /// flag where a stopped request ends would have to know that nothing else in
+    /// the tree is still running on it, an isolate ending being no more than
+    /// that isolate ending; and the deadline half has no such move at all.
+    /// [`SafepointView::expire_deadline`] is a one-way store any stranger thread
+    /// may make, deliberately with no un-expire for the watchdog that made it to
+    /// race. A fresh pair is the one answer that is right for both words.
+    ///
+    /// Called **before** whatever arms this context's ceilings, for the order
+    /// [`Self::isolate`] keeps: [`Self::set_memory_limit`] arms the allocator
+    /// with this context's safepoint address beside the number, so an arming
+    /// that ran first would leave the allocator raising its flag in the word
+    /// this replaces.
+    ///
+    /// **What it spends:** nothing on the ordinary request, which reuses the
+    /// allocation below, and one [`TreeState`] and one word on a request that
+    /// follows one whose deferred work is still running. O(in-flight), per
+    /// `rule:programs/memory-priority`.
+    pub fn reroot(&mut self) {
+        debug_assert!(
+            self.on_root_core && self.tree_share.is_none(),
+            "a context publishing a share into a tree rooted on another core has \
+             a share to give back, which re-rooting it would drop on the floor"
+        );
+        // Reset in place where this context is the tree's only holder, which is
+        // the request path's ordinary case, and replaced where it is not —
+        // which is exactly the case a reset would be wrong in.
+        // `rule:concurrency/after-response-outlives-the-connection`'s deferred
+        // work belongs to the tree it was spawned in and is still polling that
+        // word, so a reset would hand it back the stop and the budget its own
+        // request had already spent. The uniqueness that makes the reuse free is
+        // the same fact that makes it safe, which is why one branch answers both
+        // questions.
+        if let Some(tree) = std::sync::Arc::get_mut(&mut self.tree) {
+            *tree = TreeState::default();
+        } else {
+            self.tree = std::sync::Arc::new(TreeState::default());
+            // Beside the handle and never without it, for
+            // [`Self::share_safepoint_with`]'s reason: the hot slot may not name
+            // a word this context holds no share of.
+            self.safepoint = std::ptr::from_ref(&self.tree.word);
+        }
+        if let Some(deadline) = std::sync::Arc::get_mut(&mut self.deadline) {
+            *deadline.get_mut() = 0;
+        } else {
+            self.deadline = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        }
+    }
+
     /// Joins `tree` as a member running on a core **other** than the one that
     /// tree's root runs on — what a child placed `on: "worker"` is made with,
     /// where a same-core child is made by [`Ctx::isolate`].
@@ -598,6 +660,72 @@ mod tests {
             born_stopped.deadline_expired(),
             "an isolate built after the stop was born clean"
         );
+    }
+
+    /// The connection's half of that: both words belong to the request that
+    /// spent them, so the request after it polls neither.
+    #[test]
+    fn a_rerooted_context_keeps_neither_word_the_request_before_it_was_stopped_in() {
+        let mut connection = Ctx::buffered();
+        let stopped = connection.isolate(OutputSink::Buffer(Vec::new()));
+        // What `nvs_host::watchdog` does to a request past its CPU ceiling,
+        // through the handle the door published for it: both words, because
+        // both are polled.
+        let view = stopped.safepoint_view();
+        view.request(SafepointFlags::CPU_LIMIT);
+        view.expire_deadline();
+        assert!(
+            connection
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT)
+        );
+        assert!(connection.deadline_expired());
+
+        drop(view);
+        drop(stopped);
+        connection.reroot();
+        assert!(
+            connection.safepoint_flags().is_empty(),
+            "the connection went on polling the word its last request was stopped in"
+        );
+        assert!(
+            !connection.deadline_expired(),
+            "the connection went on polling the deadline its last request expired"
+        );
+        let next = connection.isolate(OutputSink::Buffer(Vec::new()));
+        assert!(
+            next.safepoint_flags().is_empty() && !next.deadline_expired(),
+            "the request after a stopped one was born stopped"
+        );
+    }
+
+    /// The other direction, and the one the reuse inside
+    /// [`Ctx::reroot`] has to answer: work still running in the tree the
+    /// connection left keeps the stop that was raised on it.
+    #[test]
+    fn a_reroot_leaves_the_tree_behind_it_stopped() {
+        let mut connection = Ctx::buffered();
+        let deferred = connection.isolate(OutputSink::Buffer(Vec::new()));
+        let view = deferred.safepoint_view();
+        view.request(SafepointFlags::CPU_LIMIT);
+        view.expire_deadline();
+
+        connection.reroot();
+        assert!(
+            deferred
+                .safepoint_flags()
+                .contains(SafepointFlags::CPU_LIMIT),
+            "deferred work outliving its response was un-stopped by the next request's re-root"
+        );
+        assert!(
+            deferred.deadline_expired(),
+            "deferred work outliving its response had its deadline given back"
+        );
+        assert!(
+            view.flags().contains(SafepointFlags::CPU_LIMIT) && view.deadline_expired(),
+            "a handle on the tree that was left behind now names the tree that replaced it"
+        );
+        assert!(connection.safepoint_flags().is_empty() && !connection.deadline_expired());
     }
 
     #[test]

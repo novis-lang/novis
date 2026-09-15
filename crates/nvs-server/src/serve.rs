@@ -1218,6 +1218,15 @@ where
                 // server runs may answer in pieces, and one that does not
                 // leaves the cell empty.
                 let isolate = isolate.offering_response_stream(opening.clone());
+                // This request's own stop word and deadline, before the line
+                // below arms anything off them: a connection carries any number
+                // of requests and the tree a request is stopped in is that
+                // request's, where a word held for the socket would make the
+                // request after a stopped one a `FATAL` at its first poll.
+                // `Ctx::reroot` owns why the pair is replaced rather than
+                // cleared, and why this is ahead of the arming and not behind
+                // it.
+                ctx.borrow_mut().reroot();
                 // `rule:config/the-config-is-an-immutable-snapshot`'s one
                 // clone, taken at the request's start and not when this
                 // connection was accepted: a connection carries any number of
