@@ -144,8 +144,35 @@ pub enum CaptureConv {
     /// `rule:security/route-capture-is-laundered-by-its-type` carves out of its
     /// own "a failed conversion is not a match".
     Parses(String),
-    /// A type § 5 admits and no arm above turns text into: a `bool`, and an
-    /// `enum` whose segment spelling is `Core\Router::match`'s to decide. The
+    /// An enum, or a subset of one: every admitted case as the segment text it
+    /// matches on and the constant that text becomes, and a segment naming none
+    /// of them is no match, exactly as a failed `int` conversion is.
+    ///
+    /// **Which spelling each case took is decided while compiling** —
+    /// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
+    /// takes the written backing value where every admitted case wrote one and
+    /// the case name otherwise, and `nvs_types::routes`' `enum_capture` is the
+    /// one reading of it. Nothing about that choice crosses, because nothing
+    /// here has a second question to ask of it: the match is a lookup in the set
+    /// that arrived.
+    ///
+    /// **The value is the case's own backing integer**, handed over as
+    /// [`Param::Int`] or [`Param::Uint`] rather than as an arm of its own. A
+    /// case is indistinguishable from that integer by the time it is a
+    /// [`Value`](crate::Value) ([`crate::object::EnumCases`] says so), so
+    /// constructing anything would be constructing the number twice —
+    /// [`crate::commands::ArgConv::Enum`] is the same decision for a
+    /// command-line word, and the reason both can make it is that an enum has no
+    /// class machinery to reach for.
+    Enum {
+        /// The enum's declared name, fully qualified — carried for the reason
+        /// [`Self::Parses`] carries its class: the compiler resolved it once,
+        /// and a [`Match`] hands over the captures and never the row.
+        class: String,
+        /// Every admitted case: the segment text, and the value it becomes.
+        cases: Vec<(String, crate::commands::CaseValue)>,
+    },
+    /// A type § 5 admits and no arm above turns text into: a `bool`. The
     /// segment matches and its text is handed over — never silently `Text`, so
     /// what is missing stays an arm rather than a behaviour somebody has to
     /// notice.
@@ -462,6 +489,17 @@ impl Route {
                 .iter()
                 .any(|value| value == text)
                 .then(|| Param::Text(text.to_owned())),
+            // Compared byte for byte and case-sensitively under either
+            // spelling, as `Seg::Literal` is: a case name is a name
+            // (`rule:classes/names-resolve-case-sensitively`), and a backing
+            // value has one decimal spelling and no other.
+            CaptureConv::Enum { cases, .. } => cases
+                .iter()
+                .find(|(spelling, _)| spelling == text)
+                .map(|(_, value)| match value {
+                    crate::commands::CaseValue::Int(number) => Param::Int(*number),
+                    crate::commands::CaseValue::Uint(number) => Param::Uint(*number),
+                }),
         }
     }
 }

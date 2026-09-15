@@ -30,3 +30,9 @@ One spelling serves every position: it is what the match converts, what `Core\Ro
 into a link and refuses outside the set (`rule:routing/link-name-and-params-are-checked`), and what
 the generated document lists in `enum: [...]`, so a route, its links and its document cannot
 disagree.
+
+**The match half is built and the link half is not.** The spelling is decided while compiling
+(`nvs_types::routes`' `enum_capture`) and a segment reaches the handler as its case, in a path
+segment; `Core\Router::url` still writes an enum argument as the bare backing integer and checks it
+against no set, so a link into a name-spelled subset is not yet the segment the match would claim,
+and a `#[Query]` value still arrives as its text.

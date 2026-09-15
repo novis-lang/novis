@@ -161,7 +161,11 @@
         "security/route-capture-is-laundered-by-its-type",
         "routing/link-name-and-params-are-checked"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/core/router-an-enum-capture-matches-its-backing-value-and-hands-over-the-case.nvst",
+        "tests/conformance/reject/a-route-capture-refuses-two-enum-cases-at-one-written-value.nvst",
+        "crates/nvs-types/src/routes.rs"
+      ]
     },
     {
       "id": "routing/a-trailing-segment-may-be-absent",

@@ -1788,23 +1788,7 @@ fn runtime_commands(
                                     class: class.clone(),
                                     cases: cases
                                         .iter()
-                                        .map(|(case, value)| {
-                                            (
-                                                case.clone(),
-                                                match value {
-                                                    nvs_types::enums::EnumValue::Int(number) => {
-                                                        nvs_runtime::commands::CaseValue::Int(
-                                                            *number,
-                                                        )
-                                                    }
-                                                    nvs_types::enums::EnumValue::Uint(number) => {
-                                                        nvs_runtime::commands::CaseValue::Uint(
-                                                            *number,
-                                                        )
-                                                    }
-                                                },
-                                            )
-                                        })
+                                        .map(|(case, value)| (case.clone(), case_value(*value)))
                                         .collect(),
                                 }
                             }
@@ -1887,6 +1871,20 @@ pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::rout
 fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureConv {
     use nvs_runtime::routes::CaptureConv;
 
+    // Above the closed set because an enum subset is both: its spellings are a
+    // set a link is checked against, and only this arm carries what each one
+    // converts to, which is the difference between handing a program its case
+    // and handing it the segment.
+    if let Some(narrowed) = &param.cases {
+        return CaptureConv::Enum {
+            class: narrowed.class.clone(),
+            cases: narrowed
+                .cases
+                .iter()
+                .map(|(spelling, value)| (spelling.clone(), case_value(*value)))
+                .collect(),
+        };
+    }
     if let Some(allowed) = &param.allowed {
         return CaptureConv::OneOf(allowed.clone());
     }
@@ -1906,6 +1904,20 @@ fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureCo
         // the engine ships off the match and defer it to the crossing.
         Some(class) if param.parses => CaptureConv::Parses(class.to_owned()),
         Some(_) => CaptureConv::Unconverted,
+    }
+}
+
+/// One enum case's constant, narrowed to the two integer types a running
+/// program holds it in.
+///
+/// Both tables that carry an enum's cases cross here — a command's argument and
+/// a route's capture — because the narrowing is one decision:
+/// `nvs_runtime::commands::CaseValue` owns why the value does not travel widened
+/// to the `i128` a membership test wants.
+fn case_value(value: nvs_types::enums::EnumValue) -> nvs_runtime::commands::CaseValue {
+    match value {
+        nvs_types::enums::EnumValue::Int(number) => nvs_runtime::commands::CaseValue::Int(number),
+        nvs_types::enums::EnumValue::Uint(number) => nvs_runtime::commands::CaseValue::Uint(number),
     }
 }
 

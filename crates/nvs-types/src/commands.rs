@@ -192,9 +192,10 @@ pub enum ArgConv {
     /// that word becomes, and the enum's own name beside them.
     ///
     /// **The word is the case name.** That is the decision
-    /// [`crate::routes::closed_set`] declined to take, and it stays declined
-    /// *there*: a route segment is written by a link and read by `rule:routing/a-capture-narrows-to-a-closed-set`,
-    /// which is a different question with a different owner. Here `rule:enums/no-class-machinery`'s
+    /// [`crate::routes::closed_set`] answers for neither caller, and
+    /// `crate::routes::enum_capture` takes the other way for a route segment:
+    /// one written by a link and read by `rule:routing/a-capture-narrows-to-a-closed-set`
+    /// is spelled by a written backing value where its subset has one. Here `rule:enums/no-class-machinery`'s
     /// backing value is the alternative and it loses on § 6's own argument — the
     /// refusal below names every value that would have been accepted *because a
     /// command line is a person typing*, and a list of integers is not that
@@ -249,9 +250,9 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         Ty::Class(name, _) if reaches_parses(name, env) => ArgConv::Parses(name.to_string()),
         // § 3's union, narrowed to the words its members admit by the same
         // computation the route table's captures use. `None` is a union of
-        // *enum cases*, which that function refuses for a reason it owns: a
-        // case's written spelling is undecided, so half a set would refuse
-        // command lines that are correct.
+        // *enum cases*, which that function answers for neither caller because
+        // the two spell one differently — the arm below is this caller's answer,
+        // and `crate::routes::enum_capture` is the route's.
         Ty::Union(_) => {
             crate::routes::closed_set(ty, env).map_or(ArgConv::Unconverted, ArgConv::OneOf)
         }

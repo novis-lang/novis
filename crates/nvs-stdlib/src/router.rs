@@ -545,8 +545,13 @@ const MATCH_PARAMS: usize = 1;
 /// admits that it does not convert yet arrives on the text arm — which is what
 /// makes this union the readable statement of where
 /// [`nvs_runtime::routes::CaptureConv`] currently stands. A `decimal` and a
-/// `Core\Uuid` are the two that joined it once the parses reached the crate the
-/// walk is in; a `bool` and an `enum` have not.
+/// `Core\Uuid` joined it once the parses reached the crate the walk is in; a
+/// `bool` has not. An **enum capture needs no member of its own**: a case is
+/// its backing integer by the time it is a value
+/// (`rule:enums/no-class-machinery`), so the match hands over the `int` or the
+/// `uint` it already converted to and the program reads the case rather than
+/// the segment — [`nvs_runtime::routes::CaptureConv::Enum`] is the home of
+/// that, and of which text matched it.
 ///
 /// **The last member is an interface rather than a class**, and it is the one
 /// the matcher does *not* convert: a capture typed as any other class built

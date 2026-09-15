@@ -48,7 +48,7 @@ use nvs_hir::QName;
 use nvs_syntax::ast::{
     EnumDecl, Expr, ExprKind, NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind, UnaryOp,
 };
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::span_text;
 
@@ -80,6 +80,17 @@ pub struct EnumInfo {
     pub backing: EnumBacking,
     /// Each case's constant value, keyed by the case's own name.
     pub cases: FxHashMap<String, EnumValue>,
+    /// The cases whose value the declaration **wrote out**, rather than
+    /// counting it on from the case before.
+    ///
+    /// Not a difference a value can carry: `Active = 0` and the first case of
+    /// `{ Active, Banned }` are the same constant, and only one of them is a
+    /// number its author stated and means to keep. `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
+    /// is the reader that needs the difference — it spells a route capture's
+    /// subset by its values only where every admitted case wrote one — and the
+    /// declaration is the only place it can be read, since a counted value is
+    /// indistinguishable from a written one everywhere after this.
+    pub written: FxHashSet<String>,
 }
 
 /// Every enum declared in the files walked, by resolved name.
@@ -162,9 +173,32 @@ fn seed_core(table: &mut EnumTable) {
             EnumInfo {
                 backing: EnumBacking::Int,
                 cases,
+                written: core_written(declared.cases),
             },
         );
     }
+}
+
+/// Which of a `Core` enum's cases stated a value, read back out of the run of
+/// values `nvs_stdlib::registry::CoreEnum::cases` states for every one of them.
+///
+/// That table writes each constant out because a table the compiler reads has
+/// nothing to gain from re-deriving what it could state, so the source form it
+/// stands for — which cases carried a written value and which counted on — is
+/// recoverable and is recovered here: a case whose value is the one
+/// auto-increment would have handed it counted, and any other wrote its own.
+/// The distinction is [`EnumInfo::written`]'s, and a `Core` enum reaching a
+/// route capture is answered by the same rule a declared one is.
+fn core_written(cases: &[(&str, i64)]) -> FxHashSet<String> {
+    let mut written = FxHashSet::default();
+    let mut next = 0;
+    for (name, value) in cases {
+        if *value != next {
+            written.insert((*name).to_owned());
+        }
+        next = value.saturating_add(1);
+    }
+    written
 }
 
 fn collect(
@@ -203,6 +237,7 @@ fn resolve_enum(
 ) -> EnumInfo {
     let backing = backing_of(decl.backing.as_ref(), diags);
     let mut cases = FxHashMap::default();
+    let mut written = FxHashSet::default();
     // `rule:enums/declaration`: "a case with no explicit literal takes the previous case's
     // value plus one, starting at `0` ... including that an explicit value
     // resets the counter for whatever follows it." Held as the *next* value to
@@ -228,9 +263,17 @@ fn resolve_enum(
         };
         let Some(value) = value else { continue };
         next = successor_of(value);
-        cases.insert(span_text(src, case.name.span).to_owned(), value);
+        let name = span_text(src, case.name.span).to_owned();
+        if case.value.is_some() {
+            written.insert(name.clone());
+        }
+        cases.insert(name, value);
     }
-    EnumInfo { backing, cases }
+    EnumInfo {
+        backing,
+        cases,
+        written,
+    }
 }
 
 /// `rule:enums/one-backing-type`: `int` unless `: uint` is written.

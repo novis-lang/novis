@@ -9,8 +9,8 @@ A capture reaches the program as the value the match already converted, so `Core
 // one member per conversion the matcher performs, and a `tainted string`
 // binding -- exactly right for the text arm and for that arm alone -- refuses
 // every other. § 5's `decimal` and `Core\Uuid` are in that union because their
-// readers are reachable from the walk; a `bool` and an `enum` are not, and a
-// capture declared at one of those arrives on the text arm.
+// readers are reachable from the walk; a `bool` is not and arrives on the text
+// arm. An enum needs no member -- a case is its backing integer, converted.
 //
 // The mark sits on the text arm because a segment is a piece of the request
 // path the peer wrote. The two numeric arms carry none: a converted `int` has

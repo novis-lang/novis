@@ -3582,6 +3582,19 @@ pub mod code {
     /// one accepts two words.
     pub const E_SPAWN_PLACEMENT_UNKNOWN: Code = Code::new("E0818");
 
+    /// A capture declared at an enum subset admits two cases carrying one
+    /// written value —
+    /// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`.
+    ///
+    /// An alias is legal in the declaration (`rule:enums/declaration`: equality
+    /// over an enum is value equality, so there is no identity for two names to
+    /// collide on) and stays legal under the case-name spelling, where the names
+    /// are still distinct. It is only the value spelling that cannot carry it:
+    /// one segment would name two cases, and a match that picked either would be
+    /// choosing for the program. Refused rather than first-wins, which is
+    /// `rule:errors/ambiguous-input-refused`.
+    pub const E_ROUTE_CAPTURE_CASES_SHARE_A_VALUE: Code = Code::new("E0819");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

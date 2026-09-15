@@ -214,6 +214,12 @@ into a link and refuses outside the set ([`routing/link-name-and-params-are-chec
 the generated document lists in `enum: [...]`, so a route, its links and its document cannot
 disagree.
 
+**The match half is built and the link half is not.** The spelling is decided while compiling
+(`nvs_types::routes`' `enum_capture`) and a segment reaches the handler as its case, in a path
+segment; `Core\Router::url` still writes an enum argument as the bare backing integer and checks it
+against no set, so a link into a name-spelled subset is not yet the segment the match would claim,
+and a `#[Query]` value still arrives as its text.
+
 <sub>See also [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0186](../decisions/0186.md).</sub>
 
 <a id="routing-a-trailing-segment-may-be-absent"></a>

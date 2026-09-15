@@ -50,13 +50,17 @@
 //!    Decided: Hand these passes the slot mapping check_args_typed already builds — Named arguments are
 //!    checked like positional ones, and three passes take a new input.
 //!    — owner: unowned-closures
-//! 2. **An enum-case capture has no closed set to check against**, so [`within_set`]
-//!    passes every value written for one. `crate::routes::closed_set` owns why:
-//!    what segment text arrives at a case is `Core\Router::match`'s decision, and
-//!    that member lands with the rest of the request-facing half, so the set has
-//!    no spelling to compare with yet rather than being one this pass declines to
-//!    read.
-//!    — owner: M7
+//! 2. **An enum capture's set reaches the matcher and not this pass**, so
+//!    [`within_set`] passes every value written for one.
+//!    `crate::routes::enum_capture` decides the spelling
+//!    (`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`)
+//!    and `crate::routes::RouteParam::cases` carries it to the door, but
+//!    `RouteParam::allowed` — the field this pass reads — is still filled from
+//!    `closed_set` alone, and [`segment_text`] folds a case argument to its
+//!    backing integer, which is the admitted spelling for a value-spelled subset
+//!    and not for a name-spelled one. Both halves move together or a correct
+//!    link is refused.
+//!    — owner: m7-server-surface
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;

@@ -1,0 +1,62 @@
+--TEST--
+A capture declared at an enum matches on the spelling its cases were written with — the backing value where every one of them wrote it, the case name where any counted — and the program reads the case rather than the segment — `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`, `rule:routing/a-capture-narrows-to-a-closed-set`
+--FILE--
+<?nvs
+// Two enums, because the spelling is decided per subset and the halves of the
+// rule are only told apart against each other. `Lang` writes both values, so a
+// segment is that integer: a written value is one its author stated and means
+// to keep, which is why it is the one that reaches a URL. `Shelf` counts its
+// cases on from zero, so a segment is the case name -- inserting a case ahead
+// of `New` would repoint `/s/0` at a different one and silently change what
+// every link already in the world means.
+enum Lang: uint { De = 7, En = 9 }
+enum Shelf { New, Sale }
+
+class Docs {
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(Lang $lang): string { return "page"; }
+
+    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get, name: "Docs::shelf")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function shelf(Shelf $shelf): string { return "shelf"; }
+}
+
+try {
+    var $written = Core\Test::request(Core\Http\Method::Get, "/p/7");
+    var $outside = Core\Test::request(Core\Http\Method::Get, "/p/De");
+    var $counted = Core\Test::request(Core\Http\Method::Get, "/s/Sale");
+    var $lowered = Core\Test::request(Core\Http\Method::Get, "/s/sale");
+    echo "written ", $written->body(), "\n";
+    echo "outside ", $outside->body(), "\n";
+    echo "counted ", $counted->body(), "\n";
+    echo "lowered ", $lowered->body(), "\n";
+} catch (RuntimeError $refused) {
+    // The child, which is this same program run from the top for each of the
+    // four requests above (`rule:testing/in-process-request`). What it echoes
+    // is the response body the parent prints.
+    //
+    // A segment naming no admitted case is not a match and falls through, so
+    // `/p/De` and `/s/sale` reach a program the table claimed nothing for --
+    // the same answer a failed `int` conversion gives, and the reason the
+    // narrowing is a property of the table rather than a check the handler was
+    // trusted to write. `sale` also pins the comparison as byte for byte: a
+    // case name is a name.
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        echo "no match";
+    } else {
+        // The value, never the text: `7` here is `Lang::De`'s own constant and
+        // `1` is `Shelf::Sale`'s, which is what "the handler receives the case"
+        // means for an enum whose case is its backing integer
+        // (`rule:enums/no-class-machinery`).
+        echo $matched->name() ?? "unnamed",
+             " lang=", $matched->param("lang") ?? "-",
+             " shelf=", $matched->param("shelf") ?? "-";
+    }
+}
+--EXPECT--
+written Docs::page lang=7 shelf=-
+outside no match
+counted Docs::shelf lang=- shelf=1
+lowered no match

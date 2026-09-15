@@ -1,0 +1,22 @@
+--TEST--
+A capture whose enum admits two cases carrying one written value is refused, because that segment names both — `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`, `rule:errors/ambiguous-input-refused`
+--FILE--
+<?nvs
+// The alias itself is legal and stays legal: equality over an enum is value
+// equality, so there is no identity for two names to collide on
+// (`rule:enums/declaration`), and under the case-name spelling the two names
+// are still distinct. It is the value spelling that cannot carry it -- every
+// case here wrote its value, so a segment is that integer, and `/p/7` would
+// name both cases at once. Refused rather than first-wins: a match that picked
+// either would be choosing for the program.
+enum Lang: uint { De = 7, Deutsch = 7 }
+
+class Docs {
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(Lang $lang): string { return "page"; }
+}
+--EXPECTF-ERROR--
+error[E0819]: `Lang::De` and `Lang::Deutsch` both carry `7`, so that segment names two cases
+%A
+error: aborting due to 1 error

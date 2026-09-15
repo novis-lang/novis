@@ -467,8 +467,9 @@ pub enum ParamIn {
 /// value binds by, where it arrives from, whether it may be absent, the
 /// declared type rendered by [`crate::TypeInterner::describe`], and — where
 /// that type is one — `rule:routing/a-capture-narrows-to-a-closed-set`
-/// 's closed set of values it admits, and whether that type is a class a
-/// segment reaches through its own `parse`. Those are the six things
+/// 's closed set of values it admits, the enum those values are cases of, and
+/// whether that type is a class a segment reaches through its own `parse`.
+/// Those are what
 /// `rule:routing/api-document-is-generated-from-the-route-table`
 /// 's document is built out of — the closed set is that section's
 /// *Enumerations* row, `enum: [en, de, fr]` — and nothing else. A rendered type
@@ -511,6 +512,39 @@ pub struct RouteParam {
     /// reader holding the rendering cannot tell the type whose wire form is a
     /// bare string from the one whose case spellings are still undecided.
     pub parses: bool,
+    /// The enum this parameter narrows to, where its declared type is one or a
+    /// subset of one — see [`enum_capture`], which decides both the spelling a
+    /// segment matches on and the value it becomes.
+    ///
+    /// Beside [`Self::allowed`] rather than inside it because the two answer
+    /// different halves: that field is the *set*, which is what a link is
+    /// checked against and what the generated document lists, and this one is
+    /// the set **plus what each spelling converts to**, which is the only thing
+    /// that lets the match hand a program its case rather than the segment's
+    /// text.
+    pub cases: Option<EnumCapture>,
+}
+
+/// The enum a capture or a `#[Query]` value narrows to: the enum's own name,
+/// and every admitted case as the text that matches it beside the constant that
+/// text becomes.
+///
+/// `nvs_types::commands::ArgConv::Enum`'s row for a command-line word, arrived
+/// at independently and deliberately not shared: that one takes the case name
+/// always, because a command line is a person typing, and this one takes
+/// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`'s
+/// spelling, because a route segment is written by a link and read by a
+/// matcher. One type holding both would have to carry which rule filled it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnumCapture {
+    /// The enum's declared name, fully qualified.
+    pub class: String,
+    /// Every admitted case: the segment text it matches on, and the constant
+    /// that text converts to. Ascending by value, with the name breaking a tie,
+    /// so a subset reads the same on two builds — [`crate::enums::EnumInfo`]'s
+    /// map has no declaration order to take, which is the same reason
+    /// `nvs_types::commands`' twin sorts.
+    pub cases: Vec<(String, crate::enums::EnumValue)>,
 }
 
 /// Every route the program declares, in the order they were walked — file by
@@ -1675,6 +1709,7 @@ fn check_captures(
             ty: None,
             allowed: None,
             parses: false,
+            cases: None,
         });
         let Some((index, param)) = m
             .params
@@ -1722,10 +1757,12 @@ fn check_captures(
         let described = env.interner.describe(ty);
         let allowed = closed_set(ty, env);
         let parses = crate::commands::is_parses_class(ty, env);
+        let cases = enum_capture(ty, param.span, env);
         if let Some(row) = params.last_mut() {
             row.ty = Some(described.clone());
             row.allowed = allowed;
             row.parses = parses;
+            row.cases = cases;
         }
         let admitted = match capture {
             // The one row the shared roster does not answer for: nothing about
@@ -1774,16 +1811,16 @@ fn check_captures(
 /// implementing `Parses` all convert, and none of them names a set anything
 /// could be checked against — a `Parses` class narrows nothing, because the
 /// contract says the text either parses or does not and never which texts do.
-/// What is left is § 5's two additions, minus the half no caller can use yet:
+/// What is left is § 5's other addition:
 ///
 /// - a **union of `string` or `int` literal types**, and a lone literal type,
 ///   which is the same set written with one member;
-/// - an **enum-case subset**, which returns `None` and takes the whole union
-///   with it. A case's segment spelling is `Core\Router::match`'s to decide —
-///   the case name, or `rule:enums/no-class-machinery`'s backing value — and that member is out of
-///   scope (`docs/agent/loop-goal.md` § *Standing decisions*). A set half of
-///   whose members had no spelling would refuse links that are correct, which
-///   is the one failure mode a compile-time refusal may not have.
+/// - an **enum-case subset**, which returns `None` here and is [`enum_capture`]'s
+///   instead. Two callers, two answers: a route segment is spelled by
+///   `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`,
+///   and a command-line word by the case name always
+///   (`crate::commands::ArgConv::Enum`), so the shared function is the one that
+///   answers neither and the difference stays where each rule is stated.
 pub(crate) fn closed_set(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<Vec<String>> {
     let one = |member: crate::ty::TypeId| match env.interner.get(member) {
         crate::ty::Ty::StringLiteral(text) => Some(text.clone()),
@@ -1794,6 +1831,130 @@ pub(crate) fn closed_set(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<Vec<Str
         crate::ty::Ty::Union(members) => members.iter().map(|member| one(*member)).collect(),
         _ => one(ty).map(|only| vec![only]),
     }
+}
+
+/// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
+/// 's spelling, for a capture or a `#[Query]` value declared at a whole enum or
+/// at a subset of one — or `None` where `ty` is neither.
+///
+/// The rule in one reading: a subset whose every admitted case **wrote** its
+/// value is spelled by those values, and one where any case counted on from the
+/// case before is spelled by case name. Both halves are decided over the subset
+/// rather than case by case, because a subset mixing them would put an integer
+/// and a name in the same position — and [`crate::enums::EnumInfo::written`] is
+/// the only record of which is which, since a counted value is an ordinary
+/// integer everywhere after the declaration is read.
+///
+/// A union whose members are cases of two different enums answers `None` and is
+/// [`code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION`]'s refusal where a capture is
+/// declared at one: there is no enum for the match to convert to, which is a
+/// question about the *type* and not about the spelling this decides.
+fn enum_capture(ty: crate::ty::TypeId, span: Span, env: &mut Env<'_>) -> Option<EnumCapture> {
+    let (class, admitted) = admitted_cases(ty, env)?;
+    let info = env.enums.get(&class)?;
+    let spell_by_value = admitted.iter().all(|case| info.written.contains(case));
+    let mut cases: Vec<(String, crate::enums::EnumValue)> = admitted
+        .iter()
+        .filter_map(|case| {
+            let value = info.cases.get(case)?;
+            let spelling = if spell_by_value {
+                match value {
+                    crate::enums::EnumValue::Int(number) => number.to_string(),
+                    crate::enums::EnumValue::Uint(number) => number.to_string(),
+                }
+            } else {
+                case.clone()
+            };
+            Some((spelling, *value))
+        })
+        .collect();
+    cases.sort_by(|left, right| {
+        ordinal(left.1)
+            .cmp(&ordinal(right.1))
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    let class = class.to_string();
+    for pair in cases.windows(2) {
+        if pair[0].0 == pair[1].0 {
+            ambiguous_case_value(&class, &admitted, &pair[0].0, span, env);
+            return None;
+        }
+    }
+    Some(EnumCapture { class, cases })
+}
+
+/// Every case `ty` admits, and the enum they are cases of — a whole enum, one
+/// case, or a union of cases of one and the same enum.
+fn admitted_cases(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<(QName, Vec<String>)> {
+    match env.interner.get(ty) {
+        crate::ty::Ty::Enum(name, _) => {
+            let info = env.enums.get(name)?;
+            let mut cases: Vec<String> = info.cases.keys().cloned().collect();
+            cases.sort();
+            Some((name.clone(), cases))
+        }
+        crate::ty::Ty::EnumCase(name, _, case) => Some((name.clone(), vec![case.clone()])),
+        crate::ty::Ty::Union(members) => {
+            let mut owner: Option<QName> = None;
+            let mut cases = Vec::with_capacity(members.len());
+            for member in members {
+                let crate::ty::Ty::EnumCase(name, _, case) = env.interner.get(*member) else {
+                    return None;
+                };
+                if *owner.get_or_insert_with(|| name.clone()) != *name {
+                    return None;
+                }
+                cases.push(case.clone());
+            }
+            Some((owner?, cases))
+        }
+        _ => None,
+    }
+}
+
+/// One case's value as a number both backings order the same way — the widening
+/// `crate::enums::EnumValue` refuses to carry, made here because a sort key is
+/// the one place a `u64` past `i64::MAX` and a negative `i64` have to compare.
+fn ordinal(value: crate::enums::EnumValue) -> i128 {
+    match value {
+        crate::enums::EnumValue::Int(number) => i128::from(number),
+        crate::enums::EnumValue::Uint(number) => i128::from(number),
+    }
+}
+
+/// Two admitted cases carrying one written value, which under that spelling is
+/// two cases at one segment.
+fn ambiguous_case_value(
+    class: &str,
+    admitted: &[String],
+    spelling: &str,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    let named = admitted
+        .iter()
+        .filter(|case| {
+            env.enums
+                .get(&QName::parse(class))
+                .and_then(|info| info.cases.get(*case))
+                .is_some_and(|value| ordinal(*value).to_string() == spelling)
+        })
+        .map(|case| format!("`{class}::{case}`"))
+        .collect::<Vec<_>>()
+        .join(" and ");
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ROUTE_CAPTURE_CASES_SHARE_A_VALUE,
+            format!("{named} both carry `{spelling}`, so that segment names two cases"),
+        )
+        .with_primary(span, "this capture admits two cases at one spelling")
+        .with_help(
+            "`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`: a \
+             subset whose every case wrote its value is spelled by those values, and an alias \
+             leaves the match nothing to convert to — narrow the capture to one of the two, or \
+             let a case count its value on so the whole subset is spelled by name",
+        ),
+    );
 }
 
 /// `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` parameters of the method the attribute is attached
@@ -1849,6 +2010,7 @@ fn query_params(
                 ),
             );
         }
+        let key_cases = declared.and_then(|ty| enum_capture(ty, param.span, env));
         keys.push(RouteParam {
             name,
             source: ParamIn::Query,
@@ -1859,6 +2021,7 @@ fn query_params(
             ty: declared.map(|ty| env.interner.describe(ty)),
             allowed: declared.and_then(|ty| closed_set(ty, env)),
             parses: declared.is_some_and(|ty| crate::commands::is_parses_class(ty, env)),
+            cases: key_cases,
         });
     }
     keys
