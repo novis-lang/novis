@@ -20,3 +20,4 @@ is not one.
 |---|---:|---:|---:|---|---|
 | `Core\Str::length` | 39.7 | 12.075 | +0.4% | 5c7c823bac04 | 5c7c823bac04 |
 | `lang:expressions/the-pipeline-operator` | 64.3 | 21.370 | -1.0% | a7b0d8219005 | d65bcf96709b |
+| `lang:types/numbers-bool-int-uint-float-decimal` | 61.2 | 20.619 |  | 1224f21f1229 | 8184f8d95133 |
