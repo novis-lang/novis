@@ -218,6 +218,21 @@ windows-sys = { version = "0.61", features = [
     # feature because of it, even though the control pipe is synchronous and passes a null pointer
     # for it. `crates/nvs-config/src/control.rs` is the one caller.
     "Win32_System_IO",
+    # `CreateServiceW`, `ChangeServiceConfig2W`, `ControlService` and `QueryServiceStatusEx`:
+    # ADR 0093 § 3's registration is the SCM's own state and has no file to write, so installing a
+    # service *is* these calls. § 4's `PRESHUTDOWN`, delayed auto-start, description and failure
+    # actions are configuration levels on the handle `CreateServiceW` returns.
+    # `crates/nvs-cli/src/service.rs` is the one caller.
+    "Win32_System_Services",
+    # `RegCreateKeyExW` and `RegDeleteTreeW`: ADR 0093 § 4's event-log source is a subkey under
+    # `SYSTEM\CurrentControlSet\Services\EventLog\Application` and nothing else, so registering one
+    # at install and removing it at uninstall are a key write and a key delete.
+    # `crates/nvs-cli/src/service.rs` is the one caller.
+    "Win32_System_Registry",
+    # `EVENTLOG_ERROR_TYPE` and its siblings: the `TypesSupported` value that subkey carries names
+    # the record types the event viewer will render, so a source registered without them shows an
+    # administrator nothing. `crates/nvs-cli/src/service.rs` is the one caller.
+    "Win32_System_EventLog",
 ] }
 
 # --- TLS over the parking stream (ADR 0051 § 3's "TLS via `rustls`") ---

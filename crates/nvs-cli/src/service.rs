@@ -57,12 +57,14 @@
 //! asserts the list, so every decision those sections take is held to with no
 //! administrator rights and on either platform.
 //!
-//! **What is not on disk is the two appliers and the subcommands that reach
-//! them**: `Scm`, `Systemd`, and the `ServiceCommand` variants beside `unit`.
-//! Nothing in this module touches a platform, which is what 0093's own
-//! *Verification* lists among the end-to-end checks: a real registration needs
-//! administrator rights on a machine somebody chose, and none of the cases
-//! here does.
+//! **[`registration::scm::Scm`] applies the Windows half** — the SCM for a
+//! registration and a control, the registry for the event-log source, the file
+//! ACLs for a grant — and no case reaches it, because a real registration needs
+//! administrator rights on a machine somebody chose. That is why 0093's own
+//! *Verification* lists one among the end-to-end checks rather than here.
+//! [`registration::Systemd`] applies the Linux half and is compiled everywhere,
+//! for the reason [`registration::Platform`] is a parameter. What is still not
+//! on disk is the `ServiceCommand` variants beside `unit`.
 //!
 //! # The manager is told what state this process is in
 //!
@@ -1050,7 +1052,7 @@ pub(crate) fn deliver(text: &str, destination: Option<&Path>) -> std::io::Result
     not(test),
     expect(
         dead_code,
-        reason = "the appliers and the subcommands that reach this seam are the slice after it"
+        reason = "the subcommands that reach this seam are the slice after it"
     )
 )]
 mod registration {
@@ -1652,6 +1654,742 @@ mod registration {
     ) -> Result<Vec<String>, Refused> {
         let actions = control_actions(site.platform, control, name);
         perform(&actions, site, false, &mut std::io::sink())
+    }
+
+    /// The Linux applier: § 5's unit written where systemd reads it, and
+    /// `systemctl` run by argv with no shell
+    /// (`rule:core-classes/process-is-argv-only`).
+    ///
+    /// Not `#[cfg(unix)]`, for the reason [`Platform`] is a parameter rather
+    /// than a `cfg!`: a write, a remove and a child process are `std` on every
+    /// platform, so compiling this everywhere is what keeps it compiled at all
+    /// on the machine somebody happens to be working on. [`scm::Scm`] has no
+    /// such choice — `windows-sys` is a dependency only where it exists.
+    #[cfg_attr(
+        test,
+        expect(
+            dead_code,
+            reason = "the `ServiceCommand` variants that choose an applier are the slice after it"
+        )
+    )]
+    #[derive(Debug)]
+    pub(crate) struct Systemd;
+
+    impl Manager for Systemd {
+        fn apply(&self, action: &Action) -> std::io::Result<Option<String>> {
+            match action {
+                Action::WriteUnit { path, text } => {
+                    if let Some(directory) = path.parent() {
+                        std::fs::create_dir_all(directory)?;
+                    }
+                    std::fs::write(path, text)?;
+                    Ok(None)
+                }
+                Action::RemoveUnit { path } => match std::fs::remove_file(path) {
+                    // The unit being gone is the state an uninstall asks for,
+                    // which is what lets one finish after an install that
+                    // stopped part way through its own list.
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+                    other => other.map(|()| None),
+                },
+                Action::Systemctl { argv } => systemctl(argv),
+                Action::Register { .. }
+                | Action::Preshutdown { .. }
+                | Action::Failure { .. }
+                | Action::Grant { .. }
+                | Action::EventSource { .. }
+                | Action::Deregister { .. }
+                | Action::Revoke { .. }
+                | Action::RemoveEventSource { .. }
+                | Action::Scm { .. } => Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "an SCM action on Linux",
+                )),
+            }
+        }
+    }
+
+    /// One `systemctl` run, by argv and with no shell, answering what it wrote
+    /// to standard output.
+    ///
+    /// `is-active` answers by **exit status** — a unit that is not running is
+    /// reported with a non-zero exit and the state on standard output — so for
+    /// that verb alone the output is the answer rather than a failure. Every
+    /// other verb here means what its status says, and a failing one carries
+    /// whatever systemd wrote to standard error.
+    #[cfg_attr(
+        test,
+        expect(
+            dead_code,
+            reason = "the `ServiceCommand` variants that choose an applier are the slice after it"
+        )
+    )]
+    fn systemctl(argv: &[String]) -> std::io::Result<Option<String>> {
+        let answered = argv.first().is_some_and(|verb| verb == "is-active");
+        let run = std::process::Command::new("systemctl")
+            .args(argv)
+            .output()?;
+        if run.status.success() || answered {
+            let out = String::from_utf8_lossy(&run.stdout).trim().to_owned();
+            return Ok((!out.is_empty()).then_some(out));
+        }
+        Err(std::io::Error::other(format!(
+            "systemctl {} failed: {}",
+            argv.join(" "),
+            String::from_utf8_lossy(&run.stderr).trim()
+        )))
+    }
+
+    /// The Windows applier: the SCM for a registration and a control, the
+    /// registry for the event-log source, and the file ACLs for a grant.
+    ///
+    /// Nothing here decides anything. The builder that produced the [`Action`]
+    /// already chose the start type, the timeout, the account and the rights,
+    /// and every function below spells one of those the platform's way, so the
+    /// cases that assert § 3's and § 4's lists keep asserting the decisions
+    /// even though no case can reach this module: a real registration needs
+    /// administrator rights on a machine somebody chose.
+    ///
+    /// The three verbs that ask for a state rather than a change — `Deregister`,
+    /// a `Stop` and `RemoveEventSource` — answer for the state and not for the
+    /// call, so a service already stopped, already gone or a source that was
+    /// never there is a step that is done. That is what lets an uninstall of a
+    /// half-finished install still leave no key, no source and no granted ACL.
+    #[cfg(windows)]
+    #[cfg_attr(
+        test,
+        expect(
+            dead_code,
+            reason = "the `ServiceCommand` variants that choose an applier are the slice after it"
+        )
+    )]
+    #[expect(
+        unsafe_code,
+        reason = "registering a service, writing an event-log source and granting a right on a \
+                  path are `advapi32` calls, and none of the three has a spelling in `std`"
+    )]
+    pub(crate) mod scm {
+        use std::io::{Error, ErrorKind};
+        use std::os::windows::ffi::OsStrExt;
+        use std::path::Path;
+        use std::time::Duration;
+
+        use windows_sys::Win32::Foundation::{
+            ERROR_FILE_NOT_FOUND, ERROR_SERVICE_ALREADY_RUNNING, ERROR_SERVICE_DOES_NOT_EXIST,
+            ERROR_SERVICE_MARKED_FOR_DELETE, ERROR_SERVICE_NOT_ACTIVE, ERROR_SUCCESS, LocalFree,
+            WIN32_ERROR,
+        };
+        use windows_sys::Win32::Security::Authorization::{
+            ACCESS_MODE, EXPLICIT_ACCESS_W, GRANT_ACCESS, GetNamedSecurityInfoW,
+            NO_MULTIPLE_TRUSTEE, REVOKE_ACCESS, SE_FILE_OBJECT, SetEntriesInAclW,
+            SetNamedSecurityInfoW, TRUSTEE_IS_NAME, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
+        };
+        use windows_sys::Win32::Security::{
+            ACL, DACL_SECURITY_INFORMATION, NO_INHERITANCE, PSECURITY_DESCRIPTOR,
+            SUB_CONTAINERS_AND_OBJECTS_INHERIT,
+        };
+        use windows_sys::Win32::Storage::FileSystem::{
+            DELETE, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+        };
+        use windows_sys::Win32::System::EventLog::{
+            EVENTLOG_ERROR_TYPE, EVENTLOG_INFORMATION_TYPE, EVENTLOG_WARNING_TYPE,
+        };
+        use windows_sys::Win32::System::Registry::{
+            HKEY, HKEY_LOCAL_MACHINE, KEY_WRITE, REG_DWORD, REG_EXPAND_SZ, REG_OPTION_NON_VOLATILE,
+            RegCloseKey, RegCreateKeyExW, RegDeleteTreeW, RegSetValueExW,
+        };
+        use windows_sys::Win32::System::Services::{
+            ChangeServiceConfig2W, CloseServiceHandle, ControlService, CreateServiceW,
+            DeleteService, OpenSCManagerW, OpenServiceW, QueryServiceStatusEx, SC_ACTION,
+            SC_ACTION_NONE, SC_ACTION_RESTART, SC_HANDLE, SC_MANAGER_CONNECT,
+            SC_MANAGER_CREATE_SERVICE, SC_STATUS_PROCESS_INFO, SERVICE_AUTO_START,
+            SERVICE_CHANGE_CONFIG, SERVICE_CONFIG_DELAYED_AUTO_START_INFO,
+            SERVICE_CONFIG_DESCRIPTION, SERVICE_CONFIG_FAILURE_ACTIONS,
+            SERVICE_CONFIG_FAILURE_ACTIONS_FLAG, SERVICE_CONFIG_PRESHUTDOWN_INFO,
+            SERVICE_CONTINUE_PENDING, SERVICE_CONTROL_STOP, SERVICE_DELAYED_AUTO_START_INFO,
+            SERVICE_DEMAND_START, SERVICE_DESCRIPTIONW, SERVICE_ERROR_NORMAL,
+            SERVICE_FAILURE_ACTIONS_FLAG, SERVICE_FAILURE_ACTIONSW, SERVICE_PAUSE_PENDING,
+            SERVICE_PAUSED, SERVICE_PRESHUTDOWN_INFO, SERVICE_QUERY_STATUS, SERVICE_RUNNING,
+            SERVICE_START, SERVICE_START_PENDING, SERVICE_STATUS, SERVICE_STATUS_PROCESS,
+            SERVICE_STOP, SERVICE_STOP_PENDING, SERVICE_STOPPED, SERVICE_WIN32_OWN_PROCESS,
+            StartServiceW,
+        };
+        use windows_sys::core::BOOL;
+
+        use super::{Action, Control, EVENT_SOURCES, Manager, Restart, StartMode};
+
+        /// How long the SCM waits before starting the service again, once per
+        /// consecutive failure.
+        ///
+        /// A back-off rather than one delay: a server that cannot bind its
+        /// listener fails again as fast as it is started, and a fixed short
+        /// delay turns that into a restart loop that fills the event log
+        /// instead of leaving the failure visible in it.
+        const RESTART_DELAYS: [u32; 3] = [1_000, 10_000, 60_000];
+
+        /// The record types the event-log source declares, which is what the
+        /// viewer renders § 4's *Output* lifecycle records from.
+        const REPORTED: u32 =
+            (EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE | EVENTLOG_INFORMATION_TYPE) as u32;
+
+        /// The Windows applier.
+        ///
+        /// A unit struct: an [`Action`] carries everything a step needs, and
+        /// the handles one step opens belong to that step rather than to the
+        /// process.
+        #[derive(Debug)]
+        pub(crate) struct Scm;
+
+        impl Manager for Scm {
+            fn apply(&self, action: &Action) -> std::io::Result<Option<String>> {
+                match action {
+                    Action::Register {
+                        name,
+                        image_path,
+                        account,
+                        start,
+                        depends_on,
+                        description,
+                    } => register(name, image_path, account, *start, depends_on, description)
+                        .map(|()| None),
+                    Action::Preshutdown { name, timeout } => {
+                        preshutdown(name, *timeout).map(|()| None)
+                    }
+                    Action::Failure {
+                        name,
+                        restart,
+                        reset,
+                    } => failure(name, *restart, *reset).map(|()| None),
+                    Action::Grant {
+                        account,
+                        path,
+                        write,
+                    } => grant(account, path, *write).map(|()| None),
+                    Action::EventSource { name, exe } => event_source(name, exe).map(|()| None),
+                    Action::Deregister { name } => deregister(name).map(|()| None),
+                    Action::Revoke { account, path } => revoke(account, path).map(|()| None),
+                    Action::RemoveEventSource { name } => remove_event_source(name).map(|()| None),
+                    Action::Scm { name, control } => ask(name, *control),
+                    Action::WriteUnit { .. }
+                    | Action::RemoveUnit { .. }
+                    | Action::Systemctl { .. } => Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "a systemd action on Windows",
+                    )),
+                }
+            }
+        }
+
+        /// A NUL-terminated UTF-16 copy, which is what every `…W` call takes.
+        fn wide(text: &str) -> Vec<u16> {
+            text.encode_utf16().chain(std::iter::once(0)).collect()
+        }
+
+        /// The same for a path, whose characters are already UTF-16 here.
+        fn wide_path(path: &Path) -> Vec<u16> {
+            path.as_os_str()
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect()
+        }
+
+        /// The dependency list `CreateServiceW` takes: each name
+        /// NUL-terminated, the list closed by an empty one.
+        fn wide_list(names: &[String]) -> Vec<u16> {
+            let mut out = Vec::new();
+            for name in names {
+                out.extend(name.encode_utf16());
+                out.push(0);
+            }
+            out.push(0);
+            out
+        }
+
+        /// What a `BOOL`-returning call said, as this thread's last error.
+        fn ok(result: BOOL) -> std::io::Result<()> {
+            if result == 0 {
+                Err(Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        }
+
+        /// The same for a call that answers its error code directly.
+        fn ok_status(status: WIN32_ERROR) -> std::io::Result<()> {
+            if status == ERROR_SUCCESS {
+                Ok(())
+            } else {
+                Err(Error::from_raw_os_error(
+                    i32::try_from(status).unwrap_or(i32::MAX),
+                ))
+            }
+        }
+
+        /// The platform code behind one of these errors, for the steps that
+        /// read "already in the state you asked for" as done.
+        fn code(error: &Error) -> Option<WIN32_ERROR> {
+            error.raw_os_error().and_then(|raw| u32::try_from(raw).ok())
+        }
+
+        /// A duration as the milliseconds the SCM counts in, saturating: a
+        /// timeout past the range of a `u32` is one no machine waits out.
+        fn millis(duration: Duration) -> u32 {
+            u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
+        }
+
+        /// A duration as whole seconds, saturating for the same reason.
+        fn seconds(duration: Duration) -> u32 {
+            u32::try_from(duration.as_secs()).unwrap_or(u32::MAX)
+        }
+
+        /// An `SC_HANDLE` closed when the step that opened it ends.
+        struct Handle(SC_HANDLE);
+
+        impl Drop for Handle {
+            fn drop(&mut self) {
+                // SAFETY: a handle this value owns, closed exactly once.
+                unsafe { CloseServiceHandle(self.0) };
+            }
+        }
+
+        /// An open registry key, closed the same way.
+        struct Key(HKEY);
+
+        impl Drop for Key {
+            fn drop(&mut self) {
+                // SAFETY: a key this value owns, closed exactly once.
+                unsafe { RegCloseKey(self.0) };
+            }
+        }
+
+        /// A handle to this machine's service database.
+        fn manager(access: u32) -> std::io::Result<Handle> {
+            // SAFETY: two null names, which is the active database on this
+            // machine; the access mask is one of this module's constants.
+            let handle = unsafe { OpenSCManagerW(std::ptr::null(), std::ptr::null(), access) };
+            if handle.is_null() {
+                return Err(Error::last_os_error());
+            }
+            Ok(Handle(handle))
+        }
+
+        /// A handle to one registered service, beside the database handle it
+        /// was opened through, so both close together.
+        fn service(name: &str, access: u32) -> std::io::Result<(Handle, Handle)> {
+            let database = manager(SC_MANAGER_CONNECT)?;
+            let name = wide(name);
+            // SAFETY: an open database handle and a NUL-terminated name that
+            // outlives the call.
+            let handle = unsafe { OpenServiceW(database.0, name.as_ptr(), access) };
+            if handle.is_null() {
+                return Err(Error::last_os_error());
+            }
+            Ok((database, Handle(handle)))
+        }
+
+        /// § 3's registration, and the two parameters `CreateServiceW` has no
+        /// field for: the description, and whether an automatic start is the
+        /// delayed one.
+        fn register(
+            name: &str,
+            image_path: &str,
+            account: &str,
+            start: StartMode,
+            depends_on: &[String],
+            description: &str,
+        ) -> std::io::Result<()> {
+            let database = manager(SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE)?;
+            let wide_name = wide(name);
+            let wide_image = wide(image_path);
+            let wide_account = wide(account);
+            let dependencies = wide_list(depends_on);
+            let start_type = if matches!(start, StartMode::Manual) {
+                SERVICE_DEMAND_START
+            } else {
+                SERVICE_AUTO_START
+            };
+            // SAFETY: every pointer is to a NUL-terminated local that outlives
+            // the call. The nulls are the load-order group, the tag, and the
+            // password a virtual account does not have.
+            let handle = unsafe {
+                CreateServiceW(
+                    database.0,
+                    wide_name.as_ptr(),
+                    wide_name.as_ptr(),
+                    SERVICE_CHANGE_CONFIG | SERVICE_QUERY_STATUS | SERVICE_START | SERVICE_STOP,
+                    SERVICE_WIN32_OWN_PROCESS,
+                    start_type,
+                    SERVICE_ERROR_NORMAL,
+                    wide_image.as_ptr(),
+                    std::ptr::null(),
+                    std::ptr::null_mut(),
+                    if depends_on.is_empty() {
+                        std::ptr::null()
+                    } else {
+                        dependencies.as_ptr()
+                    },
+                    wide_account.as_ptr(),
+                    std::ptr::null(),
+                )
+            };
+            if handle.is_null() {
+                return Err(Error::last_os_error());
+            }
+            let handle = Handle(handle);
+            let mut wide_description = wide(description);
+            let info = SERVICE_DESCRIPTIONW {
+                lpDescription: wide_description.as_mut_ptr(),
+            };
+            // SAFETY: the structure and the string it points at are locals
+            // that outlive the call, at the info level that names the
+            // structure.
+            ok(unsafe {
+                ChangeServiceConfig2W(
+                    handle.0,
+                    SERVICE_CONFIG_DESCRIPTION,
+                    std::ptr::from_ref(&info).cast(),
+                )
+            })?;
+            if start.enabled() {
+                let info = SERVICE_DELAYED_AUTO_START_INFO {
+                    fDelayedAutostart: BOOL::from(matches!(start, StartMode::Delayed)),
+                };
+                // SAFETY: as above.
+                ok(unsafe {
+                    ChangeServiceConfig2W(
+                        handle.0,
+                        SERVICE_CONFIG_DELAYED_AUTO_START_INFO,
+                        std::ptr::from_ref(&info).cast(),
+                    )
+                })?;
+            }
+            Ok(())
+        }
+
+        /// § 4's `PRESHUTDOWN`: the machine agreeing to wait while a drain
+        /// finishes, rather than the few seconds plain `SHUTDOWN` allows.
+        fn preshutdown(name: &str, timeout: Duration) -> std::io::Result<()> {
+            let (_database, handle) = service(name, SERVICE_CHANGE_CONFIG)?;
+            let info = SERVICE_PRESHUTDOWN_INFO {
+                dwPreshutdownTimeout: millis(timeout),
+            };
+            // SAFETY: a local structure that outlives the call, at the info
+            // level that names it.
+            ok(unsafe {
+                ChangeServiceConfig2W(
+                    handle.0,
+                    SERVICE_CONFIG_PRESHUTDOWN_INFO,
+                    std::ptr::from_ref(&info).cast(),
+                )
+            })
+        }
+
+        /// § 4's failure actions and the period after which the SCM forgets
+        /// earlier failures.
+        fn failure(name: &str, restart: Restart, reset: Duration) -> std::io::Result<()> {
+            let (_database, handle) = service(name, SERVICE_CHANGE_CONFIG)?;
+            let mut actions: Vec<SC_ACTION> = Vec::new();
+            match restart {
+                Restart::OnFailure => {
+                    for delay in RESTART_DELAYS {
+                        actions.push(SC_ACTION {
+                            Type: SC_ACTION_RESTART,
+                            Delay: delay,
+                        });
+                    }
+                }
+                Restart::Never => actions.push(SC_ACTION {
+                    Type: SC_ACTION_NONE,
+                    Delay: 0,
+                }),
+            }
+            let info = SERVICE_FAILURE_ACTIONSW {
+                dwResetPeriod: seconds(reset),
+                lpRebootMsg: std::ptr::null_mut(),
+                lpCommand: std::ptr::null_mut(),
+                cActions: u32::try_from(actions.len()).unwrap_or(u32::MAX),
+                lpsaActions: actions.as_mut_ptr(),
+            };
+            // SAFETY: the structure and the action array are locals that
+            // outlive the call, and `cActions` is that array's own length.
+            ok(unsafe {
+                ChangeServiceConfig2W(
+                    handle.0,
+                    SERVICE_CONFIG_FAILURE_ACTIONS,
+                    std::ptr::from_ref(&info).cast(),
+                )
+            })?;
+            // A server that cannot bind its listener exits non-zero rather
+            // than crashing, and the SCM counts only a crash as a failure
+            // unless this flag is set — so without it the restart § 4 asks for
+            // would not happen in the case it exists for.
+            let flag = SERVICE_FAILURE_ACTIONS_FLAG {
+                fFailureActionsOnNonCrashFailures: BOOL::from(matches!(
+                    restart,
+                    Restart::OnFailure
+                )),
+            };
+            // SAFETY: as above.
+            ok(unsafe {
+                ChangeServiceConfig2W(
+                    handle.0,
+                    SERVICE_CONFIG_FAILURE_ACTIONS_FLAG,
+                    std::ptr::from_ref(&flag).cast(),
+                )
+            })
+        }
+
+        /// § 4's grant, and the whole of what it gives: read on a file the
+        /// argv named, read/write on a directory the service writes in.
+        ///
+        /// Inheritance follows the object rather than the flag, because a
+        /// grant on a log directory buys nothing if the file rotation creates
+        /// in it does not carry the same entry.
+        fn grant(account: &str, path: &Path, write: bool) -> std::io::Result<()> {
+            let rights = if write {
+                FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_GENERIC_EXECUTE | DELETE
+            } else {
+                FILE_GENERIC_READ
+            };
+            entry(account, path, GRANT_ACCESS, rights)
+        }
+
+        /// The same entry taken away.
+        ///
+        /// `REVOKE_ACCESS` removes every entry the account holds on the object
+        /// rather than subtracting the rights the install added, which is what
+        /// "no granted ACL" means when an install was interrupted part way
+        /// through its own list.
+        fn revoke(account: &str, path: &Path) -> std::io::Result<()> {
+            entry(account, path, REVOKE_ACCESS, 0)
+        }
+
+        /// One explicit entry, merged into the object's own DACL and written
+        /// back — the writing half of the walk
+        /// `crates/nvs-config/src/trust.rs` reads.
+        fn entry(
+            account: &str,
+            path: &Path,
+            mode: ACCESS_MODE,
+            rights: u32,
+        ) -> std::io::Result<()> {
+            let object = wide_path(path);
+            let mut trustee = wide(account);
+            let access = EXPLICIT_ACCESS_W {
+                grfAccessPermissions: rights,
+                grfAccessMode: mode,
+                grfInheritance: if path.is_dir() {
+                    SUB_CONTAINERS_AND_OBJECTS_INHERIT
+                } else {
+                    NO_INHERITANCE
+                },
+                Trustee: TRUSTEE_W {
+                    pMultipleTrustee: std::ptr::null_mut(),
+                    MultipleTrusteeOperation: NO_MULTIPLE_TRUSTEE,
+                    TrusteeForm: TRUSTEE_IS_NAME,
+                    TrusteeType: TRUSTEE_IS_UNKNOWN,
+                    ptstrName: trustee.as_mut_ptr(),
+                },
+            };
+            let mut dacl: *mut ACL = std::ptr::null_mut();
+            let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+            // SAFETY: a NUL-terminated path that outlives the call, and
+            // out-parameters of the types the signature names. A failing read
+            // allocates no descriptor, which is why the early return below
+            // frees nothing.
+            let read = unsafe {
+                GetNamedSecurityInfoW(
+                    object.as_ptr(),
+                    SE_FILE_OBJECT,
+                    DACL_SECURITY_INFORMATION,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    &mut dacl,
+                    std::ptr::null_mut(),
+                    &mut descriptor,
+                )
+            };
+            ok_status(read)?;
+            let mut merged: *mut ACL = std::ptr::null_mut();
+            // SAFETY: one entry, the DACL the read above returned, and an
+            // out-parameter for the list `advapi32` allocates.
+            let built = unsafe { SetEntriesInAclW(1, &access, dacl, &mut merged) };
+            let written = if built == ERROR_SUCCESS {
+                // SAFETY: the merged list, onto the same object the read
+                // named; both outlive the call.
+                unsafe {
+                    SetNamedSecurityInfoW(
+                        object.as_ptr(),
+                        SE_FILE_OBJECT,
+                        DACL_SECURITY_INFORMATION,
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        merged,
+                        std::ptr::null(),
+                    )
+                }
+            } else {
+                built
+            };
+            // SAFETY: two blocks `advapi32` allocated, each freed once and
+            // neither read afterwards; `LocalFree` of a null pointer is a
+            // no-op, which is the path a failed merge takes.
+            unsafe {
+                LocalFree(merged.cast());
+                LocalFree(descriptor);
+            }
+            ok_status(written)
+        }
+
+        /// § 4's *Output*: the event-log source is a subkey under
+        /// [`EVENT_SOURCES`], and `EventMessageFile` is the binary the viewer
+        /// reads a record's text out of.
+        fn event_source(name: &str, exe: &Path) -> std::io::Result<()> {
+            let path = wide(&format!(r"{EVENT_SOURCES}\{name}"));
+            let mut created: HKEY = std::ptr::null_mut();
+            // SAFETY: a NUL-terminated subkey path that outlives the call, and
+            // an out-parameter for the key; the disposition is not read.
+            let opened = unsafe {
+                RegCreateKeyExW(
+                    HKEY_LOCAL_MACHINE,
+                    path.as_ptr(),
+                    0,
+                    std::ptr::null(),
+                    REG_OPTION_NON_VOLATILE,
+                    KEY_WRITE,
+                    std::ptr::null(),
+                    &mut created,
+                    std::ptr::null_mut(),
+                )
+            };
+            ok_status(opened)?;
+            let key = Key(created);
+            let message_file = wide_path(exe);
+            let value = wide("EventMessageFile");
+            // SAFETY: both strings outlive the call, and the byte count is the
+            // UTF-16 length including its terminator.
+            ok_status(unsafe {
+                RegSetValueExW(
+                    key.0,
+                    value.as_ptr(),
+                    0,
+                    REG_EXPAND_SZ,
+                    message_file.as_ptr().cast::<u8>(),
+                    u32::try_from(message_file.len() * 2).unwrap_or(u32::MAX),
+                )
+            })?;
+            let value = wide("TypesSupported");
+            let reported = REPORTED;
+            // SAFETY: four bytes from a local `u32`, at the type that names
+            // that width.
+            ok_status(unsafe {
+                RegSetValueExW(
+                    key.0,
+                    value.as_ptr(),
+                    0,
+                    REG_DWORD,
+                    std::ptr::from_ref(&reported).cast::<u8>(),
+                    4,
+                )
+            })
+        }
+
+        /// The source's subkey taken away again.
+        fn remove_event_source(name: &str) -> std::io::Result<()> {
+            let path = wide(&format!(r"{EVENT_SOURCES}\{name}"));
+            // SAFETY: a NUL-terminated subkey path that outlives the call.
+            let removed = unsafe { RegDeleteTreeW(HKEY_LOCAL_MACHINE, path.as_ptr()) };
+            if removed == ERROR_FILE_NOT_FOUND {
+                return Ok(());
+            }
+            ok_status(removed)
+        }
+
+        /// The registration taken away.
+        fn deregister(name: &str) -> std::io::Result<()> {
+            let (_database, handle) = match service(name, DELETE) {
+                Ok(handles) => handles,
+                Err(error) if code(&error) == Some(ERROR_SERVICE_DOES_NOT_EXIST) => return Ok(()),
+                Err(error) => return Err(error),
+            };
+            // SAFETY: a handle opened for `DELETE` on the line above.
+            match ok(unsafe { DeleteService(handle.0) }) {
+                Err(error) if code(&error) == Some(ERROR_SERVICE_MARKED_FOR_DELETE) => Ok(()),
+                other => other,
+            }
+        }
+
+        /// `start`, `stop` and `status`, through the SCM itself rather than an
+        /// `sc.exe` this process would have to quote a name for.
+        fn ask(name: &str, control: Control) -> std::io::Result<Option<String>> {
+            match control {
+                Control::Start => {
+                    let (_database, handle) = service(name, SERVICE_START)?;
+                    // SAFETY: a handle opened for `SERVICE_START`, and no
+                    // arguments — the argv a service runs is its `ImagePath`.
+                    match ok(unsafe { StartServiceW(handle.0, 0, std::ptr::null()) }) {
+                        Err(error) if code(&error) == Some(ERROR_SERVICE_ALREADY_RUNNING) => {
+                            Ok(None)
+                        }
+                        other => other.map(|()| None),
+                    }
+                }
+                Control::Stop => {
+                    let (_database, handle) = match service(name, SERVICE_STOP) {
+                        Ok(handles) => handles,
+                        Err(error) if code(&error) == Some(ERROR_SERVICE_DOES_NOT_EXIST) => {
+                            return Ok(None);
+                        }
+                        Err(error) => return Err(error),
+                    };
+                    // SAFETY: a `repr(C)` structure of integers, whose all-zero
+                    // value the call below overwrites.
+                    let mut status: SERVICE_STATUS = unsafe { std::mem::zeroed() };
+                    // SAFETY: a handle opened for `SERVICE_STOP`, and a local
+                    // out-parameter the call fills in.
+                    match ok(unsafe { ControlService(handle.0, SERVICE_CONTROL_STOP, &mut status) })
+                    {
+                        Err(error) if code(&error) == Some(ERROR_SERVICE_NOT_ACTIVE) => Ok(None),
+                        other => other.map(|()| None),
+                    }
+                }
+                Control::Status => {
+                    let (_database, handle) = service(name, SERVICE_QUERY_STATUS)?;
+                    // SAFETY: as above.
+                    let mut status: SERVICE_STATUS_PROCESS = unsafe { std::mem::zeroed() };
+                    let mut needed = 0_u32;
+                    // SAFETY: a buffer that is exactly the structure the info
+                    // level names, its own size, and an out-parameter for the
+                    // size the call would have wanted.
+                    ok(unsafe {
+                        QueryServiceStatusEx(
+                            handle.0,
+                            SC_STATUS_PROCESS_INFO,
+                            std::ptr::from_mut(&mut status).cast::<u8>(),
+                            u32::try_from(size_of::<SERVICE_STATUS_PROCESS>()).unwrap_or(u32::MAX),
+                            &mut needed,
+                        )
+                    })?;
+                    Ok(Some(state(status.dwCurrentState)))
+                }
+            }
+        }
+
+        /// The word an SCM state number means, which is all a service manager
+        /// knows: what `nvs service status` adds to it comes from the control
+        /// socket.
+        fn state(current: u32) -> String {
+            match current {
+                SERVICE_STOPPED => "stopped".to_owned(),
+                SERVICE_START_PENDING => "start-pending".to_owned(),
+                SERVICE_STOP_PENDING => "stop-pending".to_owned(),
+                SERVICE_RUNNING => "running".to_owned(),
+                SERVICE_CONTINUE_PENDING => "continue-pending".to_owned(),
+                SERVICE_PAUSE_PENDING => "pause-pending".to_owned(),
+                SERVICE_PAUSED => "paused".to_owned(),
+                other => format!("state {other}"),
+            }
+        }
     }
 
     /// A manager that performs nothing and remembers every action it was
