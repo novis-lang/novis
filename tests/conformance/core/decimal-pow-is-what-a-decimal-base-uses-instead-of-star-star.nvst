@@ -1,0 +1,23 @@
+--TEST--
+`rule:types/arithmetic`: a `decimal` base has no `**` row, and `Core\Decimal::pow` is the power it takes instead — exact, and agreeing with `*` on the scale as well as the value
+--FILE--
+<?nvs
+// The power is repeated multiplication and nothing else, so it agrees with
+// the operator digit for digit -- a product's scale is its operands' added.
+decimal $rate = 1.05;
+echo Core\Decimal::pow($rate, 2), "|", $rate * $rate, "\n";
+echo Core\Decimal::pow($rate, 3), "|", $rate * $rate * $rate, "\n";
+
+// Compounding, which is why money code wants this at all, and a base with no
+// fractional digit to spend.
+echo Core\Decimal::pow(2.50, 2), "|", Core\Decimal::pow(2, 10), "\n";
+
+// A negative power is a division, and a division over `decimal` either comes
+// out exact or names its rounding -- so the reciprocal is written out, with
+// the scale and the mode where a reader can see them.
+echo Core\Decimal::divRound(1, Core\Decimal::pow($rate, 2), 4, Core\RoundMode::HalfEven), "\n";
+--EXPECT--
+1.1025|1.1025
+1.157625|1.157625
+6.2500|1024
+0.9070

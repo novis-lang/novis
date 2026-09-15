@@ -6,14 +6,24 @@
 //! not configurable, because an ambient precision read by unrelated later code
 //! is the shape `rule:statements/static-is-a-member-modifier` and
 //! `rule:security/no-cross-request-state` both close. What
-//! this class adds is the two questions that policy cannot answer:
+//! this class adds is the questions that policy cannot answer:
 //!
 //! * **"this division must not lose anything"** — `divExact`, which throws
 //!   rather than rounding, so a quotient that repeats is a caught error at the
 //!   site that assumed it would not;
 //! * **"round it here, this way"** — `divRound`, where the scale and the mode
 //!   are both written out loud at the call, and neither is read from anywhere
-//!   else.
+//!   else;
+//! * **"split this sum and lose none of it"** — `allocate`, where no rounding
+//!   is named at all because there is none to name: the parts add back to the
+//!   amount exactly, which is the one answer dividing each share separately
+//!   cannot give.
+//!
+//! `pow` is here for a different reason. `**` has no row for a `decimal` base
+//! at all (`rule:types/arithmetic`), because a power that does not come out
+//! exact would have to round without having been asked to; the member answers
+//! the exact power or throws, and a negative one is written as the division it
+//! is.
 //!
 //! # One division, read three ways
 //!
@@ -33,24 +43,38 @@
 //! divergence from `System.Decimal`: silently narrowing would make a second
 //! operation inexact without saying so.
 //!
+//! # Which class a refusal throws
+//!
+//! The divisions throw `ArithmeticError` for everything, including a zero
+//! divisor, because `rule:types/arithmetic` fixes that class for the operator
+//! they stand beside. `allocate` splits its refusals: a ratio list that is
+//! empty, all zero or negative is a `LogicError`, since nothing about it is an
+//! arithmetic that overflowed — it is a call that cannot mean anything, which
+//! is the bad-argument shape `LogicError` is for. What `allocate` throws
+//! `ArithmeticError` for is the same bound the operators have, a share wider
+//! than a `decimal` holds.
+//!
 //! # Known gaps
 //!
-//! * **`allocate`, `pow`, `floor`, `ceil` and `round` are not here yet.** ADR
-//!   0054 § 3 names `Core\Decimal::allocate($amount, $ratios)` — the penny
-//!   split whose parts add back to the sum exactly — and § 3 and § 4 name the
-//!   other four; `crate::math`'s own gap note explains why the four rounding
-//!   members land on this class rather than widening `Core\Math`'s `float`
-//!   ones. The two members here are the ones `rule:types/decimal`'s *Still owed* line puts
-//!   first, and the ones the M8 acceptance check names.
+//! * **`floor`, `ceil`, `truncate` and `round` are not here yet.** ADR 0054
+//!   § 4 names them as where a `decimal → int` conversion says its rounding
+//!   out loud, and `crate::math`'s own gap note explains why they land on this
+//!   class rather than widening `Core\Math`'s `float` ones. Each takes a
+//!   target scale defaulting to 0, and `round` takes a `Core\RoundMode` with
+//!   no default, naming the mode being the point.
 //!   — owner: M8
 
 use nvs_runtime::decimal::Discard;
-use nvs_runtime::{Decimal, Fault, ThrownClass, Value};
+use nvs_runtime::{Decimal, Fault, NvsArray, ThrownClass, Value};
 
 use crate::math::{RoundMode, round_mode};
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 
-/// `rule:types/arithmetic`'s two named-rounding members, in that section's own order.
+/// `rule:types/decimal`'s named members in that rule's own order — the two
+/// divisions that say their rounding out loud, then the split that has no
+/// rounding left to name because its parts add back to the amount exactly —
+/// and then the power `rule:types/arithmetic` sends a `decimal` base to
+/// instead of `**`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Decimal",
     methods: &[
@@ -76,6 +100,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Decimal,
             symbol: "nvs_core_decimal_div_round",
             doc: Some(&DIV_ROUND_DOC),
+        },
+        CoreMethod {
+            name: "allocate",
+            names: &["amount", "ratios"],
+            params: &[CoreTy::Decimal, CoreTy::Array(&CoreTy::Decimal)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Decimal),
+            symbol: "nvs_core_decimal_allocate",
+            doc: Some(&ALLOCATE_DOC),
+        },
+        CoreMethod {
+            name: "pow",
+            names: &["base", "exponent"],
+            params: &[CoreTy::Decimal, CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Decimal,
+            symbol: "nvs_core_decimal_pow",
+            doc: Some(&POW_DOC),
         },
     ],
     instance: &[],
@@ -148,12 +190,78 @@ const DIV_ROUND_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Decimal::allocate`'s reference card — `rule:core-api/reference-card`.
+const ALLOCATE_DOC: MethodDoc = MethodDoc {
+    short: "Splits `$amount` into one part per ratio, at the amount's own scale and adding back to \
+            it exactly — the penny split, which dividing and rounding each share on its own \
+            loses or invents a smallest unit of.",
+    params: &[
+        ParamDoc {
+            name: "amount",
+            desc: "The sum to split. Its scale is the parts' scale, so a price at two places is \
+                   split into parts at two places.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "ratios",
+            desc: "One weight per part, each zero or more, at least one of them above zero. The \
+                   keys are kept, so a split written under the names of its parties answers \
+                   under those names.",
+            shape: &[],
+        },
+    ],
+    ret: "One part per ratio, in the ratios' own order and under their own keys: each its share \
+          truncated towards zero, and then one more smallest unit for each of the earliest parts \
+          until what is left over is gone.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "When there are no ratios, when a ratio is negative, and when every ratio is \
+                   zero — three ways of asking for a split that has no parts to make.",
+        },
+        ErrorDoc {
+            error: "ArithmeticError",
+            desc: "When a share is wider than a `decimal` holds: the amount and a ratio together \
+                   want more than 28 fractional digits or more than a 96-bit mantissa.",
+        },
+    ],
+};
+
+/// `Core\Decimal::pow`'s reference card — `rule:core-api/reference-card`.
+const POW_DOC: MethodDoc = MethodDoc {
+    short: "`$base` multiplied by itself `$exponent` times, exactly — the power a `decimal` base \
+            takes, since `**` has no row for one and would have to round to get an answer.",
+    params: &[
+        ParamDoc {
+            name: "base",
+            desc: "The value to raise.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "exponent",
+            desc: "How many times to multiply it by itself. Zero answers `1`, and there is no \
+                   negative exponent: `Core\\Decimal::divRound(1, Core\\Decimal::pow($b, $n), \
+                   $scale, $mode)` is the reciprocal, with the rounding it needs written out.",
+            shape: &[],
+        },
+    ],
+    ret: "The exact power, at the scale repeated multiplication gives it — `2.50` squared is \
+          `6.2500`, since a product's scale is its operands' scales added.",
+    errors: &[ErrorDoc {
+        error: "ArithmeticError",
+        desc: "When the power is wider than a `decimal` holds: more than 28 fractional digits, \
+               which a scaled base reaches quickly, or more than a 96-bit mantissa.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_decimal_div_exact" => (nvs_core_decimal_div_exact as *const ()).cast(),
         "nvs_core_decimal_div_round" => (nvs_core_decimal_div_round as *const ()).cast(),
+        "nvs_core_decimal_allocate" => (nvs_core_decimal_allocate as *const ()).cast(),
+        "nvs_core_decimal_pow" => (nvs_core_decimal_pow as *const ()).cast(),
         _ => return None,
     })
 }
@@ -274,6 +382,237 @@ nvs_runtime::nvs_helper! {
             .and_then(|mantissa| Decimal::new(negative, mantissa, truncated.scale()))
             .ok_or_else(refused)?;
         Ok(Value::decimal(away))
+    }
+}
+
+/// The `array<decimal>` argument at `index`, borrowed for the length of the
+/// call — [`crate::arr::borrowed`] is why the handle is never dropped.
+fn ratios_at(args: &[Value], index: usize) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
+    // Unreachable from source: the parameter is declared
+    // `array<decimal>`, so anything else is
+    // `E0401: expected `array<decimal>`, found …` at the argument.
+    let array = args[index].array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Decimal::allocate expected an `array` of ratios at argument {index}, got tag {}",
+            args[index].tag_byte()
+        ))
+    })?;
+    Ok(crate::arr::borrowed(array))
+}
+
+/// The ratio at `slot`, which every walk below reads the same way.
+fn ratio_at(ratios: &NvsArray, slot: usize) -> Result<Decimal, Fault> {
+    let value = ratios
+        .value_at(slot)
+        .expect("next_slot only names live entries");
+    // Unreachable from source: the parameter is declared
+    // `array<decimal>`, so an element of any other type is
+    // `E0401: expected `decimal`, found …` where it is written.
+    value.as_decimal().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Decimal::allocate expected a `decimal` ratio, got tag {}",
+            value.tag_byte()
+        ))
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Decimal::allocate(decimal $amount, array<decimal> $ratios):
+    /// array<decimal>` — `rule:types/decimal`'s split whose parts add back to
+    /// the amount exactly.
+    ///
+    /// The amount's own scale is the parts' scale, so the smallest unit the
+    /// split can move is the one the amount is written in: a price at two
+    /// places is split into cents, and a rate at four into hundredths of a
+    /// cent. Each part starts as its exact share truncated towards zero,
+    /// which leaves under one unit per part unallocated; those units are then
+    /// handed out one each to the earliest parts, and there are always fewer
+    /// of them than there are parts.
+    ///
+    /// **Position decides who gets one, not weight.** A ratio of zero takes
+    /// no share of its own and is still a part, so it receives one of the
+    /// leftover units when it comes first. That keeps the answer a function
+    /// of the order the caller wrote rather than of a second comparison
+    /// between the ratios, and a caller who means "nothing here at all"
+    /// leaves the part out.
+    ///
+    /// The keys are the ratios', so a split written under the names of its
+    /// parties answers under those names and a list answers a list.
+    ///
+    /// The magnitude is split and the sign put back afterwards, so the parts
+    /// of `-0.05` are the negatives of `0.05`'s rather than a truncation
+    /// leaning the other way.
+    ///
+    /// **What it spends:** one `Vec` of parts and the answer array, one entry
+    /// per ratio each, both released with the call
+    /// (`rule:programs/memory-priority`).
+    fn nvs_core_decimal_allocate(_ctx, args: [2]) {
+        let amount = decimal_at(args, 0, "allocate")?;
+        let ratios = ratios_at(args, 1)?;
+        let places = amount.scale();
+        // One sentence for both overflow kinds, as `divRound` gives: either
+        // way there is no `decimal` to answer with.
+        let refused = || {
+            Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                format!(
+                    "Core\\Decimal::allocate cannot split {amount} at scale {places} by these \
+                     ratios: a `decimal` holds 28 fractional digits and a 96-bit mantissa"
+                ),
+            )
+        };
+
+        // The ratios are read three times rather than copied once: they are
+        // an argument, so the walk is a borrow and the only array this member
+        // allocates is the one it answers with.
+        let mut total = Decimal::zero();
+        let mut parts = 0usize;
+        let mut from = 0usize;
+        while let Some(slot) = ratios.next_slot(from) {
+            from = slot + 1;
+            let ratio = ratio_at(&ratios, slot)?;
+            if ratio.is_negative() {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!("Core\\Decimal::allocate has no share for the negative ratio {ratio}"),
+                ));
+            }
+            total = total.checked_add(ratio).ok_or_else(refused)?;
+            parts += 1;
+        }
+        // Two bad arguments rather than one, because they are two different
+        // mistakes: no parts to make at all, and parts that every ratio asks
+        // to be empty. Both are `LogicError` — the split is not an
+        // arithmetic that overflowed but a call that cannot mean anything.
+        if parts == 0 {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!("Core\\Decimal::allocate needs at least one ratio to split {amount} by"),
+            ));
+        }
+        if total.is_zero() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!("Core\\Decimal::allocate needs a ratio above zero to split {amount} by"),
+            ));
+        }
+
+        // Both sides of the product are reduced first: the scales add, so a
+        // ratio written `1.0` would otherwise spend one of the 28 on a digit
+        // that carries nothing.
+        let magnitude = amount.abs().reduced();
+        let mut shares: Vec<Decimal> = Vec::with_capacity(parts);
+        let mut allocated = Decimal::zero();
+        let mut from = 0usize;
+        while let Some(slot) = ratios.next_slot(from) {
+            from = slot + 1;
+            let ratio = ratio_at(&ratios, slot)?;
+            // Multiplied before it is divided, so the share is the exact one
+            // this ratio has of the whole rather than a rounded fraction
+            // scaled up.
+            let exact = magnitude.checked_mul(ratio.reduced()).ok_or_else(refused)?;
+            let (share, _) = exact
+                .checked_div_at_scale(total, places)
+                .ok_or_else(refused)?;
+            allocated = allocated.checked_add(share).ok_or_else(refused)?;
+            shares.push(share);
+        }
+
+        // Every share carries the amount's scale and so does their sum, which
+        // makes what is left over a whole number of smallest units: its
+        // mantissa is that count, and the truncation above bounds it below
+        // the number of parts.
+        let remainder = magnitude.checked_sub(allocated).ok_or_else(refused)?;
+        let unit = Decimal::new(false, 1, places).ok_or_else(refused)?;
+        let mut owed = remainder.mantissa();
+        for share in &mut shares {
+            if owed == 0 {
+                break;
+            }
+            *share = share.checked_add(unit).ok_or_else(refused)?;
+            owed -= 1;
+        }
+
+        let negative = amount.is_negative();
+        let mut shares = shares.into_iter();
+        let mut out = NvsArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = ratios.next_slot(from) {
+            from = slot + 1;
+            let key = ratios
+                .slot_key(slot)
+                .expect("next_slot only names live entries");
+            let share = shares
+                .next()
+                .expect("one share per ratio, and the same walk in the same order");
+            let part = if negative { share.negated() } else { share };
+            crate::arr::store_at(&mut out, key, Value::decimal(part));
+        }
+        Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Decimal::pow(decimal $base, uint $exponent): decimal` —
+    /// `rule:types/arithmetic`'s row for a `decimal` base, which refuses `**`
+    /// and names this instead.
+    ///
+    /// Exact or nothing, and the answer is what repeated multiplication
+    /// gives **including its scale**, since a product's scale is its
+    /// operands' added and scale is observable: `pow($b, 3)` is `$b * $b *
+    /// $b` to the digit. A base with a scale of its own runs through the 28
+    /// quickly, and reaching the end of them throws rather than narrowing to
+    /// a scale that fits — the same divergence from `System.Decimal` the
+    /// operator's own row makes.
+    ///
+    /// The exponent is a `uint` because a negative power is a division, and
+    /// a division over `decimal` either comes out exact or names its
+    /// rounding. The reciprocal is written `divRound(1, pow($b, $n), $scale,
+    /// $mode)`, which says out loud what `$b ** -3` would have settled
+    /// quietly.
+    ///
+    /// **Squared rather than walked**, so an exponent near `uint`'s ceiling
+    /// is sixty-odd multiplications rather than a hang: a base of `1` reaches
+    /// no bound at all, and every other base reaches one within those sixty.
+    /// The answer is the walk's — each intermediate is the base to a power at
+    /// or below the one asked for, so nothing overflows here that a walk
+    /// would have carried through.
+    fn nvs_core_decimal_pow(_ctx, args: [2]) {
+        let base = decimal_at(args, 0, "pow")?;
+        // Unreachable from source: the parameter is declared `uint`, so
+        // anything else is `E0401: expected `uint`, found …` at the argument.
+        let exponent = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Decimal::pow expected a `uint` exponent, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        let refused = || {
+            Fault::thrown_as(
+                ThrownClass::Arithmetic,
+                format!(
+                    "Core\\Decimal::pow cannot answer {base} to the power {exponent}: a \
+                     `decimal` holds 28 fractional digits and a 96-bit mantissa"
+                ),
+            )
+        };
+
+        let mut power = Decimal::new(false, 1, 0).expect("`1` is a `decimal`");
+        let mut squared = base;
+        let mut left = exponent;
+        while left > 0 {
+            if left % 2 == 1 {
+                power = power.checked_mul(squared).ok_or_else(refused)?;
+            }
+            left /= 2;
+            // Not squared past what was asked for: the last doubling would
+            // be a power beyond the exponent, and refusing on *its* overflow
+            // would refuse an answer that fits.
+            if left > 0 {
+                squared = squared.checked_mul(squared).ok_or_else(refused)?;
+            }
+        }
+        Ok(Value::decimal(power))
     }
 }
 
@@ -414,6 +753,218 @@ mod tests {
         assert!(
             wide.contains("at scale 40"),
             "the refusal names the scale it was asked for: {wide}"
+        );
+    }
+
+    /// `Core\Decimal::pow($base, $exponent)`'s answer, or the sentence its
+    /// throw carried.
+    fn power(ctx: &mut Ctx, base: &str, exponent: u64) -> Result<String, String> {
+        answer(
+            ctx,
+            nvs_core_decimal_pow,
+            &[decimal(base), Value::uint(exponent)],
+        )
+    }
+
+    /// `rule:types/arithmetic`'s power for a `decimal` base: exact, at the
+    /// scale repeated multiplication gives it, or a throw at either bound.
+    #[test]
+    fn decimal_pow_is_exact_or_throws_at_the_mantissa_or_scale_bound() {
+        let mut ctx = Ctx::buffered();
+
+        // A product's scale is its operands' added, so a squared `2.50` is
+        // `6.2500` — the power agrees with `*` on the digits it renders as
+        // well as on the value.
+        assert_eq!(power(&mut ctx, "2.50", 2).as_deref(), Ok("6.2500"));
+        assert_eq!(power(&mut ctx, "2", 10).as_deref(), Ok("1024"));
+        assert_eq!(power(&mut ctx, "1.05", 2).as_deref(), Ok("1.1025"));
+
+        // The exponent's own edges, and the one that says the exponent is not
+        // walked: a base of `1` reaches no bound, so the largest `uint` there
+        // is has to answer rather than run.
+        assert_eq!(power(&mut ctx, "19.90", 0).as_deref(), Ok("1"));
+        assert_eq!(power(&mut ctx, "19.90", 1).as_deref(), Ok("19.90"));
+        assert_eq!(power(&mut ctx, "0", 5).as_deref(), Ok("0"));
+        assert_eq!(power(&mut ctx, "1", u64::MAX).as_deref(), Ok("1"));
+
+        // The scale bound: `1.05` carries two fractional digits, so its
+        // fifteenth power wants thirty of them and no `decimal` has thirty.
+        let scale = power(&mut ctx, "1.05", 15).expect_err("28 is the bound");
+        assert!(
+            scale.contains("1.05 to the power 15"),
+            "the refusal names the power it could not answer: {scale}"
+        );
+
+        // The mantissa bound, from the side that has no fractional digit at
+        // all: 10^28 fits in 96 bits and 10^29 does not.
+        assert_eq!(
+            power(&mut ctx, "10", 28).as_deref(),
+            Ok("10000000000000000000000000000")
+        );
+        let mantissa = power(&mut ctx, "10", 29).expect_err("96 bits is the other bound");
+        assert!(
+            mantissa.contains("10 to the power 29"),
+            "the refusal names the power it could not answer: {mantissa}"
+        );
+    }
+
+    /// The `array<decimal>` of ratios a compiled call hands `allocate`.
+    fn ratios(weights: &[&str]) -> Value {
+        let mut array = NvsArray::new();
+        for weight in weights {
+            array.append(decimal(weight));
+        }
+        Value::array(array)
+    }
+
+    /// Releases a reference this test frame owns.
+    fn released(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "a test frame owns exactly the reference it built or was answered with"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// `Core\Decimal::allocate($amount, $weights)`'s parts, or the sentence
+    /// its throw carried — the same boundary [`answer`] reads the divisions
+    /// at, over an array rather than a scalar.
+    fn split(ctx: &mut Ctx, amount: &str, weights: &[&str]) -> Result<Vec<Decimal>, String> {
+        let list = ratios(weights);
+        let parts = match call(nvs_core_decimal_allocate, ctx, &[decimal(amount), list]) {
+            Ok(value) => {
+                let answer =
+                    crate::arr::borrowed(value.array_ptr().expect("`allocate` answers an array"));
+                let mut parts = Vec::new();
+                let mut from = 0usize;
+                while let Some(slot) = answer.next_slot(from) {
+                    from = slot + 1;
+                    parts.push(
+                        answer
+                            .value_at(slot)
+                            .expect("next_slot only names live entries")
+                            .as_decimal()
+                            .expect("every part is a `decimal`"),
+                    );
+                }
+                released(value);
+                Ok(parts)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default()),
+        };
+        released(list);
+        parts
+    }
+
+    /// The parts as a program would see them printed, so an assertion reads
+    /// as the answer rather than as a vector of it.
+    fn rendered(parts: &[Decimal]) -> String {
+        parts
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// `rule:types/decimal`'s "splits a sum into parts that add back to it
+    /// exactly", over the splits that have no even answer.
+    #[test]
+    fn decimal_allocate_parts_add_back_to_the_amount_exactly() {
+        let mut ctx = Ctx::buffered();
+
+        // The penny split: a third of five cents is not a number of cents, so
+        // the cent left over goes to the earliest part and no part is a
+        // fraction of one.
+        let nickel = split(&mut ctx, "0.05", &["1", "1", "1"]).expect("three equal ratios");
+        assert_eq!(rendered(&nickel), "0.02 0.02 0.01");
+
+        // Weights that do come out even, and an amount whose scale is wider
+        // than money's — the parts carry the amount's scale either way.
+        assert_eq!(
+            rendered(&split(&mut ctx, "100.00", &["7", "3"]).expect("a 70/30 split")),
+            "70.00 30.00"
+        );
+        assert_eq!(
+            rendered(&split(&mut ctx, "1.0000", &["1", "1", "1"]).expect("three equal ratios")),
+            "0.3334 0.3333 0.3333"
+        );
+
+        // A ratio of zero takes no share of its own and is still a part, so
+        // it can take a leftover unit: position decides that, not weight.
+        assert_eq!(
+            rendered(&split(&mut ctx, "0.05", &["0", "1", "1"]).expect("one ratio above zero")),
+            "0.01 0.02 0.02"
+        );
+
+        // The magnitude is what is split, so a negative amount answers the
+        // negatives of the positive one's parts rather than a truncation
+        // leaning the other way.
+        assert_eq!(
+            rendered(&split(&mut ctx, "-0.05", &["1", "1", "1"]).expect("three equal ratios")),
+            "-0.02 -0.02 -0.01"
+        );
+
+        // The property itself, over every split above and three more: the
+        // parts add back to the amount exactly, at the amount's own scale,
+        // and there is one of them per ratio.
+        for (amount, weights) in [
+            ("0.05", &["1", "1", "1"][..]),
+            ("100.00", &["7", "3"]),
+            ("1.0000", &["1", "1", "1"]),
+            ("0.05", &["0", "1", "1"]),
+            ("-0.05", &["1", "1", "1"]),
+            ("19.99", &["0.3", "0.7"]),
+            ("0.00", &["1", "2"]),
+            ("7", &["1", "1", "1"]),
+        ] {
+            let parts = split(&mut ctx, amount, weights).expect("a ratio above zero");
+            assert_eq!(parts.len(), weights.len(), "one part per ratio of {amount}");
+            let mut back = Decimal::zero();
+            for part in &parts {
+                back = back
+                    .checked_add(*part)
+                    .expect("parts of a sum fit in the sum");
+            }
+            assert_eq!(
+                back.to_string(),
+                amount,
+                "{amount} split {weights:?} adds back to itself"
+            );
+        }
+    }
+
+    /// The three ratio lists that name no split, and the one bound the split
+    /// shares with the operators.
+    #[test]
+    fn decimal_allocate_refuses_an_empty_zero_or_negative_ratio_list() {
+        let mut ctx = Ctx::buffered();
+
+        assert_eq!(
+            split(&mut ctx, "1.00", &[]).expect_err("no parts to make"),
+            "Core\\Decimal::allocate needs at least one ratio to split 1.00 by"
+        );
+        assert_eq!(
+            split(&mut ctx, "1.00", &["0", "0"]).expect_err("every part asks for nothing"),
+            "Core\\Decimal::allocate needs a ratio above zero to split 1.00 by"
+        );
+        assert_eq!(
+            split(&mut ctx, "1.00", &["2", "-1"]).expect_err("a part cannot owe"),
+            "Core\\Decimal::allocate has no share for the negative ratio -1"
+        );
+
+        // `rule:types/decimal`'s 28 fractional digits, reached from the side
+        // the split has of its own: an amount already at the bound and a
+        // ratio with any scale at all want one more digit than the type has.
+        let wide = split(&mut ctx, "0.0000000000000000000000000001", &["0.5", "0.5"])
+            .expect_err("no `decimal` holds that share");
+        assert!(
+            wide.contains("at scale 28"),
+            "the refusal names the scale it could not answer at: {wide}"
         );
     }
 

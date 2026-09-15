@@ -1,0 +1,28 @@
+--TEST--
+`rule:types/decimal` and `rule:types/arithmetic`: `Core\Decimal::pow` throws at both of the type's bounds rather than narrowing the scale or wrapping the mantissa
+--FILE--
+<?nvs
+// The scale bound, which a base with fractional digits of its own reaches
+// fast: `1.05` carries two, so the fifteenth power wants thirty and the type
+// has twenty-eight. Narrowing to a scale that fits would make the power a
+// second inexact operation without saying so.
+decimal $rate = 1.05;
+try {
+    echo Core\Decimal::pow($rate, 15), "\n";
+} catch (ArithmeticError $deep) {
+    echo $deep->message, "\n";
+}
+
+// The mantissa bound, from the side with no fractional digit at all: 10^28
+// fits in 96 bits and 10^29 does not.
+decimal $ten = 10;
+echo Core\Decimal::pow($ten, 28), "\n";
+try {
+    echo Core\Decimal::pow($ten, 29), "\n";
+} catch (ArithmeticError $wide) {
+    echo $wide->message, "\n";
+}
+--EXPECT--
+Core\Decimal::pow cannot answer 1.05 to the power 15: a `decimal` holds 28 fractional digits and a 96-bit mantissa
+10000000000000000000000000000
+Core\Decimal::pow cannot answer 10 to the power 29: a `decimal` holds 28 fractional digits and a 96-bit mantissa

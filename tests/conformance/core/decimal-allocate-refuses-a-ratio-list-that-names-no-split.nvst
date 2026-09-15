@@ -1,0 +1,44 @@
+--TEST--
+`rule:types/decimal`: `Core\Decimal::allocate` refuses an empty, an all-zero and a negative ratio list as bad arguments, and a share no `decimal` holds as arithmetic
+--FILE--
+<?nvs
+decimal $one = 1.00;
+
+// Three lists that name no split at all: no parts to make, parts that every
+// ratio asks to be empty, and a part that would owe. None of them is an
+// arithmetic that overflowed, so each is a `LogicError` -- the class for an
+// argument the call cannot mean anything with.
+array<decimal> $none = [];
+try {
+    echo Core\Arr::count(Core\Decimal::allocate($one, $none)), "\n";
+} catch (LogicError $empty) {
+    echo $empty->message, "\n";
+}
+try {
+    echo Core\Arr::count(Core\Decimal::allocate($one, [0, 0])), "\n";
+} catch (LogicError $nothing) {
+    echo $nothing->message, "\n";
+}
+decimal $unit = 1;
+decimal $owes = 0 - $unit;
+try {
+    echo Core\Arr::count(Core\Decimal::allocate($one, [2, $owes])), "\n";
+} catch (LogicError $owing) {
+    echo $owing->message, "\n";
+}
+
+// The bound the split shares with the operators, reached from the side it has
+// of its own: an amount already at 28 fractional digits and a ratio with any
+// scale at all want one digit more than the type has. `ArithmeticError` here,
+// because this one is the overflow `rule:types/arithmetic` names.
+decimal $smallest = 0.0000000000000000000000000001;
+try {
+    echo Core\Arr::count(Core\Decimal::allocate($smallest, [0.5, 0.5])), "\n";
+} catch (ArithmeticError $wide) {
+    echo $wide->message, "\n";
+}
+--EXPECT--
+Core\Decimal::allocate needs at least one ratio to split 1.00 by
+Core\Decimal::allocate needs a ratio above zero to split 1.00 by
+Core\Decimal::allocate has no share for the negative ratio -1
+Core\Decimal::allocate cannot split 0.0000000000000000000000000001 at scale 28 by these ratios: a `decimal` holds 28 fractional digits and a 96-bit mantissa
