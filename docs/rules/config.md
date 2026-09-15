@@ -3,7 +3,7 @@
 
 # Configuration
 
-*10 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
@@ -923,7 +923,7 @@ extension removed while source still references it — those units fail when nex
 
 <a id="config-one-local-control-socket"></a>
 
-## The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client  *(designed — not yet in the compiler)*
+## The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client
 
 `rule:config/one-local-control-socket`
 
@@ -979,7 +979,7 @@ permanently with the compile-time route table.
 
 <a id="config-ctl-config-reports-the-live-snapshot"></a>
 
-## `nvs ctl config` reports what the running process actually holds, including an optional include that appeared after boot  *(designed — not yet in the compiler)*
+## `nvs ctl config` reports what the running process actually holds, including an optional include that appeared after boot
 
 `rule:config/ctl-config-reports-the-live-snapshot`
 

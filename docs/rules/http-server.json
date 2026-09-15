@@ -104,7 +104,7 @@
     {
       "id": "http-server/a-unix-socket-listener",
       "title": "A `listen` entry beginning with a separator is a Unix socket, Unix-only, with `socket_mode`, and it is the transport a proxy should prefer",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0097",
         "0093"
@@ -115,7 +115,13 @@
         "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
         "config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-config/src/server.rs",
+        "crates/nvs-cli/src/serve.rs",
+        "crates/nvs-server/src/serve.rs",
+        "crates/nvs-server/src/forwarded.rs",
+        "crates/nvs-host/src/net.rs"
+      ]
     },
     {
       "id": "http-server/the-mode-ceiling-defaults-to-the-startup-mode",

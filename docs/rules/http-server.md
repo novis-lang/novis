@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*8 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -101,7 +101,7 @@ The two usually cover the same tree, and that is the intended shape. An applicat
 
 <a id="http-server-a-unix-socket-listener"></a>
 
-## A `listen` entry beginning with a separator is a Unix socket, Unix-only, with `socket_mode`, and it is the transport a proxy should prefer  *(designed — not yet in the compiler)*
+## A `listen` entry beginning with a separator is a Unix socket, Unix-only, with `socket_mode`, and it is the transport a proxy should prefer
 
 `rule:http-server/a-unix-socket-listener`
 

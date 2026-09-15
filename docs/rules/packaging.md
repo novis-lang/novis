@@ -3,7 +3,7 @@
 
 # Packaging
 
-*40 of 71 rules below are **designed** rather than shipped, and are marked where they appear.*
+*38 of 71 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1599,7 +1599,7 @@ roster, and the sandbox is where a parser that size belongs.
 
 <a id="packaging-a-service-is-one-stored-argv"></a>
 
-## `nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs  *(designed — not yet in the compiler)*
+## `nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs
 
 `rule:packaging/a-service-is-one-stored-argv`
 
@@ -1704,7 +1704,7 @@ default and must be written out as `--account SYSTEM`.
 
 <a id="packaging-a-service-answers-its-manager"></a>
 
-## A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination  *(designed — not yet in the compiler)*
+## A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination
 
 `rule:packaging/a-service-answers-its-manager`
 

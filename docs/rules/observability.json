@@ -208,7 +208,7 @@
     {
       "id": "observability/four-kinds-become-a-span",
       "title": "Exactly four things become a span, and a `call` event never does",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0076",
         "0041",
@@ -224,7 +224,10 @@
         "observability/gc-pause-is-its-own-event",
         "observability/spawn-is-its-own-event"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-server/src/trace.rs",
+        "crates/nvs-server/src/otlp.rs"
+      ]
     },
     {
       "id": "observability/a-call-never-becomes-a-span",
@@ -413,7 +416,7 @@
     {
       "id": "observability/the-exporters-are-crates",
       "title": "The OTLP and Prometheus paths are somebody else's specification, implemented here; the wiring and the registry are ours",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0076",
         "0186"
@@ -424,12 +427,16 @@
         "observability/four-kinds-become-a-span",
         "observability/a-registry-is-per-core-and-nothing-reads-it"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-server/src/prometheus.rs",
+        "crates/nvs-server/src/otlp.rs",
+        "crates/nvs-config/src/export.rs"
+      ]
     },
     {
       "id": "observability/an-exporter-brings-no-second-scheduler-and-no-second-client",
       "title": "An exporter brings no second registry, no second scheduler and no second client, and a crate is taken only for an encoder",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0186"
       ],
@@ -440,7 +447,11 @@
         "concurrency/one-scheduler",
         "packaging/a-c-dependency-answers-two-questions"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-server/src/prometheus.rs",
+        "crates/nvs-server/src/otlp.rs",
+        "crates/nvs-cli/src/serve.rs"
+      ]
     },
     {
       "id": "observability/speedscope-timeline-export",

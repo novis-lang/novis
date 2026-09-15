@@ -665,7 +665,7 @@
     {
       "id": "config/one-local-control-socket",
       "title": "The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0078",
         "0103",
@@ -681,7 +681,9 @@
         "config/ownership-is-the-trust-boundary"
       ],
       "guardedBy": [
-        "crates/nvs-server/src/control.rs"
+        "crates/nvs-server/src/control.rs",
+        "crates/nvs-cli/src/ctl.rs",
+        "crates/nvs-cli/src/serve.rs"
       ]
     },
     {
@@ -701,7 +703,7 @@
     {
       "id": "config/ctl-config-reports-the-live-snapshot",
       "title": "`nvs ctl config` reports what the running process actually holds, including an optional include that appeared after boot",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0103",
         "0078"
@@ -712,7 +714,10 @@
         "config/one-local-control-socket",
         "config/a-reload-names-what-it-could-not-apply"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/src/ctl.rs",
+        "crates/nvs-server/src/control.rs"
+      ]
     },
     {
       "id": "config/check-and-dump-audit-the-tree-offline",

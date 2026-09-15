@@ -3,7 +3,7 @@
 
 # Observability
 
-*11 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -271,7 +271,7 @@ silence, a collector nothing writes to, and there is no later moment at which th
 
 <a id="observability-four-kinds-become-a-span"></a>
 
-## Exactly four things become a span, and a `call` event never does  *(designed — not yet in the compiler)*
+## Exactly four things become a span, and a `call` event never does
 
 `rule:observability/four-kinds-become-a-span`
 
@@ -520,7 +520,7 @@ the class is always there and the driver is a feature.
 
 <a id="observability-the-exporters-are-crates"></a>
 
-## The OTLP and Prometheus paths are somebody else's specification, implemented here; the wiring and the registry are ours  *(designed — not yet in the compiler)*
+## The OTLP and Prometheus paths are somebody else's specification, implemented here; the wiring and the registry are ours
 
 `rule:observability/the-exporters-are-crates`
 
@@ -543,7 +543,7 @@ and no trace story at all.
 
 <a id="observability-an-exporter-brings-no-second-scheduler-and-no-second-client"></a>
 
-## An exporter brings no second registry, no second scheduler and no second client, and a crate is taken only for an encoder  *(designed — not yet in the compiler)*
+## An exporter brings no second registry, no second scheduler and no second client, and a crate is taken only for an encoder
 
 `rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`
 

@@ -1045,7 +1045,7 @@
     {
       "id": "packaging/a-service-is-one-stored-argv",
       "title": "`nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0093",
         "0078"
@@ -1059,7 +1059,8 @@
         "core-classes/process-is-argv-only"
       ],
       "guardedBy": [
-        "crates/nvs-cli/src/service.rs"
+        "crates/nvs-cli/src/service.rs",
+        "crates/nvs-cli/src/ctl.rs"
       ]
     },
     {
@@ -1116,7 +1117,7 @@
     {
       "id": "packaging/a-service-answers-its-manager",
       "title": "A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0093",
         "0078"
@@ -1128,7 +1129,9 @@
         "packaging/a-service-runs-as-a-virtual-account",
         "http-server/the-residue-is-one-named-fault-class"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/src/service.rs"
+      ]
     },
     {
       "id": "packaging/the-unit-is-printed-and-install-is-the-opt-in",
