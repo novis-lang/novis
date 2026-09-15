@@ -48,7 +48,15 @@
 //! Where the graph goes is the `otlp` module's queue, which is the whole of what
 //! handing it on costs a request — the crate doc's § *The `exporter` feature*
 //! is why this paragraph names that module rather than linking it, and why a
-//! build without the feature derives spans that nothing ships.
+//! build without the feature derives no spans at all.
+//!
+//! [`record`] is the two of those as one call, and it is the **one** place a
+//! finished run reaches an exporter from: the door makes it where a request's
+//! isolate is joined ([`crate::serve`], both for a buffered answer and for a
+//! streamed one) and the ticker where a fire ends ([`crate::schedule`]). The
+//! events it derives from arrive on the completion — a context is the child's
+//! and is gone by then, so `nvs_runtime::host::Completion::trace` is the
+//! channel — and a run nobody sampled carries none.
 //!
 //! # What a bad header does
 //!
@@ -64,6 +72,21 @@
 //! holds its derived spans, capped at [`SPAN_CEILING`] of them, for as long as
 //! it takes to hand them on. An unsampled one holds none, and nothing outlives
 //! the request either way.
+//!
+//! # Known gaps
+//!
+//! 1. **A sampled request's graph is its root span and nothing else, because
+//!    the events the other three kinds are derived from are filed only under
+//!    `nvs_runtime::DebugFlags::TRACE`.** That bit is a debugging surface a
+//!    served request never turns on, and turning it on for a sampled one would
+//!    file a `call` event per compiled call site — the cost
+//!    `rule:observability/a-call-never-becomes-a-span` refuses outright. What
+//!    is missing is the gate that separates the two: a `query`, an `http` and a
+//!    `spawn` are filed from routines that are already rare, so the question
+//!    they should ask is whether this trace is recorded and not whether a
+//!    debugger is attached. Until it exists, a collector receives one span per
+//!    sampled request, correctly placed in its trace.
+//!    — owner: m7-server-surface
 
 use nvs_runtime::{Inbound, TraceContext, TraceEvent, TraceKind};
 use rand::RngExt;
@@ -233,6 +256,32 @@ pub fn spans(request: &str, trace: &TraceContext, events: &[TraceEvent]) -> Vec<
     spans
 }
 
+/// Derives a finished run's spans and hands them to the process's exporter —
+/// the whole of what tracing costs the request that was traced.
+///
+/// One call at the end of a request, and one for a scheduled run, so that
+/// "where the graph goes" has a single home rather than one per door. What it
+/// does is [`spans`] and `otlp::queue`'s `hand_over`: a stamp, a lock and a
+/// push, with a full queue dropping its oldest trace rather than making a
+/// request wait. A collector that is unreachable costs a batch and never a
+/// response — the drain is somebody else's task, and it is the only thing that
+/// dials.
+///
+/// **A build without the `exporter` feature derives nothing here**, which is
+/// the crate doc's § *The `exporter` feature* spelled as the one line that
+/// would otherwise do the work: there is no queue to hand a graph to, so a
+/// request pays a load and a branch instead of a walk of its events.
+///
+/// `request` is what the root span is *of* — [`spans`] owns why it is a
+/// parameter, and the two callers give it the method and path the door matched
+/// and the `[[schedule]]` entry's name.
+pub fn record(request: &str, trace: &TraceContext, events: &[TraceEvent]) {
+    #[cfg(feature = "exporter")]
+    crate::otlp::queue().hand_over(spans(request, trace, events));
+    #[cfg(not(feature = "exporter"))]
+    let _ = (request, trace, events);
+}
+
 /// A span id for a derived span, drawn like the root's: all-zero is the value
 /// the W3C format reserves for "absent", so one bit is forced rather than
 /// redrawn.
@@ -244,6 +293,8 @@ fn draw_span_id() -> [u8; 8] {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "exporter")]
+    use super::record;
     use super::{SPAN_CEILING, SpanKind, spans, take};
     use nvs_render::Level;
     use nvs_runtime::{Ctx, Inbound, OutputSink, TraceContext, TraceEvent, TraceKind, floor};
@@ -646,6 +697,52 @@ mod tests {
             spans("GET /orders/17", &sampled, &many).len(),
             SPAN_CEILING,
             "a request in a loop held an unbounded number of spans"
+        );
+    }
+
+    /// [`record`]'s whole claim: what a finished run derived reaches the queue
+    /// the drain empties, and a run nobody is recording puts nothing in it.
+    ///
+    /// The process-wide queue is what is asserted against rather than a
+    /// [`crate::otlp::Pending`] of the test's own, because that is the seam the
+    /// case is about — [`record`] is the only writer to it in this binary, so
+    /// the graphs taken out of it are this case's two and nothing else's. The
+    /// span count is the second claim: a `call` event among the events is
+    /// filed and does not become a span
+    /// (`rule:observability/a-call-never-becomes-a-span`).
+    #[cfg(feature = "exporter")]
+    #[test]
+    fn a_recorded_runs_spans_reach_the_queue_and_an_unsampled_runs_do_not() {
+        let events = [
+            event(TraceKind::Query, "select 1 -- db=main rows=1"),
+            event(TraceKind::Call, "Orders::total"),
+        ];
+        record("GET /orders/17", &decided_at(&[], 1.0), &events);
+        record("GET /orders/18", &decided(&[]), &events);
+
+        let queued = crate::otlp::queue().take(usize::MAX);
+        let roots: Vec<&str> = queued
+            .iter()
+            .filter_map(|recorded| recorded.spans.first())
+            .map(|root| root.detail.as_str())
+            .collect();
+        assert!(
+            !roots.contains(&"GET /orders/18"),
+            "a run nobody is recording queued a graph anyway: {roots:?}"
+        );
+        let recorded = queued
+            .iter()
+            .find(|recorded| {
+                recorded
+                    .spans
+                    .first()
+                    .is_some_and(|root| root.detail == "GET /orders/17")
+            })
+            .expect("a sampled run's graph never reached the queue the drain empties");
+        assert_eq!(
+            recorded.spans.len(),
+            2,
+            "the root and the `query` are the spans; a `call` became one, or the `query` did not"
         );
     }
 }

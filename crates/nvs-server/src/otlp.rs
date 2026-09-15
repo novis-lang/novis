@@ -16,9 +16,10 @@
 //!
 //! # The queue is the whole of what a request touches
 //!
-//! A request hands its spans to [`queue`] and is finished with them: a lock, a
-//! push and a stamp, with no socket, no encoder and no collector anywhere on
-//! that path. Everything else — encoding, dialling, waiting on an answer —
+//! A request hands its spans to [`queue`] — through [`crate::trace::record`],
+//! which is the one caller and the one place a door and a scheduled run share —
+//! and is finished with them: a lock, a push and a stamp, with no socket, no
+//! encoder and no collector anywhere on that path. Everything else — encoding, dialling, waiting on an answer —
 //! happens on the drain task [`push_queued_on_this_core`] runs, so a collector
 //! that is slow or gone is a collector that is slow or gone and never a
 //! response that took longer.
@@ -52,15 +53,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Nothing hands a finished request's spans over yet.** [`queue`] is the
-//!    door a request's [`crate::trace::spans`] goes through and the drain below
-//!    is what empties it, but the seam that would call it — a finished
-//!    isolate's events, which `nvs_host::Completion` does not carry — is not
-//!    built, so the only writer today is a test. A tree naming a collector
-//!    therefore dials it and pushes nothing.
-//!    — owner: m7-server-surface
-//!
-//! 2. **A span has no window.** [`crate::trace::Span`] carries no timestamps
+//! 1. **A span has no window.** [`crate::trace::Span`] carries no timestamps
 //!    because [`nvs_runtime::TraceEvent`] carries none: when a call entered and
 //!    left is the timeline sink's, and the shared epoch that would put a
 //!    monotonic reading on the wall clock is M10's. Every span is encoded as an

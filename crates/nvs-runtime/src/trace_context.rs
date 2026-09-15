@@ -34,7 +34,9 @@
 //! already decided and a partially recorded distributed trace is worse than none. That is also why
 //! an inbound sampled trace is propagated onward unchanged.
 //!
-//! **What is not here yet.** Nothing pushes a derived span to a collector
+//! **Where the recorded ones go.** A sampled request's events leave on its completion
+//! (`nvs_runtime::host::Completion::trace`), `nvs_server::trace::record` derives the spans this
+//! context's ids belong to, and the exporter's queue is what a collector is pushed from
 //! (`rule:observability/the-exporters-are-crates`).
 //!
 //! **What it spends:** 34 bytes per request, and at most 32 bytes drawn from the thread's CSPRNG

@@ -768,9 +768,22 @@ where
         // narrowing means is *tighter than what remains of the parent*, and the parent is this
         // task's own root. `Isolate::start` applies it to the child's context before its first
         // statement, which is the only point at which that context exists.
+        // `rule:observability/four-kinds-become-a-span`'s root for a run that
+        // answers no request, read while the isolate is still in hand for the
+        // reason `nvs_host::Isolate::recorded_trace` gives. The draw is the
+        // implementor's, because the head sample is a key off the tree and this
+        // loop holds none.
+        let recording = isolate.recorded_trace();
         match isolate.narrowed_by(entry.narrowing.clone()).run(ctx) {
             Ok(mut done) => {
                 fires.ran(&entry, &done);
+                // The entry's name is what the root span is *of*, which is a
+                // scheduled run's whole request line: it has no method and no
+                // path, and the name is what an operator wrote and what every
+                // other record of this fire already says.
+                if let Some(trace) = &recording {
+                    crate::trace::record(entry.name(), trace, &done.trace);
+                }
                 // Nothing is waiting for a scheduled run (§ 5), so this frame is where the answer
                 // stops — and `Completion::value` is a reference copied into *this* ownership
                 // rather than a borrow of the arena that has already gone. Dropping it without

@@ -685,6 +685,12 @@ struct Streamed<'a> {
     /// outside the one ceiling that counts it, and a peer that reads slowly
     /// would be how a server acquires unbounded concurrency.
     _place: crate::admit::InFlight<'a>,
+    /// What a sampled request's root span is of, and the trace it belongs to —
+    /// read off the carrier before the isolate took it, and held here for the
+    /// same reason the isolate is: a streamed answer leaves the service
+    /// future's frame early, so what its end owes the exporter travels with it.
+    /// `None` for every request nobody is recording.
+    recording: Option<(String, nvs_runtime::TraceContext)>,
 }
 
 /// Joins a streaming request's isolate once the body it was writing has ended,
@@ -713,6 +719,13 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
         return;
     };
     if let Some(mut done) = streamed.peer.collect(ctx) {
+        // The spans first, because the discharge below is the end of this
+        // completion: a streamed request files its events like any other, and
+        // the head having gone out early is no reason for its trace to be the
+        // one that is never exported.
+        if let Some((request, trace)) = &streamed.recording {
+            crate::trace::record(request, trace, &done.trace);
+        }
         // Nowhere to move the child's returned value to, and nothing left to
         // say with what it wrote: the answer is already on the wire. [`answer`]
         // makes the same discharge for the same reason, this crate forbidding
@@ -1164,6 +1177,26 @@ where
                     .answering_request()
                     .and_then(crate::route::label)
                     .map(Box::from);
+                // `rule:observability/four-kinds-become-a-span`'s root, taken
+                // off the carrier beside the label and at the same last moment,
+                // for the same reason: the trace the door decided rides on the
+                // request ([`crate::trace::take`]), and `Isolate::start` is
+                // about to move that request into a context this loop never
+                // holds. The request line is copied here rather than derived
+                // from the completion, which carries no request.
+                //
+                // Asked under the sampled flag, so an unsampled request pays a
+                // load and a branch and never an allocation: what `spans` would
+                // answer for one is an empty graph, and this is where that is
+                // cheapest to know. The path carries no query string, which is
+                // `rule:observability/trace-events-carry-a-kind`'s rule about
+                // what a trace is a `secret` sink for.
+                let recording = isolate.answering_request().and_then(|request| {
+                    let trace = request.trace_context()?;
+                    trace
+                        .sampled()
+                        .then(|| (format!("{} {}", request.method(), request.path()), trace))
+                });
                 // The offer reaches the program through the carrier the handler
                 // built, which is why it is made here and not above: this loop
                 // never holds an `Inbound`, and `Isolate::offering_upgrade` is
@@ -1277,14 +1310,27 @@ where
                                     peer,
                                     supply: supply.take(),
                                     _place: place,
+                                    recording,
                                 });
                                 head
                             }
                             // Nothing left to wait for, so this join does not
                             // park.
-                            None => peer
-                                .collect(&mut ctx.borrow_mut())
-                                .map_or_else(failed, |done| finished(done, &asked)),
+                            None => {
+                                peer.collect(&mut ctx.borrow_mut())
+                                    .map_or_else(failed, |done| {
+                                        // The events the request filed, on the
+                                        // completion because that is the one channel out
+                                        // of a finished isolate
+                                        // (`nvs_runtime::host::Completion::trace`), and
+                                        // derived here because this is where the request
+                                        // has ended and its graph is complete.
+                                        if let Some((request, trace)) = &recording {
+                                            crate::trace::record(request, trace, &done.trace);
+                                        }
+                                        finished(done, &asked)
+                                    })
+                            }
                         }
                     }
                     // The *argument* had no meaning on the other side, so no
@@ -2314,6 +2360,7 @@ mod tests {
             headers: Vec::new(),
             error: None,
             wall: None,
+            trace: Vec::new(),
         }
     }
 
@@ -4789,6 +4836,7 @@ mod tests {
                 headers: Vec::new(),
                 error: None,
                 wall: None,
+                trace: Vec::new(),
             }
         }
 
@@ -4829,6 +4877,10 @@ mod tests {
             }))),
             supply: None,
             _place: admission.admit().expect("a free place under the ceiling"),
+            // Nobody is recording this one: what it asserts is the join, and a
+            // graph derived from a fixture's empty completion would be a second
+            // claim in a case about one.
+            recording: None,
         }));
         let mut ctx = Ctx::buffered();
 
