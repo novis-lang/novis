@@ -819,6 +819,16 @@ pub(crate) struct Greeting {
     /// framing is assumed — every server this driver will speak to is past
     /// 5.5.3 by decades.
     server_version: (u16, u16, u16),
+    /// That same field as the server wrote it, which is what
+    /// `Core\Db\Connection::serverVersion` answers on MySQL and on MariaDB —
+    /// [ADR 0187 § 2](/docs/decisions/0187.md). The numbers above are a
+    /// decision this handshake makes; this is the string an operator reads,
+    /// suffix and all, and neither is rebuilt from the other.
+    ///
+    /// Lossy where those bytes are not UTF-8: it is a label from a peer nothing
+    /// has authenticated yet, and refusing a connection over the spelling of a
+    /// banner is a refusal no operator could act on.
+    pub(crate) banner: String,
 }
 
 /// Reads the server's greeting off a plaintext socket, requiring `required` of
@@ -871,6 +881,7 @@ pub(crate) fn read_greeting<S: Read + Write>(
             .unwrap_or_default()
             .to_vec(),
         server_version: handshake.server_version_parsed().unwrap_or((5, 5, 3)),
+        banner: String::from_utf8_lossy(handshake.server_version_ref()).into_owned(),
     })
 }
 
@@ -1643,6 +1654,8 @@ impl MySqlConn {
             wire,
             state: Cell::new(State::Idle),
             capabilities,
+            // What the greeting already carried — see the field.
+            server_version: greeting.banner,
             // `rule:core-classes/db-one-api`'s size, already read off the `[db.<name>]` block by
             // `statement_cache_for` and carried here on the target — this path
             // takes a number and has no opinion about where an unwritten
@@ -3678,6 +3691,18 @@ mod tests {
         capabilities: CapabilityFlags,
         extended: MariadbCapabilities,
     ) -> Vec<u8> {
+        greeting_versioned("8.0.36", plugin, capabilities, extended)
+    }
+
+    /// [`greeting_offering`] from a server whose banner is `version`: the field
+    /// a distribution writes its own suffix into, and the one
+    /// [ADR 0187 § 2](/docs/decisions/0187.md) keeps verbatim.
+    fn greeting_versioned(
+        version: &str,
+        plugin: &str,
+        capabilities: CapabilityFlags,
+        extended: MariadbCapabilities,
+    ) -> Vec<u8> {
         // A real server's second scramble field carries a trailing NUL, and
         // the length byte in front of it counts that byte — a 12-byte tail
         // here would make the *plugin name* start one byte late, which is
@@ -3688,7 +3713,7 @@ mod tests {
         let mut payload = Vec::new();
         HandshakePacket::new(
             10,
-            &b"8.0.36"[..],
+            version.as_bytes(),
             42,
             NONCE[..8].try_into().expect("eight bytes of nonce"),
             Some(tail),
@@ -3942,6 +3967,41 @@ mod tests {
         );
     }
 
+    /// The banner a greeting carried is kept exactly as the server wrote it,
+    /// which is what `Core\Db\Connection::serverVersion` answers on this driver
+    /// and on MariaDB — [ADR 0187 § 2](/docs/decisions/0187.md).
+    ///
+    /// Both servers are asked, because the banner is how a MariaDB server says
+    /// it is one: a driver answering the `(major, minor, patch)` beside it
+    /// would drop that word along with the distribution's suffix. And nothing
+    /// is written for either — the greeting is the round trip, and the version
+    /// was in it.
+    #[test]
+    fn mysql_keeps_the_greetings_version_string() {
+        for banner in [
+            "8.0.36-0ubuntu0.22.04.1",
+            "10.11.8-MariaDB-1:10.11.8+maria~ubu2204",
+        ] {
+            let mut wire = Wire::new(Peer::new(|_sent: &[u8]| {
+                panic!("the client answered a server that had only greeted it")
+            }));
+            wire.inbox.extend_from_slice(&greeting_versioned(
+                banner,
+                super::CACHING_SHA2_PASSWORD,
+                server_capabilities(),
+                MariadbCapabilities::empty(),
+            ));
+
+            let greeting =
+                read_greeting(&mut wire, REQUIRED_CAPABILITIES).expect("a complete greeting");
+            assert_eq!(greeting.banner, banner);
+            assert!(
+                wire.peer().sent.is_empty(),
+                "the driver spent a round trip on a version the greeting already carried"
+            );
+        }
+    }
+
     /// The `AuthSwitchRequest` gate: a server that asks for a
     /// password-sending plugin *after* the response has gone out is refused,
     /// and the password does not follow.
@@ -4096,6 +4156,7 @@ mod tests {
                 nonce: NONCE.to_vec(),
                 plugin: super::CACHING_SHA2_PASSWORD.as_bytes().to_vec(),
                 server_version: (8, 0, 36),
+                banner: String::from("8.0.36"),
             }
         );
         assert!(!rendered.contains(PASSWORD));

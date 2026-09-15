@@ -431,6 +431,8 @@ impl MariaConn {
             wire,
             state: Cell::new(State::Idle),
             capabilities,
+            // What the greeting already carried — see the field.
+            server_version: greeting.banner,
             cache: StatementCache::new(target.statement_cache),
             // § 9's zone-less row is decoded a layer up, where the target is
             // gone — see the field.

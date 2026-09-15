@@ -657,11 +657,13 @@ pub(crate) fn server_refusal(message: &ServerMessage) -> io::Error {
 /// follows it is the server describing the consequences of the first, and the
 /// `DONE` that ends a failed login says only that something failed.
 ///
-/// The [`LoginAck`] is answered rather than kept, because the one thing on it a
-/// driver could act on is the dialect — and this checks that itself: a server
-/// answering a version other than [`TDS_VERSION`] is one this driver would need
-/// a second set of readers for, and reading its tokens as 7.4's would be
-/// guessing at the bytes rather than refusing them.
+/// The [`LoginAck`] is answered because its version is what the connection
+/// keeps for `Core\Db\Connection::serverVersion`
+/// ([`LoginAck::server_version`]). Its dialect is not the caller's to act on
+/// and is checked here: a server answering a version other than
+/// [`TDS_VERSION`] is one this driver would need a second set of readers for,
+/// and reading its tokens as 7.4's would be guessing at the bytes rather than
+/// refusing them.
 ///
 /// # Errors
 ///
@@ -815,6 +817,27 @@ mod tests {
         let server = ServerError::of(&refused).expect("a refusal the server worded");
         assert_eq!(server.kind, DbErrorKind::ConnectionLost);
         assert_eq!(server.severity, "FATAL");
+    }
+
+    /// The version a connection keeps is the one `LOGINACK` sent, spelled the
+    /// one way [ADR 0187 § 2](/docs/decisions/0187.md) fixes it, and bought
+    /// with no statement: the login is the whole exchange.
+    ///
+    /// The fixture is what a SQL Server 2022 answers, down to the byte order of
+    /// the build number, so a driver reading the triple the way LOGIN7 wrote it
+    /// answers a version no server has.
+    #[test]
+    fn tds_keeps_the_version_its_loginack_sent() {
+        let block = block();
+        let target = TdsTarget::resolve(&block).expect("a complete block resolves");
+
+        let mut accepted = login_ack_token();
+        accepted.extend_from_slice(&done_token(0, 0));
+        let mut wire = logging_in(&accepted);
+        let ack = login(&mut wire, &target).expect("this login was accepted");
+
+        assert_eq!(ack.server_version(), "16.0.4035");
+        assert_eq!(ack.program, "Microsoft SQL Server");
     }
 
     /// The answers that are neither an acceptance nor a refusal.

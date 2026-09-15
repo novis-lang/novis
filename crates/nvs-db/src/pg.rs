@@ -660,12 +660,14 @@ impl PgConn {
             }
         };
         let mut wire = Wire::new(stream);
-        let cancel = authenticate(&mut wire, target)?;
+        let startup = authenticate(&mut wire, target)?;
 
         Ok(PgConn {
             wire,
             state: Cell::new(State::Idle),
-            cancel,
+            cancel: startup.cancel,
+            // What the startup exchange already said — see the field.
+            server_version: startup.server_version,
             // `rule:core-classes/db-one-api`'s size, already read off the `[db.<name>]` block by
             // `statement_cache_for` and carried here on the target —
             // this path takes a number and has no opinion about where an
@@ -1040,10 +1042,7 @@ fn posix_time_zone(offset: i32) -> String {
 /// # Errors
 ///
 /// As [`PgConn::connect`], minus the socket and TLS legs.
-fn authenticate<S: Read + Write>(
-    wire: &mut Wire<S>,
-    target: &PgTarget<'_>,
-) -> io::Result<CancelKey> {
+fn authenticate<S: Read + Write>(wire: &mut Wire<S>, target: &PgTarget<'_>) -> io::Result<Startup> {
     let mut out = BytesMut::new();
     let time_zone = posix_time_zone(target.time_zone);
     frontend::startup_message(
@@ -1076,6 +1075,7 @@ fn authenticate<S: Read + Write>(
 
     let mut scram: Option<ScramSha256> = None;
     let mut cancel: Option<CancelKey> = None;
+    let mut version: Option<String> = None;
 
     loop {
         match wire.read_message()? {
@@ -1150,19 +1150,46 @@ fn authenticate<S: Read + Write>(
                     secret_key: body.secret_key(),
                 });
             }
-            // The server's own settings, echoed, and nothing is read off them:
-            // the two the type map depends on, `DateStyle` and `TimeZone`, are
-            // startup parameters this driver set, so reading them back would
-            // only be asking whether the server agreed with itself.
-            backend::Message::ParameterStatus(_) | backend::Message::NoticeResponse(_) => {}
+            // The server's own settings, echoed, and one of them is kept:
+            // `server_version` is what `Core\Db\Connection::serverVersion`
+            // answers, and startup is the only place this server says it, so a
+            // member that reads like a field read costs no round trip
+            // ([ADR 0187 § 2](/docs/decisions/0187.md)). The two the type map
+            // depends on, `DateStyle` and `TimeZone`, are startup parameters
+            // this driver set, so reading those back would only be asking
+            // whether the server agreed with itself.
+            backend::Message::ParameterStatus(body) => {
+                if body.name()? == "server_version" {
+                    version = Some(body.value()?.to_owned());
+                }
+            }
+            backend::Message::NoticeResponse(_) => {}
             backend::Message::ErrorResponse(body) => return Err(server_error(&body)),
             backend::Message::ReadyForQuery(_) => {
-                return cancel.ok_or_else(|| {
+                let cancel = cancel.ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
                         "the server completed startup without a BackendKeyData, so this connection \
                          has no cancellation key and its statements could not be bounded",
                     )
+                })?;
+                // Every PostgreSQL reports `server_version` at startup, and so
+                // does every pooler that forwards the startup parameters. A
+                // startup without one is not the server this driver takes it
+                // for, and the alternative — answering the empty string — is a
+                // silent wrong answer to `rule:core-classes/schema-plan`'s
+                // grader as much as to the program that asked.
+                let server_version = version.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "the server completed startup without reporting `server_version`, which \
+                         every PostgreSQL sends and `Core\\Db\\Connection::serverVersion` answers \
+                         out of",
+                    )
+                })?;
+                return Ok(Startup {
+                    cancel,
+                    server_version,
                 });
             }
             // `backend::Message` is `#[non_exhaustive]` and carries no
@@ -1178,6 +1205,21 @@ fn authenticate<S: Read + Write>(
             }
         }
     }
+}
+
+/// What a startup exchange leaves on the connection, both halves of which
+/// arrive exactly once.
+///
+/// The [`CancelKey`] is unrepeatable because the protocol offers no way to ask
+/// again, and the version is unrepeatable by choice: asking would be a round
+/// trip under a member that reads like a field read
+/// ([ADR 0187 § 2](/docs/decisions/0187.md)).
+#[derive(Debug)]
+struct Startup {
+    /// What a second connection cancels this one's statement with.
+    cancel: CancelKey,
+    /// The `server_version` parameter, in the server's own words.
+    server_version: String,
 }
 
 /// An `ErrorResponse` in the words the server used, carrying [ADR 0067
@@ -3773,9 +3815,19 @@ mod tests {
 
         let mut out = message(b'K', &key);
         out.extend_from_slice(&message(b'S', b"client_encoding\0UTF8\0"));
+        // The one parameter this driver keeps, carrying the suffix a
+        // distribution puts in it: a driver that kept the number alone would
+        // pass a case whose fixture answered `16.4`.
+        out.extend_from_slice(&message(
+            b'S',
+            format!("server_version\0{SERVER_VERSION}\0").as_bytes(),
+        ));
         out.extend_from_slice(&message(b'Z', b"I"));
         out
     }
+
+    /// What the scripted server reports itself as.
+    const SERVER_VERSION: &str = "16.4 (Debian 16.4-1.pgdg120+1)";
 
     fn hmac(key: &[u8], data: &[u8]) -> [u8; 32] {
         let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC takes any key length");
@@ -4221,6 +4273,47 @@ mod tests {
         );
     }
 
+    /// The version a connection keeps is the `server_version` its startup
+    /// reported, verbatim and bought with no statement —
+    /// [ADR 0187 § 2](/docs/decisions/0187.md).
+    ///
+    /// The fixture's value carries a distribution's suffix, so a driver that
+    /// parsed the number out and rebuilt the string fails here; the peer
+    /// panics on a fourth request, so a driver that asked the server instead
+    /// fails too. The second half is the startup that reported no version at
+    /// all, which is refused rather than answered with an empty string.
+    #[test]
+    fn postgres_keeps_server_version_from_its_parameter_status() {
+        let mut scram = Scram::new("Novis-Test-Pw1");
+        let mut step = 0;
+        let mut wire = Wire::new(Peer::new(move |sent: &[u8]| {
+            step += 1;
+            match step {
+                1 => auth(10, b"SCRAM-SHA-256\0SCRAM-SHA-256-PLUS\0\0"),
+                2 => scram.first(sent),
+                3 => scram.last(sent),
+                _ => panic!("the driver asked the server for something startup had said"),
+            }
+        }));
+
+        let startup =
+            authenticate(&mut wire, &target("Novis-Test-Pw1")).expect("the exchange completed");
+        assert_eq!(startup.server_version, SERVER_VERSION);
+
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            let mut key = 4242i32.to_be_bytes().to_vec();
+            key.extend_from_slice(&99i32.to_be_bytes());
+            let mut out = auth(0, b"");
+            out.extend_from_slice(&message(b'K', &key));
+            out.extend_from_slice(&message(b'Z', b"I"));
+            out
+        }));
+        let refused = authenticate(&mut wire, &target("Novis-Test-Pw1"))
+            .expect_err("a startup that reported no version opened a connection");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
+        assert!(refused.to_string().contains("server_version"), "{refused}");
+    }
+
     /// The whole exchange, against a server that checks what it is sent: the
     /// driver's proof verifies, the driver verifies the server's signature,
     /// and the cancellation key survives into the connection.
@@ -4237,11 +4330,11 @@ mod tests {
             }
         }));
 
-        let key =
+        let startup =
             authenticate(&mut wire, &target("Novis-Test-Pw1")).expect("the exchange completed");
 
         assert_eq!(
-            key,
+            startup.cancel,
             CancelKey {
                 process_id: 4242,
                 secret_key: 99

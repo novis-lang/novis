@@ -666,6 +666,16 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
     })
 }
 
+/// The version of the SQLite this binary is linked against, which is what
+/// `Core\Db\Connection::serverVersion` answers on this driver —
+/// [ADR 0187 § 2](/docs/decisions/0187.md).
+///
+/// A property of the binary and not of a connection: there is no server here
+/// and no handshake, so nothing about it is kept per open database.
+pub(crate) fn library_version() -> &'static str {
+    rusqlite::version()
+}
+
 impl SqliteConn {
     /// [ADR 0067 § 9](/docs/decisions/0067.md)'s declared zone, in
     /// seconds east of UTC.
@@ -1593,6 +1603,33 @@ mod tests {
     /// to, which is the one thing the other drivers cannot do in a unit test.
     fn connect() -> crate::conn::SqliteConn {
         open(&SqliteTarget::resolve(&block()).expect("the block resolves")).expect("it opens")
+    }
+
+    /// `serverVersion` on the one driver with no server: the version of the
+    /// library this binary is linked against —
+    /// [ADR 0187 § 2](/docs/decisions/0187.md).
+    ///
+    /// Asserted against what the engine itself answers rather than against a
+    /// literal, so the two move together when the library does, and asserted to
+    /// be three numbers, because a version a program cannot compare is not the
+    /// answer the member promises.
+    #[test]
+    fn sqlite_answers_its_library_version() {
+        let conn = connect();
+        let asked: String = conn
+            .handle
+            .lock()
+            .expect("an uncontended connection")
+            .query_row("SELECT sqlite_version()", [], |row| row.get(0))
+            .expect("SQLite answers for itself");
+
+        assert_eq!(super::library_version(), asked);
+        let parts: Vec<&str> = asked.split('.').collect();
+        assert_eq!(parts.len(), 3, "`{asked}` is not major.minor.patch");
+        assert!(
+            parts.iter().all(|part| part.parse::<u32>().is_ok()),
+            "`{asked}` is not three numbers"
+        );
     }
 
     /// A block naming one database that two handles can both open, for the

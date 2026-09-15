@@ -767,6 +767,17 @@ pub struct PgConn {
     /// unrepeatable: the key arrives once, during the handshake, and a
     /// connection that dropped it cannot ask again.
     pub(crate) cancel: CancelKey,
+    /// The `server_version` the backend reported during startup, verbatim —
+    /// [ADR 0187 § 2](/docs/decisions/0187.md)'s answer for this driver.
+    ///
+    /// Kept because the parameter is delivered once and asking for it again
+    /// would be a round trip behind a member that reads like a field read. A
+    /// `ParameterStatus` arriving later cannot move it: PostgreSQL reports this
+    /// one at startup alone, and a server does not change version underneath a
+    /// session.
+    ///
+    /// **What it spends:** one short string per open connection.
+    pub(crate) server_version: String,
     /// `rule:core-classes/db-one-api`'s LRU of server-side prepared statements, keyed by SQL text
     /// plus expansion arity.
     ///
@@ -847,6 +858,16 @@ pub struct MySqlConn {
     /// an `EOF` packet or by an `OK`, are read off these bits. A driver that
     /// re-derived them per packet would be deciding it twice.
     pub(crate) capabilities: CapabilityFlags,
+    /// The greeting's version banner, exactly as the server wrote it —
+    /// [ADR 0187 § 2](/docs/decisions/0187.md)'s answer for this driver, taken
+    /// off `crate::mysql`'s `Greeting`.
+    ///
+    /// The banner and not the `(major, minor, patch)` beside it: a
+    /// distribution's suffix is part of what is on the other end, and a driver
+    /// that answered the triple would hide the half an operator reads.
+    ///
+    /// **What it spends:** one short string per open connection.
+    pub(crate) server_version: String,
     /// `rule:core-classes/db-one-api`'s LRU of server-side prepared statements, keyed by SQL text
     /// plus expansion arity.
     ///
@@ -917,6 +938,11 @@ pub struct MariaConn {
     /// and its reason, MariaDB's packets being as self-describing as MySQL's,
     /// which is to say not at all.
     pub(crate) capabilities: CapabilityFlags,
+    /// The greeting's version banner — [`MySqlConn::server_version`]'s field,
+    /// and the one place the two servers are told apart by what they say rather
+    /// than by which driver opened them: a MariaDB server writes `MariaDB` into
+    /// this string itself.
+    pub(crate) server_version: String,
     /// `rule:core-classes/db-one-api`'s LRU of server-side prepared statements.
     ///
     /// [`MySqlConn::cache`]'s twin down to the handle type: `COM_STMT_PREPARE`
@@ -956,6 +982,13 @@ pub struct TdsConn {
     pub(crate) wire: TdsWire,
     /// `rule:core-classes/db-connection-busy-state`'s busy state; the reasoning is on [`PgConn`].
     pub(crate) state: Cell<State>,
+    /// `major.minor.build` from the `LOGINACK` that accepted the login, decimal
+    /// and unpadded — [ADR 0187 § 2](/docs/decisions/0187.md) fixes that
+    /// spelling in [`crate::tds::LoginAck::server_version`], because this is the
+    /// one backend that sends numbers where the others send a string.
+    ///
+    /// **What it spends:** one short string per open connection.
+    pub(crate) server_version: String,
     /// `rule:core-classes/db-column-types`'s declared zone, as seconds east of UTC — what a `datetime`
     /// or `datetime2` off this connection is read in.
     ///
@@ -1085,6 +1118,26 @@ impl Connection {
             Connection::MariaDb(_) => Driver::MariaDb,
             Connection::SqlServer(_) => Driver::SqlServer,
             Connection::Sqlite(_) => Driver::Sqlite,
+        }
+    }
+
+    /// What the other end reported itself as, spelled per driver by
+    /// [ADR 0187 § 2](/docs/decisions/0187.md).
+    ///
+    /// Read off the connection and never asked for: each wire driver kept what
+    /// its own handshake had already delivered, so no statement goes out here.
+    /// SQLite has no server and no handshake, and its answer is the linked
+    /// library's version — a property of this binary rather than of a
+    /// connection, so it is read from the library instead of being copied onto
+    /// every open database.
+    #[must_use]
+    pub fn server_version(&self) -> &str {
+        match self {
+            Connection::Postgres(c) => &c.server_version,
+            Connection::MySql(c) => &c.server_version,
+            Connection::MariaDb(c) => &c.server_version,
+            Connection::SqlServer(c) => &c.server_version,
+            Connection::Sqlite(_) => crate::sqlite::library_version(),
         }
     }
 

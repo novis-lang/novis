@@ -404,11 +404,13 @@ impl TdsConn {
         tcp.set_deadline(deadline);
 
         let mut wire = negotiate_tls(Wire::new(tcp), target.host, target.tls_ca_file)?;
-        login(&mut wire, target)?;
+        let ack = login(&mut wire, target)?;
 
         Ok(TdsConn {
             wire,
             state: Cell::new(State::Idle),
+            // The numbers LOGINACK sent, spelled once — see the field.
+            server_version: ack.server_version(),
             // § 9's zone-less row is decoded a layer up, where the target is
             // gone — see the field.
             time_zone: target.time_zone,

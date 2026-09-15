@@ -216,6 +216,21 @@ pub struct LoginAck {
     pub version: (u8, u8, u16),
 }
 
+impl LoginAck {
+    /// The version `Core\Db\Connection::serverVersion` answers on this driver:
+    /// `major.minor.build`, decimal and unpadded — `16.0.4035`.
+    ///
+    /// [ADR 0187 § 2](/docs/decisions/0187.md) fixes that spelling here because
+    /// SQL Server is the one backend sending numbers where the others send a
+    /// string, and a driver inventing a rendering of its own would leave a
+    /// program comparing versions across drivers comparing two shapes.
+    #[must_use]
+    pub fn server_version(&self) -> String {
+        let (major, minor, build) = self.version;
+        format!("{major}.{minor}.{build}")
+    }
+}
+
 /// An `ENVCHANGE` token: one session property, before and after.
 ///
 /// The variants are the ones TDS 7.4 spells as text, plus the one it spells as
