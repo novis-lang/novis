@@ -1,0 +1,39 @@
+--TEST--
+Spec § 18's `serverVersion()` answers what this connection's handshake already delivered: a version that is there, kept on the connection rather than derived, and the same string on every call — `rule:core-classes/db-one-api` and ADR 0187 § 2
+--FILE--
+<?nvs
+// SQLite is the backend a case can reach, and it is also the one with no
+// server: its answer is the version of the library this binary is linked
+// against, where the four wire drivers answer what their own handshake sent.
+// All five are asserted against real servers from
+// `crates/nvs-stdlib/tests/db_stream.rs`, which is the only place a greeting
+// or a `LOGINACK` exists to be compared against.
+var $db = Core\Db::connect("main");
+var $version = $db->serverVersion();
+
+// The member never answers nothing. Every one of the five backends has a
+// version it already said, so there is no connection this is empty on and no
+// `null` in the signature for one.
+echo "answers: ", $version == "" ? "nothing" : "a version", "\n";
+
+// It is *kept*, not asked for: the string is the one the connection has been
+// holding since it opened, so a second call cannot answer differently. A
+// member that ran `select sqlite_version()` here would be free to.
+echo "twice: ", $version == $db->serverVersion() ? "the same" : "something else", "\n";
+
+// And running statements does not move it. The version belongs to the server
+// on the other end rather than to anything this request did to it.
+$db->execute("create table t (id integer primary key)", []);
+echo "after a statement: ", $version == $db->serverVersion() ? "the same" : "something else", "\n";
+--FILE nvs.toml--
+# § 3: `db.connect` covers a SQLite block, whose path is configuration.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+answers: a version
+twice: the same
+after a statement: the same

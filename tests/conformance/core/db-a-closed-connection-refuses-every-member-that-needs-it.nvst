@@ -1,5 +1,5 @@
 --TEST--
-Spec § 18's `close` is the boundary every other `Core\Db\Connection` member is on the far side of: a statement and `driver()` both throw `LogicError` afterwards, while `isOpen()` still answers and a second `close` does nothing — `rule:core-classes/db-statement-members` and `rule:security/db-pool-reset-is-a-boundary`
+Spec § 18's `close` is the boundary every other `Core\Db\Connection` member is on the far side of: a statement, `driver()` and `serverVersion()` all throw `LogicError` afterwards, while `isOpen()` still answers and a second `close` does nothing — `rule:core-classes/db-statement-members` and `rule:security/db-pool-reset-is-a-boundary`
 --FILE--
 <?nvs
 // The connection is real (SQLite), so the statement below is refused by the
@@ -42,6 +42,17 @@ try {
     echo "driver: refused\n";
 }
 
+// `serverVersion()` is the other readonly member, and it is on the statement's
+// side too — what it answers was kept on the connection, and the connection is
+// what went back to the pool. A member answering a version after the release
+// would be reading a string whose subject this request no longer holds.
+try {
+    $db->serverVersion();
+    echo "serverVersion: not refused\n";
+} catch (LogicError $refused) {
+    echo "serverVersion: refused\n";
+}
+
 // `isOpen()` is the exception, and deliberately: a member that asks whether
 // the connection is gone cannot be one that throws because it is.
 echo "isOpen: ", $db->isOpen() ? "yes" : "no", "\n";
@@ -63,5 +74,6 @@ created 0
 query: refused
 stream: refused
 driver: refused
+serverVersion: refused
 isOpen: no
 closed twice: no

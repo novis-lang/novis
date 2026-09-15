@@ -43,6 +43,9 @@ pub(super) const EXECUTE_MANY: &str = r"Core\Db\Connection::executeMany";
 /// a message that holds a class.
 pub(super) const DRIVER_MEMBER: &str = r"Core\Db\Connection::driver";
 
+/// `Core\Db\Connection::serverVersion`, for the same refusal's sentence.
+pub(super) const SERVER_VERSION_MEMBER: &str = r"Core\Db\Connection::serverVersion";
+
 /// `transaction`'s own name for a refusal, spelled on the connection because
 /// that is the class that declares the row — a nested call on a
 /// [`TRANSACTION`] reaches the same helper and so names the same member, which
@@ -1231,6 +1234,26 @@ nvs_runtime::nvs_helper! {
         let (key, _) = connection_of(args[0], "driver")?;
         let driver = crate::db::pool::filed_connection(ctx, key, DRIVER_MEMBER)?.driver();
         Ok(driver_value(driver))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$c->serverVersion(): string` — what the other end said it is.
+    ///
+    /// **A field read and not a statement.** Every driver kept the version its
+    /// own handshake had already delivered
+    /// ([ADR 0187 § 2](/docs/decisions/0187.md)), so this spends no round trip
+    /// and answers between two rows of a `stream`, where the connection is held
+    /// and a statement is refused. A member that looked like a field read and
+    /// cost a `SELECT version()` would be a latency trap on the request path.
+    ///
+    /// It reaches for the connection, so a closed one refuses it — `driver`'s
+    /// side of `rule:security/db-pool-reset-is-a-boundary`'s boundary rather
+    /// than `isOpen`'s.
+    fn nvs_core_db_connection_server_version(ctx, args: [1]) {
+        let (key, _) = connection_of(args[0], "serverVersion")?;
+        let filed = crate::db::pool::filed_connection(ctx, key, SERVER_VERSION_MEMBER)?;
+        Ok(Value::str(NvsStr::new(filed.server_version().as_bytes())))
     }
 }
 

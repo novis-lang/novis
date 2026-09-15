@@ -654,6 +654,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         STREAM_CURRENT_SYMBOL => (nvs_core_db_stream_current as *const ()).cast(),
         "nvs_core_db_connection_close" => (nvs_core_db_connection_close as *const ()).cast(),
         "nvs_core_db_connection_driver" => (nvs_core_db_connection_driver as *const ()).cast(),
+        "nvs_core_db_connection_server_version" => {
+            (nvs_core_db_connection_server_version as *const ()).cast()
+        }
         "nvs_core_db_connection_is_open" => (nvs_core_db_connection_is_open as *const ()).cast(),
         "nvs_core_db_transaction_roll_back" => {
             (nvs_core_db_transaction_roll_back as *const ()).cast()

@@ -22264,7 +22264,7 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
 
-Keywords: query, queryAs, execute, executeMany, stream, transaction, close, driver, isOpen
+Keywords: query, queryAs, execute, executeMany, stream, transaction, close, driver, serverVersion, isOpen
 
 | Member | Signature |
 |---|---|
@@ -22276,6 +22276,7 @@ Keywords: query, queryAs, execute, executeMany, stream, transaction, close, driv
 | [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable(Core\Db\Transaction): T $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Connection->close`](#core-core-db-connection-close) | `close(): void` |
 | [`Core\Db\Connection->driver`](#core-core-db-connection-driver) | `driver(): Core\Db\Driver` |
+| [`Core\Db\Connection->serverVersion`](#core-core-db-connection-serverversion) | `serverVersion(): string` |
 | [`Core\Db\Connection->isOpen`](#core-core-db-connection-isopen) | `isOpen(): bool` |
 
 <a id="core-core-db-connection-query"></a>
@@ -22414,6 +22415,19 @@ $connection->driver(): Core\Db\Driver
 Which backend this connection speaks to, as the `Core\Db\Driver` case the `[db.<name>]` block or the `open` settings named.
 
 **Returns** `Core\Db\Driver` — The connection's own `Core\Db\Driver` case.
+
+**Throws** `LogicError` — The connection has been closed.
+
+<a id="core-core-db-connection-serverversion"></a>
+#### `Core\Db\Connection->serverVersion`
+
+```nvs skip
+$connection->serverVersion(): string
+```
+
+The version the other end reported of itself, in its own words: PostgreSQL's `server_version`, MySQL's and MariaDB's greeting banner, `major.minor.build` from SQL Server's login answer, and SQLite's library version. The handshake delivered it, so reading it costs no statement — a `stream` may ask while it holds the connection.
+
+**Returns** `string` — The version, never empty and never re-worded — a distribution's suffix is part of what is on the other end.
 
 **Throws** `LogicError` — The connection has been closed.
 

@@ -397,6 +397,20 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             doc: Some(&DRIVER_MEMBER_DOC),
         },
         CoreMethod {
+            name: "serverVersion",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // Unqualified, as § 18's table writes it and for [`COLUMN`]'s
+            // reason: the server described itself during the handshake, before
+            // this connection had carried a statement at all, so it is not one
+            // of § 9's `tainted` reads — those are the values a request can put
+            // bytes into.
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_db_connection_server_version",
+            doc: Some(&SERVER_VERSION_DOC),
+        },
+        CoreMethod {
             name: "isOpen",
             names: &[],
             params: &[],
@@ -431,7 +445,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 /// to know what the other declares. It sits here rather than in the case's own
 /// module so that it is beside the rows it names.
 #[cfg(test)]
-pub(super) const BEYOND_QUERYABLE: &[&str] = &["close", "driver", "isOpen"];
+pub(super) const BEYOND_QUERYABLE: &[&str] = &["close", "driver", "serverVersion", "isOpen"];
 
 /// `Core\Db\Connection::close`'s reference card — `rule:core-api/reference-card`.
 const CLOSE_DOC: MethodDoc = MethodDoc {
@@ -450,6 +464,21 @@ const DRIVER_MEMBER_DOC: MethodDoc = MethodDoc {
             `[db.<name>]` block or the `open` settings named.",
     params: &[],
     ret: "The connection's own `Core\\Db\\Driver` case.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The connection has been closed.",
+    }],
+};
+
+/// `Core\Db\Connection::serverVersion`'s reference card — `rule:core-api/reference-card`.
+const SERVER_VERSION_DOC: MethodDoc = MethodDoc {
+    short: "The version the other end reported of itself, in its own words: PostgreSQL's \
+            `server_version`, MySQL's and MariaDB's greeting banner, `major.minor.build` from SQL \
+            Server's login answer, and SQLite's library version. The handshake delivered it, so \
+            reading it costs no statement — a `stream` may ask while it holds the connection.",
+    params: &[],
+    ret: "The version, never empty and never re-worded — a distribution's suffix is part of what \
+          is on the other end.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The connection has been closed.",
