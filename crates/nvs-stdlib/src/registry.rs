@@ -2856,12 +2856,12 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// than branching on what its call site wrote; `nvs-ir`'s module docs, *A
 /// shape's wire contract*, own why a shape's cannot ride on its descriptor.
 ///
-/// **`Core\Db\Queryable`'s `queryAs` is on it twice**, because `rule:classes/no-traits`'s
-/// delegation is two registry rows and this roster is keyed by the *declaring*
-/// class — the one `nvs_types::expr::calls` resolves a call to. A member
-/// forwarded from `Core\Db\Transaction` to its connection is still written on
-/// the transaction, so both spellings have to be here or the same call through
-/// a `$tx` would lose its class.
+/// **Each of `Core\Db\Queryable`'s written members is on it twice**, because
+/// `rule:classes/no-traits`'s delegation is two registry rows and this roster is
+/// keyed by the *declaring* class — the one `nvs_types::expr::calls` resolves a
+/// call to. A member forwarded from `Core\Db\Transaction` to its connection is
+/// still written on the transaction, so both spellings have to be here or the
+/// same call through a `$tx` would lose its class.
 pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Arr", "shapeAs"),
     (r"Core\Json", "decodeAs"),
@@ -2872,6 +2872,8 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Http\Response", "jsonAs"),
     (r"Core\Db\Connection", "queryAs"),
     (r"Core\Db\Transaction", "queryAs"),
+    (r"Core\Db\Connection", "streamAs"),
+    (r"Core\Db\Transaction", "streamAs"),
 ];
 
 /// Which positional parameter of `class::method` is `rule:security/isolate-shares-nothing`'s isolate entry,
@@ -2977,6 +2979,12 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     // instance `query` answers with, spelled as a [`CoreTy::InstanceAt`] — is
     // the unhydrated case of the same class rather than a second one.
     (crate::db::ROWS_NAME, &["T"]),
+    // § 18's other result, and generic for the same reason at the other end of
+    // the memory trade: a walk carries what each row was built into, a
+    // `Core\Db\Row` for `stream` and the call site's own class for
+    // `streamAs<T>`, so the two members answer one class at two arguments
+    // rather than two classes with one iteration protocol each.
+    (crate::db::STREAM_NAME, &["T"]),
 ];
 
 /// Every `Core` class a `foreach` can walk, and the element its
@@ -3024,14 +3032,11 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // own variables, like the three collections above, because § 18's `Rows`
     // and `Rows<T>` are one generic class and not two.
     (crate::db::ROWS_NAME, &CoreTy::Var("T")),
-    // § 18's `stream(): Iterable<Db\Row>`, and the concrete element the row
-    // above is not: `Core\Db\Stream` carries no type variable at all, because
-    // a streamed row is a `Core\Db\Row` and `streamAs<T>` is a second class's
-    // question rather than a second argument to this one.
-    (
-        crate::db::STREAM_NAME,
-        &CoreTy::Instance(crate::db::ROW_NAME),
-    ),
+    // § 18's `stream(): Iterable<Db\Row>` and `streamAs<T>(): Iterable<T>`,
+    // which are one class at two arguments as the row above is: a walk yields
+    // what it was opened to build, so the element is the receiver's own
+    // variable and `nvs_types::expr::iteration` substitutes the argument in.
+    (crate::db::STREAM_NAME, &CoreTy::Var("T")),
     // Spec § 15's `bodyStream(): Iterable<bytes>`, with the qualifier `body()`
     // puts on the same octets: a chunk of a request body is `tainted` whatever
     // the body held, so this is a concrete element like the two `Core\IO` rows

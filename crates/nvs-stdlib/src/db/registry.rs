@@ -363,15 +363,37 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             defaults: &[],
             // § 18's `Iterable<Db\Row>`, spelled as the class that *is* the
             // walk — [`CoreTy::Iterated`] is parameter position only, so
-            // `Core\IO\Lines`' spelling is the one available here. It is a
-            // [`CoreTy::Instance`] and not an [`CoreTy::InstanceAt`] because
-            // the element is fixed rather than the receiver's: a streamed row
-            // is a `Core\Db\Row` and `streamAs<T>` will be its own class's
-            // question, exactly as `query` and `queryAs` are one class at two
-            // arguments only because both buffer.
-            return_ty: CoreTy::Instance(STREAM_NAME),
+            // `Core\IO\Lines`' spelling is the one available here. The element
+            // rides as that class's own type argument, exactly as it does on
+            // the [`ROWS`] the member above answers: `Core\Db\Stream` is one
+            // generic walk at two arguments, `Db\Row` here and the call site's
+            // own `T` on `streamAs` below, because a second class would be a
+            // second iteration protocol saying the same thing.
+            return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Instance(ROW_NAME)]),
             symbol: "nvs_core_db_connection_stream",
             doc: Some(&STREAM_DOC),
+        },
+        CoreMethod {
+            name: "streamAs",
+            names: &["sql", "params"],
+            // `stream`'s parameters exactly, for the reason `queryAs` takes
+            // `query`'s: § 4 makes this the same statement over the same
+            // portal, bound the same way and bounded by the same `timeout`,
+            // and the only difference is what each row becomes.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
+            ],
+            defaults: &[],
+            // § 18's `Iterable<T>`, which is the walk above at the type its
+            // call site wrote. The [`CoreTy::Written`] is what makes the member
+            // generic, exactly as `queryAs`'s is: `CoreMethod::written` finds
+            // the `T` here and nowhere else, so a call naming no type argument
+            // is `E0442`.
+            return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Written("T")]),
+            symbol: "nvs_core_db_connection_stream_as",
+            doc: Some(&STREAM_AS_DOC),
         },
         TRANSACTION_ROW,
         CoreMethod {
@@ -675,9 +697,27 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             // opened inside a transaction holds the very connection the
             // `COMMIT` has to go out on, so the `LogicError` a second statement
             // meets is the same one either receiver produces.
-            return_ty: CoreTy::Instance(STREAM_NAME),
+            return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Instance(ROW_NAME)]),
             symbol: "nvs_core_db_connection_stream",
             doc: Some(&STREAM_DOC),
+        },
+        CoreMethod {
+            name: "streamAs",
+            names: &["sql", "params"],
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
+            ],
+            defaults: &[],
+            // The row above's delegation at a written type, and the second
+            // reason it is spelled out here rather than inherited:
+            // `crate::registry::WRITTEN_CLASS_MEMBERS` is keyed by the
+            // *declaring* class, so a `$tx->streamAs<Person>(…)` that this row
+            // did not exist for would lose the class its call site wrote.
+            return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Written("T")]),
+            symbol: "nvs_core_db_connection_stream_as",
+            doc: Some(&STREAM_AS_DOC),
         },
         TRANSACTION_ROW,
         CoreMethod {
@@ -2345,6 +2385,70 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
                    disagree in spelling or in number, a `:name` names no element, an element is a \
                    value with no bound form, the connection has been closed, or a statement is \
                    already streaming on it.",
+        },
+        ErrorDoc {
+            error: "Core\\Db\\DbError",
+            desc: "The server refused the statement, or refused it part way through the walk, \
+                   carrying its own `SQLSTATE` and message — or a column came back in a type this \
+                   driver does not read back yet.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the statement or one of its rows was in flight — \
+                   or `timeout` passed with the walk still open — which leaves it unusable for \
+                   the rest of the request.",
+        },
+    ],
+};
+
+/// `Core\Db\Queryable::streamAs`'s reference card — `rule:core-api/reference-card`.
+pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
+    short: "Walks a result set a row at a time exactly as `stream` does and builds each row into \
+            the class written at the call site — `queryAs`'s hydration over `stream`'s constant \
+            memory, which is the pair `MYSQLI_USE_RESULT` and `PDO::FETCH_CLASS` only ever did one \
+            at a time.",
+    params: &[
+        ParamDoc {
+            name: "sql",
+            desc: "The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, \
+                   never a value written into the text, and a sink either way.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "params",
+            desc: "The values to bind, read exactly as `query` reads them — list-keyed for `?`, \
+                   string-keyed for `:name`, one array and never both spellings.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "timeout",
+            desc: "How long the whole walk may take, under `stream`'s own rule: the bound stays on \
+                   the connection while the cursor is open, so it covers every row read and not \
+                   just the call that opens the walk. Omitted, the walk waits as long as the \
+                   server takes.",
+            shape: &[],
+        },
+    ],
+    ret: "A walk over the statement's rows, each one built into `T`, in the server's order. \
+          Nothing has been read when this returns and the connection is busy from here, exactly \
+          as `stream` leaves it — and one `T` is held at a time, which is the whole difference \
+          from `queryAs`.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The call is wrong rather than the database: the placeholders and the array \
+                   disagree in spelling or in number, a `:name` names no element, an element is a \
+                   value with no bound form, the connection has been closed, or a statement is \
+                   already streaming on it. A `T` that carries no `#[Db\\Derive]` is refused here \
+                   too, as the backstop under the compile-time diagnostic that already names it.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "A row did not match `T`: a column missing, a column of another type than the \
+                   field declares, a SQL NULL in a field that is not `?T`, or a field whose \
+                   declared type has no column mapping at all. Every bad column of that row is \
+                   reported at once, in `issues`, each `path` the column's name — and the walk \
+                   ends there, since the connection is left holding an unread portal.",
         },
         ErrorDoc {
             error: "Core\\Db\\DbError",
