@@ -27,9 +27,11 @@ modules = [
   "crates/nvs-types/src/ctor_init.rs",
   "crates/nvs-types/src/lateinit.rs",
   "crates/nvs-types/src/intrinsics.rs",
+  "crates/nvs-types/src/derive.rs",
   # Stage 4 -- the library.
   "crates/nvs-stdlib/src/compress.rs",
   "crates/nvs-stdlib/src/json.rs",
+  "crates/nvs-stdlib/src/db/mod.rs",
   # Stage 5 -- server, configuration, cache, schema.
   "crates/nvs-config/src/cache.rs",
   "crates/nvs-server/src/bounds.rs",
@@ -40,6 +42,8 @@ modules = [
 rules = [
   "0004",
   "programs/memory-priority",
+  "security/db-pool-reset-is-a-boundary",
+  "core-classes/derive-attribute",
 ]
 
 adrs = []
