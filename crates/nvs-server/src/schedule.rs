@@ -51,15 +51,13 @@
 //! # The fallback, when there is no lease to take
 //!
 //! [`arm`] takes `Option<&dyn Leases>`, and a [`None`] leaves every `fleet` entry
-//! **unarmed** with one note naming it. That covers both "this deployment has no
-//! shared store" — unreachable, since [`nvs_config::schedule`]'s boot refuses
-//! such a tree before a socket exists — and "the store it has cannot
-//! compare-and-set", which is today's answer: `Core\Cache`'s wire is `put` and
-//! `get` (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`) and neither is a set-if-absent. Which of the two it is,
-//! is the binary's to know and not this module's, because the ticker has no type
-//! for a store. Firing the entry on each host's own clock instead is the precise
-//! failure § 3's key exists to prevent, so the safe half is to run none of them
-//! and name each one while an operator is still reading the boot.
+//! **unarmed** with one note naming it. What makes it a [`None`] is the binary's
+//! to know and not this module's, because the ticker has no type for a store: a
+//! tree naming no shared store, and a store that would not answer the boot, both
+//! arrive here as the same absence. Firing the entry on each host's own clock
+//! instead is the precise failure § 3's key exists to prevent, so the safe half
+//! is to run none of them and name each one while an operator is still reading
+//! the boot.
 //!
 //! # An entry never overlaps itself
 //!
@@ -76,19 +74,13 @@
 //!
 //! # Known gaps
 //!
-//! 1. **No `fleet` entry is ever armed, because nothing implements [`Leases`]
-//!    to pass to [`arm`].** The shared tier's wire is `put` and `get`
-//!    (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`) and
-//!    neither is a set-if-absent, so the binary supplies [`None`] and the
-//!    fallback above runs: each such entry is named and left unarmed.
-//!    — owner: m7-server-surface
-//! 2. **The per-entry `limits` and `grants` sub-caps (§ 5) are not applied.**
+//! 1. **The per-entry `limits` and `grants` sub-caps (§ 5) are not applied.**
 //!    They narrow a run's budget and its capabilities, and nothing in this tree
 //!    narrows either one *per isolate*. Like `overlap`, they are the ticker's
 //!    question rather than the caller's, and they belong to this module when
 //!    they land.
 //!    — owner: m7-server-surface
-//! 3. **A lease is never renewed while its run is in flight**, which § 3 names
+//! 2. **A lease is never renewed while its run is in flight**, which § 3 names
 //!    beside the TTL. What is here is the TTL alone — [`Armed::lease_ttl`], the
 //!    gap to this entry's next fire — so a run that outlives its own interval
 //!    can have the lease expire under it and a second host take the next one
@@ -304,9 +296,10 @@ pub trait Fires {
 /// and must not grow one — the module doc § *Where a `fleet` entry's lease comes from* is that
 /// argument, and it is the same one that makes [`Fires`] a trait instead of a compiler in here.
 ///
-/// **Only `nvs serve` implements this**, over `Core\Cache`'s shared tier, and only once that tier
-/// has a set-if-absent to implement it with. Until then the binary passes [`None`] and § 3's
-/// fallback holds, which is what the module doc's second section states.
+/// **Only `nvs serve` implements this**, over `Core\Cache`'s shared tier's set-if-absent, on a
+/// connection of its own and under a token naming the process that took the key. A tree with no
+/// such store, or one whose store will not answer the boot, is where the binary passes [`None`]
+/// and § 3's fallback holds — the module doc's section on it states the rest.
 pub trait Leases {
     /// Take the lease named `key`, to be held for `ttl`, and report whether **this** host got it.
     ///

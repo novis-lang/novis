@@ -1984,8 +1984,17 @@ pub(crate) fn configured(ctx: &Ctx, key: &str) -> Option<String> {
 /// is validated where it is loaded and failing a request over a key the operator
 /// can no longer see is the wrong direction.
 fn timeout_of(ctx: &Ctx) -> Duration {
-    configured(ctx, TIMEOUT)
-        .and_then(|text| duration::parse(&text).ok())
+    bound_of(configured(ctx, TIMEOUT).as_deref())
+}
+
+/// `[cache.shared] timeout` as an operator wrote it, or [`DEFAULT_TIMEOUT`].
+///
+/// Taken as text rather than read off a `Ctx`, because [`Lease`] has no context
+/// to read it from and a lease command waits on the same store every other
+/// command does: one bound, parsed in one place.
+fn bound_of(written: Option<&str>) -> Duration {
+    written
+        .and_then(|text| duration::parse(text).ok())
         .map(|nanos| Duration::from_nanos(nanos.unsigned_abs()))
         .filter(|bound| !bound.is_zero())
         .unwrap_or(DEFAULT_TIMEOUT)
@@ -2219,6 +2228,117 @@ pub(crate) fn on_shared<T>(
         command(open)
             .map_err(|why| Fault::thrown_as(ThrownClass::Io, format!("{owner}::{member}: {why}")))
     })
+}
+
+/// Where a fleet lease's keys live, away from every entry a program wrote.
+///
+/// [`crate::ratelimit`]'s `PREFIX` for that module's reason: a lease is not a
+/// cache entry, and a `put` under a name a schedule happens to share must not be
+/// able to hand a host an interval. What follows it is the ticker's key — the
+/// entry's `name` and the fire's scheduled instant — so two deployments sharing
+/// one store share the lease for an entry they both call the same thing, which
+/// is the reading `[cache.shared]` already has: the store belongs to the
+/// deployment.
+const LEASE_PREFIX: &str = "nvs:lease:";
+
+/// What a lease's refusal names itself as, where a member's name goes.
+const LEASE_MEMBER: &str = "the fleet lease";
+
+/// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease, as the
+/// two commands `nvs serve` needs and not as a store.
+///
+/// The ticker's lease is the binary's: `nvs-server` names no `nvs-stdlib`, so
+/// `nvs-cli` is the one crate that can reach both this store and
+/// `nvs_server::Leases`, and what it needs from here is a key taken atomically
+/// and a key held longer. [`redis::Connection`] stays internal, and so does
+/// every other command on it.
+///
+/// **Its own connection, not this core's.** [`SHARED`] is a request's socket and
+/// the ticker is a task beside the accept loop: one socket between them would
+/// put a scheduled fire's reply in front of a request that parked mid-exchange.
+/// What this spends is one socket per process for as long as the server runs
+/// (`rule:programs/memory-priority`), which is O(1) and not O(requests served).
+///
+/// There is no path from a program to any of it. A compare-and-set a script
+/// could call is new cross-request coordination
+/// (`rule:concurrency/cross-request-state-is-explicit`), so this is a door for
+/// the binary and the tier's own wire is still `put` and `get`.
+pub struct Lease {
+    /// Dialled by [`Lease::open`], and reconnected under a command exactly as a
+    /// request's connection is.
+    connection: redis::Connection,
+}
+
+impl std::fmt::Debug for Lease {
+    /// The store this lease is over, and nothing about the socket holding it
+    /// open: what a caller can act on is which store its keys are taken in.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Lease")
+            .field("target", self.connection.target())
+            .finish()
+    }
+}
+
+impl Lease {
+    /// A lease over the store `[cache.shared] url` names, dialled now.
+    ///
+    /// `timeout` is that block's own key as written, so a lease command waits
+    /// the same bound every other command to this store waits.
+    ///
+    /// Dialled here rather than at the first fire because a store that cannot be
+    /// reached is something an operator should hear while they are still reading
+    /// the boot — and because the caller's answer to it is to arm nothing, which
+    /// is a decision about the whole roster rather than about one interval.
+    ///
+    /// # Errors
+    ///
+    /// The refusal text for a URL this client does not read, and the connect
+    /// failure for a store that is not answering. Both are the caller's to
+    /// report: a boot that cannot reach the store still serves requests, and
+    /// what it does instead is leave every `fleet` entry unarmed and say so.
+    pub fn open(url: &str, timeout: Option<&str>) -> Result<Self, String> {
+        let target = endpoint(url, LEASE_MEMBER).map_err(|refused| match refused {
+            Fault::Thrown(_, why) => why.into_owned(),
+            // `endpoint` builds nothing else. A variant it does not construct
+            // still has to read as a refusal rather than reach an `unreachable`.
+            other => format!("{LEASE_MEMBER}: {other:?}"),
+        })?;
+        let mut connection = redis::Connection::new(target, bound_of(timeout));
+        connection.ensure()?;
+        Ok(Self { connection })
+    }
+
+    /// Take `key` for `ttl`, writing `token`, and say whether this host got it.
+    ///
+    /// § 3's set-if-absent, which is the store's decision and never this
+    /// process's: [`redis::Connection::set_if_absent`] owns why.
+    ///
+    /// # Errors
+    ///
+    /// The store's refusal, or the failure to reach it. The caller turns either
+    /// into "this host does not run this interval", which is § 3's safe answer.
+    pub fn take(&mut self, key: &str, token: &[u8], ttl: Duration) -> Result<bool, String> {
+        self.connection
+            .set_if_absent(namespaced(key).as_bytes(), token, ttl)
+    }
+
+    /// Hold `key` for `ttl` longer, and only while `token` is still what holds
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Lease::take`]. A `false` is a lease this host no longer holds, which
+    /// is not a failure: the run it was taken for outlived it, and § 3 bounds
+    /// `fleet` at at-most-once for exactly that case.
+    pub fn renew(&mut self, key: &str, token: &[u8], ttl: Duration) -> Result<bool, String> {
+        self.connection
+            .renew_if_holder(namespaced(key).as_bytes(), token, ttl)
+    }
+}
+
+/// A ticker's key under [`LEASE_PREFIX`].
+fn namespaced(key: &str) -> String {
+    format!("{LEASE_PREFIX}{key}")
 }
 
 nvs_runtime::nvs_helper! {

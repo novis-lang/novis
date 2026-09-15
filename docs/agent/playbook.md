@@ -2729,6 +2729,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   against the warm target dir the leg uses — `wsl.exe -- bash -lc "cd <the repo's /mnt path> &&
   CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo build --quiet"` — whenever a session writes or
   edits a `#[cfg(unix)]` block. [until: reviewed 2026-09-15]
+- **`cargo test --lib <name>` runs none of a binary crate's unit tests.** `nvs-cli`'s cases live in
+  the `nvs` bin target, so a `--lib` filter reports `0 passed` and `136 filtered out` with no hint
+  that the target holding the test was never built. Filter with `cargo test --bins <name>` for
+  anything under `crates/nvs-cli/src/`, and read the `filtered out` count beside the `0 passed`
+  rather than the `ok`. [until: reviewed 2026-09-15]
 
 ## Writing a test case
 

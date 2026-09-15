@@ -882,19 +882,34 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // `[[schedule]]` arms nothing and spawns no ticker, which is why this costs
     // a walk of an empty vector and no task at all.
     //
-    // `None` for `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease, and this binary is the one place that
-    // answer can be given: `nvs-server` names no `nvs-stdlib`, so the store a
-    // fleet entry would be held in is reachable from here and nowhere else.
-    // What is missing is the operation rather than the store, which is
-    // `nvs_server::schedule`'s known gap 1: with nothing to implement
-    // `nvs_server::Leases` with, § 3's fallback holds and every fleet entry is
-    // left unarmed and named. The moment the shared tier gains a
-    // compare-and-set, the implementation is a few lines here and no change at
-    // all in the ticker.
+    // `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease, and
+    // this binary is the one place it can be opened: `nvs-server` names no
+    // `nvs-stdlib`, so the store a fleet entry is held in is reachable from here
+    // and nowhere else. A tree with no `scope = "fleet"` entry opens nothing —
+    // the connection is per process and lives as long as the server, so it is
+    // paid for by the roster that needs it and by nothing else — and a store
+    // that will not answer leaves § 3's fallback holding: every fleet entry
+    // unarmed and named while an operator is still reading the start.
+    let fleet = ticks
+        && snapshot
+            .config
+            .schedule
+            .iter()
+            .any(|entry| entry.scope.as_deref().map(str::trim) == Some("fleet"));
+    let lease = if fleet {
+        fleet_lease(&snapshot.config)
+    } else {
+        None
+    };
     let mut armed = if ticks {
-        nvs_server::arm(&snapshot.config.schedule, &Zoned::now(), None, |note| {
-            eprintln!("note: {note}");
-        })
+        nvs_server::arm(
+            &snapshot.config.schedule,
+            &Zoned::now(),
+            lease.as_ref().map(|held| held as &dyn nvs_server::Leases),
+            |note| {
+                eprintln!("note: {note}");
+            },
+        )
     } else {
         Vec::new()
     };
@@ -916,8 +931,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // `Zoned::now` and not a fixed instant: § 6's missed interval is
             // skipped rather than replayed, which is the ticker asking the clock
             // for every fire and never counting from the last one.
-            let ticked =
-                nvs_server::tick_on_this_core(&mut armed, &fires, None, Zoned::now, || {
+            let ticked = nvs_server::tick_on_this_core(
+                &mut armed,
+                &fires,
+                lease.as_ref().map(|held| held as &dyn nvs_server::Leases),
+                Zoned::now,
+                || {
                     // The same drain the accept loop reads, so a stop ends the
                     // roster too rather than leaving this core turning for a
                     // ticker nobody can reach. An interval already being waited
@@ -929,7 +948,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                     } else {
                         ControlFlow::Continue(())
                     }
-                });
+                },
+            );
             if let Err(error) = ticked {
                 eprintln!("error: the schedule ticker stopped: {error}");
             }
@@ -1093,6 +1113,96 @@ fn arm_queue_workers(
 /// handler.
 ///
 /// Nothing is carried on it: the resolver is installed for the whole run
+/// `nvs_server::Leases` over the shared tier — § 3's lease, which this binary is
+/// the only crate that can supply and `nvs_server::schedule`'s module doc §
+/// *Where a `fleet` entry's lease comes from* is the whole reason for.
+///
+/// It holds a token because a lease is held by **this process**: a renewal is
+/// checked against what took the key, so a host that restarted never extends the
+/// lease its predecessor was holding, and a second host never extends one it
+/// merely found.
+struct FleetLease {
+    /// One connection, borrowed for the length of one command.
+    ///
+    /// A `RefCell` because the ticker asks through a `&self` and a command
+    /// writes to a socket. The borrow can be held across a park — the exchange
+    /// hands the core back — so a second asker finds it taken rather than
+    /// waiting, and `try_borrow_mut` is what makes that a refusal instead of a
+    /// panic. There is one other asker: the renewal a fire runs on its own task.
+    store: std::cell::RefCell<nvs_stdlib::Lease>,
+    /// What this process writes under a lease's key, and what its own renewals
+    /// are checked against. The pid alone is not enough — two hosts have the
+    /// same pids — so the instant this server started is in it.
+    token: Vec<u8>,
+}
+
+impl nvs_server::Leases for FleetLease {
+    fn take(&self, key: &str, ttl: std::time::Duration) -> bool {
+        self.asked(key, "taken", |store, token| store.take(key, token, ttl))
+    }
+}
+
+impl FleetLease {
+    /// One question to the store, with every way of not getting an answer
+    /// collapsed into `false`.
+    ///
+    /// § 3 says a partition may leave an interval unrun, so not reaching the
+    /// store is "this host does not hold the lease" and never a guess in the
+    /// other direction. Each way of not reaching it is still a line an operator
+    /// sees, because a schedule whose failures are silent is what
+    /// `rule:config/scheduled-work-is-a-config-block`'s boot refusals exist to
+    /// prevent.
+    fn asked(
+        &self,
+        key: &str,
+        verb: &str,
+        ask: impl FnOnce(&mut nvs_stdlib::Lease, &[u8]) -> Result<bool, String>,
+    ) -> bool {
+        let Ok(mut store) = self.store.try_borrow_mut() else {
+            // The connection is mid-command on another task. Waiting for it
+            // would be the ticker blocking on a fire, which is the one thing a
+            // scheduler must not do (`rule:concurrency/one-scheduler`).
+            eprintln!(
+                "note: the lease for `{key}` was not {verb}: this host's one lease connection is \
+                 already answering another fire"
+            );
+            return false;
+        };
+        match ask(&mut store, &self.token) {
+            Ok(answer) => answer,
+            Err(why) => {
+                eprintln!("warning: the lease for `{key}` was not {verb}: {why}");
+                false
+            }
+        }
+    }
+}
+
+/// The lease `arm` and the ticker are handed, or [`None`] when there is no
+/// shared store configured or the one there is will not answer.
+///
+/// `[cache.shared]`'s two keys as the operator wrote them: `nvs_stdlib::Lease`
+/// owns how a URL and a timeout are read, because it is the same pair
+/// `Core\Cache::shared()` reads and a second reading of them here would be a
+/// second dialect of one block.
+fn fleet_lease(config: &nvs_config::Config) -> Option<FleetLease> {
+    let shared = config.cache.as_ref()?.shared.as_ref()?;
+    let url = shared.url.as_deref()?;
+    match nvs_stdlib::Lease::open(url, shared.timeout.as_deref()) {
+        Ok(store) => Some(FleetLease {
+            store: std::cell::RefCell::new(store),
+            token: format!("{}:{}", std::process::id(), Zoned::now()).into_bytes(),
+        }),
+        Err(why) => {
+            eprintln!(
+                "note: no `scope = \"fleet\"` entry is armed on this host, because its lease \
+                 cannot be held: {why}"
+            );
+            None
+        }
+    }
+}
+
 /// (`nvs_runtime::script::scoped` below), so a fire reaches the same compiler and
 /// the same compiled-unit cache a request does, and a scheduled script that is
 /// also a mounted entry is a cache hit rather than a second compile.
@@ -1766,6 +1876,73 @@ mod tests {
             .expect("the case writes valid TOML")
             .try_into()
             .expect("the case writes a block this tree has")
+    }
+
+    /// A `scope = "fleet"` entry is armed exactly when this host has a lease to
+    /// hold it with, which is the whole of `nvs_server::schedule`'s § 3 seam
+    /// seen from the one crate that can close it.
+    ///
+    /// The same tree is armed twice — once with the lease this command builds
+    /// from `[cache.shared]`, once with the [`None`] that was the only answer
+    /// before it existed — because the feature is the *difference*: an entry
+    /// that arms either way would prove nothing about the lease, and the note
+    /// the second one writes is § 3's refusal to fire on each host's own clock.
+    ///
+    /// The lease is then asked the question the ticker asks, against the store
+    /// itself: a key is taken once and refused the second time. Skipped where
+    /// `tests/db/compose.yaml`'s `redis` is not running, since a set-if-absent
+    /// is the server's semantics and nothing here stands in for it.
+    #[test]
+    fn serve_arms_a_fleet_entry_when_the_shared_tier_can_take_a_lease() {
+        let config = config_of(
+            "[cache.shared]\nurl = 'redis://127.0.0.1:16379'\n\n[[schedule]]\nname = \
+             'fleet-case'\ncron = '0 3 * * *'\nscript = 'jobs/report.nvs'\nscope = 'fleet'\n",
+        );
+        let Some(lease) = super::fleet_lease(&config) else {
+            eprintln!(
+                "serve_arms_a_fleet_entry_when_the_shared_tier_can_take_a_lease asserted \
+                 nothing: `docker compose -f tests/db/compose.yaml up -d --wait redis` starts \
+                 the store it is written against"
+            );
+            return;
+        };
+
+        let mut notes: Vec<String> = Vec::new();
+        let armed = nvs_server::arm(
+            &config.schedule,
+            &super::Zoned::now(),
+            Some(&lease as &dyn nvs_server::Leases),
+            |note| notes.push(note.to_owned()),
+        );
+        assert_eq!(
+            armed.len(),
+            1,
+            "a fleet entry is armed when this host can hold its lease: {notes:?}"
+        );
+        assert!(
+            notes.is_empty(),
+            "an armed entry is not also refused: {notes:?}"
+        );
+
+        let unarmed = nvs_server::arm(&config.schedule, &super::Zoned::now(), None, |note| {
+            notes.push(note.to_owned());
+        });
+        assert!(
+            unarmed.is_empty(),
+            "with no lease to hold, the same entry is left unarmed"
+        );
+        assert_eq!(notes.len(), 1, "and it is named once: {notes:?}");
+
+        let key = format!("serve-arms-{}", std::process::id());
+        let held = std::time::Duration::from_secs(1);
+        assert!(
+            nvs_server::Leases::take(&lease, &key, held),
+            "the lease this command built reaches the store and takes a key"
+        );
+        assert!(
+            !nvs_server::Leases::take(&lease, &key, held),
+            "and the store, not this process, is what refuses the second asker"
+        );
     }
 
     /// `rule:core-classes/temporary-dir-orphan-sweep`'s boot sweep, asserted from both directions in one case

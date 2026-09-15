@@ -283,6 +283,13 @@ pub use instance::class_descriptors;
 /// tier that no caller armed is still correct.
 pub use cache::arm_process_tier;
 
+/// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease over the
+/// shared tier, which `nvs serve` is the only caller of — its own doc owns why
+/// the ticker cannot reach this store itself. Re-exported rather than moved, for
+/// [`arm_process_tier`]'s reason: it is two commands on a connection this crate
+/// owns, and it belongs beside that connection.
+pub use cache::Lease;
+
 use registry::CoreClass;
 
 /// Every `Core` implementation's symbol and address, for the JIT to resolve

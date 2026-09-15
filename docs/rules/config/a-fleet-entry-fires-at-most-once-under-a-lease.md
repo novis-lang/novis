@@ -12,8 +12,11 @@ application's job and not a scheduler's: a job that must not run twice makes its
 idempotent.
 
 The ticker holds no store: it asks one question — take this key for this long, yes or no — through a
-`Leases` parameter only `nvs serve` can supply. **Today `nvs serve` supplies none**: the shared tier's
-wire is `put` and `get` (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`) and neither
-is a set-if-absent, so every `fleet` entry boots, is left **unarmed**, and is named in a boot note.
-Firing it on each host's own clock would be the precise failure the scope exists to prevent, so the
-safe half is to run none of them and say so.
+`Leases` parameter only `nvs serve` can supply, because the crate the ticker lives in names no
+standard library. That binary supplies one whenever the tree names a `[cache.shared]` store its boot
+can reach, over a connection of its own to that tier and a set-if-absent no program is given
+(`rule:concurrency/cross-request-state-is-explicit`).
+
+A tree with no shared store, and one whose store will not answer the boot, leave every `fleet` entry
+**unarmed** and named in a boot note. Firing it on each host's own clock would be the precise failure
+the scope exists to prevent, so the safe half is to run none of them and say so.
