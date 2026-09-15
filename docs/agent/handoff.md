@@ -2,47 +2,54 @@
 
 ## State
 
-Goal `m8-stdlib-depth`. **Stages 0, 2, 3 and 4 are done.** Stage 4's two release-only guards are in
-`benches/abi-probe/tests/perf_guards.rs`: `a_typed_decimal_arithmetic_loop_stays_in_its_cost_class`
-(measured 39-40x a checked-return frame, ceiling 120) and
-`the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus` (a floor of 1.0, measured
-~2000x). Nothing is blocked.
+Goal `m8-stdlib-depth`. **Stages 0, 2, 3 and 4 are done; stage 5 is half landed.** A `decimal` and a
+`Core\Time\Instant` both cross the JSON wire as strings at both ends — `"19.99"` and RFC 3339 — and
+`crates/nvs-stdlib/src/json.rs`'s *A value type crosses as text* section is that decision's one home.
+What is left of stage 5 is the **inline shape reached as a field**, which is still gap 1 there and still
+`CodecTy::Opaque` in `crates/nvs-types/src/derive.rs:551`. Nothing is blocked.
 
-The decimal guard compiles the **same program** `benches/members/` measures as
-`lang:types/numbers-bool-int-uint-float-decimal`'s figure, so the ledger row and the gate cannot
-drift; `docs/perf/members.ndjson` carries 61.2 ns/op for it and the guard prints 61 ns/iteration for
-the same loop. The regex guard writes both patterns from Rust consts into one fixture and asserts
-each tier with `nvs_stdlib::regex::validate` before timing, so a routing change fails loudly rather
-than quietly comparing one engine with itself. The ceiling reasoning for each lives in the test's own
-comment, not in a record.
+Of the stage's three checks, the `.nvst` one is green (the case carries the name the check asks for) and
+the two Rust ones each want one more test: `decode_as_fills_an_inline_shape_field` in `nvs-stdlib`, and
+the shape third of `a_decimal_instant_or_shape_field_erases_to_a_codec_it_can_decode` in `nvs-types` —
+whose decimal and `Instant` thirds already exist at `crates/nvs-types/tests/derive.rs:853` under the
+older name.
 
 ## Next group
 
-**Stage 5: the JSON wire** — one file set: `crates/nvs-stdlib/src/json.rs`,
-`crates/nvs-types/src/derive.rs` and the one `.nvst` case under `tests/conformance/core/`.
-`rule:core-classes/derive-field-list`, amended to the `Decided:` sentence where they disagree
-(goal § *Standing decisions*).
+**Stage 5: an inline shape on the JSON wire** — one file set: `crates/nvs-runtime/src/object.rs`,
+`crates/nvs-types/src/derive.rs`, `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-codegen/src/lib.rs` and
+`crates/nvs-stdlib/src/json.rs`. `rule:core-classes/derive-field-list`. The design below was worked out
+against all five files this session; it is a proposal, not a landed fact.
 
-- [ ] **`decimal`, `Instant` and an inline shape stop erasing to `CodecTy::Opaque`** —
-      `crates/nvs-types/src/derive.rs:44` gap 1 and `crates/nvs-stdlib/src/json.rs:128` gap 1 are one
-      knot: each type gets its wire form, a `CodecTy` arm and a `decode_field` case, and an
-      `array<T>` of one of them follows for free. The check names
-      `a_decimal_instant_or_shape_field_erases_to_a_codec_it_can_decode` in `nvs-types`.
-- [ ] **`decodeAs` fills a field of each of the three kinds** — `crates/nvs-stdlib/src/json.rs:128`.
-      Three named `#[test]`s: `decode_as_fills_a_decimal_field_from_the_numbers_own_digits`,
-      `decode_as_fills_an_instant_field_from_an_rfc_3339_string`,
-      `decode_as_fills_an_inline_shape_field`. A `decimal` is never read through `f64`.
-- [ ] **A 25-digit decimal round-trips through `Core\Json` exactly** —
-      `tests/conformance/core/json-decode-as-round-trips-a-25-digit-decimal-exactly.nvst`, which is
-      ADR 0054's own M8 bullet at `docs/decisions/0054.md:251-252`.
+- [ ] **A shape field erases to a wire type that carries its contract** —
+      `crates/nvs-types/src/derive.rs:551` is the `_ => Opaque` arm that swallows `Ty::Shape`, and
+      `crates/nvs-runtime/src/object.rs:669` is the `CodecTy::Opaque` it lands on. A shape field needs
+      **two** resolved pointers and the erasure carries the label for each: the shape *class*
+      (`nvs_types::derive::shape_class_label`, in `CodecField::class`, which
+      `crates/nvs-codegen/src/lib.rs:1280`'s `nested_descs` already resolves) and the shape's own
+      *contract*, which is a `nvs_runtime::ShapeCodec` and has nowhere to live today — a `ClassDesc`
+      holds one field list per class and `crates/nvs-runtime/src/object.rs:768`'s `ShapeCodec` is
+      addressed by a call site, not by a field. Two knots to expect: `codec_ty` holds the interner
+      immutably and building a nested contract needs `&mut` for `without_null`
+      (`crates/nvs-types/src/derive.rs:407`'s `shape_codec` is the call it would make), and the shape
+      class has to exist in the unit even when no literal of it is written, which is
+      `crates/nvs-ir/src/lower/mod.rs:3274`'s label registered from the field rather than from a site.
+- [ ] **`decodeAs` fills a shape field** — `crates/nvs-stdlib/src/json.rs:1324`'s `Contract` gains a
+      `shape_at(index)` beside `class_at`, and `crates/nvs-stdlib/src/json.rs:2131`'s `decode_nested`
+      builds `Contract::new(class, shape_at(index))` where it now passes `None`; everything under that
+      — `decode_fields`, `build_shape`, the `?T` and absent-key columns — already answers for a shape.
+      The check names `decode_as_fills_an_inline_shape_field`; the `codec_class` helper at
+      `crates/nvs-stdlib/src/json.rs:2764` is what the two landed tests build their descriptors with.
+- [ ] **The erasure test takes the check's name and its third case** —
+      `crates/nvs-types/tests/derive.rs:853` is `a_decimal_an_instant_and_bytes_field_erase_to_their_own_codec_type`,
+      which the check spells `a_decimal_instant_or_shape_field_erases_to_a_codec_it_can_decode`. Rename
+      it and add the shape row; `bytes` stays asserted, since it is the one erasure with no JSON door.
 
 ## Backlog
 
-- A leftover unit can land on a zero ratio that comes first; pinned by
-  `tests/conformance/core/decimal-allocate-keeps-the-ratios-keys-and-the-amounts-sign.nvst`, and a
-  decision to reopen only if skipping zero ratios is wanted.
-- `Core\Math::ceil`/`floor`/`truncate`/`round` still answer `float` alone where spec § 3 writes
-  `int|float|decimal`; `crates/nvs-stdlib/src/math.rs`'s module doc owns why that is the answer and
-  not a gap.
-- `lang:types/numbers-bool-int-uint-float-decimal` now has its perf proof and still owes tests,
-  examples and hostile cases; those are the `dossier` goals' rows, not this one's.
+- A `#[Json\Derive]` class holding an `array<Instant>` has no case of its own — `decode_list` reaches
+  `scalar` per element, so it should already work; unasserted (`crates/nvs-stdlib/src/json.rs:2371`).
+- `crates/nvs-stdlib/src/db/mod.rs:283`'s skipped-field default now points at `crate::json`'s gap 2,
+  which is where a decoder with no call site reaches a constant; goal `m8-db-queue` owns closing it.
+- `docs/agent/carried-gaps.md:246` still describes json gap 1 as the whole roster; it is the inline
+  shape alone now.

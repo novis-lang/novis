@@ -237,14 +237,6 @@ where taking it is the work and the code that follows it is not.
   is written and the other only where it runs.
   `crates/nvs-types/src/derive.rs` § *Known gaps* carries the tag.
   [until: gone crates/nvs-types/src/derive.rs:owner: unowned]
-- **A derived field's type roster stops where `nvs_runtime::CodecTy` does.** A `decimal`, a
-  `Core\Time\Instant`, an inline shape reached as a field and an `array<T>` of one of those are all
-  codec-reachable by `rule:core-classes/derive-field-list` and all land on `CodecTy::Opaque`, which
-  both doors refuse. What has to be decided is what each of those types *is* on the wire — a
-  `decimal` as a JSON string or as a number, an `Instant` as its RFC 3339 text — because no variant
-  can be carried before the encoding it stands for is chosen, and the same answer binds `Core\Db`'s
-  row codec. `crates/nvs-stdlib/src/json.rs` gap 1, with `crates/nvs-stdlib/src/db/mod.rs` gap 4 the
-  other door on the same knot. [until: gone crates/nvs-stdlib/src/json.rs:type roster is narrower]
 - **The derive machinery is a descriptor read by native Rust**, where
   `rule:core-classes/derive-generates-what-is-missing` costs it as straight-line code emitted per
   class. Both halves of `Core\Json` walk a per-class `nvs_runtime::CodecField` list instead, and two
