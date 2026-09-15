@@ -338,15 +338,23 @@ impl Ctx {
     /// because `output: 'capture'` and `output: 'inherit'` differ in nothing
     /// else.
     ///
-    /// **No ceiling crosses, and that is what makes the budget the tree's.**
+    /// **The memory ceiling crosses as what is left of it, and that is what
+    /// makes the budget the tree's.**
     /// `rule:security/isolate-shares-nothing`'s table charges a child's memory and a child's output to the
     /// root, and both counters are the thread's ([`crate::budget`]) with the
     /// child's own zero point taken here by [`Self::new`]: a child reads back
-    /// its own share, the root's base predates every child so its reading holds
-    /// all of them at once, and the ceiling that stops the tree is the root's.
-    /// A child handed a ceiling of its own — [`Self::set_memory_limit`],
-    /// [`Self::set_output_limit`] — narrows itself further and can never widen
-    /// the tree.
+    /// its own share, and the root's base predates every child so its reading
+    /// holds all of them at once. What bounds the child is therefore the root's
+    /// ceiling less what the tree had already spent — the number
+    /// [`PlacedIsolate`] hands a child built on another core — and the
+    /// threshold that arming writes is *absolute*, so this child's base plus its
+    /// remainder is the root's base plus the root's ceiling. It is armed on the
+    /// child rather than left standing on the root because a root parked in a
+    /// join polls nothing: a refusal at the allocation that asks is the only
+    /// thing between a runaway child and the machine
+    /// (`rule:security/isolate-budget-is-the-trees`). A child handed a ceiling
+    /// of its own — [`Self::set_memory_limit`], [`Self::set_output_limit`] —
+    /// narrows itself further and can never widen the tree.
     ///
     /// A thread's balance says all of that only while the tree is one core's.
     /// The child that is *not* — one placed on another core, made through
@@ -392,6 +400,16 @@ impl Ctx {
         isolate.runtime_error_class = self.runtime_error_class.clone();
         isolate.deadline = std::sync::Arc::clone(&self.deadline);
         isolate.share_safepoint_with(self);
+        // After the word above, and that order is load-bearing for
+        // [`PlacedIsolate::build`]'s reason: the setter below arms the
+        // allocator with this context's safepoint address beside the number,
+        // and until the line above ran that address was a fresh word of this
+        // child's own, which nothing in the tree would ever poll. The reserve
+        // crosses beside the ceiling because it is a slice *of* it — a child
+        // stopped at the tree's ceiling with no reserve would have nothing left
+        // to report the breach with (`rule:errors/on-limit`).
+        isolate.fatal_reserve = self.fatal_reserve;
+        isolate.set_memory_limit(remaining(self.memory_limit, self.memory_used()));
         // **Not** sealed, unlike [`Self::child`], and the difference is the one
         // `rule:concurrency/after-response-outlives-the-connection` draws: an isolate runs a whole program, so the frame
         // that produced its answer returning is a trigger it has, where a

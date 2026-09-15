@@ -130,11 +130,18 @@ fn a_ceiling_raised_mid_request_rearms_the_threshold() {
 /// spawned it is measured against its own ceiling again.
 ///
 /// `rule:security/isolate-shares-nothing` gives a tree one budget to divide and
-/// one word to be stopped by, but the thread's threshold is a single number and
-/// only the running context's can be in it. The middle assertion is what makes
-/// the last one mean something: an isolate that armed nothing would leave the
-/// parent's threshold in place and pass the restore by never having displaced
-/// it.
+/// one word to be stopped by, and the thread's threshold is a single number, so
+/// only the running context's can stand in it. An isolate's own is the *tree's*:
+/// `Ctx::isolate` arms what remains of the root's ceiling, and because the
+/// threshold is an absolute balance that is the number the root armed less
+/// whatever the child cost to build — never wider, which is the direction
+/// `rule:security/isolate-budget-is-the-trees` fails in. A child armed nothing
+/// would be refused no allocation at all while a root parked in a join polls
+/// none.
+///
+/// The narrower ceiling written over it inside the block is what makes the
+/// restore at the end mean something: a child that displaced nothing would pass
+/// that assertion by never having armed anything of its own.
 #[test]
 fn an_isolate_restores_the_threshold_its_parent_armed() {
     let request = ctx_reading("[limits]\nmemory = \"16M\"\n");
@@ -145,10 +152,16 @@ fn an_isolate_restores_the_threshold_its_parent_armed() {
     );
     {
         let mut isolate = request.isolate(OutputSink::Buffer(Vec::new()));
-        assert_eq!(
-            budget::armed_ceiling(),
-            0,
-            "an isolate was born still carrying its parent's threshold, so the ceiling in force is not the running context's",
+        // The tree's own threshold, to within what this child cost to build:
+        // `remaining` is read off the parent after `Ctx::new` has allocated the
+        // child and `Ctx::share_safepoint_with` has given the fresh tree state
+        // back, so the two numbers differ by those bytes and by nothing else. A
+        // child armed a ceiling of its own would sit a whole `[limits] memory`
+        // away from this, which is the reading the band refuses.
+        let inherited = budget::armed_ceiling();
+        assert!(
+            inherited.abs_diff(armed) < 4096,
+            "an isolate was born under {inherited} rather than under the tree's own {armed}",
         );
         // The ceiling an isolate gets is written by whoever spawned it —
         // `Ctx::set_memory_limit`'s own doc names `nvs-host` as the caller

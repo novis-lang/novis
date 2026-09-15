@@ -1323,10 +1323,12 @@ mod tests {
             ceiling > 0,
             "the deployment's own `[limits] memory` is in force on the fire these narrow: {ceiling}"
         );
-        assert_eq!(
-            plain.memory, 0,
-            "an entry writing neither table takes no ceiling of its own either, and spends the \
-             tree's budget (`rule:security/isolate-budget-is-the-trees`)"
+        assert!(
+            plain.memory > 0 && plain.memory <= ceiling,
+            "an entry writing neither table spends the tree's budget rather than one of its own, \
+             so what holds it is what remained of the deployment's ceiling \
+             (`rule:security/isolate-budget-is-the-trees`): {} against {ceiling}",
+            plain.memory
         );
         assert!(
             narrowed.memory > 0 && narrowed.memory < ceiling,
