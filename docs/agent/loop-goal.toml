@@ -10338,6 +10338,16 @@ tests = [
   "serve_arms_a_fleet_entry_when_the_shared_tier_can_take_a_lease",
 ]
 
+[[check]]
+kind = "cargo-named"
+stage = "9 the schedule"
+name = "a fire runs under the deployment's configuration, and under the tree a reload published"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_scheduled_fire_runs_under_the_deployments_configuration",
+  "a_fire_reads_the_published_tree_and_not_the_one_its_ticker_was_armed_on",
+]
+
 # ---------------------------------------------------------------------------------------------------
 # Stage 10 -- the metrics export. Goal prose stage 10.
 # ---------------------------------------------------------------------------------------------------

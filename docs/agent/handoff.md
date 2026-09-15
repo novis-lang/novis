@@ -4,52 +4,57 @@
 
 **Goal `m7-server-surface` — everything M7 promised a deployment is there to run.** Stage 1 is the
 carried floor, stage 2 is done ([0186](../decisions/0186.md) is the only ADR number this goal opens),
-stages 3 to 8 are complete, and stage 9's three checks are green. Nothing is blocked.
+and stages 3 to 9 are complete. Stage 10, the metrics export, is the earliest red stage and is the
+next group. Nothing is blocked.
 
-**A `[[schedule]]` entry's `limits` and `grants` narrow the run it fires.** `Armed` carries an
-`nvs_runtime::host::Narrowing` built beside `overlap` when the entry is armed, and `fire` applies it
-with `Isolate::narrowed_by`, so a sub-cap is the ticker's question exactly as `overlap` is. Nothing is
-checked against the deployment first, because applying it *is* the check: a `limits` above the
-deployment's ceiling leaves that ceiling standing, and a capability the deployment withheld is still
-refused at the door. `rule:config/a-schedule-entry-narrows-only` is `shipped`, and now states the
-decision this slice reached — a `grants` entry narrows by capability **name**, the scope written
-beside it narrows nothing, and a second channel carrying scopes is refused rather than deferred.
+**A fire runs under the deployment's tree, and under the one a reload published.** `Scheduled` holds
+the `Arc<nvs_config::Current>` its core was handed and `isolate` takes a clone off it per fire,
+before the resolve (`crates/nvs-cli/src/serve.rs:1246`), so `rule:config/a-scheduled-run-is-a-root-isolate`'s
+two halves are live: `[limits]` is the run's budget and `[capabilities]` are its grants — the grant
+half is what lets the resolve past `script.spawn` at all. Per fire and not per boot for the reason
+the accept loop reads the holder per request, so an edited tree reaches the next fire.
 
-**A fire's context carries no configuration, which is the module's one known gap**
-(`crates/nvs-server/src/schedule.rs:78`). Read, not run: `fire` builds the run's root as
-`Ctx::new(OutputSink::Sink)` (`crates/nvs-server/src/schedule.rs:759`),
-`nvs_runtime::capability::granted` answers `false` for a context holding none
-(`crates/nvs-runtime/src/capability.rs:133`), and `nvs_runtime::script::resolve` asks it for
-`script.spawn` before compiling anything (`crates/nvs-runtime/src/script.rs:287`) — so under
-`nvs serve` a fire is denied at the door, and the `limits` half of a sub-cap has no ceiling to
-narrow. The grant half lands regardless: it subtracts from a list rather than setting a directive.
+**What a reload still does not reach is the roster.** `nvs_server::arm` is called once off the boot
+tree (`crates/nvs-cli/src/serve.rs:906`) and every `[[schedule]]` key is `System`-class, so a reload
+applies an entry this ticker will not fire until a restart. `Scheduled`'s own `# Known gaps` owns
+it; closing it is either re-arming inside the ticker or `rule:config/a-reload-names-what-it-could-not-apply`
+naming the roster, and the second is a rule edit rather than a code one.
 
 ## Next group
 
-**Stage 9: the schedule — the configuration a fire runs under** — one file set:
-`crates/nvs-cli/src/serve.rs`, with `crates/nvs-server/src/schedule.rs` for the root it is put on.
+**Stage 10: the metrics export** — one file set: `crates/nvs-server/src/metrics.rs` with
+`crates/nvs-server/src/serve.rs` for the call site, and `crates/nvs-cli/src/serve.rs` for the
+listener.
 
-- [ ] **A fire runs under the deployment's configuration** — `crates/nvs-cli/src/serve.rs:1218`'s
-      `Scheduled::isolate` is handed the fire's own `&mut Ctx` and is the only side holding a
-      snapshot, so it is the seam; `crates/nvs-cli/src/worker.rs:227` is the shape
-      (`ctx.set_config(Arc::clone(&snapshot))`), and `crates/nvs-cli/src/serve.rs:930` is where
-      `Scheduled` is built and would take one. The root it lands on is
-      `crates/nvs-server/src/schedule.rs:759`, and the ticker's fake does the same thing in
-      `crates/nvs-server/src/schedule.rs:1060` if a case there wants a second reading.
-      `rule:config/a-scheduled-run-is-a-root-isolate` is what says a scheduled run gets the
-      deployment's `[limits]` and its `[capabilities]`; that is the half that is missing. Test:
-      `a_scheduled_fire_runs_under_the_deployments_configuration`, `-p nvs-cli`.
-- [ ] **The snapshot a fire reads is the current one and not the boot's** — the ticker holds its
-      `Rc<Scheduled>` for as long as the process runs (`crates/nvs-cli/src/serve.rs:930`), so a
-      snapshot cloned into it at boot would outlive every reload, where a request resolves one per
-      request. `rule:config/an-edit-reaches-the-next-request-without-a-restart` is the reading to
-      apply to a fire, and `rule:config/a-reload-names-what-it-could-not-apply` is where a
-      `[[schedule]]` key that cannot change says so. Decide it with the slice above.
+- [ ] **Every serving core owns a registry and counts each request under its route label** —
+      `crates/nvs-server/src/metrics.rs:532`'s `Registry::request` is the consumer with no caller,
+      and `crates/nvs-server/src/metrics.rs:392`'s `Registry::of` is what builds one from `[metrics]`
+      (`None` when no exporter is named, which is the second half of the stage's other check). The
+      call site is where a response is finished under `crates/nvs-server/src/serve.rs:885`'s
+      `serve_connection`, and the label is `crates/nvs-server/src/route.rs:46`'s, which says it has
+      a consumer and no caller today. `rule:observability/a-registry-is-per-core-and-nothing-reads-it`
+      is why it is per core and never shared. Test:
+      `every_serving_core_owns_a_registry_and_counts_each_request_under_its_route_label`,
+      `-p nvs-server`.
+- [ ] **A scrape merges every core's series into the text exposition format** —
+      `crates/nvs-server/src/metrics.rs:425`'s `Registry::series` already promises the stable order
+      the format needs, and `crates/nvs-server/src/metrics.rs:437` and `:444` are the kind and the
+      label names a `# TYPE` line is written from. The merge is arithmetic and never coordination —
+      the rule above states that — so what crosses a thread is a snapshot of series and not the
+      registry. Test: `a_scrape_merges_every_cores_series_into_the_text_exposition_format`,
+      `-p nvs-server`.
+- [ ] **`serve` answers a scrape at `[metrics] listen`, and a tree whose exporter is `false` binds
+      nothing** — the key is `crates/nvs-config/src/tree.rs:1050`, carrying an `[unread:]` marker
+      this slice strikes. `crates/nvs-cli/src/serve.rs:275`'s control endpoint is the shape for a
+      second listener the goal's § *Standing decisions* puts on a thread of its own, and
+      `crates/nvs-cli/src/serve.rs:194`'s `listen_on` is where the server's own addresses are
+      resolved. Test: `serve_answers_a_scrape_at_the_metrics_listen_address`,
+      `a_tree_whose_metrics_exporter_is_false_binds_nothing_and_builds_no_registry`, `-p nvs-cli`.
 
 ## Backlog
 
-- Stage 9 names no check for a fire's configuration — `docs/agent/loop-goal.toml:10322` covers the
-  lease and the sub-cap only, which is why the gap above passed a green stage.
+- The schedule roster is armed once off the boot tree, so a reload applies a `[[schedule]]` change
+  nothing honours — `crates/nvs-cli/src/serve.rs`'s `Scheduled` § *Known gaps*.
 - A fleet entry whose fire is held by `queue` or started by `kill` runs under no lease at all —
   `crates/nvs-server/src/schedule.rs`'s tick walk answers § 6 before § 3 asks, so this host had
   already lost the interval. If it should take the key instead, that is § 3's reading and belongs

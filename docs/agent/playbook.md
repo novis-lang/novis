@@ -5037,6 +5037,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   then, which is not a constant. Assert the direction — tighter than the parent's ceiling for a
   narrowing, no wider for a refused widening — reading the parent's own number while it is still
   reachable. [until: gone crates/nvs-runtime/src/ctx/isolate.rs:Remains]
+- **A `nvs_config::Snapshot` built by hand with `..Default::default()` configures nothing, however
+  complete its typed `config` is.** A directive is read through `nvs_config::Request::get`, which
+  looks in `Snapshot::table` — the raw `toml::Table` a boot kept — so a case that filled only
+  `config` gets an uncapped context that grants nothing, and the assertion that fails is about the
+  ceiling rather than about the missing half. Fill both from the same written text, which is what
+  `crates/nvs-cli/src/serve.rs`'s `tree_of` does. [until: reviewed 2026-09-15]
 
 ## Splitting a file that got too big
 
