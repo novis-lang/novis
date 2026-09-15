@@ -108,6 +108,9 @@ modules = [
   "crates/nvs-stdlib/src/db/row.rs",
   # A column's value by SQL type; `NUMERIC` becomes a `decimal` here. Stage 6.
   "crates/nvs-stdlib/src/db/column.rs",
+  # `statement_failure` (:179): the `io::ErrorKind` is what decides `LogicError` or `Core\Db\DbError`,
+  # so every refusal a driver adds is classified here. Stages 4-6.
+  "crates/nvs-stdlib/src/db/bind.rs",
   # `PgCursor` (:2575) is the parked-read precedent; `ParameterStatus` is dropped at :1157.
   "crates/nvs-db/src/pg.rs",
   # The MySQL wire, and the `(u16, u16, u16)` version (:814, :866). Stages 3 and 5.
@@ -116,6 +119,9 @@ modules = [
   "crates/nvs-db/src/maria.rs",
   # `Connection`'s five arms (:1015). Stages 3-5.
   "crates/nvs-db/src/conn.rs",
+  # `QuerySpan::rows` (:209), raised where a row is read — what tells a walk from a buffer from
+  # outside the driver. Stage 4.
+  "crates/nvs-db/src/span.rs",
   # The TDS row tokens (:251, :751). Stage 4.
   "crates/nvs-db/src/tds/rows.rs",
   # `LOGINACK` (:202). Stage 5.
