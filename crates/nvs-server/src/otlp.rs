@@ -504,7 +504,7 @@ fn delivered(endpoint: &Endpoint, waits: Waits, batch: &[Recorded]) -> Result<()
 ///
 /// Generic over the stream so that the exchange a core makes over a parking
 /// socket and the one a case makes over a blocking one are the same code: what
-/// differs is who drives the future, which is [`nvs_host::block_on`] on a core.
+/// differs is who drives the future, which is [`nvs_host::block_on()`] on a core.
 ///
 /// The connection and the request are two futures that only make progress
 /// beside each other — the dispatcher moves the bytes, the request is what waits

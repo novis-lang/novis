@@ -998,7 +998,7 @@ pub(crate) mod hosted {
 /// The `WATCHDOG=1` ping a `WatchdogSec=` unit is owed, and the thread sending
 /// it.
 ///
-/// [`unit`] renders `WatchdogSec=30`, which means the manager stops this
+/// [`unit()`] renders `WatchdogSec=30`, which means the manager stops this
 /// process unless a ping arrives inside half that period — so the ping has to
 /// be evidence of something. A beat written by a thread that lives whether or
 /// not a core turns proves only that the process exists, and a process that
@@ -1298,18 +1298,18 @@ pub(crate) fn deliver(text: &str, destination: Option<&Path>) -> std::io::Result
 /// § 3's registration and § 5's write, as a list of actions and the manager
 /// they go through.
 ///
-/// **Every verb is a pure function from a [`Plan`] to a list of [`Action`]s**,
+/// **Every verb is a pure function from a [`Plan`] to a list of [`registration::Action`]s**,
 /// and the manager that performs them is a parameter. That is what makes this
 /// half of the surface assertable with no administrator rights and on either
-/// platform: a case drives [`Recording`] and asserts the list, and the list is
+/// platform: a case drives `Recording` and asserts the list, and the list is
 /// where every decision § 3 and § 4 take actually lives — the encoded
 /// `ImagePath`, the virtual account, `PRESHUTDOWN`, the failure actions, the
 /// grants § 4 closes and the event-log source. `--dry-run` describes that same
 /// list rather than a second rendering of it, so the change-management artifact
 /// § 5 argues for and the thing that is performed cannot drift apart.
 ///
-/// The appliers `Scm` and `Systemd` arrive at [`Manager`], which is one method
-/// rather than one per verb: an [`Action`] already names what to do in its
+/// The appliers `Scm` and `Systemd` arrive at [`registration::Manager`], which is one method
+/// rather than one per verb: a [`registration::Action`] already names what to do in its
 /// platform's own terms, and a trait with a method per row would grow one every
 /// time § 3 or § 5 gains a line.
 #[cfg_attr(
@@ -1550,7 +1550,7 @@ pub(crate) mod registration {
     /// The service manager an action is applied through.
     ///
     /// One method, because an [`Action`] already says what to do: `Scm` and
-    /// `Systemd` are the real implementations, and [`Recording`] is what a case
+    /// `Systemd` are the real implementations, and `Recording` is what a case
     /// drives instead.
     pub(crate) trait Manager {
         /// Perform `action`, answering whatever the platform said about it —

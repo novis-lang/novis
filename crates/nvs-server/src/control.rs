@@ -310,7 +310,7 @@ pub fn serve(endpoint: &Endpoint, host: &dyn Controlled) -> io::Result<()> {
 /// Keep-alive is **off**: a control operation is one request, `nvs ctl` makes one per invocation,
 /// and a client holding a connection open would hold the whole endpoint with it.
 ///
-/// **The drive is this loop and not [`nvs_host::block_on`]**, because a park needs something to
+/// **The drive is this loop and not [`nvs_host::block_on()`]**, because a park needs something to
 /// end it. On a core that is the reactor; here there is neither, so the thing that would wake this
 /// thread is this thread, and the loop says so: poll, and where the connection is waiting on its
 /// peer, wait [`SETTLE`] and ask again. That is a sleep and not a spin, it is one thread that has

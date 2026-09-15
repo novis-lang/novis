@@ -963,7 +963,7 @@ enum CtlCommand {
 /// Every § 2 refusal runs in front of both it and `install`, so `unit` is also
 /// how an operator finds out that the argv they were about to install would
 /// have been refused — without an elevated shell, and without having installed
-/// anything. Which manager a verb reaches is [`service::at_host`]'s answer, and
+/// anything. Which manager a verb reaches is `service::at_host`'s answer, and
 /// [`service`]'s module doc owns why `run` is not here yet.
 #[derive(Subcommand)]
 enum ServiceCommand {
