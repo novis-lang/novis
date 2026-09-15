@@ -205,6 +205,18 @@ fn postgres() -> Option<Leg> {
     leg_for(Driver::Postgres, nvs_db::pg::socket_endpoint)
 }
 
+/// Is a session on this leg one TLS is a property of?
+///
+/// A published server's is, and a socket's is not:
+/// `rule:core-classes/db-unix-socket-path`'s transport carries no session to
+/// upgrade and nothing that could vouch for one, which is why [`Leg::ca`] is
+/// `None` there. The cases asserting the upgrade ask this and return on the
+/// socket leg, where every *other* case in this file runs again unchanged —
+/// which is what that leg exists for.
+fn upgrades(leg: &Leg) -> bool {
+    leg.ca.is_some()
+}
+
 /// One handshake against `leg`, offering `password`, answering the way the
 /// caller of a connection that may not open needs it.
 ///
@@ -560,6 +572,9 @@ fn a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream(
     let Some(server) = postgres() else {
         return;
     };
+    if !upgrades(&server) {
+        return;
+    }
     let mut conn = open(&server);
 
     let version = one_value(
@@ -687,6 +702,9 @@ fn a_mysql_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_s
     let Some(server) = mysql() else {
         return;
     };
+    if !upgrades(&server) {
+        return;
+    }
     let mut conn = mysql_open(&server);
 
     let version = mysql_one_value(
@@ -1001,6 +1019,9 @@ fn a_mariadb_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking
     let Some(server) = mariadb() else {
         return;
     };
+    if !upgrades(&server) {
+        return;
+    }
     let mut conn = mariadb_open(&server);
 
     let version = mariadb_one_value(

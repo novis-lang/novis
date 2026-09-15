@@ -89,7 +89,11 @@ fn postgres() -> Option<Server> {
         return None;
     }
     let Location::Server(server) = endpoint.location else {
-        unreachable!("SQLite is the only driver reached by path, and this is not it")
+        // A location that is not a published server: the socket leg this driver also runs, or
+        // SQLite's file. What this case asserts is the pool's own reuse rather than a transport,
+        // and the same statements cross either one, so it is asked once -- over the port.
+        // `crates/nvs-db/tests/handshake.rs` is the case list the socket leg exists to run.
+        return None;
     };
     Some(server)
 }
@@ -105,7 +109,8 @@ fn mysql() -> Option<Server> {
         return None;
     }
     let Location::Server(server) = endpoint.location else {
-        unreachable!("SQLite is the only driver reached by path, and this is not it")
+        // A leg that is not a published server, as [`postgres`] above says.
+        return None;
     };
     Some(server)
 }
@@ -121,7 +126,8 @@ fn mariadb() -> Option<Server> {
         return None;
     }
     let Location::Server(server) = endpoint.location else {
-        unreachable!("SQLite is the only driver reached by path, and this is not it")
+        // A leg that is not a published server, as [`postgres`] above says.
+        return None;
     };
     Some(server)
 }

@@ -2249,7 +2249,11 @@ mod tests {
             return None;
         }
         let Location::Server(server) = endpoint.location else {
-            unreachable!("SQLite is the only driver reached by path, and this is not it")
+            // A location that is not a published server: the socket leg this driver also runs, or
+            // SQLite's file. What these cases assert is the SQL a backend reads its own catalog
+            // back with, which is the same statements over either transport, so they are asked
+            // once -- over the port. `tests/handshake.rs` is what the socket leg exists to run.
+            return None;
         };
         Some(server)
     }

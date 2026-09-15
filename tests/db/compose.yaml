@@ -98,15 +98,24 @@ services:
         && chown 10001:10001 /certs/mssql.key
         && chmod 600 /certs/mssql.key
         && chown 999:999 /sock
+        && mkdir -p /db-sock/mysql /db-sock/mariadb /db-sock/postgres
+        && chown 999:999 /db-sock/mysql /db-sock/mariadb /db-sock/postgres
     volumes:
       - certs:/certs
-      # Not a certificate, and here anyway: the directory `redis` below publishes its Unix socket
-      # into is a bind mount, so Docker creates it owned by root when it is missing and the redis
-      # image drops to uid 999 before it binds. This service is already the root-owned thing that
-      # runs to completion first, and the `chown` above is the whole of what it takes -- where a
-      # second service, or a `user:` override the image's own entrypoint would undo, is two moving
-      # parts for one directory. The source is the `redis` service's, whose comment owns the path.
+      # Not certificates, and here anyway: the directories the servers below publish their Unix
+      # sockets into are bind mounts, so Docker creates one owned by root when it is missing and
+      # every one of those images drops to uid 999 before it binds. This service is already the
+      # root-owned thing that runs to completion first, and the `chown`s above are the whole of what
+      # that takes -- where a second service, or a `user:` override an image's own entrypoint would
+      # undo, is two moving parts for one directory. The sources are `redis`'s and the three
+      # database servers', whose own comments own the paths.
+      #
+      # The three database directories are *made* here and not only chowned, because Docker creates a
+      # missing bind source at the moment the container wanting it starts -- which is after this
+      # service has run, so a directory left to Docker would be root's for the whole of the run that
+      # needed it.
       - ${NOVIS_SOCKET_DIR:-/mnt/host/wsl/novis-redis}:/sock
+      - ${NOVIS_DB_SOCKET_DIR:-/mnt/host/wsl/novis-db}:/db-sock
 
   # ---------------------------------------------------------------------------------------------------
   # MySQL. `executeMany`'s bulk path and `INSERT … ON DUPLICATE KEY UPDATE` reporting 2 for an updated
@@ -141,6 +150,18 @@ services:
       start_period: 30s
     volumes:
       - certs:/certs:ro
+      # `rule:core-classes/db-unix-socket-path`'s transport, published where the process running the
+      # matrix can reach it. The directory is the server's own default one and the socket keeps the
+      # name that server gives it, so nothing here is a spelling a deployment would not already have:
+      # `tools/db-matrix.py` hands the file to a second run of the TCP case list and the driver opens
+      # it exactly as an operator's own `host` would be.
+      #
+      # A subdirectory per server rather than one shared directory, because each of these images
+      # keeps its pid file and its lock beside the socket, and one directory would make three
+      # servers' run-time state a single directory's. The `redis` service below owns why the source
+      # is spelled `/mnt/host/wsl` and what a client on this host finds it as; `certs` above is what
+      # makes it writable by the uid 999 all three of these images drop to.
+      - ${NOVIS_DB_SOCKET_DIR:-/mnt/host/wsl/novis-db}/mysql:/run/mysqld
 
   # ---------------------------------------------------------------------------------------------------
   # MariaDB, on the 11.4 LTS line because that is the release that turns TLS on by itself.
@@ -177,6 +198,10 @@ services:
       start_period: 30s
     volumes:
       - certs:/certs:ro
+      # The socket leg, whose shape the `mysql` service above owns. `healthcheck.sh` reaches this
+      # server through this very socket, so publishing it is also what keeps that check honest --
+      # moving the server off its default path is what would have broken it.
+      - ${NOVIS_DB_SOCKET_DIR:-/mnt/host/wsl/novis-db}/mariadb:/run/mysqld
 
   # ---------------------------------------------------------------------------------------------------
   # PostgreSQL -- the first driver, per goal `database`'s standing decisions, because its extended protocol pays
@@ -203,6 +228,11 @@ services:
       POSTGRES_DB: novis_test
     volumes:
       - certs:/certs:ro
+      # The socket leg, whose shape the `mysql` service above owns. PostgreSQL's `host` is the
+      # directory and never the file -- `rule:core-classes/db-unix-socket-path` -- so this is the
+      # one of the three whose published path is what a client is handed as written, and
+      # `pg_isready` above reaches the server through the same socket.
+      - ${NOVIS_DB_SOCKET_DIR:-/mnt/host/wsl/novis-db}/postgres:/var/run/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U novis -d novis_test"]
       interval: 5s

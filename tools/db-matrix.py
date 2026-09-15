@@ -37,16 +37,41 @@ Discrete fields in the environment, never a connection string:
 
     NVS_DB_MATRIX_DRIVER     postgres | mysql | mariadb | mssql | sqlite
     NVS_DB_MATRIX_HOST       127.0.0.1
-    NVS_DB_MATRIX_PORT       the published port
+    NVS_DB_MATRIX_PORT       the published port, and the server's own on a socket leg
     NVS_DB_MATRIX_USER
     NVS_DB_MATRIX_PASSWORD
     NVS_DB_MATRIX_DATABASE
     NVS_DB_MATRIX_CA         the PEM bundle vouching for that server, exported below
     NVS_DB_MATRIX_PATH       sqlite only, a scratch file this tool creates and removes
+    NVS_DB_MATRIX_SOCKET     the socket leg below, and unset for every other leg
 
 `rule:core-classes/db-connection-is-named` makes `Db\\Settings` five types rather than one loose shape, and Novis has no DSN
 anywhere in its surface. A harness that invented one would be the first place a DSN *parser* had to
 exist, and the crate would then be tested through a spelling no program can use.
+
+## The socket leg
+
+Three drivers speak over `AF_UNIX` as well as over a port -- `rule:core-classes/db-unix-socket-path`
+-- so after the five published-port legs those three run the driver's own case list a second time
+with `NVS_DB_MATRIX_SOCKET` set instead of a host, and print `<driver> over a socket: ok`. The claim
+a second transport has to make is that the driver answers the same over either, and only the same
+cases over both say so; `SOCKET_SUITES` is which of `SUITES` that is and why the rest are not.
+SQL Server refuses the transport and SQLite has no wire, so neither has a socket leg at all, rather
+than a green line for something that did not run.
+
+`tests/db/compose.yaml` publishes each of those servers' own socket directory onto the host, and the
+leg is handed the path that driver's `host` is spelled as: the file for MySQL and MariaDB, the
+directory for PostgreSQL. `NVS_DB_MATRIX_PORT` carries the server's **own** port rather than the
+published one, because that is what `.s.PGSQL.<port>` is derived from and the other two ignore it.
+There is no `NVS_DB_MATRIX_CA` in that group at all: nothing vouches for a socket and no handshake
+over one asks.
+
+**On Windows the leg runs inside WSL.** The Unix-domain half of `nvs_host::net` is `#[cfg(unix)]`,
+so a Windows build has no transport for a socket whatever the kernel offers, and the socket a Linux
+container publishes is reachable from the distro rather than from Windows. `cargo test` there is one
+`wsl.exe` round trip over the distro's own target directory -- `/var/tmp/nvs-target-wsl`, which
+`tools/loop.py`'s WSL leg keeps warm, and `NVS_DB_MATRIX_WSL_TARGET` overrides. On a Linux host
+nothing is delegated: the leg is this process's own `cargo test`.
 
 A case that finds `NVS_DB_MATRIX_DRIVER` unset is expected to return without asserting anything, so
 `python tools/verify.py` stays green on a machine with no containers. That is the crate's rule, not
@@ -86,6 +111,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -96,6 +122,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 COMPOSE = ROOT / "tests" / "db" / "compose.yaml"
 CRATE = ROOT / "crates" / "nvs-db"
+IS_WINDOWS = os.name == "nt"
+
+#: The directory `tests/db/compose.yaml` publishes the three sockets into, as the process that dials
+#: one sees it -- two spellings of one directory on Docker Desktop. The daemon runs in a WSL distro
+#: of its own and resolves a bind mount inside *that* one, so the source the compose file names is
+#: `/mnt/host/wsl/novis-db`, the shared tmpfs every distro mounts, and a leg inside the default
+#: distro finds the same directory at `/mnt/wsl/novis-db`. That file's `redis` service owns the
+#: explanation. On a Linux host the daemon and the client share one filesystem and the two spellings
+#: are one path, which is the case `NOVIS_DB_SOCKET_DIR` is for: it names both ends at once.
+SOCKET_DIR = os.environ.get("NOVIS_DB_SOCKET_DIR") or (
+    "/mnt/wsl/novis-db" if IS_WINDOWS else "/mnt/host/wsl/novis-db"
+)
+#: Where a socket leg delegated to WSL builds. Not the tree's own `target/`, which is a Windows
+#: directory reached over a 9p mount and holds another triple's artefacts; this is the directory
+#: `tools/loop.py`'s WSL leg already keeps warm, so a leg costs a fingerprint scan rather than a
+#: cold build.
+WSL_TARGET = os.environ.get("NVS_DB_MATRIX_WSL_TARGET", "/var/tmp/nvs-target-wsl")
 
 #: `docker compose up -d --wait` on SQL Server can legitimately take minutes: its healthcheck has a
 #: 60s start period and forty retries, and the first boot creates the database.
@@ -142,6 +185,20 @@ NO_SERVER_SUITES = (
     ["-p", "nvs-stdlib", "--test", "queue_sqlite"],
 )
 
+#: What a socket leg runs, out of `SUITES`: this crate's own case list, and nothing else.
+#:
+#: The other three entries gate themselves out of a socket leg in their own source -- `queue.rs` and
+#: `db_stream.rs` return without asserting on a `Location::Socket`, and the worker's case is SQL
+#: Server's, which has no socket leg to be run on -- because each of them asserts a dialect or a
+#: read state rather than a transport, and the same statements cross either one. Running them anyway
+#: would be three more fingerprint scans per driver for three suites that assert nothing. So the leg
+#: runs the case list that does speak about the transport: `crates/nvs-db/tests/handshake.rs` dials
+#: whichever `Location` it is handed and asserts the server answers the same over it. A suite that
+#: grows a case needing a socket joins this tuple in the slice that writes the case.
+SOCKET_SUITES = (
+    ["-p", "nvs-db"],
+)
+
 
 @dataclass(frozen=True)
 class Driver:
@@ -161,6 +218,11 @@ class Driver:
     #: and handed over as `NVS_DB_MATRIX_CA`. `None` is a server whose certificate is not reachable
     #: as a file: that driver cannot be connected to and is reported `n/a` rather than run.
     anchor: str | None = None
+    #: This driver's socket under [`SOCKET_DIR`], as `rule:core-classes/db-unix-socket-path` has
+    #: that driver's `host` spelled -- the file for the two MySQL protocols, the directory for
+    #: PostgreSQL. `None` is a driver with no socket leg: TDS has no `AF_UNIX` transport to reach
+    #: and SQLite's own path *is* the database.
+    socket: str | None = None
     #: A fixed user, for an image that names one in its command rather than its environment.
     user: str | None = None
     note: str = ""
@@ -172,14 +234,14 @@ DRIVERS: tuple[Driver, ...] = (
     # however good its CA is, and `compose.yaml`'s MySQL block says so at length. The anchor is
     # therefore PostgreSQL's.
     Driver("mysql", "mysql", 3306, "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE",
-           anchor="/certs/ca.crt"),
+           anchor="/certs/ca.crt", socket="mysql/mysqld.sock"),
     # MariaDB is served the same `certs` leaf, and for the same reason MySQL is: 11.4 turns TLS on
     # by itself, but the certificate it generates to do that carries no `subjectAltName` and is
     # unverifiable by name however good its CA is. `compose.yaml`'s MariaDB block says so at length.
     Driver("mariadb", "mariadb", 3306, "MARIADB_USER", "MARIADB_PASSWORD", "MARIADB_DATABASE",
-           anchor="/certs/ca.crt"),
+           anchor="/certs/ca.crt", socket="mariadb/mysqld.sock"),
     Driver("postgres", "postgres", 5432, "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB",
-           anchor="/certs/ca.crt"),
+           anchor="/certs/ca.crt", socket="postgres"),
     # SQL Server has no `MSSQL_USER`: the image's only account is `sa`, and the database is created
     # by the healthcheck rather than by the entrypoint — `compose.yaml`'s own comment says why. The
     # certificate it presents is the `certs` leaf too, but reaching that took an `mssql.conf` rather
@@ -322,6 +384,63 @@ def export_anchor(driver: Driver, into: Path) -> Path:
     return dest
 
 
+def matrix_env(fields: dict[str, str]) -> dict[str, str]:
+    """This process's environment with every `NVS_DB_MATRIX_*` field replaced by `fields`.
+
+    Replaced rather than merged: a leg reads those fields as a *group*, so one left over from the
+    caller's own shell -- an anchor beside a socket, a host beside a path -- would point half a leg
+    somewhere nobody chose, and `crates/nvs-db/src/matrix.rs` would report it as this harness being
+    wrong. Everything else in the environment is carried: `cargo` needs its own.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("NVS_DB_MATRIX_")}
+    env.update(fields)
+    return env
+
+
+def cargo_test(suite: list[str], env: dict[str, str], in_wsl: bool = False) -> subprocess.CompletedProcess:
+    """One suite of one leg, here or inside the default WSL distro.
+
+    The distro is where a socket leg runs on Windows, for the reason this module's header gives, and
+    it is a `bash -lc` because that is where the login PATH puts `cargo`. Only the `NVS_DB_MATRIX_*`
+    group crosses -- the rest of `env` is this process's own environment, which the distro does not
+    share and does not want.
+    """
+    if not in_wsl:
+        return subprocess.run(
+            ["cargo", "test", "-q", *suite],
+            cwd=ROOT, env=env, capture_output=True, text=True, timeout=TEST_TIMEOUT,
+        )
+    drive = str(ROOT)[0].lower()
+    repo = "/mnt/" + drive + str(ROOT)[2:].replace("\\", "/")
+    fields = " ".join(
+        f"{k}={shlex.quote(v)}" for k, v in sorted(env.items()) if k.startswith("NVS_DB_MATRIX_")
+    )
+    inner = (
+        f"cd {shlex.quote(repo)} && CARGO_TARGET_DIR={shlex.quote(WSL_TARGET)} {fields} "
+        f"cargo test -q {' '.join(shlex.quote(a) for a in suite)}"
+    )
+    return subprocess.run(
+        ["wsl.exe", "--", "bash", "-lc", inner],
+        capture_output=True, text=True, timeout=TEST_TIMEOUT,
+    )
+
+
+def verdict_of(r: subprocess.CompletedProcess) -> tuple[str, str]:
+    """A finished suite as the (verdict, one-line detail) a leg reports."""
+    if r.returncode == 0:
+        return "ok", ""
+    lines = [ln for ln in (r.stdout + r.stderr).splitlines() if ln.strip()]
+    failed = [ln.strip() for ln in lines if ln.strip().startswith("---- ") or " FAILED" in ln]
+    detail = failed[0] if failed else (lines[-1].strip() if lines else "no output")
+    # The test's name says which assertion fired and never what the server answered, and a leg runs
+    # captured, so the line under the panic is carried out with it or it is lost with the process.
+    # One line, because this is a ledger entry: whoever needs the whole failure reruns the leg.
+    panicked = next((i for i, ln in enumerate(lines) if "panicked at" in ln), None)
+    if panicked is not None and panicked + 1 < len(lines):
+        detail = f"{detail} -- {lines[panicked + 1].strip()}"
+    return "FAILED", detail
+
+
 def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
     """Run one driver's suites -- `SUITES`, and `NO_SERVER_SUITES` after them for the driver that
     has no server. Returns (verdict, one-line detail).
@@ -333,8 +452,7 @@ def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
     if driver.service is not None and driver.anchor is None:
         return "n/a", "no trust anchor: that server serves no certificate a client can verify"
 
-    env = dict(os.environ)
-    env["NVS_DB_MATRIX_DRIVER"] = driver.name
+    env = matrix_env({"NVS_DB_MATRIX_DRIVER": driver.name})
     scratch = Path(tempfile.mkdtemp(prefix="nvs-db-matrix-"))
     try:
         if driver.service is None:
@@ -356,10 +474,7 @@ def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
         suites = SUITES if driver.service is not None else (*SUITES, *NO_SERVER_SUITES)
         for suite in suites:
             try:
-                r = subprocess.run(
-                    ["cargo", "test", "-q", *suite],
-                    cwd=ROOT, env=env, capture_output=True, text=True, timeout=TEST_TIMEOUT,
-                )
+                r = cargo_test(suite, env)
             except subprocess.TimeoutExpired:
                 return "FAILED", f"no verdict within {TEST_TIMEOUT}s for `{' '.join(suite)}`"
             if r.returncode != 0:
@@ -371,18 +486,90 @@ def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 
-    if r.returncode == 0:
-        return "ok", ""
-    lines = [ln for ln in (r.stdout + r.stderr).splitlines() if ln.strip()]
-    failed = [ln.strip() for ln in lines if ln.strip().startswith("---- ") or " FAILED" in ln]
-    detail = failed[0] if failed else (lines[-1].strip() if lines else "no output")
-    # The test's name says which assertion fired and never what the server answered, and a leg runs
-    # captured, so the line under the panic is carried out with it or it is lost with the process.
-    # One line, because this is a ledger entry: whoever needs the whole failure reruns the leg.
-    panicked = next((i for i, ln in enumerate(lines) if "panicked at" in ln), None)
-    if panicked is not None and panicked + 1 < len(lines):
-        detail = f"{detail} -- {lines[panicked + 1].strip()}"
-    return "FAILED", detail
+    return verdict_of(r)
+
+
+def socket_published(path: str) -> bool:
+    """Is the socket the compose file publishes there -- the file itself, or for PostgreSQL the
+    directory the engine names its own socket inside?
+
+    Asked from where the leg will dial, which on Windows is the distro and not this process: a
+    missing socket is then one line saying the servers are not up, rather than a whole suite failing
+    at a connect the reader has to recognise.
+    """
+    if IS_WINDOWS:
+        probe = subprocess.run(
+            ["wsl.exe", "--", "bash", "-lc", f"test -e {shlex.quote(path)}"],
+            capture_output=True, text=True, timeout=120,
+        )
+        return probe.returncode == 0
+    return Path(path).exists()
+
+
+def run_socket_leg(driver: Driver, config: dict | None) -> tuple[str, str]:
+    """`SUITES` again, with `driver` pointed at `AF_UNIX` rather than at a published port.
+
+    The same case list and the same credentials as that driver's own leg above, because what this
+    proves is that the driver answers the same over either transport. What changes is the group in
+    the environment: a socket path instead of a host, the server's own port instead of the published
+    one, and no trust anchor at all.
+    """
+    assert driver.socket is not None and driver.port is not None
+    path = f"{SOCKET_DIR}/{driver.socket}"
+    try:
+        if IS_WINDOWS and not shutil.which("wsl.exe"):
+            raise Fail(
+                "no `wsl.exe` on this host, and a Windows build has no AF_UNIX transport to dial "
+                "one with -- that half of `nvs_host::net` is `#[cfg(unix)]`"
+            )
+        if not socket_published(path):
+            raise Fail(f"nothing is published at {path} -- the servers are not up, or not recreated"
+                       " since `tests/db/compose.yaml` grew this mount")
+        assert config is not None
+        endpoint = endpoint_of(driver, config)
+        env = matrix_env({
+            "NVS_DB_MATRIX_DRIVER": driver.name,
+            "NVS_DB_MATRIX_SOCKET": path,
+            # The server's own port, never the published one: PostgreSQL derives `.s.PGSQL.<port>`
+            # from it inside the container's namespace, and the other two ignore it.
+            "NVS_DB_MATRIX_PORT": str(driver.port),
+            "NVS_DB_MATRIX_USER": endpoint.user,
+            "NVS_DB_MATRIX_PASSWORD": endpoint.password,
+            "NVS_DB_MATRIX_DATABASE": endpoint.database,
+        })
+        say(f"db-matrix: {driver.name} against {path}")
+        for suite in SOCKET_SUITES:
+            try:
+                r = cargo_test(suite, env, in_wsl=IS_WINDOWS)
+            except subprocess.TimeoutExpired:
+                return "FAILED", f"no verdict within {TEST_TIMEOUT}s for `{' '.join(suite)}`"
+            if r.returncode != 0:
+                break
+    except Fail as exc:
+        return "n/a", str(exc)
+    return verdict_of(r)
+
+
+@dataclass(frozen=True)
+class Leg:
+    """One line of the run: a driver, and which transport this pass reaches it over."""
+
+    driver: Driver
+    over_socket: bool
+
+    @property
+    def label(self) -> str:
+        return f"{self.driver.name} over a socket" if self.over_socket else self.driver.name
+
+
+def legs_of(selected: list[Driver]) -> list[Leg]:
+    """Every selected driver's published-port leg, then the socket leg of each that has one.
+
+    In that order rather than interleaved: the five drivers answer for themselves first, so a reader
+    of the output -- or of an acceptance check's `want` list -- sees a transport failure as its own
+    line and never as the driver's.
+    """
+    return [Leg(d, False) for d in selected] + [Leg(d, True) for d in selected if d.socket]
 
 
 def main() -> int:
@@ -408,11 +595,13 @@ def main() -> int:
             if BY_NAME[name] not in selected:
                 selected.append(BY_NAME[name])
 
+        legs = legs_of(selected)
+
         # The missing crate is checked before Docker is: it is the cheaper answer and the more
         # useful one, and `--list` is the one mode that reads the compose file without it.
         if not args.list and not CRATE.is_dir():
-            for driver in selected:
-                print(f"{driver.name}: n/a (crates/nvs-db does not exist yet)")
+            for leg in legs:
+                print(f"{leg.label}: n/a (crates/nvs-db does not exist yet)")
             say("db-matrix: nothing ran -- the driver crate is Stage 2 of docs/agent/loop-goal.md")
             return 2
 
@@ -420,10 +609,14 @@ def main() -> int:
         config = compose_config() if any(d.service for d in selected) else None
 
         if args.list:
-            for driver in selected:
-                where = driver.note if config is None or driver.service is None \
-                    else endpoint_of(driver, config).describe()
-                print(f"{driver.name}: {where}")
+            for leg in legs:
+                if leg.over_socket:
+                    where = f"{SOCKET_DIR}/{leg.driver.socket}"
+                elif config is None or leg.driver.service is None:
+                    where = leg.driver.note
+                else:
+                    where = endpoint_of(leg.driver, config).describe()
+                print(f"{leg.label}: {where}")
             return 0
 
         if not args.no_up:
@@ -433,18 +626,19 @@ def main() -> int:
 
         failures = 0
         unrunnable = 0
-        for driver in selected:
-            verdict, detail = run_driver(driver, config)
+        for leg in legs:
+            run = run_socket_leg if leg.over_socket else run_driver
+            verdict, detail = run(leg.driver, config)
             if verdict == "ok":
-                print(f"{driver.name}: ok")
+                print(f"{leg.label}: ok")
             elif verdict == "n/a":
                 unrunnable += 1
-                print(f"{driver.name}: n/a ({detail})")
+                print(f"{leg.label}: n/a ({detail})")
             else:
                 failures += 1
-                print(f"{driver.name}: FAILED -- {detail}")
-        ran = len(selected) - failures - unrunnable
-        say(f"db-matrix: {ran}/{len(selected)} drivers ok")
+                print(f"{leg.label}: FAILED -- {detail}")
+        ran = len(legs) - failures - unrunnable
+        say(f"db-matrix: {ran}/{len(legs)} legs ok")
         if failures:
             return 1
         return 2 if unrunnable else 0
