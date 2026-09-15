@@ -2,59 +2,56 @@
 
 ## State
 
-**Goal `m8-db-queue`, stage 6: `queryAs<T>` has two doors, and the class picks one.** A class
-declaring `Core\Db\Codec`'s `fromRow` and no `#[Db\Derive]` is admitted at the call site by
-`check_row_sites` (`crates/nvs-types/src/derive.rs:779`) and dispatched to at run time by `hydrate`'s
-empty-`db_codec` arm through `hand_written` (`crates/nvs-stdlib/src/db/row.rs:245`), which hands it
-the `Core\Db\Row` a `query` would have answered with. The route is `nvs_runtime::call_static_on`
-(`crates/nvs-runtime/src/dispatch.rs:170`), `call_static`'s half for a caller that already holds the
-descriptor rather than a label.
+**Goal `m8-db-queue`, stage 6 is closed.** The three cases its `nvs-suite` check names are on disk
+and green, and its three `cargo-named` checks were already so: `queryAs<T>`'s two doors are pinned
+from Novis as well as from Rust.
 
-**The refusal that is left names both doors.** A class carrying neither is still `E0806` while
-compiling and a `LogicError` at run time, and each message now says `fromRow` beside the attribute.
+`tests/conformance/core/db-query-as-hydrates-a-decimal-an-instant-and-bytes.nvst` fills a `decimal`
+and a `tainted bytes` field from a live `:memory:` SQLite database and asks the third wire type the
+erasure gives a codec type of its own — an `Instant` — of a column this backend cannot produce one
+for, so `converted`'s class arm answers as a `ParseError` naming both class names
+(`crates/nvs-stdlib/src/db/row.rs:440`). `nvs_db::SqliteColumn::column_type` answers `Instant` for no
+declared type at all (`crates/nvs-db/src/sqlite.rs:444`), so the positive `TIMESTAMPTZ` half stays
+the four wire drivers' and is asserted from `crates/nvs-stdlib/tests/db_stream.rs`.
 
-`nvs_types::derive` gap 2 is **narrowed, not closed**: its subject is the `CodecTy::Opaque` field the
-reader has no case for, which is gap 1's erasure and still open. The paragraph added to it records
-only that a hand-written class is not in it at all — it erases nothing.
+`tests/conformance/core/db-query-as-calls-the-from-row-a-class-wrote-itself.nvst` pins the other
+door: a class with no `#[Db\Derive]` that declares `fromRow` builds properties named after neither
+column, through a connection and through a transaction alike.
 
-Nothing is blocked. Stage 6's other three checks all have their tests on disk; the one item below is
-the whole of what it still owes.
+Nothing is blocked. Stage 7's six named tests do not exist yet, which is the ordinary open state.
 
 ## Next group
 
-**Stage 6: the conformance half, at both doors** — one file set: `tests/conformance/core/` and
-`crates/nvs-stdlib/src/db/row.rs`. `rule:core-classes/db-column-types` owns the first,
-`rule:core-classes/derive-generates-what-is-missing` the second.
+**Stage 7: SQL Server's nullable unique key, at both doors** — one file set:
+`crates/nvs-db/src/ddl.rs` and `crates/nvs-db/src/catalog.rs`. The goal's § *Standing decisions* is
+what settles the semantics: a unique key's nulls are distinct on every backend, and SQL Server is
+brought into line through its DDL rather than by the queue working around it.
 
-- [ ] **`tests/conformance/core/db-query-as-hydrates-a-decimal-an-instant-and-bytes.nvst` is not on
-      disk**, and stage 6's `nvs-suite` check names it. What it walks is
-      `crates/nvs-stdlib/src/db/row.rs:334`, `converted`'s arms for the three wire types the erasure
-      now gives a codec type of their own. Its sibling
-      `tests/conformance/reject/db-query-as-over-an-inline-shape-field-is-refused-while-compiling.nvst`
-      is written and green, so copy its header and its `--EXPECTF-ERROR--` neighbours for shape. The
-      `:memory:` SQLite block a case opens is the playbook's own bullet, and it is the only driver a
-      `.nvst` reaches.
-- [ ] **No `.nvst` pins the hand-written door**, which is what this session landed and what no
-      conformance case names. A class with `static fromRow(Core\Db\Row $row): static` and no
-      attribute, over the same `:memory:` block, asserting the member ran — the Rust halves are
-      `crates/nvs-stdlib/src/db/row.rs:1629` `query_as_calls_a_hand_written_from_row` and
-      `crates/nvs-types/tests/derive.rs:805`, and neither reaches a real driver. Not named by a
-      `[[check]]`; take it only after the item above.
+- [ ] **`a_unique_key_over_a_nullable_column_is_a_filtered_index_on_sql_server` does not exist**, and
+      stage 7's `-p nvs-db` check names it. A unique key is emitted inline as `CONSTRAINT … UNIQUE`
+      (`crates/nvs-db/src/ddl.rs:172`) and after the fact as `ADD CONSTRAINT … UNIQUE`
+      (`crates/nvs-db/src/ddl.rs:655`); on SQL Server a key over a nullable column becomes
+      `CREATE UNIQUE INDEX … WHERE <column> IS NOT NULL` instead, both times.
+      `rule:core-classes/queue-storage-is-a-table` owns the refusal it replaces — a `not null` column
+      with a generated token stays refused.
+- [ ] **`a_filtered_unique_index_reads_back_as_the_same_key` does not exist.** The catalog's index
+      read is the one statement that reaches `sys` (`crates/nvs-db/src/catalog.rs:339`), and it
+      already selects `has_filter`; what the test asks is that a key emitted by the slice above
+      reads back as the same `UniqueKey` rather than as a plain index, so `plan` converges on a
+      second run. `rule:core-classes/schema-introspection` owns the read.
+- [ ] **`plan` refuses a nullable unique column it cannot read back as the same key** — the safe
+      fallback the standing decisions name, at `crates/nvs-db/src/ddl.rs:645`, and only if the two slices
+      above show the round trip does not close. It never emits DDL that will not converge.
 
 ## Backlog
 
-- `nvs_stdlib::json` gap 3 — a hand-written `Core\Json\Codec` is still not consulted — is the same
-  door one format over, and `nvs_runtime::call_static_on` is now the lookup it was missing:
-  `crates/nvs-stdlib/src/json.rs:168`.
-- A literal type is `db_reachable` and erases to `CodecTy::Opaque`, so a well-formed
-  `public true $flag;` on a `#[Db\Derive]` class refuses at every `queryAs` —
-  `crates/nvs-types/src/derive.rs`'s `codec_ty` catch-all against `db_reachable`'s `Ty::True` row.
-- An inline-shape field on a `#[Db\Derive]` class reports twice, `E0756` at the declaration and
-  `E0806` at the call, and both name the same fix.
-- `python tools/db-matrix.py --all` has not run since the four wire drivers' walks landed, and now
-  also gates `a_numeric_30_10_postgres_column_throws_on_read_rather_than_truncating` —
-  `crates/nvs-stdlib/tests/db_stream.rs`.
-- A `decimal` job argument crosses the queue payload as a string and comes back a string, because
-  the read is untyped — `crates/nvs-stdlib/src/queue.rs:2253`.
-- `json.rs` gap 1's remaining half is an `Instant` (RFC 3339 text, decided) and an inline shape
-  reached as a field, `— owner: m8-stdlib-depth`.
+- A closure reusing an enclosing `foreach`'s variable name is an ICE, not a diagnostic —
+  `crates/nvs-ir/src/lower/expr.rs:2667`; the playbook bullet is the workaround, and the fix is
+  `nvs_types`' capture set. Owner: `crates/nvs-ir`'s module doc.
+- Stage 7's queue half — `queue_runs_on_every_driver` and the SQL Server dialect behind
+  `nvs_stdlib::queue::runs` (`crates/nvs-stdlib/src/queue.rs:2373`) — after the DDL group above.
+- Stage 7's `errors` array, bounded by attempts × the capped message
+  (`crates/nvs-stdlib/src/queue.rs:882`), with `a_dead_lettered_row_carries_every_attempts_error`
+  under `-p nvs-cli`.
+- `nvs_types::derive` gap 2's subject, the `CodecTy::Opaque` field the reader has no case for, is
+  gap 1's erasure and still open. Owner: `crates/nvs-types/src/derive.rs`'s module doc.
