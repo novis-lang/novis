@@ -294,6 +294,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&BODY_DOC),
         },
         CoreMethod {
+            name: "bytes",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedBytes,
+            symbol: "nvs_core_request_bytes",
+            doc: Some(&BYTES_DOC),
+        },
+        CoreMethod {
             name: "json",
             names: &[],
             params: &[CoreTy::Options(crate::json::DECODE_OPTIONS)],
@@ -582,6 +591,39 @@ const BODY_DOC: MethodDoc = MethodDoc {
             error: "LogicError",
             desc: "This program is not answering a request, or this request's body has already \
                    been read by `bodyStream` or `files` — the three are exclusive on one request.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The body is larger than `[limits] request_body` (8M). The bytes over the bound \
+                   are never held: the refusal happens at the chunk that would cross it.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed under the body, or the peer stopped short of the length \
+                   it declared.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The body is not UTF-8, and a `string` is UTF-8 for its whole lifetime, so \
+                   there is no string this could answer with. `bytes()` reads the same octets \
+                   out of the same hold.",
+        },
+    ],
+};
+
+/// `Core\Request::bytes`'s reference card — `rule:core-api/reference-card`.
+const BYTES_DOC: MethodDoc = MethodDoc {
+    short: "The whole request body as the octets it arrived as — `body()`'s reading for a payload \
+            that is not text, named after `Core\\Response::bytes`, and buffering on the same terms.",
+    params: &[],
+    ret: "Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the \
+          request carried no body. A body `body()` refuses for not being UTF-8 is an answer here, \
+          because `bytes` carries no encoding promise.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or this request's body has already \
+                   been read by `bodyStream` or `files`, which keep none of what they read.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1457,6 +1499,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_headers" => (nvs_core_request_headers as *const ()).cast(),
         "nvs_core_request_cookie" => (nvs_core_request_cookie as *const ()).cast(),
         "nvs_core_request_body" => (nvs_core_request_body as *const ()).cast(),
+        "nvs_core_request_bytes" => (nvs_core_request_bytes as *const ()).cast(),
         "nvs_core_request_json" => (nvs_core_request_json as *const ()).cast(),
         "nvs_core_request_json_as" => (nvs_core_request_json_as as *const ()).cast(),
         "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
@@ -2589,7 +2632,54 @@ nvs_runtime::nvs_helper! {
         // here whether or not this request carried any bytes, while a buffering
         // one is a hold to answer out of.
         claim_body(ctx, "body", BodyNeed::Octets)?;
-        Ok(Value::str(NvsStr::new(held_octets(ctx, "body")?)))
+        let octets = held_octets(ctx, "body")?;
+        // `rule:types/string-is-utf8`: a `string` holds valid UTF-8 for its
+        // whole lifetime, so a body that is not one is refused rather than
+        // repaired. A lossy decode would change a webhook's signed payload
+        // without saying so, which spends security to buy convenience —
+        // `bytes()` is the reading that has no encoding to promise.
+        if let Err(why) = std::str::from_utf8(octets) {
+            return Err(Fault::thrown_as(
+                ThrownClass::Parse,
+                format!(
+                    "Core\\Request::body(): the body of this request is not UTF-8 — {why} — and a \
+                     `string` is UTF-8 for its whole lifetime, so there is no string these octets \
+                     could be. `Core\\Request::bytes()` answers them as they arrived, out of the \
+                     hold this reading has already filled"
+                ),
+            ));
+        }
+        Ok(Value::str(NvsStr::new(octets)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::bytes(): tainted bytes` — the whole request body as the
+    /// octets it arrived as, named after `Core\Response::bytes` on the writing
+    /// side.
+    ///
+    /// **Buffering, over the hold [`nvs_core_request_body`] fills**, which is
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+    /// rather than anything this member decides: what it needs is the octets,
+    /// so it may follow `body()`, `post()` or `json()` and any of them may
+    /// follow it, and every one of them answers the same octets. A streaming
+    /// reader ahead of it kept none of them and refuses here.
+    ///
+    /// **It answers where `body()` refuses.** A `string` is valid UTF-8 for its
+    /// whole lifetime (`rule:types/string-is-utf8`), so a body that is not one
+    /// has no string to be; a `bytes` promises nothing about encoding, so the
+    /// same octets are an ordinary answer here. That is the whole reason this
+    /// member exists rather than `body()` growing a flag.
+    ///
+    /// **What it spends:** nothing the first reading of the body did not
+    /// already spend — the hold, bounded by [`REQUEST_BODY`] — plus the
+    /// [`NvsStr`] copied out of it per call. Both are O(in-flight).
+    fn nvs_core_request_bytes(ctx, _args: [0]) {
+        // Asked before the body is, so "the request sent nothing" stays the
+        // empty answer below and "no request arrived" stays this throw.
+        inbound_of(ctx, "bytes")?;
+        claim_body(ctx, "bytes", BodyNeed::Octets)?;
+        Ok(Value::bytes(NvsStr::new(held_octets(ctx, "bytes")?)))
     }
 }
 
@@ -3713,10 +3803,10 @@ mod tests {
         cookie_of, grouped_fields, host_named, joined_field, method_ordinal, nvs_core_request_body,
         nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
         nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
-        nvs_core_request_files, nvs_core_request_files_advance, nvs_core_request_files_current,
-        nvs_core_request_files_iterate, nvs_core_request_is_head, nvs_core_request_json,
-        nvs_core_request_json_as, nvs_core_request_method, nvs_core_request_mount,
-        nvs_core_request_mount_captures, nvs_core_request_mount_prefix,
+        nvs_core_request_bytes, nvs_core_request_files, nvs_core_request_files_advance,
+        nvs_core_request_files_current, nvs_core_request_files_iterate, nvs_core_request_is_head,
+        nvs_core_request_json, nvs_core_request_json_as, nvs_core_request_method,
+        nvs_core_request_mount, nvs_core_request_mount_captures, nvs_core_request_mount_prefix,
         nvs_core_request_part_content, nvs_core_request_part_content_advance,
         nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
         nvs_core_request_part_content_type, nvs_core_request_part_filename,
@@ -5833,6 +5923,88 @@ mod tests {
             .expect("`body()` answers a string");
         dropped(answered);
         Ok(read)
+    }
+
+    /// `Core\Request::bytes()` on `ctx`, with the answer released the way a
+    /// compiled call site releases it.
+    ///
+    /// [`Value::as_bytes`] and not a reader spanning both payload shapes: the
+    /// tag is half of what this member answers, so one that spanned them would
+    /// pass a `string` through.
+    fn read_bytes(ctx: &mut Ctx) -> Result<Vec<u8>, i32> {
+        let answered = nvs_runtime::call(nvs_core_request_bytes, ctx, &[])?;
+        let read = answered
+            .as_bytes()
+            .map(<[u8]>::to_vec)
+            .expect("`bytes()` answers a `bytes`");
+        dropped(answered);
+        Ok(read)
+    }
+
+    /// The two readings of one body are one hold —
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+    /// asked of the pair that differ only in what they promise about encoding.
+    ///
+    /// The octets are not UTF-8, which is what makes the halves separable: a
+    /// `string` holds valid UTF-8 for its whole lifetime
+    /// (`rule:types/string-is-utf8`), so `body()` has nothing to answer with and
+    /// refuses, while `bytes()` answers the very octets it refused over — out
+    /// of the same allocation, which is what the pointer below asserts and what
+    /// a member taking its own copy would fail.
+    #[test]
+    fn request_bytes_and_body_share_one_hold_and_bytes_never_copies_it_twice() {
+        const BINARY: &[&[u8]] = &[&[0x89, b'P', b'N', b'G'], &[0x0d, 0x0a, 0xff, 0x00]];
+        let whole: Vec<u8> = BINARY.concat();
+
+        let mut arrived = answering(Some(Chunks::of(BINARY)));
+        assert_eq!(
+            read_bytes(&mut arrived).expect("a binary body is what this member is for"),
+            whole,
+            "the body arrives whole, chunk boundary and NUL included"
+        );
+        let held = arrived
+            .inbound()
+            .expect("this context answers a request")
+            .held_body()
+            .expect("the first reading fills the hold")
+            .as_ptr();
+        assert_eq!(
+            read_bytes(&mut arrived).expect("a buffering reader may follow itself"),
+            whole,
+            "and a second call answers out of the hold rather than the drained wire"
+        );
+        assert_eq!(
+            arrived
+                .inbound()
+                .expect("this context answers a request")
+                .held_body()
+                .expect("a hold, once filled, stays")
+                .as_ptr(),
+            held,
+            "over the octets already held, and never a second copy of them"
+        );
+        assert!(
+            read_body(&mut arrived).is_err(),
+            "`body()` has no string these octets could be, so it refuses rather than repairing"
+        );
+
+        // The other order, because the hold belongs to the request rather than
+        // to the reader that filled it: a UTF-8 body read as a string first is
+        // the same octets read as `bytes` after.
+        let mut text = answering(Some(Chunks::of(&[&b"title=Q3"[..], &b"+report"[..]])));
+        let string = read_body(&mut text).expect("a UTF-8 body is a string");
+        assert_eq!(
+            read_bytes(&mut text).expect("and `bytes` follows any buffering reader"),
+            string,
+            "the two readings of one body answer one set of octets"
+        );
+
+        let mut bodiless = answering(None);
+        assert_eq!(
+            read_bytes(&mut bodiless).expect("a request that carried no body is still a request"),
+            Vec::<u8>::new(),
+            "\"the peer sent nothing\" is an answer here, exactly as it is for `body()`"
+        );
     }
 
     /// `Core\Request::json()` on `ctx` at the default depth.

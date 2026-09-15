@@ -1,0 +1,21 @@
+--TEST--
+`Core\Request::bytes` answers `tainted bytes`, so a plain `bytes` binding refuses it exactly as one refuses a `bodyStream` chunk — spec § 15, `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// The qualifier is what a second body reader could quietly drop: `body()`
+// answers `tainted string` over these same octets, so a `bytes()` that handed
+// back a plain value would be a launderer reachable by spelling the binary
+// reading instead of the textual one. No runtime assertion can show it -- a
+// plain value is assignable into a `tainted` target, so a case that only bound
+// one would pass over a member that had already dropped the mark. The refusal
+// is the pin, and it is the binding that has to fail: `bytes` narrows through
+// no qualifier bit.
+bytes $raw = Core\Request::bytes();
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+   --> case.nvs:10:14
+%A
+error: aborting due to 1 error

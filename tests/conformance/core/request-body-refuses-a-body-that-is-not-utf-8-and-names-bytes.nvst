@@ -1,0 +1,31 @@
+--TEST--
+`Core\Request::body()` refuses a body that is not UTF-8 and names `bytes()`, which answers the very octets it refused over — `rule:types/string-is-utf8`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+--FILE--
+<?nvs
+// A JSON-shaped payload with one octet in it that is not UTF-8, which is what a
+// signed webhook looks like the day something upstream mangles it.
+try {
+    var $answered = Core\Test::request(
+        Core\Http\Method::Post,
+        "/webhooks",
+        {body: Core\Encoding::fromHex("7b2261223a22ff227d")}
+    );
+    echo $answered->body();
+} catch (RuntimeError $inside) {
+    // Refused rather than repaired: a lossy decode would change a signed
+    // payload without saying so, which spends security to buy convenience. The
+    // sentence names the reading that has no encoding to promise, because that
+    // is what the program is supposed to write instead.
+    try {
+        echo Core\Request::body();
+    } catch (ParseError $why) {
+        echo $why->message, "\n";
+    }
+    // And it answers out of the hold the refused reading already filled, so the
+    // wire is pulled once: the refusal is about the decode and never about the
+    // octets being gone.
+    echo "hex ", Core\Encoding::toHex(Core\Request::bytes()), "\n";
+}
+--EXPECT--
+Core\Request::body(): the body of this request is not UTF-8 — invalid utf-8 sequence of 1 bytes from index 6 — and a `string` is UTF-8 for its whole lifetime, so there is no string these octets could be. `Core\Request::bytes()` answers them as they arrived, out of the hold this reading has already filled
+hex 7b2261223a22ff227d

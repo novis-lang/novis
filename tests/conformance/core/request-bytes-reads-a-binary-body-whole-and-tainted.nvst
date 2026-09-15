@@ -1,0 +1,33 @@
+--TEST--
+`Core\Request::bytes()` answers a binary request body whole, past the NUL and the `0xff` that no `string` could hold — `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`, `rule:types/string-is-utf8`, `rule:testing/in-process-request`
+--FILE--
+<?nvs
+// A PNG signature with a NUL and an `0xff` after it: octets a `string` cannot
+// hold, which is the whole reason this reading exists beside `body()`. They are
+// carried in by `Core\Test::request` because a case file crosses as text, so
+// `--POST_RAW--` has no spelling for them.
+//
+// The branch is the request and the `catch` is how one file holds both sides:
+// the child reaches this same call and is refused, an in-process request not
+// being makeable from inside one.
+try {
+    var $answered = Core\Test::request(
+        Core\Http\Method::Post,
+        "/hooks",
+        {body: Core\Encoding::fromHex("89504e470d0a1a0a00ff")}
+    );
+    echo $answered->body();
+} catch (RuntimeError $inside) {
+    // `tainted`, exactly as an arrived request's body is -- nothing about being
+    // synthetic changes what the roster declares. The refusal that pins the
+    // qualifier is its own case, a plain `bytes` binding being the only thing
+    // that can fail over a mark a passing case would widen away.
+    tainted bytes $raw = Core\Request::bytes();
+    // Whole: the count runs past the NUL a reader treating the body as text
+    // would stop at, and the hex says which octets in which order.
+    echo "octets ", Core\Bytes::length($raw), "\n";
+    echo "hex ", Core\Encoding::toHex($raw), "\n";
+}
+--EXPECT--
+octets 10
+hex 89504e470d0a1a0a00ff

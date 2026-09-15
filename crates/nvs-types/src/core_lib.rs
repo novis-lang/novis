@@ -1404,6 +1404,7 @@ mod tests {
                 ),
                 (r"Core\Net\Stream", "read", "tainted bytes".to_owned()),
                 (r"Core\Request", "body", "tainted string".to_owned()),
+                (r"Core\Request", "bytes", "tainted bytes".to_owned()),
                 (
                     r"Core\Request",
                     "clientIp",
@@ -1479,7 +1480,7 @@ mod tests {
              the two names written in that chain's leaf, \
              the two environment \
              reads, the two prompts that answer what a person typed, the words the program \
-             was started with, everything attached to its standard input, the five reads of \
+             was started with, everything attached to its standard input, every read of \
              the request being answered, the three facts it arrived on, the three \
              declarations one of its uploaded parts made, the bytes of that part held \
              whole, the two readers of the captures the matched route filled, the captures \
