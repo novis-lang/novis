@@ -5404,6 +5404,130 @@ mod tests {
         }
     }
 
+    /// The classes `rule:security/protocol-roster` closes the list of, and the
+    /// two that carry a key for one of them.
+    ///
+    /// Written rather than derived, for [`EXCEPTION_TREE`]'s reason and one of
+    /// its own: the roster is closed by that rule, so a new entry is a
+    /// deliberate act that edits this line, and a derivation over "every class
+    /// handed a `secret`" would sweep in `Core\Crypto`'s primitives — which
+    /// answer key material, and are the one place that is right.
+    const PROTOCOLS: &[&CoreClass] = &[
+        &crate::signed_cookie::CLASS,
+        &crate::csrf::CLASS,
+        &crate::totp::CLASS,
+        &crate::jwt::CLASS,
+        &crate::jwt::KEY_SET,
+        &crate::jwe::CLASS,
+        &crate::jwe::KEY,
+        &crate::signature::CLASS,
+    ];
+
+    /// `rule:security/verification-throws-and-compares-in-constant-time`'s
+    /// second sentence, off the rows: no member of a protocol class hands a
+    /// secret-derived value back for the caller to compare.
+    ///
+    /// Two claims, because a raw-value accessor can be either. **Nothing
+    /// answers secret material at all**, so a key never leaves the protocol it
+    /// was handed to. And **nothing answers text it was not handed a key to
+    /// derive** — which is exactly what an accessor is: a member reading a
+    /// stored value off a carrier takes no key, while `Totp::code` and
+    /// `Csrf::issue` are given the secret they derive from in the same call. A
+    /// member that compares instead answers a `bool` or an `int` and is reached
+    /// by neither claim, which is the rule's own point: where a token is
+    /// compared, the comparison is the exposed operation.
+    ///
+    /// This is what stands in for a test of constant-time behaviour, which is
+    /// not reliably measurable in CI — `docs/decisions/0060.md` § *Verification*
+    /// asks for exactly this in its place.
+    #[test]
+    fn no_protocol_class_exposes_a_raw_value_accessor() {
+        /// The classes a key reaches a member *inside*, since not every key is
+        /// written as a `secret` leaf: an RSA key pair, a JWKS and a JWE key
+        /// are objects holding one, and a row names the object.
+        const CARRIERS: &[&str] = &[
+            crate::crypto::KEY_PAIR_NAME,
+            crate::jwt::KEY_SET_NAME,
+            crate::jwe::KEY_NAME,
+        ];
+
+        /// Whether `ty` carries secret material anywhere inside it.
+        fn secret(ty: &CoreTy) -> bool {
+            match ty {
+                CoreTy::SecretBytes
+                | CoreTy::SecretBlob(_)
+                | CoreTy::SecretStr
+                | CoreTy::SecretText(_)
+                | CoreTy::SecretTaintedStr
+                | CoreTy::SecretTaintedBytes => true,
+                CoreTy::Array(inner)
+                | CoreTy::Nullable(inner)
+                | CoreTy::Variadic(inner)
+                | CoreTy::Iterated(inner) => secret(inner),
+                CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
+                    members.iter().any(secret)
+                }
+                CoreTy::Options(options) => options.iter().any(|option| secret(&option.ty)),
+                CoreTy::Shape(arms) => arms
+                    .iter()
+                    .flat_map(|arm| arm.iter())
+                    .any(|field| secret(&field.ty)),
+                // A variant that carries no nested type carries no secret
+                // either, and `CoreTy` is `non_exhaustive`.
+                _ => false,
+            }
+        }
+
+        /// Whether a parameter of `ty` hands the member key material — a
+        /// `secret`, or one of the objects that holds one.
+        fn keyed(ty: &CoreTy) -> bool {
+            match ty {
+                CoreTy::Instance(name) | CoreTy::InstanceAt(name, _) => CARRIERS.contains(name),
+                CoreTy::Array(inner)
+                | CoreTy::Nullable(inner)
+                | CoreTy::Variadic(inner)
+                | CoreTy::Iterated(inner) => keyed(inner),
+                CoreTy::Union(members) => members.iter().any(keyed),
+                CoreTy::Options(options) => options.iter().any(|option| keyed(&option.ty)),
+                CoreTy::Shape(arms) => arms
+                    .iter()
+                    .flat_map(|arm| arm.iter())
+                    .any(|field| keyed(&field.ty)),
+                other => secret(other),
+            }
+        }
+
+        /// Whether a value of `ty` is text a program could write `==` over —
+        /// the shape a raw value comes back in, `bytes` included.
+        fn comparable(ty: &CoreTy) -> bool {
+            match ty {
+                CoreTy::Str
+                | CoreTy::Bytes
+                | CoreTy::Text(_)
+                | CoreTy::Blob(_)
+                | CoreTy::TaintedStr
+                | CoreTy::TaintedBytes => true,
+                CoreTy::Nullable(inner) => comparable(inner),
+                _ => false,
+            }
+        }
+
+        for held in PROTOCOLS {
+            for method in held.members() {
+                let what = format!("{}::{}", held.name, method.name);
+                assert!(
+                    !secret(&method.return_ty),
+                    "{what} answers secret material, which a protocol hands to no caller"
+                );
+                assert!(
+                    !comparable(&method.return_ty) || method.params.iter().any(keyed),
+                    "{what} answers text without being handed a key to derive it from, \
+                     so it reads a value back for the caller to compare"
+                );
+            }
+        }
+    }
+
     /// A class's state is reachable and its members have something to read.
     /// Slots nothing can read are dead bytes on every instance, and an instance
     /// member on a class with no slots would be a method with no receiver state
